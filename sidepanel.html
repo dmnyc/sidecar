@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidecar - Nostr Feed</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">⚡ Sidecar</h1>
+                <div class="auth-section">
+                    <div id="signed-out" class="auth-state">
+                        <button id="sign-in-btn" class="btn btn-primary">Sign In</button>
+                        <button id="generate-keys-btn" class="btn btn-secondary">New Keys</button>
+                    </div>
+                    <div id="signed-in" class="auth-state hidden">
+                        <div class="user-info">
+                            <div id="user-name" class="user-name"></div>
+                            <div id="user-npub" class="user-npub"></div>
+                        </div>
+                        <button id="sign-out-btn" class="btn btn-small">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Feed Toggle -->
+        <div class="feed-toggle">
+            <button id="global-feed-btn" class="toggle-btn active">Global</button>
+            <button id="home-feed-btn" class="toggle-btn" disabled>Home</button>
+        </div>
+
+        <!-- Compose Section (only when signed in) -->
+        <div id="compose-section" class="compose-section hidden">
+            <textarea id="compose-text" placeholder="What's happening?" maxlength="280"></textarea>
+            <div class="compose-actions">
+                <span id="char-count" class="char-count">280</span>
+                <button id="post-btn" class="btn btn-primary" disabled>Post</button>
+            </div>
+        </div>
+
+        <!-- Feed -->
+        <div class="feed-container">
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <span>Loading feed...</span>
+            </div>
+            <div id="feed" class="feed"></div>
+            <div id="error" class="error hidden">
+                <p>Failed to load feed. Please try again.</p>
+                <button id="retry-btn" class="btn btn-secondary">Retry</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Sign In</h2>
+                <button id="close-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="sign-in-form" class="auth-form">
+                    <div class="nip07-section">
+                        <button id="nip07-btn" class="btn btn-primary btn-full">
+                            🔑 Use Browser Extension (Alby/Nos2x)
+                        </button>
+                        <div class="divider">or</div>
+                    </div>
+                    <div class="manual-key-section">
+                        <label for="private-key-input">Private Key (nsec or hex):</label>
+                        <input type="password" id="private-key-input" placeholder="nsec1... or hex key">
+                        <button id="import-key-btn" class="btn btn-secondary btn-full">Import Key</button>
+                    </div>
+                </div>
+                <div id="generate-keys-form" class="auth-form hidden">
+                    <div class="key-generation">
+                        <p>Generate a new Nostr identity:</p>
+                        <div class="generated-keys">
+                            <div class="key-pair">
+                                <label>Public Key (npub):</label>
+                                <div class="key-display">
+                                    <input type="text" id="generated-npub" readonly>
+                                    <button class="copy-btn" data-copy="npub">📋</button>
+                                </div>
+                            </div>
+                            <div class="key-pair">
+                                <label>Private Key (nsec):</label>
+                                <div class="key-display">
+                                    <input type="password" id="generated-nsec" readonly>
+                                    <button class="copy-btn" data-copy="nsec">📋</button>
+                                    <button class="toggle-visibility" data-target="generated-nsec">👁️</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="warning">
+                            ⚠️ Save your private key securely. You cannot recover it if lost!
+                        </div>
+                        <button id="save-generated-keys-btn" class="btn btn-primary btn-full">Save & Use Keys</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reply-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Reply</h2>
+                <button class="close-btn" data-modal="reply-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="reply-to-note" class="reply-context"></div>
+                <textarea id="reply-text" placeholder="Write your reply..." maxlength="280"></textarea>
+                <div class="compose-actions">
+                    <span id="reply-char-count" class="char-count">280</span>
+                    <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="nostr-tools.js"></script>
+    <script src="sidepanel.js"></script>
+</body>
+</html>

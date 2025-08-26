@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Sidecar Icons</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        .download-section { margin: 20px 0; }
+        button { padding: 10px 20px; margin: 5px; background: #8b5cf6; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #7c3aed; }
+    </style>
+</head>
+<body>
+    <h1>Generate Sidecar Extension Icons</h1>
+    <p>Click the button below to generate and download all required icon files.</p>
+    
+    <div class="download-section">
+        <button onclick="generateAllIcons()">Generate All Icons</button>
+    </div>
+    
+    <div id="canvases">
+        <canvas id="canvas16" width="16" height="16"></canvas>
+        <canvas id="canvas32" width="32" height="32"></canvas>
+        <canvas id="canvas48" width="48" height="48"></canvas>
+        <canvas id="canvas128" width="128" height="128"></canvas>
+    </div>
+    
+    <div id="status"></div>
+    
+    <script>
+        function createIcon(size) {
+            const canvas = document.getElementById(`canvas${size}`);
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Background with rounded corners
+            ctx.fillStyle = '#8b5cf6';
+            ctx.beginPath();
+            ctx.roundRect(0, 0, size, size, size * 0.1);
+            ctx.fill();
+            
+            // Lightning bolt emoji
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${Math.floor(size * 0.6)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('⚡', size/2, size/2);
+            
+            return canvas;
+        }
+        
+        function downloadCanvas(canvas, filename) {
+            return new Promise((resolve) => {
+                canvas.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    resolve();
+                }, 'image/png');
+            });
+        }
+        
+        async function generateAllIcons() {
+            const status = document.getElementById('status');
+            const sizes = [16, 32, 48, 128];
+            
+            status.innerHTML = '<p>Generating icons...</p>';
+            
+            for (const size of sizes) {
+                const canvas = createIcon(size);
+                await downloadCanvas(canvas, `icon${size}.png`);
+                status.innerHTML += `<p>✓ Generated icon${size}.png</p>`;
+                
+                // Small delay to ensure downloads don't overlap
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            status.innerHTML += '<p><strong>All icons generated! Place them in the icons/ folder of your extension.</strong></p>';
+            status.innerHTML += '<p>Files to save in sidecar/icons/:</p>';
+            status.innerHTML += '<ul><li>icon16.png</li><li>icon32.png</li><li>icon48.png</li><li>icon128.png</li></ul>';
+        }
+        
+        // Fallback for browsers that don't support roundRect
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+                this.beginPath();
+                this.moveTo(x + radius, y);
+                this.lineTo(x + width - radius, y);
+                this.quadraticCurveTo(x + width, y, x + width, y + radius);
+                this.lineTo(x + width, y + height - radius);
+                this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                this.lineTo(x + radius, y + height);
+                this.quadraticCurveTo(x, y + height, x, y + height - radius);
+                this.lineTo(x, y + radius);
+                this.quadraticCurveTo(x, y, x + radius, y);
+                this.closePath();
+            };
+        }
+        
+        // Generate preview icons on load
+        window.onload = function() {
+            [16, 32, 48, 128].forEach(size => createIcon(size));
+        };
+    </script>
+</body>
+</html>

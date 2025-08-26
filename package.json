@@ -1,0 +1,38 @@
+{
+  "name": "sidecar-nostr-extension",
+  "version": "1.0.0",
+  "description": "A lightweight Nostr client Chrome extension that lives in your browser sidebar",
+  "main": "sidepanel.js",
+  "scripts": {
+    "build": "echo 'No build process needed for basic extension'",
+    "dev": "echo 'Load extension in Chrome developer mode'",
+    "lint": "echo 'Add linting when needed'",
+    "test": "echo 'Add tests when needed'"
+  },
+  "keywords": [
+    "nostr",
+    "chrome-extension",
+    "sidebar",
+    "decentralized",
+    "social",
+    "bitcoin",
+    "lightning"
+  ],
+  "author": "Sidecar Team",
+  "license": "MIT",
+  "devDependencies": {
+    "nostr-tools": "^2.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/sidecar-nostr-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/sidecar-nostr-extension/issues"
+  },
+  "homepage": "https://github.com/your-username/sidecar-nostr-extension#readme",
+  "manifest": {
+    "version": "1.0.0",
+    "chrome_minimum_version": "114"
+  }
+}

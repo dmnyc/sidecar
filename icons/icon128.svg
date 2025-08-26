@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="12.8" fill="#8b5cf6"/>
+  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="76.8" 
+        fill="white" text-anchor="middle" dominant-baseline="central">⚡</text>
+</svg>
