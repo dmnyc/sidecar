@@ -18,11 +18,23 @@
                         <button id="generate-keys-btn" class="btn btn-secondary">New Keys</button>
                     </div>
                     <div id="signed-in" class="auth-state hidden">
-                        <div class="user-info">
-                            <div id="user-name" class="user-name"></div>
-                            <div id="user-npub" class="user-npub"></div>
+                        <div class="user-profile-container">
+                            <div class="logged-in-user" id="user-profile-btn">
+                                <div class="user-avatar" id="user-avatar">
+                                    <div class="avatar-placeholder" id="user-avatar-placeholder"></div>
+                                </div>
+                                <div class="user-info">
+                                    <div id="user-name" class="user-name"></div>
+                                    <div id="user-npub" class="user-npub"></div>
+                                </div>
+                                <div class="profile-menu-arrow">⌄</div>
+                            </div>
+                            <div class="user-dropdown" id="user-dropdown">
+                                <div class="dropdown-item" id="view-profile-btn">View Profile</div>
+                                <div class="dropdown-item" id="copy-key-btn">Copy My Key</div>
+                                <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
+                            </div>
                         </div>
-                        <button id="sign-out-btn" class="btn btn-small">Sign Out</button>
                     </div>
                 </div>
             </div>
@@ -32,6 +44,7 @@
         <div class="feed-toggle">
             <button id="global-feed-btn" class="toggle-btn active">Global</button>
             <button id="home-feed-btn" class="toggle-btn" disabled>Home</button>
+            <button id="refresh-feed-btn" class="toggle-btn refresh-btn" title="Refresh Feed">↻</button>
         </div>
 
         <!-- Compose Section (only when signed in) -->

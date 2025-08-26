@@ -22,6 +22,9 @@ class SidecarApp {
     this.profileRequests = new Set(); // Track pending profile requests
     this.globalFeedPubkeys = []; // Popular pubkeys for global feed
     this.initialFeedLoaded = false; // Track if initial feed has been loaded
+    this.profileQueue = new Set(); // Queue profile requests for batching
+    this.profileTimeout = null; // Timeout for batch processing
+    this.userDropdownSetup = false; // Track if user dropdown is set up
     
     this.init();
   }
@@ -49,6 +52,7 @@ class SidecarApp {
     // Feed toggle
     document.getElementById('global-feed-btn').addEventListener('click', () => this.switchFeed('global'));
     document.getElementById('home-feed-btn').addEventListener('click', () => this.switchFeed('home'));
+    document.getElementById('refresh-feed-btn').addEventListener('click', () => this.refreshFeed());
     
     // Compose
     document.getElementById('compose-text').addEventListener('input', this.updateCharCount);
@@ -323,9 +327,13 @@ class SidecarApp {
       homeFeedBtn.disabled = false;
       
       // Update user info
-      const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
-      document.getElementById('user-name').textContent = this.getUserDisplayName();
-      document.getElementById('user-npub').textContent = npub.substring(0, 16) + '...';
+      this.updateUserProfile();
+      
+      // Setup user profile dropdown
+      this.setupUserProfileDropdown();
+      
+      // Request user's own profile
+      this.requestProfile(this.currentUser.publicKey);
     } else {
       signedOut.classList.remove('hidden');
       signedIn.classList.add('hidden');
@@ -336,6 +344,87 @@ class SidecarApp {
       if (this.currentFeed === 'home') {
         this.switchFeed('global');
       }
+    }
+  }
+  
+  setupUserProfileDropdown() {
+    if (this.userDropdownSetup) return;
+    this.userDropdownSetup = true;
+    
+    const profileBtn = document.getElementById('user-profile-btn');
+    const dropdown = document.getElementById('user-dropdown');
+    const container = profileBtn.parentElement;
+    
+    // Toggle dropdown
+    profileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      container.classList.toggle('open');
+      dropdown.classList.toggle('show');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', () => {
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+    
+    // Handle dropdown actions
+    document.getElementById('view-profile-btn').addEventListener('click', () => {
+      if (this.currentUser) {
+        const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+        const profileUrl = `https://jumble.social/users/${npub}`;
+        window.open(profileUrl, '_blank');
+      }
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+    
+    document.getElementById('copy-key-btn').addEventListener('click', () => {
+      if (this.currentUser) {
+        const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+        this.copyToClipboard(npub, 'Your public key copied to clipboard');
+      }
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+    
+    document.getElementById('sign-out-btn').addEventListener('click', () => {
+      this.signOut();
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+  }
+  
+  updateUserProfile() {
+    if (!this.currentUser) return;
+    
+    const profile = this.profiles.get(this.currentUser.publicKey);
+    const userNameEl = document.getElementById('user-name');
+    const userNpubEl = document.getElementById('user-npub');
+    const userAvatarEl = document.getElementById('user-avatar');
+    const avatarPlaceholder = document.getElementById('user-avatar-placeholder');
+    
+    // Update name and npub
+    const displayName = profile?.display_name || profile?.name || this.getUserDisplayName();
+    const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+    const nip05 = profile?.nip05;
+    
+    userNameEl.textContent = displayName;
+    userNpubEl.textContent = nip05 || (npub.substring(0, 16) + '...');
+    if (nip05) {
+      userNpubEl.setAttribute('data-nip05', 'true');
+    } else {
+      userNpubEl.removeAttribute('data-nip05');
+    }
+    
+    // Update avatar
+    if (profile?.picture) {
+      userAvatarEl.innerHTML = `
+        <img src="${profile.picture}" alt="${displayName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(displayName)}</div>
+      `;
+    } else {
+      avatarPlaceholder.textContent = this.getAvatarPlaceholder(displayName);
     }
   }
   
@@ -364,6 +453,30 @@ class SidecarApp {
     // Mark as loaded since we're manually switching feeds
     this.initialFeedLoaded = true;
     this.loadFeed();
+  }
+  
+  refreshFeed() {
+    // Add visual feedback for refresh
+    const refreshBtn = document.getElementById('refresh-feed-btn');
+    refreshBtn.style.transform = 'rotate(180deg)';
+    refreshBtn.disabled = true;
+    
+    // Clear current feed and reload
+    document.getElementById('feed').innerHTML = '';
+    this.notes.clear();
+    this.threads.clear();
+    this.noteParents.clear();
+    this.orphanedReplies.clear();
+    this.userReactions.clear();
+    // Keep profiles cache - no need to refetch profile data
+    
+    this.loadFeed();
+    
+    // Reset refresh button after 1 second
+    setTimeout(() => {
+      refreshBtn.style.transform = 'rotate(0deg)';
+      refreshBtn.disabled = false;
+    }, 1000);
   }
   
   connectToRelays() {
@@ -463,27 +576,53 @@ class SidecarApp {
       return;
     }
     
-    // Mark as pending
-    this.profileRequests.add(pubkey);
+    // Add to queue for batch processing
+    this.profileQueue.add(pubkey);
     
-    // Create profile request subscription
-    const subId = 'profile-' + pubkey;
+    // Clear existing timeout and set new one
+    if (this.profileTimeout) {
+      clearTimeout(this.profileTimeout);
+    }
+    
+    this.profileTimeout = setTimeout(() => {
+      this.processBatchedProfileRequests();
+    }, 100); // Batch requests over 100ms window
+  }
+  
+  processBatchedProfileRequests() {
+    if (this.profileQueue.size === 0) return;
+    
+    console.log(`Processing ${this.profileQueue.size} batched profile requests`);
+    
+    // Convert queue to array and clear it
+    const pubkeys = Array.from(this.profileQueue);
+    this.profileQueue.clear();
+    
+    // Mark all as pending
+    pubkeys.forEach(pubkey => this.profileRequests.add(pubkey));
+    
+    // Create batch subscription for all pubkeys
+    const subId = 'profiles-' + Date.now();
     const subscription = ['REQ', subId, {
       kinds: [0],
-      authors: [pubkey],
-      limit: 1
+      authors: pubkeys,
+      limit: pubkeys.length
     }];
     
     // Send to all connected relays
+    let sentCount = 0;
     this.relayConnections.forEach(ws => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(subscription));
+        sentCount++;
       }
     });
     
+    console.log(`Batch profile request sent to ${sentCount} relays for ${pubkeys.length} authors`);
+    
     // Remove from pending after timeout
     setTimeout(() => {
-      this.profileRequests.delete(pubkey);
+      pubkeys.forEach(pubkey => this.profileRequests.delete(pubkey));
     }, 5000);
   }
   
@@ -522,6 +661,11 @@ class SidecarApp {
         }
       }
     });
+    
+    // Also update user's own profile in header if this is the logged-in user
+    if (this.currentUser && pubkey === this.currentUser.publicKey) {
+      this.updateUserProfile();
+    }
   }
   
   buildThreadRelationships(event) {

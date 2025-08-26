@@ -54,9 +54,64 @@ body {
     gap: 8px;
 }
 
+.user-profile-container {
+    position: relative;
+}
+
+.logged-in-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.logged-in-user:hover {
+    background: #f3f4f6;
+}
+
+.profile-menu-arrow {
+    font-size: 12px;
+    color: #666;
+    margin-left: 4px;
+    transition: transform 0.2s;
+}
+
+.user-profile-container.open .profile-menu-arrow {
+    transform: rotate(180deg);
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.user-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.user-avatar .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #8b5cf6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 12px;
+}
+
 .user-info {
-    text-align: right;
-    margin-right: 8px;
+    text-align: left;
+    flex: 1;
 }
 
 .user-name {
@@ -68,6 +123,56 @@ body {
     font-size: 10px;
     color: #666;
     font-family: monospace;
+}
+
+.user-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    z-index: 1000;
+    display: none;
+    margin-top: 4px;
+}
+
+.user-dropdown.show {
+    display: block;
+}
+
+.dropdown-item {
+    padding: 12px 16px;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s;
+}
+
+.dropdown-item:last-child {
+    border-bottom: none;
+    color: #ef4444;
+}
+
+.dropdown-item:hover {
+    background: #f8f9fa;
+}
+
+.dropdown-item:first-child {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.dropdown-item:last-child {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.dropdown-item:last-child:hover {
+    background: #fef2f2;
 }
 
 /* Buttons */
@@ -151,6 +256,13 @@ body {
 .toggle-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.refresh-btn {
+    margin-left: auto;
+    min-width: 40px;
+    font-size: 16px;
+    transition: transform 0.3s ease;
 }
 
 /* Compose Section */
