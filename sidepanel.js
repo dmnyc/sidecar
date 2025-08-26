@@ -14,6 +14,9 @@ class SidecarApp {
     this.relayConnections = new Map();
     this.subscriptions = new Map();
     this.notes = new Map();
+    this.threads = new Map(); // Map of parent note ID -> array of reply IDs
+    this.noteParents = new Map(); // Map of note ID -> parent note ID
+    this.orphanedReplies = new Map(); // Map of parent ID -> array of orphaned reply events
     this.globalFeedPubkeys = []; // Popular pubkeys for global feed
     
     this.init();
@@ -337,6 +340,9 @@ class SidecarApp {
     // Clear current feed and load new one
     document.getElementById('feed').innerHTML = '';
     this.notes.clear();
+    this.threads.clear();
+    this.noteParents.clear();
+    this.orphanedReplies.clear();
     this.loadFeed();
   }
   
@@ -389,7 +395,39 @@ class SidecarApp {
     if (this.notes.has(event.id)) return;
     
     this.notes.set(event.id, event);
+    
+    // Build thread relationships
+    this.buildThreadRelationships(event);
+    
+    // Display note (will handle threading)
     this.displayNote(event);
+  }
+  
+  buildThreadRelationships(event) {
+    // Check if this is a reply by looking for 'e' tags
+    const eTags = event.tags.filter(tag => tag[0] === 'e');
+    
+    if (eTags.length > 0) {
+      let parentId;
+      
+      // NIP-10: Look for reply marker first
+      const replyTag = eTags.find(tag => tag[3] === 'reply');
+      if (replyTag) {
+        parentId = replyTag[1];
+      } else {
+        // Fallback: Use the last 'e' tag as parent (legacy behavior)
+        parentId = eTags[eTags.length - 1][1];
+      }
+      
+      // Store parent relationship
+      this.noteParents.set(event.id, parentId);
+      
+      // Add to parent's replies list
+      if (!this.threads.has(parentId)) {
+        this.threads.set(parentId, []);
+      }
+      this.threads.get(parentId).push(event.id);
+    }
   }
   
   loadFeed() {
@@ -440,6 +478,18 @@ class SidecarApp {
   }
   
   displayNote(event) {
+    const parentId = this.noteParents.get(event.id);
+    
+    if (parentId) {
+      // This is a reply - display it under the parent
+      this.displayReply(event, parentId);
+    } else {
+      // This is a top-level note - display it in the main feed
+      this.displayTopLevelNote(event);
+    }
+  }
+  
+  displayTopLevelNote(event) {
     const feed = document.getElementById('feed');
     const noteElement = this.createNoteElement(event);
     
@@ -459,6 +509,122 @@ class SidecarApp {
     if (!inserted) {
       feed.appendChild(noteElement);
     }
+    
+    // Check if there are any orphaned replies waiting for this parent
+    this.displayOrphanedReplies(event.id);
+  }
+  
+  displayReply(event, parentId) {
+    // Find the parent note element in the DOM
+    const parentElement = document.querySelector(`[data-event-id="${parentId}"]`);
+    
+    if (!parentElement) {
+      // Parent not found in DOM yet, store as orphaned reply
+      console.log(`Parent ${parentId} not found for reply ${event.id}, storing as orphaned`);
+      if (!this.orphanedReplies.has(parentId)) {
+        this.orphanedReplies.set(parentId, []);
+      }
+      this.orphanedReplies.get(parentId).push(event);
+      return;
+    }
+    
+    const replyElement = this.createReplyElement(event);
+    
+    // Find or create replies container for parent
+    let repliesContainer = parentElement.querySelector('.replies-container');
+    if (!repliesContainer) {
+      repliesContainer = document.createElement('div');
+      repliesContainer.className = 'replies-container';
+      parentElement.appendChild(repliesContainer);
+    }
+    
+    // Insert reply in chronological order within replies
+    const existingReplies = Array.from(repliesContainer.children);
+    let inserted = false;
+    
+    for (const existingReply of existingReplies) {
+      const existingTimestamp = parseInt(existingReply.dataset.timestamp);
+      if (event.created_at < existingTimestamp) {
+        repliesContainer.insertBefore(replyElement, existingReply);
+        inserted = true;
+        break;
+      }
+    }
+    
+    if (!inserted) {
+      repliesContainer.appendChild(replyElement);
+    }
+  }
+  
+  displayOrphanedReplies(parentId) {
+    const orphans = this.orphanedReplies.get(parentId);
+    if (!orphans || orphans.length === 0) return;
+    
+    console.log(`Displaying ${orphans.length} orphaned replies for parent ${parentId}`);
+    
+    // Display each orphaned reply
+    orphans.forEach(replyEvent => {
+      this.displayReply(replyEvent, parentId);
+    });
+    
+    // Clear orphaned replies for this parent
+    this.orphanedReplies.delete(parentId);
+  }
+  
+  buildReplyTags(replyToEvent) {
+    const tags = [];
+    
+    // Find the root of this thread by examining the event's tags
+    const rootId = this.findThreadRoot(replyToEvent);
+    
+    // NIP-10: Add root tag if this is part of a thread
+    if (rootId && rootId !== replyToEvent.id) {
+      // This is a reply to a reply - add both root and reply markers
+      tags.push(['e', rootId, '', 'root']);
+      tags.push(['e', replyToEvent.id, '', 'reply']);
+    } else {
+      // This is a direct reply to the original post
+      tags.push(['e', replyToEvent.id, '', 'root']);
+    }
+    
+    // NIP-10: Add p tags for all participants
+    const participants = this.gatherThreadParticipants(replyToEvent);
+    participants.forEach(pubkey => {
+      tags.push(['p', pubkey]);
+    });
+    
+    return tags;
+  }
+  
+  findThreadRoot(event) {
+    // Look for existing root marker in the event's tags
+    const rootTag = event.tags.find(tag => tag[0] === 'e' && tag[3] === 'root');
+    if (rootTag) {
+      return rootTag[1]; // Return the root event ID
+    }
+    
+    // If no root marker, check for any e tag (might be legacy format)
+    const eTag = event.tags.find(tag => tag[0] === 'e');
+    if (eTag) {
+      return eTag[1]; // This event's parent becomes our root
+    }
+    
+    // If no e tags, this event itself is the root
+    return event.id;
+  }
+  
+  gatherThreadParticipants(replyToEvent) {
+    const participants = new Set();
+    
+    // Add the author of the event we're replying to
+    participants.add(replyToEvent.pubkey);
+    
+    // Add any existing p tag participants from the parent event
+    replyToEvent.tags
+      .filter(tag => tag[0] === 'p')
+      .forEach(tag => participants.add(tag[1]));
+    
+    return Array.from(participants);
   }
   
   createNoteElement(event) {
@@ -493,6 +659,40 @@ class SidecarApp {
     noteDiv.querySelector('.like-action').addEventListener('click', () => this.likeNote(event));
     
     return noteDiv;
+  }
+  
+  createReplyElement(event) {
+    const replyDiv = document.createElement('div');
+    replyDiv.className = 'reply';
+    replyDiv.dataset.eventId = event.id;
+    replyDiv.dataset.timestamp = event.created_at;
+    
+    const authorName = this.getAuthorName(event.pubkey);
+    const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
+    const timeAgo = this.formatTimeAgo(event.created_at);
+    
+    replyDiv.innerHTML = `
+      <div class="reply-header">
+        <span class="reply-author">${authorName}</span>
+        <span class="reply-npub">${npub.substring(0, 12)}...</span>
+        <span class="reply-time">${timeAgo}</span>
+      </div>
+      <div class="reply-content">${this.formatNoteContent(event.content)}</div>
+      <div class="reply-actions">
+        <div class="reply-action reply-to-reply-action" data-event-id="${event.id}">
+          💬 Reply
+        </div>
+        <div class="reply-action like-reply-action" data-event-id="${event.id}">
+          ❤️ Like
+        </div>
+      </div>
+    `;
+    
+    // Add event listeners
+    replyDiv.querySelector('.reply-to-reply-action').addEventListener('click', () => this.showReplyModal(event));
+    replyDiv.querySelector('.like-reply-action').addEventListener('click', () => this.likeNote(event));
+    
+    return replyDiv;
   }
   
   getAuthorName(pubkey) {
@@ -619,18 +819,22 @@ class SidecarApp {
     if (!content) return;
     
     try {
+      // Build NIP-10 compliant tags
+      const tags = this.buildReplyTags(this.replyToEvent);
+      console.log('Built reply tags:', tags);
+      
       const event = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['e', this.replyToEvent.id],
-          ['p', this.replyToEvent.pubkey]
-        ],
+        tags: tags,
         content: content,
         pubkey: this.currentUser.publicKey
       };
       
+      console.log('Event before signing:', event);
+      
       const signedEvent = await this.signEvent(event);
+      console.log('Signed event:', signedEvent);
       await this.publishEvent(signedEvent);
       
       this.hideModal('reply-modal');

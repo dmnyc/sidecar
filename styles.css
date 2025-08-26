@@ -309,6 +309,93 @@ body {
     color: #ef4444;
 }
 
+/* Reply Threading */
+.replies-container {
+    margin-top: 8px;
+    border-left: 2px solid #e1e8ed;
+    margin-left: 20px;
+}
+
+.reply {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e1e8ed;
+    padding: 12px 16px;
+    position: relative;
+}
+
+.reply:hover {
+    background: #f1f3f4;
+}
+
+.reply::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #8b5cf6;
+}
+
+.reply-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.reply-author {
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+}
+
+.reply-npub {
+    font-size: 11px;
+    color: #666;
+    font-family: monospace;
+}
+
+.reply-time {
+    font-size: 11px;
+    color: #666;
+    margin-left: auto;
+}
+
+.reply-content {
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.reply-actions {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: #666;
+}
+
+.reply-action {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.reply-action:hover {
+    background: #e5e7eb;
+    color: #333;
+}
+
+.reply-action.liked {
+    color: #ef4444;
+}
+
 /* Modals */
 .modal {
     position: fixed;
