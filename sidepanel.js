@@ -17,7 +17,14 @@ class SidecarApp {
     this.threads = new Map(); // Map of parent note ID -> array of reply IDs
     this.noteParents = new Map(); // Map of note ID -> parent note ID
     this.orphanedReplies = new Map(); // Map of parent ID -> array of orphaned reply events
+    this.userReactions = new Set(); // Track events user has already reacted to
+    this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
+    this.profileRequests = new Set(); // Track pending profile requests
     this.globalFeedPubkeys = []; // Popular pubkeys for global feed
+    this.initialFeedLoaded = false; // Track if initial feed has been loaded
+    this.profileQueue = new Set(); // Queue profile requests for batching
+    this.profileTimeout = null; // Timeout for batch processing
+    this.userDropdownSetup = false; // Track if user dropdown is set up
     
     this.init();
   }
@@ -27,7 +34,7 @@ class SidecarApp {
     await this.checkAuthState();
     await this.loadGlobalFeedPubkeys();
     this.connectToRelays();
-    this.loadFeed();
+    // loadFeed() will be called automatically when first relay connects
   }
   
   setupEventListeners() {
@@ -45,6 +52,7 @@ class SidecarApp {
     // Feed toggle
     document.getElementById('global-feed-btn').addEventListener('click', () => this.switchFeed('global'));
     document.getElementById('home-feed-btn').addEventListener('click', () => this.switchFeed('home'));
+    document.getElementById('refresh-feed-btn').addEventListener('click', () => this.refreshFeed());
     
     // Compose
     document.getElementById('compose-text').addEventListener('input', this.updateCharCount);
@@ -53,6 +61,12 @@ class SidecarApp {
     // Reply modal
     document.getElementById('send-reply-btn').addEventListener('click', () => this.sendReply());
     document.getElementById('reply-text').addEventListener('input', this.updateReplyCharCount);
+    
+    // Emoji picker
+    document.getElementById('custom-emoji-btn').addEventListener('click', () => this.useCustomEmoji());
+    document.getElementById('custom-emoji-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.useCustomEmoji();
+    });
     
     // Copy buttons
     document.addEventListener('click', (e) => {
@@ -65,6 +79,10 @@ class SidecarApp {
       if (e.target.classList.contains('close-btn')) {
         const modal = e.target.closest('.modal');
         if (modal) this.hideModal(modal.id);
+      }
+      if (e.target.classList.contains('emoji-btn')) {
+        const emoji = e.target.dataset.emoji;
+        this.selectEmoji(emoji);
       }
     });
     
@@ -288,6 +306,7 @@ class SidecarApp {
     try {
       await this.sendMessage({ type: 'CLEAR_KEYS' });
       this.currentUser = null;
+      this.userReactions.clear(); // Clear reaction tracking
       this.updateAuthUI();
       this.loadFeed();
     } catch (error) {
@@ -308,9 +327,13 @@ class SidecarApp {
       homeFeedBtn.disabled = false;
       
       // Update user info
-      const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
-      document.getElementById('user-name').textContent = this.getUserDisplayName();
-      document.getElementById('user-npub').textContent = npub.substring(0, 16) + '...';
+      this.updateUserProfile();
+      
+      // Setup user profile dropdown
+      this.setupUserProfileDropdown();
+      
+      // Request user's own profile
+      this.requestProfile(this.currentUser.publicKey);
     } else {
       signedOut.classList.remove('hidden');
       signedIn.classList.add('hidden');
@@ -321,6 +344,87 @@ class SidecarApp {
       if (this.currentFeed === 'home') {
         this.switchFeed('global');
       }
+    }
+  }
+  
+  setupUserProfileDropdown() {
+    if (this.userDropdownSetup) return;
+    this.userDropdownSetup = true;
+    
+    const profileBtn = document.getElementById('user-profile-btn');
+    const dropdown = document.getElementById('user-dropdown');
+    const container = profileBtn.parentElement;
+    
+    // Toggle dropdown
+    profileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      container.classList.toggle('open');
+      dropdown.classList.toggle('show');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', () => {
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+    
+    // Handle dropdown actions
+    document.getElementById('view-profile-btn').addEventListener('click', () => {
+      if (this.currentUser) {
+        const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+        const profileUrl = `https://jumble.social/users/${npub}`;
+        window.open(profileUrl, '_blank');
+      }
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+    
+    document.getElementById('copy-key-btn').addEventListener('click', () => {
+      if (this.currentUser) {
+        const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+        this.copyToClipboard(npub, 'Your public key copied to clipboard');
+      }
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+    
+    document.getElementById('sign-out-btn').addEventListener('click', () => {
+      this.signOut();
+      container.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+  }
+  
+  updateUserProfile() {
+    if (!this.currentUser) return;
+    
+    const profile = this.profiles.get(this.currentUser.publicKey);
+    const userNameEl = document.getElementById('user-name');
+    const userNpubEl = document.getElementById('user-npub');
+    const userAvatarEl = document.getElementById('user-avatar');
+    const avatarPlaceholder = document.getElementById('user-avatar-placeholder');
+    
+    // Update name and npub
+    const displayName = profile?.display_name || profile?.name || this.getUserDisplayName();
+    const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+    const nip05 = profile?.nip05;
+    
+    userNameEl.textContent = displayName;
+    userNpubEl.textContent = nip05 || (npub.substring(0, 16) + '...');
+    if (nip05) {
+      userNpubEl.setAttribute('data-nip05', 'true');
+    } else {
+      userNpubEl.removeAttribute('data-nip05');
+    }
+    
+    // Update avatar
+    if (profile?.picture) {
+      userAvatarEl.innerHTML = `
+        <img src="${profile.picture}" alt="${displayName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(displayName)}</div>
+      `;
+    } else {
+      avatarPlaceholder.textContent = this.getAvatarPlaceholder(displayName);
     }
   }
   
@@ -343,7 +447,36 @@ class SidecarApp {
     this.threads.clear();
     this.noteParents.clear();
     this.orphanedReplies.clear();
+    this.userReactions.clear();
+    // Keep profiles cache - no need to refetch profile data
+    
+    // Mark as loaded since we're manually switching feeds
+    this.initialFeedLoaded = true;
     this.loadFeed();
+  }
+  
+  refreshFeed() {
+    // Add visual feedback for refresh
+    const refreshBtn = document.getElementById('refresh-feed-btn');
+    refreshBtn.style.transform = 'rotate(180deg)';
+    refreshBtn.disabled = true;
+    
+    // Clear current feed and reload
+    document.getElementById('feed').innerHTML = '';
+    this.notes.clear();
+    this.threads.clear();
+    this.noteParents.clear();
+    this.orphanedReplies.clear();
+    this.userReactions.clear();
+    // Keep profiles cache - no need to refetch profile data
+    
+    this.loadFeed();
+    
+    // Reset refresh button after 1 second
+    setTimeout(() => {
+      refreshBtn.style.transform = 'rotate(0deg)';
+      refreshBtn.disabled = false;
+    }, 1000);
   }
   
   connectToRelays() {
@@ -354,6 +487,12 @@ class SidecarApp {
         ws.onopen = () => {
           console.log(`Connected to ${relay}`);
           this.relayConnections.set(relay, ws);
+          
+          // Load feed when first relay connects
+          if (!this.initialFeedLoaded) {
+            this.initialFeedLoaded = true;
+            this.loadFeed();
+          }
         };
         
         ws.onmessage = (event) => {
@@ -384,23 +523,149 @@ class SidecarApp {
     } else if (type === 'EOSE') {
       // End of stored events
       this.hideLoading();
+    } else if (type === 'CLOSED') {
+      // Subscription closed - remove from pending if it was a profile request
+      if (subId.startsWith('profile-')) {
+        const pubkey = subId.replace('profile-', '');
+        this.profileRequests.delete(pubkey);
+      }
     }
   }
   
   handleNote(event) {
-    // Only handle text notes (kind 1)
-    if (event.kind !== 1) return;
+    // Handle different event kinds
+    if (event.kind === 1) {
+      // Text notes
+      // Avoid duplicates
+      if (this.notes.has(event.id)) return;
+      
+      this.notes.set(event.id, event);
+      
+      // Build thread relationships
+      this.buildThreadRelationships(event);
+      
+      // Request profile for this author if we don't have it
+      this.requestProfile(event.pubkey);
+      
+      // Display note (will handle threading)
+      this.displayNote(event);
+    } else if (event.kind === 0) {
+      // Profile metadata
+      this.handleProfile(event);
+    }
+  }
+  
+  handleProfile(event) {
+    try {
+      const profile = JSON.parse(event.content);
+      this.profiles.set(event.pubkey, {
+        ...profile,
+        updatedAt: event.created_at
+      });
+      
+      // Update any displayed notes from this author
+      this.updateAuthorDisplay(event.pubkey);
+    } catch (error) {
+      console.error('Error parsing profile:', error);
+    }
+  }
+  
+  requestProfile(pubkey) {
+    // Don't request if we already have it or if request is pending
+    if (this.profiles.has(pubkey) || this.profileRequests.has(pubkey)) {
+      return;
+    }
     
-    // Avoid duplicates
-    if (this.notes.has(event.id)) return;
+    // Add to queue for batch processing
+    this.profileQueue.add(pubkey);
     
-    this.notes.set(event.id, event);
+    // Clear existing timeout and set new one
+    if (this.profileTimeout) {
+      clearTimeout(this.profileTimeout);
+    }
     
-    // Build thread relationships
-    this.buildThreadRelationships(event);
+    this.profileTimeout = setTimeout(() => {
+      this.processBatchedProfileRequests();
+    }, 100); // Batch requests over 100ms window
+  }
+  
+  processBatchedProfileRequests() {
+    if (this.profileQueue.size === 0) return;
     
-    // Display note (will handle threading)
-    this.displayNote(event);
+    console.log(`Processing ${this.profileQueue.size} batched profile requests`);
+    
+    // Convert queue to array and clear it
+    const pubkeys = Array.from(this.profileQueue);
+    this.profileQueue.clear();
+    
+    // Mark all as pending
+    pubkeys.forEach(pubkey => this.profileRequests.add(pubkey));
+    
+    // Create batch subscription for all pubkeys
+    const subId = 'profiles-' + Date.now();
+    const subscription = ['REQ', subId, {
+      kinds: [0],
+      authors: pubkeys,
+      limit: pubkeys.length
+    }];
+    
+    // Send to all connected relays
+    let sentCount = 0;
+    this.relayConnections.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+        sentCount++;
+      }
+    });
+    
+    console.log(`Batch profile request sent to ${sentCount} relays for ${pubkeys.length} authors`);
+    
+    // Remove from pending after timeout
+    setTimeout(() => {
+      pubkeys.forEach(pubkey => this.profileRequests.delete(pubkey));
+    }, 5000);
+  }
+  
+  updateAuthorDisplay(pubkey) {
+    // Find all notes from this author and update their display
+    const elements = document.querySelectorAll(`[data-author="${pubkey}"]`);
+    elements.forEach(element => {
+      const profile = this.profiles.get(pubkey);
+      if (profile) {
+        const nameElement = element.querySelector('.note-author, .reply-author');
+        const idElement = element.querySelector('.note-npub, .reply-npub');
+        const avatarContainer = element.querySelector('.note-avatar, .reply-avatar');
+        
+        if (nameElement) {
+          nameElement.textContent = profile.display_name || profile.name || this.getAuthorName(pubkey);
+        }
+        
+        if (idElement) {
+          if (profile.nip05) {
+            idElement.textContent = profile.nip05;
+            idElement.setAttribute('data-nip05', 'true');
+          } else {
+            // Keep the truncated npub if no NIP-05
+            idElement.textContent = window.NostrTools.nip19.npubEncode(pubkey).substring(0, 16) + '...';
+            idElement.removeAttribute('data-nip05');
+          }
+        }
+        
+        if (avatarContainer && profile.picture) {
+          // Update avatar if profile picture is available
+          const authorName = profile.display_name || profile.name || this.getAuthorName(pubkey);
+          avatarContainer.innerHTML = `
+            <img src="${profile.picture}" alt="${authorName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>
+          `;
+        }
+      }
+    });
+    
+    // Also update user's own profile in header if this is the logged-in user
+    if (this.currentUser && pubkey === this.currentUser.publicKey) {
+      this.updateUserProfile();
+    }
   }
   
   buildThreadRelationships(event) {
@@ -632,31 +897,59 @@ class SidecarApp {
     noteDiv.className = 'note';
     noteDiv.dataset.eventId = event.id;
     noteDiv.dataset.timestamp = event.created_at;
+    noteDiv.dataset.author = event.pubkey; // For profile updates
     
-    const authorName = this.getAuthorName(event.pubkey);
-    const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
+    const profile = this.profiles.get(event.pubkey);
+    const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
+    const authorId = profile?.nip05 || window.NostrTools.nip19.npubEncode(event.pubkey).substring(0, 16) + '...';
+    const avatarUrl = profile?.picture;
     const timeAgo = this.formatTimeAgo(event.created_at);
+    const formattedContent = this.formatNoteContent(event.content);
     
     noteDiv.innerHTML = `
       <div class="note-header">
-        <span class="note-author">${authorName}</span>
-        <span class="note-npub">${npub.substring(0, 16)}...</span>
-        <span class="note-time">${timeAgo}</span>
+        <div class="note-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
+          ${avatarUrl ? 
+            `<img src="${avatarUrl}" alt="${authorName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+             <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
+            `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
+          }
+        </div>
+        <div class="note-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
+          <span class="note-author">${authorName}</span>
+          <span class="note-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
+        </div>
+        <span class="note-time" data-note-link="${event.id}">${timeAgo}</span>
+        <div class="note-menu">
+          <button class="menu-btn" data-event-id="${event.id}">⋯</button>
+          <div class="menu-dropdown" data-event-id="${event.id}">
+            <div class="menu-item" data-action="open-note">Open Note</div>
+            <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
+            <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
+            <div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div>
+            <div class="menu-item" data-action="copy-pubkey">Copy Author's Key</div>
+          </div>
+        </div>
       </div>
-      <div class="note-content">${this.formatNoteContent(event.content)}</div>
+      <div class="note-content">
+        ${formattedContent.text}
+        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+      </div>
       <div class="note-actions">
         <div class="note-action reply-action" data-event-id="${event.id}">
-          💬 Reply
+          💬
         </div>
-        <div class="note-action like-action" data-event-id="${event.id}">
-          ❤️ Like
+        <div class="note-action reaction-action" data-event-id="${event.id}">
+          🤙
         </div>
       </div>
     `;
     
     // Add event listeners
     noteDiv.querySelector('.reply-action').addEventListener('click', () => this.showReplyModal(event));
-    noteDiv.querySelector('.like-action').addEventListener('click', () => this.likeNote(event));
+    this.setupReactionButton(noteDiv.querySelector('.reaction-action'), event);
+    this.setupNoteMenu(noteDiv.querySelector('.note-menu'), event);
+    this.setupClickableLinks(noteDiv, event);
     
     return noteDiv;
   }
@@ -666,31 +959,59 @@ class SidecarApp {
     replyDiv.className = 'reply';
     replyDiv.dataset.eventId = event.id;
     replyDiv.dataset.timestamp = event.created_at;
+    replyDiv.dataset.author = event.pubkey; // For profile updates
     
-    const authorName = this.getAuthorName(event.pubkey);
-    const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
+    const profile = this.profiles.get(event.pubkey);
+    const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
+    const authorId = profile?.nip05 || window.NostrTools.nip19.npubEncode(event.pubkey).substring(0, 12) + '...';
+    const avatarUrl = profile?.picture;
     const timeAgo = this.formatTimeAgo(event.created_at);
+    const formattedContent = this.formatNoteContent(event.content);
     
     replyDiv.innerHTML = `
       <div class="reply-header">
-        <span class="reply-author">${authorName}</span>
-        <span class="reply-npub">${npub.substring(0, 12)}...</span>
-        <span class="reply-time">${timeAgo}</span>
+        <div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
+          ${avatarUrl ? 
+            `<img src="${avatarUrl}" alt="${authorName}" class="avatar-img small" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+             <div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
+            `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`
+          }
+        </div>
+        <div class="reply-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
+          <span class="reply-author">${authorName}</span>
+          <span class="reply-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
+        </div>
+        <span class="reply-time" data-note-link="${event.id}">${timeAgo}</span>
+        <div class="reply-menu">
+          <button class="menu-btn" data-event-id="${event.id}">⋯</button>
+          <div class="menu-dropdown" data-event-id="${event.id}">
+            <div class="menu-item" data-action="open-note">Open Note</div>
+            <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
+            <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
+            <div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div>
+            <div class="menu-item" data-action="copy-pubkey">Copy Author's Key</div>
+          </div>
+        </div>
       </div>
-      <div class="reply-content">${this.formatNoteContent(event.content)}</div>
+      <div class="reply-content">
+        ${formattedContent.text}
+        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+      </div>
       <div class="reply-actions">
         <div class="reply-action reply-to-reply-action" data-event-id="${event.id}">
-          💬 Reply
+          💬
         </div>
-        <div class="reply-action like-reply-action" data-event-id="${event.id}">
-          ❤️ Like
+        <div class="reply-action reaction-reply-action" data-event-id="${event.id}">
+          🤙
         </div>
       </div>
     `;
     
     // Add event listeners
     replyDiv.querySelector('.reply-to-reply-action').addEventListener('click', () => this.showReplyModal(event));
-    replyDiv.querySelector('.like-reply-action').addEventListener('click', () => this.likeNote(event));
+    this.setupReactionButton(replyDiv.querySelector('.reaction-reply-action'), event);
+    this.setupNoteMenu(replyDiv.querySelector('.reply-menu'), event);
+    this.setupClickableLinks(replyDiv, event);
     
     return replyDiv;
   }
@@ -699,6 +1020,12 @@ class SidecarApp {
     // This would normally fetch from user profiles
     // For now, return truncated pubkey
     return pubkey.substring(0, 8) + '...';
+  }
+  
+  getAvatarPlaceholder(name) {
+    // Generate a simple initial from the name
+    const initial = (name?.charAt(0) || '?').toUpperCase();
+    return initial;
   }
   
   formatTimeAgo(timestamp) {
@@ -712,10 +1039,58 @@ class SidecarApp {
   }
   
   formatNoteContent(content) {
-    // Basic content formatting
-    return content
+    // Extract image URLs (common image extensions)
+    const imageRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?[^\s]*)?)/gi;
+    const images = content.match(imageRegex) || [];
+    
+    // Remove image URLs from text content and format remaining text
+    let textContent = content;
+    images.forEach(img => {
+      textContent = textContent.replace(img, '');
+    });
+    
+    // Clean up extra whitespace and format text
+    textContent = textContent
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/\n\s*\n/g, '\n') // Remove empty lines
+      .trim()
       .replace(/\n/g, '<br>')
       .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+    
+    return { text: textContent, images };
+  }
+  
+  createImageGallery(images, eventId) {
+    if (images.length === 0) return '';
+    
+    const galleryClass = images.length === 1 ? 'single-image' : 'multi-image';
+    const maxDisplay = Math.min(images.length, 4); // Show max 4 images
+    
+    let galleryHTML = `<div class="image-gallery ${galleryClass}" data-event-id="${eventId}">`;
+    
+    for (let i = 0; i < maxDisplay; i++) {
+      const imageUrl = images[i];
+      
+      if (i === 3 && images.length > 4) {
+        // Show "+X more" overlay on 4th image if there are more
+        const remaining = images.length - 3;
+        galleryHTML += `
+          <div class="image-container more-images" data-image-url="${imageUrl}">
+            <img src="${imageUrl}" alt="Note image ${i + 1}" loading="lazy">
+            <div class="image-overlay">+${remaining} more</div>
+          </div>
+        `;
+      } else {
+        galleryHTML += `
+          <div class="image-container" data-image-url="${imageUrl}">
+            <img src="${imageUrl}" alt="Note image ${i + 1}" loading="lazy">
+          </div>
+        `;
+      }
+    }
+    
+    galleryHTML += '</div>';
+    return galleryHTML;
   }
   
   showLoading() {
@@ -737,12 +1112,19 @@ class SidecarApp {
     const counter = document.getElementById('char-count');
     const postBtn = document.getElementById('post-btn');
     
-    const remaining = 280 - textarea.value.length;
-    counter.textContent = remaining;
+    const remaining = 2100 - textarea.value.length;
     
-    counter.className = 'char-count';
-    if (remaining < 20) counter.classList.add('warning');
-    if (remaining < 0) counter.classList.add('error');
+    // Only show counter when approaching limit (under 200 characters remaining)
+    if (remaining < 200) {
+      counter.textContent = remaining;
+      counter.style.display = 'block';
+      
+      counter.className = 'char-count';
+      if (remaining < 50) counter.classList.add('warning');
+      if (remaining < 0) counter.classList.add('error');
+    } else {
+      counter.style.display = 'none';
+    }
     
     postBtn.disabled = remaining < 0 || textarea.value.trim().length === 0;
   }
@@ -752,12 +1134,19 @@ class SidecarApp {
     const counter = document.getElementById('reply-char-count');
     const replyBtn = document.getElementById('send-reply-btn');
     
-    const remaining = 280 - textarea.value.length;
-    counter.textContent = remaining;
+    const remaining = 2100 - textarea.value.length;
     
-    counter.className = 'char-count';
-    if (remaining < 20) counter.classList.add('warning');
-    if (remaining < 0) counter.classList.add('error');
+    // Only show counter when approaching limit (under 200 characters remaining)
+    if (remaining < 200) {
+      counter.textContent = remaining;
+      counter.style.display = 'block';
+      
+      counter.className = 'char-count';
+      if (remaining < 50) counter.classList.add('warning');
+      if (remaining < 0) counter.classList.add('error');
+    } else {
+      counter.style.display = 'none';
+    }
     
     replyBtn.disabled = remaining < 0 || textarea.value.trim().length === 0;
   }
@@ -801,9 +1190,13 @@ class SidecarApp {
     const modal = document.getElementById('reply-modal');
     const context = document.getElementById('reply-to-note');
     
+    const formattedContent = this.formatNoteContent(replyToEvent.content);
     context.innerHTML = `
       <div class="note-author">${this.getAuthorName(replyToEvent.pubkey)}</div>
-      <div class="note-content">${this.formatNoteContent(replyToEvent.content)}</div>
+      <div class="note-content">
+        ${formattedContent.text}
+        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, replyToEvent.id) : ''}
+      </div>
     `;
     
     document.getElementById('reply-text').value = '';
@@ -845,38 +1238,6 @@ class SidecarApp {
     }
   }
   
-  async likeNote(event) {
-    if (!this.currentUser) {
-      alert('Please sign in to like notes');
-      return;
-    }
-    
-    try {
-      const likeEvent = {
-        kind: 7,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['e', event.id],
-          ['p', event.pubkey]
-        ],
-        content: '+',
-        pubkey: this.currentUser.publicKey
-      };
-      
-      const signedEvent = await this.signEvent(likeEvent);
-      await this.publishEvent(signedEvent);
-      
-      // Update UI
-      const likeBtn = document.querySelector(`[data-event-id="${event.id}"] .like-action`);
-      if (likeBtn) {
-        likeBtn.classList.add('liked');
-        likeBtn.textContent = '❤️ Liked';
-      }
-    } catch (error) {
-      console.error('Like error:', error);
-      alert('Failed to like note');
-    }
-  }
   
   async signEvent(event) {
     if (this.currentUser.useNip07) {
@@ -958,6 +1319,269 @@ class SidecarApp {
   
   bytesToHex(bytes) {
     return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+  
+  setupReactionButton(button, event) {
+    // Check if user has already reacted to this event
+    if (this.userReactions.has(event.id)) {
+      // Just don't add event listeners - keep visual appearance the same
+      return;
+    }
+    
+    let longPressTimer = null;
+    let isLongPress = false;
+    
+    // Mouse/touch start
+    const startLongPress = () => {
+      isLongPress = false;
+      longPressTimer = setTimeout(() => {
+        isLongPress = true;
+        this.showEmojiPicker(event);
+      }, 500); // 500ms for long press
+    };
+    
+    // Mouse/touch end
+    const endLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      
+      // If not long press, do quick reaction with default emoji
+      if (!isLongPress) {
+        this.sendReaction(event, '🤙');
+      }
+      
+      isLongPress = false;
+    };
+    
+    // Mouse/touch cancel (when moving away)
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      isLongPress = false;
+    };
+    
+    // Add event listeners for both mouse and touch
+    button.addEventListener('mousedown', startLongPress);
+    button.addEventListener('mouseup', endLongPress);
+    button.addEventListener('mouseleave', cancelLongPress);
+    
+    // Touch events for mobile
+    button.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      startLongPress();
+    });
+    button.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      endLongPress();
+    });
+    button.addEventListener('touchcancel', cancelLongPress);
+  }
+  
+  setupNoteMenu(menuContainer, event) {
+    const menuBtn = menuContainer.querySelector('.menu-btn');
+    const dropdown = menuContainer.querySelector('.menu-dropdown');
+    
+    // Toggle dropdown visibility
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      
+      // Close any other open dropdowns
+      document.querySelectorAll('.menu-dropdown.show').forEach(other => {
+        if (other !== dropdown) {
+          other.classList.remove('show');
+        }
+      });
+      
+      dropdown.classList.toggle('show');
+    });
+    
+    // Handle menu item clicks
+    dropdown.addEventListener('click', (e) => {
+      if (e.target.classList.contains('menu-item')) {
+        e.stopPropagation();
+        const action = e.target.dataset.action;
+        this.handleMenuAction(action, event);
+        dropdown.classList.remove('show');
+      }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', () => {
+      dropdown.classList.remove('show');
+    });
+  }
+  
+  handleMenuAction(action, event) {
+    switch (action) {
+      case 'open-note':
+        const noteId = window.NostrTools.nip19.noteEncode(event.id);
+        const url = `https://jumble.social/notes/${noteId}`;
+        window.open(url, '_blank');
+        break;
+      case 'copy-note-id':
+        const formattedNoteId = window.NostrTools.nip19.noteEncode(event.id);
+        this.copyToClipboard(formattedNoteId, 'Note ID copied to clipboard');
+        break;
+      case 'copy-note-text':
+        this.copyToClipboard(event.content, 'Note text copied to clipboard');
+        break;
+      case 'copy-raw-data':
+        this.copyToClipboard(JSON.stringify(event, null, 2), 'Raw note data copied to clipboard');
+        break;
+      case 'copy-pubkey':
+        const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
+        this.copyToClipboard(npub, 'Author\'s key copied to clipboard');
+        break;
+    }
+  }
+  
+  async copyToClipboard(text, successMessage) {
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log(successMessage);
+      // You could add a toast notification here
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      console.log(successMessage + ' (fallback method)');
+    }
+  }
+  
+  setupClickableLinks(element, event) {
+    // Setup profile links
+    const profileElements = element.querySelectorAll('[data-profile-link]');
+    profileElements.forEach(profileElement => {
+      profileElement.style.cursor = 'pointer';
+      profileElement.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent note click
+        const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
+        const profileUrl = `https://jumble.social/users/${npub}`;
+        window.open(profileUrl, '_blank');
+      });
+    });
+    
+    // Setup note links (timestamp)
+    const noteElements = element.querySelectorAll('[data-note-link]');
+    noteElements.forEach(noteElement => {
+      noteElement.style.cursor = 'pointer';
+      noteElement.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent note click
+        const noteId = window.NostrTools.nip19.noteEncode(event.id);
+        const noteUrl = `https://jumble.social/notes/${noteId}`;
+        window.open(noteUrl, '_blank');
+      });
+    });
+    
+    // Setup image gallery clicks
+    const imageContainers = element.querySelectorAll('.image-container');
+    imageContainers.forEach(container => {
+      container.style.cursor = 'pointer';
+      container.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent note click
+        const noteId = window.NostrTools.nip19.noteEncode(event.id);
+        const noteUrl = `https://jumble.social/notes/${noteId}`;
+        window.open(noteUrl, '_blank');
+      });
+    });
+  }
+  
+  showEmojiPicker(event) {
+    // Don't show emoji picker if user has already reacted
+    if (this.userReactions.has(event.id)) {
+      return;
+    }
+    
+    this.currentReactionEvent = event;
+    document.getElementById('emoji-picker-modal').classList.remove('hidden');
+  }
+  
+  async sendReaction(event, emoji) {
+    if (!this.currentUser) {
+      alert('Please sign in to react to notes');
+      return;
+    }
+    
+    // Check if user has already reacted to this event
+    if (this.userReactions.has(event.id)) {
+      console.log('User has already reacted to this event:', event.id);
+      return;
+    }
+    
+    try {
+      console.log('Sending reaction:', emoji, 'to event:', event.id);
+      
+      // Create Nostr reaction event (kind 7)
+      const reactionEvent = {
+        kind: 7,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['e', event.id],
+          ['p', event.pubkey],
+          ['k', '1'] // React to kind 1 events (text notes)
+        ],
+        content: emoji,
+        pubkey: this.currentUser.publicKey
+      };
+      
+      const signedEvent = await this.signEvent(reactionEvent);
+      await this.publishEvent(signedEvent);
+      
+      // Track that user has reacted to this event
+      this.userReactions.add(event.id);
+      
+      // Update the UI
+      this.updateReactionButton(event, emoji);
+      
+      console.log('Reaction sent successfully:', signedEvent);
+    } catch (error) {
+      console.error('Reaction error:', error);
+      alert('Failed to send reaction');
+    }
+  }
+  
+  updateReactionButton(event, emoji) {
+    // Find reaction buttons specifically for this event (not nested replies)
+    const eventElement = document.querySelector(`[data-event-id="${event.id}"]`);
+    if (!eventElement) return;
+    
+    // Select reaction buttons that are direct children of this event's actions
+    const buttons = eventElement.querySelectorAll(':scope > .note-actions > .reaction-action, :scope > .reply-actions > .reaction-reply-action');
+    buttons.forEach(button => {
+      // Update button to show the emoji that was used
+      button.innerHTML = emoji;
+      
+      // Remove all event listeners by cloning the button
+      const newButton = button.cloneNode(true);
+      button.parentNode.replaceChild(newButton, button);
+    });
+  }
+  
+  selectEmoji(emoji) {
+    if (this.currentReactionEvent) {
+      this.sendReaction(this.currentReactionEvent, emoji);
+      this.hideModal('emoji-picker-modal');
+    }
+  }
+  
+  useCustomEmoji() {
+    const input = document.getElementById('custom-emoji-input');
+    const emoji = input.value.trim();
+    
+    if (emoji && this.currentReactionEvent) {
+      this.sendReaction(this.currentReactionEvent, emoji);
+      this.hideModal('emoji-picker-modal');
+      input.value = '';
+    }
   }
 }
 

@@ -18,11 +18,23 @@
                         <button id="generate-keys-btn" class="btn btn-secondary">New Keys</button>
                     </div>
                     <div id="signed-in" class="auth-state hidden">
-                        <div class="user-info">
-                            <div id="user-name" class="user-name"></div>
-                            <div id="user-npub" class="user-npub"></div>
+                        <div class="user-profile-container">
+                            <div class="logged-in-user" id="user-profile-btn">
+                                <div class="user-avatar" id="user-avatar">
+                                    <div class="avatar-placeholder" id="user-avatar-placeholder"></div>
+                                </div>
+                                <div class="user-info">
+                                    <div id="user-name" class="user-name"></div>
+                                    <div id="user-npub" class="user-npub"></div>
+                                </div>
+                                <div class="profile-menu-arrow">⌄</div>
+                            </div>
+                            <div class="user-dropdown" id="user-dropdown">
+                                <div class="dropdown-item" id="view-profile-btn">View Profile</div>
+                                <div class="dropdown-item" id="copy-key-btn">Copy My Key</div>
+                                <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
+                            </div>
                         </div>
-                        <button id="sign-out-btn" class="btn btn-small">Sign Out</button>
                     </div>
                 </div>
             </div>
@@ -32,13 +44,14 @@
         <div class="feed-toggle">
             <button id="global-feed-btn" class="toggle-btn active">Global</button>
             <button id="home-feed-btn" class="toggle-btn" disabled>Home</button>
+            <button id="refresh-feed-btn" class="toggle-btn refresh-btn" title="Refresh Feed">↻</button>
         </div>
 
         <!-- Compose Section (only when signed in) -->
         <div id="compose-section" class="compose-section hidden">
-            <textarea id="compose-text" placeholder="What's happening?" maxlength="280"></textarea>
+            <textarea id="compose-text" placeholder="What's happening?" maxlength="2100"></textarea>
             <div class="compose-actions">
-                <span id="char-count" class="char-count">280</span>
+                <span id="char-count" class="char-count" style="display: none;">2100</span>
                 <button id="post-btn" class="btn btn-primary" disabled>Post</button>
             </div>
         </div>
@@ -116,10 +129,43 @@
             </div>
             <div class="modal-body">
                 <div id="reply-to-note" class="reply-context"></div>
-                <textarea id="reply-text" placeholder="Write your reply..." maxlength="280"></textarea>
+                <textarea id="reply-text" placeholder="Write your reply..." maxlength="2100"></textarea>
                 <div class="compose-actions">
-                    <span id="reply-char-count" class="char-count">280</span>
+                    <span id="reply-char-count" class="char-count" style="display: none;">2100</span>
                     <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="emoji-picker-modal" class="modal hidden">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2>Choose Reaction</h2>
+                <button class="close-btn" data-modal="emoji-picker-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="emoji-grid">
+                    <button class="emoji-btn" data-emoji="🤙">🤙</button>
+                    <button class="emoji-btn" data-emoji="❤️">❤️</button>
+                    <button class="emoji-btn" data-emoji="😂">😂</button>
+                    <button class="emoji-btn" data-emoji="😍">😍</button>
+                    <button class="emoji-btn" data-emoji="🔥">🔥</button>
+                    <button class="emoji-btn" data-emoji="👏">👏</button>
+                    <button class="emoji-btn" data-emoji="🚀">🚀</button>
+                    <button class="emoji-btn" data-emoji="⭐">⭐</button>
+                    <button class="emoji-btn" data-emoji="💯">💯</button>
+                    <button class="emoji-btn" data-emoji="🙌">🙌</button>
+                    <button class="emoji-btn" data-emoji="👍">👍</button>
+                    <button class="emoji-btn" data-emoji="👎">👎</button>
+                    <button class="emoji-btn" data-emoji="😢">😢</button>
+                    <button class="emoji-btn" data-emoji="😡">😡</button>
+                    <button class="emoji-btn" data-emoji="🤔">🤔</button>
+                    <button class="emoji-btn" data-emoji="🎉">🎉</button>
+                </div>
+                <div class="custom-emoji-section">
+                    <input type="text" id="custom-emoji-input" placeholder="Type any emoji..." maxlength="4">
+                    <button id="custom-emoji-btn" class="btn btn-primary">Use Custom</button>
                 </div>
             </div>
         </div>
