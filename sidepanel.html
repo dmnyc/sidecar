@@ -36,9 +36,9 @@
 
         <!-- Compose Section (only when signed in) -->
         <div id="compose-section" class="compose-section hidden">
-            <textarea id="compose-text" placeholder="What's happening?" maxlength="280"></textarea>
+            <textarea id="compose-text" placeholder="What's happening?" maxlength="2100"></textarea>
             <div class="compose-actions">
-                <span id="char-count" class="char-count">280</span>
+                <span id="char-count" class="char-count" style="display: none;">2100</span>
                 <button id="post-btn" class="btn btn-primary" disabled>Post</button>
             </div>
         </div>
@@ -116,10 +116,43 @@
             </div>
             <div class="modal-body">
                 <div id="reply-to-note" class="reply-context"></div>
-                <textarea id="reply-text" placeholder="Write your reply..." maxlength="280"></textarea>
+                <textarea id="reply-text" placeholder="Write your reply..." maxlength="2100"></textarea>
                 <div class="compose-actions">
-                    <span id="reply-char-count" class="char-count">280</span>
+                    <span id="reply-char-count" class="char-count" style="display: none;">2100</span>
                     <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="emoji-picker-modal" class="modal hidden">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2>Choose Reaction</h2>
+                <button class="close-btn" data-modal="emoji-picker-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="emoji-grid">
+                    <button class="emoji-btn" data-emoji="🤙">🤙</button>
+                    <button class="emoji-btn" data-emoji="❤️">❤️</button>
+                    <button class="emoji-btn" data-emoji="😂">😂</button>
+                    <button class="emoji-btn" data-emoji="😍">😍</button>
+                    <button class="emoji-btn" data-emoji="🔥">🔥</button>
+                    <button class="emoji-btn" data-emoji="👏">👏</button>
+                    <button class="emoji-btn" data-emoji="🚀">🚀</button>
+                    <button class="emoji-btn" data-emoji="⭐">⭐</button>
+                    <button class="emoji-btn" data-emoji="💯">💯</button>
+                    <button class="emoji-btn" data-emoji="🙌">🙌</button>
+                    <button class="emoji-btn" data-emoji="👍">👍</button>
+                    <button class="emoji-btn" data-emoji="👎">👎</button>
+                    <button class="emoji-btn" data-emoji="😢">😢</button>
+                    <button class="emoji-btn" data-emoji="😡">😡</button>
+                    <button class="emoji-btn" data-emoji="🤔">🤔</button>
+                    <button class="emoji-btn" data-emoji="🎉">🎉</button>
+                </div>
+                <div class="custom-emoji-section">
+                    <input type="text" id="custom-emoji-input" placeholder="Type any emoji..." maxlength="4">
+                    <button id="custom-emoji-btn" class="btn btn-primary">Use Custom</button>
                 </div>
             </div>
         </div>
