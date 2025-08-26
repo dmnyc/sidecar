@@ -186,21 +186,29 @@ class SidecarApp {
       
       // Handle nsec format
       if (privateKey.startsWith('nsec1')) {
-        hexPrivateKey = NostrTools.nip19.decode(privateKey).data;
+        const decoded = window.NostrTools.nip19.decode(privateKey);
+        hexPrivateKey = decoded.data;
       } else if (privateKey.length === 64) {
-        // Assume hex format
+        // Assume hex format - convert to Uint8Array if needed
         hexPrivateKey = privateKey;
       } else {
         throw new Error('Invalid private key format');
       }
       
-      // Generate public key
-      const publicKey = NostrTools.getPublicKey(hexPrivateKey);
+      // Ensure private key is in correct format for nostr-tools
+      const privateKeyBytes = typeof hexPrivateKey === 'string' ? 
+        this.hexToBytes(hexPrivateKey) : hexPrivateKey;
       
-      // Store keys
+      // Generate public key
+      const publicKey = window.NostrTools.getPublicKey(privateKeyBytes);
+      
+      // Store keys (store as hex string for compatibility)
+      const privateKeyHex = typeof hexPrivateKey === 'string' ? 
+        hexPrivateKey : this.bytesToHex(hexPrivateKey);
+      
       const response = await this.sendMessage({
         type: 'STORE_KEYS',
-        data: { publicKey, privateKey: hexPrivateKey }
+        data: { publicKey, privateKey: privateKeyHex }
       });
       
       if (response.success) {
@@ -225,17 +233,19 @@ class SidecarApp {
   
   generateNewKeys() {
     try {
-      const privateKey = NostrTools.generatePrivateKey();
-      const publicKey = NostrTools.getPublicKey(privateKey);
+      const privateKey = window.NostrTools.generateSecretKey();
+      const publicKey = window.NostrTools.getPublicKey(privateKey);
       
-      const npub = NostrTools.nip19.npubEncode(publicKey);
-      const nsec = NostrTools.nip19.nsecEncode(privateKey);
+      const npub = window.NostrTools.nip19.npubEncode(publicKey);
+      const nsec = window.NostrTools.nip19.nsecEncode(privateKey);
       
       document.getElementById('generated-npub').value = npub;
       document.getElementById('generated-nsec').value = nsec;
       
-      // Store for saving later
-      this.generatedKeys = { publicKey, privateKey };
+      // Store for saving later (convert to hex for storage)
+      const privateKeyHex = Array.isArray(privateKey) || privateKey instanceof Uint8Array ?
+        this.bytesToHex(privateKey) : privateKey;
+      this.generatedKeys = { publicKey, privateKey: privateKeyHex };
     } catch (error) {
       console.error('Key generation error:', error);
     }
@@ -295,7 +305,7 @@ class SidecarApp {
       homeFeedBtn.disabled = false;
       
       // Update user info
-      const npub = NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+      const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
       document.getElementById('user-name').textContent = this.getUserDisplayName();
       document.getElementById('user-npub').textContent = npub.substring(0, 16) + '...';
     } else {
@@ -458,7 +468,7 @@ class SidecarApp {
     noteDiv.dataset.timestamp = event.created_at;
     
     const authorName = this.getAuthorName(event.pubkey);
-    const npub = NostrTools.nip19.npubEncode(event.pubkey);
+    const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
     const timeAgo = this.formatTimeAgo(event.created_at);
     
     noteDiv.innerHTML = `
@@ -678,8 +688,10 @@ class SidecarApp {
         throw new Error(response.error);
       }
     } else {
-      // Sign locally
-      return NostrTools.finishEvent(event, this.currentUser.privateKey);
+      // Sign locally - convert hex string to Uint8Array if needed
+      const privateKeyBytes = typeof this.currentUser.privateKey === 'string' ?
+        this.hexToBytes(this.currentUser.privateKey) : this.currentUser.privateKey;
+      return window.NostrTools.finalizeEvent(event, privateKeyBytes);
     }
   }
   
@@ -730,6 +742,18 @@ class SidecarApp {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(message, resolve);
     });
+  }
+  
+  hexToBytes(hex) {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+    }
+    return bytes;
+  }
+  
+  bytesToHex(bytes) {
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
   }
 }
 

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Key Generation</title>
+</head>
+<body>
+    <h1>Nostr Key Generation Test</h1>
+    <button onclick="testKeyGen()">Generate Test Keys</button>
+    <div id="results"></div>
+
+    <script src="https://unpkg.com/nostr-tools@2/lib/nostr.bundle.js"></script>
+    <script>
+        function testKeyGen() {
+            try {
+                console.log('Testing key generation...');
+                
+                // Generate new keys
+                const privateKey = window.NostrTools.generateSecretKey();
+                const publicKey = window.NostrTools.getPublicKey(privateKey);
+                
+                console.log('Private key (Uint8Array):', privateKey);
+                console.log('Public key (hex):', publicKey);
+                
+                // Encode to bech32 formats
+                const npub = window.NostrTools.nip19.npubEncode(publicKey);
+                const nsec = window.NostrTools.nip19.nsecEncode(privateKey);
+                
+                console.log('npub:', npub);
+                console.log('nsec:', nsec);
+                
+                // Test signing
+                const event = {
+                    kind: 1,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [],
+                    content: 'test message',
+                    pubkey: publicKey
+                };
+                
+                const signedEvent = window.NostrTools.finalizeEvent(event, privateKey);
+                console.log('Signed event:', signedEvent);
+                
+                // Verify the signature
+                const isValid = window.NostrTools.verifyEvent(signedEvent);
+                console.log('Signature valid:', isValid);
+                
+                document.getElementById('results').innerHTML = `
+                    <h2>Test Results</h2>
+                    <p><strong>Public Key:</strong> ${publicKey}</p>
+                    <p><strong>npub:</strong> ${npub}</p>
+                    <p><strong>nsec:</strong> ${nsec.substring(0, 20)}...</p>
+                    <p><strong>Signature Valid:</strong> ${isValid ? '✅ Yes' : '❌ No'}</p>
+                    <p><strong>Event ID:</strong> ${signedEvent.id}</p>
+                `;
+                
+            } catch (error) {
+                console.error('Test failed:', error);
+                document.getElementById('results').innerHTML = `
+                    <h2>Test Failed</h2>
+                    <p style="color: red;">Error: ${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
