@@ -1,4 +1,5 @@
 // Main sidepanel script for Sidecar Nostr extension
+console.log('🟢 SIDEPANEL.JS SCRIPT LOADED!');
 
 class SidecarApp {
   constructor() {
@@ -25,11 +26,16 @@ class SidecarApp {
     this.profileQueue = new Set(); // Queue profile requests for batching
     this.profileTimeout = null; // Timeout for batch processing
     this.userDropdownSetup = false; // Track if user dropdown is set up
+    this.userFollows = new Set(); // Track who the current user follows
+    this.contactListLoaded = false; // Track if contact list has been loaded
+    this.loadingMore = false; // Track if we're currently loading more notes
     
     this.init();
   }
   
   async init() {
+    console.log('🚀 SIDECAR STARTING UP!');
+    console.log('Current URL:', window.location.href);
     this.setupEventListeners();
     await this.checkAuthState();
     await this.loadGlobalFeedPubkeys();
@@ -50,13 +56,18 @@ class SidecarApp {
     document.getElementById('save-generated-keys-btn').addEventListener('click', () => this.saveGeneratedKeys());
     
     // Feed toggle
+    document.getElementById('following-feed-btn').addEventListener('click', () => this.switchFeed('following'));
     document.getElementById('global-feed-btn').addEventListener('click', () => this.switchFeed('global'));
     document.getElementById('home-feed-btn').addEventListener('click', () => this.switchFeed('home'));
     document.getElementById('refresh-feed-btn').addEventListener('click', () => this.refreshFeed());
     
+    // Floating compose button
+    document.getElementById('floating-compose-btn').addEventListener('click', () => this.showComposeSection());
+    
     // Compose
     document.getElementById('compose-text').addEventListener('input', this.updateCharCount);
     document.getElementById('post-btn').addEventListener('click', () => this.publishNote());
+    document.getElementById('cancel-compose-btn').addEventListener('click', () => this.hideComposeSection());
     
     // Reply modal
     document.getElementById('send-reply-btn').addEventListener('click', () => this.sendReply());
@@ -91,6 +102,79 @@ class SidecarApp {
     
     // Generate keys when modal opens
     this.generateNewKeys();
+    
+    // Setup infinite scroll
+    this.setupInfiniteScroll();
+  }
+  
+  setupInfiniteScroll() {
+    const feedContainer = document.querySelector('.feed-container');
+    
+    feedContainer.addEventListener('scroll', () => {
+      // Check if user is near the bottom of the feed
+      if (feedContainer.scrollTop + feedContainer.clientHeight >= feedContainer.scrollHeight - 200) {
+        this.loadMoreNotes();
+      }
+    });
+  }
+  
+  loadMoreNotes() {
+    // Prevent multiple simultaneous requests
+    if (this.loadingMore) return;
+    this.loadingMore = true;
+    
+    // Get the timestamp of the oldest note currently displayed
+    const feed = document.getElementById('feed');
+    const notes = Array.from(feed.children);
+    if (notes.length === 0) return;
+    
+    const oldestNote = notes[notes.length - 1];
+    const oldestTimestamp = parseInt(oldestNote.dataset.timestamp);
+    
+    // Create a subscription for older notes
+    const subId = 'loadmore-' + Date.now();
+    let filter;
+    
+    if (this.currentFeed === 'global') {
+      filter = {
+        kinds: [1],
+        authors: this.globalFeedPubkeys,
+        until: oldestTimestamp,
+        limit: 20
+      };
+    } else if (this.currentFeed === 'following' && this.userFollows.size > 0) {
+      filter = {
+        kinds: [1],
+        authors: Array.from(this.userFollows),
+        until: oldestTimestamp,
+        limit: 20
+      };
+    } else if (this.currentFeed === 'home' && this.currentUser) {
+      filter = {
+        kinds: [1],
+        authors: [this.currentUser.publicKey],
+        until: oldestTimestamp,
+        limit: 20
+      };
+    }
+    
+    if (filter) {
+      const subscription = ['REQ', subId, filter];
+      this.subscriptions.set(subId, subscription);
+      
+      this.relayConnections.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(subscription));
+        }
+      });
+      
+      // Reset loading flag after a few seconds
+      setTimeout(() => {
+        this.loadingMore = false;
+      }, 3000);
+    } else {
+      this.loadingMore = false;
+    }
   }
   
   async checkAuthState() {
@@ -103,6 +187,12 @@ class SidecarApp {
           useNip07: false
         };
         this.updateAuthUI();
+        
+        // Fetch contact list for already signed-in users
+        setTimeout(() => {
+          console.log('Fetching contact list for existing signed-in user...');
+          this.fetchContactList();
+        }, 2000); // Longer delay to ensure relays are connected
       }
     } catch (error) {
       console.error('Error checking auth state:', error);
@@ -183,6 +273,12 @@ class SidecarApp {
         this.updateAuthUI();
         this.hideModal('auth-modal');
         this.loadFeed();
+        
+        // Fetch contact list after a short delay to ensure relays are connected
+        setTimeout(() => {
+          console.log('Fetching contact list after NIP-07 sign-in delay...');
+          this.fetchContactList();
+        }, 1000);
       } else {
         console.error('Failed to get public key:', pubkeyResponse.error);
         alert('Failed to get public key: ' + pubkeyResponse.error);
@@ -243,6 +339,12 @@ class SidecarApp {
         this.hideModal('auth-modal');
         this.loadFeed();
         input.value = '';
+        
+        // Fetch contact list after a short delay to ensure relays are connected
+        setTimeout(() => {
+          console.log('Fetching contact list after private key import delay...');
+          this.fetchContactList();
+        }, 1000);
       } else {
         alert('Failed to store keys: ' + response.error);
       }
@@ -293,6 +395,12 @@ class SidecarApp {
         this.updateAuthUI();
         this.hideModal('auth-modal');
         this.loadFeed();
+        
+        // Fetch contact list after a short delay to ensure relays are connected
+        setTimeout(() => {
+          console.log('Fetching contact list after key generation delay...');
+          this.fetchContactList();
+        }, 1000);
       } else {
         alert('Failed to save keys: ' + response.error);
       }
@@ -317,31 +425,38 @@ class SidecarApp {
   updateAuthUI() {
     const signedOut = document.getElementById('signed-out');
     const signedIn = document.getElementById('signed-in');
-    const composeSection = document.getElementById('compose-section');
+    const floatingBtn = document.getElementById('floating-compose-btn');
     const homeFeedBtn = document.getElementById('home-feed-btn');
+    const followingFeedBtn = document.getElementById('following-feed-btn');
     
     if (this.currentUser) {
       signedOut.classList.add('hidden');
       signedIn.classList.remove('hidden');
-      composeSection.classList.remove('hidden');
+      floatingBtn.classList.remove('hidden');
       homeFeedBtn.disabled = false;
+      followingFeedBtn.disabled = false;
       
-      // Update user info
+      // Update user info immediately
       this.updateUserProfile();
       
       // Setup user profile dropdown
       this.setupUserProfileDropdown();
       
-      // Request user's own profile
+      // Request user's own profile and load it immediately
       this.requestProfile(this.currentUser.publicKey);
+      this.loadUserProfile();
+      
+      // Fetch user's contact list (following)
+      this.fetchContactList();
     } else {
       signedOut.classList.remove('hidden');
       signedIn.classList.add('hidden');
-      composeSection.classList.add('hidden');
+      floatingBtn.classList.add('hidden');
       homeFeedBtn.disabled = true;
+      followingFeedBtn.disabled = true;
       
-      // Switch to global feed if on home
-      if (this.currentFeed === 'home') {
+      // Switch to global feed if on home or following
+      if (this.currentFeed === 'home' || this.currentFeed === 'following') {
         this.switchFeed('global');
       }
     }
@@ -404,27 +519,33 @@ class SidecarApp {
     const userAvatarEl = document.getElementById('user-avatar');
     const avatarPlaceholder = document.getElementById('user-avatar-placeholder');
     
-    // Update name and npub
-    const displayName = profile?.display_name || profile?.name || this.getUserDisplayName();
+    // Always show immediate feedback even without profile data
     const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+    const displayName = profile?.display_name || profile?.name || this.getUserDisplayName();
     const nip05 = profile?.nip05;
     
-    userNameEl.textContent = displayName;
+    // Set name immediately - show "Loading..." if no profile yet
+    userNameEl.textContent = profile ? displayName : 'Loading...';
     userNpubEl.textContent = nip05 || (npub.substring(0, 16) + '...');
+    
     if (nip05) {
       userNpubEl.setAttribute('data-nip05', 'true');
     } else {
       userNpubEl.removeAttribute('data-nip05');
     }
     
-    // Update avatar
+    // Update avatar immediately
     if (profile?.picture) {
       userAvatarEl.innerHTML = `
         <img src="${profile.picture}" alt="${displayName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
         <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(displayName)}</div>
       `;
     } else {
-      avatarPlaceholder.textContent = this.getAvatarPlaceholder(displayName);
+      // Show placeholder with initial characters from npub
+      const placeholder = this.getAvatarPlaceholder(profile ? displayName : npub);
+      if (avatarPlaceholder) {
+        avatarPlaceholder.textContent = placeholder;
+      }
     }
   }
   
@@ -438,6 +559,7 @@ class SidecarApp {
     this.currentFeed = feedType;
     
     // Update UI
+    document.getElementById('following-feed-btn').classList.toggle('active', feedType === 'following');
     document.getElementById('global-feed-btn').classList.toggle('active', feedType === 'global');
     document.getElementById('home-feed-btn').classList.toggle('active', feedType === 'home');
     
@@ -448,6 +570,7 @@ class SidecarApp {
     this.noteParents.clear();
     this.orphanedReplies.clear();
     this.userReactions.clear();
+    this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
     
     // Mark as loaded since we're manually switching feeds
@@ -468,6 +591,7 @@ class SidecarApp {
     this.noteParents.clear();
     this.orphanedReplies.clear();
     this.userReactions.clear();
+    this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
     
     this.loadFeed();
@@ -492,6 +616,12 @@ class SidecarApp {
           if (!this.initialFeedLoaded) {
             this.initialFeedLoaded = true;
             this.loadFeed();
+          }
+          
+          // Fetch contact list if user is signed in but we haven't loaded it yet
+          if (this.currentUser && !this.contactListLoaded) {
+            console.log('Fetching contact list on relay connection...');
+            this.fetchContactList();
           }
         };
         
@@ -539,6 +669,8 @@ class SidecarApp {
       // Avoid duplicates
       if (this.notes.has(event.id)) return;
       
+      console.log('📝 Received note from:', event.pubkey.substring(0, 16) + '...', 'Content:', event.content.substring(0, 50) + '...');
+      
       this.notes.set(event.id, event);
       
       // Build thread relationships
@@ -550,8 +682,13 @@ class SidecarApp {
       // Display note (will handle threading)
       this.displayNote(event);
     } else if (event.kind === 0) {
+      console.log('👤 Received profile for:', event.pubkey.substring(0, 16) + '...');
       // Profile metadata
       this.handleProfile(event);
+    } else if (event.kind === 3) {
+      console.log('📋 Received contact list from:', event.pubkey.substring(0, 16) + '...');
+      // Contact list
+      this.handleContactList(event);
     }
   }
   
@@ -565,8 +702,54 @@ class SidecarApp {
       
       // Update any displayed notes from this author
       this.updateAuthorDisplay(event.pubkey);
+      
+      // If this is the current user's profile, update the UI immediately
+      if (this.currentUser && event.pubkey === this.currentUser.publicKey) {
+        this.updateUserProfile();
+      }
     } catch (error) {
       console.error('Error parsing profile:', error);
+    }
+  }
+  
+  handleContactList(event) {
+    // Only process contact lists from the current user
+    if (!this.currentUser || event.pubkey !== this.currentUser.publicKey) {
+      console.log('❌ Ignoring contact list from different user:', event.pubkey, '(expected:', this.currentUser?.publicKey, ')');
+      return;
+    }
+    
+    console.log('✅ === PROCESSING CONTACT LIST ===');
+    console.log('Event:', event);
+    console.log('Event tags count:', event.tags.length);
+    
+    // Clear existing follows
+    this.userFollows.clear();
+    
+    // Parse p tags (people the user follows)
+    let followCount = 0;
+    for (const tag of event.tags) {
+      if (tag[0] === 'p' && tag[1]) {
+        this.userFollows.add(tag[1]);
+        followCount++;
+        if (followCount <= 5) {
+          console.log('➕ Added follow #' + followCount + ':', tag[1].substring(0, 16) + '...');
+        }
+      }
+    }
+    
+    console.log('✅ CONTACT LIST LOADED: User follows', this.userFollows.size, 'accounts');
+    if (this.userFollows.size === 0) {
+      console.log('⚠️  Contact list is empty - user follows no one');
+    } else {
+      console.log('👥 First 5 follows:', Array.from(this.userFollows).slice(0, 5).map(pk => pk.substring(0, 16) + '...'));
+    }
+    this.contactListLoaded = true;
+    
+    // If we're currently viewing the following feed, reload it with real data
+    if (this.currentFeed === 'following') {
+      console.log('🔄 Reloading following feed with contact list data');
+      this.loadFeed();
     }
   }
   
@@ -695,7 +878,90 @@ class SidecarApp {
     }
   }
   
+  loadFollowingFeedBatched(followsArray) {
+    console.log('📦 === BATCHING FOLLOWING FEED ===');
+    console.log('Total authors to batch:', followsArray.length);
+    
+    const BATCH_SIZE = 100; // Safe limit for most relays
+    const batches = [];
+    
+    // Split authors into batches
+    for (let i = 0; i < followsArray.length; i += BATCH_SIZE) {
+      batches.push(followsArray.slice(i, i + BATCH_SIZE));
+    }
+    
+    console.log('📦 Created', batches.length, 'batches of', BATCH_SIZE, 'authors each');
+    console.log('📦 Batch sizes:', batches.map(batch => batch.length));
+    
+    // Clear existing subscriptions
+    this.subscriptions.forEach((sub, id) => {
+      this.relayConnections.forEach(ws => {
+        ws.send(JSON.stringify(['CLOSE', id]));
+      });
+    });
+    this.subscriptions.clear();
+    
+    let sentToRelays = 0;
+    
+    // Create subscriptions for each batch
+    batches.forEach((batch, batchIndex) => {
+      const subId = `following-batch-${batchIndex}-${Date.now()}`;
+      const realtimeSubId = `following-realtime-batch-${batchIndex}-${Date.now()}`;
+      
+      console.log(`📤 Batch ${batchIndex + 1}: Creating subscription for ${batch.length} authors`);
+      
+      // Historical notes subscription for this batch
+      const filter = {
+        kinds: [1],
+        authors: batch,
+        limit: Math.ceil(30 / batches.length) // Distribute limit across batches
+      };
+      
+      const subscription = ['REQ', subId, filter];
+      this.subscriptions.set(subId, subscription);
+      
+      // Real-time subscription for this batch
+      const realtimeFilter = {
+        ...filter,
+        since: Math.floor(Date.now() / 1000),
+        limit: undefined
+      };
+      
+      const realtimeSubscription = ['REQ', realtimeSubId, realtimeFilter];
+      this.subscriptions.set(realtimeSubId, realtimeSubscription);
+      
+      console.log(`📤 Batch ${batchIndex + 1} filter:`, JSON.stringify(filter));
+      
+      // Send to all connected relays
+      this.relayConnections.forEach((ws, relay) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(subscription));
+          ws.send(JSON.stringify(realtimeSubscription));
+          if (batchIndex === 0) sentToRelays++; // Count once per relay
+        }
+      });
+    });
+    
+    console.log('📤 Following feed batches sent to', sentToRelays, 'relays');
+    console.log('📦 Total subscriptions created:', batches.length * 2, '(historical + realtime)');
+    
+    // Hide loading after timeout if no response
+    setTimeout(() => {
+      if (this.currentFeed === 'following') {
+        this.hideLoading();
+      }
+    }, 5000);
+  }
+  
   loadFeed() {
+    console.log('🔄 === LOADING FEED ===');
+    console.log('Feed type:', this.currentFeed);
+    console.log('Contact list loaded:', this.contactListLoaded);
+    console.log('User follows count:', this.userFollows.size);
+    console.log('User follows (first 5):', Array.from(this.userFollows).slice(0, 5));
+    console.log('Current user:', this.currentUser?.publicKey?.substring(0, 16) + '...');
+    console.log('Relay connections:', this.relayConnections.size);
+    
     this.showLoading();
     
     // Clear existing subscriptions
@@ -714,28 +980,93 @@ class SidecarApp {
       filter = {
         kinds: [1],
         authors: this.globalFeedPubkeys,
-        limit: 50,
-        since: Math.floor(Date.now() / 1000) - (24 * 60 * 60) // Last 24 hours
+        limit: 30
       };
+    } else if (this.currentFeed === 'following' && this.currentUser) {
+      // Following feed: notes from accounts we follow
+      if (this.userFollows.size > 0) {
+        const followsArray = Array.from(this.userFollows);
+        console.log('✅ Creating following feed filter for', followsArray.length, 'authors');
+        console.log('👥 Following authors (first 3):', followsArray.slice(0, 3).map(pk => pk.substring(0, 16) + '...'));
+        
+        // Handle large following lists by batching authors
+        this.loadFollowingFeedBatched(followsArray);
+        return;
+        
+      } else if (!this.contactListLoaded) {
+        // Still loading contact list, try to fetch it again
+        console.log('Contact list not loaded yet, fetching...');
+        this.fetchContactList();
+        setTimeout(() => {
+          if (this.currentFeed === 'following') {
+            this.loadFeed();
+          }
+        }, 2000);
+        return;
+      } else {
+        // User follows no one, show empty feed message
+        console.log('User follows no accounts, showing empty state');
+        this.hideLoading();
+        document.getElementById('feed').innerHTML = `
+          <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
+            <p>You're not following anyone yet.</p>
+            <p>Switch to Global feed to discover people to follow!</p>
+            <br>
+            <button id="retry-contact-list" class="btn btn-secondary" style="margin-top: 10px;">Retry Loading Follows</button>
+          </div>
+        `;
+        
+        // Add retry button functionality
+        document.getElementById('retry-contact-list').addEventListener('click', () => {
+          console.log('Manual retry of contact list...');
+          this.contactListLoaded = false;
+          this.fetchContactList();
+          this.loadFeed();
+        });
+        return;
+      }
     } else if (this.currentFeed === 'home' && this.currentUser) {
       // Home feed: notes from followed accounts
       // For now, just show user's own notes
       filter = {
         kinds: [1],
         authors: [this.currentUser.publicKey],
-        limit: 50
+        limit: 30
       };
     }
     
     if (filter) {
+      console.log('📡 === SENDING FEED SUBSCRIPTIONS ===');
+      // Historical notes subscription
       const subscription = ['REQ', subId, filter];
       this.subscriptions.set(subId, subscription);
+      console.log('📤 Historical subscription:', JSON.stringify(subscription));
       
-      this.relayConnections.forEach(ws => {
+      // Real-time subscription for new notes
+      const realtimeSubId = 'realtime-' + Date.now();
+      const realtimeFilter = {
+        ...filter,
+        since: Math.floor(Date.now() / 1000), // Only new notes from now
+        limit: undefined // No limit for real-time
+      };
+      const realtimeSubscription = ['REQ', realtimeSubId, realtimeFilter];
+      this.subscriptions.set(realtimeSubId, realtimeSubscription);
+      console.log('📤 Real-time subscription:', JSON.stringify(realtimeSubscription));
+      
+      let sentToRelays = 0;
+      this.relayConnections.forEach((ws, relay) => {
         if (ws.readyState === WebSocket.OPEN) {
+          console.log('📡 Sending subscriptions to:', relay);
           ws.send(JSON.stringify(subscription));
+          ws.send(JSON.stringify(realtimeSubscription));
+          sentToRelays++;
+        } else {
+          console.log('❌ Relay not ready for subscription:', relay);
         }
       });
+      console.log('📡 Subscriptions sent to', sentToRelays, 'relays');
+    } else {
+      console.log('❌ No filter created for feed:', this.currentFeed);
     }
     
     // Hide loading after 5 seconds if no response
@@ -932,8 +1263,8 @@ class SidecarApp {
         </div>
       </div>
       <div class="note-content">
-        ${formattedContent.text}
-        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+${formattedContent.text}
+${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
       </div>
       <div class="note-actions">
         <div class="note-action reply-action" data-event-id="${event.id}">
@@ -994,8 +1325,8 @@ class SidecarApp {
         </div>
       </div>
       <div class="reply-content">
-        ${formattedContent.text}
-        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+${formattedContent.text}
+${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
       </div>
       <div class="reply-actions">
         <div class="reply-action reply-to-reply-action" data-event-id="${event.id}">
@@ -1017,8 +1348,11 @@ class SidecarApp {
   }
   
   getAuthorName(pubkey) {
-    // This would normally fetch from user profiles
-    // For now, return truncated pubkey
+    const profile = this.profiles.get(pubkey);
+    if (profile && (profile.display_name || profile.name)) {
+      return profile.display_name || profile.name;
+    }
+    // Fallback to truncated pubkey if no profile name available
     return pubkey.substring(0, 8) + '...';
   }
   
@@ -1178,10 +1512,110 @@ class SidecarApp {
       
       // Add to feed
       this.handleNote(signedEvent);
+      
+      // Hide compose section after posting
+      this.hideComposeSection();
     } catch (error) {
       console.error('Publish error:', error);
       alert('Failed to publish note');
     }
+  }
+  
+  showComposeSection() {
+    const composeSection = document.getElementById('compose-section');
+    const floatingBtn = document.getElementById('floating-compose-btn');
+    
+    composeSection.classList.remove('hidden');
+    floatingBtn.classList.add('hidden');
+    
+    // Focus on textarea
+    setTimeout(() => {
+      document.getElementById('compose-text').focus();
+    }, 100);
+  }
+  
+  hideComposeSection() {
+    const composeSection = document.getElementById('compose-section');
+    const floatingBtn = document.getElementById('floating-compose-btn');
+    
+    composeSection.classList.add('hidden');
+    if (this.currentUser) {
+      floatingBtn.classList.remove('hidden');
+    }
+    
+    // Clear compose text
+    document.getElementById('compose-text').value = '';
+    this.updateCharCount();
+  }
+  
+  async loadUserProfile() {
+    if (!this.currentUser) return;
+    
+    // Immediately set basic info from public key
+    const userNameElement = document.getElementById('user-name');
+    const userNpubElement = document.getElementById('user-npub');
+    const userAvatarElement = document.getElementById('user-avatar');
+    
+    if (userNameElement) {
+      // Set npub immediately
+      const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
+      userNpubElement.textContent = npub.slice(0, 16) + '...';
+      
+      // Set placeholder name
+      userNameElement.textContent = 'Loading...';
+      
+      // Set placeholder avatar
+      const placeholder = userAvatarElement.querySelector('.avatar-placeholder');
+      if (placeholder) {
+        placeholder.textContent = npub.slice(4, 6).toUpperCase();
+      }
+    }
+  }
+  
+  fetchContactList() {
+    if (!this.currentUser) {
+      console.log('❌ Cannot fetch contact list: no current user');
+      return;
+    }
+    
+    console.log('📋 === FETCHING CONTACT LIST ===');
+    console.log('User pubkey:', this.currentUser.publicKey);
+    console.log('Relay connections available:', this.relayConnections.size);
+    
+    const subId = 'contacts-' + Date.now();
+    const filter = {
+      kinds: [3],
+      authors: [this.currentUser.publicKey],
+      limit: 1
+    };
+    
+    const subscription = ['REQ', subId, filter];
+    console.log('Contact list subscription:', JSON.stringify(subscription));
+    this.subscriptions.set(subId, subscription);
+    
+    let sentToRelays = 0;
+    this.relayConnections.forEach((ws, relay) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log('📤 Sending contact list request to:', relay);
+        ws.send(JSON.stringify(subscription));
+        sentToRelays++;
+      } else {
+        console.log('❌ Relay not ready:', relay, 'state:', ws.readyState);
+      }
+    });
+    
+    console.log('📤 Contact list request sent to', sentToRelays, 'out of', this.relayConnections.size, 'relays');
+    
+    // Set a timeout to mark as loaded even if no contact list found
+    setTimeout(() => {
+      if (!this.contactListLoaded) {
+        console.log('⏰ TIMEOUT: No contact list received after 5 seconds, assuming user follows no one');
+        this.contactListLoaded = true;
+        if (this.currentFeed === 'following') {
+          this.loadFeed();
+        }
+      }
+    }, 5000);
   }
   
   showReplyModal(replyToEvent) {
@@ -1587,5 +2021,6 @@ class SidecarApp {
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 DOM LOADED - Initializing SidecarApp!');
   new SidecarApp();
 });

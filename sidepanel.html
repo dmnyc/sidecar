@@ -11,7 +11,7 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1 class="logo">⚡ Sidecar</h1>
+                <h1 class="logo">🍸 sidecar</h1>
                 <div class="auth-section">
                     <div id="signed-out" class="auth-state">
                         <button id="sign-in-btn" class="btn btn-primary">Sign In</button>
@@ -42,18 +42,10 @@
 
         <!-- Feed Toggle -->
         <div class="feed-toggle">
+            <button id="following-feed-btn" class="toggle-btn" disabled>Following</button>
             <button id="global-feed-btn" class="toggle-btn active">Global</button>
             <button id="home-feed-btn" class="toggle-btn" disabled>Home</button>
             <button id="refresh-feed-btn" class="toggle-btn refresh-btn" title="Refresh Feed">↻</button>
-        </div>
-
-        <!-- Compose Section (only when signed in) -->
-        <div id="compose-section" class="compose-section hidden">
-            <textarea id="compose-text" placeholder="What's happening?" maxlength="2100"></textarea>
-            <div class="compose-actions">
-                <span id="char-count" class="char-count" style="display: none;">2100</span>
-                <button id="post-btn" class="btn btn-primary" disabled>Post</button>
-            </div>
         </div>
 
         <!-- Feed -->
@@ -66,6 +58,19 @@
             <div id="error" class="error hidden">
                 <p>Failed to load feed. Please try again.</p>
                 <button id="retry-btn" class="btn btn-secondary">Retry</button>
+            </div>
+        </div>
+
+        <!-- Floating Compose Button -->
+        <button id="floating-compose-btn" class="floating-btn hidden" title="Create Post">+</button>
+
+        <!-- Compose Section (only when signed in) -->
+        <div id="compose-section" class="compose-section hidden">
+            <textarea id="compose-text" placeholder="What's happening?" maxlength="2100"></textarea>
+            <div class="compose-actions">
+                <span id="char-count" class="char-count" style="display: none;">2100</span>
+                <button id="cancel-compose-btn" class="btn btn-secondary">Cancel</button>
+                <button id="post-btn" class="btn btn-primary" disabled>Post</button>
             </div>
         </div>
     </div>
