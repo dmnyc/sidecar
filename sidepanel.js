@@ -40,6 +40,7 @@ class SidecarApp {
     console.log('🚀 SIDECAR STARTING UP!');
     console.log('Current URL:', window.location.href);
     this.setupEventListeners();
+    this.setupImageErrorHandling();
     this.setupInfiniteScroll();
     await this.checkAuthState();
     await this.loadGlobalFeedPubkeys();
@@ -107,9 +108,40 @@ class SidecarApp {
     
     // Generate keys when modal opens
     this.generateNewKeys();
-    
-    // Setup infinite scroll
-    this.setupInfiniteScroll();
+  }
+  
+  setupImageErrorHandling() {
+    // Global image error handler using event delegation
+    document.addEventListener('error', (e) => {
+      if (e.target.tagName === 'IMG') {
+        const img = e.target;
+        console.log('Image failed to load:', img.src);
+        
+        // Add broken class for CSS targeting
+        img.classList.add('broken');
+        
+        // Try to find and show avatar placeholder if this is an avatar
+        const avatarContainer = img.closest('.note-avatar, .reply-avatar, .user-avatar');
+        if (avatarContainer) {
+          const placeholder = avatarContainer.querySelector('.avatar-placeholder');
+          if (placeholder) {
+            img.style.display = 'none';
+            placeholder.style.display = 'flex';
+          } else {
+            // Complete removal if no placeholder available
+            img.remove();
+          }
+        } else {
+          // For content images, remove the entire container
+          const imageContainer = img.closest('.image-container');
+          if (imageContainer) {
+            imageContainer.remove();
+          } else {
+            img.remove();
+          }
+        }
+      }
+    }, true); // Use capture phase to catch errors early
   }
   
   setupInfiniteScroll() {
@@ -519,8 +551,8 @@ class SidecarApp {
     if (!this.currentUser) return;
     
     const profile = this.profiles.get(this.currentUser.publicKey);
-    const userNameEl = document.getElementById('user-name');
-    const userNpubEl = document.getElementById('user-npub');
+    const dropdownUserNameEl = document.getElementById('dropdown-user-name');
+    const dropdownUserNpubEl = document.getElementById('dropdown-user-npub');
     const userAvatarEl = document.getElementById('user-avatar');
     const avatarPlaceholder = document.getElementById('user-avatar-placeholder');
     
@@ -529,20 +561,25 @@ class SidecarApp {
     const displayName = profile?.display_name || profile?.name || this.getUserDisplayName();
     const nip05 = profile?.nip05;
     
-    // Set name immediately - show "Loading..." if no profile yet
-    userNameEl.textContent = profile ? displayName : 'Loading...';
-    userNpubEl.textContent = nip05 || (npub.substring(0, 16) + '...');
-    
-    if (nip05) {
-      userNpubEl.setAttribute('data-nip05', 'true');
-    } else {
-      userNpubEl.removeAttribute('data-nip05');
+    // Set name in dropdown - show "Loading..." if no profile yet
+    if (dropdownUserNameEl) {
+      dropdownUserNameEl.textContent = profile ? displayName : 'Loading...';
+    }
+    if (dropdownUserNpubEl) {
+      const formattedId = this.formatProfileIdentifier(nip05, this.currentUser.publicKey);
+      dropdownUserNpubEl.textContent = formattedId;
+      
+      if (nip05) {
+        dropdownUserNpubEl.setAttribute('data-nip05', 'true');
+      } else {
+        dropdownUserNpubEl.removeAttribute('data-nip05');
+      }
     }
     
     // Update avatar immediately
     if (profile?.picture) {
       userAvatarEl.innerHTML = `
-        <img src="${profile.picture}" alt="${displayName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <img src="${profile.picture}" alt="" class="avatar-img" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
         <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(displayName)}</div>
       `;
     } else {
@@ -558,6 +595,49 @@ class SidecarApp {
     // This would normally fetch from user's profile
     // For now, return a truncated pubkey
     return this.currentUser.publicKey.substring(0, 8) + '...';
+  }
+  
+  formatProfileIdentifier(nip05, pubkey) {
+    // Handle the profile identifier (NIP-05 or npub)
+    if (!nip05) {
+      // No NIP-05, use truncated npub
+      return window.NostrTools.nip19.npubEncode(pubkey).substring(0, 16) + '...';
+    }
+    
+    // Check if it's a URL instead of proper NIP-05
+    if (nip05.startsWith('http://') || nip05.startsWith('https://')) {
+      return this.minifyUrl(nip05);
+    }
+    
+    // Check if it's a very long string that should be truncated
+    if (nip05.length > 30) {
+      return nip05.substring(0, 27) + '...';
+    }
+    
+    return nip05;
+  }
+  
+  minifyUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '');
+      const path = urlObj.pathname;
+      
+      // For very short domains, show more
+      if (domain.length <= 15) {
+        if (path && path !== '/') {
+          const shortPath = path.length > 10 ? path.substring(0, 7) + '...' : path;
+          return domain + shortPath;
+        }
+        return domain;
+      }
+      
+      // For longer domains, truncate
+      return domain.length > 20 ? domain.substring(0, 17) + '...' : domain;
+    } catch (e) {
+      // If URL parsing fails, just truncate the string
+      return url.length > 25 ? url.substring(0, 22) + '...' : url;
+    }
   }
   
   switchFeed(feedType) {
@@ -857,12 +937,12 @@ class SidecarApp {
         }
         
         if (idElement) {
+          const formattedId = this.formatProfileIdentifier(profile.nip05, pubkey);
+          idElement.textContent = formattedId;
+          
           if (profile.nip05) {
-            idElement.textContent = profile.nip05;
             idElement.setAttribute('data-nip05', 'true');
           } else {
-            // Keep the truncated npub if no NIP-05
-            idElement.textContent = window.NostrTools.nip19.npubEncode(pubkey).substring(0, 16) + '...';
             idElement.removeAttribute('data-nip05');
           }
         }
@@ -871,7 +951,7 @@ class SidecarApp {
           // Update avatar if profile picture is available
           const authorName = profile.display_name || profile.name || this.getAuthorName(pubkey);
           avatarContainer.innerHTML = `
-            <img src="${profile.picture}" alt="${authorName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <img src="${profile.picture}" alt="" class="avatar-img" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
             <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>
           `;
         }
@@ -1314,7 +1394,7 @@ class SidecarApp {
     
     const profile = this.profiles.get(event.pubkey);
     const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
-    const authorId = profile?.nip05 || window.NostrTools.nip19.npubEncode(event.pubkey).substring(0, 16) + '...';
+    const authorId = this.formatProfileIdentifier(profile?.nip05, event.pubkey);
     const avatarUrl = profile?.picture;
     const timeAgo = this.formatTimeAgo(event.created_at);
     const formattedContent = this.formatNoteContent(event.content);
@@ -1323,7 +1403,7 @@ class SidecarApp {
       <div class="note-header">
         <div class="note-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
           ${avatarUrl ? 
-            `<img src="${avatarUrl}" alt="${authorName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            `<img src="${avatarUrl}" alt="" class="avatar-img" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
              <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
             `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
           }
@@ -1377,7 +1457,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     
     const profile = this.profiles.get(event.pubkey);
     const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
-    const authorId = profile?.nip05 || window.NostrTools.nip19.npubEncode(event.pubkey).substring(0, 12) + '...';
+    const authorId = this.formatProfileIdentifier(profile?.nip05, event.pubkey);
     const avatarUrl = profile?.picture;
     const timeAgo = this.formatTimeAgo(event.created_at);
     const formattedContent = this.formatNoteContent(event.content);
@@ -1386,7 +1466,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       <div class="reply-header">
         <div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
           ${avatarUrl ? 
-            `<img src="${avatarUrl}" alt="${authorName}" class="avatar-img small" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            `<img src="${avatarUrl}" alt="" class="avatar-img small" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
              <div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
             `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`
           }
@@ -1586,14 +1666,14 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
         const remaining = images.length - 3;
         galleryHTML += `
           <div class="image-container more-images" data-image-url="${imageUrl}">
-            <img src="${imageUrl}" alt="Note image ${i + 1}" loading="lazy">
+            <img src="${imageUrl}" alt="" loading="lazy" onerror="this.classList.add('broken'); this.parentElement.remove();">
             <div class="image-overlay">+${remaining} more</div>
           </div>
         `;
       } else {
         galleryHTML += `
           <div class="image-container" data-image-url="${imageUrl}">
-            <img src="${imageUrl}" alt="Note image ${i + 1}" loading="lazy">
+            <img src="${imageUrl}" alt="" loading="lazy" onerror="this.classList.add('broken'); this.parentElement.remove();">
           </div>
         `;
       }
@@ -2388,14 +2468,23 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     
     // Setup profile links
     const profileElements = element.querySelectorAll('[data-profile-link]');
-    profileElements.forEach(profileElement => {
+    console.log('🔗 Setting up profile links for', profileElements.length, 'elements');
+    profileElements.forEach((profileElement, index) => {
       profileElement.style.cursor = 'pointer';
       profileElement.addEventListener('click', (e) => {
+        console.log('👤 Profile click detected on element', index, 'for user:', event.pubkey.substring(0, 16) + '...');
+        e.preventDefault();
         e.stopPropagation(); // Prevent note click
         const pubkey = event.pubkey;
         const npub = window.NostrTools.nip19.npubEncode(pubkey);
-        this.openUserFeed(pubkey, npub);
+        console.log('🔓 Opening jumble.social profile for:', pubkey.substring(0, 16) + '...');
+        const profileUrl = `https://jumble.social/users/${npub}`;
+        window.open(profileUrl, '_blank');
       });
+      
+      // Also add pointer cursor styling to make it clear these are clickable
+      profileElement.style.userSelect = 'none';
+      profileElement.title = 'Click to view profile on jumble.social';
     });
     
     // Setup note links (timestamp)
