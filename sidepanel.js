@@ -33,6 +33,13 @@ class SidecarApp {
     this.oldestNoteTimestamp = null; // Track oldest note for pagination
     this.feedHasMore = true; // Track if there are more notes to load
     
+    // Memory management settings
+    this.maxNotes = 1000; // Maximum notes to keep in memory
+    this.maxProfiles = 500; // Maximum profiles to keep in cache
+    this.maxDOMNotes = 100; // Maximum notes to keep in DOM
+    this.memoryCheckInterval = 60000; // Check memory every minute
+    this.lastMemoryCheck = Date.now();
+    
     this.init();
   }
   
@@ -42,6 +49,7 @@ class SidecarApp {
     this.setupEventListeners();
     this.setupImageErrorHandling();
     this.setupInfiniteScroll();
+    this.setupMemoryManagement();
     await this.checkAuthState();
     await this.loadGlobalFeedPubkeys();
     this.connectToRelays();
@@ -142,6 +150,185 @@ class SidecarApp {
         }
       }
     }, true); // Use capture phase to catch errors early
+  }
+  
+  setupMemoryManagement() {
+    // Set up periodic memory cleanup
+    setInterval(() => {
+      this.performMemoryCleanup();
+    }, this.memoryCheckInterval);
+    
+    // Also check memory on visibility change (when user returns to tab)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && Date.now() - this.lastMemoryCheck > this.memoryCheckInterval) {
+        this.performMemoryCleanup();
+      }
+    });
+  }
+  
+  performMemoryCleanup() {
+    console.log('🧹 Performing memory cleanup...');
+    const startTime = Date.now();
+    
+    // Get current memory usage info
+    const notesCount = this.notes.size;
+    const profilesCount = this.profiles.size;
+    const domNotesCount = document.querySelectorAll('.note').length;
+    
+    console.log(`📊 Before cleanup: ${notesCount} notes, ${profilesCount} profiles, ${domNotesCount} DOM notes`);
+    
+    // Clean up notes cache
+    if (notesCount > this.maxNotes) {
+      this.cleanupNotesCache();
+    }
+    
+    // Clean up profiles cache
+    if (profilesCount > this.maxProfiles) {
+      this.cleanupProfilesCache();
+    }
+    
+    // Clean up DOM notes
+    if (domNotesCount > this.maxDOMNotes) {
+      this.cleanupDOMNotes();
+    }
+    
+    // Clean up orphaned data
+    this.cleanupOrphanedData();
+    
+    this.lastMemoryCheck = Date.now();
+    
+    const endTime = Date.now();
+    const finalNotesCount = this.notes.size;
+    const finalProfilesCount = this.profiles.size;
+    const finalDomNotesCount = document.querySelectorAll('.note').length;
+    
+    console.log(`✅ Cleanup completed in ${endTime - startTime}ms`);
+    console.log(`📊 After cleanup: ${finalNotesCount} notes, ${finalProfilesCount} profiles, ${finalDomNotesCount} DOM notes`);
+  }
+  
+  cleanupNotesCache() {
+    // Keep only the most recent notes and currently displayed notes
+    const notesArray = Array.from(this.notes.entries())
+      .sort((a, b) => b[1].created_at - a[1].created_at); // Sort by timestamp, newest first
+    
+    // Get IDs of currently displayed notes to preserve them
+    const displayedNoteIds = new Set();
+    document.querySelectorAll('.note[data-event-id]').forEach(el => {
+      displayedNoteIds.add(el.dataset.eventId);
+    });
+    
+    // Keep most recent notes + displayed notes
+    const toKeep = new Set();
+    let keptCount = 0;
+    
+    for (const [noteId, note] of notesArray) {
+      if (displayedNoteIds.has(noteId) || keptCount < this.maxNotes * 0.8) {
+        toKeep.add(noteId);
+        keptCount++;
+      }
+    }
+    
+    // Remove old notes
+    for (const [noteId] of this.notes) {
+      if (!toKeep.has(noteId)) {
+        this.notes.delete(noteId);
+        // Also clean up related thread data
+        this.threads.delete(noteId);
+        this.noteParents.delete(noteId);
+      }
+    }
+    
+    console.log(`🗑️ Removed ${notesArray.length - toKeep.size} old notes from cache`);
+  }
+  
+  cleanupProfilesCache() {
+    // Keep profiles that are currently being displayed and recently accessed
+    const displayedPubkeys = new Set();
+    
+    // Get pubkeys from currently displayed notes
+    document.querySelectorAll('.note[data-author]').forEach(el => {
+      displayedPubkeys.add(el.dataset.author);
+    });
+    
+    // Add current user and followed users
+    if (this.currentUser) {
+      displayedPubkeys.add(this.currentUser.publicKey);
+    }
+    this.userFollows.forEach(pubkey => displayedPubkeys.add(pubkey));
+    
+    // Remove profiles not currently needed
+    const profilesToRemove = [];
+    for (const [pubkey, profile] of this.profiles) {
+      if (!displayedPubkeys.has(pubkey)) {
+        profilesToRemove.push(pubkey);
+      }
+    }
+    
+    // Keep only most recent profiles beyond displayed ones
+    const profilesToRemoveCount = Math.max(0, profilesToRemove.length - (this.maxProfiles - displayedPubkeys.size));
+    
+    // Sort by access time and remove oldest
+    profilesToRemove
+      .sort((a, b) => (this.profiles.get(b).updatedAt || 0) - (this.profiles.get(a).updatedAt || 0))
+      .slice(-profilesToRemoveCount)
+      .forEach(pubkey => {
+        this.profiles.delete(pubkey);
+        this.profileRequests.delete(pubkey);
+      });
+    
+    console.log(`🗑️ Removed ${profilesToRemoveCount} old profiles from cache`);
+  }
+  
+  cleanupDOMNotes() {
+    const noteElements = document.querySelectorAll('.note');
+    
+    if (noteElements.length > this.maxDOMNotes) {
+      // Remove older DOM notes (keep newest)
+      const notesToRemove = noteElements.length - this.maxDOMNotes;
+      
+      // Convert to array and sort by timestamp (data-timestamp attribute)
+      const sortedNotes = Array.from(noteElements)
+        .sort((a, b) => {
+          const timeA = parseInt(a.dataset.timestamp || '0');
+          const timeB = parseInt(b.dataset.timestamp || '0');
+          return timeA - timeB; // Oldest first
+        });
+      
+      // Remove oldest notes
+      for (let i = 0; i < notesToRemove; i++) {
+        if (sortedNotes[i]) {
+          sortedNotes[i].remove();
+        }
+      }
+      
+      console.log(`🗑️ Removed ${notesToRemove} old notes from DOM`);
+    }
+  }
+  
+  cleanupOrphanedData() {
+    // Clean up orphaned replies that reference deleted notes
+    for (const [parentId, replies] of this.orphanedReplies) {
+      if (!this.notes.has(parentId)) {
+        this.orphanedReplies.delete(parentId);
+      }
+    }
+    
+    // Clean up thread relationships for deleted notes
+    for (const noteId of this.noteParents.keys()) {
+      if (!this.notes.has(noteId)) {
+        this.noteParents.delete(noteId);
+      }
+    }
+    
+    // Clean up user reactions for notes no longer in cache
+    const validNoteIds = new Set(this.notes.keys());
+    this.userReactions.forEach(reactionId => {
+      // Extract note ID from reaction (if format is noteId:emoji)
+      const noteId = reactionId.split(':')[0];
+      if (!validNoteIds.has(noteId)) {
+        this.userReactions.delete(reactionId);
+      }
+    });
   }
   
   setupInfiniteScroll() {
@@ -505,18 +692,23 @@ class SidecarApp {
     
     const profileBtn = document.getElementById('user-profile-btn');
     const dropdown = document.getElementById('user-dropdown');
-    const container = profileBtn.parentElement;
+    
+    if (!profileBtn || !dropdown) {
+      console.error('Profile dropdown elements not found:', { profileBtn, dropdown });
+      return;
+    }
     
     // Toggle dropdown
     profileBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      container.classList.toggle('open');
+      profileBtn.classList.toggle('open');
       dropdown.classList.toggle('show');
     });
     
     // Close dropdown when clicking outside
     document.addEventListener('click', () => {
-      container.classList.remove('open');
+      profileBtn.classList.remove('open');
       dropdown.classList.remove('show');
     });
     
@@ -527,7 +719,7 @@ class SidecarApp {
         const profileUrl = `https://jumble.social/users/${npub}`;
         window.open(profileUrl, '_blank');
       }
-      container.classList.remove('open');
+      profileBtn.classList.remove('open');
       dropdown.classList.remove('show');
     });
     
@@ -536,13 +728,13 @@ class SidecarApp {
         const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
         this.copyToClipboard(npub, 'Your public key copied to clipboard');
       }
-      container.classList.remove('open');
+      profileBtn.classList.remove('open');
       dropdown.classList.remove('show');
     });
     
     document.getElementById('sign-out-btn').addEventListener('click', () => {
       this.signOut();
-      container.classList.remove('open');
+      profileBtn.classList.remove('open');
       dropdown.classList.remove('show');
     });
   }
@@ -780,6 +972,12 @@ class SidecarApp {
       // Global feed shows everything - no filtering needed
       
       this.notes.set(event.id, event);
+      
+      // Check if we need memory cleanup
+      if (this.notes.size > this.maxNotes * 1.2) {
+        // Don't block note processing, do cleanup asynchronously
+        setTimeout(() => this.performMemoryCleanup(), 100);
+      }
       
       // Track oldest note timestamp for pagination
       if (!this.oldestNoteTimestamp || event.created_at < this.oldestNoteTimestamp) {
@@ -1426,7 +1624,7 @@ class SidecarApp {
       </div>
       <div class="note-content">
 ${formattedContent.text}
-${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}
 ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}
       </div>
       <div class="note-actions">
@@ -1489,7 +1687,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       </div>
       <div class="reply-content">
 ${formattedContent.text}
-${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}
 ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}
       </div>
       <div class="reply-actions">
@@ -1650,13 +1848,17 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     };
   }
   
-  createImageGallery(images, eventId) {
+  createImageGallery(images, eventId, pubkey) {
     if (images.length === 0) return '';
     
+    // Check if user is followed to determine if images should be blurred
+    // If not signed in or user not followed, blur the images
+    const isFollowed = this.currentUser && this.userFollows.has(pubkey);
     const galleryClass = images.length === 1 ? 'single-image' : 'multi-image';
+    const blurClass = !isFollowed ? 'blurred' : '';
     const maxDisplay = Math.min(images.length, 4); // Show max 4 images
     
-    let galleryHTML = `<div class="image-gallery ${galleryClass}" data-event-id="${eventId}">`;
+    let galleryHTML = `<div class="image-gallery ${galleryClass} ${blurClass}" data-event-id="${eventId}" data-pubkey="${pubkey}">`;
     
     for (let i = 0; i < maxDisplay; i++) {
       const imageUrl = images[i];
@@ -1863,6 +2065,9 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
   
   loadUserFeed(pubkey) {
     console.log('📊 Loading user feed for:', pubkey.substring(0, 16) + '...');
+    
+    // Clear existing feed to ensure clean user feed
+    document.getElementById('feed').innerHTML = '';
     this.showLoading();
     
     // Clear existing subscriptions
@@ -2192,7 +2397,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       <div class="note-author">${this.getAuthorName(replyToEvent.pubkey)}</div>
       <div class="note-content">
         ${formattedContent.text}
-        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, replyToEvent.id) : ''}
+        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, replyToEvent.id, replyToEvent.pubkey) : ''}
       </div>
     `;
     
@@ -2477,14 +2682,13 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
         e.stopPropagation(); // Prevent note click
         const pubkey = event.pubkey;
         const npub = window.NostrTools.nip19.npubEncode(pubkey);
-        console.log('🔓 Opening jumble.social profile for:', pubkey.substring(0, 16) + '...');
-        const profileUrl = `https://jumble.social/users/${npub}`;
-        window.open(profileUrl, '_blank');
+        console.log('🔓 Opening user feed for:', pubkey.substring(0, 16) + '...');
+        this.openUserFeed(pubkey, npub);
       });
       
       // Also add pointer cursor styling to make it clear these are clickable
       profileElement.style.userSelect = 'none';
-      profileElement.title = 'Click to view profile on jumble.social';
+      profileElement.title = 'Click to view user feed';
     });
     
     // Setup note links (timestamp)
@@ -2500,16 +2704,45 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     });
     
     // Setup image gallery clicks
-    const imageContainers = element.querySelectorAll('.image-container');
-    imageContainers.forEach(container => {
-      container.style.cursor = 'pointer';
-      container.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent note click
-        const noteId = window.NostrTools.nip19.noteEncode(event.id);
-        const noteUrl = `https://jumble.social/notes/${noteId}`;
-        window.open(noteUrl, '_blank');
-      });
-    });
+    const imageGallery = element.querySelector('.image-gallery');
+    if (imageGallery) {
+      if (imageGallery.classList.contains('blurred')) {
+        // For blurred images, add click-to-reveal functionality
+        imageGallery.style.cursor = 'pointer';
+        imageGallery.title = 'Click to reveal images';
+        imageGallery.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent note click
+          imageGallery.classList.remove('blurred');
+          imageGallery.classList.add('revealed');
+          imageGallery.style.cursor = 'default';
+          imageGallery.title = '';
+          
+          // After revealing, set up normal image click behavior
+          const imageContainers = imageGallery.querySelectorAll('.image-container');
+          imageContainers.forEach(container => {
+            container.style.cursor = 'pointer';
+            container.addEventListener('click', (e) => {
+              e.stopPropagation(); // Prevent note click
+              const noteId = window.NostrTools.nip19.noteEncode(event.id);
+              const noteUrl = `https://jumble.social/notes/${noteId}`;
+              window.open(noteUrl, '_blank');
+            });
+          });
+        });
+      } else {
+        // For non-blurred images, set up normal click behavior
+        const imageContainers = imageGallery.querySelectorAll('.image-container');
+        imageContainers.forEach(container => {
+          container.style.cursor = 'pointer';
+          container.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent note click
+            const noteId = window.NostrTools.nip19.noteEncode(event.id);
+            const noteUrl = `https://jumble.social/notes/${noteId}`;
+            window.open(noteUrl, '_blank');
+          });
+        });
+      }
+    }
   }
   
   showEmojiPicker(event) {

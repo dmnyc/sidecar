@@ -18,22 +18,11 @@
                         <button id="generate-keys-btn" class="btn btn-secondary">New Keys</button>
                     </div>
                     <div id="signed-in" class="auth-state hidden">
-                        <div class="user-profile-container">
-                            <div class="logged-in-user" id="user-profile-btn">
-                                <div class="user-avatar" id="user-avatar">
-                                    <div class="avatar-placeholder" id="user-avatar-placeholder"></div>
-                                </div>
-                                <div class="profile-menu-arrow">⌄</div>
+                        <div class="logged-in-user" id="user-profile-btn">
+                            <div class="user-avatar" id="user-avatar">
+                                <div class="avatar-placeholder" id="user-avatar-placeholder"></div>
                             </div>
-                            <div class="user-dropdown" id="user-dropdown">
-                                <div class="dropdown-header">
-                                    <div id="dropdown-user-name" class="dropdown-user-name"></div>
-                                    <div id="dropdown-user-npub" class="dropdown-user-npub"></div>
-                                </div>
-                                <div class="dropdown-item" id="view-profile-btn">View Profile</div>
-                                <div class="dropdown-item" id="copy-key-btn">Copy My Key</div>
-                                <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
-                            </div>
+                            <div class="profile-menu-arrow">⌄</div>
                         </div>
                     </div>
                 </div>
@@ -177,6 +166,17 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Profile Dropdown (positioned absolutely) -->
+    <div class="user-dropdown" id="user-dropdown">
+        <div class="dropdown-header">
+            <div id="dropdown-user-name" class="dropdown-user-name"></div>
+            <div id="dropdown-user-npub" class="dropdown-user-npub"></div>
+        </div>
+        <div class="dropdown-item" id="view-profile-btn">View Profile</div>
+        <div class="dropdown-item" id="copy-key-btn">Copy My Key</div>
+        <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
     </div>
 
     <script src="nostr-tools.js"></script>

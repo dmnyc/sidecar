@@ -22,16 +22,16 @@
 }
 
 .quoted-notes {
-    margin-top: 12px;
+    margin-top: 8px;
     border-top: 1px solid #2d1b69;
-    padding-top: 12px;
+    padding-top: 8px;
 }
 
 .quoted-note {
     border: 1px solid #2d1b69;
-    border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 8px;
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 6px;
     background: rgba(26, 11, 61, 0.5);
     cursor: pointer;
     transition: border-color 0.2s, background-color 0.2s;
@@ -58,7 +58,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .quoted-author {
@@ -155,10 +155,6 @@ body {
     gap: 8px;
 }
 
-.user-profile-container {
-    position: relative;
-}
-
 .logged-in-user {
     display: flex;
     align-items: center;
@@ -180,7 +176,7 @@ body {
     transition: transform 0.2s;
 }
 
-.user-profile-container.open .profile-menu-arrow {
+.logged-in-user.open .profile-menu-arrow {
     transform: rotate(180deg);
 }
 
@@ -228,21 +224,21 @@ body {
 }
 
 .user-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
+    position: fixed;
+    top: 60px;
+    right: 16px;
     background: #1a0b3d;
     border: 1px solid #2d1b69;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     min-width: 160px;
-    z-index: 1000;
+    z-index: 10000;
     display: none;
-    margin-top: 4px;
 }
 
 .user-dropdown.show {
-    display: block;
+    display: block !important;
+    visibility: visible !important;
 }
 
 .dropdown-header {
@@ -498,7 +494,7 @@ body {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding-bottom: 20px;
+    padding-bottom: 10px;
     max-width: 100%;
 }
 
@@ -567,8 +563,9 @@ body {
 .note-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .note-avatar {
@@ -608,6 +605,7 @@ body {
     font-weight: 600;
     font-size: 14px;
     color: #e8d5f0;
+    display: inline;
 }
 
 .note-info:hover .note-author,
@@ -624,12 +622,16 @@ body {
 .reply-info {
     transition: all 0.2s;
     cursor: pointer;
+    flex-grow: 1;
+    min-width: 0;
 }
 
 .note-npub {
     font-size: 12px;
     color: #ea6390;
     font-family: monospace;
+    display: inline;
+    margin-left: 6px;
 }
 
 .note-npub[data-nip05="true"] {
@@ -640,8 +642,8 @@ body {
 .note-time {
     font-size: 12px;
     color: #ea6390;
-    margin-left: auto;
     transition: color 0.2s;
+    flex-shrink: 0;
 }
 
 .note-time:hover,
@@ -716,8 +718,8 @@ body {
 
 .note-content {
     font-size: 14px;
-    line-height: 1.5;
-    margin-bottom: 12px;
+    line-height: 1.2;
+    margin: 4px 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-word;
@@ -728,9 +730,47 @@ body {
 
 /* Image Gallery Styles */
 .image-gallery {
-    margin-top: 12px;
-    border-radius: 8px;
+    margin: 4px 0;
+    border-radius: 4px;
     overflow: hidden;
+    background: transparent;
+}
+
+.image-gallery.blurred .image-container img {
+    filter: blur(20px);
+    transition: filter 0.3s ease;
+    cursor: pointer;
+}
+
+.image-gallery.blurred .image-container {
+    position: relative;
+}
+
+.image-gallery.blurred .image-container::after {
+    content: "🔒 Click to reveal";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: #e8d5f0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 10;
+    backdrop-filter: blur(2px);
+    border: 1px solid rgba(234, 99, 144, 0.3);
+}
+
+.image-gallery.blurred:hover .image-container::after {
+    background: rgba(234, 99, 144, 0.2);
+    border: 1px solid rgba(234, 99, 144, 0.6);
+}
+
+.image-gallery.revealed .image-container img {
+    filter: none;
 }
 
 .image-gallery.single-image {
@@ -739,7 +779,7 @@ body {
 
 .image-gallery.multi-image {
     display: grid;
-    gap: 2px;
+    gap: 1px;
     max-height: 300px;
 }
 
@@ -765,8 +805,10 @@ body {
 .image-container {
     position: relative;
     overflow: hidden;
-    background: #2d1b69;
+    background: transparent;
     transition: opacity 0.2s;
+    margin: 0;
+    padding: 0;
 }
 
 .image-container:hover {
@@ -778,6 +820,9 @@ body {
     height: 100%;
     object-fit: cover;
     display: block;
+    margin: 0;
+    padding: 0;
+    vertical-align: top;
 }
 
 .single-image .image-container {
@@ -805,9 +850,10 @@ body {
 
 .note-actions {
     display: flex;
-    gap: 16px;
+    gap: 12px;
     font-size: 12px;
     color: #ea6390;
+    margin-top: 6px;
 }
 
 .note-action {
@@ -834,9 +880,9 @@ body {
 
 /* Reply Threading */
 .replies-container {
-    margin-top: 8px;
+    margin-top: 6px;
     border-left: 2px solid #2d1b69;
-    margin-left: 20px;
+    margin-left: 16px;
 }
 
 .reply {
@@ -919,8 +965,8 @@ body {
 
 .reply-content {
     font-size: 13px;
-    line-height: 1.4;
-    margin-bottom: 8px;
+    line-height: 1.1;
+    margin: 1px 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-word;
@@ -930,7 +976,7 @@ body {
 }
 
 .reply-content .image-gallery {
-    margin-top: 8px;
+    margin: 1px 0;
 }
 
 .reply-content .image-gallery.single-image .image-container {
@@ -1408,7 +1454,7 @@ pre, code {
     }
     
     .note {
-        padding: 12px;
+        padding: 10px;
     }
     
     .floating-btn {
