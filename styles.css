@@ -1,4 +1,96 @@
 /* Reset and Base Styles */
+
+/* Nostr Mentions and Quoted Notes */
+.nostr-mention {
+    color: #ea6390;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    padding: 1px 2px;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+    display: inline-block;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: top;
+}
+
+.nostr-mention:hover {
+    background-color: rgba(234, 99, 144, 0.1);
+}
+
+.quoted-notes {
+    margin-top: 12px;
+    border-top: 1px solid #2d1b69;
+    padding-top: 12px;
+}
+
+.quoted-note {
+    border: 1px solid #2d1b69;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: rgba(26, 11, 61, 0.5);
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.quoted-note:hover {
+    border-color: #ea6390;
+    background: rgba(26, 11, 61, 0.8);
+}
+
+.quoted-note.loading {
+    cursor: default;
+}
+
+.quoted-note.loading:hover {
+    border-color: #2d1b69;
+    background: rgba(26, 11, 61, 0.5);
+}
+
+.quoted-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.quoted-author {
+    color: #ea6390;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.quoted-time {
+    color: #9e4280;
+    font-size: 12px;
+}
+
+.quoted-content {
+    color: #e8d5f0;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    word-wrap: break-word;
+}
+
+.quoted-link {
+    color: #6e2e80;
+    font-size: 11px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    opacity: 0.7;
+    word-break: break-all;
+}
+
+.spinner.small {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -268,6 +360,57 @@ body {
     transition: transform 0.3s ease;
 }
 
+/* User Feed Tabs */
+.user-tab {
+    position: relative;
+    flex: 0 0 auto;
+    min-width: auto;
+    max-width: 140px;
+    padding: 12px 32px 12px 12px;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    background: #2d1b69;
+    border-radius: 8px 8px 0 0;
+    margin-right: 4px;
+    word-break: break-all;
+}
+
+.user-tab.active {
+    background: #3f1b70;
+    color: #ea6390;
+}
+
+.user-tab:hover {
+    background: #3f1b70;
+}
+
+.close-tab {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #9e4280;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.close-tab:hover {
+    background: rgba(234, 99, 144, 0.2);
+    color: #ea6390;
+}
+
 /* Compose Section */
 .compose-section {
     position: fixed;
@@ -325,6 +468,16 @@ body {
     flex: 1;
     overflow-y: auto;
     padding-bottom: 20px;
+}
+
+.load-more-container {
+    text-align: center;
+    padding: 20px;
+    display: none;
+}
+
+.load-more-container.show {
+    display: block;
 }
 
 .loading {

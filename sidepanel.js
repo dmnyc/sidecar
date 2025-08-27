@@ -5,6 +5,7 @@ class SidecarApp {
   constructor() {
     this.currentUser = null;
     this.currentFeed = 'global';
+    this.currentUserFeed = null;
     this.relays = [
       'wss://relay.damus.io',
       'wss://nos.lol',
@@ -29,6 +30,8 @@ class SidecarApp {
     this.userFollows = new Set(); // Track who the current user follows
     this.contactListLoaded = false; // Track if contact list has been loaded
     this.loadingMore = false; // Track if we're currently loading more notes
+    this.oldestNoteTimestamp = null; // Track oldest note for pagination
+    this.feedHasMore = true; // Track if there are more notes to load
     
     this.init();
   }
@@ -37,6 +40,7 @@ class SidecarApp {
     console.log('🚀 SIDECAR STARTING UP!');
     console.log('Current URL:', window.location.href);
     this.setupEventListeners();
+    this.setupInfiniteScroll();
     await this.checkAuthState();
     await this.loadGlobalFeedPubkeys();
     this.connectToRelays();
@@ -58,7 +62,7 @@ class SidecarApp {
     // Feed toggle
     document.getElementById('following-feed-btn').addEventListener('click', () => this.switchFeed('following'));
     document.getElementById('global-feed-btn').addEventListener('click', () => this.switchFeed('global'));
-    document.getElementById('home-feed-btn').addEventListener('click', () => this.switchFeed('home'));
+    document.getElementById('me-feed-btn').addEventListener('click', () => this.switchFeed('me'));
     document.getElementById('refresh-feed-btn').addEventListener('click', () => this.refreshFeed());
     
     // Floating compose button
@@ -99,6 +103,7 @@ class SidecarApp {
     
     // Retry button
     document.getElementById('retry-btn').addEventListener('click', () => this.loadFeed());
+    document.getElementById('load-more-btn').addEventListener('click', () => this.loadMoreNotes());
     
     // Generate keys when modal opens
     this.generateNewKeys();
@@ -149,7 +154,7 @@ class SidecarApp {
         until: oldestTimestamp,
         limit: 20
       };
-    } else if (this.currentFeed === 'home' && this.currentUser) {
+    } else if (this.currentFeed === 'me' && this.currentUser) {
       filter = {
         kinds: [1],
         authors: [this.currentUser.publicKey],
@@ -426,14 +431,14 @@ class SidecarApp {
     const signedOut = document.getElementById('signed-out');
     const signedIn = document.getElementById('signed-in');
     const floatingBtn = document.getElementById('floating-compose-btn');
-    const homeFeedBtn = document.getElementById('home-feed-btn');
+    const meFeedBtn = document.getElementById('me-feed-btn');
     const followingFeedBtn = document.getElementById('following-feed-btn');
     
     if (this.currentUser) {
       signedOut.classList.add('hidden');
       signedIn.classList.remove('hidden');
       floatingBtn.classList.remove('hidden');
-      homeFeedBtn.disabled = false;
+      meFeedBtn.disabled = false;
       followingFeedBtn.disabled = false;
       
       // Update user info immediately
@@ -452,11 +457,11 @@ class SidecarApp {
       signedOut.classList.remove('hidden');
       signedIn.classList.add('hidden');
       floatingBtn.classList.add('hidden');
-      homeFeedBtn.disabled = true;
+      meFeedBtn.disabled = true;
       followingFeedBtn.disabled = true;
       
-      // Switch to global feed if on home or following
-      if (this.currentFeed === 'home' || this.currentFeed === 'following') {
+      // Switch to global feed if on me or following
+      if (this.currentFeed === 'me' || this.currentFeed === 'following') {
         this.switchFeed('global');
       }
     }
@@ -561,7 +566,7 @@ class SidecarApp {
     // Update UI
     document.getElementById('following-feed-btn').classList.toggle('active', feedType === 'following');
     document.getElementById('global-feed-btn').classList.toggle('active', feedType === 'global');
-    document.getElementById('home-feed-btn').classList.toggle('active', feedType === 'home');
+    document.getElementById('me-feed-btn').classList.toggle('active', feedType === 'me');
     
     // Clear current feed and load new one
     document.getElementById('feed').innerHTML = '';
@@ -671,7 +676,35 @@ class SidecarApp {
       
       console.log('📝 Received note from:', event.pubkey.substring(0, 16) + '...', 'Content:', event.content.substring(0, 50) + '...');
       
+      // Filter notes based on current feed type
+      if (this.currentFeed === 'following') {
+        // Only show notes from users we follow
+        if (!this.userFollows.has(event.pubkey)) {
+          console.log('🚫 Filtering out note from unfollowed user:', event.pubkey.substring(0, 16) + '...');
+          return;
+        }
+        console.log('✅ Showing note from followed user:', event.pubkey.substring(0, 16) + '...');
+      } else if (this.currentFeed === 'me') {
+        // Only show notes from current user
+        if (!this.currentUser || event.pubkey !== this.currentUser.publicKey) {
+          console.log('🚫 Filtering out note from different user on Me feed:', event.pubkey.substring(0, 16) + '...');
+          return;
+        }
+      } else if (this.currentFeed === 'user-feed') {
+        // Only show notes from the selected user
+        if (!this.currentUserFeed || event.pubkey !== this.currentUserFeed.pubkey) {
+          console.log('🚫 Filtering out note from different user on user feed:', event.pubkey.substring(0, 16) + '...');
+          return;
+        }
+      }
+      // Global feed shows everything - no filtering needed
+      
       this.notes.set(event.id, event);
+      
+      // Track oldest note timestamp for pagination
+      if (!this.oldestNoteTimestamp || event.created_at < this.oldestNoteTimestamp) {
+        this.oldestNoteTimestamp = event.created_at;
+      }
       
       // Build thread relationships
       this.buildThreadRelationships(event);
@@ -845,6 +878,30 @@ class SidecarApp {
       }
     });
     
+    // Update nostr mentions for this user
+    const mentionElements = document.querySelectorAll(`[data-pubkey="${pubkey}"]`);
+    mentionElements.forEach(element => {
+      if (element.classList.contains('nostr-mention')) {
+        const profile = this.profiles.get(pubkey);
+        const displayName = profile?.display_name || profile?.name || this.getAuthorName(pubkey);
+        const truncatedDisplayName = this.truncateUsername(displayName, 20);
+        element.textContent = `@${truncatedDisplayName}`;
+        element.title = `@${displayName}`; // Full name in tooltip
+      }
+    });
+    
+    // Update user tab if it exists for this user
+    const userTab = document.getElementById(`user-tab-${pubkey}`);
+    if (userTab && profile) {
+      const displayName = profile.display_name || profile.name || this.getAuthorName(pubkey);
+      const truncatedDisplayName = this.truncateUsername(displayName, 12);
+      userTab.innerHTML = `
+        @${truncatedDisplayName}
+        <span class="close-tab" data-pubkey="${pubkey}">×</span>
+      `;
+      userTab.title = `@${displayName}`; // Full name in tooltip
+    }
+    
     // Also update user's own profile in header if this is the logged-in user
     if (this.currentUser && pubkey === this.currentUser.publicKey) {
       this.updateUserProfile();
@@ -953,7 +1010,7 @@ class SidecarApp {
     }, 5000);
   }
   
-  loadFeed() {
+  loadFeed(resetPagination = true) {
     console.log('🔄 === LOADING FEED ===');
     console.log('Feed type:', this.currentFeed);
     console.log('Contact list loaded:', this.contactListLoaded);
@@ -961,6 +1018,12 @@ class SidecarApp {
     console.log('User follows (first 5):', Array.from(this.userFollows).slice(0, 5));
     console.log('Current user:', this.currentUser?.publicKey?.substring(0, 16) + '...');
     console.log('Relay connections:', this.relayConnections.size);
+    
+    // Reset pagination for new feed loads (but not for infinite scroll)
+    if (resetPagination) {
+      this.oldestNoteTimestamp = null;
+      this.feedHasMore = true;
+    }
     
     this.showLoading();
     
@@ -975,13 +1038,26 @@ class SidecarApp {
     const subId = 'feed-' + Date.now();
     let filter;
     
-    if (this.currentFeed === 'global') {
-      // Global feed: recent notes from popular accounts
-      filter = {
+    if (this.currentFeed === 'user-feed' && this.currentUserFeed) {
+      // User feed: delegate to loadUserFeed
+      this.loadUserFeed(this.currentUserFeed.pubkey);
+      return;
+    } else if (this.currentFeed === 'global') {
+      // Global feed: recent notes from the network (no author filter for discovery)
+      const baseFilter = {
         kinds: [1],
-        authors: this.globalFeedPubkeys,
-        limit: 30
+        limit: 50 // Get more notes for variety
       };
+      
+      // Add until timestamp for pagination if we have it
+      if (this.oldestNoteTimestamp) {
+        baseFilter.until = this.oldestNoteTimestamp - 1;
+      } else {
+        // First load - get notes from last 24 hours
+        baseFilter.since = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
+      }
+      
+      filter = baseFilter;
     } else if (this.currentFeed === 'following' && this.currentUser) {
       // Following feed: notes from accounts we follow
       if (this.userFollows.size > 0) {
@@ -1025,14 +1101,20 @@ class SidecarApp {
         });
         return;
       }
-    } else if (this.currentFeed === 'home' && this.currentUser) {
-      // Home feed: notes from followed accounts
-      // For now, just show user's own notes
-      filter = {
+    } else if (this.currentFeed === 'me' && this.currentUser) {
+      // Me feed: current user's own notes with historical loading
+      const baseFilter = {
         kinds: [1],
         authors: [this.currentUser.publicKey],
         limit: 30
       };
+      
+      // Add until timestamp for pagination if we have it
+      if (this.oldestNoteTimestamp) {
+        baseFilter.until = this.oldestNoteTimestamp - 1;
+      }
+      
+      filter = baseFilter;
     }
     
     if (filter) {
@@ -1265,6 +1347,7 @@ class SidecarApp {
       <div class="note-content">
 ${formattedContent.text}
 ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}
       </div>
       <div class="note-actions">
         <div class="note-action reply-action" data-event-id="${event.id}">
@@ -1327,6 +1410,7 @@ ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.
       <div class="reply-content">
 ${formattedContent.text}
 ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id) : ''}
+${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}
       </div>
       <div class="reply-actions">
         <div class="reply-action reply-to-reply-action" data-event-id="${event.id}">
@@ -1356,6 +1440,12 @@ ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.
     return pubkey.substring(0, 8) + '...';
   }
   
+  truncateUsername(username, maxLength = 15) {
+    if (!username) return '';
+    if (username.length <= maxLength) return username;
+    return username.substring(0, maxLength) + '...';
+  }
+  
   getAvatarPlaceholder(name) {
     // Generate a simple initial from the name
     const initial = (name?.charAt(0) || '?').toUpperCase();
@@ -1372,13 +1462,95 @@ ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.
     return `${Math.floor(diff / 86400)}d`;
   }
   
+  parseNostrLinks(content) {
+    const results = {
+      inlineProfiles: [], // npub/nprofile -> @username
+      quotedNotes: [], // note/nevent/naddr -> quoted reposts
+      cleanContent: content
+    };
+    
+    // Match all nostr: links
+    const nostrLinkRegex = /nostr:([a-zA-Z0-9]+)/g;
+    let match;
+    
+    while ((match = nostrLinkRegex.exec(content)) !== null) {
+      const fullMatch = match[0]; // "nostr:npub1..."
+      const bech32 = match[1]; // "npub1..."
+      
+      try {
+        const decoded = window.NostrTools.nip19.decode(bech32);
+        
+        if (decoded.type === 'npub' || decoded.type === 'nprofile') {
+          // User profiles - display inline as @username
+          const pubkey = decoded.type === 'npub' ? decoded.data : decoded.data.pubkey;
+          const profile = this.profiles.get(pubkey);
+          const username = profile?.display_name || profile?.name || this.getAuthorName(pubkey);
+          
+          // If we don't have the profile, fetch it
+          if (!profile) {
+            this.requestProfile(pubkey);
+          }
+          
+          results.inlineProfiles.push({
+            original: fullMatch,
+            pubkey: pubkey,
+            username: username,
+            bech32: bech32
+          });
+          
+          // Don't remove inline profiles from content - they'll be replaced inline
+          
+        } else if (decoded.type === 'note' || decoded.type === 'nevent' || decoded.type === 'naddr') {
+          // Notes/events - display as quoted reposts at end
+          const eventId = decoded.type === 'note' ? decoded.data : 
+                         decoded.type === 'nevent' ? decoded.data.id : 
+                         decoded.data.identifier; // for naddr
+          
+          results.quotedNotes.push({
+            original: fullMatch,
+            eventId: eventId,
+            type: decoded.type,
+            bech32: bech32,
+            data: decoded.data
+          });
+          
+          // Remove quoted notes from content (will be processed separately)
+          results.cleanContent = results.cleanContent.replace(fullMatch, '');
+        }
+        
+      } catch (error) {
+        console.log('Failed to decode nostr link:', bech32, error);
+        // Leave invalid links as-is
+      }
+    }
+    
+    return results;
+  }
+  
   formatNoteContent(content) {
+    // First parse nostr: links
+    const nostrParsed = this.parseNostrLinks(content);
+    
+    // Start with original content and process inline mentions
+    let textContent = content;
+    
+    // Process inline profile mentions (npub/nprofile -> @username)
+    nostrParsed.inlineProfiles.forEach(profile => {
+      const truncatedUsername = this.truncateUsername(profile.username, 20);
+      const inlineMention = `<span class="nostr-mention" data-pubkey="${profile.pubkey}" data-bech32="${profile.bech32}" title="@${profile.username}">@${truncatedUsername}</span>`;
+      textContent = textContent.replace(profile.original, inlineMention);
+    });
+    
+    // Remove quoted notes from text (they'll be displayed separately)
+    nostrParsed.quotedNotes.forEach(quoted => {
+      textContent = textContent.replace(quoted.original, '');
+    });
+    
     // Extract image URLs (common image extensions)
     const imageRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?[^\s]*)?)/gi;
-    const images = content.match(imageRegex) || [];
+    const images = textContent.match(imageRegex) || [];
     
-    // Remove image URLs from text content and format remaining text
-    let textContent = content;
+    // Remove image URLs from text content
     images.forEach(img => {
       textContent = textContent.replace(img, '');
     });
@@ -1391,7 +1563,11 @@ ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.
       .replace(/\n/g, '<br>')
       .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
     
-    return { text: textContent, images };
+    return { 
+      text: textContent, 
+      images,
+      quotedNotes: nostrParsed.quotedNotes // Pass quoted notes to be rendered separately
+    };
   }
   
   createImageGallery(images, eventId) {
@@ -1427,18 +1603,325 @@ ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.
     return galleryHTML;
   }
   
+  createQuotedNotes(quotedNotes) {
+    if (!quotedNotes || quotedNotes.length === 0) return '';
+    
+    let quotedHTML = '<div class="quoted-notes">';
+    
+    quotedNotes.forEach(quoted => {
+      // Try to find the quoted event in our cache
+      const quotedEvent = Array.from(this.notes.values()).find(e => e.id === quoted.eventId);
+      
+      if (quotedEvent) {
+        // We have the event, render it as a quoted note
+        const profile = this.profiles.get(quotedEvent.pubkey);
+        const authorName = profile?.display_name || profile?.name || this.getAuthorName(quotedEvent.pubkey);
+        const timeAgo = this.formatTimeAgo(quotedEvent.created_at);
+        const content = quotedEvent.content.length > 200 ? 
+          quotedEvent.content.substring(0, 200) + '...' : quotedEvent.content;
+        
+        quotedHTML += `
+          <div class="quoted-note" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}">
+            <div class="quoted-header">
+              <span class="quoted-author">@${authorName}</span>
+              <span class="quoted-time">${timeAgo}</span>
+            </div>
+            <div class="quoted-content">${content.replace(/\n/g, '<br>')}</div>
+            <div class="quoted-link">${quoted.bech32}</div>
+          </div>
+        `;
+      } else {
+        // Event not in cache, show a placeholder and try to fetch it
+        quotedHTML += `
+          <div class="quoted-note loading" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}">
+            <div class="quoted-header">
+              <span class="quoted-author">Loading quoted note...</span>
+            </div>
+            <div class="quoted-content">
+              <div class="spinner small"></div>
+            </div>
+            <div class="quoted-link">${quoted.bech32}</div>
+          </div>
+        `;
+        
+        // Try to fetch the quoted event
+        this.fetchQuotedEvent(quoted);
+      }
+    });
+    
+    quotedHTML += '</div>';
+    return quotedHTML;
+  }
+  
+  fetchQuotedEvent(quotedNote) {
+    // Create subscription to fetch the quoted event
+    const subId = `quoted-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    let filter;
+    
+    if (quotedNote.type === 'note') {
+      filter = { ids: [quotedNote.eventId] };
+    } else if (quotedNote.type === 'nevent') {
+      filter = { ids: [quotedNote.eventId] };
+    } else if (quotedNote.type === 'naddr') {
+      // For naddr (parameterized replaceable events)
+      filter = {
+        kinds: [quotedNote.data.kind || 30023], // Default to long-form content
+        authors: [quotedNote.data.pubkey],
+        '#d': [quotedNote.data.identifier]
+      };
+    }
+    
+    if (filter) {
+      const subscription = ['REQ', subId, filter];
+      this.subscriptions.set(subId, subscription);
+      
+      this.relayConnections.forEach((ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(subscription));
+        }
+      });
+      
+      // Auto-close subscription after 5 seconds
+      setTimeout(() => {
+        this.relayConnections.forEach((ws) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(['CLOSE', subId]));
+          }
+        });
+        this.subscriptions.delete(subId);
+      }, 5000);
+    }
+  }
+  
+  openUserFeed(pubkey, bech32) {
+    console.log('🔓 Opening user feed for:', pubkey.substring(0, 16) + '...');
+    
+    // Close any existing user tab first
+    this.closeExistingUserTab();
+    
+    // Get or create user profile info
+    const profile = this.profiles.get(pubkey);
+    const displayName = profile?.display_name || profile?.name || this.getAuthorName(pubkey);
+    
+    // Create new tab data
+    const userFeedTab = {
+      id: `user-${pubkey}`,
+      pubkey: pubkey,
+      displayName: displayName,
+      bech32: bech32,
+      type: 'user-feed',
+      active: true
+    };
+    
+    // Switch to user feed mode
+    this.currentFeed = 'user-feed';
+    this.currentUserFeed = userFeedTab;
+    
+    // Update feed toggle to show user tab
+    this.updateFeedToggle();
+    
+    // Load user's feed
+    this.loadUserFeed(pubkey);
+  }
+  
+  closeExistingUserTab() {
+    // Remove any existing user tabs
+    const existingUserTabs = document.querySelectorAll('.user-tab');
+    existingUserTabs.forEach(tab => tab.remove());
+    
+    // Clear current user feed state
+    this.currentUserFeed = null;
+  }
+  
+  updateFeedToggle() {
+    if (this.currentFeed === 'user-feed' && this.currentUserFeed) {
+      // Create user tab (since we always close existing ones first, this will be fresh)
+      const truncatedDisplayName = this.truncateUsername(this.currentUserFeed.displayName, 12);
+      const userTabHTML = `
+        <button id="user-tab-${this.currentUserFeed.pubkey}" class="toggle-btn user-tab active" data-pubkey="${this.currentUserFeed.pubkey}" title="@${this.currentUserFeed.displayName}">
+          @${truncatedDisplayName}
+          <span class="close-tab" data-pubkey="${this.currentUserFeed.pubkey}">×</span>
+        </button>
+      `;
+      
+      // Insert before refresh button
+      const refreshBtn = document.getElementById('refresh-feed-btn');
+      refreshBtn.insertAdjacentHTML('beforebegin', userTabHTML);
+      
+      // Add event listeners with proper binding
+      const userTab = document.getElementById(`user-tab-${this.currentUserFeed.pubkey}`);
+      const closeBtn = userTab.querySelector('.close-tab');
+      
+      // Tab click handler (switch to user feed)
+      userTab.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('close-tab')) {
+          // Already on this user feed, do nothing
+          e.preventDefault();
+        }
+      });
+      
+      // Close button handler
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🔴 Closing user tab');
+        this.closeUserTab(this.currentUserFeed.pubkey);
+      });
+      
+      // Update active states - deactivate all other buttons
+      document.querySelectorAll('.toggle-btn:not(.user-tab)').forEach(btn => btn.classList.remove('active'));
+      
+    } else {
+      // Regular feed toggle behavior
+      document.querySelectorAll('.toggle-btn:not(.user-tab)').forEach(btn => btn.classList.remove('active'));
+      const activeFeedBtn = document.getElementById(`${this.currentFeed}-feed-btn`);
+      if (activeFeedBtn) {
+        activeFeedBtn.classList.add('active');
+      }
+    }
+  }
+  
+  loadUserFeed(pubkey) {
+    console.log('📊 Loading user feed for:', pubkey.substring(0, 16) + '...');
+    this.showLoading();
+    
+    // Clear existing subscriptions
+    this.subscriptions.forEach((sub, id) => {
+      this.relayConnections.forEach(ws => {
+        ws.send(JSON.stringify(['CLOSE', id]));
+      });
+    });
+    this.subscriptions.clear();
+    
+    // Create user feed subscription
+    const subId = `user-feed-${Date.now()}`;
+    const baseFilter = {
+      kinds: [1], // Text notes only
+      authors: [pubkey],
+      limit: 50
+    };
+    
+    // Add until timestamp for pagination if we have it
+    if (this.oldestNoteTimestamp) {
+      baseFilter.until = this.oldestNoteTimestamp - 1;
+    }
+    
+    const filter = baseFilter;
+    
+    const subscription = ['REQ', subId, filter];
+    this.subscriptions.set(subId, subscription);
+    
+    // Real-time subscription for new posts
+    const realtimeSubId = `user-realtime-${Date.now()}`;
+    const realtimeFilter = {
+      ...filter,
+      since: Math.floor(Date.now() / 1000),
+      limit: undefined
+    };
+    const realtimeSubscription = ['REQ', realtimeSubId, realtimeFilter];
+    this.subscriptions.set(realtimeSubId, realtimeSubscription);
+    
+    console.log('📤 User feed subscription:', JSON.stringify(subscription));
+    
+    let sentToRelays = 0;
+    this.relayConnections.forEach((ws, relay) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log('📡 Sending user subscription to:', relay);
+        ws.send(JSON.stringify(subscription));
+        ws.send(JSON.stringify(realtimeSubscription));
+        sentToRelays++;
+      }
+    });
+    
+    console.log('📡 User feed sent to', sentToRelays, 'relays');
+    
+    // Hide loading after timeout
+    setTimeout(() => {
+      if (this.currentFeed === 'user-feed') {
+        this.hideLoading();
+      }
+    }, 5000);
+  }
+  
+  switchToUserFeed(pubkey) {
+    this.currentFeed = 'user-feed';
+    this.currentUserFeed = { pubkey: pubkey };
+    this.updateFeedToggle();
+    this.loadUserFeed(pubkey);
+  }
+  
+  closeUserTab(pubkey) {
+    console.log('🔴 Closing user tab for:', pubkey.substring(0, 16) + '...');
+    
+    // Remove any user tabs
+    this.closeExistingUserTab();
+    
+    // Switch back to global feed
+    this.currentFeed = 'global';
+    this.currentUserFeed = null;
+    
+    // Update UI and load feed
+    this.updateFeedToggle();
+    this.loadFeed();
+  }
+  
+  loadMoreNotes() {
+    if (this.loadingMore || !this.feedHasMore) {
+      return;
+    }
+    
+    console.log('📜 Loading more notes...');
+    this.loadingMore = true;
+    
+    // Load feed with pagination (don't reset pagination for infinite scroll)
+    this.loadFeed(false);
+    
+    // Reset loading flag after a delay
+    setTimeout(() => {
+      this.loadingMore = false;
+    }, 2000);
+  }
+  
+  setupInfiniteScroll() {
+    // Remove existing scroll listener
+    if (this.scrollListener) {
+      document.removeEventListener('scroll', this.scrollListener);
+    }
+    
+    // Create new scroll listener
+    this.scrollListener = () => {
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+      const clientHeight = document.documentElement.clientHeight || window.innerHeight;
+      
+      // Load more when user scrolls to bottom 200px
+      if (scrollTop + clientHeight >= scrollHeight - 200) {
+        this.loadMoreNotes();
+      }
+    };
+    
+    // Add scroll listener
+    document.addEventListener('scroll', this.scrollListener);
+  }
+  
   showLoading() {
     document.getElementById('loading').classList.remove('hidden');
     document.getElementById('error').classList.add('hidden');
+    document.getElementById('load-more-container').classList.remove('show');
   }
   
   hideLoading() {
     document.getElementById('loading').classList.add('hidden');
+    // Show load more button if we have content and might have more
+    if (this.feedHasMore && this.notes.size > 0) {
+      document.getElementById('load-more-container').classList.add('show');
+    }
   }
   
   showError() {
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('error').classList.remove('hidden');
+    document.getElementById('load-more-container').classList.remove('show');
   }
   
   updateCharCount() {
@@ -1892,15 +2375,26 @@ ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.
   }
   
   setupClickableLinks(element, event) {
+    // Setup nostr mentions
+    const mentionElements = element.querySelectorAll('.nostr-mention');
+    mentionElements.forEach(mentionElement => {
+      mentionElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pubkey = mentionElement.dataset.pubkey;
+        const bech32 = mentionElement.dataset.bech32;
+        this.openUserFeed(pubkey, bech32);
+      });
+    });
+    
     // Setup profile links
     const profileElements = element.querySelectorAll('[data-profile-link]');
     profileElements.forEach(profileElement => {
       profileElement.style.cursor = 'pointer';
       profileElement.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent note click
-        const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
-        const profileUrl = `https://jumble.social/users/${npub}`;
-        window.open(profileUrl, '_blank');
+        const pubkey = event.pubkey;
+        const npub = window.NostrTools.nip19.npubEncode(pubkey);
+        this.openUserFeed(pubkey, npub);
       });
     });
     

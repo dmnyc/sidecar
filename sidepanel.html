@@ -44,7 +44,7 @@
         <div class="feed-toggle">
             <button id="following-feed-btn" class="toggle-btn" disabled>Following</button>
             <button id="global-feed-btn" class="toggle-btn active">Global</button>
-            <button id="home-feed-btn" class="toggle-btn" disabled>Home</button>
+            <button id="me-feed-btn" class="toggle-btn" disabled>Me</button>
             <button id="refresh-feed-btn" class="toggle-btn refresh-btn" title="Refresh Feed">↻</button>
         </div>
 
@@ -55,6 +55,9 @@
                 <span>Loading feed...</span>
             </div>
             <div id="feed" class="feed"></div>
+            <div id="load-more-container" class="load-more-container">
+                <button id="load-more-btn" class="btn btn-secondary">Load More</button>
+            </div>
             <div id="error" class="error hidden">
                 <p>Failed to load feed. Please try again.</p>
                 <button id="retry-btn" class="btn btn-secondary">Retry</button>
