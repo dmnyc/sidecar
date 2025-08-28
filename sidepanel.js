@@ -31,14 +31,18 @@ class SidecarApp {
     this.userFollows = new Set(); // Track who the current user follows
     this.contactListLoaded = false; // Track if contact list has been loaded
     this.loadingMore = false; // Track if we're currently loading more notes
+    this.batchedLoadInProgress = false; // Track if batched load more is in progress
+    this.loadMoreStartNoteCount = 0; // Track note count when load more started
+    this.consecutiveEmptyLoads = 0; // Track consecutive empty load operations
     this.oldestNoteTimestamp = null; // Track oldest note for pagination
     this.feedHasMore = true; // Track if there are more notes to load
     
-    // Memory management settings
-    this.maxNotes = 1000; // Maximum notes to keep in memory
-    this.maxProfiles = 500; // Maximum profiles to keep in cache
-    this.maxDOMNotes = 100; // Maximum notes to keep in DOM
-    this.memoryCheckInterval = 60000; // Check memory every minute
+    // Memory management settings - reduced to prevent browser freezing
+    this.maxNotes = 300; // Maximum notes to keep in memory (reduced from 1000)
+    this.maxProfiles = 150; // Maximum profiles to keep in cache (reduced from 500)
+    this.maxDOMNotes = 50; // Maximum notes to keep in DOM (reduced from 100)
+    this.memoryCheckInterval = 30000; // Check memory every 30 seconds (reduced from 60s)
+    this.maxSubscriptions = 20; // Maximum concurrent subscriptions
     this.lastMemoryCheck = Date.now();
     
     this.init();
@@ -51,6 +55,7 @@ class SidecarApp {
     this.setupImageErrorHandling();
     this.setupInfiniteScroll();
     this.setupMemoryManagement();
+    this.setupErrorHandling();
     await this.checkAuthState();
     this.loadVersionInfo();
     this.connectToRelays();
@@ -254,6 +259,9 @@ class SidecarApp {
     // Clean up orphaned data
     this.cleanupOrphanedData();
     
+    // Clean up excessive subscriptions
+    this.cleanupSubscriptions();
+    
     this.lastMemoryCheck = Date.now();
     
     const endTime = Date.now();
@@ -342,8 +350,14 @@ class SidecarApp {
     const noteElements = document.querySelectorAll('.note');
     
     if (noteElements.length > this.maxDOMNotes) {
-      // Remove older DOM notes (keep newest)
-      const notesToRemove = noteElements.length - this.maxDOMNotes;
+      console.log('🗑️ DOM cleanup triggered - preserving scroll position');
+      
+      // Preserve scroll position during cleanup
+      const scrollContainer = document.querySelector('.feed-container') || document.documentElement;
+      const scrollTop = scrollContainer.scrollTop;
+      
+      // Remove older DOM notes (keep newest) with safety limits
+      const notesToRemove = Math.min(noteElements.length - this.maxDOMNotes, 100); // Safety limit
       
       // Convert to array and sort by timestamp (data-timestamp attribute)
       const sortedNotes = Array.from(noteElements)
@@ -353,14 +367,28 @@ class SidecarApp {
           return timeA - timeB; // Oldest first
         });
       
-      // Remove oldest notes
-      for (let i = 0; i < notesToRemove; i++) {
-        if (sortedNotes[i]) {
-          sortedNotes[i].remove();
+      // Calculate height of notes we're about to remove to adjust scroll
+      let removedHeight = 0;
+      
+      // Remove oldest notes with safety checks
+      let removed = 0;
+      for (let i = 0; i < notesToRemove && i < sortedNotes.length && removed < 100; i++) {
+        if (sortedNotes[i] && sortedNotes[i].parentNode) {
+          try {
+            removedHeight += sortedNotes[i].offsetHeight;
+            sortedNotes[i].remove();
+            removed++;
+          } catch (error) {
+            console.warn('Error removing DOM note:', error);
+            break; // Stop if we encounter errors
+          }
         }
       }
       
-      console.log(`🗑️ Removed ${notesToRemove} old notes from DOM`);
+      // Adjust scroll position to maintain visual position
+      scrollContainer.scrollTop = Math.max(0, scrollTop - removedHeight);
+      
+      console.log(`🗑️ Removed ${removed} old notes from DOM, adjusted scroll by ${removedHeight}px`);
     }
   }
   
@@ -390,16 +418,87 @@ class SidecarApp {
     });
   }
   
-  setupInfiniteScroll() {
-    const feedContainer = document.querySelector('.feed-container');
-    
-    feedContainer.addEventListener('scroll', () => {
-      // Check if user is near the bottom of the feed
-      if (feedContainer.scrollTop + feedContainer.clientHeight >= feedContainer.scrollHeight - 200) {
-        this.loadMoreNotes();
+  cleanupSubscriptions() {
+    const subsCount = this.subscriptions.size;
+    if (subsCount > this.maxSubscriptions) {
+      console.log(`🧹 Cleaning up subscriptions: ${subsCount} > ${this.maxSubscriptions}`);
+      
+      // Get subscription IDs sorted by creation time (older first)
+      const subscriptionEntries = Array.from(this.subscriptions.entries());
+      const oldSubscriptions = subscriptionEntries.slice(0, subsCount - this.maxSubscriptions);
+      
+      // Close old subscriptions
+      oldSubscriptions.forEach(([subId, subscription]) => {
+        console.log(`🔌 Closing old subscription: ${subId}`);
+        this.relayConnections.forEach(ws => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(['CLOSE', subId]));
+          }
+        });
+        this.subscriptions.delete(subId);
+      });
+      
+      console.log(`✅ Cleaned up ${oldSubscriptions.length} old subscriptions`);
+    }
+  }
+  
+  setupErrorHandling() {
+    // Global error handler for memory issues
+    window.addEventListener('error', (event) => {
+      console.error('🚨 Global error:', event.error);
+      if (event.error && event.error.message && 
+          (event.error.message.includes('memory') || 
+           event.error.message.includes('Maximum call stack') ||
+           event.error.message.includes('out of memory'))) {
+        console.error('🚨 MEMORY ERROR DETECTED - Emergency cleanup');
+        this.emergencyCleanup();
       }
     });
+    
+    // Monitor performance
+    if ('performance' in window && 'memory' in window.performance) {
+      setInterval(() => {
+        const memory = window.performance.memory;
+        if (memory.usedJSHeapSize > memory.jsHeapSizeLimit * 0.9) {
+          console.warn('⚠️ High JS heap usage:', Math.round(memory.usedJSHeapSize / 1024 / 1024) + 'MB');
+          this.performMemoryCleanup();
+        }
+      }, 10000); // Check every 10 seconds
+    }
   }
+  
+  emergencyCleanup() {
+    console.log('🚨 EMERGENCY CLEANUP INITIATED');
+    try {
+      // Clear all subscriptions immediately
+      this.subscriptions.forEach((sub, id) => {
+        this.relayConnections.forEach(ws => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(['CLOSE', id]));
+          }
+        });
+      });
+      this.subscriptions.clear();
+      
+      // Aggressive data cleanup
+      this.notes.clear();
+      this.profiles.clear();
+      this.threads.clear();
+      this.orphanedReplies.clear();
+      
+      // Clear DOM
+      const feed = document.getElementById('feed');
+      if (feed) {
+        feed.innerHTML = '';
+      }
+      
+      console.log('✅ Emergency cleanup completed');
+    } catch (error) {
+      console.error('Emergency cleanup failed:', error);
+    }
+  }
+  
+  // Note: Infinite scroll is now handled by the main setupInfiniteScroll function below
   
   loadMoreNotes() {
     console.log('🔄 LoadMoreNotes called - currentFeed:', this.currentFeed);
@@ -409,6 +508,13 @@ class SidecarApp {
       return;
     }
     this.loadingMore = true;
+    this.loadMoreStartNoteCount = this.notes.size; // Track starting note count
+    
+    // Show loading indicator
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const loadMoreLoading = document.getElementById('load-more-loading');
+    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+    if (loadMoreLoading) loadMoreLoading.classList.remove('hidden');
     
     // Get the timestamp of the oldest note currently displayed
     const feed = document.getElementById('feed');
@@ -462,10 +568,30 @@ class SidecarApp {
       });
       console.log('📡 LoadMore subscription sent to', sentToRelays, 'relays');
       
-      // Reset loading flag after a few seconds
+      // Reset loading flag and cleanup subscription after timeout
       setTimeout(() => {
         this.loadingMore = false;
-      }, 3000);
+        
+        // Hide loading indicator and restore button
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        const loadMoreLoading = document.getElementById('load-more-loading');
+        if (loadMoreBtn) loadMoreBtn.style.display = 'block';
+        if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+        
+        // Close the load more subscription to free memory
+        if (this.subscriptions.has(subId)) {
+          this.relayConnections.forEach(ws => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify(['CLOSE', subId]));
+            }
+          });
+          this.subscriptions.delete(subId);
+          console.log(`🔌 Closed load more subscription: ${subId}`);
+        }
+        
+        // Update Load More button visibility
+        this.hideLoading();
+      }, 5000);
     } else {
       console.log('❌ No filter created for loadMore - feed type not supported or missing data');
       this.loadingMore = false;
@@ -718,6 +844,8 @@ class SidecarApp {
       signedOut.classList.add('hidden');
       signedIn.classList.remove('hidden');
       floatingBtn.classList.remove('hidden');
+      meFeedBtn.classList.remove('hidden');
+      followingFeedBtn.classList.remove('hidden');
       meFeedBtn.disabled = false;
       followingFeedBtn.disabled = false;
       
@@ -737,6 +865,8 @@ class SidecarApp {
       signedOut.classList.remove('hidden');
       signedIn.classList.add('hidden');
       floatingBtn.classList.add('hidden');
+      meFeedBtn.classList.add('hidden');
+      followingFeedBtn.classList.add('hidden');
       meFeedBtn.disabled = true;
       followingFeedBtn.disabled = true;
       
@@ -908,13 +1038,18 @@ class SidecarApp {
   }
   
   switchFeed(feedType) {
-    console.log('🔄 SWITCH FEED CALLED! Type:', feedType);
+    console.log('🔄 SWITCH FEED CALLED! Type:', feedType, 'Current:', this.currentFeed);
+    
+    // If switching away from user feed, close the user tab
+    if (this.currentFeed === 'user-feed' && feedType !== 'user-feed') {
+      console.log('🔄 Switching away from user feed, closing user tab');
+      this.closeExistingUserTab();
+    }
+    
     this.currentFeed = feedType;
     
-    // Update UI - remove active from all buttons first, then add to selected
-    document.getElementById('following-feed-btn').classList.remove('active');
-    document.getElementById('trending-feed-btn').classList.remove('active');
-    document.getElementById('me-feed-btn').classList.remove('active');
+    // Update UI - remove active from ALL buttons first (including user tabs)
+    document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
     
     // Add active class to the selected button
     if (feedType === 'following') {
@@ -1004,6 +1139,32 @@ class SidecarApp {
       this.handleNote(event);
     } else if (type === 'EOSE') {
       // End of stored events
+      console.log(`📋 EOSE received for subscription: ${subId}`);
+      
+      // For load more subscriptions, track EOSE completion
+      if (subId.startsWith('loadmore-')) {
+        // Track completed batches for batched operations
+        if (subId.includes('batch')) {
+          if (!this.completedBatches) this.completedBatches = new Set();
+          this.completedBatches.add(subId);
+          
+          // Only check feedHasMore when all batches are done or timeout
+          // Individual batch EOSE shouldn't stop the entire load operation
+          console.log(`📋 Batch EOSE: ${subId}, completed: ${this.completedBatches.size}, feedHasMore still: ${this.feedHasMore}`);
+        } else {
+          // Non-batched load more - check normally
+          if (this.loadingMore) {
+            const notesReceived = this.notes.size - this.loadMoreStartNoteCount;
+            console.log(`📋 Load more received ${notesReceived} new notes`);
+            if (notesReceived < 3) {
+              console.log('📋 Load more returned few results, setting feedHasMore = false');
+              this.feedHasMore = false;
+            }
+            this.loadingMore = false;
+          }
+        }
+      }
+      
       this.hideLoading();
     } else if (type === 'CLOSED') {
       // Subscription closed - remove from pending if it was a profile request
@@ -1048,10 +1209,25 @@ class SidecarApp {
       
       this.notes.set(event.id, event);
       
-      // Check if we need memory cleanup
-      if (this.notes.size > this.maxNotes * 1.2) {
-        // Don't block note processing, do cleanup asynchronously
-        setTimeout(() => this.performMemoryCleanup(), 100);
+      // Track notes received during batched load operations
+      if (this.batchedLoadInProgress && this.batchNewNotesReceived !== undefined) {
+        this.batchNewNotesReceived++;
+        console.log(`📈 Batch note received! Total batch notes: ${this.batchNewNotesReceived}, Note ID: ${event.id.substring(0, 16)}...`);
+      }
+      
+      // Memory monitoring to prevent browser freezes (but not during active loading)
+      if (this.notes.size > this.maxNotes * 0.9 && !this.loadingMore) {
+        console.warn(`⚠️ Approaching memory limit: ${this.notes.size}/${this.maxNotes} notes`);
+        // Delayed cleanup to avoid interfering with active loading
+        setTimeout(() => this.performMemoryCleanup(), 1000);
+      }
+      
+      // Emergency cleanup only if we exceed limits significantly and not actively loading
+      if (this.notes.size > this.maxNotes * 1.5 || this.subscriptions.size > this.maxSubscriptions * 3) {
+        console.error(`🚨 EMERGENCY CLEANUP: notes=${this.notes.size}, subs=${this.subscriptions.size}`);
+        if (!this.loadingMore) {
+          this.performMemoryCleanup();
+        }
       }
       
       // Track oldest note timestamp for pagination
@@ -1248,10 +1424,7 @@ class SidecarApp {
     if (userTab && profile) {
       const displayName = profile.display_name || profile.name || this.getAuthorName(pubkey);
       const truncatedDisplayName = this.truncateUsername(displayName, 12);
-      userTab.innerHTML = `
-        @${truncatedDisplayName}
-        <span class="close-tab" data-pubkey="${pubkey}">×</span>
-      `;
+      userTab.innerHTML = `@${truncatedDisplayName}`;
       userTab.title = `@${displayName}`; // Full name in tooltip
     }
     
@@ -1368,6 +1541,24 @@ class SidecarApp {
     console.log('Total authors to batch:', followsArray.length);
     console.log('Loading notes older than timestamp:', untilTimestamp);
     
+    // Additional safety check to prevent overlapping batched operations
+    if (this.batchedLoadInProgress) {
+      console.log('⚠️ Batched load already in progress, skipping');
+      this.loadingMore = false;
+      return;
+    }
+    this.batchedLoadInProgress = true;
+    this.batchNewNotesReceived = 0; // Track notes received specifically for this batch operation
+    
+    // Safety timeout to prevent flag from getting stuck
+    setTimeout(() => {
+      if (this.batchedLoadInProgress) {
+        console.log('⚠️ Batched load timeout safety - clearing flags');
+        this.batchedLoadInProgress = false;
+        this.loadingMore = false;
+      }
+    }, 15000); // 15 second safety timeout
+    
     const BATCH_SIZE = 100; // Safe limit for most relays
     const batches = [];
     
@@ -1379,10 +1570,13 @@ class SidecarApp {
     console.log('📦 Created', batches.length, 'batches for loadMore');
     
     let sentToRelays = 0;
+    const timestamp = Date.now();
+    const batchSubIds = [];
     
     // Create subscriptions for each batch
     batches.forEach((batch, batchIndex) => {
-      const subId = `loadmore-following-batch-${batchIndex}-${Date.now()}`;
+      const subId = `loadmore-following-batch-${batchIndex}-${timestamp}`;
+      batchSubIds.push(subId);
       
       console.log(`📤 LoadMore Batch ${batchIndex + 1}: Creating subscription for ${batch.length} authors`);
       
@@ -1411,10 +1605,61 @@ class SidecarApp {
     console.log('📤 LoadMore Following feed batches sent to', sentToRelays, 'relays');
     console.log('📦 Total loadMore subscriptions created:', batches.length);
     
-    // Reset loading flag after timeout
+    // Reset loading flags and cleanup subscriptions after timeout
     setTimeout(() => {
+      // Check if we got enough notes from the entire batched operation
+      const notesReceived = this.batchNewNotesReceived || 0;
+      console.log(`📋 Batched load more completed: ${notesReceived} new notes received during batch operation`);
+      
+      if (notesReceived === 0) {
+        this.consecutiveEmptyLoads++;
+        console.log(`📋 Batched load more returned no results (${this.consecutiveEmptyLoads} consecutive empty loads)`);
+        
+        // Only stop after multiple consecutive empty loads to handle temporary gaps/relay issues
+        if (this.consecutiveEmptyLoads >= 3) {
+          console.log('📋 Multiple consecutive empty loads, setting feedHasMore = false');
+          this.feedHasMore = false;
+        } else {
+          console.log('📋 Keeping feedHasMore = true, may be temporary gap or relay issue');
+        }
+      } else {
+        this.consecutiveEmptyLoads = 0; // Reset counter when we get results
+        console.log(`📋 Batched load more got ${notesReceived} results, keeping feedHasMore = true`);
+      }
+      
+      // Reset the batch counter
+      this.batchNewNotesReceived = 0;
+      
       this.loadingMore = false;
-    }, 3000);
+      this.batchedLoadInProgress = false; // Clear batched operation flag
+      
+      // Clear completed batches tracking
+      if (this.completedBatches) {
+        this.completedBatches.clear();
+      }
+      
+      // Close all batch subscriptions to free memory using stored IDs
+      batchSubIds.forEach(subId => {
+        if (this.subscriptions.has(subId)) {
+          this.relayConnections.forEach(ws => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify(['CLOSE', subId]));
+            }
+          });
+          this.subscriptions.delete(subId);
+        }
+      });
+      console.log(`🔌 Closed ${batchSubIds.length} batched load more subscriptions`);
+      
+      // Hide loading indicator and restore button/state
+      const loadMoreBtn = document.getElementById('load-more-btn');
+      const loadMoreLoading = document.getElementById('load-more-loading');
+      if (loadMoreBtn) loadMoreBtn.style.display = 'block';
+      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+      
+      // Ensure Load More button visibility is updated
+      this.hideLoading();
+    }, 5000);
   }
   
   async loadTopFeed() {
@@ -1645,6 +1890,14 @@ class SidecarApp {
   
   displayTopLevelNote(event) {
     const feed = document.getElementById('feed');
+    
+    // Check if note already exists in DOM to prevent duplicates
+    const existingElement = document.querySelector(`[data-event-id="${event.id}"]`);
+    if (existingElement) {
+      console.log('📋 Note already exists in DOM, skipping:', event.id.substring(0, 16) + '...');
+      return;
+    }
+    
     const noteElement = this.createNoteElement(event);
     
     // Insert note in chronological order
@@ -1679,6 +1932,13 @@ class SidecarApp {
         this.orphanedReplies.set(parentId, []);
       }
       this.orphanedReplies.get(parentId).push(event);
+      return;
+    }
+    
+    // Check if reply already exists in DOM to prevent duplicates
+    const existingReplyElement = document.querySelector(`[data-event-id="${event.id}"]`);
+    if (existingReplyElement) {
+      console.log('📋 Reply already exists in DOM, skipping:', event.id.substring(0, 16) + '...');
       return;
     }
     
@@ -2196,8 +2456,15 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     };
     
     // Switch to user feed mode
-    this.currentFeed = 'user-feed';
     this.currentUserFeed = userFeedTab;
+    
+    // Use switchFeed to properly manage active states, but set to user-feed after
+    // to avoid the closeExistingUserTab call in switchFeed
+    const previousFeed = this.currentFeed;
+    this.currentFeed = 'user-feed';
+    
+    // Remove active from all buttons since we're switching to user tab
+    document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
     
     // Update feed toggle to show user tab
     this.updateFeedToggle();
@@ -2222,7 +2489,6 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       const userTabHTML = `
         <button id="user-tab-${this.currentUserFeed.pubkey}" class="toggle-btn user-tab active" data-pubkey="${this.currentUserFeed.pubkey}" title="@${this.currentUserFeed.displayName}">
           @${truncatedDisplayName}
-          <span class="close-tab" data-pubkey="${this.currentUserFeed.pubkey}">×</span>
         </button>
       `;
       
@@ -2230,32 +2496,22 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       const feedToggle = document.querySelector('.feed-toggle');
       feedToggle.insertAdjacentHTML('beforeend', userTabHTML);
       
-      // Add event listeners with proper binding
+      // Add event listener for user tab click
       const userTab = document.getElementById(`user-tab-${this.currentUserFeed.pubkey}`);
-      const closeBtn = userTab.querySelector('.close-tab');
       
-      // Tab click handler (switch to user feed)
+      // Tab click handler (refresh user feed when clicked)
       userTab.addEventListener('click', (e) => {
-        if (!e.target.classList.contains('close-tab')) {
-          // Already on this user feed, do nothing
-          e.preventDefault();
-        }
-      });
-      
-      // Close button handler
-      closeBtn.addEventListener('click', (e) => {
+        console.log('👤 User tab clicked - refreshing user feed');
         e.preventDefault();
-        e.stopPropagation();
-        console.log('🔴 Closing user tab');
-        this.closeUserTab(this.currentUserFeed.pubkey);
+        // Refresh the current user feed
+        this.refreshFeed();
       });
       
-      // Update active states - deactivate all other buttons
-      document.querySelectorAll('.toggle-btn:not(.user-tab)').forEach(btn => btn.classList.remove('active'));
+      // Note: Active state management is now handled by switchFeed() function
       
     } else {
-      // Regular feed toggle behavior
-      document.querySelectorAll('.toggle-btn:not(.user-tab)').forEach(btn => btn.classList.remove('active'));
+      // Regular feed toggle behavior - ensure correct button is active
+      document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
       const activeFeedBtn = document.getElementById(`${this.currentFeed}-feed-btn`);
       if (activeFeedBtn) {
         activeFeedBtn.classList.add('active');
@@ -2335,20 +2591,6 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     this.loadUserFeed(pubkey);
   }
   
-  closeUserTab(pubkey) {
-    console.log('🔴 Closing user tab for:', pubkey.substring(0, 16) + '...');
-    
-    // Remove any user tabs
-    this.closeExistingUserTab();
-    
-    // Switch back to top feed
-    this.currentFeed = 'trending';
-    this.currentUserFeed = null;
-    
-    // Update UI and load feed
-    this.updateFeedToggle();
-    this.loadFeed();
-  }
   
   
   setupInfiniteScroll() {

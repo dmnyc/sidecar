@@ -516,7 +516,7 @@ body {
     overflow-x: hidden;
     padding-bottom: 10px;
     max-width: 100%;
-    margin-top: 85px;
+    margin-top: 104px; /* Fine-tuned to prevent topmost note cutoff while staying close to pink bar */
 }
 
 .load-more-container {
@@ -527,6 +527,20 @@ body {
 
 .load-more-container.show {
     display: block;
+}
+
+.load-more-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+    color: #ea6390;
+    font-size: 14px;
+}
+
+.load-more-loading.hidden {
+    display: none;
 }
 
 .loading {
@@ -1484,6 +1498,10 @@ pre, code {
         width: 48px;
         height: 48px;
         font-size: 20px;
+    }
+    
+    .feed-container {
+        margin-top: 99px; /* Fine-tuned to prevent topmost note cutoff while staying close to pink bar on mobile */
     }
 }
 
