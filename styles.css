@@ -122,11 +122,15 @@ body {
     background: #1a0b3d;
     border-bottom: 1px solid #2d1b69;
     padding: 12px 16px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
     max-width: 100%;
     overflow-x: hidden;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    min-height: 64px;
+    box-sizing: border-box;
 }
 
 .header-content {
@@ -147,6 +151,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-height: 40px;
 }
 
 .auth-state {
@@ -350,6 +355,12 @@ body {
     display: flex;
     background: #1a0b3d;
     border-bottom: 1px solid #2d1b69;
+    border-top: 1px solid #2d1b69;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    z-index: 99;
 }
 
 .toggle-btn {
@@ -372,6 +383,15 @@ body {
 .toggle-btn.active {
     color: #ea6390;
     border-bottom-color: #ea6390;
+}
+
+.toggle-btn.secondary {
+    color: #888;
+    font-size: 12px;
+}
+
+.toggle-btn.secondary:hover {
+    color: #aaa;
 }
 
 .toggle-btn:disabled {
@@ -496,6 +516,7 @@ body {
     overflow-x: hidden;
     padding-bottom: 10px;
     max-width: 100%;
+    margin-top: 85px;
 }
 
 .load-more-container {
@@ -1464,4 +1485,73 @@ pre, code {
         height: 48px;
         font-size: 20px;
     }
+}
+
+/* Version Modal */
+.version-info {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.app-logo {
+    font-size: 28px;
+    font-weight: 300;
+    color: #ea6390;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+}
+
+.version-number {
+    font-size: 16px;
+    color: #e8d5f0;
+    margin-bottom: 4px;
+}
+
+.build-number {
+    font-size: 12px;
+    color: #888;
+    font-family: monospace;
+    margin-bottom: 24px;
+}
+
+.credits {
+    border-top: 1px solid #2d1b69;
+    padding-top: 20px;
+}
+
+.credit-item {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #e8d5f0;
+}
+
+.author-link {
+    color: #ea6390;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.author-link:visited {
+    color: #ea6390;
+}
+
+.author-link:hover {
+    color: #f470a0;
+    text-decoration: underline;
+}
+
+.claude-credit {
+    color: #ea6390;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.claude-credit:visited {
+    color: #ea6390;
+}
+
+.claude-credit:hover {
+    color: #f470a0;
+    text-decoration: underline;
 }

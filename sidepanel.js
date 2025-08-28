@@ -3,8 +3,10 @@ console.log('🟢 SIDEPANEL.JS SCRIPT LOADED!');
 
 class SidecarApp {
   constructor() {
+    console.log('🏗️ SIDECAR APP CONSTRUCTOR CALLED');
     this.currentUser = null;
-    this.currentFeed = 'global';
+    this.currentFeed = 'trending';
+    console.log('📝 Initial feed set to:', this.currentFeed);
     this.currentUserFeed = null;
     this.relays = [
       'wss://relay.damus.io',
@@ -22,7 +24,6 @@ class SidecarApp {
     this.userReactions = new Set(); // Track events user has already reacted to
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
-    this.globalFeedPubkeys = []; // Popular pubkeys for global feed
     this.initialFeedLoaded = false; // Track if initial feed has been loaded
     this.profileQueue = new Set(); // Queue profile requests for batching
     this.profileTimeout = null; // Timeout for batch processing
@@ -51,9 +52,61 @@ class SidecarApp {
     this.setupInfiniteScroll();
     this.setupMemoryManagement();
     await this.checkAuthState();
-    await this.loadGlobalFeedPubkeys();
+    this.loadVersionInfo();
     this.connectToRelays();
     // loadFeed() will be called automatically when first relay connects
+  }
+  
+  loadVersionInfo() {
+    // Load version info and git commit hash for build number
+    this.getGitCommitHash().then(buildHash => {
+      const buildElement = document.getElementById('app-build');
+      if (buildElement) {
+        buildElement.textContent = buildHash;
+      }
+    }).catch(err => {
+      console.log('Could not load git commit hash:', err);
+      const buildElement = document.getElementById('app-build');
+      if (buildElement) {
+        buildElement.textContent = 'unknown';
+      }
+    });
+  }
+  
+  async getGitCommitHash() {
+    // Try to get git commit hash - this will work if .git directory is accessible
+    // For production, you might want to embed this during build time
+    try {
+      // First try to get from GitHub API if we know the repo
+      const response = await fetch('https://api.github.com/repos/dmnyc/sidecar/commits/main');
+      if (response.ok) {
+        const data = await response.json();
+        return data.sha.substring(0, 8);
+      }
+    } catch (error) {
+      console.log('GitHub API not available:', error);
+    }
+    
+    // Fallback to timestamp-based build
+    const buildTime = new Date().toISOString().replace(/[:\-T]/g, '').substring(0, 14);
+    return `dev-${buildTime}`;
+  }
+  
+  showVersionModal() {
+    console.log('🔍 Opening version modal');
+    const modal = document.getElementById('version-modal');
+    modal.classList.remove('hidden');
+    
+    // Add click outside to close
+    setTimeout(() => {
+      const handleClickOutside = (e) => {
+        if (e.target === modal) {
+          this.hideModal('version-modal');
+          document.removeEventListener('click', handleClickOutside);
+        }
+      };
+      document.addEventListener('click', handleClickOutside);
+    }, 100);
   }
   
   setupEventListeners() {
@@ -69,10 +122,13 @@ class SidecarApp {
     document.getElementById('save-generated-keys-btn').addEventListener('click', () => this.saveGeneratedKeys());
     
     // Feed toggle
-    document.getElementById('following-feed-btn').addEventListener('click', () => this.switchFeed('following'));
-    document.getElementById('global-feed-btn').addEventListener('click', () => this.switchFeed('global'));
-    document.getElementById('me-feed-btn').addEventListener('click', () => this.switchFeed('me'));
-    document.getElementById('refresh-feed-btn').addEventListener('click', () => this.refreshFeed());
+    console.log('🔗 Setting up feed toggle event listeners');
+    document.getElementById('following-feed-btn').addEventListener('click', () => this.handleFeedButtonClick('following'));
+    document.getElementById('trending-feed-btn').addEventListener('click', () => {
+      console.log('🔥 TRENDING FEED BUTTON CLICKED!');
+      this.handleFeedButtonClick('trending');
+    });
+    document.getElementById('me-feed-btn').addEventListener('click', () => this.handleFeedButtonClick('me'));
     
     // Floating compose button
     document.getElementById('floating-compose-btn').addEventListener('click', () => this.showComposeSection());
@@ -116,6 +172,9 @@ class SidecarApp {
     
     // Generate keys when modal opens
     this.generateNewKeys();
+    
+    // Logo click for version modal
+    document.querySelector('.logo').addEventListener('click', () => this.showVersionModal());
   }
   
   setupImageErrorHandling() {
@@ -359,14 +418,7 @@ class SidecarApp {
     const subId = 'loadmore-' + Date.now();
     let filter;
     
-    if (this.currentFeed === 'global') {
-      filter = {
-        kinds: [1],
-        authors: this.globalFeedPubkeys,
-        until: oldestTimestamp,
-        limit: 20
-      };
-    } else if (this.currentFeed === 'following' && this.userFollows.size > 0) {
+    if (this.currentFeed === 'following' && this.userFollows.size > 0) {
       filter = {
         kinds: [1],
         authors: Array.from(this.userFollows),
@@ -423,17 +475,6 @@ class SidecarApp {
     }
   }
   
-  async loadGlobalFeedPubkeys() {
-    // For now, use a hardcoded list of popular pubkeys
-    // In production, this could be fetched from following.space or similar
-    this.globalFeedPubkeys = [
-      // Add some popular Nostr pubkeys here
-      // These are example pubkeys - replace with real ones
-      '82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2',
-      '3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d',
-      '04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9'
-    ];
-  }
   
   showAuthModal(type) {
     const modal = document.getElementById('auth-modal');
@@ -630,7 +671,8 @@ class SidecarApp {
       }
     } catch (error) {
       console.error('Save keys error:', error);
-      alert('Error saving keys');
+      console.error('Error details:', error.message, error.stack);
+      alert('Error saving keys: ' + error.message);
     }
   }
   
@@ -679,9 +721,9 @@ class SidecarApp {
       meFeedBtn.disabled = true;
       followingFeedBtn.disabled = true;
       
-      // Switch to global feed if on me or following
+      // Switch to top feed if on me or following
       if (this.currentFeed === 'me' || this.currentFeed === 'following') {
-        this.switchFeed('global');
+        this.switchFeed('trending');
       }
     }
   }
@@ -832,13 +874,37 @@ class SidecarApp {
     }
   }
   
+  handleFeedButtonClick(feedType) {
+    console.log('🎯 FEED BUTTON CLICKED! Type:', feedType, 'Current:', this.currentFeed);
+    
+    if (this.currentFeed === feedType) {
+      // Same feed clicked - refresh it
+      console.log('🔄 Refreshing current feed:', feedType);
+      this.refreshFeed();
+    } else {
+      // Different feed clicked - switch to it
+      console.log('🔀 Switching feed from', this.currentFeed, 'to', feedType);
+      this.switchFeed(feedType);
+    }
+  }
+  
   switchFeed(feedType) {
+    console.log('🔄 SWITCH FEED CALLED! Type:', feedType);
     this.currentFeed = feedType;
     
-    // Update UI
-    document.getElementById('following-feed-btn').classList.toggle('active', feedType === 'following');
-    document.getElementById('global-feed-btn').classList.toggle('active', feedType === 'global');
-    document.getElementById('me-feed-btn').classList.toggle('active', feedType === 'me');
+    // Update UI - remove active from all buttons first, then add to selected
+    document.getElementById('following-feed-btn').classList.remove('active');
+    document.getElementById('trending-feed-btn').classList.remove('active');
+    document.getElementById('me-feed-btn').classList.remove('active');
+    
+    // Add active class to the selected button
+    if (feedType === 'following') {
+      document.getElementById('following-feed-btn').classList.add('active');
+    } else if (feedType === 'trending') {
+      document.getElementById('trending-feed-btn').classList.add('active');
+    } else if (feedType === 'me') {
+      document.getElementById('me-feed-btn').classList.add('active');
+    }
     
     // Clear current feed and load new one
     document.getElementById('feed').innerHTML = '';
@@ -855,12 +921,8 @@ class SidecarApp {
     this.loadFeed();
   }
   
+  
   refreshFeed() {
-    // Add visual feedback for refresh
-    const refreshBtn = document.getElementById('refresh-feed-btn');
-    refreshBtn.style.transform = 'rotate(180deg)';
-    refreshBtn.disabled = true;
-    
     // Clear current feed and reload
     document.getElementById('feed').innerHTML = '';
     this.notes.clear();
@@ -872,12 +934,6 @@ class SidecarApp {
     // Keep profiles cache - no need to refetch profile data
     
     this.loadFeed();
-    
-    // Reset refresh button after 1 second
-    setTimeout(() => {
-      refreshBtn.style.transform = 'rotate(0deg)';
-      refreshBtn.disabled = false;
-    }, 1000);
   }
   
   connectToRelays() {
@@ -1288,6 +1344,51 @@ class SidecarApp {
     }, 5000);
   }
   
+  loadTopFeed() {
+    console.log('🔥 LOADING TOP FEED CALLED!!!');
+    console.log('🔥 Loading curated feed (recent high-engagement notes)');
+    this.showLoading();
+    
+    // For now, implement "Top" as a curated recent feed from quality relays
+    // This gets recent notes from the last 6 hours, which tends to have better quality
+    const sixHoursAgo = Math.floor(Date.now() / 1000) - (6 * 60 * 60);
+    
+    const filter = {
+      kinds: [1],
+      since: sixHoursAgo,
+      limit: 30
+    };
+    
+    console.log('📡 Loading recent quality notes with filter:', filter);
+    
+    // Clear existing subscriptions
+    this.subscriptions.forEach((sub, id) => {
+      this.relayConnections.forEach(ws => {
+        ws.send(JSON.stringify(['CLOSE', id]));
+      });
+    });
+    this.subscriptions.clear();
+    
+    // Create subscription
+    const subId = 'trending-feed-' + Date.now();
+    const subscription = ['REQ', subId, filter];
+    this.subscriptions.set(subId, subscription);
+    console.log('📤 Top feed subscription:', JSON.stringify(subscription));
+    
+    // Send to all connected relays
+    let sentToRelays = 0;
+    this.relayConnections.forEach((ws, relay) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log('📡 Sending top feed subscription to:', relay);
+        ws.send(JSON.stringify(subscription));
+        sentToRelays++;
+      } else {
+        console.log('❌ Relay not ready for subscription:', relay);
+      }
+    });
+    console.log('📡 Top feed subscription sent to', sentToRelays, 'relays');
+  }
+  
   loadFeed(resetPagination = true) {
     console.log('🔄 === LOADING FEED ===');
     console.log('Feed type:', this.currentFeed);
@@ -1320,22 +1421,11 @@ class SidecarApp {
       // User feed: delegate to loadUserFeed
       this.loadUserFeed(this.currentUserFeed.pubkey);
       return;
-    } else if (this.currentFeed === 'global') {
-      // Global feed: recent notes from the network (no author filter for discovery)
-      const baseFilter = {
-        kinds: [1],
-        limit: 50 // Get more notes for variety
-      };
-      
-      // Add until timestamp for pagination if we have it
-      if (this.oldestNoteTimestamp) {
-        baseFilter.until = this.oldestNoteTimestamp - 1;
-      } else {
-        // First load - get notes from last 24 hours
-        baseFilter.since = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
-      }
-      
-      filter = baseFilter;
+    } else if (this.currentFeed === 'trending') {
+      // Top feed: trending notes from nostr.band
+      console.log('🎯 DETECTED TOP FEED - CALLING loadTopFeed()');
+      this.loadTopFeed();
+      return;
     } else if (this.currentFeed === 'following' && this.currentUser) {
       // Following feed: notes from accounts we follow
       if (this.userFollows.size > 0) {
@@ -1364,7 +1454,7 @@ class SidecarApp {
         document.getElementById('feed').innerHTML = `
           <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
             <p>You're not following anyone yet.</p>
-            <p>Switch to Global feed to discover people to follow!</p>
+            <p>Switch to Top or Global feed to discover people to follow!</p>
             <br>
             <button id="retry-contact-list" class="btn btn-secondary" style="margin-top: 10px;">Retry Loading Follows</button>
           </div>
@@ -1618,7 +1708,8 @@ class SidecarApp {
             <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
             <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
             <div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div>
-            <div class="menu-item" data-action="copy-pubkey">Copy Author's Key</div>
+            <div class="menu-item" data-action="copy-pubkey">Copy Public Key</div>
+            <div class="menu-item" data-action="view-user-profile">View User Profile</div>
           </div>
         </div>
       </div>
@@ -1682,6 +1773,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
             <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
             <div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div>
             <div class="menu-item" data-action="copy-pubkey">Copy Author's Key</div>
+            <div class="menu-item" data-action="view-user-profile">View User Profile</div>
           </div>
         </div>
       </div>
@@ -2026,9 +2118,9 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
         </button>
       `;
       
-      // Insert before refresh button
-      const refreshBtn = document.getElementById('refresh-feed-btn');
-      refreshBtn.insertAdjacentHTML('beforebegin', userTabHTML);
+      // Insert at the end of feed toggle
+      const feedToggle = document.querySelector('.feed-toggle');
+      feedToggle.insertAdjacentHTML('beforeend', userTabHTML);
       
       // Add event listeners with proper binding
       const userTab = document.getElementById(`user-tab-${this.currentUserFeed.pubkey}`);
@@ -2141,8 +2233,8 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     // Remove any user tabs
     this.closeExistingUserTab();
     
-    // Switch back to global feed
-    this.currentFeed = 'global';
+    // Switch back to top feed
+    this.currentFeed = 'trending';
     this.currentUserFeed = null;
     
     // Update UI and load feed
@@ -2637,6 +2729,11 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       case 'copy-pubkey':
         const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
         this.copyToClipboard(npub, 'Author\'s key copied to clipboard');
+        break;
+      case 'view-user-profile':
+        const userNpub = window.NostrTools.nip19.npubEncode(event.pubkey);
+        const profileUrl = `https://jumble.social/users/${userNpub}`;
+        window.open(profileUrl, '_blank');
         break;
     }
   }

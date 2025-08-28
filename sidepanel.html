@@ -32,9 +32,8 @@
         <!-- Feed Toggle -->
         <div class="feed-toggle">
             <button id="following-feed-btn" class="toggle-btn" disabled>Following</button>
-            <button id="global-feed-btn" class="toggle-btn active">Global</button>
+            <button id="trending-feed-btn" class="toggle-btn active">Trending</button>
             <button id="me-feed-btn" class="toggle-btn" disabled>Me</button>
-            <button id="refresh-feed-btn" class="toggle-btn refresh-btn" title="Refresh Feed">↻</button>
         </div>
 
         <!-- Feed -->
@@ -168,14 +167,42 @@
         </div>
     </div>
 
+    <!-- Version Modal -->
+    <div id="version-modal" class="modal hidden">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2>About Sidecar</h2>
+                <button class="close-btn" data-modal="version-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="version-info">
+                    <div class="app-logo">🍸 sidecar</div>
+                    <div class="version-number">Version <span id="app-version">0.1.0</span></div>
+                    <div class="build-number">Build <span id="app-build">loading...</span></div>
+                    
+                    <div class="credits">
+                        <div class="credit-item">
+                            <span>Created by </span>
+                            <a href="https://nostree.me/daniel" target="_blank" class="author-link">The Daniel ⚡️</a>
+                        </div>
+                        <div class="credit-item">
+                            <span>Vibed with </span>
+                            <a href="https://www.anthropic.com/claude-code" target="_blank" class="claude-credit">Claude</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Profile Dropdown (positioned absolutely) -->
     <div class="user-dropdown" id="user-dropdown">
         <div class="dropdown-header">
             <div id="dropdown-user-name" class="dropdown-user-name"></div>
             <div id="dropdown-user-npub" class="dropdown-user-npub"></div>
         </div>
-        <div class="dropdown-item" id="view-profile-btn">View Profile</div>
-        <div class="dropdown-item" id="copy-key-btn">Copy My Key</div>
+        <div class="dropdown-item" id="view-profile-btn">View My Profile</div>
+        <div class="dropdown-item" id="copy-key-btn">Copy My Public Key</div>
         <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
     </div>
 
