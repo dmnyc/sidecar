@@ -1208,6 +1208,7 @@ class SidecarApp {
   
   
   refreshFeed() {
+    console.log('🔄 refreshFeed called - currentFeed:', this.currentFeed);
     // Clear current feed and reload
     document.getElementById('feed').innerHTML = '';
     this.notes.clear();
@@ -1247,9 +1248,13 @@ class SidecarApp {
         this.reconnectAttempts.set(relay, 0);
         
         // Load feed when first relay connects
+        console.log('🔌 Relay connected, checking if initial feed needs loading. initialFeedLoaded:', this.initialFeedLoaded);
         if (!this.initialFeedLoaded) {
+          console.log('🔄 Loading initial feed after relay connection');
           this.initialFeedLoaded = true;
           this.loadFeed();
+        } else {
+          console.log('📋 Initial feed already loaded, skipping');
         }
         
         // Fetch contact list if user is signed in but we haven't loaded it yet
@@ -2072,6 +2077,7 @@ class SidecarApp {
     this.showLoading();
     
     try {
+      console.log('✅ loadTopFeed started successfully');
       // Fetch trending notes from multiple days for a richer feed experience
       const allTrendingNoteIds = [];
       const daysToFetch = 3; // Conservative initial fetch to prevent crashes
@@ -2766,19 +2772,24 @@ class SidecarApp {
     const imageRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?[^\s]*)?)/gi;
     const images = textContent.match(imageRegex) || [];
     
-    // Remove image URLs from text content
+    // Remove image URLs from text content and any line breaks they leave
     images.forEach(img => {
-      textContent = textContent.replace(img, '');
+      // Remove the image URL and any surrounding line breaks/whitespace
+      textContent = textContent.replace(new RegExp('\\s*' + img.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'g'), ' ');
     });
     
     // Clean up extra whitespace and format text
     textContent = textContent
       .replace(/\s+/g, ' ') // Replace multiple spaces with single space
       .replace(/\n\s*\n/g, '\n') // Remove empty lines
-      .replace(/^\n+|\n+$/g, '') // Remove leading and trailing line breaks
-      .trim()
+      .replace(/^\s+|\s+$/g, '') // Remove ALL leading and trailing whitespace
       .replace(/\n/g, '<br>')
       .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+      
+    // If text is empty or only whitespace after processing, return empty string
+    if (!textContent || textContent.trim() === '') {
+      textContent = '';
+    }
     
     return { 
       text: textContent, 
@@ -2805,18 +2816,9 @@ class SidecarApp {
       if (i === 3 && images.length > 4) {
         // Show "+X more" overlay on 4th image if there are more
         const remaining = images.length - 3;
-        galleryHTML += `
-          <div class="image-container more-images" data-image-url="${imageUrl}">
-            <img src="${imageUrl}" alt="" loading="lazy">
-            <div class="image-overlay">+${remaining} more</div>
-          </div>
-        `;
+        galleryHTML += `<div class="image-container more-images" data-image-url="${imageUrl}"><img src="${imageUrl}" alt="" loading="lazy"><div class="image-overlay">+${remaining} more</div></div>`;
       } else {
-        galleryHTML += `
-          <div class="image-container" data-image-url="${imageUrl}">
-            <img src="${imageUrl}" alt="" loading="lazy">
-          </div>
-        `;
+        galleryHTML += `<div class="image-container" data-image-url="${imageUrl}"><img src="${imageUrl}" alt="" loading="lazy"></div>`;
       }
     }
     
@@ -2844,47 +2846,17 @@ class SidecarApp {
         const avatarUrl = profile?.picture;
         const authorId = this.formatProfileIdentifier(profile?.nip05, quotedEvent.pubkey);
         
-        quotedHTML += `
-          <div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}">
-            <div class="quoted-header">
-              <div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">
-                ${avatarUrl ? 
-                  `<img src="${avatarUrl}" alt="" class="avatar-img">
-                   <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
-                  `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
-                }
-              </div>
-              <div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">
-                <span class="quoted-author">${authorName}</span>
-                <span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
-              </div>
-              <span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span>
-              <div class="quoted-menu">
-                <button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button>
-                <div class="menu-dropdown" data-event-id="${quotedEvent.id}">
-                  <div class="menu-item" data-action="open-note">Open Note</div>
-                  <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
-                  <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
-                  <div class="menu-item" data-action="view-profile">View Profile</div>
-                </div>
-              </div>
-            </div>
-            <div class="quoted-content">${content.replace(/\n/g, '<br>')}</div>
-          </div>
-        `;
+        console.log('📥 Quoted note data:', { authorName, avatarUrl: !!avatarUrl, authorId, hasProfile: !!profile });
+        
+        // If we don't have the profile, try to fetch it
+        if (!profile) {
+          this.requestProfile(quotedEvent.pubkey);
+        }
+        
+        quotedHTML += `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}"><div class="reply-header"><div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarUrl ? `<img src="${avatarUrl}" alt="" class="avatar-img small" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` : `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`}</div><div class="reply-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="reply-author">${authorName}</span><span class="reply-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><span class="reply-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="reply-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="view-profile">View Profile</div></div></div></div><div class="reply-content">${content.replace(/\n/g, '<br>')}</div></div>`;
       } else {
         // Event not in cache, show a placeholder and try to fetch it
-        quotedHTML += `
-          <div class="quoted-note loading" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}">
-            <div class="quoted-header">
-              <span class="quoted-author">Loading quoted note...</span>
-            </div>
-            <div class="quoted-content">
-              <div class="spinner small"></div>
-            </div>
-            <div class="quoted-link">${quoted.bech32}</div>
-          </div>
-        `;
+        quotedHTML += `<div class="quoted-note loading" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}"><div class="reply-header"><div class="reply-avatar"><div class="avatar-placeholder small">?</div></div><div class="reply-info"><span class="reply-author">Loading quoted note...</span></div><span class="reply-time">...</span><div class="reply-menu"><button class="menu-btn disabled">⋯</button></div></div><div class="reply-content"><div class="spinner small"></div></div></div>`;
         
         // Try to fetch the quoted event
         this.fetchQuotedEvent(quoted);
@@ -2910,6 +2882,7 @@ class SidecarApp {
   }
   
   fetchQuotedEvent(quotedNote) {
+    console.log('📥 Fetching quoted event:', quotedNote);
     // Create subscription to fetch the quoted event
     const subId = `quoted-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     let filter;
@@ -2953,6 +2926,8 @@ class SidecarApp {
     // Find all loading quoted note placeholders that match this event ID
     const placeholders = document.querySelectorAll(`.quoted-note.loading[data-event-id="${event.id}"]`);
     
+    console.log(`🔄 Updating quoted note placeholders for ${event.id.substring(0, 16)}... - found ${placeholders.length} placeholders`);
+    
     placeholders.forEach(placeholder => {
       // Get the author profile
       let authorName = this.getAuthorName(event.pubkey);
@@ -2962,37 +2937,12 @@ class SidecarApp {
       }
       
       // Create the updated quoted note HTML
-      const content = this.processNoteContent(event.content);
+      const content = this.formatNoteContent(event.content).text;
       const avatarUrl = profile?.picture;
       const authorId = this.formatProfileIdentifier(profile?.nip05, event.pubkey);
       const timeAgo = this.formatTimeAgo(event.created_at);
       
-      const updatedHTML = `
-        <div class="quoted-header">
-          <div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
-            ${avatarUrl ? 
-              `<img src="${avatarUrl}" alt="" class="avatar-img">
-               <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
-              `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
-            }
-          </div>
-          <div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
-            <span class="quoted-author">${authorName}</span>
-            <span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
-          </div>
-          <span class="quoted-time" data-note-link="${event.id}">${timeAgo}</span>
-          <div class="quoted-menu">
-            <button class="menu-btn" data-event-id="${event.id}">⋯</button>
-            <div class="menu-dropdown" data-event-id="${event.id}">
-              <div class="menu-item" data-action="open-note">Open Note</div>
-              <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
-              <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
-              <div class="menu-item" data-action="view-profile">View Profile</div>
-            </div>
-          </div>
-        </div>
-        <div class="quoted-content">${content.replace(/\n/g, '<br>')}</div>
-      `;
+      const updatedHTML = `<div class="reply-header"><div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">${avatarUrl ? `<img src="${avatarUrl}" alt="" class="avatar-img small" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` : `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`}</div><div class="reply-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}"><span class="reply-author">${authorName}</span><span class="reply-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><span class="reply-time" data-note-link="${event.id}">${timeAgo}</span><div class="reply-menu"><button class="menu-btn" data-event-id="${event.id}">⋯</button><div class="menu-dropdown" data-event-id="${event.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="view-profile">View Profile</div></div></div></div><div class="reply-content">${content.replace(/\n/g, '<br>')}</div>`;
       
       // Replace the placeholder content and remove loading class
       placeholder.innerHTML = updatedHTML;
@@ -3008,7 +2958,7 @@ class SidecarApp {
   
   setupQuotedNoteInteractions(quotedElement, event) {
     // Set up menu functionality
-    const menuContainer = quotedElement.querySelector('.quoted-menu');
+    const menuContainer = quotedElement.querySelector('.reply-menu');
     if (menuContainer) {
       this.setupNoteMenu(menuContainer, event);
     }
