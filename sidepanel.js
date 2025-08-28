@@ -514,6 +514,14 @@ class SidecarApp {
     this.loadingMore = true;
     this.loadMoreStartNoteCount = this.notes.size; // Track starting note count
     
+    // Safety timeout to prevent loadingMore flag from getting stuck
+    setTimeout(() => {
+      if (this.loadingMore) {
+        console.log('⚠️ SAFETY TIMEOUT: loadingMore flag stuck, resetting after 30s');
+        this.loadingMore = false;
+      }
+    }, 30000);
+    
     // Show loading indicator
     const loadMoreBtn = document.getElementById('load-more-btn');
     const loadMoreLoading = document.getElementById('load-more-loading');
@@ -523,7 +531,16 @@ class SidecarApp {
     // Get the timestamp of the oldest note currently displayed
     const feed = document.getElementById('feed');
     const notes = Array.from(feed.children);
-    if (notes.length === 0) return;
+    if (notes.length === 0) {
+      console.log('❌ No notes in feed, resetting loadingMore flag');
+      this.loadingMore = false;
+      // Reset UI elements
+      const loadMoreBtn = document.getElementById('load-more-btn');
+      const loadMoreLoading = document.getElementById('load-more-loading');
+      if (loadMoreBtn) loadMoreBtn.style.display = 'block';
+      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+      return;
+    }
     
     const oldestNote = notes[notes.length - 1];
     const oldestTimestamp = parseInt(oldestNote.dataset.timestamp);
@@ -538,6 +555,13 @@ class SidecarApp {
       return;
     } else if (this.currentFeed === 'following') {
       console.log('❌ Following feed but userFollows is empty:', this.userFollows.size);
+      this.loadingMore = false;
+      // Reset UI elements
+      const loadMoreBtn = document.getElementById('load-more-btn');
+      const loadMoreLoading = document.getElementById('load-more-loading');
+      if (loadMoreBtn) loadMoreBtn.style.display = 'block';
+      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+      return;
     } else if (this.currentFeed === 'me' && this.currentUser) {
       console.log('📋 Creating me feed filter for user:', this.currentUser.publicKey.substring(0, 16) + '...');
       filter = {
@@ -1206,6 +1230,13 @@ class SidecarApp {
       
       console.log('📝 Received note from:', event.pubkey.substring(0, 16) + '...', 'Content:', event.content.substring(0, 50) + '...');
       
+      // Track notes received during batched load operations BEFORE filtering
+      // This ensures we count all notes received from batches, even if filtered out
+      if (this.batchedLoadInProgress && this.batchNewNotesReceived !== undefined) {
+        this.batchNewNotesReceived++;
+        console.log(`📈 Batch note received! Total batch notes: ${this.batchNewNotesReceived}, Note ID: ${event.id.substring(0, 16)}...`);
+      }
+      
       // Filter notes based on current feed type
       if (this.currentFeed === 'following') {
         // Only show notes from users we follow
@@ -1231,12 +1262,6 @@ class SidecarApp {
       
       this.notes.set(event.id, event);
       
-      // Track notes received during batched load operations
-      if (this.batchedLoadInProgress && this.batchNewNotesReceived !== undefined) {
-        this.batchNewNotesReceived++;
-        console.log(`📈 Batch note received! Total batch notes: ${this.batchNewNotesReceived}, Note ID: ${event.id.substring(0, 16)}...`);
-      }
-      
       // Memory monitoring to prevent browser freezes (but not during active loading)
       if (this.notes.size > this.maxNotes * 0.9 && !this.loadingMore) {
         console.warn(`⚠️ Approaching memory limit: ${this.notes.size}/${this.maxNotes} notes`);
@@ -1254,7 +1279,11 @@ class SidecarApp {
       
       // Track oldest note timestamp for pagination
       if (!this.oldestNoteTimestamp || event.created_at < this.oldestNoteTimestamp) {
+        const oldValue = this.oldestNoteTimestamp;
         this.oldestNoteTimestamp = event.created_at;
+        if (this.batchedLoadInProgress && oldValue) {
+          console.log(`📅 Updated oldest timestamp: ${new Date(oldValue * 1000).toLocaleTimeString()} → ${new Date(this.oldestNoteTimestamp * 1000).toLocaleTimeString()}`);
+        }
       }
       
       // Build thread relationships
@@ -1627,8 +1656,11 @@ class SidecarApp {
     // Safety timeout to prevent flag from getting stuck - longer timeout for proper completion
     setTimeout(() => {
       if (this.batchedLoadInProgress) {
-        console.log('⚠️ Batched load timeout safety - clearing flags after 15s');
+        console.log('⚠️ TIMEOUT SAFETY TRIGGERED - Batched load timeout after 15s, clearing flags forcibly');
+        console.log(`⚠️ TIMEOUT STATE: batchedLoadInProgress=${this.batchedLoadInProgress}, completedBatches=${this.completedBatches.size}, expectedBatches=${this.expectedBatches}`);
         this.finalizeBatchedLoad();
+      } else {
+        console.log('⚠️ Timeout safety checked - batchedLoadInProgress was already false');
       }
     }, 15000); // 15 second safety timeout
   }
@@ -1638,6 +1670,9 @@ class SidecarApp {
       console.log('📋 finalizeBatchedLoad called but batchedLoadInProgress is false, skipping');
       return;
     }
+    
+    console.log('📋 finalizeBatchedLoad() called - starting cleanup process');
+    console.log(`📋 STATE: completedBatches=${this.completedBatches.size}, expectedBatches=${this.expectedBatches}, loadingMore=${this.loadingMore}`);
     
     // Check if we got enough notes from the entire batched operation
     const notesReceived = this.batchNewNotesReceived || 0;
@@ -1942,9 +1977,17 @@ class SidecarApp {
     const existingNotes = Array.from(feed.children);
     let inserted = false;
     
+    // Debug chronological ordering during batched loads
+    if (this.batchedLoadInProgress) {
+      console.log(`📅 Inserting batched note (${new Date(event.created_at * 1000).toLocaleTimeString()}): ${event.id.substring(0, 16)}...`);
+    }
+    
     for (const existingNote of existingNotes) {
       const existingTimestamp = parseInt(existingNote.dataset.timestamp);
       if (event.created_at > existingTimestamp) {
+        if (this.batchedLoadInProgress) {
+          console.log(`📅 Inserted before note from ${new Date(existingTimestamp * 1000).toLocaleTimeString()}`);
+        }
         feed.insertBefore(noteElement, existingNote);
         inserted = true;
         break;
@@ -1952,6 +1995,9 @@ class SidecarApp {
     }
     
     if (!inserted) {
+      if (this.batchedLoadInProgress) {
+        console.log(`📅 Appended to end (oldest note in batch)`);
+      }
       feed.appendChild(noteElement);
     }
     
