@@ -11,7 +11,6 @@ class SidecarApp {
     this.relays = [
       'wss://relay.damus.io',
       'wss://nos.lol',
-      'wss://relay.snort.social',
       'wss://relay.nostr.band',
       'wss://nostr.wine'
     ];
@@ -224,15 +223,22 @@ class SidecarApp {
   }
   
   setupMemoryManagement() {
-    // Set up periodic memory cleanup
+    // Set up periodic memory CHECK (not cleanup) - only cleanup if needed
     setInterval(() => {
-      this.performMemoryCleanup();
+      // Only cleanup if we're approaching memory limits
+      if (this.notes.size > this.maxNotes * 0.8) {
+        console.log(`🧹 Scheduled cleanup check: ${this.notes.size}/${this.maxNotes} notes (${Math.round(this.notes.size/this.maxNotes*100)}%)`);
+        this.performMemoryCleanup();
+      }
     }, this.memoryCheckInterval);
     
     // Also check memory on visibility change (when user returns to tab)
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && Date.now() - this.lastMemoryCheck > this.memoryCheckInterval) {
-        this.performMemoryCleanup();
+        // Only cleanup if approaching limits
+        if (this.notes.size > this.maxNotes * 0.8) {
+          this.performMemoryCleanup();
+        }
       }
     });
   }
@@ -291,14 +297,29 @@ class SidecarApp {
       displayedNoteIds.add(el.dataset.eventId);
     });
     
-    // Keep most recent notes + displayed notes
+    // Keep most recent notes + displayed notes - more aggressive during memory crisis
     const toKeep = new Set();
     let keptCount = 0;
     
+    // Determine how aggressive to be based on memory pressure
+    const memoryPressure = this.notes.size / this.maxNotes;
+    let keepRatio;
+    
+    if (memoryPressure > 1.5) {
+      keepRatio = 0.5; // Emergency: keep only 50% during severe memory crisis
+    } else if (memoryPressure > 1.2) {
+      keepRatio = 0.6; // High pressure: keep 60%
+    } else {
+      keepRatio = 0.8; // Normal: keep 80%
+    }
+    
+    const maxKeep = Math.floor(this.maxNotes * keepRatio);
+    console.log(`🧹 Memory pressure: ${Math.round(memoryPressure * 100)}%, keeping max ${maxKeep} notes (${Math.round(keepRatio * 100)}%)`);
+    
     for (const [noteId, note] of notesArray) {
-      if (displayedNoteIds.has(noteId) || keptCount < this.maxNotes * 0.8) {
+      if (displayedNoteIds.has(noteId) || keptCount < maxKeep) {
         toKeep.add(noteId);
-        keptCount++;
+        if (!displayedNoteIds.has(noteId)) keptCount++; // Only count non-displayed notes toward limit
       }
     }
     
@@ -372,11 +393,17 @@ class SidecarApp {
       const viewportTop = scrollTop;
       const viewportBottom = scrollTop + viewportHeight;
       
-      // Find notes that are visible or within 2 viewport heights (above and below)
-      const buffer = viewportHeight * 2;
+      // Find notes that are visible or within reasonable buffer
+      const buffer = viewportHeight * 1.5;
       const protectedNotes = new Set();
       
+      console.log(`🔍 Viewport: ${viewportTop}-${viewportBottom} (height: ${viewportHeight}), buffer: ${buffer}`);
+      
+      let protectedCount = 0;
+      let totalCount = 0;
+      
       noteElements.forEach(note => {
+        totalCount++;
         const rect = note.getBoundingClientRect();
         const noteTop = rect.top + scrollTop;
         const noteBottom = rect.bottom + scrollTop;
@@ -384,8 +411,11 @@ class SidecarApp {
         // Protect notes in extended viewport area
         if (noteBottom >= (viewportTop - buffer) && noteTop <= (viewportBottom + buffer)) {
           protectedNotes.add(note.dataset.eventId);
+          protectedCount++;
         }
       });
+      
+      console.log(`🔍 Protected ${protectedCount}/${totalCount} notes within viewport + buffer`);
       
       // Only remove notes that are far from the viewport
       const sortedNotes = Array.from(noteElements)
@@ -396,19 +426,33 @@ class SidecarApp {
           return timeA - timeB; // Oldest first
         });
       
-      // Calculate how many to remove (less aggressive)
-      const maxToRemove = Math.min(sortedNotes.length, Math.floor(noteElements.length * 0.3)); // Remove max 30%
+      // Calculate how many to remove - more aggressive when near memory limit
+      const memoryPressure = this.notes.size / this.maxNotes;
+      let removalPercentage;
+      
+      if (memoryPressure > 0.95) {
+        removalPercentage = 0.5; // Remove 50% of non-protected notes when very close to limit
+      } else if (memoryPressure > 0.90) {
+        removalPercentage = 0.4; // Remove 40% when approaching limit
+      } else {
+        removalPercentage = 0.3; // Remove 30% during normal cleanup
+      }
+      
+      const maxToRemove = Math.min(sortedNotes.length, Math.floor(noteElements.length * removalPercentage));
       const notesToRemove = sortedNotes.slice(0, maxToRemove);
+      
+      console.log(`🗑️ Memory pressure: ${Math.round(memoryPressure * 100)}%, will remove up to ${Math.round(removalPercentage * 100)}% (${maxToRemove} notes)`);
       
       console.log(`🗑️ Protecting ${protectedNotes.size} viewport notes, removing ${notesToRemove.length} distant notes`);
       
       // Calculate height of notes we're about to remove to adjust scroll
       let removedHeight = 0;
       
-      // Remove distant notes with safety checks
+      // Remove distant notes with safety checks - more aggressive during memory crisis
+      const maxRemoval = this.notes.size > this.maxNotes * 1.5 ? 500 : 100; // Allow more removal during emergencies
       let removed = 0;
       for (const note of notesToRemove) {
-        if (note && note.parentNode && removed < 100) {
+        if (note && note.parentNode && removed < maxRemoval) {
           try {
             removedHeight += note.offsetHeight;
             note.remove();
@@ -1049,7 +1093,7 @@ class SidecarApp {
     // Update avatar immediately
     if (profile?.picture) {
       userAvatarEl.innerHTML = `
-        <img src="${profile.picture}" alt="" class="avatar-img" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
+        <img src="${profile.picture}" alt="" class="avatar-img">
         <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(displayName)}</div>
       `;
     } else {
@@ -1178,45 +1222,76 @@ class SidecarApp {
   }
   
   connectToRelays() {
-    this.relays.forEach(relay => {
-      try {
-        const ws = new WebSocket(relay);
+    this.relays.forEach(relay => this.connectToRelay(relay));
+  }
+  
+  connectToRelay(relay) {
+    // Don't reconnect if already connected
+    if (this.relayConnections.has(relay)) {
+      console.log(`Already connected to ${relay}, skipping`);
+      return;
+    }
+    
+    // Initialize reconnection attempt counter if not exists
+    if (!this.reconnectAttempts) {
+      this.reconnectAttempts = new Map();
+    }
+    
+    try {
+      const ws = new WebSocket(relay);
+      
+      ws.onopen = () => {
+        console.log(`Connected to ${relay}`);
+        this.relayConnections.set(relay, ws);
+        // Reset reconnection attempts on successful connection
+        this.reconnectAttempts.set(relay, 0);
         
-        ws.onopen = () => {
-          console.log(`Connected to ${relay}`);
-          this.relayConnections.set(relay, ws);
-          
-          // Load feed when first relay connects
-          if (!this.initialFeedLoaded) {
-            this.initialFeedLoaded = true;
-            this.loadFeed();
+        // Load feed when first relay connects
+        if (!this.initialFeedLoaded) {
+          this.initialFeedLoaded = true;
+          this.loadFeed();
+        }
+        
+        // Fetch contact list if user is signed in but we haven't loaded it yet
+        if (this.currentUser && !this.contactListLoaded) {
+          console.log('Fetching contact list on relay connection...');
+          this.fetchContactList();
+        }
+      };
+      
+      ws.onmessage = (event) => {
+        this.handleRelayMessage(relay, JSON.parse(event.data));
+      };
+      
+      ws.onclose = () => {
+        console.log(`Disconnected from ${relay}`);
+        this.relayConnections.delete(relay);
+        
+        // Implement exponential backoff to prevent aggressive reconnection
+        const attempts = this.reconnectAttempts.get(relay) || 0;
+        if (attempts >= 5) {
+          console.log(`Max reconnection attempts reached for ${relay}, giving up`);
+          return;
+        }
+        
+        const backoffDelay = Math.min(5000 * Math.pow(2, attempts), 60000); // Cap at 60 seconds
+        console.log(`Will reconnect to ${relay} in ${backoffDelay}ms (attempt ${attempts + 1})`);
+        this.reconnectAttempts.set(relay, attempts + 1);
+        
+        setTimeout(() => {
+          if (!this.relayConnections.has(relay)) {
+            console.log(`Attempting to reconnect to ${relay}`);
+            this.connectToRelay(relay);
           }
-          
-          // Fetch contact list if user is signed in but we haven't loaded it yet
-          if (this.currentUser && !this.contactListLoaded) {
-            console.log('Fetching contact list on relay connection...');
-            this.fetchContactList();
-          }
-        };
-        
-        ws.onmessage = (event) => {
-          this.handleRelayMessage(relay, JSON.parse(event.data));
-        };
-        
-        ws.onclose = () => {
-          console.log(`Disconnected from ${relay}`);
-          this.relayConnections.delete(relay);
-          // Attempt to reconnect after 5 seconds
-          setTimeout(() => this.connectToRelays(), 5000);
-        };
-        
-        ws.onerror = (error) => {
-          console.error(`Error with ${relay}:`, error);
-        };
-      } catch (error) {
-        console.error(`Failed to connect to ${relay}:`, error);
-      }
-    });
+        }, backoffDelay);
+      };
+      
+      ws.onerror = (error) => {
+        console.error(`Error with ${relay}:`, error);
+      };
+    } catch (error) {
+      console.error(`Failed to connect to ${relay}:`, error);
+    }
   }
   
   handleRelayMessage(relay, message) {
@@ -1228,8 +1303,14 @@ class SidecarApp {
       // End of stored events
       console.log(`📋 EOSE received for subscription: ${subId}`);
       
+      // Special handling for trending feed to show summary
+      if (subId.startsWith('trending-feed-')) {
+        console.log(`🎯 TRENDING FEED LOADED - Authors collected: ${this.trendingAuthors ? this.trendingAuthors.size : 0}`);
+        console.log(`🎯 First 5 trending authors:`, this.trendingAuthors ? [...this.trendingAuthors].slice(0, 5).map(a => a.substring(0, 16) + '...') : 'None');
+      }
+      
       // For load more subscriptions, track EOSE completion
-      if (subId.startsWith('loadmore-')) {
+      if (subId.startsWith('loadmore-') || subId.startsWith('trending-loadmore-')) {
         // Track completed batches for batched operations
         if (subId.includes('batch')) {
           if (!this.completedBatches) this.completedBatches = new Set();
@@ -1273,7 +1354,7 @@ class SidecarApp {
       
       // Only call hideLoading for non-batched load more operations
       // Individual batch EOSE events should not update UI state
-      if (!(subId.startsWith('loadmore-') && subId.includes('batch'))) {
+      if (!((subId.startsWith('loadmore-') || subId.startsWith('trending-loadmore-')) && subId.includes('batch'))) {
         this.hideLoading();
       } else {
         console.log(`📋 Skipping hideLoading for batch EOSE: ${subId}`);
@@ -1326,18 +1407,21 @@ class SidecarApp {
       } else if (this.currentFeed === 'trending') {
         // Show notes that are either in our trending note IDs list OR from trending authors 
         const isTrendingNote = this.trendingNoteIds.has(event.id);
-        const isTrendingAuthor = [...this.notes.values()]
-          .some(note => this.trendingNoteIds.has(note.id) && note.pubkey === event.pubkey);
+        const isTrendingAuthor = this.trendingAuthors && this.trendingAuthors.has(event.pubkey);
           
         if (!isTrendingNote && !isTrendingAuthor) {
-          console.log('🚫 Filtering out non-trending note:', event.id.substring(0, 16) + '...');
+          console.log('🚫 Filtering out non-trending note:', event.id.substring(0, 16) + '...', 'from author:', event.pubkey.substring(0, 16) + '...');
           return;
         }
         
         if (isTrendingNote) {
           console.log('✅ Showing curated trending note:', event.id.substring(0, 16) + '...');
+          // Add this author to trending authors set for future filtering
+          if (!this.trendingAuthors) this.trendingAuthors = new Set();
+          this.trendingAuthors.add(event.pubkey);
+          console.log('👥 Added trending author:', event.pubkey.substring(0, 16) + '...', 'Total trending authors:', this.trendingAuthors.size);
         } else {
-          console.log('✅ Showing note from trending author:', event.id.substring(0, 16) + '...');
+          console.log('✅ Showing note from trending author:', event.id.substring(0, 16) + '...', 'author:', event.pubkey.substring(0, 16) + '...');
         }
       }
       // Other feeds (if any) show everything - no additional filtering needed
@@ -1353,19 +1437,28 @@ class SidecarApp {
       // Memory monitoring to prevent browser freezes (but not during active loading)
       if (this.notes.size > this.maxNotes * 0.95 && !this.loadingMore && !this.batchedLoadInProgress) {
         console.warn(`⚠️ Approaching memory limit: ${this.notes.size}/${this.maxNotes} notes`);
-        // Delayed cleanup to avoid interfering with active loading, and only if not in batched operation
-        setTimeout(() => {
-          if (!this.loadingMore && !this.batchedLoadInProgress) {
-            this.performMemoryCleanup();
-          }
-        }, 2000);
+        
+        // Debounce cleanup calls to prevent rapid successive executions
+        if (!this.cleanupScheduled) {
+          this.cleanupScheduled = true;
+          setTimeout(() => {
+            if (!this.loadingMore && !this.batchedLoadInProgress) {
+              this.performMemoryCleanup();
+            }
+            this.cleanupScheduled = false;
+          }, 2000);
+        }
       }
       
-      // Emergency cleanup only if we exceed limits significantly and not actively loading
+      // Emergency cleanup only if we exceed limits significantly
       if (this.notes.size > this.maxNotes * 1.5 || this.subscriptions.size > this.maxSubscriptions * 3) {
         console.error(`🚨 EMERGENCY CLEANUP: notes=${this.notes.size}, subs=${this.subscriptions.size}`);
-        if (!this.loadingMore) {
-          this.performMemoryCleanup();
+        if (!this.loadingMore && !this.emergencyCleanupScheduled) {
+          this.emergencyCleanupScheduled = true;
+          setTimeout(() => {
+            this.performMemoryCleanup();
+            this.emergencyCleanupScheduled = false;
+          }, 500);
         }
       }
       
@@ -1543,7 +1636,7 @@ class SidecarApp {
           // Update avatar if profile picture is available
           const authorName = profile.display_name || profile.name || this.getAuthorName(pubkey);
           avatarContainer.innerHTML = `
-            <img src="${profile.picture}" alt="" class="avatar-img" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
+            <img src="${profile.picture}" alt="" class="avatar-img">
             <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>
           `;
         }
@@ -1781,44 +1874,55 @@ class SidecarApp {
   
   async loadMoreTrendingDays() {
     console.log('🔥 loadMoreTrendingDays() called!');
+    this.loadMoreStartNoteCount = this.notes.size; // Track starting note count
     
-    // For trending feed, implement infinite scroll using timestamp-based pagination
-    // since the API returns the same notes for all days, we'll load older notes from trending authors
-    const oldestNote = this.getOldestNoteInFeed();
+    // Since nostr.band API doesn't support pagination (confirmed by testing), 
+    // we'll load older content from trending authors using Nostr relays
     
-    if (!oldestNote) {
-      console.log('📊 No notes in feed to determine oldest timestamp');
+    const notes = document.querySelectorAll('.note');
+    if (notes.length === 0) {
+      console.log('📊 No notes in DOM to determine oldest timestamp');
       this.feedHasMore = false;
       this.loadingMore = false;
       this.hideLoading();
       return;
     }
     
-    // Get trending authors from current notes in feed
-    const trendingAuthors = [...new Set([...this.notes.values()]
-      .filter(note => this.trendingNoteIds.has(note.id))
-      .map(note => note.pubkey))];
+    const oldestNote = notes[notes.length - 1];
+    const oldestTimestamp = parseInt(oldestNote.dataset.timestamp);
+    
+    if (!oldestTimestamp) {
+      console.log('📊 No timestamp found on oldest note');
+      this.feedHasMore = false;
+      this.loadingMore = false;
+      this.hideLoading();
+      return;
+    }
+    
+    console.log('🕰️ Loading more trending content older than:', new Date(oldestTimestamp * 1000).toLocaleString());
+    
+    // Use cached trending authors set
+    const trendingAuthorsList = this.trendingAuthors ? [...this.trendingAuthors] : [];
       
-    console.log('👥 Found', trendingAuthors.length, 'trending authors for load more');
+    console.log('👥 Found', trendingAuthorsList.length, 'cached trending authors for load more');
+    console.log('📋 Trending authors:', trendingAuthorsList.slice(0, 5).map(a => a.substring(0, 16) + '...'));
     
-    if (trendingAuthors.length === 0) {
+    if (trendingAuthorsList.length === 0) {
       console.log('📊 No trending authors found, ending load more');
+      console.log('📋 Current trending note IDs count:', this.trendingNoteIds.size);
+      console.log('📋 Current trending authors set:', this.trendingAuthors);
       this.feedHasMore = false;
       this.loadingMore = false;
       this.hideLoading();
       return;
     }
-    
-    // Use timestamp-based infinite scroll for older content from trending authors
-    const until = oldestNote.created_at - 1;
-    console.log('🕰️ Loading more trending notes older than:', new Date(until * 1000).toLocaleString());
     
     try {
       // Create subscription for older notes from trending authors
       const filter = {
         kinds: [1],
-        authors: trendingAuthors.slice(0, 20), // Limit to top 20 authors to avoid huge queries
-        until: until,
+        authors: trendingAuthorsList.slice(0, 20), // Limit to top 20 authors to avoid huge queries
+        until: oldestTimestamp - 1,
         limit: 30
       };
       
@@ -1991,6 +2095,10 @@ class SidecarApp {
       // Store trending note IDs for filtering
       this.trendingNoteIds.clear();
       trendingNoteIds.forEach(id => this.trendingNoteIds.add(id));
+      
+      // Initialize trending authors set - will be populated as we receive trending notes
+      this.trendingAuthors = new Set();
+      
       this.trendingDaysLoaded = daysToFetch; // Track that we loaded this many days
       this.feedHasMore = true; // Enable load more for trending feed
       console.log('🎯 Set feedHasMore = true for trending feed');
@@ -2043,9 +2151,17 @@ class SidecarApp {
         <div style="text-align: center; padding: 40px 20px; color: #ef4444;">
           <p>Error loading trending feed</p>
           <p style="font-size: 12px; color: #888;">${error.message}</p>
-          <button onclick="window.sidecarApp.loadTopFeed()" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+          <button class="retry-trending-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
         </div>
       `;
+      
+      // Add event listener for retry button
+      setTimeout(() => {
+        const retryBtn = document.querySelector('.retry-trending-btn');
+        if (retryBtn) {
+          retryBtn.addEventListener('click', () => this.loadTopFeed());
+        }
+      }, 0);
     }
   }
   
@@ -2395,7 +2511,7 @@ class SidecarApp {
       <div class="note-header">
         <div class="note-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
           ${avatarUrl ? 
-            `<img src="${avatarUrl}" alt="" class="avatar-img" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
+            `<img src="${avatarUrl}" alt="" class="avatar-img">
              <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
             `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
           }
@@ -2459,7 +2575,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       <div class="reply-header">
         <div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
           ${avatarUrl ? 
-            `<img src="${avatarUrl}" alt="" class="avatar-img small" onerror="this.classList.add('broken'); this.remove(); this.parentElement.querySelector('.avatar-placeholder').style.display='flex';">
+            `<img src="${avatarUrl}" alt="" class="avatar-img small">
              <div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
             `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`
           }
@@ -2664,14 +2780,14 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
         const remaining = images.length - 3;
         galleryHTML += `
           <div class="image-container more-images" data-image-url="${imageUrl}">
-            <img src="${imageUrl}" alt="" loading="lazy" onerror="this.classList.add('broken'); this.parentElement.remove();">
+            <img src="${imageUrl}" alt="" loading="lazy">
             <div class="image-overlay">+${remaining} more</div>
           </div>
         `;
       } else {
         galleryHTML += `
           <div class="image-container" data-image-url="${imageUrl}">
-            <img src="${imageUrl}" alt="" loading="lazy" onerror="this.classList.add('broken'); this.parentElement.remove();">
+            <img src="${imageUrl}" alt="" loading="lazy">
           </div>
         `;
       }
