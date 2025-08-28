@@ -50,6 +50,7 @@ class SidecarApp {
     this.maxSubscriptions = 50; // Maximum concurrent subscriptions
     this.lastMemoryCheck = Date.now();
     this.trendingNoteIds = new Set(); // Track which notes are from trending feed
+    this.trendingDaysLoaded = 0; // Track how many days of trending data we've loaded
     
     this.init();
   }
@@ -536,6 +537,7 @@ class SidecarApp {
   
   loadMoreNotes() {
     console.log('🔄 LoadMoreNotes called - currentFeed:', this.currentFeed);
+    console.log('🔄 feedHasMore:', this.feedHasMore, 'loadingMore:', this.loadingMore);
     // Prevent multiple simultaneous requests
     if (this.loadingMore) {
       console.log('❌ Already loading more notes, skipping');
@@ -633,14 +635,9 @@ class SidecarApp {
     } else if (this.currentFeed === 'me') {
       console.log('❌ Me feed but currentUser is null/undefined');
     } else if (this.currentFeed === 'trending') {
-      // For trending feed, disable load more since we show curated trending notes
-      console.log('🚫 Load more disabled for trending feed - showing curated content only');
-      this.loadingMore = false;
-      // Reset UI elements
-      const loadMoreBtn = document.getElementById('load-more-btn');
-      const loadMoreLoading = document.getElementById('load-more-loading');
-      if (loadMoreBtn) loadMoreBtn.style.display = 'none';
-      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+      // For trending feed, load more days of trending data
+      console.log('📡 TRENDING LOAD MORE TRIGGERED - calling loadMoreTrendingDays()');
+      this.loadMoreTrendingDays();
       return;
     }
     
@@ -1327,12 +1324,21 @@ class SidecarApp {
           return;
         }
       } else if (this.currentFeed === 'trending') {
-        // Only show notes that are in our trending note IDs list
-        if (!this.trendingNoteIds.has(event.id)) {
+        // Show notes that are either in our trending note IDs list OR from trending authors 
+        const isTrendingNote = this.trendingNoteIds.has(event.id);
+        const isTrendingAuthor = [...this.notes.values()]
+          .some(note => this.trendingNoteIds.has(note.id) && note.pubkey === event.pubkey);
+          
+        if (!isTrendingNote && !isTrendingAuthor) {
           console.log('🚫 Filtering out non-trending note:', event.id.substring(0, 16) + '...');
           return;
         }
-        console.log('✅ Showing trending note:', event.id.substring(0, 16) + '...');
+        
+        if (isTrendingNote) {
+          console.log('✅ Showing curated trending note:', event.id.substring(0, 16) + '...');
+        } else {
+          console.log('✅ Showing note from trending author:', event.id.substring(0, 16) + '...');
+        }
       }
       // Other feeds (if any) show everything - no additional filtering needed
       
@@ -1773,6 +1779,84 @@ class SidecarApp {
     }, 20000); // 20 second safety timeout - increased for larger batch requests
   }
   
+  async loadMoreTrendingDays() {
+    console.log('🔥 loadMoreTrendingDays() called!');
+    
+    // For trending feed, implement infinite scroll using timestamp-based pagination
+    // since the API returns the same notes for all days, we'll load older notes from trending authors
+    const oldestNote = this.getOldestNoteInFeed();
+    
+    if (!oldestNote) {
+      console.log('📊 No notes in feed to determine oldest timestamp');
+      this.feedHasMore = false;
+      this.loadingMore = false;
+      this.hideLoading();
+      return;
+    }
+    
+    // Get trending authors from current notes in feed
+    const trendingAuthors = [...new Set([...this.notes.values()]
+      .filter(note => this.trendingNoteIds.has(note.id))
+      .map(note => note.pubkey))];
+      
+    console.log('👥 Found', trendingAuthors.length, 'trending authors for load more');
+    
+    if (trendingAuthors.length === 0) {
+      console.log('📊 No trending authors found, ending load more');
+      this.feedHasMore = false;
+      this.loadingMore = false;
+      this.hideLoading();
+      return;
+    }
+    
+    // Use timestamp-based infinite scroll for older content from trending authors
+    const until = oldestNote.created_at - 1;
+    console.log('🕰️ Loading more trending notes older than:', new Date(until * 1000).toLocaleString());
+    
+    try {
+      // Create subscription for older notes from trending authors
+      const filter = {
+        kinds: [1],
+        authors: trendingAuthors.slice(0, 20), // Limit to top 20 authors to avoid huge queries
+        until: until,
+        limit: 30
+      };
+      
+      const subId = 'trending-loadmore-' + Date.now();
+      const subscription = ['REQ', subId, filter];
+      this.subscriptions.set(subId, subscription);
+      
+      console.log('📤 Trending load more subscription:', JSON.stringify(subscription));
+      
+      // Send to all connected relays
+      let sentToRelays = 0;
+      this.relayConnections.forEach((ws, relay) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(subscription));
+          sentToRelays++;
+          console.log('📡 Sending trending load more subscription to:', relay);
+        }
+      });
+      
+      console.log('📡 Trending load more subscription sent to', sentToRelays, 'relays');
+      
+      // Set up timeout to prevent infinite loading
+      setTimeout(() => {
+        if (this.loadingMore) {
+          console.log('⏰ Trending load more timeout reached');
+          this.loadingMore = false;
+          this.hideLoading();
+        }
+      }, 8000); // 8 second timeout
+      
+    } catch (error) {
+      console.error('❌ Error in trending load more:', error);
+      this.loadingMore = false;
+      this.feedHasMore = false;
+      this.hideLoading();
+    }
+  }
+
   finalizeBatchedLoad() {
     if (!this.batchedLoadInProgress) {
       console.log('📋 finalizeBatchedLoad called but batchedLoadInProgress is false, skipping');
@@ -1850,22 +1934,45 @@ class SidecarApp {
     this.showLoading();
     
     try {
-      // Fetch trending notes from nostr.band API
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const dateStr = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD format
+      // Fetch trending notes from multiple days for a richer feed experience
+      const allTrendingNoteIds = [];
+      const daysToFetch = 3; // Conservative initial fetch to prevent crashes
       
-      console.log('📡 Fetching trending notes from nostr.band for date:', dateStr);
-      const response = await fetch(`https://api.nostr.band/v0/trending/notes/${dateStr}`);
+      console.log('📡 Fetching trending notes from the last', daysToFetch, 'days...');
       
-      if (!response.ok) {
-        throw new Error(`Nostr.band API error: ${response.status}`);
+      for (let daysBack = 0; daysBack < daysToFetch; daysBack++) {
+        const date = new Date();
+        date.setDate(date.getDate() - daysBack);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        try {
+          console.log(`📡 Fetching trending notes for ${dateStr} (${daysBack === 0 ? 'today' : daysBack + ' days ago'})`);
+          const response = await fetch(`https://api.nostr.band/v0/trending/notes/${dateStr}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.notes && data.notes.length > 0) {
+              const noteIds = data.notes.map(note => note.id);
+              allTrendingNoteIds.push(...noteIds);
+              console.log(`📈 Added ${noteIds.length} trending notes from ${dateStr}`);
+            } else {
+              console.log(`📊 No trending data for ${dateStr}`);
+            }
+          } else {
+            console.warn(`⚠️ Failed to fetch trending data for ${dateStr}: ${response.status}`);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error fetching trending data for ${dateStr}:`, error.message);
+          // Continue with other days even if one fails
+        }
+        
+        // Small delay to be nice to the API
+        if (daysBack < daysToFetch - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
       
-      const data = await response.json();
-      console.log('📊 Nostr.band API response:', data);
-      
-      if (!data.notes || data.notes.length === 0) {
+      if (allTrendingNoteIds.length === 0) {
         this.hideLoading();
         document.getElementById('feed').innerHTML = `
           <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
@@ -1876,13 +1983,17 @@ class SidecarApp {
         return;
       }
       
-      // Extract note IDs from trending data
-      const trendingNoteIds = data.notes.slice(0, 20).map(note => note.id);
-      console.log('🎯 Fetching trending note IDs:', trendingNoteIds.length);
+      // Remove duplicates and limit total count for performance
+      const uniqueTrendingNoteIds = [...new Set(allTrendingNoteIds)];
+      const trendingNoteIds = uniqueTrendingNoteIds.slice(0, 200); // Cap at 200 for initial load
+      console.log('🎯 Collected', uniqueTrendingNoteIds.length, 'unique trending notes from', allTrendingNoteIds.length, 'total, using', trendingNoteIds.length);
       
       // Store trending note IDs for filtering
       this.trendingNoteIds.clear();
       trendingNoteIds.forEach(id => this.trendingNoteIds.add(id));
+      this.trendingDaysLoaded = daysToFetch; // Track that we loaded this many days
+      this.feedHasMore = true; // Enable load more for trending feed
+      console.log('🎯 Set feedHasMore = true for trending feed');
       
       // Clear existing subscriptions
       this.subscriptions.forEach((sub, id) => {
@@ -1915,6 +2026,15 @@ class SidecarApp {
         }
       });
       console.log('📡 Trending feed subscription sent to', sentToRelays, 'relays');
+      
+      // Make sure Load More button is visible for trending feed
+      setTimeout(() => {
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        if (loadMoreBtn && this.feedHasMore) {
+          console.log('🔄 Making sure Load More button is visible for trending feed');
+          loadMoreBtn.style.display = 'block';
+        }
+      }, 2000);
       
     } catch (error) {
       console.error('❌ Error loading trending feed:', error);
