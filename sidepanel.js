@@ -36,6 +36,10 @@ class SidecarApp {
     this.consecutiveEmptyLoads = 0; // Track consecutive empty load operations
     this.oldestNoteTimestamp = null; // Track oldest note for pagination
     this.feedHasMore = true; // Track if there are more notes to load
+    this.batchNewNotesReceived = 0; // Track notes received in current batch operation
+    this.expectedBatches = 0; // Track expected number of batches for completion
+    this.completedBatches = new Set(); // Track which batches have completed
+    this.currentBatchSubIds = []; // Track current batch subscription IDs for cleanup
     
     // Memory management settings - reduced to prevent browser freezing
     this.maxNotes = 300; // Maximum notes to keep in memory (reduced from 1000)
@@ -1146,11 +1150,23 @@ class SidecarApp {
         // Track completed batches for batched operations
         if (subId.includes('batch')) {
           if (!this.completedBatches) this.completedBatches = new Set();
+          
+          // Only add to completed batches if not already present (prevent relay duplicates)
+          const wasNew = !this.completedBatches.has(subId);
           this.completedBatches.add(subId);
           
-          // Only check feedHasMore when all batches are done or timeout
-          // Individual batch EOSE shouldn't stop the entire load operation
-          console.log(`📋 Batch EOSE: ${subId}, completed: ${this.completedBatches.size}, feedHasMore still: ${this.feedHasMore}`);
+          // Only log/track if this was a new completion (not a relay duplicate)
+          if (wasNew) {
+            console.log(`📋 Batch EOSE (NEW): ${subId}, completed: ${this.completedBatches.size}/${this.expectedBatches}`);
+            
+            // Check if all batches are complete
+            if (this.completedBatches.size >= this.expectedBatches) {
+              console.log('🎯 All batches completed! Finalizing batch load...');
+              this.finalizeBatchedLoad();
+            }
+          } else {
+            console.log(`📋 Batch EOSE (DUPLICATE): ${subId}, ignoring relay duplicate`);
+          }
         } else {
           // Non-batched load more - check normally
           if (this.loadingMore) {
@@ -1165,7 +1181,13 @@ class SidecarApp {
         }
       }
       
-      this.hideLoading();
+      // Only call hideLoading for non-batched load more operations
+      // Individual batch EOSE events should not update UI state
+      if (!(subId.startsWith('loadmore-') && subId.includes('batch'))) {
+        this.hideLoading();
+      } else {
+        console.log(`📋 Skipping hideLoading for batch EOSE: ${subId}`);
+      }
     } else if (type === 'CLOSED') {
       // Subscription closed - remove from pending if it was a profile request
       if (subId.startsWith('profile-')) {
@@ -1550,15 +1572,6 @@ class SidecarApp {
     this.batchedLoadInProgress = true;
     this.batchNewNotesReceived = 0; // Track notes received specifically for this batch operation
     
-    // Safety timeout to prevent flag from getting stuck
-    setTimeout(() => {
-      if (this.batchedLoadInProgress) {
-        console.log('⚠️ Batched load timeout safety - clearing flags');
-        this.batchedLoadInProgress = false;
-        this.loadingMore = false;
-      }
-    }, 15000); // 15 second safety timeout
-    
     const BATCH_SIZE = 100; // Safe limit for most relays
     const batches = [];
     
@@ -1569,14 +1582,19 @@ class SidecarApp {
     
     console.log('📦 Created', batches.length, 'batches for loadMore');
     
+    // Store batch info for completion tracking
+    this.expectedBatches = batches.length;
+    if (!this.completedBatches) this.completedBatches = new Set();
+    this.completedBatches.clear();
+    
     let sentToRelays = 0;
     const timestamp = Date.now();
-    const batchSubIds = [];
+    this.currentBatchSubIds = []; // Store for cleanup
     
     // Create subscriptions for each batch
     batches.forEach((batch, batchIndex) => {
       const subId = `loadmore-following-batch-${batchIndex}-${timestamp}`;
-      batchSubIds.push(subId);
+      this.currentBatchSubIds.push(subId);
       
       console.log(`📤 LoadMore Batch ${batchIndex + 1}: Creating subscription for ${batch.length} authors`);
       
@@ -1604,42 +1622,60 @@ class SidecarApp {
     
     console.log('📤 LoadMore Following feed batches sent to', sentToRelays, 'relays');
     console.log('📦 Total loadMore subscriptions created:', batches.length);
+    console.log('📦 Expecting EOSE from', this.expectedBatches, 'batches');
     
-    // Reset loading flags and cleanup subscriptions after timeout
+    // Safety timeout to prevent flag from getting stuck - longer timeout for proper completion
     setTimeout(() => {
-      // Check if we got enough notes from the entire batched operation
-      const notesReceived = this.batchNewNotesReceived || 0;
-      console.log(`📋 Batched load more completed: ${notesReceived} new notes received during batch operation`);
+      if (this.batchedLoadInProgress) {
+        console.log('⚠️ Batched load timeout safety - clearing flags after 15s');
+        this.finalizeBatchedLoad();
+      }
+    }, 15000); // 15 second safety timeout
+  }
+  
+  finalizeBatchedLoad() {
+    if (!this.batchedLoadInProgress) {
+      console.log('📋 finalizeBatchedLoad called but batchedLoadInProgress is false, skipping');
+      return;
+    }
+    
+    // Check if we got enough notes from the entire batched operation
+    const notesReceived = this.batchNewNotesReceived || 0;
+    console.log(`📋 Batched load more completed: ${notesReceived} new notes received during batch operation`);
+    
+    if (notesReceived === 0) {
+      this.consecutiveEmptyLoads++;
+      console.log(`📋 Batched load more returned no results (${this.consecutiveEmptyLoads} consecutive empty loads)`);
       
-      if (notesReceived === 0) {
-        this.consecutiveEmptyLoads++;
-        console.log(`📋 Batched load more returned no results (${this.consecutiveEmptyLoads} consecutive empty loads)`);
-        
-        // Only stop after multiple consecutive empty loads to handle temporary gaps/relay issues
-        if (this.consecutiveEmptyLoads >= 3) {
-          console.log('📋 Multiple consecutive empty loads, setting feedHasMore = false');
-          this.feedHasMore = false;
-        } else {
-          console.log('📋 Keeping feedHasMore = true, may be temporary gap or relay issue');
-        }
+      // Only stop after multiple consecutive empty loads to handle temporary gaps/relay issues
+      if (this.consecutiveEmptyLoads >= 3) {
+        console.log('📋 Multiple consecutive empty loads, setting feedHasMore = false');
+        this.feedHasMore = false;
       } else {
-        this.consecutiveEmptyLoads = 0; // Reset counter when we get results
-        console.log(`📋 Batched load more got ${notesReceived} results, keeping feedHasMore = true`);
+        this.feedHasMore = true; // Explicitly keep it true for temporary gaps
+        console.log('📋 Keeping feedHasMore = true, may be temporary gap or relay issue');
       }
-      
-      // Reset the batch counter
-      this.batchNewNotesReceived = 0;
-      
-      this.loadingMore = false;
-      this.batchedLoadInProgress = false; // Clear batched operation flag
-      
-      // Clear completed batches tracking
-      if (this.completedBatches) {
-        this.completedBatches.clear();
-      }
-      
-      // Close all batch subscriptions to free memory using stored IDs
-      batchSubIds.forEach(subId => {
+    } else {
+      this.consecutiveEmptyLoads = 0; // Reset counter when we get results
+      this.feedHasMore = true; // Explicitly ensure feedHasMore is true when we get results
+      console.log(`📋 Batched load more got ${notesReceived} results, setting feedHasMore = true`);
+      console.log(`📋 feedHasMore is now: ${this.feedHasMore} (should be true)`);
+    }
+    
+    // Reset the batch counter
+    this.batchNewNotesReceived = 0;
+    
+    this.loadingMore = false;
+    this.batchedLoadInProgress = false; // Clear batched operation flag
+    
+    // Clear completed batches tracking
+    if (this.completedBatches) {
+      this.completedBatches.clear();
+    }
+    
+    // Close all batch subscriptions to free memory using stored IDs
+    if (this.currentBatchSubIds) {
+      this.currentBatchSubIds.forEach(subId => {
         if (this.subscriptions.has(subId)) {
           this.relayConnections.forEach(ws => {
             if (ws.readyState === WebSocket.OPEN) {
@@ -1649,17 +1685,19 @@ class SidecarApp {
           this.subscriptions.delete(subId);
         }
       });
-      console.log(`🔌 Closed ${batchSubIds.length} batched load more subscriptions`);
-      
-      // Hide loading indicator and restore button/state
-      const loadMoreBtn = document.getElementById('load-more-btn');
-      const loadMoreLoading = document.getElementById('load-more-loading');
-      if (loadMoreBtn) loadMoreBtn.style.display = 'block';
-      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
-      
-      // Ensure Load More button visibility is updated
-      this.hideLoading();
-    }, 5000);
+      console.log(`🔌 Closed ${this.currentBatchSubIds.length} batched load more subscriptions`);
+    }
+    
+    // Hide loading indicator and restore button/state
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const loadMoreLoading = document.getElementById('load-more-loading');
+    if (loadMoreBtn) loadMoreBtn.style.display = 'block';
+    if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+    
+    // Ensure Load More button visibility is updated
+    console.log(`📋 About to call hideLoading() - feedHasMore: ${this.feedHasMore}`);
+    this.hideLoading();
+    console.log(`📋 After hideLoading() - feedHasMore: ${this.feedHasMore}`);
   }
   
   async loadTopFeed() {
