@@ -56,20 +56,73 @@
 
 .quoted-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     margin-bottom: 4px;
+}
+
+.quoted-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.quoted-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.quoted-avatar .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #9e4280, #ea6390);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 10px;
+}
+
+.quoted-info {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
 }
 
 .quoted-author {
     color: #ea6390;
     font-weight: 600;
     font-size: 13px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quoted-npub {
+    color: #9e4280;
+    font-size: 11px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .quoted-time {
     color: #9e4280;
     font-size: 12px;
+    cursor: pointer;
+}
+
+.quoted-menu {
+    position: relative;
 }
 
 .quoted-content {
@@ -583,7 +636,7 @@ body {
 .note {
     background: #1a0b3d;
     border-bottom: 1px solid #2d1b69;
-    padding: 12px;
+    padding: 8px;
     cursor: pointer;
     transition: background-color 0.2s;
     max-width: 100%;
@@ -600,7 +653,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .note-avatar {
@@ -753,8 +806,8 @@ body {
 
 .note-content {
     font-size: 14px;
-    line-height: 1.2;
-    margin: 4px 0;
+    line-height: 1.1;
+    margin: 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-word;
@@ -763,10 +816,20 @@ body {
     color: #e8d5f0;
 }
 
+/* General image styling */
+img:not(.avatar-img) {
+    border-radius: 8px;
+}
+
+/* Avatar images get circular borders */
+.avatar-img {
+    border-radius: 50%;
+}
+
 /* Image Gallery Styles */
 .image-gallery {
-    margin: 4px 0;
-    border-radius: 4px;
+    margin: 0;
+    border-radius: 8px;
     overflow: hidden;
     background: transparent;
 }
@@ -782,16 +845,17 @@ body {
 }
 
 .image-gallery.blurred .image-container::after {
-    content: "🔒 Click to reveal";
+    content: "";
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.9);
-    color: #e8d5f0;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 12px;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.8) url("data:image/svg+xml,<svg width='20' height='19' viewBox='0 0 20 19' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M18.0977 0.196289C18.3593 -0.0653106 18.7833 -0.0652731 19.0449 0.196289C19.3065 0.457908 19.3065 0.881936 19.0449 1.14355L15.9473 4.24023C18.2803 6.17738 19.79 8.55922 19.8975 8.74609C19.964 8.85256 20 8.97601 20 9.10156C19.9999 9.22701 19.9639 9.34967 19.8975 9.45605C19.7166 9.77092 15.4559 16.4707 9.99609 16.4707C8.28118 16.4706 6.68471 15.809 5.2959 14.8926L1.99219 18.1973C1.73071 18.4587 1.30656 18.4584 1.04492 18.1973C0.783303 17.9356 0.783303 17.5106 1.04492 17.249L4.2041 14.0889C1.78223 12.1296 0.206038 9.64491 0.101562 9.45605C0.0351993 9.34974 5.04515e-05 9.22689 0 9.10156C0 8.97601 0.0350246 8.85256 0.101562 8.74609C0.275736 8.43124 4.52977 1.73274 9.99609 1.73242C11.7833 1.73242 13.4401 2.44991 14.8682 3.4248L18.0977 0.196289ZM13.3027 6.88477C13.7341 7.53742 13.9687 8.30752 13.9688 9.10156C13.9687 9.89628 13.7334 10.6732 13.292 11.334C12.8503 11.995 12.2218 12.5102 11.4873 12.8145C10.7529 13.1186 9.94465 13.199 9.16504 13.0439C8.65164 12.9418 8.16685 12.7389 7.73438 12.4531L6.27051 13.917C7.4085 14.6327 8.67345 15.1308 9.99609 15.1309C14.0623 15.1309 17.593 10.4417 18.5244 9.10156C18.0137 8.36671 16.7204 6.6249 14.9863 5.20117L13.3027 6.88477ZM9.99609 3.07227C5.92989 3.07257 2.40006 7.76175 1.47559 9.10156C1.99803 9.85868 3.35205 11.6836 5.16406 13.1289L6.75488 11.5381C6.38484 11.053 6.12782 10.4888 6.00781 9.88574C5.85274 9.10612 5.93218 8.29788 6.23633 7.56348C6.54055 6.82901 7.05579 6.20046 7.7168 5.75879C8.37761 5.31737 9.15453 5.08211 9.94922 5.08203C10.835 5.08203 11.6903 5.37499 12.3867 5.90625L13.8975 4.39551C12.7148 3.6203 11.3866 3.07227 9.99609 3.07227ZM8.71191 11.4756C9.09299 11.6742 9.51664 11.7812 9.94922 11.7812C10.6599 11.7812 11.3422 11.4986 11.8447 10.9961C12.3471 10.4936 12.6288 9.81208 12.6289 9.10156C12.6289 8.6691 12.5227 8.24528 12.3242 7.86426L8.71191 11.4756ZM10.9746 6.62598C10.485 6.42325 9.94646 6.36929 9.42676 6.47266C8.90703 6.57604 8.42942 6.83139 8.05469 7.20605C7.68001 7.58073 7.42473 8.05846 7.32129 8.57812C7.21789 9.09793 7.27082 9.63731 7.47363 10.127C7.53937 10.2856 7.62104 10.4362 7.71484 10.5781L11.4258 6.86719C11.2839 6.77341 11.1333 6.6917 10.9746 6.62598Z' fill='white'/></svg>") no-repeat center center;
+    background-size: 20px 19px;
+    border-radius: 50%;
+    opacity: 0.9;
     font-weight: 500;
     pointer-events: none;
     z-index: 10;
@@ -800,7 +864,8 @@ body {
 }
 
 .image-gallery.blurred:hover .image-container::after {
-    background: rgba(234, 99, 144, 0.2);
+    background: rgba(234, 99, 144, 0.2) url("data:image/svg+xml,<svg width='20' height='19' viewBox='0 0 20 19' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M18.0977 0.196289C18.3593 -0.0653106 18.7833 -0.0652731 19.0449 0.196289C19.3065 0.457908 19.3065 0.881936 19.0449 1.14355L15.9473 4.24023C18.2803 6.17738 19.79 8.55922 19.8975 8.74609C19.964 8.85256 20 8.97601 20 9.10156C19.9999 9.22701 19.9639 9.34967 19.8975 9.45605C19.7166 9.77092 15.4559 16.4707 9.99609 16.4707C8.28118 16.4706 6.68471 15.809 5.2959 14.8926L1.99219 18.1973C1.73071 18.4587 1.30656 18.4584 1.04492 18.1973C0.783303 17.9356 0.783303 17.5106 1.04492 17.249L4.2041 14.0889C1.78223 12.1296 0.206038 9.64491 0.101562 9.45605C0.0351993 9.34974 5.04515e-05 9.22689 0 9.10156C0 8.97601 0.0350246 8.85256 0.101562 8.74609C0.275736 8.43124 4.52977 1.73274 9.99609 1.73242C11.7833 1.73242 13.4401 2.44991 14.8682 3.4248L18.0977 0.196289ZM13.3027 6.88477C13.7341 7.53742 13.9687 8.30752 13.9688 9.10156C13.9687 9.89628 13.7334 10.6732 13.292 11.334C12.8503 11.995 12.2218 12.5102 11.4873 12.8145C10.7529 13.1186 9.94465 13.199 9.16504 13.0439C8.65164 12.9418 8.16685 12.7389 7.73438 12.4531L6.27051 13.917C7.4085 14.6327 8.67345 15.1308 9.99609 15.1309C14.0623 15.1309 17.593 10.4417 18.5244 9.10156C18.0137 8.36671 16.7204 6.6249 14.9863 5.20117L13.3027 6.88477ZM9.99609 3.07227C5.92989 3.07257 2.40006 7.76175 1.47559 9.10156C1.99803 9.85868 3.35205 11.6836 5.16406 13.1289L6.75488 11.5381C6.38484 11.053 6.12782 10.4888 6.00781 9.88574C5.85274 9.10612 5.93218 8.29788 6.23633 7.56348C6.54055 6.82901 7.05579 6.20046 7.7168 5.75879C8.37761 5.31737 9.15453 5.08211 9.94922 5.08203C10.835 5.08203 11.6903 5.37499 12.3867 5.90625L13.8975 4.39551C12.7148 3.6203 11.3866 3.07227 9.99609 3.07227ZM8.71191 11.4756C9.09299 11.6742 9.51664 11.7812 9.94922 11.7812C10.6599 11.7812 11.3422 11.4986 11.8447 10.9961C12.3471 10.4936 12.6288 9.81208 12.6289 9.10156C12.6289 8.6691 12.5227 8.24528 12.3242 7.86426L8.71191 11.4756ZM10.9746 6.62598C10.485 6.42325 9.94646 6.36929 9.42676 6.47266C8.90703 6.57604 8.42942 6.83139 8.05469 7.20605C7.68001 7.58073 7.42473 8.05846 7.32129 8.57812C7.21789 9.09793 7.27082 9.63731 7.47363 10.127C7.53937 10.2856 7.62104 10.4362 7.71484 10.5781L11.4258 6.86719C11.2839 6.77341 11.1333 6.6917 10.9746 6.62598Z' fill='white'/></svg>") no-repeat center center;
+    background-size: 20px 19px;
     border: 1px solid rgba(234, 99, 144, 0.6);
 }
 
@@ -844,6 +909,7 @@ body {
     transition: opacity 0.2s;
     margin: 0;
     padding: 0;
+    border-radius: 8px;
 }
 
 .image-container:hover {
@@ -858,6 +924,7 @@ body {
     margin: 0;
     padding: 0;
     vertical-align: top;
+    border-radius: 8px;
 }
 
 .single-image .image-container {
@@ -888,7 +955,7 @@ body {
     gap: 12px;
     font-size: 12px;
     color: #ea6390;
-    margin-top: 6px;
+    margin-top: 2px;
 }
 
 .note-action {
@@ -1000,8 +1067,8 @@ body {
 
 .reply-content {
     font-size: 13px;
-    line-height: 1.1;
-    margin: 1px 0;
+    line-height: 1.0;
+    margin: 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-word;
@@ -1011,7 +1078,7 @@ body {
 }
 
 .reply-content .image-gallery {
-    margin: 1px 0;
+    margin: 0;
 }
 
 .reply-content .image-gallery.single-image .image-container {

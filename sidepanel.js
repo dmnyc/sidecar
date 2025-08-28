@@ -1372,8 +1372,15 @@ class SidecarApp {
     // Handle different event kinds
     if (event.kind === 1) {
       // Text notes
+      // Check if this is a quoted note that needs to be updated in the DOM
+      const wasAlreadyCached = this.notes.has(event.id);
+      
       // Avoid duplicates
-      if (this.notes.has(event.id)) return;
+      if (wasAlreadyCached) {
+        // Even if cached, check if this is a quoted event that needs DOM updates
+        this.updateQuotedNotePlaceholders(event);
+        return;
+      }
       
       console.log('📝 Received note from:', event.pubkey.substring(0, 16) + '...', 'Content:', event.content.substring(0, 50) + '...');
       
@@ -1388,29 +1395,53 @@ class SidecarApp {
       if (this.currentFeed === 'following') {
         // Only show notes from users we follow
         if (!this.userFollows.has(event.pubkey)) {
-          console.log('🚫 Filtering out note from unfollowed user:', event.pubkey.substring(0, 16) + '...');
+          // Before filtering out, check if this event can update any quoted note placeholders
+          // Cache it temporarily for quoted note updates even if it won't be displayed
+          this.notes.set(event.id, event);
+          this.updateQuotedNotePlaceholders(event);
+          console.log('🚫 Filtering out note from unfollowed user (cached for quotes):', event.pubkey.substring(0, 16) + '...');
           return;
         }
         console.log('✅ Showing note from followed user:', event.pubkey.substring(0, 16) + '...');
       } else if (this.currentFeed === 'me') {
         // Only show notes from current user
         if (!this.currentUser || event.pubkey !== this.currentUser.publicKey) {
-          console.log('🚫 Filtering out note from different user on Me feed:', event.pubkey.substring(0, 16) + '...');
+          // Before filtering out, check if this event can update any quoted note placeholders
+          this.notes.set(event.id, event);
+          this.updateQuotedNotePlaceholders(event);
+          console.log('🚫 Filtering out note from different user on Me feed (cached for quotes):', event.pubkey.substring(0, 16) + '...');
           return;
         }
       } else if (this.currentFeed === 'user-feed') {
         // Only show notes from the selected user
         if (!this.currentUserFeed || event.pubkey !== this.currentUserFeed.pubkey) {
-          console.log('🚫 Filtering out note from different user on user feed:', event.pubkey.substring(0, 16) + '...');
+          // Before filtering out, check if this event can update any quoted note placeholders
+          this.notes.set(event.id, event);
+          this.updateQuotedNotePlaceholders(event);
+          console.log('🚫 Filtering out note from different user on user feed (cached for quotes):', event.pubkey.substring(0, 16) + '...');
           return;
         }
       } else if (this.currentFeed === 'trending') {
         // Show notes that are either in our trending note IDs list OR from trending authors 
         const isTrendingNote = this.trendingNoteIds.has(event.id);
         const isTrendingAuthor = this.trendingAuthors && this.trendingAuthors.has(event.pubkey);
-          
+        
+        // During initial trending load (when we have trending IDs but no authors yet),
+        // allow through any note that is in trending IDs list
+        // For load-more operations, also check trending authors
         if (!isTrendingNote && !isTrendingAuthor) {
-          console.log('🚫 Filtering out non-trending note:', event.id.substring(0, 16) + '...', 'from author:', event.pubkey.substring(0, 16) + '...');
+          // Before filtering out, check if this event can update any quoted note placeholders
+          // Cache it temporarily for quoted note updates even if it won't be displayed
+          this.notes.set(event.id, event);
+          this.updateQuotedNotePlaceholders(event);
+          
+          // If this is initial load (we have trending IDs but no authors yet), only show trending notes
+          if (this.trendingNoteIds.size > 0 && (!this.trendingAuthors || this.trendingAuthors.size === 0)) {
+            console.log('🚫 Filtering out non-curated note during initial trending load (cached for quotes):', event.id.substring(0, 16) + '...');
+            return;
+          }
+          // If this is load-more operation, filter out completely
+          console.log('🚫 Filtering out non-trending note (cached for quotes):', event.id.substring(0, 16) + '...', 'from author:', event.pubkey.substring(0, 16) + '...');
           return;
         }
         
@@ -1427,6 +1458,9 @@ class SidecarApp {
       // Other feeds (if any) show everything - no additional filtering needed
       
       this.notes.set(event.id, event);
+      
+      // Update any loading quoted note placeholders for this event
+      this.updateQuotedNotePlaceholders(event);
       
       // Track notes that actually get displayed during batched operations
       if (this.batchedLoadInProgress && this.batchNotesDisplayed !== undefined) {
@@ -2533,11 +2567,7 @@ class SidecarApp {
           </div>
         </div>
       </div>
-      <div class="note-content">
-${formattedContent.text}
-${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}
-${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}
-      </div>
+      <div class="note-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}</div>
       <div class="note-actions">
         <div class="note-action reply-action" data-event-id="${event.id}">
           💬
@@ -2597,11 +2627,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
           </div>
         </div>
       </div>
-      <div class="reply-content">
-${formattedContent.text}
-${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}
-${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}
-      </div>
+      <div class="reply-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}</div>
       <div class="reply-actions">
         <div class="reply-action reply-to-reply-action" data-event-id="${event.id}">
           💬
@@ -2749,6 +2775,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     textContent = textContent
       .replace(/\s+/g, ' ') // Replace multiple spaces with single space
       .replace(/\n\s*\n/g, '\n') // Remove empty lines
+      .replace(/^\n+|\n+$/g, '') // Remove leading and trailing line breaks
       .trim()
       .replace(/\n/g, '<br>')
       .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
@@ -2814,14 +2841,35 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
         const content = quotedEvent.content.length > 200 ? 
           quotedEvent.content.substring(0, 200) + '...' : quotedEvent.content;
         
+        const avatarUrl = profile?.picture;
+        const authorId = this.formatProfileIdentifier(profile?.nip05, quotedEvent.pubkey);
+        
         quotedHTML += `
-          <div class="quoted-note" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}">
+          <div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}">
             <div class="quoted-header">
-              <span class="quoted-author">@${authorName}</span>
-              <span class="quoted-time">${timeAgo}</span>
+              <div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">
+                ${avatarUrl ? 
+                  `<img src="${avatarUrl}" alt="" class="avatar-img">
+                   <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
+                  `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
+                }
+              </div>
+              <div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">
+                <span class="quoted-author">${authorName}</span>
+                <span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
+              </div>
+              <span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span>
+              <div class="quoted-menu">
+                <button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button>
+                <div class="menu-dropdown" data-event-id="${quotedEvent.id}">
+                  <div class="menu-item" data-action="open-note">Open Note</div>
+                  <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
+                  <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
+                  <div class="menu-item" data-action="view-profile">View Profile</div>
+                </div>
+              </div>
             </div>
             <div class="quoted-content">${content.replace(/\n/g, '<br>')}</div>
-            <div class="quoted-link">${quoted.bech32}</div>
           </div>
         `;
       } else {
@@ -2844,6 +2892,20 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     });
     
     quotedHTML += '</div>';
+    
+    // Set up interactions after the HTML is inserted into the DOM
+    setTimeout(() => {
+      quotedNotes.forEach(quoted => {
+        const quotedEvent = Array.from(this.notes.values()).find(e => e.id === quoted.eventId);
+        if (quotedEvent) {
+          const quotedElement = document.querySelector(`[data-event-id="${quoted.eventId}"]`);
+          if (quotedElement && quotedElement.classList.contains('quoted-note') && !quotedElement.classList.contains('loading')) {
+            this.setupQuotedNoteInteractions(quotedElement, quotedEvent);
+          }
+        }
+      });
+    }, 0);
+    
     return quotedHTML;
   }
   
@@ -2885,6 +2947,74 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
         this.subscriptions.delete(subId);
       }, 5000);
     }
+  }
+  
+  updateQuotedNotePlaceholders(event) {
+    // Find all loading quoted note placeholders that match this event ID
+    const placeholders = document.querySelectorAll(`.quoted-note.loading[data-event-id="${event.id}"]`);
+    
+    placeholders.forEach(placeholder => {
+      // Get the author profile
+      let authorName = this.getAuthorName(event.pubkey);
+      const profile = this.profiles.get(event.pubkey);
+      if (profile) {
+        authorName = profile.display_name || profile.name || authorName;
+      }
+      
+      // Create the updated quoted note HTML
+      const content = this.processNoteContent(event.content);
+      const avatarUrl = profile?.picture;
+      const authorId = this.formatProfileIdentifier(profile?.nip05, event.pubkey);
+      const timeAgo = this.formatTimeAgo(event.created_at);
+      
+      const updatedHTML = `
+        <div class="quoted-header">
+          <div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
+            ${avatarUrl ? 
+              `<img src="${avatarUrl}" alt="" class="avatar-img">
+               <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
+              `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
+            }
+          </div>
+          <div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
+            <span class="quoted-author">${authorName}</span>
+            <span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
+          </div>
+          <span class="quoted-time" data-note-link="${event.id}">${timeAgo}</span>
+          <div class="quoted-menu">
+            <button class="menu-btn" data-event-id="${event.id}">⋯</button>
+            <div class="menu-dropdown" data-event-id="${event.id}">
+              <div class="menu-item" data-action="open-note">Open Note</div>
+              <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
+              <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
+              <div class="menu-item" data-action="view-profile">View Profile</div>
+            </div>
+          </div>
+        </div>
+        <div class="quoted-content">${content.replace(/\n/g, '<br>')}</div>
+      `;
+      
+      // Replace the placeholder content and remove loading class
+      placeholder.innerHTML = updatedHTML;
+      placeholder.classList.remove('loading');
+      placeholder.dataset.pubkey = event.pubkey; // Add pubkey for profile interactions
+      
+      // Set up event handlers for the updated quoted note
+      this.setupQuotedNoteInteractions(placeholder, event);
+      
+      console.log('✅ Updated quoted note placeholder for:', event.id.substring(0, 16) + '...');
+    });
+  }
+  
+  setupQuotedNoteInteractions(quotedElement, event) {
+    // Set up menu functionality
+    const menuContainer = quotedElement.querySelector('.quoted-menu');
+    if (menuContainer) {
+      this.setupNoteMenu(menuContainer, event);
+    }
+    
+    // Set up clickable links for profile
+    this.setupClickableLinks(quotedElement, event);
   }
   
   openUserFeed(pubkey, bech32) {
@@ -2934,6 +3064,16 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     this.currentUserFeed = null;
   }
   
+  closeUserTab() {
+    console.log('❌ Closing user tab and switching to trending feed');
+    
+    // Remove the user tab
+    this.closeExistingUserTab();
+    
+    // Switch back to trending feed as default
+    this.switchFeed('trending');
+  }
+  
   updateFeedToggle() {
     if (this.currentFeed === 'user-feed' && this.currentUserFeed) {
       // Create user tab (since we always close existing ones first, this will be fresh)
@@ -2941,6 +3081,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       const userTabHTML = `
         <button id="user-tab-${this.currentUserFeed.pubkey}" class="toggle-btn user-tab active" data-pubkey="${this.currentUserFeed.pubkey}" title="@${this.currentUserFeed.displayName}">
           @${truncatedDisplayName}
+          <span class="close-tab" data-action="close-user-tab" data-pubkey="${this.currentUserFeed.pubkey}">×</span>
         </button>
       `;
       
@@ -2953,6 +3094,15 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
       
       // Tab click handler (refresh user feed when clicked)
       userTab.addEventListener('click', (e) => {
+        // Check if the close button was clicked
+        if (e.target.classList.contains('close-tab')) {
+          e.stopPropagation();
+          e.preventDefault();
+          console.log('❌ Close user tab clicked');
+          this.closeUserTab();
+          return;
+        }
+        
         console.log('👤 User tab clicked - refreshing user feed');
         e.preventDefault();
         // Refresh the current user feed
@@ -3278,10 +3428,7 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     const formattedContent = this.formatNoteContent(replyToEvent.content);
     context.innerHTML = `
       <div class="note-author">${this.getAuthorName(replyToEvent.pubkey)}</div>
-      <div class="note-content">
-        ${formattedContent.text}
-        ${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, replyToEvent.id, replyToEvent.pubkey) : ''}
-      </div>
+      <div class="note-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, replyToEvent.id, replyToEvent.pubkey) : ''}</div>
     `;
     
     document.getElementById('reply-text').value = '';
