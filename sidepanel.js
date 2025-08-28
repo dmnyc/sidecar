@@ -37,17 +37,19 @@ class SidecarApp {
     this.oldestNoteTimestamp = null; // Track oldest note for pagination
     this.feedHasMore = true; // Track if there are more notes to load
     this.batchNewNotesReceived = 0; // Track notes received in current batch operation
+    this.batchNotesDisplayed = 0; // Track notes actually displayed (passed filtering)
     this.expectedBatches = 0; // Track expected number of batches for completion
     this.completedBatches = new Set(); // Track which batches have completed
     this.currentBatchSubIds = []; // Track current batch subscription IDs for cleanup
     
-    // Memory management settings - reduced to prevent browser freezing
-    this.maxNotes = 300; // Maximum notes to keep in memory (reduced from 1000)
-    this.maxProfiles = 150; // Maximum profiles to keep in cache (reduced from 500)
-    this.maxDOMNotes = 50; // Maximum notes to keep in DOM (reduced from 100)
-    this.memoryCheckInterval = 30000; // Check memory every 30 seconds (reduced from 60s)
-    this.maxSubscriptions = 20; // Maximum concurrent subscriptions
+    // Memory management settings - balanced for good UX and performance
+    this.maxNotes = 1000; // Maximum notes to keep in memory - increased for better scroll experience
+    this.maxProfiles = 500; // Maximum profiles to keep in cache
+    this.maxDOMNotes = 150; // Maximum notes to keep in DOM - increased for longer scroll history
+    this.memoryCheckInterval = 60000; // Check memory every 60 seconds - less frequent cleanup
+    this.maxSubscriptions = 50; // Maximum concurrent subscriptions
     this.lastMemoryCheck = Date.now();
+    this.trendingNoteIds = new Set(); // Track which notes are from trending feed
     
     this.init();
   }
@@ -354,33 +356,61 @@ class SidecarApp {
     const noteElements = document.querySelectorAll('.note');
     
     if (noteElements.length > this.maxDOMNotes) {
-      console.log('🗑️ DOM cleanup triggered - preserving scroll position');
+      console.log('🗑️ DOM cleanup triggered - preserving scroll position and viewport notes');
       
-      // Preserve scroll position during cleanup
+      // Don't cleanup during loading operations - notes are being actively viewed
+      if (this.loadingMore || this.batchedLoadInProgress) {
+        console.log('🗑️ Skipping DOM cleanup during loading operation');
+        return;
+      }
+      
+      // Get viewport information to preserve visible and nearby notes
       const scrollContainer = document.querySelector('.feed-container') || document.documentElement;
       const scrollTop = scrollContainer.scrollTop;
+      const viewportHeight = scrollContainer.clientHeight;
+      const viewportTop = scrollTop;
+      const viewportBottom = scrollTop + viewportHeight;
       
-      // Remove older DOM notes (keep newest) with safety limits
-      const notesToRemove = Math.min(noteElements.length - this.maxDOMNotes, 100); // Safety limit
+      // Find notes that are visible or within 2 viewport heights (above and below)
+      const buffer = viewportHeight * 2;
+      const protectedNotes = new Set();
       
-      // Convert to array and sort by timestamp (data-timestamp attribute)
+      noteElements.forEach(note => {
+        const rect = note.getBoundingClientRect();
+        const noteTop = rect.top + scrollTop;
+        const noteBottom = rect.bottom + scrollTop;
+        
+        // Protect notes in extended viewport area
+        if (noteBottom >= (viewportTop - buffer) && noteTop <= (viewportBottom + buffer)) {
+          protectedNotes.add(note.dataset.eventId);
+        }
+      });
+      
+      // Only remove notes that are far from the viewport
       const sortedNotes = Array.from(noteElements)
+        .filter(note => !protectedNotes.has(note.dataset.eventId))
         .sort((a, b) => {
           const timeA = parseInt(a.dataset.timestamp || '0');
           const timeB = parseInt(b.dataset.timestamp || '0');
           return timeA - timeB; // Oldest first
         });
       
+      // Calculate how many to remove (less aggressive)
+      const maxToRemove = Math.min(sortedNotes.length, Math.floor(noteElements.length * 0.3)); // Remove max 30%
+      const notesToRemove = sortedNotes.slice(0, maxToRemove);
+      
+      console.log(`🗑️ Protecting ${protectedNotes.size} viewport notes, removing ${notesToRemove.length} distant notes`);
+      
       // Calculate height of notes we're about to remove to adjust scroll
       let removedHeight = 0;
       
-      // Remove oldest notes with safety checks
+      // Remove distant notes with safety checks
       let removed = 0;
-      for (let i = 0; i < notesToRemove && i < sortedNotes.length && removed < 100; i++) {
-        if (sortedNotes[i] && sortedNotes[i].parentNode) {
+      for (const note of notesToRemove) {
+        if (note && note.parentNode && removed < 100) {
           try {
-            removedHeight += sortedNotes[i].offsetHeight;
-            sortedNotes[i].remove();
+            removedHeight += note.offsetHeight;
+            note.remove();
             removed++;
           } catch (error) {
             console.warn('Error removing DOM note:', error);
@@ -545,6 +575,36 @@ class SidecarApp {
     const oldestNote = notes[notes.length - 1];
     const oldestTimestamp = parseInt(oldestNote.dataset.timestamp);
     
+    console.log(`🕰️ Oldest note in feed: ${new Date(oldestTimestamp * 1000).toLocaleString()}`);
+    console.log(`🔍 Raw timestamp: ${oldestTimestamp}`);
+    console.log(`🔍 Event ID: ${oldestNote.dataset.eventId}`);
+    console.log(`🔍 Will request notes older than: ${new Date((oldestTimestamp - 1) * 1000).toLocaleString()}`);
+    
+    // Double-check if this timestamp makes sense
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Check if timestamp looks like milliseconds instead of seconds
+    if (oldestTimestamp > 9999999999) {
+      console.error(`🚨 TIMESTAMP ERROR: Oldest note timestamp ${oldestTimestamp} looks like milliseconds, not seconds!`);
+      console.error(`🚨 Converting to seconds and using as until timestamp`);
+      const correctedTimestamp = Math.floor(oldestTimestamp / 1000);
+      console.log(`🔧 Corrected timestamp: ${correctedTimestamp} (${new Date(correctedTimestamp * 1000).toLocaleString()})`);
+      this.loadMoreFollowingFeedBatched(Array.from(this.userFollows), correctedTimestamp);
+      return;
+    }
+    
+    // Check if timestamp is unreasonably old or new
+    const oneYearAgo = now - (365 * 24 * 60 * 60);
+    const oneYearFromNow = now + (365 * 24 * 60 * 60);
+    if (oldestTimestamp < oneYearAgo || oldestTimestamp > oneYearFromNow) {
+      console.error(`🚨 TIMESTAMP ERROR: Oldest note timestamp ${oldestTimestamp} is unreasonable!`);
+      console.error(`🚨 Date: ${new Date(oldestTimestamp * 1000).toLocaleString()}`);
+      console.error(`🚨 FALLBACK: Using current time minus 1 day as until timestamp`);
+      const correctedTimestamp = now - (24 * 60 * 60);
+      this.loadMoreFollowingFeedBatched(Array.from(this.userFollows), correctedTimestamp);
+      return;
+    }
+    
     // Create a subscription for older notes
     const subId = 'loadmore-' + Date.now();
     let filter;
@@ -573,13 +633,15 @@ class SidecarApp {
     } else if (this.currentFeed === 'me') {
       console.log('❌ Me feed but currentUser is null/undefined');
     } else if (this.currentFeed === 'trending') {
-      // For trending feed, we can't really paginate the nostr.band API easily
-      // Instead, we'll load more recent notes that might be trending
-      filter = {
-        kinds: [1],
-        until: oldestTimestamp,
-        limit: 20
-      };
+      // For trending feed, disable load more since we show curated trending notes
+      console.log('🚫 Load more disabled for trending feed - showing curated content only');
+      this.loadingMore = false;
+      // Reset UI elements
+      const loadMoreBtn = document.getElementById('load-more-btn');
+      const loadMoreLoading = document.getElementById('load-more-loading');
+      if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+      return;
     }
     
     if (filter) {
@@ -1175,21 +1237,28 @@ class SidecarApp {
         if (subId.includes('batch')) {
           if (!this.completedBatches) this.completedBatches = new Set();
           
-          // Only add to completed batches if not already present (prevent relay duplicates)
-          const wasNew = !this.completedBatches.has(subId);
-          this.completedBatches.add(subId);
-          
-          // Only log/track if this was a new completion (not a relay duplicate)
-          if (wasNew) {
-            console.log(`📋 Batch EOSE (NEW): ${subId}, completed: ${this.completedBatches.size}/${this.expectedBatches}`);
+          // Check if this EOSE is from the current batch operation
+          if (this.currentBatchTimestamp && subId.includes(this.currentBatchTimestamp)) {
+            // Only add to completed batches if not already present (prevent relay duplicates)
+            const wasNew = !this.completedBatches.has(subId);
+            this.completedBatches.add(subId);
             
-            // Check if all batches are complete
-            if (this.completedBatches.size >= this.expectedBatches) {
-              console.log('🎯 All batches completed! Finalizing batch load...');
-              this.finalizeBatchedLoad();
+            // Only log/track if this was a new completion (not a relay duplicate)
+            if (wasNew) {
+              const batchIndex = subId.match(/batch-(\d+)-/)?.[1] || 'unknown';
+              console.log(`📋 Batch EOSE (NEW): batch-${batchIndex}, completed: ${this.completedBatches.size}/${this.expectedBatches}`);
+              
+              // Check if all batches are complete
+              if (this.completedBatches.size >= this.expectedBatches && this.batchedLoadInProgress) {
+                console.log('🎯 All batches completed! Finalizing batch load...');
+                this.finalizeBatchedLoad();
+              }
+            } else {
+              const batchIndex = subId.match(/batch-(\d+)-/)?.[1] || 'unknown';
+              console.log(`📋 Batch EOSE (DUPLICATE): batch-${batchIndex}, ignoring relay duplicate`);
             }
           } else {
-            console.log(`📋 Batch EOSE (DUPLICATE): ${subId}, ignoring relay duplicate`);
+            console.log(`📋 Batch EOSE (OLD OPERATION): ${subId}, ignoring from previous batch operation`);
           }
         } else {
           // Non-batched load more - check normally
@@ -1234,7 +1303,7 @@ class SidecarApp {
       // This ensures we count all notes received from batches, even if filtered out
       if (this.batchedLoadInProgress && this.batchNewNotesReceived !== undefined) {
         this.batchNewNotesReceived++;
-        console.log(`📈 Batch note received! Total batch notes: ${this.batchNewNotesReceived}, Note ID: ${event.id.substring(0, 16)}...`);
+        console.log(`📈 Batch note received! Total batch notes: ${this.batchNewNotesReceived}, Note ID: ${event.id.substring(0, 16)}..., From: ${event.pubkey.substring(0, 16)}..., Time: ${new Date(event.created_at * 1000).toLocaleTimeString()}`);
       }
       
       // Filter notes based on current feed type
@@ -1257,16 +1326,33 @@ class SidecarApp {
           console.log('🚫 Filtering out note from different user on user feed:', event.pubkey.substring(0, 16) + '...');
           return;
         }
+      } else if (this.currentFeed === 'trending') {
+        // Only show notes that are in our trending note IDs list
+        if (!this.trendingNoteIds.has(event.id)) {
+          console.log('🚫 Filtering out non-trending note:', event.id.substring(0, 16) + '...');
+          return;
+        }
+        console.log('✅ Showing trending note:', event.id.substring(0, 16) + '...');
       }
-      // Global feed shows everything - no filtering needed
+      // Other feeds (if any) show everything - no additional filtering needed
       
       this.notes.set(event.id, event);
       
+      // Track notes that actually get displayed during batched operations
+      if (this.batchedLoadInProgress && this.batchNotesDisplayed !== undefined) {
+        this.batchNotesDisplayed++;
+        console.log(`📈 Batch note displayed! Total displayed notes: ${this.batchNotesDisplayed}, Note ID: ${event.id.substring(0, 16)}...`);
+      }
+      
       // Memory monitoring to prevent browser freezes (but not during active loading)
-      if (this.notes.size > this.maxNotes * 0.9 && !this.loadingMore) {
+      if (this.notes.size > this.maxNotes * 0.95 && !this.loadingMore && !this.batchedLoadInProgress) {
         console.warn(`⚠️ Approaching memory limit: ${this.notes.size}/${this.maxNotes} notes`);
-        // Delayed cleanup to avoid interfering with active loading
-        setTimeout(() => this.performMemoryCleanup(), 1000);
+        // Delayed cleanup to avoid interfering with active loading, and only if not in batched operation
+        setTimeout(() => {
+          if (!this.loadingMore && !this.batchedLoadInProgress) {
+            this.performMemoryCleanup();
+          }
+        }, 2000);
       }
       
       // Emergency cleanup only if we exceed limits significantly and not actively loading
@@ -1591,6 +1677,7 @@ class SidecarApp {
     console.log('📦 === LOADING MORE FOLLOWING FEED (BATCHED) ===');
     console.log('Total authors to batch:', followsArray.length);
     console.log('Loading notes older than timestamp:', untilTimestamp);
+    console.log('Until date:', new Date(untilTimestamp * 1000).toLocaleString());
     
     // Additional safety check to prevent overlapping batched operations
     if (this.batchedLoadInProgress) {
@@ -1598,8 +1685,22 @@ class SidecarApp {
       this.loadingMore = false;
       return;
     }
+    
+    // Close any existing batch subscriptions before starting new ones
+    if (this.currentBatchSubIds && this.currentBatchSubIds.length > 0) {
+      console.log('🧹 Cleaning up old batch subscriptions before starting new batch');
+      this.currentBatchSubIds.forEach(subId => {
+        this.relayConnections.forEach(ws => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(['CLOSE', subId]));
+          }
+        });
+        this.subscriptions.delete(subId);
+      });
+    }
     this.batchedLoadInProgress = true;
     this.batchNewNotesReceived = 0; // Track notes received specifically for this batch operation
+    this.batchNotesDisplayed = 0; // Track notes actually displayed after filtering
     
     const BATCH_SIZE = 100; // Safe limit for most relays
     const batches = [];
@@ -1616,13 +1717,16 @@ class SidecarApp {
     if (!this.completedBatches) this.completedBatches = new Set();
     this.completedBatches.clear();
     
+    // Create unique timestamp for this batch operation to avoid confusion with old operations
+    this.currentBatchTimestamp = Date.now();
+    console.log(`📦 Starting new batch operation with timestamp: ${this.currentBatchTimestamp}`);
+    
     let sentToRelays = 0;
-    const timestamp = Date.now();
     this.currentBatchSubIds = []; // Store for cleanup
     
     // Create subscriptions for each batch
     batches.forEach((batch, batchIndex) => {
-      const subId = `loadmore-following-batch-${batchIndex}-${timestamp}`;
+      const subId = `loadmore-following-batch-${batchIndex}-${this.currentBatchTimestamp}`;
       this.currentBatchSubIds.push(subId);
       
       console.log(`📤 LoadMore Batch ${batchIndex + 1}: Creating subscription for ${batch.length} authors`);
@@ -1632,19 +1736,23 @@ class SidecarApp {
         kinds: [1],
         authors: batch,
         until: untilTimestamp,
-        limit: Math.ceil(20 / batches.length) // Distribute limit across batches
+        limit: Math.max(10, Math.ceil(50 / batches.length)) // At least 10 per batch, distribute 50 total for better performance
       };
       
       const subscription = ['REQ', subId, filter];
       this.subscriptions.set(subId, subscription);
       
       console.log(`📤 LoadMore Batch ${batchIndex + 1} filter:`, JSON.stringify(filter));
+      console.log(`📤 Batch ${batchIndex + 1}: ${batch.length} authors, until: ${new Date(untilTimestamp * 1000).toLocaleString()}, limit: ${filter.limit}`);
       
       // Send to all connected relays
       this.relayConnections.forEach((ws, relay) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify(subscription));
           if (batchIndex === 0) sentToRelays++; // Count once per relay
+          console.log(`📤 Batch ${batchIndex + 1} sent to relay: ${relay}`);
+        } else {
+          console.log(`❌ Batch ${batchIndex + 1} NOT sent to relay ${relay} - connection state: ${ws.readyState}`);
         }
       });
     });
@@ -1662,7 +1770,7 @@ class SidecarApp {
       } else {
         console.log('⚠️ Timeout safety checked - batchedLoadInProgress was already false');
       }
-    }, 15000); // 15 second safety timeout
+    }, 20000); // 20 second safety timeout - increased for larger batch requests
   }
   
   finalizeBatchedLoad() {
@@ -1676,9 +1784,10 @@ class SidecarApp {
     
     // Check if we got enough notes from the entire batched operation
     const notesReceived = this.batchNewNotesReceived || 0;
-    console.log(`📋 Batched load more completed: ${notesReceived} new notes received during batch operation`);
+    const notesDisplayed = this.batchNotesDisplayed || 0;
+    console.log(`📋 Batched load more completed: ${notesReceived} notes received, ${notesDisplayed} notes displayed after filtering`);
     
-    if (notesReceived === 0) {
+    if (notesDisplayed === 0) {
       this.consecutiveEmptyLoads++;
       console.log(`📋 Batched load more returned no results (${this.consecutiveEmptyLoads} consecutive empty loads)`);
       
@@ -1693,12 +1802,13 @@ class SidecarApp {
     } else {
       this.consecutiveEmptyLoads = 0; // Reset counter when we get results
       this.feedHasMore = true; // Explicitly ensure feedHasMore is true when we get results
-      console.log(`📋 Batched load more got ${notesReceived} results, setting feedHasMore = true`);
+      console.log(`📋 Batched load more got ${notesDisplayed} displayed results, setting feedHasMore = true`);
       console.log(`📋 feedHasMore is now: ${this.feedHasMore} (should be true)`);
     }
     
-    // Reset the batch counter
+    // Reset the batch counters
     this.batchNewNotesReceived = 0;
+    this.batchNotesDisplayed = 0;
     
     this.loadingMore = false;
     this.batchedLoadInProgress = false; // Clear batched operation flag
@@ -1769,6 +1879,10 @@ class SidecarApp {
       // Extract note IDs from trending data
       const trendingNoteIds = data.notes.slice(0, 20).map(note => note.id);
       console.log('🎯 Fetching trending note IDs:', trendingNoteIds.length);
+      
+      // Store trending note IDs for filtering
+      this.trendingNoteIds.clear();
+      trendingNoteIds.forEach(id => this.trendingNoteIds.add(id));
       
       // Clear existing subscriptions
       this.subscriptions.forEach((sub, id) => {
@@ -2129,7 +2243,25 @@ class SidecarApp {
     const noteDiv = document.createElement('div');
     noteDiv.className = 'note';
     noteDiv.dataset.eventId = event.id;
-    noteDiv.dataset.timestamp = event.created_at;
+    // Validate timestamp is reasonable (should be in seconds, not milliseconds)
+    const now = Math.floor(Date.now() / 1000);
+    let timestamp = event.created_at;
+    
+    // If timestamp looks like milliseconds (13+ digits), convert to seconds
+    if (timestamp > 9999999999) { // More than 10 digits = likely milliseconds
+      console.warn(`⚠️ Note ${event.id.substring(0, 16)}... has timestamp that looks like milliseconds: ${timestamp}, converting to seconds`);
+      timestamp = Math.floor(timestamp / 1000);
+    }
+    
+    // Sanity check: timestamp should be reasonable (not way in the past or future)
+    const oneYearAgo = now - (365 * 24 * 60 * 60);
+    const oneYearFromNow = now + (365 * 24 * 60 * 60);
+    if (timestamp < oneYearAgo || timestamp > oneYearFromNow) {
+      console.warn(`⚠️ Note ${event.id.substring(0, 16)}... has unreasonable timestamp: ${timestamp} (${new Date(timestamp * 1000).toLocaleString()}), clamping to current time`);
+      timestamp = now;
+    }
+    
+    noteDiv.dataset.timestamp = timestamp;
     noteDiv.dataset.author = event.pubkey; // For profile updates
     
     const profile = this.profiles.get(event.pubkey);
