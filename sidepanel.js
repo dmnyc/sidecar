@@ -402,8 +402,12 @@ class SidecarApp {
   }
   
   loadMoreNotes() {
+    console.log('🔄 LoadMoreNotes called - currentFeed:', this.currentFeed);
     // Prevent multiple simultaneous requests
-    if (this.loadingMore) return;
+    if (this.loadingMore) {
+      console.log('❌ Already loading more notes, skipping');
+      return;
+    }
     this.loadingMore = true;
     
     // Get the timestamp of the oldest note currently displayed
@@ -419,36 +423,51 @@ class SidecarApp {
     let filter;
     
     if (this.currentFeed === 'following' && this.userFollows.size > 0) {
-      filter = {
-        kinds: [1],
-        authors: Array.from(this.userFollows),
-        until: oldestTimestamp,
-        limit: 20
-      };
+      console.log('📋 Loading more for following feed, batching', this.userFollows.size, 'users');
+      this.loadMoreFollowingFeedBatched(Array.from(this.userFollows), oldestTimestamp);
+      return;
+    } else if (this.currentFeed === 'following') {
+      console.log('❌ Following feed but userFollows is empty:', this.userFollows.size);
     } else if (this.currentFeed === 'me' && this.currentUser) {
+      console.log('📋 Creating me feed filter for user:', this.currentUser.publicKey.substring(0, 16) + '...');
       filter = {
         kinds: [1],
         authors: [this.currentUser.publicKey],
         until: oldestTimestamp,
         limit: 20
       };
+    } else if (this.currentFeed === 'me') {
+      console.log('❌ Me feed but currentUser is null/undefined');
+    } else if (this.currentFeed === 'trending') {
+      // For trending feed, we can't really paginate the nostr.band API easily
+      // Instead, we'll load more recent notes that might be trending
+      filter = {
+        kinds: [1],
+        until: oldestTimestamp,
+        limit: 20
+      };
     }
     
     if (filter) {
+      console.log('✅ Sending loadMore subscription:', JSON.stringify(filter));
       const subscription = ['REQ', subId, filter];
       this.subscriptions.set(subId, subscription);
       
+      let sentToRelays = 0;
       this.relayConnections.forEach(ws => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify(subscription));
+          sentToRelays++;
         }
       });
+      console.log('📡 LoadMore subscription sent to', sentToRelays, 'relays');
       
       // Reset loading flag after a few seconds
       setTimeout(() => {
         this.loadingMore = false;
       }, 3000);
     } else {
+      console.log('❌ No filter created for loadMore - feed type not supported or missing data');
       this.loadingMore = false;
     }
   }
@@ -1344,49 +1363,138 @@ class SidecarApp {
     }, 5000);
   }
   
-  loadTopFeed() {
-    console.log('🔥 LOADING TOP FEED CALLED!!!');
-    console.log('🔥 Loading curated feed (recent high-engagement notes)');
-    this.showLoading();
+  loadMoreFollowingFeedBatched(followsArray, untilTimestamp) {
+    console.log('📦 === LOADING MORE FOLLOWING FEED (BATCHED) ===');
+    console.log('Total authors to batch:', followsArray.length);
+    console.log('Loading notes older than timestamp:', untilTimestamp);
     
-    // For now, implement "Top" as a curated recent feed from quality relays
-    // This gets recent notes from the last 6 hours, which tends to have better quality
-    const sixHoursAgo = Math.floor(Date.now() / 1000) - (6 * 60 * 60);
+    const BATCH_SIZE = 100; // Safe limit for most relays
+    const batches = [];
     
-    const filter = {
-      kinds: [1],
-      since: sixHoursAgo,
-      limit: 30
-    };
+    // Split authors into batches
+    for (let i = 0; i < followsArray.length; i += BATCH_SIZE) {
+      batches.push(followsArray.slice(i, i + BATCH_SIZE));
+    }
     
-    console.log('📡 Loading recent quality notes with filter:', filter);
+    console.log('📦 Created', batches.length, 'batches for loadMore');
     
-    // Clear existing subscriptions
-    this.subscriptions.forEach((sub, id) => {
-      this.relayConnections.forEach(ws => {
-        ws.send(JSON.stringify(['CLOSE', id]));
+    let sentToRelays = 0;
+    
+    // Create subscriptions for each batch
+    batches.forEach((batch, batchIndex) => {
+      const subId = `loadmore-following-batch-${batchIndex}-${Date.now()}`;
+      
+      console.log(`📤 LoadMore Batch ${batchIndex + 1}: Creating subscription for ${batch.length} authors`);
+      
+      // Historical notes subscription for this batch (older notes)
+      const filter = {
+        kinds: [1],
+        authors: batch,
+        until: untilTimestamp,
+        limit: Math.ceil(20 / batches.length) // Distribute limit across batches
+      };
+      
+      const subscription = ['REQ', subId, filter];
+      this.subscriptions.set(subId, subscription);
+      
+      console.log(`📤 LoadMore Batch ${batchIndex + 1} filter:`, JSON.stringify(filter));
+      
+      // Send to all connected relays
+      this.relayConnections.forEach((ws, relay) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(subscription));
+          if (batchIndex === 0) sentToRelays++; // Count once per relay
+        }
       });
     });
-    this.subscriptions.clear();
     
-    // Create subscription
-    const subId = 'trending-feed-' + Date.now();
-    const subscription = ['REQ', subId, filter];
-    this.subscriptions.set(subId, subscription);
-    console.log('📤 Top feed subscription:', JSON.stringify(subscription));
+    console.log('📤 LoadMore Following feed batches sent to', sentToRelays, 'relays');
+    console.log('📦 Total loadMore subscriptions created:', batches.length);
     
-    // Send to all connected relays
-    let sentToRelays = 0;
-    this.relayConnections.forEach((ws, relay) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        console.log('📡 Sending top feed subscription to:', relay);
-        ws.send(JSON.stringify(subscription));
-        sentToRelays++;
-      } else {
-        console.log('❌ Relay not ready for subscription:', relay);
+    // Reset loading flag after timeout
+    setTimeout(() => {
+      this.loadingMore = false;
+    }, 3000);
+  }
+  
+  async loadTopFeed() {
+    console.log('🔥 LOADING TRENDING FEED FROM NOSTR.BAND!!!');
+    this.showLoading();
+    
+    try {
+      // Fetch trending notes from nostr.band API
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const dateStr = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      console.log('📡 Fetching trending notes from nostr.band for date:', dateStr);
+      const response = await fetch(`https://api.nostr.band/v0/trending/notes/${dateStr}`);
+      
+      if (!response.ok) {
+        throw new Error(`Nostr.band API error: ${response.status}`);
       }
-    });
-    console.log('📡 Top feed subscription sent to', sentToRelays, 'relays');
+      
+      const data = await response.json();
+      console.log('📊 Nostr.band API response:', data);
+      
+      if (!data.notes || data.notes.length === 0) {
+        this.hideLoading();
+        document.getElementById('feed').innerHTML = `
+          <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
+            <p>No trending notes available right now.</p>
+            <p>Try refreshing or check back later!</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Extract note IDs from trending data
+      const trendingNoteIds = data.notes.slice(0, 20).map(note => note.id);
+      console.log('🎯 Fetching trending note IDs:', trendingNoteIds.length);
+      
+      // Clear existing subscriptions
+      this.subscriptions.forEach((sub, id) => {
+        this.relayConnections.forEach(ws => {
+          ws.send(JSON.stringify(['CLOSE', id]));
+        });
+      });
+      this.subscriptions.clear();
+      
+      // Create subscription to fetch the actual note events
+      const filter = {
+        kinds: [1],
+        ids: trendingNoteIds
+      };
+      
+      const subId = 'trending-feed-' + Date.now();
+      const subscription = ['REQ', subId, filter];
+      this.subscriptions.set(subId, subscription);
+      console.log('📤 Trending feed subscription:', JSON.stringify(subscription));
+      
+      // Send to all connected relays
+      let sentToRelays = 0;
+      this.relayConnections.forEach((ws, relay) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          console.log('📡 Sending trending feed subscription to:', relay);
+          ws.send(JSON.stringify(subscription));
+          sentToRelays++;
+        } else {
+          console.log('❌ Relay not ready for subscription:', relay);
+        }
+      });
+      console.log('📡 Trending feed subscription sent to', sentToRelays, 'relays');
+      
+    } catch (error) {
+      console.error('❌ Error loading trending feed:', error);
+      this.hideLoading();
+      document.getElementById('feed').innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: #ef4444;">
+          <p>Error loading trending feed</p>
+          <p style="font-size: 12px; color: #888;">${error.message}</p>
+          <button onclick="window.sidecarApp.loadTopFeed()" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+        </div>
+      `;
+    }
   }
   
   loadFeed(resetPagination = true) {
@@ -2242,22 +2350,6 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
     this.loadFeed();
   }
   
-  loadMoreNotes() {
-    if (this.loadingMore || !this.feedHasMore) {
-      return;
-    }
-    
-    console.log('📜 Loading more notes...');
-    this.loadingMore = true;
-    
-    // Load feed with pagination (don't reset pagination for infinite scroll)
-    this.loadFeed(false);
-    
-    // Reset loading flag after a delay
-    setTimeout(() => {
-      this.loadingMore = false;
-    }, 2000);
-  }
   
   setupInfiniteScroll() {
     // Remove existing scroll listener
@@ -2290,8 +2382,13 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
   hideLoading() {
     document.getElementById('loading').classList.add('hidden');
     // Show load more button if we have content and might have more
+    console.log('🔄 Hide loading - feedHasMore:', this.feedHasMore, 'notes count:', this.notes.size);
     if (this.feedHasMore && this.notes.size > 0) {
+      console.log('📄 Showing Load More button');
       document.getElementById('load-more-container').classList.add('show');
+    } else {
+      console.log('📄 Load More button hidden - feedHasMore:', this.feedHasMore, 'notes:', this.notes.size);
+      document.getElementById('load-more-container').classList.remove('show');
     }
   }
   
@@ -2935,5 +3032,5 @@ ${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🚀 DOM LOADED - Initializing SidecarApp!');
-  new SidecarApp();
+  window.sidecarApp = new SidecarApp();
 });
