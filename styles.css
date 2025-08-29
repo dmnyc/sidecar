@@ -27,13 +27,12 @@
 }
 
 .quoted-note {
-    border: 1px solid #2d1b69;
     border-radius: 6px;
     padding: 6px 8px;
     margin: 5px 0;
     background: rgba(26, 11, 61, 0.5);
     cursor: pointer;
-    transition: border-color 0.2s, background-color 0.2s;
+    transition: background-color 0.2s;
     max-width: 100%;
     margin-left: 0;
     overflow: visible;
@@ -43,7 +42,6 @@
 /* Quoted note specific styles */
 
 .quoted-note:hover {
-    border-color: #ea6390;
     background: rgba(26, 11, 61, 0.8);
 }
 
@@ -65,7 +63,6 @@
 }
 
 .quoted-note.loading:hover {
-    border-color: #2d1b69;
     background: rgba(26, 11, 61, 0.5);
 }
 
@@ -489,56 +486,6 @@ body {
     transition: transform 0.3s ease;
 }
 
-/* User Feed Tabs */
-.user-tab {
-    position: relative;
-    flex: 0 0 auto;
-    min-width: auto;
-    max-width: 140px;
-    padding: 12px 32px 12px 12px;
-    font-size: 13px;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    background: #2d1b69;
-    border-radius: 8px 8px 0 0;
-    margin-right: 4px;
-    word-break: break-all;
-}
-
-.user-tab.active {
-    background: #3f1b70;
-    color: #ea6390;
-}
-
-.user-tab:hover {
-    background: #3f1b70;
-}
-
-.close-tab {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #9e4280;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s;
-}
-
-.close-tab:hover {
-    background: rgba(234, 99, 144, 0.2);
-    color: #ea6390;
-}
 
 /* Compose Section */
 .compose-section {
@@ -590,6 +537,64 @@ body {
 
 .char-count.error {
     color: #ef4444;
+}
+
+/* Reply Modal */
+.reply-context {
+    margin-bottom: 16px;
+}
+
+.reply-original-note {
+    background: rgba(45, 27, 105, 0.3);
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 3px solid #ea6390;
+}
+
+.reply-author {
+    font-weight: 600;
+    color: #ea6390;
+    margin-bottom: 4px;
+}
+
+.reply-time {
+    font-size: 12px;
+    color: #9e4280;
+    margin-bottom: 8px;
+}
+
+.reply-content {
+    color: #e8d5f0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+#reply-text {
+    width: 100%;
+    min-height: 100px;
+    max-height: 300px;
+    padding: 12px;
+    border: 1px solid #2d1b69;
+    border-radius: 8px;
+    background: #1a0b3d;
+    color: #e8d5f0;
+    font-size: 14px;
+    line-height: 1.4;
+    resize: vertical;
+    font-family: inherit;
+}
+
+#reply-text:focus {
+    outline: none;
+    border-color: #ea6390;
+    box-shadow: 0 0 0 2px rgba(234, 99, 144, 0.2);
+}
+
+.reply-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
 }
 
 /* Feed Container */
@@ -1068,6 +1073,28 @@ img:not(.avatar-img) {
     justify-content: center;
     font-size: 18px;
     font-weight: 600;
+}
+
+/* Note Engagement Stats */
+.note-engagement {
+    display: flex;
+    gap: 16px;
+    padding: 8px 0;
+    margin: 8px 0;
+    border-bottom: 1px solid rgba(45, 27, 105, 0.3);
+    font-size: 12px;
+    color: #9e4280;
+}
+
+.engagement-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+}
+
+.engagement-item span {
+    color: #e8d5f0;
 }
 
 .note-actions {

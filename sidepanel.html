@@ -124,7 +124,24 @@
         </div>
     </div>
 
-    <!-- Reply modal removed - replies are no longer supported in feeds -->
+    <!-- Reply Modal -->
+    <div id="reply-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Reply to Note</h2>
+                <button id="close-reply-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="reply-to-note" class="reply-context"></div>
+                <textarea id="reply-text" placeholder="Write your reply..." maxlength="2100"></textarea>
+                <div class="reply-actions">
+                    <span id="reply-char-count" class="char-count" style="display: none;">2100</span>
+                    <button id="cancel-reply-btn" class="btn btn-secondary">Cancel</button>
+                    <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="emoji-picker-modal" class="modal hidden">
         <div class="modal-content small">
