@@ -7,6 +7,7 @@ class SidecarApp {
     this.currentUser = null;
     this.currentFeed = 'trending';
     console.log('📝 Initial feed set to:', this.currentFeed);
+    this.previousFeed = 'trending'; // Track previous feed for restoration
     this.currentUserFeed = null;
     this.relays = [
       'wss://relay.damus.io',
@@ -1173,9 +1174,9 @@ class SidecarApp {
   switchFeed(feedType) {
     console.log('🔄 SWITCH FEED CALLED! Type:', feedType, 'Current:', this.currentFeed);
     
-    // If switching away from user feed, close the user tab
-    if (this.currentFeed === 'user-feed' && feedType !== 'user-feed') {
-      console.log('🔄 Switching away from user feed, closing user tab');
+    // If switching away from user feed or single-note, close the user tab
+    if ((this.currentFeed === 'user-feed' || this.currentFeed === 'single-note') && feedType !== 'user-feed' && feedType !== 'single-note') {
+      console.log('🔄 Switching away from user/note feed, closing user tab');
       this.closeExistingUserTab();
     }
     
@@ -2972,9 +2973,9 @@ class SidecarApp {
     let filter;
     
     if (quotedNote.type === 'note') {
-      filter = { ids: [quotedNote.eventId] };
+      filter = { ids: [quotedNote.eventId], kinds: [1] };
     } else if (quotedNote.type === 'nevent') {
-      filter = { ids: [quotedNote.eventId] };
+      filter = { ids: [quotedNote.eventId], kinds: [1] };
     } else if (quotedNote.type === 'naddr') {
       // For naddr (parameterized replaceable events)
       filter = {
@@ -3002,11 +3003,24 @@ class SidecarApp {
           }
         });
         this.subscriptions.delete(subId);
+        
+        // Remove any remaining loading placeholders for this event
+        const stillLoadingPlaceholders = document.querySelectorAll(`.quoted-note.loading[data-event-id="${quotedNote.eventId}"]`);
+        console.log(`🧹 Removing ${stillLoadingPlaceholders.length} unfound quoted note placeholders for:`, quotedNote.eventId.substring(0, 16) + '...');
+        stillLoadingPlaceholders.forEach(placeholder => {
+          placeholder.remove();
+        });
       }, 5000);
     }
   }
   
   updateQuotedNotePlaceholders(event) {
+    // Only process text notes (kind 1) as quoted content
+    if (event.kind !== 1) {
+      console.log(`⏭️ Ignoring non-text note (kind ${event.kind}) for quoted display:`, event.id.substring(0, 16) + '...');
+      return;
+    }
+    
     // Find all loading quoted note placeholders that match this event ID
     const placeholders = document.querySelectorAll(`.quoted-note.loading[data-event-id="${event.id}"]`);
     
@@ -3064,12 +3078,69 @@ class SidecarApp {
     // Only apply truncation in timeline views, not on expanded single note pages
     const isTimelineView = this.currentFeed !== 'single-note';
     const contentText = event.content || '';
-    const isLongContent = contentText.length > 875;
+    
+    // Count only readable text, excluding nostr: tags for truncation decision
+    const textWithoutNostrTags = contentText.replace(/nostr:[a-z0-9]+1[a-z0-9]+/gi, '');
+    const isLongContent = textWithoutNostrTags.length > 1200; // Check readable content length
     
     if (isLongContent && isTimelineView) {
-      // Create truncated version with "Read more..." link
+      // Create truncated version with "Read more..." link, avoiding breaking user mentions
       const originalHTML = noteContent.innerHTML;
-      const truncatedText = contentText.substring(0, 700) + '...';
+      
+      // Calculate truncation point based on readable text, accounting for nostr tags
+      const readableLength = textWithoutNostrTags.length;
+      const targetReadableLength = 900; // Target readable characters to show
+      
+      // Find the position in the full text that corresponds to our target readable length
+      let readableCount = 0;
+      let truncateAt = 0;
+      
+      for (let i = 0; i < contentText.length; i++) {
+        // Skip over nostr: tags when counting readable characters
+        if (contentText.substring(i).match(/^nostr:[a-z0-9]+1[a-z0-9]+/i)) {
+          // Find the end of this nostr tag
+          const tagMatch = contentText.substring(i).match(/^nostr:[a-z0-9]+1[a-z0-9]+/i);
+          if (tagMatch) {
+            i += tagMatch[0].length - 1; // Skip the tag (-1 because loop will increment)
+            continue;
+          }
+        }
+        
+        readableCount++;
+        if (readableCount >= targetReadableLength) {
+          truncateAt = i + 1;
+          break;
+        }
+      }
+      
+      // If we didn't find enough readable content, use the full length
+      if (truncateAt === 0) truncateAt = contentText.length;
+      
+      // Look for a good place to truncate that doesn't break user mentions or nostr links
+      let safeEnd = truncateAt;
+      const textToCheck = contentText.substring(0, Math.min(contentText.length, truncateAt + 100));
+      
+      // Find last complete word that doesn't break @mentions or nostr: links
+      for (let i = truncateAt; i < Math.min(textToCheck.length, truncateAt + 50); i++) {
+        const char = contentText[i];
+        const prev = contentText[i - 1];
+        
+        // If we hit a space after non-mention content, this is a safe place to cut
+        if (char === ' ' && prev !== '@' && !contentText.substring(Math.max(0, i - 20), i).includes('nostr:')) {
+          safeEnd = i;
+          break;
+        }
+      }
+      
+      // Fallback: if no good break point found, find last space before truncateAt
+      if (safeEnd === truncateAt) {
+        const lastSpace = contentText.lastIndexOf(' ', truncateAt);
+        if (lastSpace > truncateAt - 100) { // Don't go too far back
+          safeEnd = lastSpace;
+        }
+      }
+      
+      const truncatedText = contentText.substring(0, safeEnd).trim() + '...';
       const formattedContent = this.formatNoteContent(truncatedText);
       
       noteContent.innerHTML = `<span class="truncated-text">${formattedContent.text}<span class="read-more"> Read more...</span></span><span class="full-text">${originalHTML}</span>`;
@@ -3211,6 +3282,12 @@ class SidecarApp {
     console.log('📄 Opening note in tab:', event.id.substring(0, 16) + '...');
     console.log('📄 Current feed before:', this.currentFeed);
     
+    // Store previous feed before switching (but not if already in user/note view)
+    if (this.currentFeed !== 'user-feed' && this.currentFeed !== 'single-note') {
+      this.previousFeed = this.currentFeed;
+      console.log('💾 Storing previous feed:', this.previousFeed);
+    }
+    
     // Close any existing user tab first
     this.closeExistingUserTab();
     
@@ -3334,6 +3411,12 @@ class SidecarApp {
   openUserFeed(pubkey, bech32) {
     console.log('🔓 Opening user feed for:', pubkey.substring(0, 16) + '...');
     
+    // Store previous feed before switching
+    if (this.currentFeed !== 'user-feed' && this.currentFeed !== 'single-note') {
+      this.previousFeed = this.currentFeed;
+      console.log('💾 Storing previous feed:', this.previousFeed);
+    }
+    
     // Close any existing user tab first
     this.closeExistingUserTab();
     
@@ -3379,13 +3462,14 @@ class SidecarApp {
   }
   
   closeUserTab() {
-    console.log('❌ Closing user tab and switching to trending feed');
+    console.log('❌ Closing user tab and switching to previous feed:', this.previousFeed);
     
     // Remove the user tab
     this.closeExistingUserTab();
     
-    // Switch back to trending feed as default
-    this.switchFeed('trending');
+    // Switch back to previous feed, or trending as fallback
+    const feedToRestore = this.previousFeed || 'trending';
+    this.switchFeed(feedToRestore);
   }
   
   updateFeedToggle() {

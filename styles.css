@@ -22,9 +22,8 @@
 }
 
 .quoted-notes {
-    margin-top: 8px;
-    border-top: 1px solid #2d1b69;
-    padding-top: 8px;
+    margin-top: 4px;
+    padding-top: 4px;
 }
 
 .quoted-note {
@@ -50,6 +49,19 @@
 
 .quoted-note.loading {
     cursor: default;
+}
+
+.quoted-note.loading .quoted-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.quoted-note.loading .quoted-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .quoted-note.loading:hover {
