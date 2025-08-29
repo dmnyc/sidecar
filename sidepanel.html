@@ -43,11 +43,14 @@
                 <span>Loading feed...</span>
             </div>
             <div id="feed" class="feed"></div>
-            <div id="load-more-container" class="load-more-container">
-                <button id="load-more-btn" class="btn btn-secondary">Load More</button>
-                <div id="load-more-loading" class="load-more-loading hidden">
+            <div id="auto-loader" class="auto-loader">
+                <div id="auto-loading" class="auto-loading hidden">
                     <div class="spinner small"></div>
-                    <span>Loading older posts...</span>
+                    <span>Loading feed...</span>
+                </div>
+                <div id="end-of-feed" class="end-of-feed hidden">
+                    <span>End of feed.</span>
+                    <button id="reload-feed-btn" class="btn btn-secondary">Click to reload</button>
                 </div>
             </div>
             <div id="error" class="error hidden">
@@ -121,22 +124,7 @@
         </div>
     </div>
 
-    <div id="reply-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Reply</h2>
-                <button class="close-btn" data-modal="reply-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="reply-to-note" class="reply-context"></div>
-                <textarea id="reply-text" placeholder="Write your reply..." maxlength="2100"></textarea>
-                <div class="compose-actions">
-                    <span id="reply-char-count" class="char-count" style="display: none;">2100</span>
-                    <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Reply modal removed - replies are no longer supported in feeds -->
 
     <div id="emoji-picker-modal" class="modal hidden">
         <div class="modal-content small">

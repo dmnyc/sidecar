@@ -602,28 +602,41 @@ body {
     margin-top: 104px; /* Fine-tuned to prevent topmost note cutoff while staying close to pink bar */
 }
 
-.load-more-container {
+.auto-loader {
     text-align: center;
     padding: 20px;
-    display: none;
 }
 
-.load-more-container.show {
-    display: block;
-}
-
-.load-more-loading {
+.auto-loading {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-top: 10px;
     color: #ea6390;
     font-size: 14px;
 }
 
-.load-more-loading.hidden {
+.auto-loading.hidden {
     display: none;
+}
+
+.end-of-feed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: #b69cc7;
+    font-size: 14px;
+    font-style: italic;
+}
+
+.end-of-feed.hidden {
+    display: none;
+}
+
+.end-of-feed .btn {
+    font-size: 13px;
+    padding: 8px 16px;
 }
 
 .loading {

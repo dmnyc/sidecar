@@ -18,9 +18,7 @@ class SidecarApp {
     this.relayConnections = new Map();
     this.subscriptions = new Map();
     this.notes = new Map();
-    this.threads = new Map(); // Map of parent note ID -> array of reply IDs
-    this.noteParents = new Map(); // Map of note ID -> parent note ID
-    this.orphanedReplies = new Map(); // Map of parent ID -> array of orphaned reply events
+    // Threading maps removed - replies no longer supported
     this.userReactions = new Set(); // Track events user has already reacted to
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
@@ -152,9 +150,7 @@ class SidecarApp {
     document.getElementById('post-btn').addEventListener('click', () => this.publishNote());
     document.getElementById('cancel-compose-btn').addEventListener('click', () => this.hideComposeSection());
     
-    // Reply modal
-    document.getElementById('send-reply-btn').addEventListener('click', () => this.sendReply());
-    document.getElementById('reply-text').addEventListener('input', this.updateReplyCharCount);
+    // Reply modal removed - replies are no longer supported in feeds
     
     // Emoji picker
     document.getElementById('custom-emoji-btn').addEventListener('click', () => this.useCustomEmoji());
@@ -182,7 +178,9 @@ class SidecarApp {
     
     // Retry button
     document.getElementById('retry-btn').addEventListener('click', () => this.loadFeed());
-    document.getElementById('load-more-btn').addEventListener('click', () => this.loadMoreNotes());
+    
+    // Reload feed button (replaces Load More button)
+    document.getElementById('reload-feed-btn').addEventListener('click', () => this.loadFeed());
     
     // Generate keys when modal opens
     this.generateNewKeys();
@@ -272,8 +270,7 @@ class SidecarApp {
       this.cleanupDOMNotes();
     }
     
-    // Clean up orphaned data
-    this.cleanupOrphanedData();
+    // Orphaned data cleanup removed - no longer using threading
     
     // Clean up excessive subscriptions
     this.cleanupSubscriptions();
@@ -330,9 +327,7 @@ class SidecarApp {
     for (const [noteId] of this.notes) {
       if (!toKeep.has(noteId)) {
         this.notes.delete(noteId);
-        // Also clean up related thread data
-        this.threads.delete(noteId);
-        this.noteParents.delete(noteId);
+        // Thread data cleanup removed - no longer using threading
       }
     }
     
@@ -474,31 +469,7 @@ class SidecarApp {
     }
   }
   
-  cleanupOrphanedData() {
-    // Clean up orphaned replies that reference deleted notes
-    for (const [parentId, replies] of this.orphanedReplies) {
-      if (!this.notes.has(parentId)) {
-        this.orphanedReplies.delete(parentId);
-      }
-    }
-    
-    // Clean up thread relationships for deleted notes
-    for (const noteId of this.noteParents.keys()) {
-      if (!this.notes.has(noteId)) {
-        this.noteParents.delete(noteId);
-      }
-    }
-    
-    // Clean up user reactions for notes no longer in cache
-    const validNoteIds = new Set(this.notes.keys());
-    this.userReactions.forEach(reactionId => {
-      // Extract note ID from reaction (if format is noteId:emoji)
-      const noteId = reactionId.split(':')[0];
-      if (!validNoteIds.has(noteId)) {
-        this.userReactions.delete(reactionId);
-      }
-    });
-  }
+  // cleanupOrphanedData removed - no longer using threading data structures
   
   cleanupSubscriptions() {
     const subsCount = this.subscriptions.size;
@@ -565,8 +536,7 @@ class SidecarApp {
       // Aggressive data cleanup
       this.notes.clear();
       this.profiles.clear();
-      this.threads.clear();
-      this.orphanedReplies.clear();
+      // Thread data structures removed
       
       // Clear DOM
       const feed = document.getElementById('feed');
@@ -585,13 +555,18 @@ class SidecarApp {
   loadMoreNotes() {
     console.log('🔄 LoadMoreNotes called - currentFeed:', this.currentFeed);
     console.log('🔄 feedHasMore:', this.feedHasMore, 'loadingMore:', this.loadingMore);
+    console.log('🔍 DEBUG: Oldest timestamp:', this.oldestNoteTimestamp, this.oldestNoteTimestamp ? new Date(this.oldestNoteTimestamp * 1000).toLocaleString() : 'none');
+    console.log('🔍 DEBUG: Notes in cache:', this.notes.size);
+    console.log('🔍 DEBUG: Consecutive empty loads:', this.consecutiveEmptyLoads);
     // Prevent multiple simultaneous requests
     if (this.loadingMore) {
       console.log('❌ Already loading more notes, skipping');
       return;
     }
+    
     this.loadingMore = true;
     this.loadMoreStartNoteCount = this.notes.size; // Track starting note count
+    this.loadMoreStartTimestamp = this.oldestNoteTimestamp; // Track starting timestamp for Me feed
     
     // Safety timeout to prevent loadingMore flag from getting stuck
     setTimeout(() => {
@@ -601,11 +576,11 @@ class SidecarApp {
       }
     }, 30000);
     
-    // Show loading indicator
-    const loadMoreBtn = document.getElementById('load-more-btn');
-    const loadMoreLoading = document.getElementById('load-more-loading');
-    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
-    if (loadMoreLoading) loadMoreLoading.classList.remove('hidden');
+    // Show loading indicator for load more
+    const autoLoading = document.getElementById('auto-loading');
+    const endOfFeed = document.getElementById('end-of-feed');
+    if (autoLoading) autoLoading.classList.remove('hidden');
+    if (endOfFeed) endOfFeed.classList.add('hidden');
     
     // Get the timestamp of the oldest note currently displayed
     const feed = document.getElementById('feed');
@@ -614,10 +589,7 @@ class SidecarApp {
       console.log('❌ No notes in feed, resetting loadingMore flag');
       this.loadingMore = false;
       // Reset UI elements
-      const loadMoreBtn = document.getElementById('load-more-btn');
-      const loadMoreLoading = document.getElementById('load-more-loading');
-      if (loadMoreBtn) loadMoreBtn.style.display = 'block';
-      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+      this.showAutoLoader();
       return;
     }
     
@@ -666,19 +638,21 @@ class SidecarApp {
       console.log('❌ Following feed but userFollows is empty:', this.userFollows.size);
       this.loadingMore = false;
       // Reset UI elements
-      const loadMoreBtn = document.getElementById('load-more-btn');
-      const loadMoreLoading = document.getElementById('load-more-loading');
-      if (loadMoreBtn) loadMoreBtn.style.display = 'block';
-      if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
+      this.showAutoLoader();
       return;
     } else if (this.currentFeed === 'me' && this.currentUser) {
-      console.log('📋 Creating me feed filter for user:', this.currentUser.publicKey.substring(0, 16) + '...');
+      console.log('🙋 Loading more for Me feed using standard approach');
+      console.log('🔍 DEBUG Me feed: User pubkey:', this.currentUser.publicKey.substring(0, 16) + '...');
+      console.log('🔍 DEBUG Me feed: Until timestamp:', oldestTimestamp, new Date(oldestTimestamp * 1000).toLocaleString());
+      
       filter = {
         kinds: [1],
         authors: [this.currentUser.publicKey],
         until: oldestTimestamp,
-        limit: 20
+        limit: 40
       };
+      
+      console.log('🔍 DEBUG Me feed filter:', JSON.stringify(filter));
     } else if (this.currentFeed === 'me') {
       console.log('❌ Me feed but currentUser is null/undefined');
     } else if (this.currentFeed === 'trending') {
@@ -702,30 +676,43 @@ class SidecarApp {
       });
       console.log('📡 LoadMore subscription sent to', sentToRelays, 'relays');
       
-      // Reset loading flag and cleanup subscription after timeout
+      // For Me feed and other simple feeds, rely on EOSE completion
+      // Only use timeout as fallback safety mechanism  
       setTimeout(() => {
-        this.loadingMore = false;
-        
-        // Hide loading indicator and restore button
-        const loadMoreBtn = document.getElementById('load-more-btn');
-        const loadMoreLoading = document.getElementById('load-more-loading');
-        if (loadMoreBtn) loadMoreBtn.style.display = 'block';
-        if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
-        
-        // Close the load more subscription to free memory
-        if (this.subscriptions.has(subId)) {
-          this.relayConnections.forEach(ws => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify(['CLOSE', subId]));
+        if (this.loadingMore) {
+          console.log('⚠️ SAFETY TIMEOUT: Load more timeout after 10s, completing operation');
+          const notesReceivedDuringLoad = this.notes.size - this.loadMoreStartNoteCount;
+          console.log(`📊 Timeout completion: ${notesReceivedDuringLoad} new notes received`);
+          
+          if (notesReceivedDuringLoad === 0) {
+            this.consecutiveEmptyLoads++;
+            console.log(`📊 Timeout: No new notes (${this.consecutiveEmptyLoads} consecutive empty loads)`);
+            
+            const emptyLoadThreshold = this.currentFeed === 'me' ? 10 : 3;
+            if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
+              console.log(`📊 ${this.consecutiveEmptyLoads} consecutive empty loads, setting feedHasMore = false`);
+              this.feedHasMore = false;
             }
-          });
-          this.subscriptions.delete(subId);
-          console.log(`🔌 Closed load more subscription: ${subId}`);
+          } else {
+            this.consecutiveEmptyLoads = 0;
+            this.feedHasMore = true;
+          }
+          
+          this.loadingMore = false;
+          
+          // Close the subscription
+          if (this.subscriptions.has(subId)) {
+            this.relayConnections.forEach(ws => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(['CLOSE', subId]));
+              }
+            });
+            this.subscriptions.delete(subId);
+          }
+          
+          this.showAutoLoader();
         }
-        
-        // Update Load More button visibility
-        this.hideLoading();
-      }, 5000);
+      }, 10000);
     } else {
       console.log('❌ No filter created for loadMore - feed type not supported or missing data');
       this.loadingMore = false;
@@ -1197,9 +1184,7 @@ class SidecarApp {
     // Clear current feed and load new one
     document.getElementById('feed').innerHTML = '';
     this.notes.clear();
-    this.threads.clear();
-    this.noteParents.clear();
-    this.orphanedReplies.clear();
+    // Thread data structures removed
     this.userReactions.clear();
     this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
@@ -1215,9 +1200,7 @@ class SidecarApp {
     // Clear current feed and reload
     document.getElementById('feed').innerHTML = '';
     this.notes.clear();
-    this.threads.clear();
-    this.noteParents.clear();
-    this.orphanedReplies.clear();
+    // Thread data structures removed
     this.userReactions.clear();
     this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
@@ -1317,22 +1300,28 @@ class SidecarApp {
         console.log(`🎯 First 5 trending authors:`, this.trendingAuthors ? [...this.trendingAuthors].slice(0, 5).map(a => a.substring(0, 16) + '...') : 'None');
       }
       
-      // For load more subscriptions, track EOSE completion
+      // For load more subscriptions, track EOSE completion (excluding Me feed which uses its own system)
       if (subId.startsWith('loadmore-') || subId.startsWith('trending-loadmore-')) {
         // Track completed batches for batched operations
         if (subId.includes('batch')) {
           if (!this.completedBatches) this.completedBatches = new Set();
           
           // Check if this EOSE is from the current batch operation
-          if (this.currentBatchTimestamp && subId.includes(this.currentBatchTimestamp)) {
+          const isCurrentBatchOperation = (this.currentBatchTimestamp && subId.includes(this.currentBatchTimestamp)) && this.batchedLoadInProgress;
+          
+          if (isCurrentBatchOperation) {
             // Only add to completed batches if not already present (prevent relay duplicates)
             const wasNew = !this.completedBatches.has(subId);
             this.completedBatches.add(subId);
             
             // Only log/track if this was a new completion (not a relay duplicate)
             if (wasNew) {
-              const batchIndex = subId.match(/batch-(\d+)-/)?.[1] || 'unknown';
-              console.log(`📋 Batch EOSE (NEW): batch-${batchIndex}, completed: ${this.completedBatches.size}/${this.expectedBatches}`);
+              if (subId.startsWith('me-loadmore-')) {
+                console.log(`🙋 Me feed batch EOSE (NEW): ${subId.substring(0, 30)}..., completed: ${this.completedBatches.size}/${this.expectedBatches}`);
+              } else {
+                const batchIndex = subId.match(/batch-(\d+)-/)?.[1] || 'unknown';
+                console.log(`📋 Following feed batch EOSE (NEW): batch-${batchIndex}, completed: ${this.completedBatches.size}/${this.expectedBatches}`);
+              }
               
               // Check if all batches are complete
               if (this.completedBatches.size >= this.expectedBatches && this.batchedLoadInProgress) {
@@ -1347,15 +1336,49 @@ class SidecarApp {
             console.log(`📋 Batch EOSE (OLD OPERATION): ${subId}, ignoring from previous batch operation`);
           }
         } else {
-          // Non-batched load more - check normally
+          // Non-batched load more - check normally (includes Me feed)
           if (this.loadingMore) {
             const notesReceived = this.notes.size - this.loadMoreStartNoteCount;
             console.log(`📋 Load more received ${notesReceived} new notes`);
-            if (notesReceived < 3) {
-              console.log('📋 Load more returned few results, setting feedHasMore = false');
-              this.feedHasMore = false;
+            
+            // For Me feed, also check if timestamp advanced due to reply filtering
+            const timestampAdvanced = this.currentFeed === 'me' && 
+                                     this.loadMoreStartTimestamp && 
+                                     this.oldestNoteTimestamp < this.loadMoreStartTimestamp;
+            
+            if (this.currentFeed === 'me') {
+              console.log(`🔍 Me feed EOSE debug: notesReceived=${notesReceived}, timestampAdvanced=${timestampAdvanced}`);
+              console.log(`🔍 loadMoreStartTimestamp=${this.loadMoreStartTimestamp ? new Date(this.loadMoreStartTimestamp * 1000).toLocaleString() : 'none'}`);
+              console.log(`🔍 oldestNoteTimestamp=${this.oldestNoteTimestamp ? new Date(this.oldestNoteTimestamp * 1000).toLocaleString() : 'none'}`);
+            }
+            
+            if (notesReceived === 0 && !timestampAdvanced) {
+              this.consecutiveEmptyLoads++;
+              console.log(`📋 EOSE: Load more returned no results and no timestamp advancement (${this.consecutiveEmptyLoads} consecutive empty loads)`);
+              
+              // For Me feed, use higher threshold since it's single-user and may have gaps
+              const emptyLoadThreshold = this.currentFeed === 'me' ? 10 : 3;
+              if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
+                console.log(`📋 EOSE: ${this.consecutiveEmptyLoads} consecutive empty loads (threshold: ${emptyLoadThreshold}), setting feedHasMore = false`);
+                this.feedHasMore = false;
+              }
+            } else {
+              this.consecutiveEmptyLoads = 0; // Reset counter when we get results
+              this.feedHasMore = true;
+              if (timestampAdvanced) {
+                console.log(`📋 EOSE: Me feed timestamp advanced from ${new Date(this.loadMoreStartTimestamp * 1000).toLocaleString()} to ${new Date(this.oldestNoteTimestamp * 1000).toLocaleString()}, continuing pagination`);
+              } else {
+                console.log(`📋 EOSE: Got ${notesReceived} new notes, feedHasMore = true`);
+              }
             }
             this.loadingMore = false;
+            
+            // Reset the loadMore tracking variables for next operation
+            this.loadMoreStartNoteCount = this.notes.size;
+            this.loadMoreStartTimestamp = this.oldestNoteTimestamp;
+            if (this.currentFeed === 'me') {
+              console.log(`🔄 Reset Me feed loadMore tracking: count=${this.loadMoreStartNoteCount}, timestamp=${this.oldestNoteTimestamp ? new Date(this.oldestNoteTimestamp * 1000).toLocaleString() : 'none'}`);
+            }
           }
         }
       }
@@ -1380,6 +1403,28 @@ class SidecarApp {
     // Handle different event kinds
     if (event.kind === 1) {
       // Text notes
+      
+      // FILTER OUT ALL REPLIES - Check for 'e' tags which indicate this is a reply
+      const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
+      if (eTags.length > 0) {
+        console.log('🚫 Filtering out reply from:', event.pubkey.substring(0, 16) + '...', 'Reply to:', eTags[0][1].substring(0, 16) + '...');
+        
+        // For Me feed, track reply timestamps to advance pagination even when only replies are found
+        if (this.currentFeed === 'me' && this.loadingMore) {
+          // Update oldest timestamp with reply timestamps to ensure pagination advances
+          if (!this.oldestNoteTimestamp || event.created_at < this.oldestNoteTimestamp) {
+            const oldValue = this.oldestNoteTimestamp;
+            this.oldestNoteTimestamp = event.created_at;
+            console.log(`🕐 Me feed: Advanced timestamp using reply from ${oldValue ? new Date(oldValue * 1000).toLocaleString() : 'none'} to ${new Date(this.oldestNoteTimestamp * 1000).toLocaleString()}`);
+          }
+        }
+        
+        // Still cache the event for quoted note updates but don't display it
+        this.notes.set(event.id, event);
+        this.updateQuotedNotePlaceholders(event);
+        return;
+      }
+      
       // Check if this is a quoted note that needs to be updated in the DOM
       const wasAlreadyCached = this.notes.has(event.id);
       
@@ -1391,13 +1436,6 @@ class SidecarApp {
       }
       
       console.log('📝 Received note from:', event.pubkey.substring(0, 16) + '...', 'Content:', event.content.substring(0, 50) + '...');
-      
-      // Track notes received during batched load operations BEFORE filtering
-      // This ensures we count all notes received from batches, even if filtered out
-      if (this.batchedLoadInProgress && this.batchNewNotesReceived !== undefined) {
-        this.batchNewNotesReceived++;
-        console.log(`📈 Batch note received! Total batch notes: ${this.batchNewNotesReceived}, Note ID: ${event.id.substring(0, 16)}..., From: ${event.pubkey.substring(0, 16)}..., Time: ${new Date(event.created_at * 1000).toLocaleTimeString()}`);
-      }
       
       // Filter notes based on current feed type
       if (this.currentFeed === 'following') {
@@ -1520,19 +1558,21 @@ class SidecarApp {
       if (!this.oldestNoteTimestamp || event.created_at < this.oldestNoteTimestamp) {
         const oldValue = this.oldestNoteTimestamp;
         this.oldestNoteTimestamp = event.created_at;
-        if (this.batchedLoadInProgress && oldValue) {
-          console.log(`📅 Updated oldest timestamp: ${new Date(oldValue * 1000).toLocaleTimeString()} → ${new Date(this.oldestNoteTimestamp * 1000).toLocaleTimeString()}`);
-        }
+        console.log(`🕐 Updated oldest timestamp: ${oldValue ? new Date(oldValue * 1000).toLocaleString() : 'none'} → ${new Date(this.oldestNoteTimestamp * 1000).toLocaleString()}`);
+        console.log(`🔍 DEBUG: Note that updated timestamp: ${event.id.substring(0, 16)}... from ${event.pubkey.substring(0, 16)}...`);
       }
       
-      // Build thread relationships
-      this.buildThreadRelationships(event);
+      // Track notes that will actually be displayed during batched load operations
+      if (this.batchedLoadInProgress && this.batchNewNotesReceived !== undefined) {
+        this.batchNewNotesReceived++;
+        console.log(`📈 Batch note will be displayed! Total batch notes: ${this.batchNewNotesReceived}, Note ID: ${event.id.substring(0, 16)}..., From: ${event.pubkey.substring(0, 16)}..., Time: ${new Date(event.created_at * 1000).toLocaleTimeString()}`);
+      }
       
       // Request profile for this author if we don't have it
       this.requestProfile(event.pubkey);
       
-      // Display note (will handle threading)
-      this.displayNote(event);
+      // Display note (top-level only, no threading)
+      this.displayTopLevelNote(event);
     } else if (event.kind === 0) {
       console.log('👤 Received profile for:', event.pubkey.substring(0, 16) + '...');
       // Profile metadata
@@ -1730,32 +1770,7 @@ class SidecarApp {
     }
   }
   
-  buildThreadRelationships(event) {
-    // Check if this is a reply by looking for 'e' tags
-    const eTags = event.tags.filter(tag => tag[0] === 'e');
-    
-    if (eTags.length > 0) {
-      let parentId;
-      
-      // NIP-10: Look for reply marker first
-      const replyTag = eTags.find(tag => tag[3] === 'reply');
-      if (replyTag) {
-        parentId = replyTag[1];
-      } else {
-        // Fallback: Use the last 'e' tag as parent (legacy behavior)
-        parentId = eTags[eTags.length - 1][1];
-      }
-      
-      // Store parent relationship
-      this.noteParents.set(event.id, parentId);
-      
-      // Add to parent's replies list
-      if (!this.threads.has(parentId)) {
-        this.threads.set(parentId, []);
-      }
-      this.threads.get(parentId).push(event.id);
-    }
-  }
+  // buildThreadRelationships removed - replies no longer supported
   
   loadFollowingFeedBatched(followsArray) {
     console.log('📦 === BATCHING FOLLOWING FEED ===');
@@ -1831,6 +1846,7 @@ class SidecarApp {
       }
     }, 5000);
   }
+  
   
   loadMoreFollowingFeedBatched(followsArray, untilTimestamp) {
     console.log('📦 === LOADING MORE FOLLOWING FEED (BATCHED) ===');
@@ -2057,6 +2073,7 @@ class SidecarApp {
     // Reset the batch counters
     this.batchNewNotesReceived = 0;
     this.batchNotesDisplayed = 0;
+    this.batchRepliesFiltered = 0; // Reset filtered replies counter
     
     this.loadingMore = false;
     this.batchedLoadInProgress = false; // Clear batched operation flag
@@ -2081,17 +2098,13 @@ class SidecarApp {
       console.log(`🔌 Closed ${this.currentBatchSubIds.length} batched load more subscriptions`);
     }
     
-    // Hide loading indicator and restore button/state
-    const loadMoreBtn = document.getElementById('load-more-btn');
-    const loadMoreLoading = document.getElementById('load-more-loading');
-    if (loadMoreBtn) loadMoreBtn.style.display = 'block';
-    if (loadMoreLoading) loadMoreLoading.classList.add('hidden');
-    
-    // Ensure Load More button visibility is updated
-    console.log(`📋 About to call hideLoading() - feedHasMore: ${this.feedHasMore}`);
-    this.hideLoading();
-    console.log(`📋 After hideLoading() - feedHasMore: ${this.feedHasMore}`);
+    // Update auto-loader visibility
+    console.log(`📋 About to call showAutoLoader() - feedHasMore: ${this.feedHasMore}`);
+    this.showAutoLoader();
+    console.log(`📋 After showAutoLoader() - feedHasMore: ${this.feedHasMore}`);
   }
+  
+  // Me feed now uses standard approach identical to other feeds
   
   async loadTopFeed() {
     console.log('🔥 LOADING TRENDING FEED FROM NOSTR.BAND!!!');
@@ -2196,12 +2209,11 @@ class SidecarApp {
       });
       console.log('📡 Trending feed subscription sent to', sentToRelays, 'relays');
       
-      // Make sure Load More button is visible for trending feed
+      // Make sure auto-loader is visible for trending feed
       setTimeout(() => {
-        const loadMoreBtn = document.getElementById('load-more-btn');
-        if (loadMoreBtn && this.feedHasMore) {
-          console.log('🔄 Making sure Load More button is visible for trending feed');
-          loadMoreBtn.style.display = 'block';
+        if (this.feedHasMore) {
+          console.log('🔄 Making sure auto-loader is visible for trending feed');
+          this.showAutoLoader();
         }
       }, 2000);
       
@@ -2307,16 +2319,20 @@ class SidecarApp {
         return;
       }
     } else if (this.currentFeed === 'me' && this.currentUser) {
-      // Me feed: current user's own notes with historical loading
+      // Me feed: current user's own notes with simple reliable loading
+      console.log('🙋 Loading Me feed for user:', this.currentUser.publicKey.substring(0, 16) + '...');
       const baseFilter = {
         kinds: [1],
         authors: [this.currentUser.publicKey],
-        limit: 30
+        limit: 40
       };
       
       // Add until timestamp for pagination if we have it
       if (this.oldestNoteTimestamp) {
         baseFilter.until = this.oldestNoteTimestamp - 1;
+        console.log('🙋 Me feed pagination: until =', new Date((this.oldestNoteTimestamp - 1) * 1000).toLocaleString());
+      } else {
+        console.log('🙋 Me feed initial load (no until timestamp)');
       }
       
       filter = baseFilter;
@@ -2360,17 +2376,7 @@ class SidecarApp {
     setTimeout(() => this.hideLoading(), 5000);
   }
   
-  displayNote(event) {
-    const parentId = this.noteParents.get(event.id);
-    
-    if (parentId) {
-      // This is a reply - display it under the parent
-      this.displayReply(event, parentId);
-    } else {
-      // This is a top-level note - display it in the main feed
-      this.displayTopLevelNote(event);
-    }
-  }
+  // displayNote removed - now directly call displayTopLevelNote since replies are filtered out
   
   displayTopLevelNote(event) {
     const feed = document.getElementById('feed');
@@ -2411,130 +2417,11 @@ class SidecarApp {
       }
       feed.appendChild(noteElement);
     }
-    
-    // Check if there are any orphaned replies waiting for this parent
-    this.displayOrphanedReplies(event.id);
   }
   
-  displayReply(event, parentId) {
-    // Find the parent note element in the DOM
-    const parentElement = document.querySelector(`[data-event-id="${parentId}"]`);
-    
-    if (!parentElement) {
-      // Parent not found in DOM yet, store as orphaned reply
-      console.log(`Parent ${parentId} not found for reply ${event.id}, storing as orphaned`);
-      if (!this.orphanedReplies.has(parentId)) {
-        this.orphanedReplies.set(parentId, []);
-      }
-      this.orphanedReplies.get(parentId).push(event);
-      return;
-    }
-    
-    // Check if reply already exists in DOM to prevent duplicates
-    const existingReplyElement = document.querySelector(`[data-event-id="${event.id}"]`);
-    if (existingReplyElement) {
-      console.log('📋 Reply already exists in DOM, skipping:', event.id.substring(0, 16) + '...');
-      return;
-    }
-    
-    const replyElement = this.createReplyElement(event);
-    
-    // Find or create replies container for parent
-    let repliesContainer = parentElement.querySelector('.replies-container');
-    if (!repliesContainer) {
-      repliesContainer = document.createElement('div');
-      repliesContainer.className = 'replies-container';
-      parentElement.appendChild(repliesContainer);
-    }
-    
-    // Insert reply in chronological order within replies
-    const existingReplies = Array.from(repliesContainer.children);
-    let inserted = false;
-    
-    for (const existingReply of existingReplies) {
-      const existingTimestamp = parseInt(existingReply.dataset.timestamp);
-      if (event.created_at < existingTimestamp) {
-        repliesContainer.insertBefore(replyElement, existingReply);
-        inserted = true;
-        break;
-      }
-    }
-    
-    if (!inserted) {
-      repliesContainer.appendChild(replyElement);
-    }
-  }
+  // displayReply and displayOrphanedReplies removed - replies no longer supported
   
-  displayOrphanedReplies(parentId) {
-    const orphans = this.orphanedReplies.get(parentId);
-    if (!orphans || orphans.length === 0) return;
-    
-    console.log(`Displaying ${orphans.length} orphaned replies for parent ${parentId}`);
-    
-    // Display each orphaned reply
-    orphans.forEach(replyEvent => {
-      this.displayReply(replyEvent, parentId);
-    });
-    
-    // Clear orphaned replies for this parent
-    this.orphanedReplies.delete(parentId);
-  }
-  
-  buildReplyTags(replyToEvent) {
-    const tags = [];
-    
-    // Find the root of this thread by examining the event's tags
-    const rootId = this.findThreadRoot(replyToEvent);
-    
-    // NIP-10: Add root tag if this is part of a thread
-    if (rootId && rootId !== replyToEvent.id) {
-      // This is a reply to a reply - add both root and reply markers
-      tags.push(['e', rootId, '', 'root']);
-      tags.push(['e', replyToEvent.id, '', 'reply']);
-    } else {
-      // This is a direct reply to the original post
-      tags.push(['e', replyToEvent.id, '', 'root']);
-    }
-    
-    // NIP-10: Add p tags for all participants
-    const participants = this.gatherThreadParticipants(replyToEvent);
-    participants.forEach(pubkey => {
-      tags.push(['p', pubkey]);
-    });
-    
-    return tags;
-  }
-  
-  findThreadRoot(event) {
-    // Look for existing root marker in the event's tags
-    const rootTag = event.tags.find(tag => tag[0] === 'e' && tag[3] === 'root');
-    if (rootTag) {
-      return rootTag[1]; // Return the root event ID
-    }
-    
-    // If no root marker, check for any e tag (might be legacy format)
-    const eTag = event.tags.find(tag => tag[0] === 'e');
-    if (eTag) {
-      return eTag[1]; // This event's parent becomes our root
-    }
-    
-    // If no e tags, this event itself is the root
-    return event.id;
-  }
-  
-  gatherThreadParticipants(replyToEvent) {
-    const participants = new Set();
-    
-    // Add the author of the event we're replying to
-    participants.add(replyToEvent.pubkey);
-    
-    // Add any existing p tag participants from the parent event
-    replyToEvent.tags
-      .filter(tag => tag[0] === 'p')
-      .forEach(tag => participants.add(tag[1]));
-    
-    return Array.from(participants);
-  }
+  // buildReplyTags, findThreadRoot, gatherThreadParticipants removed - replies no longer supported
   
   createNoteElement(event) {
     const noteDiv = document.createElement('div');
@@ -2596,9 +2483,6 @@ class SidecarApp {
       </div>
       <div class="note-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}</div>
       <div class="note-actions">
-        <div class="note-action reply-action" data-event-id="${event.id}">
-          💬
-        </div>
         <div class="note-action reaction-action" data-event-id="${event.id}">
           🤙
         </div>
@@ -2606,7 +2490,6 @@ class SidecarApp {
     `;
     
     // Add event listeners
-    noteDiv.querySelector('.reply-action').addEventListener('click', () => this.showReplyModal(event));
     this.setupReactionButton(noteDiv.querySelector('.reaction-action'), event);
     this.setupNoteMenu(noteDiv.querySelector('.note-menu'), event);
     this.setupClickableLinks(noteDiv, event);
@@ -2617,65 +2500,7 @@ class SidecarApp {
     return noteDiv;
   }
   
-  createReplyElement(event) {
-    const replyDiv = document.createElement('div');
-    replyDiv.className = 'reply';
-    replyDiv.dataset.eventId = event.id;
-    replyDiv.dataset.timestamp = event.created_at;
-    replyDiv.dataset.author = event.pubkey; // For profile updates
-    
-    const profile = this.profiles.get(event.pubkey);
-    const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
-    const authorId = this.formatProfileIdentifier(profile?.nip05, event.pubkey);
-    const avatarUrl = profile?.picture;
-    const timeAgo = this.formatTimeAgo(event.created_at);
-    const formattedContent = this.formatNoteContent(event.content);
-    
-    replyDiv.innerHTML = `
-      <div class="reply-header">
-        <div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
-          ${avatarUrl ? 
-            `<img src="${avatarUrl}" alt="" class="avatar-img small">
-             <div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
-            `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`
-          }
-        </div>
-        <div class="reply-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">
-          <span class="reply-author">${authorName}</span>
-          <span class="reply-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
-        </div>
-        <span class="reply-time" data-note-link="${event.id}">${timeAgo}</span>
-        <div class="reply-menu">
-          <button class="menu-btn" data-event-id="${event.id}">⋯</button>
-          <div class="menu-dropdown" data-event-id="${event.id}">
-            <div class="menu-item" data-action="open-note">Open Note</div>
-            <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
-            <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
-            <div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div>
-            <div class="menu-item" data-action="copy-pubkey">Copy Public Key</div>
-            <div class="menu-item" data-action="view-user-profile">View User Profile</div>
-          </div>
-        </div>
-      </div>
-      <div class="reply-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}</div>
-      <div class="reply-actions">
-        <div class="reply-action reply-to-reply-action" data-event-id="${event.id}">
-          💬
-        </div>
-        <div class="reply-action reaction-reply-action" data-event-id="${event.id}">
-          🤙
-        </div>
-      </div>
-    `;
-    
-    // Add event listeners
-    replyDiv.querySelector('.reply-to-reply-action').addEventListener('click', () => this.showReplyModal(event));
-    this.setupReactionButton(replyDiv.querySelector('.reaction-reply-action'), event);
-    this.setupNoteMenu(replyDiv.querySelector('.reply-menu'), event);
-    this.setupClickableLinks(replyDiv, event);
-    
-    return replyDiv;
-  }
+  // createReplyElement removed - replies no longer supported
   
   getAuthorName(pubkey) {
     const profile = this.profiles.get(pubkey);
@@ -3389,23 +3214,7 @@ class SidecarApp {
     const noteElement = this.createNoteElement(note);
     feed.appendChild(noteElement);
     
-    // Find and display any replies we already have
-    const replies = Array.from(this.notes.values())
-      .filter(n => n.tags?.some(tag => tag[0] === 'e' && tag[1] === note.id))
-      .sort((a, b) => a.created_at - b.created_at); // Sort by time
-    
-    if (replies.length > 0) {
-      // Create replies container
-      const repliesContainer = document.createElement('div');
-      repliesContainer.className = 'replies-container';
-      
-      replies.forEach(reply => {
-        const replyElement = this.createReplyElement(reply);
-        repliesContainer.appendChild(replyElement);
-      });
-      
-      noteElement.appendChild(repliesContainer);
-    }
+    // Replies removed - no longer supported
   }
 
   openUserFeed(pubkey, bech32) {
@@ -3619,26 +3428,46 @@ class SidecarApp {
   showLoading() {
     document.getElementById('loading').classList.remove('hidden');
     document.getElementById('error').classList.add('hidden');
-    document.getElementById('load-more-container').classList.remove('show');
+    this.hideAutoLoader();
   }
   
   hideLoading() {
     document.getElementById('loading').classList.add('hidden');
-    // Show load more button if we have content and might have more
-    console.log('🔄 Hide loading - feedHasMore:', this.feedHasMore, 'notes count:', this.notes.size);
+    this.showAutoLoader();
+  }
+  
+  showAutoLoader() {
+    // Show appropriate auto-loader state based on feed status
+    console.log('🔄 Show auto-loader - feedHasMore:', this.feedHasMore, 'notes count:', this.notes.size);
+    
+    const autoLoading = document.getElementById('auto-loading');
+    const endOfFeed = document.getElementById('end-of-feed');
+    
     if (this.feedHasMore && this.notes.size > 0) {
-      console.log('📄 Showing Load More button');
-      document.getElementById('load-more-container').classList.add('show');
+      console.log('📄 Showing auto-loading state');
+      autoLoading.classList.remove('hidden');
+      endOfFeed.classList.add('hidden');
+    } else if (this.notes.size > 0) {
+      console.log('📄 Showing end-of-feed state');
+      autoLoading.classList.add('hidden');
+      endOfFeed.classList.remove('hidden');
     } else {
-      console.log('📄 Load More button hidden - feedHasMore:', this.feedHasMore, 'notes:', this.notes.size);
-      document.getElementById('load-more-container').classList.remove('show');
+      // Hide both if no notes
+      autoLoading.classList.add('hidden');
+      endOfFeed.classList.add('hidden');
     }
+  }
+  
+  hideAutoLoader() {
+    // Hide all auto-loader states
+    document.getElementById('auto-loading').classList.add('hidden');
+    document.getElementById('end-of-feed').classList.add('hidden');
   }
   
   showError() {
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('error').classList.remove('hidden');
-    document.getElementById('load-more-container').classList.remove('show');
+    this.hideAutoLoader();
   }
   
   updateCharCount() {
@@ -3663,27 +3492,7 @@ class SidecarApp {
     postBtn.disabled = remaining < 0 || textarea.value.trim().length === 0;
   }
   
-  updateReplyCharCount() {
-    const textarea = document.getElementById('reply-text');
-    const counter = document.getElementById('reply-char-count');
-    const replyBtn = document.getElementById('send-reply-btn');
-    
-    const remaining = 2100 - textarea.value.length;
-    
-    // Only show counter when approaching limit (under 200 characters remaining)
-    if (remaining < 200) {
-      counter.textContent = remaining;
-      counter.style.display = 'block';
-      
-      counter.className = 'char-count';
-      if (remaining < 50) counter.classList.add('warning');
-      if (remaining < 0) counter.classList.add('error');
-    } else {
-      counter.style.display = 'none';
-    }
-    
-    replyBtn.disabled = remaining < 0 || textarea.value.trim().length === 0;
-  }
+  // updateReplyCharCount removed - replies no longer supported
   
   async publishNote() {
     if (!this.currentUser) {
@@ -3818,56 +3627,9 @@ class SidecarApp {
     }, 5000);
   }
   
-  showReplyModal(replyToEvent) {
-    this.replyToEvent = replyToEvent;
-    
-    const modal = document.getElementById('reply-modal');
-    const context = document.getElementById('reply-to-note');
-    
-    const formattedContent = this.formatNoteContent(replyToEvent.content);
-    context.innerHTML = `
-      <div class="note-author">${this.getAuthorName(replyToEvent.pubkey)}</div>
-      <div class="note-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, replyToEvent.id, replyToEvent.pubkey) : ''}</div>
-    `;
-    
-    document.getElementById('reply-text').value = '';
-    this.updateReplyCharCount();
-    
-    modal.classList.remove('hidden');
-  }
+  // showReplyModal removed - replies no longer supported
   
-  async sendReply() {
-    if (!this.currentUser || !this.replyToEvent) return;
-    
-    const content = document.getElementById('reply-text').value.trim();
-    if (!content) return;
-    
-    try {
-      // Build NIP-10 compliant tags
-      const tags = this.buildReplyTags(this.replyToEvent);
-      console.log('Built reply tags:', tags);
-      
-      const event = {
-        kind: 1,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: tags,
-        content: content,
-        pubkey: this.currentUser.publicKey
-      };
-      
-      console.log('Event before signing:', event);
-      
-      const signedEvent = await this.signEvent(event);
-      console.log('Signed event:', signedEvent);
-      await this.publishEvent(signedEvent);
-      
-      this.hideModal('reply-modal');
-      this.handleNote(signedEvent);
-    } catch (error) {
-      console.error('Reply error:', error);
-      alert('Failed to send reply');
-    }
-  }
+  // sendReply removed - replies no longer supported
   
   
   async signEvent(event) {
@@ -4263,7 +4025,7 @@ class SidecarApp {
     if (!eventElement) return;
     
     // Select reaction buttons that are direct children of this event's actions
-    const buttons = eventElement.querySelectorAll(':scope > .note-actions > .reaction-action, :scope > .reply-actions > .reaction-reply-action');
+    const buttons = eventElement.querySelectorAll(':scope > .note-actions > .reaction-action');
     buttons.forEach(button => {
       // Update button to show the emoji that was used
       button.innerHTML = emoji;
