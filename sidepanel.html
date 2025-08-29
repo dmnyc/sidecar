@@ -18,22 +18,11 @@
                         <button id="generate-keys-btn" class="btn btn-secondary">New Keys</button>
                     </div>
                     <div id="signed-in" class="auth-state hidden">
-                        <div class="user-profile-container">
-                            <div class="logged-in-user" id="user-profile-btn">
-                                <div class="user-avatar" id="user-avatar">
-                                    <div class="avatar-placeholder" id="user-avatar-placeholder"></div>
-                                </div>
-                                <div class="user-info">
-                                    <div id="user-name" class="user-name"></div>
-                                    <div id="user-npub" class="user-npub"></div>
-                                </div>
-                                <div class="profile-menu-arrow">⌄</div>
+                        <div class="logged-in-user" id="user-profile-btn">
+                            <div class="user-avatar" id="user-avatar">
+                                <div class="avatar-placeholder" id="user-avatar-placeholder"></div>
                             </div>
-                            <div class="user-dropdown" id="user-dropdown">
-                                <div class="dropdown-item" id="view-profile-btn">View Profile</div>
-                                <div class="dropdown-item" id="copy-key-btn">Copy My Key</div>
-                                <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
-                            </div>
+                            <div class="profile-menu-arrow">⌄</div>
                         </div>
                     </div>
                 </div>
@@ -42,10 +31,9 @@
 
         <!-- Feed Toggle -->
         <div class="feed-toggle">
-            <button id="following-feed-btn" class="toggle-btn" disabled>Following</button>
-            <button id="global-feed-btn" class="toggle-btn active">Global</button>
-            <button id="home-feed-btn" class="toggle-btn" disabled>Home</button>
-            <button id="refresh-feed-btn" class="toggle-btn refresh-btn" title="Refresh Feed">↻</button>
+            <button id="following-feed-btn" class="toggle-btn hidden" disabled>Following</button>
+            <button id="trending-feed-btn" class="toggle-btn active">Trending</button>
+            <button id="me-feed-btn" class="toggle-btn hidden" disabled>Me</button>
         </div>
 
         <!-- Feed -->
@@ -55,6 +43,16 @@
                 <span>Loading feed...</span>
             </div>
             <div id="feed" class="feed"></div>
+            <div id="auto-loader" class="auto-loader">
+                <div id="auto-loading" class="auto-loading hidden">
+                    <div class="spinner small"></div>
+                    <span>Loading feed...</span>
+                </div>
+                <div id="end-of-feed" class="end-of-feed hidden">
+                    <span>End of feed.</span>
+                    <button id="reload-feed-btn" class="btn btn-secondary">Click to reload</button>
+                </div>
+            </div>
             <div id="error" class="error hidden">
                 <p>Failed to load feed. Please try again.</p>
                 <button id="retry-btn" class="btn btn-secondary">Retry</button>
@@ -126,17 +124,19 @@
         </div>
     </div>
 
+    <!-- Reply Modal -->
     <div id="reply-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Reply</h2>
-                <button class="close-btn" data-modal="reply-modal">&times;</button>
+                <h2>Reply to Note</h2>
+                <button id="close-reply-modal" class="close-btn">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="reply-to-note" class="reply-context"></div>
                 <textarea id="reply-text" placeholder="Write your reply..." maxlength="2100"></textarea>
-                <div class="compose-actions">
+                <div class="reply-actions">
                     <span id="reply-char-count" class="char-count" style="display: none;">2100</span>
+                    <button id="cancel-reply-btn" class="btn btn-secondary">Cancel</button>
                     <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
                 </div>
             </div>
@@ -174,6 +174,45 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Version Modal -->
+    <div id="version-modal" class="modal hidden">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2>About Sidecar</h2>
+                <button class="close-btn" data-modal="version-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="version-info">
+                    <div class="app-logo">🍸 sidecar</div>
+                    <div class="version-number">Version <span id="app-version">0.1.0</span></div>
+                    <div class="build-number">Build <span id="app-build">loading...</span></div>
+                    
+                    <div class="credits">
+                        <div class="credit-item">
+                            <span>Created by </span>
+                            <a href="https://nostree.me/daniel" target="_blank" class="author-link">The Daniel ⚡️</a>
+                        </div>
+                        <div class="credit-item">
+                            <span>Vibed with </span>
+                            <a href="https://www.anthropic.com/claude-code" target="_blank" class="claude-credit">Claude</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Dropdown (positioned absolutely) -->
+    <div class="user-dropdown" id="user-dropdown">
+        <div class="dropdown-header">
+            <div id="dropdown-user-name" class="dropdown-user-name"></div>
+            <div id="dropdown-user-npub" class="dropdown-user-npub"></div>
+        </div>
+        <div class="dropdown-item" id="view-profile-btn">View My Profile</div>
+        <div class="dropdown-item" id="copy-key-btn">Copy My Public Key</div>
+        <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
     </div>
 
     <script src="nostr-tools.js"></script>
