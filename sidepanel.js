@@ -1689,10 +1689,12 @@ class SidecarApp {
         if (avatarContainer && profile.picture) {
           // Update avatar if profile picture is available
           const authorName = profile.display_name || profile.name || this.getAuthorName(pubkey);
-          avatarContainer.innerHTML = `
-            <img src="${profile.picture}" alt="" class="avatar-img">
-            <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>
-          `;
+          // Use appropriate avatar class based on container type
+          const isQuotedAvatar = avatarContainer.classList.contains('quoted-avatar');
+          const avatarClass = isQuotedAvatar ? 'quoted-avatar-img' : 'avatar-img';
+          const errorHandler = isQuotedAvatar ? "this.style.display='none'; this.nextElementSibling.style.display='flex';" : "";
+          
+          avatarContainer.innerHTML = `<img src="${profile.picture}" alt="" class="${avatarClass}" ${errorHandler ? `onerror="${errorHandler}"` : ''}><div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>`;
         }
       }
     });
@@ -2608,6 +2610,9 @@ class SidecarApp {
     this.setupNoteMenu(noteDiv.querySelector('.note-menu'), event);
     this.setupClickableLinks(noteDiv, event);
     
+    // Add click-to-expand/open functionality for note content
+    this.setupNoteContentClick(noteDiv, event);
+    
     return noteDiv;
   }
   
@@ -3052,6 +3057,53 @@ class SidecarApp {
     });
   }
   
+  setupNoteContentClick(noteElement, event) {
+    const noteContent = noteElement.querySelector('.note-content');
+    if (!noteContent) return;
+    
+    // Only apply truncation in timeline views, not on expanded single note pages
+    const isTimelineView = this.currentFeed !== 'single-note';
+    const contentText = event.content || '';
+    const isLongContent = contentText.length > 875;
+    
+    if (isLongContent && isTimelineView) {
+      // Create truncated version with "Read more..." link
+      const originalHTML = noteContent.innerHTML;
+      const truncatedText = contentText.substring(0, 700) + '...';
+      const formattedContent = this.formatNoteContent(truncatedText);
+      
+      noteContent.innerHTML = `<span class="truncated-text">${formattedContent.text}<span class="read-more"> Read more...</span></span><span class="full-text">${originalHTML}</span>`;
+      
+      noteContent.classList.add('truncated');
+      
+      // Add click handler for "Read more" link
+      const readMoreLink = noteContent.querySelector('.read-more');
+      if (readMoreLink) {
+        readMoreLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('📄 Expanding note content:', event.id.substring(0, 16) + '...');
+          noteContent.classList.remove('truncated');
+          noteContent.classList.add('expanded');
+        });
+      }
+    }
+    
+    noteContent.addEventListener('click', (e) => {
+      // Don't trigger if clicking on links, images, or other interactive elements
+      if (e.target.tagName === 'A' || e.target.tagName === 'IMG' || e.target.closest('.image-gallery') || e.target.closest('.quoted-note') || e.target.classList.contains('read-more')) {
+        return;
+      }
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Click anywhere else: open in new tab
+      console.log('📄 Opening note in separate tab:', event.id.substring(0, 16) + '...');
+      this.openNoteInTab(event);
+    });
+  }
+
   setupQuotedNoteInteractions(quotedElement, event) {
     console.log('🔧 Setting up quoted note interactions for:', event.id.substring(0, 16) + '...');
     
