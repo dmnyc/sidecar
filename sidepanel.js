@@ -2580,7 +2580,8 @@ class SidecarApp {
       content: replyText,
       tags: [
         ['e', this.replyingToEvent.id, '', 'reply'],
-        ['p', this.replyingToEvent.pubkey]
+        ['p', this.replyingToEvent.pubkey],
+        ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io']
       ],
       created_at: Math.floor(Date.now() / 1000),
     };
@@ -3513,7 +3514,9 @@ class SidecarApp {
       const event = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [],
+        tags: [
+          ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io']
+        ],
         content: content,
         pubkey: this.currentUser.publicKey
       };
