@@ -30,16 +30,18 @@
 .quoted-note {
     border: 1px solid #2d1b69;
     border-radius: 6px;
-    padding: 8px;
+    padding: 6px 8px;
     margin: 5px 0;
     background: rgba(26, 11, 61, 0.5);
     cursor: pointer;
     transition: border-color 0.2s, background-color 0.2s;
     max-width: 100%;
     margin-left: 0;
-    overflow-x: hidden;
+    overflow: visible;
     word-wrap: break-word;
 }
+
+/* Quoted note specific styles */
 
 .quoted-note:hover {
     border-color: #ea6390;
@@ -63,15 +65,14 @@
 }
 
 .quoted-avatar {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    overflow: hidden;
     flex-shrink: 0;
     cursor: pointer;
 }
 
-.quoted-avatar .avatar-img {
+.quoted-avatar .quoted-avatar-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -79,15 +80,16 @@
 }
 
 .quoted-avatar .avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, #9e4280, #ea6390);
+    width: 32px;
+    height: 32px;
+    background: #ea6390;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-weight: 600;
-    font-size: 10px;
+    font-size: 12px;
+    border-radius: 50%;
 }
 
 .quoted-info {
@@ -99,27 +101,31 @@
 .quoted-time-menu {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 .quoted-author {
-    color: #ea6390;
+    color: #e8d5f0;
     font-weight: 600;
-    font-size: 12px;
-    display: inline;
+    font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.3;
+    display: block;
 }
 
 .quoted-npub {
     color: #9e4280;
-    font-size: 10px;
-    display: inline;
+    font-size: 11px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-left: 4px;
+    line-height: 1.1;
+    display: block;
+    margin-top: 0px;
+    margin-bottom: 0px;
 }
 
 .quoted-time {
@@ -130,6 +136,8 @@
 
 .quoted-menu {
     position: relative;
+    display: inline-block;
+    width: auto;
 }
 
 .quoted-menu .menu-btn.disabled {
@@ -141,7 +149,7 @@
     color: #e8d5f0;
     font-size: 13px;
     line-height: 1.3;
-    margin-top: 4px;
+    margin-top: 0px;
     word-wrap: break-word;
     word-break: break-word;
     overflow-wrap: break-word;
@@ -647,7 +655,7 @@ body {
     cursor: pointer;
     transition: background-color 0.2s;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow: visible;
     word-wrap: break-word;
 }
 
@@ -1036,6 +1044,7 @@ img:not(.avatar-img) {
     margin-top: 6px;
     border-left: 2px solid #2d1b69;
     margin-left: 16px;
+    overflow: visible;
 }
 
 .reply {
@@ -1043,6 +1052,7 @@ img:not(.avatar-img) {
     border-bottom: 1px solid #2d1b69;
     padding: 12px 16px;
     position: relative;
+    overflow: visible;
 }
 
 .reply:hover {
@@ -1062,8 +1072,8 @@ img:not(.avatar-img) {
 .reply-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .reply-avatar {

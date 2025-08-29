@@ -60,11 +60,13 @@ class SidecarApp {
     this.setupEventListeners();
     this.setupImageErrorHandling();
     this.setupInfiniteScroll();
+    this.setupGlobalRefresh();
     this.setupMemoryManagement();
     this.setupErrorHandling();
     await this.checkAuthState();
     this.loadVersionInfo();
     this.connectToRelays();
+    // this.runEmergencyFix(); // Try to fix existing quoted notes
     // loadFeed() will be called automatically when first relay connects
   }
   
@@ -1426,6 +1428,18 @@ class SidecarApp {
           console.log('🚫 Filtering out note from different user on user feed (cached for quotes):', event.pubkey.substring(0, 16) + '...');
           return;
         }
+      } else if (this.currentFeed === 'single-note') {
+        // Show the specific note and its replies
+        const isTargetNote = event.id === this.currentUserFeed.noteId;
+        const isReply = event.tags?.some(tag => tag[0] === 'e' && tag[1] === this.currentUserFeed.noteId);
+        
+        if (!isTargetNote && !isReply) {
+          // Cache for quoted note updates but don't display
+          this.notes.set(event.id, event);
+          this.updateQuotedNotePlaceholders(event);
+          console.log('🚫 Filtering out note not related to single note view (cached for quotes):', event.id.substring(0, 16) + '...');
+          return;
+        }
       } else if (this.currentFeed === 'trending') {
         // Show notes that are either in our trending note IDs list OR from trending authors 
         const isTrendingNote = this.trendingNoteIds.has(event.id);
@@ -1648,13 +1662,14 @@ class SidecarApp {
   
   updateAuthorDisplay(pubkey) {
     // Find all notes from this author and update their display
-    const elements = document.querySelectorAll(`[data-author="${pubkey}"]`);
+    const elements = document.querySelectorAll(`[data-author="${pubkey}"], [data-pubkey="${pubkey}"]`);
+    console.log(`🔄 Updating ${elements.length} elements for author:`, pubkey.substring(0, 16) + '...');
     elements.forEach(element => {
       const profile = this.profiles.get(pubkey);
       if (profile) {
-        const nameElement = element.querySelector('.note-author, .reply-author');
-        const idElement = element.querySelector('.note-npub, .reply-npub');
-        const avatarContainer = element.querySelector('.note-avatar, .reply-avatar');
+        const nameElement = element.querySelector('.note-author, .reply-author, .quoted-author');
+        const idElement = element.querySelector('.note-npub, .reply-npub, .quoted-npub');
+        const avatarContainer = element.querySelector('.note-avatar, .reply-avatar, .quoted-avatar');
         
         if (nameElement) {
           nameElement.textContent = profile.display_name || profile.name || this.getAuthorName(pubkey);
@@ -1696,11 +1711,14 @@ class SidecarApp {
     
     // Update user tab if it exists for this user
     const userTab = document.getElementById(`user-tab-${pubkey}`);
-    if (userTab && profile) {
-      const displayName = profile.display_name || profile.name || this.getAuthorName(pubkey);
-      const truncatedDisplayName = this.truncateUsername(displayName, 12);
-      userTab.innerHTML = `@${truncatedDisplayName}`;
-      userTab.title = `@${displayName}`; // Full name in tooltip
+    if (userTab) {
+      const profile = this.profiles.get(pubkey);
+      if (profile) {
+        const displayName = profile.display_name || profile.name || this.getAuthorName(pubkey);
+        const truncatedDisplayName = this.truncateUsername(displayName, 12);
+        userTab.innerHTML = `@${truncatedDisplayName}`;
+        userTab.title = `@${displayName}`; // Full name in tooltip
+      }
     }
     
     // Also update user's own profile in header if this is the logged-in user
@@ -2628,7 +2646,7 @@ class SidecarApp {
             <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
             <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
             <div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div>
-            <div class="menu-item" data-action="copy-pubkey">Copy Author's Key</div>
+            <div class="menu-item" data-action="copy-pubkey">Copy Public Key</div>
             <div class="menu-item" data-action="view-user-profile">View User Profile</div>
           </div>
         </div>
@@ -2827,16 +2845,19 @@ class SidecarApp {
   }
   
   createQuotedNotes(quotedNotes) {
+    console.log('📝 createQuotedNotes called with', quotedNotes?.length || 0, 'quoted notes');
     if (!quotedNotes || quotedNotes.length === 0) return '';
     
     let quotedHTML = '<div class="quoted-notes">';
     
     quotedNotes.forEach(quoted => {
+      console.log('📝 Processing quoted note in createQuotedNotes:', quoted.eventId.substring(0, 16) + '...');
+      console.log('🔍 Current quoted note structure will use .quoted-header, .quoted-avatar, .quoted-info');
       // Try to find the quoted event in our cache
       const quotedEvent = Array.from(this.notes.values()).find(e => e.id === quoted.eventId);
       
       if (quotedEvent) {
-        // We have the event, render it as a quoted note
+        // We have the event, render it as a quoted note using the same structure as replies
         const profile = this.profiles.get(quotedEvent.pubkey);
         const authorName = profile?.display_name || profile?.name || this.getAuthorName(quotedEvent.pubkey);
         const timeAgo = this.formatTimeAgo(quotedEvent.created_at);
@@ -2846,17 +2867,65 @@ class SidecarApp {
         const avatarUrl = profile?.picture;
         const authorId = this.formatProfileIdentifier(profile?.nip05, quotedEvent.pubkey);
         
-        console.log('📥 Quoted note data:', { authorName, avatarUrl: !!avatarUrl, authorId, hasProfile: !!profile });
+        console.log('📥 Quoted note data:', { 
+          eventId: quoted.eventId.substring(0, 16) + '...',
+          pubkey: quotedEvent.pubkey.substring(0, 16) + '...',
+          authorName: `"${authorName}"`, 
+          avatarUrl: avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'NONE', 
+          authorId: `"${authorId}"`, 
+          hasProfile: !!profile,
+          profileName: profile?.name || 'none',
+          profileDisplayName: profile?.display_name || 'none',
+          PROBLEM: authorName === (quotedEvent.pubkey.substring(0, 8) + '...') ? 'PUBKEY FALLBACK' : 'OK'
+        });
         
         // If we don't have the profile, try to fetch it
         if (!profile) {
+          console.log('🔄 No profile found, requesting profile for:', quotedEvent.pubkey.substring(0, 16) + '...');
           this.requestProfile(quotedEvent.pubkey);
+          // Use a better fallback while we wait for profile
+          const fallbackName = 'User ' + quotedEvent.pubkey.substring(0, 8);
+          console.log('📝 Using fallback name:', fallbackName);
+        } else {
+          console.log('✅ Profile found:', { 
+            name: profile.name, 
+            display_name: profile.display_name, 
+            picture: profile.picture ? 'has picture' : 'no picture' 
+          });
         }
         
-        quotedHTML += `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}"><div class="reply-header"><div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarUrl ? `<img src="${avatarUrl}" alt="" class="avatar-img small" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` : `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`}</div><div class="reply-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="reply-author">${authorName}</span><span class="reply-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><span class="reply-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="reply-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="view-profile">View Profile</div></div></div></div><div class="reply-content">${content.replace(/\n/g, '<br>')}</div></div>`;
+        // Create a compact quoted note design - simplified HTML
+        const avatarHTML = avatarUrl ? 
+          `<img src="${avatarUrl}" alt="" class="quoted-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
+          `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`;
+        
+        const generatedHTML = `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}" data-author="${quotedEvent.pubkey}"><div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}</div></div>`;
+        
+        console.log('📝 Generated quoted note HTML preview:', generatedHTML.substring(0, 200) + '...');
+        console.log('🔍 Full HTML structure for debugging:');
+        console.log(generatedHTML);
+        quotedHTML += generatedHTML;
       } else {
         // Event not in cache, show a placeholder and try to fetch it
-        quotedHTML += `<div class="quoted-note loading" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}"><div class="reply-header"><div class="reply-avatar"><div class="avatar-placeholder small">?</div></div><div class="reply-info"><span class="reply-author">Loading quoted note...</span></div><span class="reply-time">...</span><div class="reply-menu"><button class="menu-btn disabled">⋯</button></div></div><div class="reply-content"><div class="spinner small"></div></div></div>`;
+        quotedHTML += `<div class="quoted-note loading" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}">
+          <div class="quoted-header">
+            <div class="quoted-avatar">
+              <div class="avatar-placeholder">?</div>
+            </div>
+            <div class="quoted-info">
+              <span class="quoted-author">Loading quoted note...</span>
+            </div>
+            <div class="quoted-time-menu">
+              <span class="quoted-time">...</span>
+              <div class="quoted-menu">
+                <button class="menu-btn disabled">⋯</button>
+              </div>
+            </div>
+          </div>
+          <div class="quoted-content">
+            <div class="spinner small"></div>
+          </div>
+        </div>`;
         
         // Try to fetch the quoted event
         this.fetchQuotedEvent(quoted);
@@ -2867,16 +2936,26 @@ class SidecarApp {
     
     // Set up interactions after the HTML is inserted into the DOM
     setTimeout(() => {
+      console.log('🔧 Setting up interactions for', quotedNotes.length, 'quoted notes');
       quotedNotes.forEach(quoted => {
+        console.log('🔧 Processing quoted note:', quoted.eventId.substring(0, 16) + '...');
         const quotedEvent = Array.from(this.notes.values()).find(e => e.id === quoted.eventId);
         if (quotedEvent) {
-          const quotedElement = document.querySelector(`[data-event-id="${quoted.eventId}"]`);
-          if (quotedElement && quotedElement.classList.contains('quoted-note') && !quotedElement.classList.contains('loading')) {
-            this.setupQuotedNoteInteractions(quotedElement, quotedEvent);
-          }
+          console.log('✅ Found event in cache for:', quoted.eventId.substring(0, 16) + '...');
+          const quotedElements = document.querySelectorAll(`.quoted-note[data-event-id="${quoted.eventId}"]`);
+          console.log('🔧 Found', quotedElements.length, 'DOM elements for this event ID');
+          
+          quotedElements.forEach((quotedElement, index) => {
+            console.log('🔧 Processing element', index, 'loading:', quotedElement?.classList.contains('loading'));
+            if (quotedElement && !quotedElement.classList.contains('loading')) {
+              this.setupQuotedNoteInteractions(quotedElement, quotedEvent);
+            }
+          });
+        } else {
+          console.log('❌ No event found in cache for:', quoted.eventId.substring(0, 16) + '...');
         }
       });
-    }, 0);
+    }, 100);
     
     return quotedHTML;
   }
@@ -2942,31 +3021,264 @@ class SidecarApp {
       const authorId = this.formatProfileIdentifier(profile?.nip05, event.pubkey);
       const timeAgo = this.formatTimeAgo(event.created_at);
       
-      const updatedHTML = `<div class="reply-header"><div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">${avatarUrl ? `<img src="${avatarUrl}" alt="" class="avatar-img small" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder small" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` : `<div class="avatar-placeholder small">${this.getAvatarPlaceholder(authorName)}</div>`}</div><div class="reply-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}"><span class="reply-author">${authorName}</span><span class="reply-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><span class="reply-time" data-note-link="${event.id}">${timeAgo}</span><div class="reply-menu"><button class="menu-btn" data-event-id="${event.id}">⋯</button><div class="menu-dropdown" data-event-id="${event.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="view-profile">View Profile</div></div></div></div><div class="reply-content">${content.replace(/\n/g, '<br>')}</div>`;
+      const avatarHTML = avatarUrl ? 
+        `<img src="${avatarUrl}" alt="" class="quoted-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
+        `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`;
+      
+      const updatedHTML = `<div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${event.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${event.id}">⋯</button><div class="menu-dropdown" data-event-id="${event.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}</div>`;
       
       // Replace the placeholder content and remove loading class
+      console.log('🔄 Replacing placeholder innerHTML...');
+      console.log('🔄 Old innerHTML:', placeholder.innerHTML.substring(0, 100) + '...');
       placeholder.innerHTML = updatedHTML;
       placeholder.classList.remove('loading');
+      console.log('🔄 New innerHTML:', placeholder.innerHTML.substring(0, 100) + '...');
       placeholder.dataset.pubkey = event.pubkey; // Add pubkey for profile interactions
+      placeholder.dataset.author = event.pubkey; // Add author for profile updates
       
       // Set up event handlers for the updated quoted note
+      console.log('🔧 Setting up interactions for updated placeholder:', event.id.substring(0, 16) + '...');
       this.setupQuotedNoteInteractions(placeholder, event);
       
       console.log('✅ Updated quoted note placeholder for:', event.id.substring(0, 16) + '...');
+      console.log('📊 Placeholder update data:', {
+        authorName,
+        hasProfile: !!profile,
+        avatarUrl: avatarUrl ? 'HAS_AVATAR' : 'NO_AVATAR',
+        authorId,
+        profileName: profile?.name || 'none',
+        profileDisplayName: profile?.display_name || 'none'
+      });
     });
   }
   
   setupQuotedNoteInteractions(quotedElement, event) {
-    // Set up menu functionality
-    const menuContainer = quotedElement.querySelector('.reply-menu');
+    console.log('🔧 Setting up quoted note interactions for:', event.id.substring(0, 16) + '...');
+    
+    // Set up menu functionality using quoted note structure
+    const menuContainer = quotedElement.querySelector('.quoted-menu');
     if (menuContainer) {
       this.setupNoteMenu(menuContainer, event);
     }
     
-    // Set up clickable links for profile
+    // Set up click to open note - use capture phase to run before profile links
+    quotedElement.addEventListener('click', (e) => {
+      console.log('🖱️ Quoted note clicked!', event.id.substring(0, 16) + '...');
+      
+      // Don't trigger if clicking on menu buttons 
+      if (e.target.closest('.quoted-menu')) {
+        console.log('🚫 Click on menu, ignoring');
+        return;
+      }
+      
+      // Stop the event from bubbling to profile links
+      e.stopPropagation();
+      e.preventDefault();
+      console.log('📄 Calling openNoteInTab...');
+      this.openNoteInTab(event);
+    }, true); // Use capture phase
+    
+    // Set up clickable links for profile using quoted note structure  
     this.setupClickableLinks(quotedElement, event);
+    console.log('✅ Quoted note interactions setup complete');
   }
   
+  // Force refresh the page to reload all content with new quoted note structure
+  forceRefreshFeed() {
+    console.log('🔄 Force refreshing feed to apply quoted note changes...');
+    location.reload();
+  }
+
+  // Make refresh available globally for console debugging
+  setupGlobalRefresh() {
+    window.refreshQuotedNotes = () => this.forceRefreshFeed();
+    window.inspectQuotedNotes = () => this.inspectQuotedNotesDOM();
+    console.log('🔧 Available: window.refreshQuotedNotes() to force reload');
+    console.log('🔧 Available: window.inspectQuotedNotes() to inspect DOM structure');
+  }
+
+  inspectQuotedNotesDOM() {
+    const quotedNotes = document.querySelectorAll('.quoted-note');
+    console.log('🔍 Found', quotedNotes.length, 'quoted notes in DOM');
+    quotedNotes.forEach((note, index) => {
+      console.log(`📋 Quoted note ${index}:`, {
+        classes: Array.from(note.classList),
+        innerHTML: note.innerHTML.substring(0, 200) + '...',
+        hasQuotedHeader: !!note.querySelector('.quoted-header'),
+        hasQuotedAvatar: !!note.querySelector('.quoted-avatar'),
+        hasQuotedInfo: !!note.querySelector('.quoted-info'),
+        hasReplyHeader: !!note.querySelector('.reply-header'),
+        text: note.textContent.substring(0, 100) + '...'
+      });
+    });
+  }
+
+  // Emergency function to fix existing quoted notes
+  fixExistingQuotedNotes() {
+    console.log('🚨 Fixing existing quoted note menus...');
+    const quotedNotes = document.querySelectorAll('.quoted-note');
+    console.log('🚨 Found', quotedNotes.length, 'quoted notes to fix');
+    
+    quotedNotes.forEach(quotedElement => {
+      const eventId = quotedElement.dataset.eventId;
+      if (eventId) {
+        const event = Array.from(this.notes.values()).find(e => e.id === eventId);
+        if (event) {
+          console.log('🚨 Fixing quoted note:', eventId.substring(0, 16) + '...');
+          const menuContainer = quotedElement.querySelector('.reply-menu');
+          if (menuContainer) {
+            this.setupNoteMenu(menuContainer, event);
+          }
+        }
+      }
+    });
+  }
+  
+  // Auto-run the fix
+  runEmergencyFix() {
+    console.log('🚨 runEmergencyFix called');
+    setTimeout(() => {
+      console.log('🚨 Emergency fix starting...');
+      // First, let's see what's actually on the page
+      const allQuotedNotes = document.querySelectorAll('.quoted-note');
+      const allReplies = document.querySelectorAll('.reply');
+      const allMenuBtns = document.querySelectorAll('.menu-btn');
+      const allReplyMenus = document.querySelectorAll('.reply-menu');
+      
+      console.log('📊 Page inventory:');
+      console.log('  - .quoted-note elements:', allQuotedNotes.length);
+      console.log('  - .reply elements:', allReplies.length);
+      console.log('  - .menu-btn elements:', allMenuBtns.length);
+      console.log('  - .reply-menu elements:', allReplyMenus.length);
+      
+      this.fixExistingQuotedNotes();
+    }, 2000);
+  }
+  
+  openNoteInTab(event) {
+    console.log('📄 Opening note in tab:', event.id.substring(0, 16) + '...');
+    console.log('📄 Current feed before:', this.currentFeed);
+    
+    // Close any existing user tab first
+    this.closeExistingUserTab();
+    
+    // Get profile info for tab name
+    const profile = this.profiles.get(event.pubkey);
+    const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
+    
+    // Create new note tab data
+    const noteTab = {
+      id: `note-${event.id}`,
+      pubkey: event.pubkey,
+      noteId: event.id,
+      displayName: authorName,
+      type: 'single-note',
+      active: true
+    };
+    
+    // Switch to note view mode
+    this.currentUserFeed = noteTab;
+    this.currentFeed = 'single-note';
+    console.log('📄 Set current feed to:', this.currentFeed);
+    
+    // Clear current feed and show loading
+    document.getElementById('feed').innerHTML = '';
+    this.showLoading();
+    
+    // Update UI to show we're viewing this specific note
+    this.updateFeedToggle();
+    console.log('📄 Updated feed toggle');
+    
+    // Display the note immediately if we have it, then load context
+    const existingNote = this.notes.get(event.id);
+    if (existingNote) {
+      this.displaySingleNote(existingNote);
+      this.hideLoading();
+    }
+    
+    // Load replies and ensure we have the latest data
+    this.loadNoteReplies(event.id);
+  }
+  
+  loadNoteReplies(noteId) {
+    console.log('📄 Loading replies for note:', noteId.substring(0, 16) + '...');
+    
+    // Subscribe to get replies to this note
+    const subId = `note-replies-${Date.now()}`;
+    const subscription = ['REQ', subId, 
+      { '#e': [noteId], kinds: [1] } // Get replies to this note
+    ];
+    
+    this.subscriptions.set(subId, subscription);
+    this.relayConnections.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+      }
+    });
+  }
+  
+  loadSingleNote(noteId, pubkey) {
+    console.log('📄 Loading single note:', noteId.substring(0, 16) + '...');
+    
+    // Clear current feed
+    document.getElementById('feed').innerHTML = '';
+    this.showLoading();
+    
+    // Check if we already have the note
+    const existingNote = this.notes.get(noteId);
+    if (existingNote) {
+      // Display the note immediately
+      this.displaySingleNote(existingNote);
+    }
+    
+    // Subscribe to get the note and its replies
+    const subId = `single-note-${Date.now()}`;
+    const subscription = ['REQ', subId, 
+      { ids: [noteId] }, // Get the specific note
+      { '#e': [noteId], kinds: [1] } // Get replies to this note
+    ];
+    
+    this.subscriptions.set(subId, subscription);
+    this.relayConnections.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+      }
+    });
+    
+    // Set timeout to hide loading
+    setTimeout(() => {
+      this.hideLoading();
+    }, 3000);
+  }
+  
+  displaySingleNote(note) {
+    console.log('📄 Displaying single note:', note.id.substring(0, 16) + '...');
+    
+    const feed = document.getElementById('feed');
+    
+    // Create and display the main note
+    const noteElement = this.createNoteElement(note);
+    feed.appendChild(noteElement);
+    
+    // Find and display any replies we already have
+    const replies = Array.from(this.notes.values())
+      .filter(n => n.tags?.some(tag => tag[0] === 'e' && tag[1] === note.id))
+      .sort((a, b) => a.created_at - b.created_at); // Sort by time
+    
+    if (replies.length > 0) {
+      // Create replies container
+      const repliesContainer = document.createElement('div');
+      repliesContainer.className = 'replies-container';
+      
+      replies.forEach(reply => {
+        const replyElement = this.createReplyElement(reply);
+        repliesContainer.appendChild(replyElement);
+      });
+      
+      noteElement.appendChild(repliesContainer);
+    }
+  }
+
   openUserFeed(pubkey, bech32) {
     console.log('🔓 Opening user feed for:', pubkey.substring(0, 16) + '...');
     
@@ -3025,12 +3337,13 @@ class SidecarApp {
   }
   
   updateFeedToggle() {
-    if (this.currentFeed === 'user-feed' && this.currentUserFeed) {
+    if ((this.currentFeed === 'user-feed' || this.currentFeed === 'single-note') && this.currentUserFeed) {
       // Create user tab (since we always close existing ones first, this will be fresh)
       const truncatedDisplayName = this.truncateUsername(this.currentUserFeed.displayName, 12);
+      const prefix = this.currentFeed === 'single-note' ? '📄 ' : '@';
       const userTabHTML = `
-        <button id="user-tab-${this.currentUserFeed.pubkey}" class="toggle-btn user-tab active" data-pubkey="${this.currentUserFeed.pubkey}" title="@${this.currentUserFeed.displayName}">
-          @${truncatedDisplayName}
+        <button id="user-tab-${this.currentUserFeed.pubkey}" class="toggle-btn user-tab active" data-pubkey="${this.currentUserFeed.pubkey}" title="${prefix}${this.currentUserFeed.displayName}">
+          ${prefix}${truncatedDisplayName}
           <span class="close-tab" data-action="close-user-tab" data-pubkey="${this.currentUserFeed.pubkey}">×</span>
         </button>
       `;
@@ -3567,6 +3880,10 @@ class SidecarApp {
     const menuBtn = menuContainer.querySelector('.menu-btn');
     const dropdown = menuContainer.querySelector('.menu-dropdown');
     
+    if (!menuBtn || !dropdown) {
+      return;
+    }
+    
     // Toggle dropdown visibility
     menuBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -3595,6 +3912,11 @@ class SidecarApp {
     document.addEventListener('click', () => {
       dropdown.classList.remove('show');
     });
+    
+    // Close dropdown when scrolling
+    document.addEventListener('scroll', () => {
+      dropdown.classList.remove('show');
+    }, true);
   }
   
   handleMenuAction(action, event) {
@@ -3663,8 +3985,16 @@ class SidecarApp {
       profileElement.style.cursor = 'pointer';
       profileElement.addEventListener('click', (e) => {
         console.log('👤 Profile click detected on element', index, 'for user:', event.pubkey.substring(0, 16) + '...');
+        
+        // Check if we're inside a quoted note - if so, don't interfere with quoted note click
+        const isInQuotedNote = e.target.closest('.quoted-note');
+        if (isInQuotedNote) {
+          console.log('📝 Profile click inside quoted note - allowing quoted note click to handle');
+          return; // Don't handle profile click, let quoted note click take precedence
+        }
+        
         e.preventDefault();
-        e.stopPropagation(); // Prevent note click
+        e.stopPropagation(); // Prevent note click (only for non-quoted contexts)
         const pubkey = event.pubkey;
         const npub = window.NostrTools.nip19.npubEncode(pubkey);
         console.log('🔓 Opening user feed for:', pubkey.substring(0, 16) + '...');
@@ -3681,7 +4011,14 @@ class SidecarApp {
     noteElements.forEach(noteElement => {
       noteElement.style.cursor = 'pointer';
       noteElement.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent note click
+        // Check if we're inside a quoted note - if so, don't interfere with quoted note click
+        const isInQuotedNote = e.target.closest('.quoted-note');
+        if (isInQuotedNote) {
+          console.log('📝 Timestamp click inside quoted note - allowing quoted note click to handle');
+          return; // Don't handle timestamp click, let quoted note click take precedence
+        }
+        
+        e.stopPropagation(); // Prevent note click (only for non-quoted contexts)
         const noteId = window.NostrTools.nip19.noteEncode(event.id);
         const noteUrl = `https://jumble.social/notes/${noteId}`;
         window.open(noteUrl, '_blank');
