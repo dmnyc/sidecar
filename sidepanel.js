@@ -22,6 +22,7 @@ class SidecarApp {
     this.profileRequests = new Set(); // Track pending profile requests
     this.pendingNoteDisplays = new Map(); // Track notes waiting to be displayed (eventId -> timeoutId)
     this.engagementData = new Map(); // Track engagement metrics (noteId -> {comments, reposts, reactions, zaps})
+    this.processedEngagementEvents = new Set(); // Track processed engagement events to prevent duplicates
     this.initialFeedLoaded = false; // Track if initial feed has been loaded
     this.profileQueue = new Set(); // Queue profile requests for batching
     this.profileTimeout = null; // Timeout for batch processing
@@ -1195,6 +1196,8 @@ class SidecarApp {
     this.notes.clear();
     // Thread data structures removed
     this.userReactions.clear();
+    this.engagementData.clear(); // Clear engagement metrics to fix incorrect counts
+    this.processedEngagementEvents.clear(); // Clear processed events to allow fresh counting
     this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
     
@@ -1211,6 +1214,8 @@ class SidecarApp {
     this.notes.clear();
     // Thread data structures removed
     this.userReactions.clear();
+    this.engagementData.clear(); // Clear engagement metrics to fix incorrect counts
+    this.processedEngagementEvents.clear(); // Clear processed events to allow fresh counting
     this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
     
@@ -2712,17 +2717,31 @@ class SidecarApp {
   }
 
   trackEngagementEvent(event) {
-    // Track replies/comments (kind 1 with 'e' tags)
+    // Skip if we've already processed this engagement event
+    if (this.processedEngagementEvents.has(event.id)) {
+      return;
+    }
+    
+    // Mark as processed
+    this.processedEngagementEvents.add(event.id);
+    
+    // Track replies/comments (kind 1 with 'e' tags) - but only count proper replies
     if (event.kind === 1) {
       const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
-      eTags.forEach(tag => {
-        const referencedNoteId = tag[1];
+      
+      if (eTags.length > 0) {
+        // According to NIP-10, the reply target is usually the last 'e' tag
+        // But we'll be conservative and only count it as a reply if there's exactly 1 'e' tag
+        // or if there are multiple, we'll take the last one as the immediate reply target
+        const replyTarget = eTags[eTags.length - 1];
+        const referencedNoteId = replyTarget[1];
+        
         if (referencedNoteId) {
           const engagement = this.initEngagementData(referencedNoteId);
           engagement.comments++;
           this.updateEngagementDisplay(referencedNoteId);
         }
-      });
+      }
     }
     
     // Track reactions (kind 7)
