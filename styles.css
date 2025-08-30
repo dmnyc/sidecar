@@ -220,11 +220,14 @@ body {
 }
 
 .logo {
-    font-size: 22px;
-    font-weight: 300;
-    color: #ea6390;
-    font-family: 'Georgia', 'Times New Roman', serif;
-    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    height: 40px;
+}
+
+.logo svg {
+    height: 32px;
+    width: auto;
 }
 
 .auth-section {
@@ -1739,12 +1742,16 @@ pre, code {
 }
 
 .app-logo {
-    font-size: 28px;
-    font-weight: 300;
-    color: #ea6390;
-    font-family: 'Georgia', 'Times New Roman', serif;
-    letter-spacing: 1px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     margin-bottom: 16px;
+    height: 60px;
+}
+
+.app-logo svg {
+    height: 48px;
+    width: auto;
 }
 
 .version-number {

@@ -52,48 +52,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function checkNip07Support(sendResponse) {
-  console.log('Checking NIP-07 support via content script bridge... (fresh check)');
+  console.log('🔍 Checking NIP-07 support via content script bridge...');
   try {
-    // Get all tabs and check for NIP-07 support via content script
-    const tabs = await chrome.tabs.query({});
-    console.log(`Found ${tabs.length} tabs to check`);
+    // Get all tabs, prioritizing active tabs and regular web pages
+    const allTabs = await chrome.tabs.query({});
+    const activeTabs = allTabs.filter(tab => tab.active);
+    const regularTabs = allTabs.filter(tab => 
+      tab.url && 
+      (tab.url.startsWith('http://') || tab.url.startsWith('https://')) &&
+      !tab.url.includes('chrome://') &&
+      !tab.url.includes('extension://')
+    );
     
-    // Debug: Log all tab URLs to see what we have
-    tabs.forEach((tab, index) => {
-      console.log(`Tab ${index}: ${tab.url} (id: ${tab.id})`);
-    });
+    // Check active tabs first, then regular tabs
+    const tabsToCheck = [...new Set([...activeTabs, ...regularTabs])];
+    console.log(`📋 Found ${tabsToCheck.length} suitable tabs to check (${activeTabs.length} active)`);
+    
+    if (tabsToCheck.length === 0) {
+      console.log('❌ No suitable tabs found. User needs to open a regular webpage.');
+      sendResponse({ 
+        supported: false, 
+        error: 'No regular webpages open. Please open a website like google.com first.' 
+      });
+      return;
+    }
     
     let found = false;
     let checkedTabs = 0;
     
-    // Add a timestamp to ensure fresh checks
-    const checkTimestamp = Date.now();
-    
-    for (const tab of tabs) {
+    for (const tab of tabsToCheck) {
       try {
-        // Skip extension pages and special URLs
-        if (!tab.url || tab.url.startsWith('chrome://') || 
-            tab.url.startsWith('chrome-extension://') ||
-            tab.url.startsWith('moz-extension://') ||
-            tab.url.startsWith('about:') ||
-            tab.url.startsWith('edge://') ||
-            tab.url.startsWith('opera://')) {
-          console.log(`Skipping tab: ${tab.url} (reason: special URL or undefined)`);
-          continue;
-        }
-        
-        console.log(`Checking tab via content script: ${tab.url}`);
+        console.log(`🔍 Checking tab: ${tab.url} (active: ${tab.active})`);
         checkedTabs++;
         
         let response;
         try {
-          // Try to contact existing content script first
-          response = await chrome.tabs.sendMessage(tab.id, {
-            type: 'CHECK_NIP07_SUPPORT'
-          });
+          // First try with existing content script (with timeout)
+          response = await Promise.race([
+            chrome.tabs.sendMessage(tab.id, { type: 'CHECK_NIP07_SUPPORT' }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+          ]);
         } catch (error) {
-          // If content script doesn't exist, inject it
-          console.log(`Content script not found, injecting into ${tab.url}`);
+          console.log(`💉 Need to inject content script into ${tab.url}: ${error.message}`);
           
           try {
             // Inject content script
@@ -102,37 +102,38 @@ async function checkNip07Support(sendResponse) {
               files: ['content.js']
             });
             
-            // Wait a moment for script to initialize (longer wait for reliability)
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Wait longer for script to fully initialize
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Try again
-            response = await chrome.tabs.sendMessage(tab.id, {
-              type: 'CHECK_NIP07_SUPPORT'
-            });
+            // Try again with timeout
+            response = await Promise.race([
+              chrome.tabs.sendMessage(tab.id, { type: 'CHECK_NIP07_SUPPORT' }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout after injection')), 3000))
+            ]);
           } catch (injectionError) {
-            console.log(`Failed to inject content script into ${tab.url}:`, injectionError.message);
+            console.log(`❌ Failed to inject/communicate with ${tab.url}: ${injectionError.message}`);
             continue;
           }
         }
         
-        console.log(`Tab ${tab.url} NIP-07 result via content script:`, response);
+        console.log(`📊 Tab ${tab.url} NIP-07 result:`, response);
         
         if (response && response.supported) {
           found = true;
-          console.log('NIP-07 extension found via content script!');
+          console.log('✅ NIP-07 extension found!');
           break;
         }
       } catch (error) {
-        // Ignore errors for individual tabs (likely permission issues)
-        console.log(`Error checking tab ${tab.url}:`, error.message);
+        console.log(`⚠️ Error checking tab ${tab.url}: ${error.message}`);
         continue;
       }
     }
     
-    console.log(`Checked ${checkedTabs} tabs, NIP-07 support found: ${found}`);
+    console.log(`📈 Checked ${checkedTabs}/${tabsToCheck.length} tabs, NIP-07 support: ${found}`);
     sendResponse({ supported: found });
+    
   } catch (error) {
-    console.error('Error checking NIP-07 support:', error);
+    console.error('💥 Error checking NIP-07 support:', error);
     sendResponse({ supported: false, error: error.message });
   }
 }
