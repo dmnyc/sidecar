@@ -2871,11 +2871,20 @@ class SidecarApp {
   createImageGallery(images, eventId, pubkey) {
     if (images.length === 0) return '';
     
-    // Check if user is followed to determine if images should be blurred
-    // If not signed in or user not followed, blur the images
-    const isFollowed = this.currentUser && this.userFollows.has(pubkey);
+    // Check if images should be blurred based on feed type and follow status
+    let shouldBlur = false;
+    
+    if (this.currentFeed === 'trending') {
+      // Don't blur images in trending feed - it's curated content
+      shouldBlur = false;
+    } else {
+      // For other feeds, blur if user is not signed in or doesn't follow the author
+      const isFollowed = this.currentUser && this.userFollows.has(pubkey);
+      shouldBlur = !isFollowed;
+    }
+    
     const galleryClass = images.length === 1 ? 'single-image' : 'multi-image';
-    const blurClass = !isFollowed ? 'blurred' : '';
+    const blurClass = shouldBlur ? 'blurred' : '';
     const maxDisplay = Math.min(images.length, 4); // Show max 4 images
     
     let galleryHTML = `<div class="image-gallery ${galleryClass} ${blurClass}" data-event-id="${eventId}" data-pubkey="${pubkey}">`;
