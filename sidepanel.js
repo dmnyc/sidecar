@@ -20,6 +20,7 @@ class SidecarApp {
     this.userReactions = new Set(); // Track events user has already reacted to
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
+    this.profileNotFound = new Set(); // Track pubkeys that don't have profiles
     this.pendingNoteDisplays = new Map(); // Track notes waiting to be displayed (eventId -> timeoutId)
     this.engagementData = new Map(); // Track engagement metrics (noteId -> {comments, reposts, reactions, zaps})
     this.processedEngagementEvents = new Set(); // Track processed engagement events to prevent duplicates
@@ -1216,6 +1217,7 @@ class SidecarApp {
     this.userReactions.clear();
     this.engagementData.clear(); // Clear engagement metrics to fix incorrect counts
     this.processedEngagementEvents.clear(); // Clear processed events to allow fresh counting
+    this.profileNotFound.clear(); // Clear profile not found set to allow retry
     this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
     
@@ -1637,6 +1639,7 @@ class SidecarApp {
       // Check for any pending note displays from this author and show them immediately
       this.displayPendingNotesFromAuthor(event.pubkey);
       
+      const loadingQuotedNotes = document.querySelectorAll(`.quoted-note.loading[data-pubkey="${event.pubkey}"]`);
       loadingQuotedNotes.forEach(placeholder => {
         // Try to find the event for this quoted note
         const eventId = placeholder.dataset.eventId;

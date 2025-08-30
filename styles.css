@@ -49,6 +49,14 @@
     cursor: default;
 }
 
+.quoted-loading {
+    text-align: center;
+    color: #888;
+    font-style: italic;
+    padding: 8px;
+    font-size: 12px;
+}
+
 .quoted-note.loading .quoted-header {
     display: flex;
     align-items: center;
