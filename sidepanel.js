@@ -20,13 +20,16 @@ class SidecarApp {
     this.userReactions = new Set(); // Track events user has already reacted to
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
+    this.pendingNoteDisplays = new Map(); // Track notes waiting to be displayed (eventId -> timeoutId)
     this.engagementData = new Map(); // Track engagement metrics (noteId -> {comments, reposts, reactions, zaps})
     this.initialFeedLoaded = false; // Track if initial feed has been loaded
     this.profileQueue = new Set(); // Queue profile requests for batching
     this.profileTimeout = null; // Timeout for batch processing
     this.userDropdownSetup = false; // Track if user dropdown is set up
     this.userFollows = new Set(); // Track who the current user follows
+    this.userMutes = new Set(); // Track who the current user has muted (NIP-51)
     this.contactListLoaded = false; // Track if contact list has been loaded
+    this.muteListLoaded = false; // Track if mute list has been loaded
     this.loadingMore = false; // Track if we're currently loading more notes
     this.batchedLoadInProgress = false; // Track if batched load more is in progress
     this.loadMoreStartNoteCount = 0; // Track note count when load more started
@@ -652,7 +655,7 @@ class SidecarApp {
         kinds: [1],
         authors: [this.currentUser.publicKey],
         until: oldestTimestamp,
-        limit: 40
+        limit: 20
       };
       
       console.log('🔍 DEBUG Me feed filter:', JSON.stringify(filter));
@@ -990,8 +993,9 @@ class SidecarApp {
       this.requestProfile(this.currentUser.publicKey);
       this.loadUserProfile();
       
-      // Fetch user's contact list (following)
+      // Fetch user's contact list (following) and mute list
       this.fetchContactList();
+      this.fetchMuteList();
     } else {
       signedOut.classList.remove('hidden');
       signedIn.classList.add('hidden');
@@ -1433,6 +1437,15 @@ class SidecarApp {
         return;
       }
       
+      // FILTER OUT MUTED USERS - Check if the author is in the mute list
+      if (this.userMutes.has(event.pubkey)) {
+        console.log('🔇 Filtering out note from muted user:', event.pubkey.substring(0, 16) + '...');
+        // Still cache the event for quoted note updates but don't display it
+        this.notes.set(event.id, event);
+        this.updateQuotedNotePlaceholders(event);
+        return;
+      }
+      
       // Check if this is a quoted note that needs to be updated in the DOM
       const wasAlreadyCached = this.notes.has(event.id);
       
@@ -1561,8 +1574,8 @@ class SidecarApp {
       // Request profile for this author if we don't have it
       this.requestProfile(event.pubkey);
       
-      // Display note (top-level only, no threading)
-      this.displayTopLevelNote(event);
+      // Add a subtle delay to give profiles time to load
+      this.scheduleNoteDisplay(event);
     } else if (event.kind === 0) {
       console.log('👤 Received profile for:', event.pubkey.substring(0, 16) + '...');
       // Profile metadata
@@ -1571,23 +1584,53 @@ class SidecarApp {
       console.log('📋 Received contact list from:', event.pubkey.substring(0, 16) + '...');
       // Contact list
       this.handleContactList(event);
+    } else if (event.kind === 10000) {
+      console.log('🔇 Received mute list from:', event.pubkey.substring(0, 16) + '...');
+      // Mute list (NIP-51)
+      this.handleMuteList(event);
     }
+  }
+  
+  scheduleNoteDisplay(event) {
+    // If note is already scheduled or displayed, skip
+    if (this.pendingNoteDisplays.has(event.id)) {
+      return;
+    }
+    
+    // Determine delay based on whether we have the profile
+    const hasProfile = this.profiles.has(event.pubkey);
+    const baseDelay = hasProfile ? 50 : 300; // 50ms if profile cached, 300ms if not
+    
+    // Add a small random stagger (0-100ms) to avoid all notes appearing simultaneously
+    const stagger = Math.random() * 100;
+    const delay = baseDelay + stagger;
+    
+    const timeoutId = setTimeout(() => {
+      this.pendingNoteDisplays.delete(event.id);
+      this.displayTopLevelNote(event);
+    }, delay);
+    
+    // Track this pending display
+    this.pendingNoteDisplays.set(event.id, timeoutId);
   }
   
   handleProfile(event) {
     try {
       const profile = JSON.parse(event.content);
+      
       this.profiles.set(event.pubkey, {
         ...profile,
         updatedAt: event.created_at
       });
       
+      // Remove from pending sets since we got the profile
+      this.profileRequests.delete(event.pubkey);
+      
       // Update any displayed notes from this author (including quoted notes)
       this.updateAuthorDisplay(event.pubkey);
       
-      // Also check for any loading quoted note placeholders that might need this profile
-      const loadingQuotedNotes = document.querySelectorAll(`.quoted-note.loading[data-pubkey="${event.pubkey}"]`);
-      console.log(`🔄 Found ${loadingQuotedNotes.length} loading quoted notes for newly loaded profile:`, event.pubkey.substring(0, 16) + '...');
+      // Check for any pending note displays from this author and show them immediately
+      this.displayPendingNotesFromAuthor(event.pubkey);
       
       loadingQuotedNotes.forEach(placeholder => {
         // Try to find the event for this quoted note
@@ -1651,66 +1694,97 @@ class SidecarApp {
     }
   }
   
+  handleMuteList(event) {
+    // Only process mute lists from the current user
+    if (!this.currentUser || event.pubkey !== this.currentUser.publicKey) {
+      console.log('❌ Ignoring mute list from different user:', event.pubkey, '(expected:', this.currentUser?.publicKey, ')');
+      return;
+    }
+    
+    // Check if this is a mute list by looking for 'd' tag with 'mute' value
+    const dTag = event.tags.find(tag => tag[0] === 'd');
+    if (!dTag || dTag[1] !== 'mute') {
+      console.log('❌ Not a mute list - missing or incorrect "d" tag:', dTag);
+      return;
+    }
+    
+    console.log('✅ === PROCESSING MUTE LIST ===');
+    console.log('Event:', event);
+    console.log('Event tags count:', event.tags.length);
+    
+    // Clear existing mutes
+    this.userMutes.clear();
+    
+    // Parse p tags (people the user has muted)
+    let muteCount = 0;
+    for (const tag of event.tags) {
+      if (tag[0] === 'p' && tag[1]) {
+        this.userMutes.add(tag[1]);
+        muteCount++;
+        if (muteCount <= 5) {
+          console.log('🔇 Added mute #' + muteCount + ':', tag[1].substring(0, 16) + '...');
+        }
+      }
+    }
+    
+    console.log('✅ MUTE LIST LOADED: User muted', this.userMutes.size, 'accounts');
+    if (this.userMutes.size === 0) {
+      console.log('⚠️  Mute list is empty - user muted no one');
+    } else {
+      console.log('🔇 First 5 mutes:', Array.from(this.userMutes).slice(0, 5).map(pk => pk.substring(0, 16) + '...'));
+    }
+    this.muteListLoaded = true;
+    
+    // Reload current feed to apply mute filters
+    console.log('🔄 Reloading feed to apply mute list');
+    this.loadFeed();
+  }
+  
   requestProfile(pubkey) {
     // Don't request if we already have it or if request is pending
     if (this.profiles.has(pubkey) || this.profileRequests.has(pubkey)) {
       return;
     }
     
-    // Add to queue for batch processing
-    this.profileQueue.add(pubkey);
+    // Mark as pending
+    this.profileRequests.add(pubkey);
     
-    // Clear existing timeout and set new one
-    if (this.profileTimeout) {
-      clearTimeout(this.profileTimeout);
-    }
-    
-    this.profileTimeout = setTimeout(() => {
-      this.processBatchedProfileRequests();
-    }, 100); // Batch requests over 100ms window
-  }
-  
-  processBatchedProfileRequests() {
-    if (this.profileQueue.size === 0) return;
-    
-    console.log(`Processing ${this.profileQueue.size} batched profile requests`);
-    
-    // Convert queue to array and clear it
-    const pubkeys = Array.from(this.profileQueue);
-    this.profileQueue.clear();
-    
-    // Mark all as pending
-    pubkeys.forEach(pubkey => this.profileRequests.add(pubkey));
-    
-    // Create batch subscription for all pubkeys
-    const subId = 'profiles-' + Date.now();
+    // Send request immediately to all connected relays
+    const subId = 'profile-' + pubkey.substring(0, 16);
     const subscription = ['REQ', subId, {
       kinds: [0],
-      authors: pubkeys,
-      limit: pubkeys.length
+      authors: [pubkey],
+      limit: 1
     }];
     
-    // Send to all connected relays
-    let sentCount = 0;
-    this.relayConnections.forEach(ws => {
+    this.relayConnections.forEach((ws, relay) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(subscription));
-        sentCount++;
       }
     });
     
-    console.log(`Batch profile request sent to ${sentCount} relays for ${pubkeys.length} authors`);
-    
-    // Remove from pending after timeout
+    // Clean up after 5 seconds
     setTimeout(() => {
-      pubkeys.forEach(pubkey => this.profileRequests.delete(pubkey));
+      this.profileRequests.delete(pubkey);
     }, 5000);
+  }
+  
+  displayPendingNotesFromAuthor(pubkey) {
+    // Find notes from this author that are waiting to be displayed
+    for (const [eventId, timeoutId] of this.pendingNoteDisplays.entries()) {
+      const event = this.notes.get(eventId);
+      if (event && event.pubkey === pubkey) {
+        // Cancel the timeout and display immediately
+        clearTimeout(timeoutId);
+        this.pendingNoteDisplays.delete(eventId);
+        this.displayTopLevelNote(event);
+      }
+    }
   }
   
   updateAuthorDisplay(pubkey) {
     // Find all notes from this author and update their display
     const elements = document.querySelectorAll(`[data-author="${pubkey}"], [data-pubkey="${pubkey}"]`);
-    console.log(`🔄 Updating ${elements.length} elements for author:`, pubkey.substring(0, 16) + '...');
     elements.forEach(element => {
       const profile = this.profiles.get(pubkey);
       if (profile) {
@@ -1782,6 +1856,7 @@ class SidecarApp {
     console.log('📦 === BATCHING FOLLOWING FEED ===');
     console.log('Total authors to batch:', followsArray.length);
     
+    
     const BATCH_SIZE = 100; // Safe limit for most relays
     const batches = [];
     
@@ -1810,20 +1885,23 @@ class SidecarApp {
       
       console.log(`📤 Batch ${batchIndex + 1}: Creating subscription for ${batch.length} authors`);
       
-      // Historical notes subscription for this batch
+      // Historical notes subscription for this batch (last 24 hours to get recent notes)
+      const dayAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
       const filter = {
         kinds: [1],
         authors: batch,
-        limit: Math.ceil(30 / batches.length) // Distribute limit across batches
+        since: dayAgo, // Only get notes from the last 24 hours
+        limit: 15 // Reduced from 40 to 15 to avoid overwhelming profile fetching
       };
       
       const subscription = ['REQ', subId, filter];
       this.subscriptions.set(subId, subscription);
       
-      // Real-time subscription for this batch
+      // Real-time subscription for this batch (from now forward)
+      const now = Math.floor(Date.now() / 1000);
       const realtimeFilter = {
         ...filter,
-        since: Math.floor(Date.now() / 1000),
+        since: now, // Only new notes from this moment forward
         limit: undefined
       };
       
@@ -1917,7 +1995,7 @@ class SidecarApp {
         kinds: [1],
         authors: batch,
         until: untilTimestamp,
-        limit: Math.max(10, Math.ceil(50 / batches.length)) // At least 10 per batch, distribute 50 total for better performance
+        limit: Math.max(5, Math.ceil(20 / batches.length)) // At least 5 per batch, distribute 20 total for better performance
       };
       
       const subscription = ['REQ', subId, filter];
@@ -2169,7 +2247,7 @@ class SidecarApp {
       
       // Remove duplicates and limit total count for performance
       const uniqueTrendingNoteIds = [...new Set(allTrendingNoteIds)];
-      const trendingNoteIds = uniqueTrendingNoteIds.slice(0, 200); // Cap at 200 for initial load
+      const trendingNoteIds = uniqueTrendingNoteIds.slice(0, 50); // Reduced from 200 to 50 to avoid overwhelming profile fetching
       console.log('🎯 Collected', uniqueTrendingNoteIds.length, 'unique trending notes from', allTrendingNoteIds.length, 'total, using', trendingNoteIds.length);
       
       // Store trending note IDs for filtering
@@ -2323,10 +2401,11 @@ class SidecarApp {
     } else if (this.currentFeed === 'me' && this.currentUser) {
       // Me feed: current user's own notes with simple reliable loading
       console.log('🙋 Loading Me feed for user:', this.currentUser.publicKey.substring(0, 16) + '...');
+      
       const baseFilter = {
         kinds: [1],
         authors: [this.currentUser.publicKey],
-        limit: 40
+        limit: 20 // Reduced from 40 to 20
       };
       
       // Add until timestamp for pagination if we have it
@@ -2722,9 +2801,8 @@ class SidecarApp {
       return profile.display_name || profile.name;
     }
     
-    // If no profile available, request it and provide a better fallback
-    if (!profile && !this.profileRequests.has(pubkey)) {
-      console.log('🔄 getAuthorName: Requesting profile for pubkey:', pubkey.substring(0, 16) + '...');
+    // If no profile available and we haven't tried yet or marked as not found, request it
+    if (!profile && !this.profileRequests.has(pubkey) && !this.profileNotFound.has(pubkey)) {
       this.requestProfile(pubkey);
     }
     
@@ -2957,6 +3035,7 @@ class SidecarApp {
           `<img src="${avatarUrl}" alt="" class="quoted-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
           `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`;
         
+        // Create a compact quoted note design - simplified HTML
         const generatedHTML = `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}" data-author="${quotedEvent.pubkey}"><div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}</div></div>`;
         
         console.log('📝 Generated quoted note HTML preview:', generatedHTML.substring(0, 200) + '...');
@@ -3641,6 +3720,50 @@ class SidecarApp {
         if (this.currentFeed === 'following') {
           this.loadFeed();
         }
+      }
+    }, 5000);
+  }
+
+  fetchMuteList() {
+    if (!this.currentUser) {
+      console.log('❌ Cannot fetch mute list: no current user');
+      return;
+    }
+    
+    console.log('🔇 === FETCHING MUTE LIST ===');
+    console.log('User pubkey:', this.currentUser.publicKey);
+    console.log('Relay connections available:', this.relayConnections.size);
+    
+    const subId = 'mutes-' + Date.now();
+    const filter = {
+      kinds: [10000],
+      authors: [this.currentUser.publicKey],
+      '#d': ['mute'],
+      limit: 1
+    };
+    
+    const subscription = ['REQ', subId, filter];
+    console.log('Mute list subscription:', JSON.stringify(subscription));
+    this.subscriptions.set(subId, subscription);
+    
+    let sentToRelays = 0;
+    this.relayConnections.forEach((ws, relay) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log('📤 Sending mute list request to:', relay);
+        ws.send(JSON.stringify(subscription));
+        sentToRelays++;
+      } else {
+        console.log('❌ Relay not ready:', relay, 'state:', ws.readyState);
+      }
+    });
+    
+    console.log('📤 Mute list request sent to', sentToRelays, 'out of', this.relayConnections.size, 'relays');
+    
+    // Set a timeout to mark as loaded even if no mute list found
+    setTimeout(() => {
+      if (!this.muteListLoaded) {
+        console.log('⏰ TIMEOUT: No mute list received after 5 seconds, assuming user mutes no one');
+        this.muteListLoaded = true;
       }
     }, 5000);
   }
