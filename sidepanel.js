@@ -1833,7 +1833,7 @@ class SidecarApp {
     mentionElements.forEach(element => {
       if (element.classList.contains('nostr-mention')) {
         const profile = this.profiles.get(pubkey);
-        const displayName = profile?.display_name || profile?.name || this.getAuthorName(pubkey);
+        const displayName = (profile?.display_name || profile?.name || this.getAuthorName(pubkey))?.trim();
         const truncatedDisplayName = this.truncateUsername(displayName, 20);
         element.textContent = `@${truncatedDisplayName}`;
         element.title = `@${displayName}`; // Full name in tooltip
@@ -1845,7 +1845,7 @@ class SidecarApp {
     if (userTab) {
       const profile = this.profiles.get(pubkey);
       if (profile) {
-        const displayName = profile.display_name || profile.name || this.getAuthorName(pubkey);
+        const displayName = (profile.display_name || profile.name || this.getAuthorName(pubkey))?.trim();
         const truncatedDisplayName = this.truncateUsername(displayName, 12);
         userTab.innerHTML = `@${truncatedDisplayName}`;
         userTab.title = `@${displayName}`; // Full name in tooltip
@@ -2820,7 +2820,7 @@ class SidecarApp {
   getAuthorName(pubkey) {
     const profile = this.profiles.get(pubkey);
     if (profile && (profile.display_name || profile.name)) {
-      return profile.display_name || profile.name;
+      return (profile.display_name || profile.name).trim();
     }
     
     // If no profile available and we haven't tried yet or marked as not found, request it
@@ -2876,7 +2876,7 @@ class SidecarApp {
           // User profiles - display inline as @username
           const pubkey = decoded.type === 'npub' ? decoded.data : decoded.data.pubkey;
           const profile = this.profiles.get(pubkey);
-          const username = profile?.display_name || profile?.name || this.getAuthorName(pubkey);
+          const username = (profile?.display_name || profile?.name || this.getAuthorName(pubkey))?.trim();
           
           // If we don't have the profile, fetch it
           if (!profile) {
