@@ -1112,7 +1112,7 @@ img:not(.avatar-img) {
     display: flex;
     gap: 12px;
     font-size: 12px;
-    color: #ea6390;
+    color: #9ca3af;
     margin-top: 6px;
 }
 
@@ -1128,12 +1128,12 @@ img:not(.avatar-img) {
 
 .note-action:hover {
     background: #2d1b69;
-    color: #e8d5f0;
+    color: #d1d5db;
 }
 
 .note-action.liked,
 .note-action.reacted {
-    color: #ea6390;
+    color: #f59e0b;
     background: #2d1b69;
 }
 

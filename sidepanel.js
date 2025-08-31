@@ -21,8 +21,6 @@ class SidecarApp {
     this.profileRequests = new Set(); // Track pending profile requests
     this.profileNotFound = new Set(); // Track pubkeys that don't have profiles
     this.pendingNoteDisplays = new Map(); // Track notes waiting to be displayed (eventId -> timeoutId)
-    this.engagementData = new Map(); // Track engagement metrics (noteId -> {comments, reposts, reactions, zaps})
-    this.processedEngagementEvents = new Set(); // Track processed engagement events to prevent duplicates
     this.initialFeedLoaded = false; // Track if initial feed has been loaded
     this.profileQueue = new Set(); // Queue profile requests for batching
     this.profileTimeout = null; // Timeout for batch processing
@@ -38,6 +36,7 @@ class SidecarApp {
     this.consecutiveEmptyLoads = 0; // Track consecutive empty load operations
     this.oldestNoteTimestamp = null; // Track oldest note for pagination
     this.feedHasMore = true; // Track if there are more notes to load
+    this.definitelyNoMoreNotes = false; // Track if we've definitively determined there are no more notes
     this.batchNewNotesReceived = 0; // Track notes received in current batch operation
     this.batchNotesDisplayed = 0; // Track notes actually displayed (passed filtering)
     this.expectedBatches = 0; // Track expected number of batches for completion
@@ -561,10 +560,17 @@ class SidecarApp {
   
   loadMoreNotes() {
     console.log('🔄 LoadMoreNotes called - currentFeed:', this.currentFeed);
-    console.log('🔄 feedHasMore:', this.feedHasMore, 'loadingMore:', this.loadingMore);
+    console.log('🔄 feedHasMore:', this.feedHasMore, 'loadingMore:', this.loadingMore, 'definitelyNoMoreNotes:', this.definitelyNoMoreNotes);
     console.log('🔍 DEBUG: Oldest timestamp:', this.oldestNoteTimestamp, this.oldestNoteTimestamp ? new Date(this.oldestNoteTimestamp * 1000).toLocaleString() : 'none');
     console.log('🔍 DEBUG: Notes in cache:', this.notes.size);
     console.log('🔍 DEBUG: Consecutive empty loads:', this.consecutiveEmptyLoads);
+    
+    // Don't load more if we've definitively determined there are no more notes
+    if (this.definitelyNoMoreNotes) {
+      console.log('🛑 definitelyNoMoreNotes is true, not loading more');
+      return;
+    }
+    
     // Prevent multiple simultaneous requests
     if (this.loadingMore) {
       console.log('❌ Already loading more notes, skipping');
@@ -685,14 +691,29 @@ class SidecarApp {
             this.consecutiveEmptyLoads++;
             console.log(`📊 Timeout: No new notes (${this.consecutiveEmptyLoads} consecutive empty loads)`);
             
-            const emptyLoadThreshold = this.currentFeed === 'me' ? 10 : 3;
+            let emptyLoadThreshold = 3;
+            if (this.currentFeed === 'me') {
+              // Smart threshold for Me feed based on total notes
+              const totalNotes = this.notes.size;
+              if (totalNotes <= 3) {
+                emptyLoadThreshold = 1;
+              } else if (totalNotes <= 10) {
+                emptyLoadThreshold = 2;
+              } else {
+                emptyLoadThreshold = 3;
+              }
+            }
+            
             if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
-              console.log(`📊 ${this.consecutiveEmptyLoads} consecutive empty loads, setting feedHasMore = false`);
+              console.log(`📊 ${this.consecutiveEmptyLoads} consecutive empty loads (threshold: ${emptyLoadThreshold}), setting feedHasMore = false`);
               this.feedHasMore = false;
             }
           } else {
             this.consecutiveEmptyLoads = 0;
-            this.feedHasMore = true;
+            // Only set feedHasMore to true if we haven't definitively determined there are no more notes
+            if (!this.definitelyNoMoreNotes) {
+              this.feedHasMore = true;
+            }
           }
           
           this.loadingMore = false;
@@ -717,25 +738,19 @@ class SidecarApp {
   }
   
   async checkAuthState() {
+    // For security reasons, we don't auto-login users on extension reload
+    // Users must explicitly sign in each time the extension is reloaded
+    console.log('🔒 Extension reloaded - user must sign in again for security');
+    
+    // Clear any stored keys to ensure clean state
     try {
-      const response = await this.sendMessage({ type: 'GET_STORED_KEYS' });
-      if (response.success && response.data) {
-        this.currentUser = {
-          publicKey: response.data.publicKey,
-          privateKey: response.data.privateKey,
-          useNip07: false
-        };
-        this.updateAuthUI();
-        
-        // Fetch contact list for already signed-in users
-        setTimeout(() => {
-          console.log('Fetching contact list for existing signed-in user...');
-          this.fetchContactList();
-        }, 2000); // Longer delay to ensure relays are connected
-      }
+      await this.sendMessage({ type: 'CLEAR_KEYS' });
     } catch (error) {
-      console.error('Error checking auth state:', error);
+      console.error('Error clearing stored keys on startup:', error);
     }
+    
+    // Ensure UI shows signed-out state
+    this.updateAuthUI();
   }
   
   
@@ -768,8 +783,8 @@ class SidecarApp {
     
     // Clear any existing auth state first
     console.log('Clearing existing auth state...');
-    this.currentUser = null;
     await this.sendMessage({ type: 'CLEAR_KEYS' });
+    this.clearUserData();
     
     try {
       console.log('Checking NIP-07 support...');
@@ -857,6 +872,9 @@ class SidecarApp {
       });
       
       if (response.success) {
+        // Clear previous user data before setting new user
+        this.clearUserData();
+        
         this.currentUser = {
           publicKey,
           privateKey: hexPrivateKey,
@@ -915,6 +933,9 @@ class SidecarApp {
       });
       
       if (response.success) {
+        // Clear previous user data before setting new user
+        this.clearUserData();
+        
         this.currentUser = {
           ...this.generatedKeys,
           useNip07: false
@@ -939,11 +960,51 @@ class SidecarApp {
     }
   }
   
+  clearUserData() {
+    console.log('🧹 === CLEARING USER DATA ===');
+    
+    // Clear user state
+    this.currentUser = null;
+    
+    // Clear user-specific data structures
+    this.notes.clear();
+    this.userFollows.clear();
+    this.userMutes.clear();
+    this.userReactions.clear();
+    this.profiles.clear();
+    this.profileRequests.clear();
+    this.profileNotFound.clear();
+    this.pendingNoteDisplays.clear();
+    
+    // Clear loading states
+    this.contactListLoaded = false;
+    this.muteListLoaded = false;
+    this.lastContactListTimestamp = null;
+    this.loadingMore = false;
+    this.batchedLoadInProgress = false;
+    this.feedHasMore = true;
+    this.consecutiveEmptyLoads = 0;
+    this.definitelyNoMoreNotes = false;
+    
+    // Clear feed content
+    const feedElement = document.getElementById('feed');
+    if (feedElement) {
+      feedElement.innerHTML = '';
+    }
+    
+    // Close all user-specific subscriptions
+    const userSubscriptions = Array.from(this.subscriptions.keys()).filter(id => 
+      id.startsWith('contacts-') || id.startsWith('mutes-') || id.startsWith('feed-') || id.startsWith('loadmore-')
+    );
+    userSubscriptions.forEach(subId => this.closeSubscription(subId));
+    
+    console.log('✅ User data cleared successfully');
+  }
+
   async signOut() {
     try {
       await this.sendMessage({ type: 'CLEAR_KEYS' });
-      this.currentUser = null;
-      this.userReactions.clear(); // Clear reaction tracking
+      this.clearUserData();
       
       // Force switch to trending feed if currently on Me feed
       if (this.currentFeed === 'me') {
@@ -1002,7 +1063,7 @@ class SidecarApp {
       meFeedBtn.disabled = true;
       followingFeedBtn.disabled = true;
       
-      // Switch to top feed if on following
+      // Switch to trending feed if on following
       if (this.currentFeed === 'following') {
         this.switchFeed('trending');
       }
@@ -1049,7 +1110,7 @@ class SidecarApp {
     document.getElementById('copy-key-btn').addEventListener('click', () => {
       if (this.currentUser) {
         const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
-        this.copyToClipboard(npub, 'Your public key copied to clipboard');
+        this.copyTextToClipboard(npub, 'Your public key copied to clipboard');
       }
       profileBtn.classList.remove('open');
       dropdown.classList.remove('show');
@@ -1172,8 +1233,24 @@ class SidecarApp {
   switchFeed(feedType) {
     console.log('🔄 SWITCH FEED CALLED! Type:', feedType, 'Current:', this.currentFeed);
     
+    // Close all existing subscriptions BEFORE changing currentFeed to prevent cross-feed contamination
+    console.log('🚫 Closing all subscriptions before feed switch');
+    this.subscriptions.forEach((subscription, subId) => {
+      this.relayConnections.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(['CLOSE', subId]));
+        }
+      });
+    });
+    this.subscriptions.clear();
     
     this.currentFeed = feedType;
+    
+    // If switching to Following feed, refresh contact list to catch any external updates
+    if (feedType === 'following' && this.currentUser) {
+      console.log('🔄 Refreshing contact list when switching to Following feed');
+      this.fetchContactList();
+    }
     
     // Update UI - remove active from ALL buttons first (including user tabs)
     document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
@@ -1200,20 +1277,10 @@ class SidecarApp {
       }, 10);
     }
     
-    // Close all existing subscriptions to prevent cross-feed contamination
-    this.subscriptions.forEach((subscription, subId) => {
-      this.relayConnections.forEach(ws => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(['CLOSE', subId]));
-        }
-      });
-    });
-    this.subscriptions.clear();
+    // Subscriptions already closed above
     
     this.notes.clear();
     this.userReactions.clear();
-    this.engagementData.clear(); // Clear engagement metrics to fix incorrect counts
-    this.processedEngagementEvents.clear(); // Clear processed events to allow fresh counting
     this.loadingMore = false;
     
     // Clear feed-specific data
@@ -1238,8 +1305,6 @@ class SidecarApp {
     document.getElementById('feed').innerHTML = '';
     this.notes.clear();
     this.userReactions.clear();
-    this.engagementData.clear(); // Clear engagement metrics to fix incorrect counts
-    this.processedEngagementEvents.clear(); // Clear processed events to allow fresh counting
     this.profileNotFound.clear(); // Clear profile not found set to allow retry
     this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
@@ -1328,9 +1393,6 @@ class SidecarApp {
     const [type, subId, event] = message;
     
     if (type === 'EVENT' && event) {
-      // Track engagement metrics for all events (replies, reactions, zaps, etc.)
-      this.trackEngagementEvent(event);
-      
       this.handleNote(event);
     } else if (type === 'EOSE') {
       // End of stored events
@@ -1521,8 +1583,6 @@ class SidecarApp {
       
       this.notes.set(event.id, event);
       
-      // Initialize engagement data for this note
-      this.initEngagementData(event.id);
       
       // Update any loading quoted note placeholders for this event
       this.updateQuotedNotePlaceholders(event);
@@ -1702,6 +1762,8 @@ class SidecarApp {
     // If we're currently viewing the following feed, reload it with real data
     if (this.currentFeed === 'following') {
       console.log('🔄 Reloading following feed with contact list data');
+      // Clear the current feed content to ensure fresh reload
+      document.getElementById('feed').innerHTML = '';
       this.loadFeed();
     }
   }
@@ -2151,17 +2213,35 @@ class SidecarApp {
       this.consecutiveEmptyLoads++;
       console.log(`📋 Batched load more returned no results (${this.consecutiveEmptyLoads} consecutive empty loads)`);
       
-      // Only stop after multiple consecutive empty loads to handle temporary gaps/relay issues
-      if (this.consecutiveEmptyLoads >= 3) {
-        console.log('📋 Multiple consecutive empty loads, setting feedHasMore = false');
+      // Use smart thresholds based on feed type and size
+      let emptyLoadThreshold = 3;
+      if (this.currentFeed === 'me') {
+        const totalNotes = this.notes.size;
+        if (totalNotes <= 3) {
+          emptyLoadThreshold = 1;
+        } else if (totalNotes <= 10) {
+          emptyLoadThreshold = 2;
+        } else {
+          emptyLoadThreshold = 3;
+        }
+      }
+      
+      if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
+        console.log(`📋 Multiple consecutive empty loads (${this.consecutiveEmptyLoads}/${emptyLoadThreshold}), setting feedHasMore = false`);
         this.feedHasMore = false;
       } else {
-        this.feedHasMore = true; // Explicitly keep it true for temporary gaps
-        console.log('📋 Keeping feedHasMore = true, may be temporary gap or relay issue');
+        // Only keep it true if we haven't definitively determined there are no more notes
+        if (!this.definitelyNoMoreNotes) {
+          this.feedHasMore = true; // Keep it true for temporary gaps
+        }
+        console.log(`📋 Keeping feedHasMore = ${this.feedHasMore} (${this.consecutiveEmptyLoads}/${emptyLoadThreshold} empty loads), may be temporary gap`);
       }
     } else {
       this.consecutiveEmptyLoads = 0; // Reset counter when we get results
-      this.feedHasMore = true; // Explicitly ensure feedHasMore is true when we get results
+      // Only set feedHasMore to true if we haven't definitively determined there are no more notes
+      if (!this.definitelyNoMoreNotes) {
+        this.feedHasMore = true; // Explicitly ensure feedHasMore is true when we get results
+      }
       console.log(`📋 Batched load more got ${notesDisplayed} displayed results, setting feedHasMore = true`);
       console.log(`📋 feedHasMore is now: ${this.feedHasMore} (should be true)`);
     }
@@ -2262,7 +2342,33 @@ class SidecarApp {
         
         // Initialize pagination tracking
         this.meDaysLoaded = daysToFetch;
-        this.feedHasMore = true;
+        
+        // Apply smart cutoff logic for small feeds
+        const currentNoteCount = this.notes.size;
+        const startDay = this.meDaysLoaded || 30;
+        
+        console.log(`🔍 Initial load cutoff check: ${currentNoteCount} notes, searched ${startDay} days`);
+        
+        // For initial load, apply smart cutoffs to prevent infinite loading
+        if (currentNoteCount === 0) {
+          console.log(`📋 Initial load smart cutoff: No notes found after searching ${startDay} days - definitely no more notes`);
+          this.feedHasMore = false;
+          this.definitelyNoMoreNotes = true;
+        } else if (currentNoteCount === 1 && startDay >= 30) {
+          // For single note users after 30 days, assume that's all they have
+          // This prevents infinite loading while being reasonable for most users
+          console.log(`📋 Initial load smart cutoff: Only 1 note found after searching ${startDay} days - probably no more notes`);
+          this.feedHasMore = false;
+          this.definitelyNoMoreNotes = true;
+        } else {
+          // For feeds with 2+ notes, or 1 note with less than 30 days searched, allow loadMore
+          console.log(`📋 Initial load: ${currentNoteCount} notes found, allowing loadMore to handle further cutoffs`);
+          this.feedHasMore = true;
+        }
+        
+        // Update auto-loader display after cutoff logic
+        console.log(`🔧 Updating auto-loader after cutoff logic: feedHasMore=${this.feedHasMore}, definitelyNoMoreNotes=${this.definitelyNoMoreNotes}`);
+        this.showAutoLoader();
         
         // Make sure auto-loader is visible
         setTimeout(() => {
@@ -2308,10 +2414,52 @@ class SidecarApp {
       return;
     }
     
+    // Implement smarter cutoff logic for small feeds
+    const currentNoteCount = this.notes.size;
+    const startDay = this.meDaysLoaded || 30;
+    
+    // Tiered cutoff logic to balance stopping infinite loading vs protecting intermittent users
+    console.log(`🔍 LoadMore cutoff check: ${currentNoteCount} notes, searched ${startDay} days`);
+    
+    if (currentNoteCount === 1) {
+      // For single note users, be more aggressive but still reasonable
+      if (startDay >= 90) { // 3 months should be enough for most single-note users
+        console.log(`📋 Single note optimization: Only 1 note after searching ${startDay} days - probably no more notes`);
+        this.loadingMore = false;
+        this.feedHasMore = false;
+        this.definitelyNoMoreNotes = true;
+        this.hideLoading();
+        return;
+      } else {
+        console.log(`📋 Single note: Only searched ${startDay} days, continuing (need 90+ for cutoff)`);
+      }
+    } else if (currentNoteCount === 2) {
+      // For two note users, be more conservative (could be 6 months apart)
+      if (startDay >= 365) { // Full year for two-note users
+        console.log(`📋 Two note optimization: Only 2 notes after searching ${startDay} days - probably no more notes`);
+        this.loadingMore = false;
+        this.feedHasMore = false;
+        this.definitelyNoMoreNotes = true;
+        this.hideLoading();
+        return;
+      } else {
+        console.log(`📋 Two notes: Only searched ${startDay} days, continuing (need 365+ for cutoff)`);
+      }
+    }
+    
+    // If we've searched back more than 2 years, definitely stop (protect against infinite search)
+    if (startDay >= 730) {
+      console.log(`📋 Time cutoff: Searched back ${startDay} days (2+ years) - definitely no more notes`);
+      this.loadingMore = false;
+      this.feedHasMore = false;
+      this.definitelyNoMoreNotes = true;
+      this.hideLoading();
+      return;
+    }
+    
     try {
       // Load more days of user's notes
       const additionalDays = 7; // Load 7 more days each time
-      const startDay = this.meDaysLoaded || 30;
       
       console.log(`📅 Loading ${additionalDays} more days of notes, starting from day ${startDay}`);
       
@@ -2348,13 +2496,26 @@ class SidecarApp {
       setTimeout(() => {
         console.log('⏰ Me feed load more timeout reached');
         const notesReceived = this.notes.size - this.loadMoreStartNoteCount;
-        console.log(`📊 Me feed load more completed: ${notesReceived} new notes`);
+        const totalNotes = this.notes.size;
+        console.log(`📊 Me feed load more completed: ${notesReceived} new notes (total: ${totalNotes})`);
         
         if (notesReceived === 0) {
           this.consecutiveEmptyLoads++;
-          if (this.consecutiveEmptyLoads >= 3) {
-            console.log('📋 No more notes available for Me feed');
+          
+          // More aggressive cutoff for small feeds
+          let emptyLoadThreshold = 3;
+          if (totalNotes <= 3) {
+            emptyLoadThreshold = 1; // Stop after 1 empty load for very small feeds
+          } else if (totalNotes <= 10) {
+            emptyLoadThreshold = 2; // Stop after 2 empty loads for small feeds
+          }
+          
+          console.log(`📋 Empty loads: ${this.consecutiveEmptyLoads}/${emptyLoadThreshold} (total notes: ${totalNotes})`);
+          
+          if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
+            console.log(`📋 No more notes available for Me feed (${this.consecutiveEmptyLoads} empty loads, ${totalNotes} total notes)`);
             this.feedHasMore = false;
+            this.definitelyNoMoreNotes = true;
           }
         } else {
           this.consecutiveEmptyLoads = 0;
@@ -2520,6 +2681,7 @@ class SidecarApp {
     if (resetPagination) {
       this.oldestNoteTimestamp = null;
       this.feedHasMore = true;
+      this.definitelyNoMoreNotes = false;
     }
     
     this.showLoading();
@@ -2536,8 +2698,8 @@ class SidecarApp {
     let filter;
     
     if (this.currentFeed === 'trending') {
-      // Top feed: trending notes from nostr.band
-      console.log('🎯 DETECTED TOP FEED - CALLING loadTopFeed()');
+      // Trending feed: trending notes from nostr.band
+      console.log('🎯 DETECTED TRENDING FEED - CALLING loadTopFeed()');
       this.loadTopFeed();
       return;
     } else if (this.currentFeed === 'following' && this.currentUser) {
@@ -2566,15 +2728,21 @@ class SidecarApp {
         console.log('User follows no accounts, showing empty state');
         this.hideLoading();
         document.getElementById('feed').innerHTML = `
-          <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
+          <div style="text-align: center; padding: 40px 20px; color: #a78bfa;">
             <p>You're not following anyone yet.</p>
-            <p>Switch to Top or Global feed to discover people to follow!</p>
+            <p>Switch to Trending feed to discover interesting content and people!</p>
             <br>
-            <button id="retry-contact-list" class="btn btn-secondary" style="margin-top: 10px;">Retry Loading Follows</button>
+            <button id="switch-to-trending" class="btn btn-primary" style="margin-top: 10px;">Go to Trending</button>
+            <button id="retry-contact-list" class="btn btn-secondary" style="margin-top: 10px; margin-left: 8px;">Retry</button>
           </div>
         `;
         
-        // Add retry button functionality
+        // Add button functionality
+        document.getElementById('switch-to-trending').addEventListener('click', () => {
+          console.log('Switching to trending feed from empty following state');
+          this.switchFeed('trending');
+        });
+        
         document.getElementById('retry-contact-list').addEventListener('click', () => {
           console.log('Manual retry of contact list...');
           this.contactListLoaded = false;
@@ -2629,6 +2797,12 @@ class SidecarApp {
   
   
   displayTopLevelNote(event) {
+    // Safety check: Don't display notes from other users in Me feed
+    if (this.currentFeed === 'me' && this.currentUser && event.pubkey !== this.currentUser.publicKey) {
+      console.log('🚨 SAFETY: Prevented display of other user note in Me feed:', event.pubkey.substring(0, 16) + '...');
+      return;
+    }
+    
     const feed = document.getElementById('feed');
     
     // Check if note already exists in DOM to prevent duplicates
@@ -2731,18 +2905,26 @@ class SidecarApp {
         </div>
       </div>
       <div class="note-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : ''}${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}</div>
-      <div class="note-engagement" data-event-id="${event.id}">
-        <span class="engagement-item">💬 <span class="comment-count">0</span></span>
-        <span class="engagement-item">🔁 <span class="repost-count">0</span></span>
-        <span class="engagement-item">🤙 <span class="reaction-count">0</span></span>
-        <span class="engagement-item">⚡ <span class="zap-total">0</span> sats</span>
-      </div>
       <div class="note-actions">
         <div class="note-action reply-action" data-event-id="${event.id}">
-          💬 Reply
+          <svg width="16" height="15" viewBox="0 0 20 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g clip-path="url(#clip0_21_172)">
+              <path d="M18.8398 1.17375C18.1031 0.430985 17.081 0 16.0405 0H3.95948C2.90055 0 1.90608 0.412645 1.16022 1.17375C0.414365 1.92568 0 2.93436 0 3.99807V16.2215C0 16.7717 0.156538 17.3036 0.460405 17.7621C0.764273 18.2206 1.18785 18.5782 1.69429 18.7891C2.02578 18.9266 2.3849 19 2.74401 19C2.92818 19 3.10313 18.9817 3.27808 18.945C3.81215 18.8349 4.30018 18.5782 4.68692 18.1839L6.29834 16.5516H16.0405C17.081 16.5516 18.1031 16.1207 18.8398 15.3779C19.5856 14.626 20 13.6173 20 12.5536V3.99807C20 2.93436 19.5856 1.92568 18.8398 1.17375ZM3.07551 3.99807C3.07551 3.75965 3.16759 3.53041 3.33333 3.36535C3.49908 3.20029 3.72007 3.10859 3.95028 3.10859H16.0313C16.2615 3.10859 16.4825 3.20029 16.6483 3.36535C16.814 3.53041 16.9061 3.75965 16.9061 3.99807V12.5536C16.9061 12.792 16.814 13.0212 16.6483 13.1863C16.4825 13.3514 16.2615 13.4431 16.0313 13.4431H5.24862C5.1105 13.4431 4.97238 13.4981 4.87109 13.5989L3.08471 15.4054V3.99807H3.07551Z" fill="currentColor"/>
+            </g>
+            <defs>
+              <clipPath id="clip0_21_172">
+                <rect width="20" height="19" fill="white"/>
+              </clipPath>
+            </defs>
+          </svg>
         </div>
         <div class="note-action reaction-action" data-event-id="${event.id}">
-          🤙 React
+          <svg width="18" height="16" viewBox="0 0 23 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9.18607 11.8832C9.51685 11.8832 9.79674 11.7814 10.0766 11.6033L13.1809 9.49142C13.9187 8.98253 14.1223 7.96475 13.6134 7.25231C13.1045 6.51442 12.0867 6.31086 11.3743 6.81975L8.29552 8.9062C7.55763 9.41509 7.35407 10.4329 7.86296 11.1453C8.16829 11.6288 8.67718 11.8832 9.18607 11.8832Z" fill="currentColor"/>
+            <path d="M6.61619 9.28787C6.94697 9.28787 7.22686 9.18609 7.53219 9.00798L10.5855 6.92153C11.3234 6.41264 11.5015 5.39486 11.0181 4.68241C10.5092 3.94452 9.49142 3.76641 8.77897 4.24986L5.72563 6.33631C4.98774 6.84519 4.80963 7.86298 5.29308 8.57542C5.59841 9.03342 6.08186 9.28787 6.61619 9.28787Z" fill="currentColor"/>
+            <path d="M11.756 14.4531C12.0868 14.4531 12.3666 14.3513 12.6465 14.1732L15.7253 12.0868C16.4632 11.5779 16.6668 10.5601 16.1579 9.84765C15.649 9.10976 14.6312 8.9062 13.9188 9.41509L10.84 11.4761C10.1021 11.985 9.89853 13.0028 10.4074 13.7152C10.7382 14.1987 11.2471 14.4531 11.756 14.4531Z" fill="currentColor"/>
+            <path d="M8.42276 20C10.3311 20 12.2903 19.3639 13.8679 18.0917C14.4531 17.6082 15.191 17.1248 16.107 16.5395L22.1119 12.7992C22.8752 12.3158 23.1042 11.3234 22.6462 10.5601C22.1882 9.79676 21.1705 9.56776 20.4071 10.0258L14.4022 13.7661C13.3844 14.3768 12.5448 14.962 11.8069 15.5218C9.74588 17.1757 6.81976 17.1502 4.93687 15.42C3.53742 14.1223 3.00309 12.1377 3.51198 10.3056C4.50431 6.6162 4.37709 3.76641 3.07942 0.942077C2.69775 0.127853 1.73086 -0.228369 0.942084 0.153298C0.127861 0.534965 -0.228362 1.50186 0.153305 2.29063C1.1202 4.37708 1.17108 6.48898 0.40775 9.41509C-0.431918 12.4175 0.45864 15.6235 2.74864 17.7609C4.35165 19.2367 6.36176 20 8.42276 20Z" fill="currentColor"/>
+          </svg>
         </div>
       </div>
     `;
@@ -2770,6 +2952,11 @@ class SidecarApp {
   }
 
   showReplyModal(event) {
+    if (!this.currentUser) {
+      alert('Please sign in to reply to notes');
+      return;
+    }
+    
     console.log('💬 Opening reply modal for note:', event.id.substring(0, 16) + '...');
     
     // Show the original note context
@@ -2849,133 +3036,6 @@ class SidecarApp {
     }
   }
 
-  initEngagementData(noteId) {
-    if (!this.engagementData.has(noteId)) {
-      this.engagementData.set(noteId, {
-        comments: 0,
-        reposts: 0,
-        reactions: 0,
-        zapTotal: 0
-      });
-    }
-    return this.engagementData.get(noteId);
-  }
-
-  updateEngagementDisplay(noteId) {
-    const engagement = this.engagementData.get(noteId);
-    if (!engagement) return;
-
-    const engagementElement = document.querySelector(`[data-event-id="${noteId}"] .note-engagement`);
-    if (!engagementElement) return;
-
-    const commentCount = engagementElement.querySelector('.comment-count');
-    const repostCount = engagementElement.querySelector('.repost-count');
-    const reactionCount = engagementElement.querySelector('.reaction-count');
-    const zapTotal = engagementElement.querySelector('.zap-total');
-
-    if (commentCount) commentCount.textContent = engagement.comments.toLocaleString();
-    if (repostCount) repostCount.textContent = engagement.reposts.toLocaleString();
-    if (reactionCount) reactionCount.textContent = engagement.reactions.toLocaleString();
-    if (zapTotal) zapTotal.textContent = engagement.zapTotal.toLocaleString();
-  }
-
-  trackEngagementEvent(event) {
-    // Skip if we've already processed this engagement event
-    if (this.processedEngagementEvents.has(event.id)) {
-      return;
-    }
-    
-    // Mark as processed
-    this.processedEngagementEvents.add(event.id);
-    
-    // Track replies/comments (kind 1 with 'e' tags) - but only count proper replies
-    if (event.kind === 1) {
-      const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
-      
-      if (eTags.length > 0) {
-        // According to NIP-10, the reply target is usually the last 'e' tag
-        // But we'll be conservative and only count it as a reply if there's exactly 1 'e' tag
-        // or if there are multiple, we'll take the last one as the immediate reply target
-        const replyTarget = eTags[eTags.length - 1];
-        const referencedNoteId = replyTarget[1];
-        
-        if (referencedNoteId) {
-          const engagement = this.initEngagementData(referencedNoteId);
-          engagement.comments++;
-          this.updateEngagementDisplay(referencedNoteId);
-        }
-      }
-    }
-    
-    // Track reactions (kind 7)
-    else if (event.kind === 7) {
-      const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
-      eTags.forEach(tag => {
-        const referencedNoteId = tag[1];
-        if (referencedNoteId) {
-          const engagement = this.initEngagementData(referencedNoteId);
-          engagement.reactions++;
-          this.updateEngagementDisplay(referencedNoteId);
-        }
-      });
-    }
-    
-    // Track reposts (kind 6 or kind 1 with quoted notes)
-    else if (event.kind === 6) {
-      const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
-      eTags.forEach(tag => {
-        const referencedNoteId = tag[1];
-        if (referencedNoteId) {
-          const engagement = this.initEngagementData(referencedNoteId);
-          engagement.reposts++;
-          this.updateEngagementDisplay(referencedNoteId);
-        }
-      });
-    }
-    
-    // Track zaps (kind 9735)
-    else if (event.kind === 9735) {
-      const bolt11Tag = event.tags?.find(tag => tag[0] === 'bolt11');
-      const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
-      
-      if (bolt11Tag) {
-        // Extract amount from bolt11 invoice (simplified)
-        const amountSats = this.extractZapAmount(bolt11Tag[1]) || 0;
-        
-        eTags.forEach(tag => {
-          const referencedNoteId = tag[1];
-          if (referencedNoteId) {
-            const engagement = this.initEngagementData(referencedNoteId);
-            engagement.zapTotal += amountSats;
-            this.updateEngagementDisplay(referencedNoteId);
-          }
-        });
-      }
-    }
-  }
-
-  extractZapAmount(bolt11) {
-    // Simple bolt11 amount extraction - this could be more sophisticated
-    try {
-      const match = bolt11.match(/(\d+)([munp]?)/);
-      if (match) {
-        let amount = parseInt(match[1]);
-        const unit = match[2];
-        
-        // Convert to satoshis
-        switch (unit) {
-          case 'm': return Math.floor(amount * 100000); // milli-bitcoin to sats
-          case 'u': return Math.floor(amount * 100); // micro-bitcoin to sats  
-          case 'n': return Math.floor(amount * 0.1); // nano-bitcoin to sats
-          case 'p': return Math.floor(amount * 0.0001); // pico-bitcoin to sats
-          default: return amount; // assume sats
-        }
-      }
-    } catch (error) {
-      console.log('Failed to extract zap amount:', error);
-    }
-    return 0;
-  }
   
   getAuthorName(pubkey) {
     const profile = this.profiles.get(pubkey);
@@ -3704,12 +3764,17 @@ class SidecarApp {
   
   showAutoLoader() {
     // Show appropriate auto-loader state based on feed status
-    console.log('🔄 Show auto-loader - feedHasMore:', this.feedHasMore, 'notes count:', this.notes.size);
+    console.log('🔄 Show auto-loader - feedHasMore:', this.feedHasMore, 'definitelyNoMoreNotes:', this.definitelyNoMoreNotes, 'notes count:', this.notes.size);
     
     const autoLoading = document.getElementById('auto-loading');
     const endOfFeed = document.getElementById('end-of-feed');
     
-    if (this.feedHasMore && this.notes.size > 0) {
+    // Don't show auto-loader if we definitely know there are no more notes
+    if (this.definitelyNoMoreNotes || !this.feedHasMore) {
+      console.log('📄 Showing end-of-feed state (definitelyNoMoreNotes or !feedHasMore)');
+      autoLoading.classList.add('hidden');
+      endOfFeed.classList.remove('hidden');
+    } else if (this.feedHasMore && this.notes.size > 0) {
       console.log('📄 Showing auto-loading state');
       autoLoading.classList.remove('hidden');
       endOfFeed.classList.add('hidden');
@@ -3849,21 +3914,40 @@ class SidecarApp {
     }
   }
   
+  closeSubscription(subId) {
+    if (this.subscriptions.has(subId)) {
+      console.log('🔒 Closing subscription:', subId);
+      this.relayConnections.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(['CLOSE', subId]));
+        }
+      });
+      this.subscriptions.delete(subId);
+    }
+  }
+  
   fetchContactList() {
     if (!this.currentUser) {
       console.log('❌ Cannot fetch contact list: no current user');
       return;
     }
     
-    console.log('📋 === FETCHING CONTACT LIST ===');
+    console.log('📋 === SETTING UP CONTACT LIST SUBSCRIPTION ===');
     console.log('User pubkey:', this.currentUser.publicKey);
     console.log('Relay connections available:', this.relayConnections.size);
     
-    const subId = 'contacts-' + Date.now();
+    // Close existing contact list subscription if it exists
+    const existingSubId = Array.from(this.subscriptions.keys()).find(id => id.startsWith('contacts-'));
+    if (existingSubId) {
+      console.log('🔄 Closing existing contact list subscription:', existingSubId);
+      this.closeSubscription(existingSubId);
+    }
+    
+    const subId = 'contacts-persistent';
     const filter = {
       kinds: [3],
-      authors: [this.currentUser.publicKey],
-      limit: 1
+      authors: [this.currentUser.publicKey]
+      // Removed limit: 1 to make it persistent and catch updates
     };
     
     const subscription = ['REQ', subId, filter];
@@ -4138,17 +4222,17 @@ class SidecarApp {
         break;
       case 'copy-note-id':
         const formattedNoteId = window.NostrTools.nip19.noteEncode(event.id);
-        this.copyToClipboard(formattedNoteId, 'Note ID copied to clipboard');
+        this.copyTextToClipboard(formattedNoteId, 'Note ID copied to clipboard');
         break;
       case 'copy-note-text':
-        this.copyToClipboard(event.content, 'Note text copied to clipboard');
+        this.copyTextToClipboard(event.content, 'Note text copied to clipboard');
         break;
       case 'copy-raw-data':
-        this.copyToClipboard(JSON.stringify(event, null, 2), 'Raw note data copied to clipboard');
+        this.copyTextToClipboard(JSON.stringify(event, null, 2), 'Raw note data copied to clipboard');
         break;
       case 'copy-pubkey':
         const npub = window.NostrTools.nip19.npubEncode(event.pubkey);
-        this.copyToClipboard(npub, 'Author\'s key copied to clipboard');
+        this.copyTextToClipboard(npub, 'Author\'s key copied to clipboard');
         break;
       case 'view-user-profile':
         const userNpub = window.NostrTools.nip19.npubEncode(event.pubkey);
@@ -4158,7 +4242,7 @@ class SidecarApp {
     }
   }
   
-  async copyToClipboard(text, successMessage) {
+  async copyTextToClipboard(text, successMessage) {
     try {
       await navigator.clipboard.writeText(text);
       console.log(successMessage);
@@ -4340,8 +4424,8 @@ class SidecarApp {
     // Select reaction buttons that are direct children of this event's actions
     const buttons = eventElement.querySelectorAll(':scope > .note-actions > .reaction-action');
     buttons.forEach(button => {
-      // Update button to show the emoji that was used
-      button.innerHTML = emoji;
+      // Replace the button content with just the emoji at the same size as the icon
+      button.innerHTML = `<span style="font-size: 16px; line-height: 1;">${emoji}</span>`;
       
       // Remove all event listeners by cloning the button
       const newButton = button.cloneNode(true);
