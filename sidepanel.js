@@ -1040,7 +1040,7 @@ class SidecarApp {
       if (this.currentUser) {
         const npub = window.NostrTools.nip19.npubEncode(this.currentUser.publicKey);
         const profileUrl = `https://jumble.social/users/${npub}`;
-        window.open(profileUrl, '_blank');
+        window.open(profileUrl, 'jumble-social-tab');
       }
       profileBtn.classList.remove('open');
       dropdown.classList.remove('show');
@@ -3111,7 +3111,11 @@ class SidecarApp {
     // Clean up extra whitespace and format text
     textContent = textContent
       .replace(/\n/g, '<br>') // Convert newlines to HTML breaks - preserve user intent
-      .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+      .replace(/(https?:\/\/[^\s]+)/g, (match, url) => {
+        // Use single tab for jumble.social links, new tabs for others
+        const target = url.includes('jumble.social') ? 'jumble-social-tab' : '_blank';
+        return `<a href="${url}" target="${target}">${url}</a>`;
+      });
       
     // If text is empty or only whitespace after processing, return empty string
     if (!textContent || textContent.trim() === '') {
@@ -3520,7 +3524,7 @@ class SidecarApp {
       console.log('🔗 Opening note on jumble.social:', event.id.substring(0, 16) + '...');
       const noteId = window.NostrTools.nip19.noteEncode(event.id);
       const noteUrl = `https://jumble.social/notes/${noteId}`;
-      window.open(noteUrl, '_blank');
+      window.open(noteUrl, 'jumble-social-tab');
     });
   }
 
@@ -3549,7 +3553,7 @@ class SidecarApp {
       console.log('🔗 Opening quoted note on jumble.social:', event.id.substring(0, 16) + '...');
       const noteId = window.NostrTools.nip19.noteEncode(event.id);
       const noteUrl = `https://jumble.social/notes/${noteId}`;
-      window.open(noteUrl, '_blank');
+      window.open(noteUrl, 'jumble-social-tab');
     }, true); // Use capture phase
     
     // Set up clickable links for profile using quoted note structure  
@@ -4130,7 +4134,7 @@ class SidecarApp {
       case 'open-note':
         const noteId = window.NostrTools.nip19.noteEncode(event.id);
         const url = `https://jumble.social/notes/${noteId}`;
-        window.open(url, '_blank');
+        window.open(url, 'jumble-social-tab');
         break;
       case 'copy-note-id':
         const formattedNoteId = window.NostrTools.nip19.noteEncode(event.id);
@@ -4149,7 +4153,7 @@ class SidecarApp {
       case 'view-user-profile':
         const userNpub = window.NostrTools.nip19.npubEncode(event.pubkey);
         const profileUrl = `https://jumble.social/users/${userNpub}`;
-        window.open(profileUrl, '_blank');
+        window.open(profileUrl, 'jumble-social-tab');
         break;
     }
   }
@@ -4205,7 +4209,7 @@ class SidecarApp {
         const npub = window.NostrTools.nip19.npubEncode(pubkey);
         console.log('🔗 Opening user profile on jumble.social:', pubkey.substring(0, 16) + '...');
         const profileUrl = `https://jumble.social/${npub}`;
-        window.open(profileUrl, '_blank');
+        window.open(profileUrl, 'jumble-social-tab');
       });
       
       // Also add pointer cursor styling to make it clear these are clickable
@@ -4228,7 +4232,7 @@ class SidecarApp {
         e.stopPropagation(); // Prevent note click (only for non-quoted contexts)
         const noteId = window.NostrTools.nip19.noteEncode(event.id);
         const noteUrl = `https://jumble.social/notes/${noteId}`;
-        window.open(noteUrl, '_blank');
+        window.open(noteUrl, 'jumble-social-tab');
       });
     });
     
@@ -4254,7 +4258,7 @@ class SidecarApp {
               e.stopPropagation(); // Prevent note click
               const noteId = window.NostrTools.nip19.noteEncode(event.id);
               const noteUrl = `https://jumble.social/notes/${noteId}`;
-              window.open(noteUrl, '_blank');
+              window.open(noteUrl, 'jumble-social-tab');
             });
           });
         });
@@ -4267,7 +4271,7 @@ class SidecarApp {
             e.stopPropagation(); // Prevent note click
             const noteId = window.NostrTools.nip19.noteEncode(event.id);
             const noteUrl = `https://jumble.social/notes/${noteId}`;
-            window.open(noteUrl, '_blank');
+            window.open(noteUrl, 'jumble-social-tab');
           });
         });
       }
