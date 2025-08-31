@@ -3110,10 +3110,7 @@ class SidecarApp {
     
     // Clean up extra whitespace and format text
     textContent = textContent
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .replace(/\n\s*\n/g, '\n') // Remove empty lines
-      .replace(/^\s+|\s+$/g, '') // Remove ALL leading and trailing whitespace
-      .replace(/\n/g, '<br>')
+      .replace(/\n/g, '<br>') // Convert newlines to HTML breaks - preserve user intent
       .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
       
     // If text is empty or only whitespace after processing, return empty string
@@ -3207,8 +3204,12 @@ class SidecarApp {
         const profile = this.profiles.get(quotedEvent.pubkey);
         const authorName = profile?.display_name || profile?.name || this.getAuthorName(quotedEvent.pubkey);
         const timeAgo = this.formatTimeAgo(quotedEvent.created_at);
-        const content = quotedEvent.content.length > 200 ? 
-          quotedEvent.content.substring(0, 200) + '...' : quotedEvent.content;
+        
+        // Process content to extract images and format text
+        const formattedContent = this.formatNoteContent(quotedEvent.content);
+        const content = formattedContent.text.length > 200 ? 
+          formattedContent.text.substring(0, 200) + '...' : formattedContent.text;
+        const imagesHTML = formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, quotedEvent.id, quotedEvent.pubkey) : '';
         
         const avatarUrl = profile?.picture;
         const authorId = this.formatProfileIdentifier(profile?.nip05, quotedEvent.pubkey);
@@ -3243,7 +3244,7 @@ class SidecarApp {
           `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`;
         
         // Create a compact quoted note design - simplified HTML
-        const generatedHTML = `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}" data-author="${quotedEvent.pubkey}"><div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}</div></div>`;
+        const generatedHTML = `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}" data-author="${quotedEvent.pubkey}"><div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}${imagesHTML}</div></div>`;
         
         console.log('📝 Generated quoted note HTML preview:', generatedHTML.substring(0, 200) + '...');
         quotedHTML += generatedHTML;
@@ -3379,7 +3380,9 @@ class SidecarApp {
       }
       
       // Create the updated quoted note HTML
-      const content = this.formatNoteContent(event.content).text;
+      const formattedContent = this.formatNoteContent(event.content);
+      const content = formattedContent.text;
+      const imagesHTML = formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, event.id, event.pubkey) : '';
       const avatarUrl = profile?.picture;
       const authorId = this.formatProfileIdentifier(profile?.nip05, event.pubkey);
       const timeAgo = this.formatTimeAgo(event.created_at);
@@ -3388,7 +3391,7 @@ class SidecarApp {
         `<img src="${avatarUrl}" alt="" class="quoted-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
         `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`;
       
-      const updatedHTML = `<div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${event.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${event.id}">⋯</button><div class="menu-dropdown" data-event-id="${event.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}</div>`;
+      const updatedHTML = `<div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(event.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${event.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${event.id}">⋯</button><div class="menu-dropdown" data-event-id="${event.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}${imagesHTML}</div>`;
       
       // Replace the placeholder content and remove loading class
       console.log('🔄 Replacing placeholder innerHTML...');
