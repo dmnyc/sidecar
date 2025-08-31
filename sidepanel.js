@@ -16,7 +16,6 @@ class SidecarApp {
     this.relayConnections = new Map();
     this.subscriptions = new Map();
     this.notes = new Map();
-    // Threading maps removed - replies no longer supported
     this.userReactions = new Set(); // Track events user has already reacted to
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
@@ -32,6 +31,7 @@ class SidecarApp {
     this.userMutes = new Set(); // Track who the current user has muted (NIP-51)
     this.contactListLoaded = false; // Track if contact list has been loaded
     this.muteListLoaded = false; // Track if mute list has been loaded
+    this.lastContactListTimestamp = null; // Track most recent contact list timestamp
     this.loadingMore = false; // Track if we're currently loading more notes
     this.batchedLoadInProgress = false; // Track if batched load more is in progress
     this.loadMoreStartNoteCount = 0; // Track note count when load more started
@@ -53,6 +53,7 @@ class SidecarApp {
     this.lastMemoryCheck = Date.now();
     this.trendingNoteIds = new Set(); // Track which notes are from trending feed
     this.trendingDaysLoaded = 0; // Track how many days of trending data we've loaded
+    this.meDaysLoaded = 0; // Track how many days of Me feed data we've loaded
     
     this.init();
   }
@@ -69,7 +70,6 @@ class SidecarApp {
     await this.checkAuthState();
     this.loadVersionInfo();
     this.connectToRelays();
-    // this.runEmergencyFix(); // Try to fix existing quoted notes
     // loadFeed() will be called automatically when first relay connects
   }
   
@@ -256,6 +256,7 @@ class SidecarApp {
     console.log('🧹 Performing memory cleanup...');
     const startTime = Date.now();
     
+    
     // Get current memory usage info
     const notesCount = this.notes.size;
     const profilesCount = this.profiles.size;
@@ -335,7 +336,6 @@ class SidecarApp {
     for (const [noteId] of this.notes) {
       if (!toKeep.has(noteId)) {
         this.notes.delete(noteId);
-        // Thread data cleanup removed - no longer using threading
       }
     }
     
@@ -544,8 +544,7 @@ class SidecarApp {
       // Aggressive data cleanup
       this.notes.clear();
       this.profiles.clear();
-      // Thread data structures removed
-      
+        
       // Clear DOM
       const feed = document.getElementById('feed');
       if (feed) {
@@ -648,21 +647,11 @@ class SidecarApp {
       // Reset UI elements
       this.showAutoLoader();
       return;
-    } else if (this.currentFeed === 'me' && this.currentUser) {
-      console.log('🙋 Loading more for Me feed using standard approach');
-      console.log('🔍 DEBUG Me feed: User pubkey:', this.currentUser.publicKey.substring(0, 16) + '...');
-      console.log('🔍 DEBUG Me feed: Until timestamp:', oldestTimestamp, new Date(oldestTimestamp * 1000).toLocaleString());
-      
-      filter = {
-        kinds: [1],
-        authors: [this.currentUser.publicKey],
-        until: oldestTimestamp,
-        limit: 20
-      };
-      
-      console.log('🔍 DEBUG Me feed filter:', JSON.stringify(filter));
     } else if (this.currentFeed === 'me') {
-      console.log('❌ Me feed but currentUser is null/undefined');
+      // Me feed: use trending-style approach for user's own notes
+      console.log('🙋 Loading more for Me feed using trending-style approach');
+      this.loadMoreMeFeed();
+      return;
     } else if (this.currentFeed === 'trending') {
       // For trending feed, load more days of trending data
       console.log('📡 TRENDING LOAD MORE TRIGGERED - calling loadMoreTrendingDays()');
@@ -955,8 +944,14 @@ class SidecarApp {
       await this.sendMessage({ type: 'CLEAR_KEYS' });
       this.currentUser = null;
       this.userReactions.clear(); // Clear reaction tracking
-      this.updateAuthUI();
-      this.loadFeed();
+      
+      // Force switch to trending feed if currently on Me feed
+      if (this.currentFeed === 'me') {
+          this.switchFeed('trending');
+      } else {
+        this.updateAuthUI();
+        this.loadFeed();
+      }
     } catch (error) {
       console.error('Sign out error:', error);
     }
@@ -1007,8 +1002,8 @@ class SidecarApp {
       meFeedBtn.disabled = true;
       followingFeedBtn.disabled = true;
       
-      // Switch to top feed if on me or following
-      if (this.currentFeed === 'me' || this.currentFeed === 'following') {
+      // Switch to top feed if on following
+      if (this.currentFeed === 'following') {
         this.switchFeed('trending');
       }
     }
@@ -1193,13 +1188,42 @@ class SidecarApp {
     }
     
     // Clear current feed and load new one
-    document.getElementById('feed').innerHTML = '';
+    const feedElement = document.getElementById('feed');
+    feedElement.innerHTML = '';
+    
+    // Force DOM clearing with immediate re-render for Me feed
+    if (feedType === 'me') {
+      // Force immediate DOM update
+      feedElement.style.display = 'none';
+      setTimeout(() => {
+        feedElement.style.display = 'block';
+      }, 10);
+    }
+    
+    // Close all existing subscriptions to prevent cross-feed contamination
+    this.subscriptions.forEach((subscription, subId) => {
+      this.relayConnections.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(['CLOSE', subId]));
+        }
+      });
+    });
+    this.subscriptions.clear();
+    
     this.notes.clear();
-    // Thread data structures removed
     this.userReactions.clear();
     this.engagementData.clear(); // Clear engagement metrics to fix incorrect counts
     this.processedEngagementEvents.clear(); // Clear processed events to allow fresh counting
     this.loadingMore = false;
+    
+    // Clear feed-specific data
+    if (feedType === 'me') {
+      this.trendingNoteIds.clear();
+      this.trendingAuthors = null;
+      this.meDaysLoaded = 0;
+    } else if (feedType === 'trending') {
+      this.meDaysLoaded = 0;
+    }
     // Keep profiles cache - no need to refetch profile data
     
     // Mark as loaded since we're manually switching feeds
@@ -1213,7 +1237,6 @@ class SidecarApp {
     // Clear current feed and reload
     document.getElementById('feed').innerHTML = '';
     this.notes.clear();
-    // Thread data structures removed
     this.userReactions.clear();
     this.engagementData.clear(); // Clear engagement metrics to fix incorrect counts
     this.processedEngagementEvents.clear(); // Clear processed events to allow fresh counting
@@ -1340,6 +1363,7 @@ class SidecarApp {
               } else {
                 const batchIndex = subId.match(/batch-(\d+)-/)?.[1] || 'unknown';
                 console.log(`📋 Following feed batch EOSE (NEW): batch-${batchIndex}, completed: ${this.completedBatches.size}/${this.expectedBatches}`);
+                
               }
               
               // Check if all batches are complete
@@ -1360,23 +1384,11 @@ class SidecarApp {
             const notesReceived = this.notes.size - this.loadMoreStartNoteCount;
             console.log(`📋 Load more received ${notesReceived} new notes`);
             
-            // For Me feed, also check if timestamp advanced due to reply filtering
-            const timestampAdvanced = this.currentFeed === 'me' && 
-                                     this.loadMoreStartTimestamp && 
-                                     this.oldestNoteTimestamp < this.loadMoreStartTimestamp;
-            
-            if (this.currentFeed === 'me') {
-              console.log(`🔍 Me feed EOSE debug: notesReceived=${notesReceived}, timestampAdvanced=${timestampAdvanced}`);
-              console.log(`🔍 loadMoreStartTimestamp=${this.loadMoreStartTimestamp ? new Date(this.loadMoreStartTimestamp * 1000).toLocaleString() : 'none'}`);
-              console.log(`🔍 oldestNoteTimestamp=${this.oldestNoteTimestamp ? new Date(this.oldestNoteTimestamp * 1000).toLocaleString() : 'none'}`);
-            }
-            
-            if (notesReceived === 0 && !timestampAdvanced) {
+            if (notesReceived === 0) {
               this.consecutiveEmptyLoads++;
               console.log(`📋 EOSE: Load more returned no results and no timestamp advancement (${this.consecutiveEmptyLoads} consecutive empty loads)`);
               
-              // For Me feed, use higher threshold since it's single-user and may have gaps
-              const emptyLoadThreshold = this.currentFeed === 'me' ? 10 : 3;
+              const emptyLoadThreshold = 3;
               if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
                 console.log(`📋 EOSE: ${this.consecutiveEmptyLoads} consecutive empty loads (threshold: ${emptyLoadThreshold}), setting feedHasMore = false`);
                 this.feedHasMore = false;
@@ -1384,20 +1396,13 @@ class SidecarApp {
             } else {
               this.consecutiveEmptyLoads = 0; // Reset counter when we get results
               this.feedHasMore = true;
-              if (timestampAdvanced) {
-                console.log(`📋 EOSE: Me feed timestamp advanced from ${new Date(this.loadMoreStartTimestamp * 1000).toLocaleString()} to ${new Date(this.oldestNoteTimestamp * 1000).toLocaleString()}, continuing pagination`);
-              } else {
-                console.log(`📋 EOSE: Got ${notesReceived} new notes, feedHasMore = true`);
-              }
+              console.log(`📋 EOSE: Got ${notesReceived} new notes, feedHasMore = true`);
             }
             this.loadingMore = false;
             
             // Reset the loadMore tracking variables for next operation
             this.loadMoreStartNoteCount = this.notes.size;
             this.loadMoreStartTimestamp = this.oldestNoteTimestamp;
-            if (this.currentFeed === 'me') {
-              console.log(`🔄 Reset Me feed loadMore tracking: count=${this.loadMoreStartNoteCount}, timestamp=${this.oldestNoteTimestamp ? new Date(this.oldestNoteTimestamp * 1000).toLocaleString() : 'none'}`);
-            }
           }
         }
       }
@@ -1428,15 +1433,6 @@ class SidecarApp {
       if (eTags.length > 0) {
         console.log('🚫 Filtering out reply from:', event.pubkey.substring(0, 16) + '...', 'Reply to:', eTags[0][1].substring(0, 16) + '...');
         
-        // For Me feed, track reply timestamps to advance pagination even when only replies are found
-        if (this.currentFeed === 'me' && this.loadingMore) {
-          // Update oldest timestamp with reply timestamps to ensure pagination advances
-          if (!this.oldestNoteTimestamp || event.created_at < this.oldestNoteTimestamp) {
-            const oldValue = this.oldestNoteTimestamp;
-            this.oldestNoteTimestamp = event.created_at;
-            console.log(`🕐 Me feed: Advanced timestamp using reply from ${oldValue ? new Date(oldValue * 1000).toLocaleString() : 'none'} to ${new Date(this.oldestNoteTimestamp * 1000).toLocaleString()}`);
-          }
-        }
         
         // Still cache the event for quoted note updates but don't display it
         this.notes.set(event.id, event);
@@ -1478,14 +1474,15 @@ class SidecarApp {
         }
         console.log('✅ Showing note from followed user:', event.pubkey.substring(0, 16) + '...');
       } else if (this.currentFeed === 'me') {
-        // Only show notes from current user
+        // Me feed: only show notes from current user
         if (!this.currentUser || event.pubkey !== this.currentUser.publicKey) {
-          // Before filtering out, check if this event can update any quoted note placeholders
+          // Cache for quoted note updates but don't display
           this.notes.set(event.id, event);
           this.updateQuotedNotePlaceholders(event);
-          console.log('🚫 Filtering out note from different user on Me feed (cached for quotes):', event.pubkey.substring(0, 16) + '...');
+          console.log('🚫 Me feed: Filtering out note from different user:', event.pubkey.substring(0, 16) + '...');
           return;
         }
+        console.log('✅ Me feed: Showing note from current user:', event.pubkey.substring(0, 16) + '...');
       } else if (this.currentFeed === 'trending') {
         // Show notes that are either in our trending note IDs list OR from trending authors 
         const isTrendingNote = this.trendingNoteIds.has(event.id);
@@ -1669,9 +1666,16 @@ class SidecarApp {
     }
     
     console.log('✅ === PROCESSING CONTACT LIST ===');
-    console.log('Event:', event);
-    console.log('Event tags count:', event.tags.length);
     
+    // Only process if this contact list is newer than what we have
+    if (this.lastContactListTimestamp && event.created_at <= this.lastContactListTimestamp) {
+      console.warn('⚠️ IGNORING OLDER CONTACT LIST:', 
+        `current: ${new Date(this.lastContactListTimestamp * 1000).toLocaleString()}`,
+        `received: ${new Date(event.created_at * 1000).toLocaleString()}`);
+      return;
+    }
+    
+    this.lastContactListTimestamp = event.created_at;
     // Clear existing follows
     this.userFollows.clear();
     
@@ -1858,7 +1862,6 @@ class SidecarApp {
     }
   }
   
-  // buildThreadRelationships removed - replies no longer supported
   
   loadFollowingFeedBatched(followsArray) {
     console.log('📦 === BATCHING FOLLOWING FEED ===');
@@ -1875,6 +1878,7 @@ class SidecarApp {
     
     console.log('📦 Created', batches.length, 'batches of', BATCH_SIZE, 'authors each');
     console.log('📦 Batch sizes:', batches.map(batch => batch.length));
+    
     
     // Clear existing subscriptions
     this.subscriptions.forEach((sub, id) => {
@@ -2196,7 +2200,178 @@ class SidecarApp {
     console.log(`📋 After showAutoLoader() - feedHasMore: ${this.feedHasMore}`);
   }
   
-  // Me feed now uses standard approach identical to other feeds
+  async loadMeFeed() {
+    console.log('🙋 LOADING ME FEED - USER NOTES ONLY');
+    
+    if (!this.currentUser) {
+      console.log('❌ Cannot load Me feed - no current user');
+      return;
+    }
+    
+    this.showLoading();
+    
+    try {
+      console.log('✅ loadMeFeed started for user:', this.currentUser.publicKey.substring(0, 16) + '...');
+      
+      // Load user's notes from last 30 days for good coverage
+      const daysToFetch = 30;
+      const allNoteIds = [];
+      
+      console.log('📡 Fetching user notes from the last', daysToFetch, 'days...');
+      
+      for (let daysBack = 0; daysBack < daysToFetch; daysBack++) {
+        const date = new Date();
+        date.setDate(date.getDate() - daysBack);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        console.log(`📅 Day ${daysBack + 1}: Fetching notes for ${dateStr}`);
+        
+        try {
+          // Use a simple relay subscription for user's notes on this day
+          const dayStart = Math.floor(new Date(dateStr).getTime() / 1000);
+          const dayEnd = dayStart + 86400; // 24 hours later
+          
+          const filter = {
+            kinds: [1],
+            authors: [this.currentUser.publicKey],
+            since: dayStart,
+            until: dayEnd,
+            limit: 50
+          };
+          
+          const subId = `me-day-${daysBack}-${Date.now()}`;
+          const subscription = ['REQ', subId, filter];
+          this.subscriptions.set(subId, subscription);
+          
+          // Send to all connected relays
+          this.relayConnections.forEach(ws => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify(subscription));
+            }
+          });
+          
+        } catch (dayError) {
+          console.error(`❌ Error processing day ${daysBack}:`, dayError);
+        }
+      }
+      
+      // Wait for notes to be received
+      setTimeout(() => {
+        console.log('🎯 Me feed initial load completed, collected notes:', this.notes.size);
+        this.hideLoading();
+        
+        // Initialize pagination tracking
+        this.meDaysLoaded = daysToFetch;
+        this.feedHasMore = true;
+        
+        // Make sure auto-loader is visible
+        setTimeout(() => {
+          if (this.feedHasMore) {
+            console.log('🔄 Making sure auto-loader is visible for Me feed');
+            this.showAutoLoader();
+          }
+        }, 2000);
+        
+      }, 5000); // Give 5 seconds for notes to arrive
+      
+    } catch (error) {
+      console.error('❌ Error loading Me feed:', error);
+      this.hideLoading();
+      
+      document.getElementById('feed').innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #888;">
+          <h3>Error loading your notes</h3>
+          <p>Error loading Me feed</p>
+          <p style="font-size: 12px; color: #888;">${error.message}</p>
+          <button class="retry-me-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+        </div>
+      `;
+      
+      // Add event listener for retry button
+      setTimeout(() => {
+        const retryBtn = document.querySelector('.retry-me-btn');
+        if (retryBtn) {
+          retryBtn.addEventListener('click', () => this.loadMeFeed());
+        }
+      }, 0);
+    }
+  }
+  
+  async loadMoreMeFeed() {
+    console.log('🔥 loadMoreMeFeed() called!');
+    this.loadMoreStartNoteCount = this.notes.size;
+    
+    if (!this.currentUser) {
+      console.log('❌ Cannot load more Me feed - no current user');
+      this.loadingMore = false;
+      this.feedHasMore = false;
+      return;
+    }
+    
+    try {
+      // Load more days of user's notes
+      const additionalDays = 7; // Load 7 more days each time
+      const startDay = this.meDaysLoaded || 30;
+      
+      console.log(`📅 Loading ${additionalDays} more days of notes, starting from day ${startDay}`);
+      
+      for (let daysBack = startDay; daysBack < startDay + additionalDays; daysBack++) {
+        const date = new Date();
+        date.setDate(date.getDate() - daysBack);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const dayStart = Math.floor(new Date(dateStr).getTime() / 1000);
+        const dayEnd = dayStart + 86400;
+        
+        const filter = {
+          kinds: [1],
+          authors: [this.currentUser.publicKey],
+          since: dayStart,
+          until: dayEnd,
+          limit: 50
+        };
+        
+        const subId = `me-loadmore-day-${daysBack}-${Date.now()}`;
+        const subscription = ['REQ', subId, filter];
+        this.subscriptions.set(subId, subscription);
+        
+        this.relayConnections.forEach(ws => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(subscription));
+          }
+        });
+      }
+      
+      this.meDaysLoaded = startDay + additionalDays;
+      
+      // Set timeout to complete load more operation
+      setTimeout(() => {
+        console.log('⏰ Me feed load more timeout reached');
+        const notesReceived = this.notes.size - this.loadMoreStartNoteCount;
+        console.log(`📊 Me feed load more completed: ${notesReceived} new notes`);
+        
+        if (notesReceived === 0) {
+          this.consecutiveEmptyLoads++;
+          if (this.consecutiveEmptyLoads >= 3) {
+            console.log('📋 No more notes available for Me feed');
+            this.feedHasMore = false;
+          }
+        } else {
+          this.consecutiveEmptyLoads = 0;
+          this.feedHasMore = true;
+        }
+        
+        this.loadingMore = false;
+        this.hideLoading();
+      }, 5000); // 5 second timeout
+      
+    } catch (error) {
+      console.error('❌ Error in Me feed load more:', error);
+      this.loadingMore = false;
+      this.feedHasMore = false;
+      this.hideLoading();
+    }
+  }
   
   async loadTopFeed() {
     console.log('🔥 LOADING TRENDING FEED FROM NOSTR.BAND!!!');
@@ -2335,7 +2510,9 @@ class SidecarApp {
     console.log('Feed type:', this.currentFeed);
     console.log('Contact list loaded:', this.contactListLoaded);
     console.log('User follows count:', this.userFollows.size);
-    console.log('User follows (first 5):', Array.from(this.userFollows).slice(0, 5));
+    console.log('User follows (first 5):', Array.from(this.userFollows).slice(0, 5).map(pk => pk.substring(0, 16) + '...'));
+    
+    
     console.log('Current user:', this.currentUser?.publicKey?.substring(0, 16) + '...');
     console.log('Relay connections:', this.relayConnections.size);
     
@@ -2406,25 +2583,10 @@ class SidecarApp {
         });
         return;
       }
-    } else if (this.currentFeed === 'me' && this.currentUser) {
-      // Me feed: current user's own notes with simple reliable loading
-      console.log('🙋 Loading Me feed for user:', this.currentUser.publicKey.substring(0, 16) + '...');
-      
-      const baseFilter = {
-        kinds: [1],
-        authors: [this.currentUser.publicKey],
-        limit: 20 // Reduced from 40 to 20
-      };
-      
-      // Add until timestamp for pagination if we have it
-      if (this.oldestNoteTimestamp) {
-        baseFilter.until = this.oldestNoteTimestamp - 1;
-        console.log('🙋 Me feed pagination: until =', new Date((this.oldestNoteTimestamp - 1) * 1000).toLocaleString());
-      } else {
-        console.log('🙋 Me feed initial load (no until timestamp)');
-      }
-      
-      filter = baseFilter;
+    } else if (this.currentFeed === 'me') {
+      // Me feed: use trending-style approach for user's own notes  
+      this.loadMeFeed();
+      return;
     }
     
     if (filter) {
@@ -2465,7 +2627,6 @@ class SidecarApp {
     setTimeout(() => this.hideLoading(), 5000);
   }
   
-  // displayNote removed - now directly call displayTopLevelNote since replies are filtered out
   
   displayTopLevelNote(event) {
     const feed = document.getElementById('feed');
@@ -2510,7 +2671,6 @@ class SidecarApp {
   
   // displayReply and displayOrphanedReplies removed - replies no longer supported
   
-  // buildReplyTags, findThreadRoot, gatherThreadParticipants removed - replies no longer supported
   
   createNoteElement(event) {
     const noteDiv = document.createElement('div');
@@ -2971,16 +3131,41 @@ class SidecarApp {
   createImageGallery(images, eventId, pubkey) {
     if (images.length === 0) return '';
     
-    // Check if images should be blurred based on feed type and follow status
+    // Check if images should be blurred based on NSFW tags and follow status
     let shouldBlur = false;
     
-    if (this.currentFeed === 'trending') {
-      // Don't blur images in trending feed - it's curated content
-      shouldBlur = false;
-    } else {
-      // For other feeds, blur if user is not signed in or doesn't follow the author
-      const isFollowed = this.currentUser && this.userFollows.has(pubkey);
-      shouldBlur = !isFollowed;
+    // First check for NSFW/content warning tags (applies to all feeds)
+    const event = Array.from(this.notes.values()).find(note => note.id === eventId);
+    if (event && event.tags) {
+      const nsfwKeywords = ['nsfw', 'adult', 'porn', 'sex', 'nude', 'naked', 'explicit', 'mature', '18+', 'xxx', 'erotic', 'sexual', 'graphic', 'lewd', 'nsfl', 'gore', 'violence'];
+      
+      const hasNSFWTag = event.tags.some(tag => {
+        if (tag[0] === 't') {
+          const tagValue = tag[1].toLowerCase();
+          return nsfwKeywords.some(keyword => tagValue.includes(keyword));
+        }
+        return (tag[0] === 'content-warning') || (tag[0] === 'L' && tag[1] === 'content-warning');
+      });
+      
+      if (hasNSFWTag) {
+        shouldBlur = true;
+        console.log('🔞 Blurring image due to NSFW tag');
+      }
+    }
+    
+    // If not NSFW, check feed-specific blur rules
+    if (!shouldBlur) {
+      if (this.currentFeed === 'trending') {
+        // Don't blur images in trending feed - it's curated content
+        shouldBlur = false;
+      } else if (this.currentFeed === 'me') {
+        // Don't blur images in Me feed - they're your own photos
+        shouldBlur = false;
+      } else {
+        // For other feeds, blur if user is not signed in or doesn't follow the author
+        const isFollowed = this.currentUser && this.userFollows.has(pubkey);
+        shouldBlur = !isFollowed;
+      }
     }
     
     const galleryClass = images.length === 1 ? 'single-image' : 'multi-image';
@@ -3399,49 +3584,6 @@ class SidecarApp {
     });
   }
 
-  // Emergency function to fix existing quoted notes
-  fixExistingQuotedNotes() {
-    console.log('🚨 Fixing existing quoted note menus...');
-    const quotedNotes = document.querySelectorAll('.quoted-note');
-    console.log('🚨 Found', quotedNotes.length, 'quoted notes to fix');
-    
-    quotedNotes.forEach(quotedElement => {
-      const eventId = quotedElement.dataset.eventId;
-      if (eventId) {
-        const event = Array.from(this.notes.values()).find(e => e.id === eventId);
-        if (event) {
-          console.log('🚨 Fixing quoted note:', eventId.substring(0, 16) + '...');
-          const menuContainer = quotedElement.querySelector('.reply-menu');
-          if (menuContainer) {
-            this.setupNoteMenu(menuContainer, event);
-          }
-        }
-      }
-    });
-  }
-  
-  // Auto-run the fix
-  runEmergencyFix() {
-    console.log('🚨 runEmergencyFix called');
-    setTimeout(() => {
-      console.log('🚨 Emergency fix starting...');
-      // First, let's see what's actually on the page
-      const allQuotedNotes = document.querySelectorAll('.quoted-note');
-      const allReplies = document.querySelectorAll('.reply');
-      const allMenuBtns = document.querySelectorAll('.menu-btn');
-      const allReplyMenus = document.querySelectorAll('.reply-menu');
-      
-      console.log('📊 Page inventory:');
-      console.log('  - .quoted-note elements:', allQuotedNotes.length);
-      console.log('  - .reply elements:', allReplies.length);
-      console.log('  - .menu-btn elements:', allMenuBtns.length);
-      console.log('  - .reply-menu elements:', allReplyMenus.length);
-      
-      this.fixExistingQuotedNotes();
-    }, 2000);
-  }
-  
-  
   loadNoteReplies(noteId) {
     console.log('📄 Loading replies for note:', noteId.substring(0, 16) + '...');
     
