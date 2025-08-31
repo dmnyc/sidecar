@@ -2624,8 +2624,10 @@ class SidecarApp {
               </div>
               <p style="margin-bottom: 8px; color: #ea6390; font-weight: bold;">The trending data service is currently offline.</p>
               <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
-              <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer; margin-right: 12px;">Try Again</button>
-              ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
+              <div style="display: flex; justify-content: center; gap: 12px;">
+                <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
+                ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
+              </div>
             </div>
           `;
           
@@ -2750,8 +2752,10 @@ class SidecarApp {
           </div>
           <p style="margin-bottom: 8px; color: #ea6390; font-weight: bold;">The trending data service is currently offline.</p>
           <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
-          <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer; margin-right: 12px;">Try Again</button>
-          ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
+          <div style="display: flex; justify-content: center; gap: 12px;">
+            <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
+            ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
+          </div>
         </div>
       `;
       
@@ -3366,15 +3370,17 @@ class SidecarApp {
     console.log('📝 createQuotedNotes called with', quotedNotes?.length || 0, 'quoted notes');
     if (!quotedNotes || quotedNotes.length === 0) return '';
     
-    let quotedHTML = '<div class="quoted-notes">';
-    
-    quotedNotes.forEach(quoted => {
-      console.log('📝 Processing quoted note in createQuotedNotes:', quoted.eventId.substring(0, 16) + '...');
-      console.log('🔍 Current quoted note structure will use .quoted-header, .quoted-avatar, .quoted-info');
-      // Try to find the quoted event in our cache
-      const quotedEvent = Array.from(this.notes.values()).find(e => e.id === quoted.eventId);
+    try {
+      let quotedHTML = '<div class="quoted-notes">';
       
-      if (quotedEvent && quotedEvent.kind === 1) {
+      quotedNotes.forEach(quoted => {
+        try {
+        console.log('📝 Processing quoted note in createQuotedNotes:', quoted.eventId.substring(0, 16) + '...');
+        console.log('🔍 Current quoted note structure will use .quoted-header, .quoted-avatar, .quoted-info');
+        // Try to find the quoted event in our cache
+        const quotedEvent = Array.from(this.notes.values()).find(e => e.id === quoted.eventId);
+        
+        if (quotedEvent && quotedEvent.kind === 1) {
         // Only display text notes (kind 1) as quoted content to prevent layout breaks
         const profile = this.profiles.get(quotedEvent.pubkey);
         const authorName = profile?.display_name || profile?.name || this.getAuthorName(quotedEvent.pubkey);
@@ -3419,7 +3425,21 @@ class SidecarApp {
           `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`;
         
         // Create a compact quoted note design - simplified HTML
-        const generatedHTML = `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}" data-author="${quotedEvent.pubkey}"><div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${content.replace(/\n/g, '<br>')}${imagesHTML}</div></div>`;
+        // Ensure content is safely escaped and won't break parent HTML structure
+        let safeContent;
+        try {
+          safeContent = content.replace(/\n/g, '<br>');
+          // Check for potentially malformed HTML that could break the parent structure
+          if (safeContent.includes('<') && !safeContent.match(/<\/[^>]+>/)) {
+            console.warn('🚫 Quoted content contains potentially malformed HTML, re-escaping');
+            safeContent = this.escapeHtml(content).replace(/\n/g, '<br>');
+          }
+        } catch (error) {
+          console.error('❌ Error processing quoted note content:', error);
+          safeContent = this.escapeHtml(content).replace(/\n/g, '<br>');
+        }
+        
+        const generatedHTML = `<div class="quoted-note" data-event-id="${quoted.eventId}" data-pubkey="${quotedEvent.pubkey}" data-author="${quotedEvent.pubkey}"><div class="quoted-header"><div class="quoted-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}">${avatarHTML}</div><div class="quoted-info" data-profile-link="${window.NostrTools.nip19.npubEncode(quotedEvent.pubkey)}"><span class="quoted-author">${authorName}</span><span class="quoted-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span></div><div class="quoted-time-menu"><span class="quoted-time" data-note-link="${quotedEvent.id}">${timeAgo}</span><div class="quoted-menu"><button class="menu-btn" data-event-id="${quotedEvent.id}">⋯</button><div class="menu-dropdown" data-event-id="${quotedEvent.id}"><div class="menu-item" data-action="open-note">Open Note</div><div class="menu-item" data-action="copy-note-id">Copy Note ID</div><div class="menu-item" data-action="copy-note-text">Copy Note Text</div><div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div><div class="menu-item" data-action="copy-pubkey">Copy Public Key</div><div class="menu-item" data-action="view-user-profile">View User Profile</div></div></div></div></div><div class="quoted-content">${safeContent}${imagesHTML}</div></div>`;
         
         console.log('📝 Generated quoted note HTML preview:', generatedHTML.substring(0, 200) + '...');
         quotedHTML += generatedHTML;
@@ -3432,29 +3452,52 @@ class SidecarApp {
         // Event found but not kind 1, skip it to prevent layout breaks
         console.log(`🚫 Skipping non-text quoted note (kind ${quotedEvent.kind}):`, quoted.eventId.substring(0, 16) + '...');
       } else {
-        // Event not in cache, show a placeholder and try to fetch it
+        // Event not in cache, show a compact loading state and try to fetch it
         quotedHTML += `<div class="quoted-note loading" data-event-id="${quoted.eventId}" data-bech32="${quoted.bech32}">
-          <div class="quoted-header">
-            <div class="quoted-avatar">
-              <div class="avatar-placeholder">?</div>
-            </div>
-            <div class="quoted-info">
-              <span class="quoted-author">Loading quoted note...</span>
-            </div>
-            <div class="quoted-time-menu">
-              <span class="quoted-time">...</span>
-              <div class="quoted-menu">
-                <button class="menu-btn disabled">⋯</button>
-              </div>
-            </div>
-          </div>
-          <div class="quoted-content">
-            <div class="spinner small"></div>
-          </div>
+          <div class="quoted-loading">Loading quoted note...</div>
         </div>`;
         
         // Try to fetch the quoted event
         this.fetchQuotedEvent(quoted);
+      }
+      } catch (error) {
+        console.error('❌ Error processing individual quoted note:', quoted.eventId, error);
+        // Create error message with specific note ID for better jumble.social link
+        const uniqueId = 'quoted-error-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        quotedHTML += `<div id="${uniqueId}" class="quoted-note error" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd;" data-note-id="${quoted.eventId}">
+          <span>Unable to display quoted content</span>
+          <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+            <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
+          </svg>
+        </div>`;
+        
+        // Set up click handler with specific note ID
+        setTimeout(() => {
+          const errorElement = document.getElementById(uniqueId);
+          if (errorElement) {
+            errorElement.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const noteId = errorElement.getAttribute('data-note-id');
+              let jumbleUrl = 'https://jumble.social';
+              
+              if (noteId) {
+                try {
+                  // Convert hex event ID to note bech32 format for jumble.social
+                  const noteBech32 = window.NostrTools.nip19.noteEncode(noteId);
+                  jumbleUrl = `https://jumble.social/${noteBech32}`;
+                  console.log('🔗 Converted hex ID to bech32:', noteId.substring(0, 16) + '... -> ' + noteBech32);
+                } catch (error) {
+                  console.error('❌ Error converting note ID to bech32:', error);
+                  // Fallback to homepage if conversion fails
+                }
+              }
+              
+              console.log('🔗 Opening jumble.social URL:', jumbleUrl);
+              window.open(jumbleUrl, '_blank');
+            });
+          }
+        }, 10);
       }
     });
     
@@ -3483,7 +3526,33 @@ class SidecarApp {
       });
     }, 100);
     
-    return quotedHTML;
+      return quotedHTML;
+    } catch (error) {
+      console.error('❌ Error creating quoted notes:', error);
+      // Return a safe fallback that won't break the parent note layout
+      const uniqueId = 'quoted-error-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      
+      // Set up click handler after DOM insertion
+      setTimeout(() => {
+        const errorElement = document.getElementById(uniqueId);
+        if (errorElement) {
+          errorElement.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open('https://jumble.social', '_blank');
+          });
+        }
+      }, 10);
+      
+      return `<div class="quoted-notes">
+        <div id="${uniqueId}" class="quoted-note error" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px;">
+          <span>Unable to display quoted content</span>
+          <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+            <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>`;
+    }
   }
   
   fetchQuotedEvent(quotedNote) {
