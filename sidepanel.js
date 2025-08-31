@@ -2543,6 +2543,8 @@ class SidecarApp {
       // Fetch trending notes from multiple days for a richer feed experience
       const allTrendingNoteIds = [];
       const daysToFetch = 3; // Conservative initial fetch to prevent crashes
+      let apiFailures = 0;
+      let totalAttempts = 0;
       
       console.log('📡 Fetching trending notes from the last', daysToFetch, 'days...');
       
@@ -2550,10 +2552,20 @@ class SidecarApp {
         const date = new Date();
         date.setDate(date.getDate() - daysBack);
         const dateStr = date.toISOString().split('T')[0];
+        totalAttempts++;
         
         try {
           console.log(`📡 Fetching trending notes for ${dateStr} (${daysBack === 0 ? 'today' : daysBack + ' days ago'})`);
-          const response = await fetch(`https://api.nostr.band/v0/trending/notes/${dateStr}`);
+          
+          // Add timeout to prevent hanging on slow/down API
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+          
+          const response = await fetch(`https://api.nostr.band/v0/trending/notes/${dateStr}`, {
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
           
           if (response.ok) {
             const data = await response.json();
@@ -2566,9 +2578,11 @@ class SidecarApp {
             }
           } else {
             console.warn(`⚠️ Failed to fetch trending data for ${dateStr}: ${response.status}`);
+            apiFailures++;
           }
         } catch (error) {
           console.warn(`⚠️ Error fetching trending data for ${dateStr}:`, error.message);
+          apiFailures++;
           // Continue with other days even if one fails
         }
         
@@ -2579,13 +2593,72 @@ class SidecarApp {
       }
       
       if (allTrendingNoteIds.length === 0) {
+        // Only show error if user is still on trending feed
+        if (this.currentFeed !== 'trending') {
+          console.log('🔄 User switched away from trending feed, skipping error display');
+          return;
+        }
+        
         this.hideLoading();
-        document.getElementById('feed').innerHTML = `
-          <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
-            <p>No trending notes available right now.</p>
-            <p>Try refreshing or check back later!</p>
-          </div>
-        `;
+        this.hideAutoLoader(); // Ensure auto-loader is hidden when showing error
+        this.feedHasMore = false; // Prevent auto-loader from showing again
+        
+        // Cancel any pending auto-loader timeout
+        if (this.trendingAutoLoaderTimeout) {
+          clearTimeout(this.trendingAutoLoaderTimeout);
+          this.trendingAutoLoaderTimeout = null;
+        }
+        
+        // Check if all API calls failed vs. just no data available
+        if (apiFailures === totalAttempts) {
+          // All API calls failed - likely service is down
+          document.getElementById('feed').innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #a78bfa;">
+              <div style="margin-bottom: 16px;">
+                <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 16C11.1046 16 12 15.1046 12 14C12 12.8954 11.1046 12 10 12C8.89543 12 8 12.8954 8 14C8 15.1046 8.89543 16 10 16Z" fill="currentColor"/>
+                  <path d="M22 16C23.1046 16 24 15.1046 24 14C24 12.8954 23.1046 12 22 12C20.8954 12 20 12.8954 20 14C20 15.1046 20.8954 16 22 16Z" fill="currentColor"/>
+                  <path d="M16.36 18C15.8053 17.9499 15.2462 18.0161 14.7185 18.1946C14.1909 18.373 13.7063 18.6597 13.2958 19.0363C12.8854 19.4128 12.5581 19.871 12.335 20.3813C12.1118 20.8917 11.9977 21.443 12 22V23C12 23.2652 12.1054 23.5196 12.2929 23.7071C12.4804 23.8946 12.7348 24 13 24H19C19.2652 24 19.5196 23.8946 19.7071 23.7071C19.8946 23.5196 20 23.2652 20 23V22.205C20.0236 21.1773 19.6641 20.1775 18.9912 19.4003C18.3184 18.623 17.3805 18.1239 16.36 18Z" fill="currentColor"/>
+                  <path d="M16 0C12.8355 0 9.74207 0.938384 7.11088 2.69649C4.4797 4.45459 2.42894 6.95345 1.21793 9.87706C0.0069325 12.8007 -0.309921 16.0177 0.307443 19.1214C0.924806 22.2251 2.44866 25.0761 4.6863 27.3137C6.92394 29.5513 9.77486 31.0752 12.8786 31.6926C15.9823 32.3099 19.1993 31.9931 22.1229 30.7821C25.0466 29.5711 27.5454 27.5203 29.3035 24.8891C31.0616 22.2579 32 19.1645 32 16C32 11.7565 30.3143 7.68687 27.3137 4.68629C24.3131 1.68571 20.2435 0 16 0ZM16 28C13.6266 28 11.3066 27.2962 9.33316 25.9776C7.35977 24.6591 5.8217 22.7849 4.91345 20.5922C4.0052 18.3995 3.76756 15.9867 4.23058 13.6589C4.6936 11.3311 5.83649 9.19295 7.51472 7.51472C9.19295 5.83649 11.3311 4.6936 13.6589 4.23058C15.9867 3.76755 18.3995 4.00519 20.5922 4.91344C22.7849 5.8217 24.6591 7.35976 25.9776 9.33315C27.2962 11.3065 28 13.6266 28 16C28 19.1826 26.7357 22.2348 24.4853 24.4853C22.2348 26.7357 19.1826 28 16 28Z" fill="currentColor"/>
+                </svg>
+              </div>
+              <p style="margin-bottom: 8px; color: #ea6390; font-weight: bold;">The trending data service is currently offline.</p>
+              <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
+              <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer; margin-right: 12px;">Try Again</button>
+              ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
+            </div>
+          `;
+          
+        } else {
+          // Some API calls succeeded but returned no data
+          document.getElementById('feed').innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
+              <p>No trending notes available right now.</p>
+              <p>Try refreshing or check back later!</p>
+              <button class="retry-trending-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+            </div>
+          `;
+        }
+        
+        // Add button functionality for both cases with a longer timeout to ensure DOM is ready
+        setTimeout(() => {
+          const retryBtn = document.querySelector('.retry-trending-btn');
+          const switchBtn = document.querySelector('.switch-to-following-btn');
+          
+          if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+              console.log('User clicked retry trending feed');
+              this.loadTopFeed();
+            });
+          }
+          
+          if (switchBtn) {
+            switchBtn.addEventListener('click', () => {
+              console.log('User switching to following feed from trending error');
+              this.switchFeed('following');
+            });
+          }
+        }, 200);
         return;
       }
       
@@ -2638,7 +2711,7 @@ class SidecarApp {
       console.log('📡 Trending feed subscription sent to', sentToRelays, 'relays');
       
       // Make sure auto-loader is visible for trending feed
-      setTimeout(() => {
+      this.trendingAutoLoaderTimeout = setTimeout(() => {
         if (this.feedHasMore) {
           console.log('🔄 Making sure auto-loader is visible for trending feed');
           this.showAutoLoader();
@@ -2647,22 +2720,60 @@ class SidecarApp {
       
     } catch (error) {
       console.error('❌ Error loading trending feed:', error);
+      
+      // Only show error if user is still on trending feed
+      if (this.currentFeed !== 'trending') {
+        console.log('🔄 User switched away from trending feed, skipping error display');
+        return;
+      }
+      
       this.hideLoading();
+      this.hideAutoLoader(); // Ensure auto-loader is hidden when showing error
+      this.feedHasMore = false; // Prevent auto-loader from showing again
+      
+      // Cancel any pending auto-loader timeout
+      if (this.trendingAutoLoaderTimeout) {
+        clearTimeout(this.trendingAutoLoaderTimeout);
+        this.trendingAutoLoaderTimeout = null;
+      }
+      
+      // Show service unavailable message for any unexpected errors
       document.getElementById('feed').innerHTML = `
-        <div style="text-align: center; padding: 40px 20px; color: #ef4444;">
-          <p>Error loading trending feed</p>
-          <p style="font-size: 12px; color: #888;">${error.message}</p>
-          <button class="retry-trending-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+        <div style="text-align: center; padding: 40px 20px; color: #a78bfa;">
+          <div style="margin-bottom: 16px;">
+            <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 16C11.1046 16 12 15.1046 12 14C12 12.8954 11.1046 12 10 12C8.89543 12 8 12.8954 8 14C8 15.1046 8.89543 16 10 16Z" fill="currentColor"/>
+              <path d="M22 16C23.1046 16 24 15.1046 24 14C24 12.8954 23.1046 12 22 12C20.8954 12 20 12.8954 20 14C20 15.1046 20.8954 16 22 16Z" fill="currentColor"/>
+              <path d="M16.36 18C15.8053 17.9499 15.2462 18.0161 14.7185 18.1946C14.1909 18.373 13.7063 18.6597 13.2958 19.0363C12.8854 19.4128 12.5581 19.871 12.335 20.3813C12.1118 20.8917 11.9977 21.443 12 22V23C12 23.2652 12.1054 23.5196 12.2929 23.7071C12.4804 23.8946 12.7348 24 13 24H19C19.2652 24 19.5196 23.8946 19.7071 23.7071C19.8946 23.5196 20 23.2652 20 23V22.205C20.0236 21.1773 19.6641 20.1775 18.9912 19.4003C18.3184 18.623 17.3805 18.1239 16.36 18Z" fill="currentColor"/>
+              <path d="M16 0C12.8355 0 9.74207 0.938384 7.11088 2.69649C4.4797 4.45459 2.42894 6.95345 1.21793 9.87706C0.0069325 12.8007 -0.309921 16.0177 0.307443 19.1214C0.924806 22.2251 2.44866 25.0761 4.6863 27.3137C6.92394 29.5513 9.77486 31.0752 12.8786 31.6926C15.9823 32.3099 19.1993 31.9931 22.1229 30.7821C25.0466 29.5711 27.5454 27.5203 29.3035 24.8891C31.0616 22.2579 32 19.1645 32 16C32 11.7565 30.3143 7.68687 27.3137 4.68629C24.3131 1.68571 20.2435 0 16 0ZM16 28C13.6266 28 11.3066 27.2962 9.33316 25.9776C7.35977 24.6591 5.8217 22.7849 4.91345 20.5922C4.0052 18.3995 3.76756 15.9867 4.23058 13.6589C4.6936 11.3311 5.83649 9.19295 7.51472 7.51472C9.19295 5.83649 11.3311 4.6936 13.6589 4.23058C15.9867 3.76755 18.3995 4.00519 20.5922 4.91344C22.7849 5.8217 24.6591 7.35976 25.9776 9.33315C27.2962 11.3065 28 13.6266 28 16C28 19.1826 26.7357 22.2348 24.4853 24.4853C22.2348 26.7357 19.1826 28 16 28Z" fill="currentColor"/>
+            </svg>
+          </div>
+          <p style="margin-bottom: 8px; color: #ea6390; font-weight: bold;">The trending data service is currently offline.</p>
+          <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
+          <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer; margin-right: 12px;">Try Again</button>
+          ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
         </div>
       `;
       
-      // Add event listener for retry button
+      // Add button functionality
       setTimeout(() => {
         const retryBtn = document.querySelector('.retry-trending-btn');
+        const switchBtn = document.querySelector('.switch-to-following-btn');
+        
         if (retryBtn) {
-          retryBtn.addEventListener('click', () => this.loadTopFeed());
+          retryBtn.addEventListener('click', () => {
+            console.log('User clicked retry trending feed from catch block');
+            this.loadTopFeed();
+          });
         }
-      }, 0);
+        
+        if (switchBtn) {
+          switchBtn.addEventListener('click', () => {
+            console.log('User switching to following feed from trending catch block');
+            this.switchFeed('following');
+          });
+        }
+      }, 200);
     }
   }
   
