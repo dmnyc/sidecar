@@ -17,6 +17,8 @@ class SidecarApp {
     this.subscriptions = new Map();
     this.notes = new Map();
     this.userReactions = new Set(); // Track events user has already reacted to
+    this.zapReceipts = new Map(); // Track zap receipts for notes (eventId -> [zapInfo])
+    this.zapReceiptRequests = new Set(); // Track which note IDs we've requested zap receipts for
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
     this.profileNotFound = new Set(); // Track pubkeys that don't have profiles
@@ -167,6 +169,12 @@ class SidecarApp {
     document.getElementById('send-quote-btn').addEventListener('click', () => this.sendQuotePost());
     document.getElementById('quote-text').addEventListener('input', this.updateQuoteCharCount.bind(this));
     
+    // Zap modal
+    document.getElementById('close-zap-modal').addEventListener('click', () => this.hideModal('zap-modal'));
+    document.getElementById('send-zap-btn').addEventListener('click', () => this.generateZapInvoice());
+    document.getElementById('copy-zap-invoice').addEventListener('click', () => this.copyZapInvoice());
+    document.getElementById('show-invoice-btn').addEventListener('click', () => this.toggleInvoiceDisplay());
+    
     // Emoji picker
     document.getElementById('custom-emoji-btn').addEventListener('click', () => this.useCustomEmoji());
     document.getElementById('custom-emoji-input').addEventListener('keypress', (e) => {
@@ -184,6 +192,10 @@ class SidecarApp {
       if (e.target.classList.contains('close-btn')) {
         const modal = e.target.closest('.modal');
         if (modal) this.hideModal(modal.id);
+      }
+      // Close modal when clicking outside of modal content
+      if (e.target.classList.contains('modal')) {
+        this.hideModal(e.target.id);
       }
       if (e.target.classList.contains('emoji-btn')) {
         const emoji = e.target.dataset.emoji;
@@ -1589,6 +1601,310 @@ class SidecarApp {
     }
   }
 
+  handleZapReceipt(event) {
+    console.log('⚡ Processing zap receipt:', event.id.substring(0, 16) + '...');
+    console.log('🔍 Full zap receipt event:', event);
+    
+    // Check if this is for our target debug note
+    const debugNevent = 'nevent1qvzqqqqqqypzpkz9z7qz5s682lzk46ry90lmf5nwtt0qwys9xagzz45q7kyku4umqqsrvnl4cw04pfz0lfxj4wshfdrelvqzpcnzm9wcz7rreuqe5hmddlq3fqthk';
+    let isDebugNote = false;
+    
+    try {
+      // Parse the zap receipt according to NIP-57
+      let zapRequest = null;
+      let zappedEventId = null;
+      let amount = 0;
+      
+      // Look for the zap request in the description tag
+      const descriptionTag = event.tags.find(tag => tag[0] === 'description');
+      if (descriptionTag && descriptionTag[1]) {
+        try {
+          zapRequest = JSON.parse(descriptionTag[1]);
+          console.log('📋 Zap request parsed from description:', zapRequest);
+          
+          // Extract zapped event ID and amount from zap request
+          const eventTag = zapRequest.tags?.find(tag => tag[0] === 'e');
+          const amountTag = zapRequest.tags?.find(tag => tag[0] === 'amount');
+          
+          if (eventTag) {
+            zappedEventId = eventTag[1];
+            console.log('🎯 Zapped event ID from zap request:', zappedEventId.substring(0, 16) + '...');
+          }
+          
+          if (amountTag) {
+            const msats = parseInt(amountTag[1]);
+            amount = msats / 1000; // Convert from msats to sats
+            console.log('💰 Zap amount from zap request:', msats, 'msats =', amount, 'sats');
+          }
+        } catch (parseError) {
+          console.error('❌ Failed to parse zap request:', parseError);
+          return;
+        }
+      }
+      
+      // Also check for bolt11 invoice to extract amount if not found in zap request
+      const bolt11Tag = event.tags.find(tag => tag[0] === 'bolt11');
+      console.log('🎫 Bolt11 tag found:', bolt11Tag);
+      
+      if (bolt11Tag && bolt11Tag[1] && amount === 0) {
+        try {
+          // Simple bolt11 amount extraction (look for amount in invoice)
+          const invoice = bolt11Tag[1];
+          console.log('🎫 Parsing bolt11 invoice:', invoice.substring(0, 50) + '...');
+          
+          // Lightning invoice format: lnbc[amount][multiplier]1...
+          // Multipliers: m (milli, 0.001), u (micro, 0.000001), n (nano, 0.000000001), p (pico, 0.000000000001)
+          // If no multiplier, amount is in bitcoin
+          const amountMatch = invoice.match(/lnbc(\d+)([munp])?1/);
+          console.log('🎫 Amount match result:', amountMatch);
+          
+          if (amountMatch) {
+            const value = parseInt(amountMatch[1]);
+            const unit = amountMatch[2] || ''; // Could be empty (bitcoin)
+            
+            console.log('🎫 Parsed values - value:', value, 'unit:', unit || 'btc');
+            
+            // Convert to sats based on unit (1 BTC = 100,000,000 sats)
+            if (unit === 'm') {
+              amount = value * 100000; // milli-bitcoin to sats (0.001 BTC * 100M sats/BTC)
+            } else if (unit === 'u') {
+              amount = value * 100; // micro-bitcoin to sats (0.000001 BTC * 100M sats/BTC)
+            } else if (unit === 'n') {
+              amount = value / 10; // nano-bitcoin to sats (0.000000001 BTC * 100M sats/BTC)
+            } else if (unit === 'p') {
+              amount = value / 10000; // pico-bitcoin to sats (0.000000000001 BTC * 100M sats/BTC)
+            } else {
+              // No unit means bitcoin
+              amount = value * 100000000; // bitcoin to sats
+            }
+            
+            console.log('💰 Extracted amount from bolt11:', value, unit || 'btc', '=', amount, 'sats');
+          }
+        } catch (invoiceError) {
+          console.error('❌ Failed to parse bolt11 amount:', invoiceError);
+        }
+      }
+      
+      // If we still don't have the zapped event ID, try to find it in the zap receipt tags directly
+      if (!zappedEventId) {
+        const eventTags = event.tags.filter(tag => tag[0] === 'e');
+        if (eventTags.length > 0) {
+          zappedEventId = eventTags[0][1]; // Use the first 'e' tag
+          console.log('🎯 Found zapped event ID from zap receipt tags:', zappedEventId.substring(0, 16) + '...');
+        }
+      }
+      
+      // Check if this is our debug note (try to decode nevent if needed)
+      try {
+        const decodedNevent = window.NostrTools.nip19.decode(debugNevent);
+        if (decodedNevent.type === 'nevent' && decodedNevent.data.id === zappedEventId) {
+          isDebugNote = true;
+          console.log('🎯🎯🎯 DEBUG NOTE FOUND! Processing zap receipt for target note:', zappedEventId);
+        }
+      } catch (e) {
+        // Ignore decode errors
+      }
+      
+      // Also check if the zapped event ID matches our target (in case we have the raw note ID)
+      if (zappedEventId === '04a4cde010c7fe69720ac4e7e07b1b15e30b1ac64da6ad9d7d46eb0ff0ff11ba') {
+        isDebugNote = true;
+        console.log('🎯🎯🎯 DEBUG NOTE FOUND! Processing zap receipt for raw note ID');
+      }
+      
+      if (!zappedEventId) {
+        console.log('❌ No zapped event ID found in zap receipt');
+        return;
+      }
+      
+      // Store the zap receipt
+      if (!this.zapReceipts) {
+        this.zapReceipts = new Map();
+      }
+      
+      if (!this.zapReceipts.has(zappedEventId)) {
+        this.zapReceipts.set(zappedEventId, []);
+      }
+      
+      const zapInfo = {
+        id: event.id,
+        sender: zapRequest?.pubkey || event.pubkey,
+        amount: amount,
+        comment: zapRequest?.content || '',
+        timestamp: event.created_at,
+        bolt11: bolt11Tag?.[1] || ''
+      };
+      
+      // Check for duplicates before adding
+      const existingZaps = this.zapReceipts.get(zappedEventId);
+      const isDuplicate = existingZaps.some(existing => existing.id === event.id);
+      
+      if (isDuplicate) {
+        if (isDebugNote) {
+          console.log('🎯⚠️ DEBUG NOTE: Duplicate zap receipt detected, skipping:', event.id.substring(0, 16) + '...');
+        } else {
+          console.log('⚠️ Duplicate zap receipt detected, skipping:', event.id.substring(0, 16) + '...');
+        }
+        return;
+      }
+      
+      this.zapReceipts.get(zappedEventId).push(zapInfo);
+      
+      if (isDebugNote) {
+        console.log('🎯✅ DEBUG NOTE: Zap receipt stored for event:', zappedEventId.substring(0, 16) + '...', 'Amount:', amount, 'sats');
+        console.log('🎯📊 DEBUG NOTE: Total zaps for this note:', existingZaps.length + 1, 'zaps');
+        console.log('🎯📋 DEBUG NOTE: All zap receipts so far:', this.zapReceipts.get(zappedEventId));
+      } else {
+        console.log('✅ Zap receipt stored for event:', zappedEventId.substring(0, 16) + '...', 'Amount:', amount, 'sats');
+        console.log('📊 Total zaps for this note:', existingZaps.length + 1, 'zaps');
+      }
+      
+      // Update the zap display for the note
+      this.updateZapDisplay(zappedEventId);
+      
+      // Check if this zap receipt matches our current payment monitoring
+      this.checkPaymentCompletion(zapInfo, zappedEventId);
+      
+    } catch (error) {
+      console.error('❌ Error processing zap receipt:', error);
+    }
+  }
+  
+  updateZapDisplay(eventId) {
+    // Look for regular note first
+    let noteElement = document.querySelector(`.note[data-event-id="${eventId}"]`);
+    let zapButton = null;
+    
+    if (noteElement) {
+      zapButton = noteElement.querySelector('.zap-action');
+    } else {
+      // If not found as regular note, look for repost containing this note
+      noteElement = document.querySelector(`.repost[data-event-id="repost-${eventId}"]`);
+      if (noteElement) {
+        zapButton = noteElement.querySelector('.zap-action');
+      } else {
+        // Last resort: search for zap button directly with this event ID (for cases where zap button uses original note ID)
+        zapButton = document.querySelector(`.zap-action[data-event-id="${eventId}"]`);
+        if (zapButton) {
+          noteElement = zapButton.closest('.note, .repost');
+        }
+      }
+    }
+    
+    if (!noteElement || !zapButton) {
+      console.log('📝 Note element not found for zap update:', eventId.substring(0, 16) + '...');
+      return;
+    }
+    
+    const zapReceipts = this.zapReceipts?.get(eventId) || [];
+    if (zapReceipts.length === 0) {
+      return;
+    }
+    
+    // Calculate total zap amount (round to whole sats)
+    console.log('🧮 Calculating zap total for note:', eventId.substring(0, 16) + '...');
+    console.log('📋 All zap receipts for this note:', zapReceipts);
+    
+    const amounts = zapReceipts.map(zap => {
+      console.log(`💰 Zap ${zap.id.substring(0, 8)}: ${zap.amount} sats`);
+      return zap.amount;
+    });
+    
+    const totalAmount = Math.round(zapReceipts.reduce((sum, zap) => sum + zap.amount, 0));
+    console.log('🧮 Total calculation:', amounts, '= Sum:', zapReceipts.reduce((sum, zap) => sum + zap.amount, 0), '= Rounded:', totalAmount);
+    
+    // Update zap button to show total amount - keep same SVG, change color to yellow
+    zapButton.innerHTML = `
+      <svg width="14" height="16" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15.9025 6.11111C15.7069 5.64316 15.2505 5.34188 14.7353 5.34188H12.3358L14.6919 1.9359C14.9549 1.55342 14.9831 1.0641 14.7636 0.660256C14.5441 0.254273 14.1181 0 13.6486 0H6.9109C6.48925 0 6.09585 0.207265 5.86112 0.551282L0.212306 8.88462C-0.046335 9.26496 -0.070243 9.75214 0.149276 10.156C0.368795 10.5598 0.794793 10.8098 1.25991 10.8098H4.65485L0.996924 18.2179C0.727416 18.7628 0.894772 19.4124 1.39684 19.7671C1.61201 19.9188 1.86631 20 2.13147 20C2.46401 20 2.77699 19.8739 3.01607 19.6453L15.6221 7.46581C15.9894 7.11111 16.1003 6.57906 15.9047 6.11325L15.9025 6.11111ZM11.2687 2.47863L8.91265 5.88462C8.64967 6.26709 8.62141 6.75641 8.84093 7.16026C9.06045 7.56624 9.48645 7.82051 9.95591 7.82051H11.6556L6.45447 12.8462L7.80419 10.1154C7.99546 9.72863 7.97155 9.27991 7.73899 8.91667C7.50643 8.55128 7.10869 8.33547 6.66965 8.33547H3.61594L7.58685 2.48077H11.2687V2.47863Z" fill="currentColor"/>
+      </svg>
+      <span class="zap-count">${totalAmount}</span>
+    `;
+    
+    // Add visual indicator for successful zap - yellow color
+    zapButton.style.color = '#eab308'; // Yellow color for zapped notes
+    
+    console.log('✅ Updated zap display for note:', eventId.substring(0, 16) + '...', 'Total:', totalAmount, 'sats');
+  }
+  
+  requestZapReceipts(eventId) {
+    // Don't request if we already have zap receipts for this event
+    if (this.zapReceipts?.has(eventId) && this.zapReceipts.get(eventId).length > 0) {
+      console.log('⚡ Already have zap receipts for:', eventId.substring(0, 16) + '...');
+      return;
+    }
+    
+    // Also check if we've recently requested this to avoid spam
+    if (!this.zapReceiptRequests) {
+      this.zapReceiptRequests = new Set();
+    }
+    
+    if (this.zapReceiptRequests.has(eventId)) {
+      console.log('⚡ Already requested zap receipts for:', eventId.substring(0, 16) + '...');
+      return;
+    }
+    
+    this.zapReceiptRequests.add(eventId);
+    console.log('📡 Requesting zap receipts for note:', eventId.substring(0, 16) + '...');
+    
+    // Create a subscription specifically for zap receipts for this note
+    const subId = `zap-receipts-${eventId.substring(0, 8)}-${Date.now()}`;
+    const filter = {
+      kinds: [9735], // Zap receipts only
+      '#e': [eventId], // Events that reference this note ID
+      limit: 50 // Get up to 50 zap receipts
+    };
+    
+    const subscription = ['REQ', subId, filter];
+    this.subscriptions.set(subId, subscription);
+    
+    // Send to all connected relays
+    this.relayConnections.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+        console.log('📤 Sent zap receipt request to relay for:', eventId.substring(0, 16) + '...');
+      }
+    });
+    
+    // Clean up subscription after 10 seconds
+    setTimeout(() => {
+      this.relayConnections.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(['CLOSE', subId]));
+        }
+      });
+      this.subscriptions.delete(subId);
+      console.log('🧹 Cleaned up zap receipt subscription for:', eventId.substring(0, 16) + '...');
+    }, 10000);
+  }
+  
+  checkPaymentCompletion(zapInfo, zappedEventId) {
+    // Check if we're currently monitoring a payment and if this zap receipt matches
+    if (!this.currentZapInvoice) {
+      return;
+    }
+    
+    // Check if the zapped event matches the one we're monitoring
+    if (zappedEventId === this.currentZapInvoice.eventId) {
+      console.log('🎯 Received zap receipt for monitored event!');
+      
+      // Check if this zap receipt includes our invoice (bolt11 match)
+      if (zapInfo.bolt11 && zapInfo.bolt11 === this.currentZapInvoice.invoice) {
+        console.log('💰 Payment confirmed! Invoice matches.');
+        this.showPaymentSuccessMessage(this.currentZapInvoice.amount);
+        return;
+      }
+      
+      // Alternative check: if the amount and timing are close, it's likely our payment
+      const timeDiff = Math.abs(zapInfo.timestamp - (this.currentZapInvoice.timestamp / 1000));
+      const amountMatches = zapInfo.amount === this.currentZapInvoice.amount;
+      
+      if (amountMatches && timeDiff < 300) { // Within 5 minutes
+        console.log('💰 Payment likely confirmed based on amount and timing.');
+        this.showPaymentSuccessMessage(this.currentZapInvoice.amount);
+      }
+    }
+  }
+
   handleReaction(reactionEvent) {
     // Only show reactions from the current user
     if (!this.currentUser || reactionEvent.pubkey !== this.currentUser.publicKey) {
@@ -1633,6 +1949,11 @@ class SidecarApp {
       // Reaction events
       console.log('😊 Received kind 7 reaction event from:', event.pubkey.substring(0, 16) + '...', 'Reaction:', event.content);
       this.handleReaction(event);
+      return;
+    } else if (event.kind === 9735) {
+      // Zap receipt events
+      console.log('⚡ Received zap receipt from:', event.pubkey.substring(0, 16) + '...');
+      this.handleZapReceipt(event);
       return;
     } else if (event.kind === 1) {
       // Text notes
@@ -2117,7 +2438,7 @@ class SidecarApp {
       // Historical notes subscription for this batch (last 24 hours to get recent notes)
       const dayAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
       const filter = {
-        kinds: [1, 6, 7],
+        kinds: [1, 6, 7, 9735],
         authors: batch,
         since: dayAgo, // Only get notes from the last 24 hours
         limit: 15 // Reduced from 40 to 15 to avoid overwhelming profile fetching
@@ -2221,7 +2542,7 @@ class SidecarApp {
       
       // Historical notes subscription for this batch (older notes)
       const filter = {
-        kinds: [1, 6, 7],
+        kinds: [1, 6, 7, 9735],
         authors: batch,
         until: untilTimestamp,
         limit: Math.max(5, Math.ceil(20 / batches.length)) // At least 5 per batch, distribute 20 total for better performance
@@ -2309,7 +2630,7 @@ class SidecarApp {
     try {
       // Create subscription for older notes from trending authors
       const filter = {
-        kinds: [1, 6, 7],
+        kinds: [1, 6, 7, 9735],
         authors: trendingAuthorsList.slice(0, 20), // Limit to top 20 authors to avoid huge queries
         until: oldestTimestamp - 1,
         limit: 30
@@ -2467,7 +2788,7 @@ class SidecarApp {
           const dayEnd = dayStart + 86400; // 24 hours later
           
           const filter = {
-            kinds: [1, 6, 7],
+            kinds: [1, 6, 7, 9735],
             authors: [this.currentUser.publicKey],
             since: dayStart,
             until: dayEnd,
@@ -2627,7 +2948,7 @@ class SidecarApp {
         const dayEnd = dayStart + 86400;
         
         const filter = {
-          kinds: [1, 6, 7],
+          kinds: [1, 6, 7, 9735],
           authors: [this.currentUser.publicKey],
           since: dayStart,
           until: dayEnd,
@@ -2845,7 +3166,7 @@ class SidecarApp {
       
       // Create subscription to fetch the actual note events
       const filter = {
-        kinds: [1, 6, 7],
+        kinds: [1, 6, 7, 9735],
         ids: trendingNoteIds
       };
       
@@ -3201,6 +3522,11 @@ class SidecarApp {
             <path d="M8.42276 20C10.3311 20 12.2903 19.3639 13.8679 18.0917C14.4531 17.6082 15.191 17.1248 16.107 16.5395L22.1119 12.7992C22.8752 12.3158 23.1042 11.3234 22.6462 10.5601C22.1882 9.79676 21.1705 9.56776 20.4071 10.0258L14.4022 13.7661C13.3844 14.3768 12.5448 14.962 11.8069 15.5218C9.74588 17.1757 6.81976 17.1502 4.93687 15.42C3.53742 14.1223 3.00309 12.1377 3.51198 10.3056C4.50431 6.6162 4.37709 3.76641 3.07942 0.942077C2.69775 0.127853 1.73086 -0.228369 0.942084 0.153298C0.127861 0.534965 -0.228362 1.50186 0.153305 2.29063C1.1202 4.37708 1.17108 6.48898 0.40775 9.41509C-0.431918 12.4175 0.45864 15.6235 2.74864 17.7609C4.35165 19.2367 6.36176 20 8.42276 20Z" fill="currentColor"/>
           </svg>
         </div>
+        <div class="note-action zap-action" data-event-id="${event.id}">
+          <svg width="14" height="16" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15.9025 6.11111C15.7069 5.64316 15.2505 5.34188 14.7353 5.34188H12.3358L14.6919 1.9359C14.9549 1.55342 14.9831 1.0641 14.7636 0.660256C14.5441 0.254273 14.1181 0 13.6486 0H6.9109C6.48925 0 6.09585 0.207265 5.86112 0.551282L0.212306 8.88462C-0.046335 9.26496 -0.070243 9.75214 0.149276 10.156C0.368795 10.5598 0.794793 10.8098 1.25991 10.8098H4.65485L0.996924 18.2179C0.727416 18.7628 0.894772 19.4124 1.39684 19.7671C1.61201 19.9188 1.86631 20 2.13147 20C2.46401 20 2.77699 19.8739 3.01607 19.6453L15.6221 7.46581C15.9894 7.11111 16.1003 6.57906 15.9047 6.11325L15.9025 6.11111ZM11.2687 2.47863L8.91265 5.88462C8.64967 6.26709 8.62141 6.75641 8.84093 7.16026C9.06045 7.56624 9.48645 7.82051 9.95591 7.82051H11.6556L6.45447 12.8462L7.80419 10.1154C7.99546 9.72863 7.97155 9.27991 7.73899 8.91667C7.50643 8.55128 7.10869 8.33547 6.66965 8.33547H3.61594L7.58685 2.48077H11.2687V2.47863Z" fill="currentColor"/>
+          </svg>
+        </div>
       </div>
     `;
     
@@ -3208,6 +3534,7 @@ class SidecarApp {
     this.setupReactionButton(noteDiv.querySelector('.reaction-action'), event);
     this.setupReplyButton(noteDiv.querySelector('.reply-action'), event);
     this.setupRepostButton(noteDiv.querySelector('.repost-action'), event);
+    this.setupZapButton(noteDiv.querySelector('.zap-action'), event);
     this.setupNoteMenu(noteDiv.querySelector('.note-menu'), event);
     this.setupClickableLinks(noteDiv, event);
     
@@ -3297,6 +3624,11 @@ class SidecarApp {
             <path d="M8.42276 20C10.3311 20 12.2903 19.3639 13.8679 18.0917C14.4531 17.6082 15.191 17.1248 16.107 16.5395L22.1119 12.7992C22.8752 12.3158 23.1042 11.3234 22.6462 10.5601C22.1882 9.79676 21.1705 9.56776 20.4071 10.0258L14.4022 13.7661C13.3844 14.3768 12.5448 14.962 11.8069 15.5218C9.74588 17.1757 6.81976 17.1502 4.93687 15.42C3.53742 14.1223 3.00309 12.1377 3.51198 10.3056C4.50431 6.6162 4.37709 3.76641 3.07942 0.942077C2.69775 0.127853 1.73086 -0.228369 0.942084 0.153298C0.127861 0.534965 -0.228362 1.50186 0.153305 2.29063C1.1202 4.37708 1.17108 6.48898 0.40775 9.41509C-0.431918 12.4175 0.45864 15.6235 2.74864 17.7609C4.35165 19.2367 6.36176 20 8.42276 20Z" fill="currentColor"/>
           </svg>
         </div>
+        <div class="note-action zap-action" data-event-id="${originalNote.id}">
+          <svg width="14" height="16" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15.9025 6.11111C15.7069 5.64316 15.2505 5.34188 14.7353 5.34188H12.3358L14.6919 1.9359C14.9549 1.55342 14.9831 1.0641 14.7636 0.660256C14.5441 0.254273 14.1181 0 13.6486 0H6.9109C6.48925 0 6.09585 0.207265 5.86112 0.551282L0.212306 8.88462C-0.046335 9.26496 -0.070243 9.75214 0.149276 10.156C0.368795 10.5598 0.794793 10.8098 1.25991 10.8098H4.65485L0.996924 18.2179C0.727416 18.7628 0.894772 19.4124 1.39684 19.7671C1.61201 19.9188 1.86631 20 2.13147 20C2.46401 20 2.77699 19.8739 3.01607 19.6453L15.6221 7.46581C15.9894 7.11111 16.1003 6.57906 15.9047 6.11325L15.9025 6.11111ZM11.2687 2.47863L8.91265 5.88462C8.64967 6.26709 8.62141 6.75641 8.84093 7.16026C9.06045 7.56624 9.48645 7.82051 9.95591 7.82051H11.6556L6.45447 12.8462L7.80419 10.1154C7.99546 9.72863 7.97155 9.27991 7.73899 8.91667C7.50643 8.55128 7.10869 8.33547 6.66965 8.33547H3.61594L7.58685 2.48077H11.2687V2.47863Z" fill="currentColor"/>
+          </svg>
+        </div>
       </div>
     `;
 
@@ -3304,6 +3636,7 @@ class SidecarApp {
     this.setupReactionButton(repostDiv.querySelector('.reaction-action'), originalNote);
     this.setupReplyButton(repostDiv.querySelector('.reply-action'), originalNote);
     this.setupRepostButton(repostDiv.querySelector('.repost-action'), originalNote);
+    this.setupZapButton(repostDiv.querySelector('.zap-action'), originalNote);
     this.setupNoteMenu(repostDiv.querySelector('.note-menu'), originalNote);
     this.setupClickableLinks(repostDiv, originalNote);
     console.log('🔗 Setting up click-to-open for repost of note:', originalNote.id.substring(0, 16) + '...');
@@ -3333,6 +3666,29 @@ class SidecarApp {
       console.log('🔁 Repost button clicked for note:', event.id.substring(0, 16) + '...');
       this.showRepostModal(event);
     });
+  }
+
+  setupZapButton(button, event) {
+    console.log('🔧 Setting up zap button for note:', event.id.substring(0, 16) + '...');
+    
+    if (!button) {
+      console.log('❌ Zap button not found for note:', event.id.substring(0, 16) + '...');
+      return;
+    }
+    
+    console.log('✅ Zap button found, adding click listener for note:', event.id.substring(0, 16) + '...');
+    
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      console.log('⚡ Zap button clicked for note:', event.id.substring(0, 16) + '...');
+      this.showZapModal(event);
+    });
+    
+    // Initialize zap display for this note if it has zap receipts
+    this.updateZapDisplay(event.id);
+    
+    // Request zap receipts for this note
+    this.requestZapReceipts(event.id);
   }
 
   showReplyModal(event) {
@@ -3448,6 +3804,30 @@ class SidecarApp {
     
     // Show the repost modal
     document.getElementById('repost-modal').classList.remove('hidden');
+  }
+
+  showZapModal(event) {
+    console.log('⚡ showZapModal called for note:', event.id.substring(0, 16) + '...');
+    
+    // Store the event we're zapping
+    this.zappingEvent = event;
+    
+    // Get recipient info (the note author)
+    const profile = this.profiles.get(event.pubkey);
+    const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
+    const npub = window.NostrTools.nip19.npubEncode(event.pubkey).substring(0, 16) + '...';
+    
+    // Update modal with recipient info
+    document.getElementById('zap-recipient-name').textContent = authorName;
+    document.getElementById('zap-recipient-npub').textContent = npub;
+    
+    // Reset modal state
+    document.getElementById('zap-amount').value = 21;
+    document.getElementById('zap-comment').value = '';
+    document.getElementById('zap-invoice-display').classList.add('hidden');
+    
+    // Show the zap modal
+    document.getElementById('zap-modal').classList.remove('hidden');
   }
 
   async sendSimpleRepost() {
@@ -5260,6 +5640,365 @@ class SidecarApp {
       this.hideModal('emoji-picker-modal');
       input.value = '';
     }
+  }
+
+  // Basic Zap Functions (simplified for now)
+  async generateZapInvoice() {
+    console.log('⚡ Generating zap invoice...');
+    
+    if (!this.zappingEvent) {
+      console.error('No event to zap');
+      return;
+    }
+    
+    const amount = document.getElementById('zap-amount').value;
+    const comment = document.getElementById('zap-comment').value;
+    
+    if (!amount || amount < 1) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    
+    console.log(`⚡ Generating ${amount} sat zap for note:`, this.zappingEvent.id.substring(0, 16) + '...');
+    console.log('💬 Comment:', comment || '(none)');
+    
+    try {
+      // Get recipient's profile to find Lightning address
+      const profile = this.profiles.get(this.zappingEvent.pubkey);
+      let lightningAddress = null;
+      
+      // Look for Lightning address in profile metadata (NIP-57 fields)
+      if (profile?.lud06) {
+        lightningAddress = profile.lud06; // LNURL
+        console.log('🔍 Using LNURL from profile:', lightningAddress);
+      } else if (profile?.lud16) {
+        lightningAddress = profile.lud16; // Lightning Address
+        console.log('🔍 Using Lightning Address from profile:', lightningAddress);
+      }
+      
+      if (!lightningAddress) {
+        throw new Error('Recipient has no Lightning address configured in their profile');
+      }
+      
+      // Show loading state
+      document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea6390;">⚡ Generating invoice...</p>';
+      
+      // Generate real Lightning invoice using LNURL-pay
+      const invoice = await this.getLightningInvoice(lightningAddress, amount * 1000, comment);
+      
+      // Generate QR code
+      this.generateQRCode(invoice);
+      
+      // Show the invoice in the modal
+      document.getElementById('zap-invoice-text').textContent = invoice;
+      document.getElementById('zap-invoice-display').classList.remove('hidden');
+      
+      // Store the invoice for payment tracking
+      this.currentZapInvoice = {
+        invoice: invoice,
+        eventId: this.zappingEvent.id,
+        amount: amount,
+        timestamp: Date.now()
+      };
+      
+      // Start listening for payment completion
+      this.startPaymentMonitoring();
+      
+      console.log('✅ Real Lightning invoice generated');
+      
+    } catch (error) {
+      console.error('❌ Failed to generate zap invoice:', error);
+      
+      // Show error message
+      document.getElementById('zap-qr-code').innerHTML = `<p style="color: #ea6390;">Error: ${error.message}</p>`;
+      document.getElementById('zap-invoice-text').textContent = 'Failed to generate invoice';
+      document.getElementById('zap-invoice-display').classList.remove('hidden');
+    }
+  }
+  
+  copyZapInvoice() {
+    const invoiceText = document.getElementById('zap-invoice-text').textContent;
+    
+    if (!invoiceText) {
+      console.log('❌ No invoice to copy');
+      return;
+    }
+    
+    navigator.clipboard.writeText(invoiceText).then(() => {
+      console.log('✅ Invoice copied to clipboard');
+      
+      // Visual feedback
+      const btn = document.getElementById('copy-zap-invoice');
+      const originalText = btn.textContent;
+      btn.textContent = '✅ Copied!';
+      
+      setTimeout(() => {
+        btn.textContent = originalText;
+      }, 2000);
+      
+    }).catch(err => {
+      console.error('❌ Failed to copy invoice:', err);
+      alert('Failed to copy invoice to clipboard');
+    });
+  }
+  
+  toggleInvoiceDisplay() {
+    const invoiceText = document.getElementById('zap-invoice-text');
+    const showButton = document.getElementById('show-invoice-btn');
+    
+    if (invoiceText.classList.contains('hidden')) {
+      invoiceText.classList.remove('hidden');
+      showButton.textContent = 'Hide invoice details';
+    } else {
+      invoiceText.classList.add('hidden');
+      showButton.textContent = 'Show invoice details';
+    }
+  }
+  
+  startPaymentMonitoring() {
+    // Clear any existing payment monitoring
+    if (this.paymentMonitoringInterval) {
+      clearInterval(this.paymentMonitoringInterval);
+    }
+    
+    console.log('👀 Starting payment monitoring for invoice...');
+    
+    // Monitor for payment completion via zap receipts
+    // The payment monitoring will be handled by the existing handleZapReceipt function
+    // We just need to set up a timeout for the monitoring period
+    this.paymentMonitoringTimeout = setTimeout(() => {
+      console.log('⏰ Payment monitoring timeout reached');
+      this.stopPaymentMonitoring();
+    }, 300000); // 5 minutes timeout
+  }
+  
+  stopPaymentMonitoring() {
+    if (this.paymentMonitoringInterval) {
+      clearInterval(this.paymentMonitoringInterval);
+      this.paymentMonitoringInterval = null;
+    }
+    if (this.paymentMonitoringTimeout) {
+      clearTimeout(this.paymentMonitoringTimeout);
+      this.paymentMonitoringTimeout = null;
+    }
+  }
+  
+  showPaymentSuccessMessage(zapAmount) {
+    console.log('🎉 Showing payment success message for', zapAmount, 'sats');
+    
+    // Replace the zap invoice display with success message
+    const zapInvoiceDisplay = document.getElementById('zap-invoice-display');
+    if (zapInvoiceDisplay && !zapInvoiceDisplay.classList.contains('hidden')) {
+      zapInvoiceDisplay.innerHTML = `
+        <div class="zap-success">
+          <div class="success-icon">✅</div>
+          <div class="success-message">
+            <h3>Payment Successful!</h3>
+            <p>Your ${zapAmount} sat zap has been sent</p>
+          </div>
+          <button id="close-success-btn" class="btn btn-secondary">Close</button>
+        </div>
+      `;
+      
+      // Add event listener for close button
+      document.getElementById('close-success-btn').addEventListener('click', () => {
+        this.hideModal('zap-modal');
+      });
+      
+      // Auto-close after 5 seconds
+      setTimeout(() => {
+        const modal = document.getElementById('zap-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+          this.hideModal('zap-modal');
+        }
+      }, 5000);
+    }
+    
+    // Stop payment monitoring
+    this.stopPaymentMonitoring();
+    this.currentZapInvoice = null;
+  }
+
+  async getLightningInvoice(lightningAddress, amountMsat, comment) {
+    console.log('🔗 Processing Lightning address:', lightningAddress);
+    
+    let lnurlEndpoint;
+    
+    // Handle Lightning Address (user@domain.com) vs LNURL
+    if (lightningAddress.includes('@')) {
+      // Lightning Address format (NIP-57)
+      const [username, domain] = lightningAddress.split('@');
+      lnurlEndpoint = `https://${domain}/.well-known/lnurlp/${username}`;
+      console.log('📧 Lightning Address endpoint:', lnurlEndpoint);
+    } else if (lightningAddress.startsWith('lnurl')) {
+      // LNURL format - need to decode
+      try {
+        const decoded = this.decodeLnurl(lightningAddress);
+        lnurlEndpoint = decoded;
+        console.log('🔗 Decoded LNURL endpoint:', lnurlEndpoint);
+      } catch (error) {
+        throw new Error('Invalid LNURL format: ' + error.message);
+      }
+    } else {
+      throw new Error('Invalid Lightning address format');
+    }
+    
+    // Step 1: Get LNURL-pay parameters
+    console.log('📡 Fetching LNURL-pay parameters...');
+    const response = await fetch(lnurlEndpoint);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch LNURL endpoint: ${response.status}`);
+    }
+    
+    const lnurlResponse = await response.json();
+    
+    if (lnurlResponse.status === 'ERROR') {
+      throw new Error(lnurlResponse.reason || 'LNURL endpoint returned error');
+    }
+    
+    // Validate response
+    if (!lnurlResponse.callback || !lnurlResponse.minSendable || !lnurlResponse.maxSendable) {
+      throw new Error('Invalid LNURL-pay response: missing required fields');
+    }
+    
+    // Check amount limits
+    const minMsat = parseInt(lnurlResponse.minSendable);
+    const maxMsat = parseInt(lnurlResponse.maxSendable);
+    
+    if (amountMsat < minMsat) {
+      throw new Error(`Amount too small. Minimum: ${minMsat / 1000} sats`);
+    }
+    
+    if (amountMsat > maxMsat) {
+      throw new Error(`Amount too large. Maximum: ${maxMsat / 1000} sats`);
+    }
+    
+    console.log(`✅ LNURL-pay parameters validated. Range: ${minMsat / 1000} - ${maxMsat / 1000} sats`);
+    
+    // Step 2: Create zap request (NIP-57)
+    const zapRequest = await this.createZapRequest(amountMsat, comment);
+    
+    // Step 3: Request invoice from callback
+    const callbackUrl = new URL(lnurlResponse.callback);
+    callbackUrl.searchParams.set('amount', amountMsat.toString());
+    
+    if (comment && comment.trim()) {
+      callbackUrl.searchParams.set('comment', comment.trim());
+    }
+    
+    if (zapRequest) {
+      callbackUrl.searchParams.set('nostr', JSON.stringify(zapRequest));
+    }
+    
+    console.log('📡 Requesting invoice from callback:', callbackUrl.toString());
+    
+    const invoiceResponse = await fetch(callbackUrl.toString());
+    
+    if (!invoiceResponse.ok) {
+      throw new Error(`Failed to get invoice: ${invoiceResponse.status}`);
+    }
+    
+    const invoiceData = await invoiceResponse.json();
+    
+    if (invoiceData.status === 'ERROR') {
+      throw new Error(invoiceData.reason || 'Failed to generate invoice');
+    }
+    
+    if (!invoiceData.pr) {
+      throw new Error('No payment request in response');
+    }
+    
+    console.log('✅ Lightning invoice received');
+    return invoiceData.pr;
+  }
+  
+  decodeLnurl(lnurl) {
+    // Basic LNURL decoding (this is a simplified version)
+    // In a real implementation, you'd use a proper bech32 decoder
+    throw new Error('LNURL decoding not implemented yet. Please use Lightning Address format (user@domain.com)');
+  }
+  
+  async createZapRequest(amountMsat, comment) {
+    if (!this.currentUser) {
+      console.log('⚠️ No current user, creating zap request without signature');
+      return null;
+    }
+    
+    try {
+      console.log('📝 Creating NIP-57 zap request...');
+      
+      // Create zap request event according to NIP-57
+      const zapRequest = {
+        kind: 9734, // Zap request kind
+        content: comment || '',
+        tags: [
+          ['e', this.zappingEvent.id], // Event being zapped
+          ['p', this.zappingEvent.pubkey], // Recipient pubkey
+          ['amount', amountMsat.toString()], // Amount in millisats
+          ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io']
+        ],
+        created_at: Math.floor(Date.now() / 1000),
+      };
+      
+      // Sign the zap request
+      const signedZapRequest = await this.signEvent(zapRequest);
+      console.log('✅ Zap request created and signed');
+      
+      return signedZapRequest;
+      
+    } catch (error) {
+      console.error('❌ Failed to create zap request:', error);
+      // Continue without zap request for now
+      return null;
+    }
+  }
+
+  generateQRCode(text) {
+    console.log('🔧 Generating QR code with QRious for text:', text.substring(0, 20) + '...');
+    
+    const tryGenerateQR = (retries = 3) => {
+      try {
+        // Check if QRious is available
+        if (typeof QRious === 'undefined') {
+          if (retries > 0) {
+            console.log('⏳ QRious not ready, retrying in 100ms...', `(${retries} attempts left)`);
+            setTimeout(() => tryGenerateQR(retries - 1), 100);
+            return;
+          } else {
+            console.error('❌ QRious library not available after retries');
+            document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea6390;">QR code library not loaded</p>';
+            return;
+          }
+        }
+        
+        console.log('✅ QRious library found, generating QR code...');
+        
+        // Create canvas element
+        const canvas = document.createElement('canvas');
+        const qr = new QRious({
+          element: canvas,
+          value: text,
+          size: 200,
+          background: 'white',
+          foreground: 'black',
+          level: 'M'
+        });
+        
+        // Clear previous QR code and display new one
+        const qrContainer = document.getElementById('zap-qr-code');
+        qrContainer.innerHTML = '';
+        qrContainer.appendChild(canvas);
+        
+        console.log('✅ QR code generated successfully');
+        
+      } catch (error) {
+        console.error('❌ Error generating QR code:', error);
+        document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea6390;">Error generating QR code: ' + error.message + '</p>';
+      }
+    };
+    
+    tryGenerateQR();
   }
 }
 

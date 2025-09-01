@@ -31,6 +31,7 @@
     padding: 6px 8px;
     margin: 5px 0;
     background: rgba(26, 11, 61, 0.5);
+    border-left: 3px solid #a78bfa;
     cursor: pointer;
     transition: background-color 0.2s;
     max-width: 100%;
@@ -559,7 +560,7 @@ body {
     background: rgba(45, 27, 105, 0.3);
     padding: 12px;
     border-radius: 8px;
-    border-left: 3px solid #ea6390;
+    border-left: 3px solid #a78bfa;
 }
 
 .reply-author {
@@ -1420,7 +1421,7 @@ img:not(.avatar-img) {
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 16px;
-    border-left: 3px solid #ea6390;
+    border-left: 3px solid #a78bfa;
 }
 
 .repost-options {
@@ -1473,7 +1474,7 @@ img:not(.avatar-img) {
     border-radius: 8px;
     padding: 12px;
     margin: 12px 0;
-    border-left: 3px solid #ea6390;
+    border-left: 3px solid #a78bfa;
 }
 
 .quote-preview-header {
@@ -1518,14 +1519,14 @@ img:not(.avatar-img) {
 .repost-indicator {
     display: flex;
     align-items: center;
-    color: #888;
+    color: #a78bfa;
     font-size: 12px;
     margin-bottom: 8px;
     padding-left: 4px;
 }
 
 .repost-indicator svg {
-    opacity: 0.7;
+    opacity: 1;
 }
 
 .repost {
@@ -1955,4 +1956,235 @@ pre, code {
 .claude-credit:hover {
     color: #f470a0;
     text-decoration: underline;
+}
+
+/* Zap Modal Styles */
+.zap-recipient {
+    margin-bottom: 12px;
+    padding: 12px;
+    background: rgba(45, 27, 105, 0.3);
+    border-radius: 8px;
+    border-left: 3px solid #a78bfa;
+}
+
+.recipient-info {
+    text-align: center;
+}
+
+#zap-recipient-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #ea6390;
+    margin-bottom: 5px;
+}
+
+#zap-recipient-npub {
+    font-size: 12px;
+    color: #a78bfa;
+    font-family: monospace;
+}
+
+.zap-amount-section {
+    margin-bottom: 12px;
+}
+
+.zap-amount-section label {
+    display: block;
+    color: #a78bfa;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+#zap-amount {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #5b21b6;
+    border-radius: 6px;
+    background: #2d1b69;
+    color: #fff;
+    font-size: 16px;
+    text-align: center;
+}
+
+#zap-amount:focus {
+    outline: none;
+    border-color: #ea6390;
+}
+
+.zap-comment-section {
+    margin-bottom: 15px;
+}
+
+.zap-comment-section label {
+    display: block;
+    color: #a78bfa;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+#zap-comment {
+    width: 100%;
+    padding: 8px;
+    border: 2px solid #5b21b6;
+    border-radius: 6px;
+    background: #2d1b69;
+    color: #fff;
+    font-size: 14px;
+    height: 36px;
+}
+
+#zap-comment:focus {
+    outline: none;
+    border-color: #ea6390;
+}
+
+.zap-actions {
+    margin-bottom: 15px;
+}
+
+#send-zap-btn {
+    width: 100%;
+}
+
+#zap-invoice-display {
+    padding: 15px;
+    background: rgba(26, 11, 61, 0.5);
+    border-radius: 8px;
+    border: 1px solid #5b21b6;
+}
+
+#zap-invoice-display h3 {
+    color: #ea6390;
+    margin-bottom: 15px;
+    font-size: 16px;
+    text-align: center;
+}
+
+#zap-qr-code {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+#zap-qr-code canvas {
+    border-radius: 8px;
+    background: white;
+    padding: 10px;
+}
+
+#zap-invoice-text {
+    background: #1a0b3d;
+    border: 1px solid #5b21b6;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 10px;
+    font-family: monospace;
+    font-size: 12px;
+    word-break: break-all;
+    color: #a78bfa;
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+.zap-qr-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+#zap-qr-code {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+#copy-zap-invoice {
+    width: auto;
+    min-width: 120px;
+}
+
+.zap-invoice-section {
+    text-align: center;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: #a78bfa;
+    text-decoration: underline;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 5px 0;
+}
+
+.btn-link:hover {
+    color: #ea6390;
+}
+
+.btn-link-small {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    text-decoration: underline;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 3px 0;
+    opacity: 0.7;
+}
+
+.btn-link-small:hover {
+    color: #a78bfa;
+    opacity: 1;
+}
+
+#zap-invoice-text {
+    background: #1a0b3d;
+    border: 1px solid #5b21b6;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 10px;
+    font-family: monospace;
+    font-size: 11px;
+    word-break: break-all;
+    color: #a78bfa;
+    max-height: 80px;
+    overflow-y: auto;
+}
+
+/* Zap Success Message Styles */
+.zap-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    text-align: center;
+}
+
+.success-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+}
+
+.success-message h3 {
+    color: #10b981;
+    font-size: 18px;
+    margin: 0 0 8px 0;
+    font-weight: 600;
+}
+
+.success-message p {
+    color: #a78bfa;
+    font-size: 14px;
+    margin: 0 0 20px 0;
+}
+
+#close-success-btn {
+    min-width: 100px;
+}
+
+/* Zap Count Display */
+.zap-count {
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 4px;
+    color: inherit;
 }
