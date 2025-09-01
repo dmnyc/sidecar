@@ -1414,6 +1414,125 @@ img:not(.avatar-img) {
     padding: 20px;
 }
 
+/* Repost Modal Styles */
+.repost-context {
+    background: rgba(45, 27, 105, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+    border-left: 3px solid #ea6390;
+}
+
+.repost-options {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.repost-options button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.quote-compose-section {
+    margin-top: 16px;
+}
+
+.quote-compose-section textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    border: 1px solid #2d1b69;
+    border-radius: 8px;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+    background: #0d0221;
+    color: #e8d5f0;
+    margin-bottom: 8px;
+}
+
+.quote-compose-section textarea:focus {
+    outline: none;
+    border-color: #ea6390;
+    box-shadow: 0 0 0 2px rgba(234, 99, 144, 0.2);
+}
+
+.quote-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Quote Preview Styles */
+.quote-preview {
+    background: rgba(45, 27, 105, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 12px 0;
+    border-left: 3px solid #ea6390;
+}
+
+.quote-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #888;
+}
+
+.remove-quote-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.remove-quote-btn:hover {
+    color: #ea6390;
+}
+
+.quote-preview-content .note-author {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.quote-preview-text {
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+/* Repost Indicator Styles */
+.repost-indicator {
+    display: flex;
+    align-items: center;
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
+.repost-indicator svg {
+    opacity: 0.7;
+}
+
+.repost {
+    border-left: 3px solid #a78bfa;
+    padding-left: 8px;
+}
+
 /* Auth Forms */
 .auth-form {
     display: flex;
