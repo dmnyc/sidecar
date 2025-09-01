@@ -162,6 +162,42 @@
         </div>
     </div>
 
+    <!-- Repost Modal -->
+    <div id="repost-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Repost Note</h2>
+                <button id="close-repost-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="repost-note" class="repost-context"></div>
+                <div class="repost-options">
+                    <button id="simple-repost-btn" class="btn btn-primary">
+                        <svg width="16" height="18" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
+                            <path d="M16.0352 8.11791C16.8237 8.11808 17.4883 8.70721 17.582 9.48998V11.4831C17.582 14.8189 14.8533 17.5476 11.5176 17.5476H5.99316V19.5603C5.99316 19.7272 5.9061 19.8709 5.75879 19.948C5.6104 20.0251 5.44428 20.0153 5.30664 19.9206L0.189453 16.3884C0.0676321 16.3046 0.000140374 16.1772 0 16.029C0 15.8807 0.0674907 15.7526 0.189453 15.6687L5.30664 12.1365C5.44428 12.0418 5.61139 12.032 5.75879 12.1091C5.90611 12.1872 5.99316 12.3299 5.99316 12.4968V14.4519H11.5176C13.1449 14.4519 14.4873 13.1095 14.4873 11.4822V9.48998C14.581 8.70709 15.2464 8.11791 16.0352 8.11791ZM11.8242 0.0515075C11.9726 -0.02561 12.1387 -0.0158394 12.2764 0.0788513L17.3936 3.6101C17.5156 3.69403 17.583 3.82211 17.583 3.97045C17.583 4.11883 17.5156 4.24685 17.3936 4.3308L12.2764 7.86303C12.1388 7.95759 11.9715 7.96744 11.8242 7.89037C11.6769 7.81232 11.5899 7.66949 11.5898 7.50268V5.5476H6.06543C4.43821 5.5476 3.0959 6.88922 3.0957 8.51635V10.5095C3.00183 11.2922 2.33647 11.8816 1.54785 11.8816C0.759382 11.8814 0.094857 11.2921 0.000976562 10.5095V8.51635C0.00115355 5.1808 2.72984 2.45287 6.06543 2.45287L11.5898 2.4519V0.438226C11.59 0.271594 11.6771 0.128595 11.8242 0.0515075Z" fill="currentColor"/>
+                        </svg>
+                        Repost
+                    </button>
+                    <button id="quote-repost-btn" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
+                            <path d="M16.4657 7.87988C16.5129 7.78563 16.937 6.46617 18.6805 4.95822C19.5759 4.20424 18.9162 2.79054 17.7852 3.02616C14.2981 3.78013 10.2454 6.04206 10.481 12.5451C10.481 15.1369 12.6959 17.1161 15.2877 17.1161C17.8794 17.1161 20 14.9955 20 12.4037C19.9529 10.2361 18.4921 8.39824 16.4657 7.87988Z" fill="currentColor"/>
+                            <path d="M5.9945 7.87988C6.04163 7.78563 6.46574 6.46617 8.20931 4.95822C9.10465 4.20424 8.44493 2.79054 7.31396 3.02616C3.82682 3.78013 -0.225805 6.04206 0.00981258 12.5451C0.00981258 15.1369 2.22462 17.1161 4.81641 17.1161C7.40821 17.1161 9.52877 14.9955 9.52877 12.4037C9.52877 10.2361 8.02081 8.39824 5.9945 7.87988Z" fill="currentColor"/>
+                        </svg>
+                        Quote
+                    </button>
+                </div>
+                <div id="quote-compose" class="quote-compose-section hidden">
+                    <textarea id="quote-text" placeholder="Add your thoughts..." maxlength="2100"></textarea>
+                    <div class="quote-actions">
+                        <span id="quote-char-count" class="char-count">2100</span>
+                        <button id="cancel-quote-btn" class="btn btn-secondary">Cancel</button>
+                        <button id="send-quote-btn" class="btn btn-primary" disabled>Post Quote</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="emoji-picker-modal" class="modal hidden">
         <div class="modal-content small">
             <div class="modal-header">

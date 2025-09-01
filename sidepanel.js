@@ -159,6 +159,14 @@ class SidecarApp {
     document.getElementById('send-reply-btn').addEventListener('click', () => this.sendReply());
     document.getElementById('reply-text').addEventListener('input', this.updateReplyCharCount.bind(this));
     
+    // Repost modal
+    document.getElementById('close-repost-modal').addEventListener('click', () => this.hideModal('repost-modal'));
+    document.getElementById('simple-repost-btn').addEventListener('click', () => this.sendSimpleRepost());
+    document.getElementById('quote-repost-btn').addEventListener('click', () => this.showQuoteCompose());
+    document.getElementById('cancel-quote-btn').addEventListener('click', () => this.hideQuoteCompose());
+    document.getElementById('send-quote-btn').addEventListener('click', () => this.sendQuotePost());
+    document.getElementById('quote-text').addEventListener('input', this.updateQuoteCharCount.bind(this));
+    
     // Emoji picker
     document.getElementById('custom-emoji-btn').addEventListener('click', () => this.useCustomEmoji());
     document.getElementById('custom-emoji-input').addEventListener('keypress', (e) => {
@@ -1484,10 +1492,149 @@ class SidecarApp {
       }
     }
   }
+
+  handleRepost(repostEvent) {
+    console.log('🔁 Handling repost from:', repostEvent.pubkey.substring(0, 16) + '...', 'Current feed:', this.currentFeedType);
+    
+    // Find the original note being reposted from the 'e' tag
+    const eTags = repostEvent.tags?.filter(tag => tag[0] === 'e') || [];
+    if (eTags.length === 0) {
+      console.log('🚫 Repost event has no e tags, skipping');
+      return;
+    }
+    
+    const originalNoteId = eTags[0][1];
+    console.log('🔁 Repost of note:', originalNoteId.substring(0, 16) + '...');
+    
+    // Check if we have the original note
+    const originalNote = this.notes.get(originalNoteId);
+    if (originalNote) {
+      // We have the original note, display it as a repost
+      this.displayRepost(repostEvent, originalNote);
+    } else {
+      // We don't have the original note yet, try to fetch it
+      console.log('🔄 Original note not found, attempting to fetch:', originalNoteId.substring(0, 16) + '...');
+      this.fetchOriginalNoteForRepost(repostEvent, originalNoteId);
+    }
+  }
+
+  async fetchOriginalNoteForRepost(repostEvent, originalNoteId) {
+    // Create subscription to fetch the specific original note
+    const subscription = ['REQ', `repost-${Date.now()}`, {
+      ids: [originalNoteId]
+    }];
+    
+    // Send to all connected relays
+    this.relayConnections.forEach((ws, relay) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+        console.log(`📤 Fetching original note for repost from: ${relay}`);
+      }
+    });
+    
+    // Store the repost event temporarily
+    if (!this.pendingReposts) {
+      this.pendingReposts = new Map();
+    }
+    this.pendingReposts.set(originalNoteId, repostEvent);
+  }
+
+  displayRepost(repostEvent, originalNote) {
+    
+    // FILTER OUT MUTED USERS - Check if the reposter is muted
+    if (this.userMutes.has(repostEvent.pubkey)) {
+      console.log('🔇 Filtering out repost from muted user:', repostEvent.pubkey.substring(0, 16) + '...');
+      return;
+    }
+    
+    // Apply feed-specific filtering for reposts
+    if (this.currentFeedType === 'following') {
+      if (!this.userFollows.has(repostEvent.pubkey)) {
+        console.log('🚫 Filtering out repost from unfollowed user in following feed:', repostEvent.pubkey.substring(0, 16) + '...');
+        return;
+      }
+    } else if (this.currentFeedType === 'me') {
+      if (repostEvent.pubkey !== this.currentUser?.publicKey) {
+        console.log('🚫 Me feed: Filtering out repost from different user:', repostEvent.pubkey.substring(0, 16) + '...');
+        return;
+      }
+    }
+    
+    // Check if we already displayed this repost
+    const repostId = `repost-${repostEvent.id}`;
+    if (document.querySelector(`[data-event-id="${repostId}"]`)) {
+      console.log('📋 Repost already displayed, skipping:', repostEvent.id.substring(0, 16) + '...');
+      return;
+    }
+    
+    // Create repost display
+    const repostDiv = this.createRepostElement(repostEvent, originalNote);
+    
+    // Insert into feed in chronological order
+    const feed = document.getElementById('feed');
+    const existingNotes = Array.from(feed.children);
+    let inserted = false;
+    
+    for (const existingNote of existingNotes) {
+      const existingTimestamp = parseInt(existingNote.dataset.timestamp);
+      if (repostEvent.created_at > existingTimestamp) {
+        feed.insertBefore(repostDiv, existingNote);
+        inserted = true;
+        break;
+      }
+    }
+    
+    if (!inserted) {
+      feed.appendChild(repostDiv);
+    }
+  }
+
+  handleReaction(reactionEvent) {
+    // Only show reactions from the current user
+    if (!this.currentUser || reactionEvent.pubkey !== this.currentUser.publicKey) {
+      return;
+    }
+    
+    // Find the note being reacted to from the 'e' tag
+    const eTags = reactionEvent.tags?.filter(tag => tag[0] === 'e') || [];
+    if (eTags.length === 0) {
+      console.log('🚫 Reaction event has no e tags, skipping');
+      return;
+    }
+    
+    const targetNoteId = eTags[0][1];
+    
+    // Find all note elements that display this note (could be original note or reposts)
+    const noteElements = document.querySelectorAll(`[data-event-id="${targetNoteId}"], [data-original-event-id="${targetNoteId}"]`);
+    
+    if (noteElements.length === 0) {
+      return;
+    }
+    
+    // Update reaction display on all relevant elements
+    noteElements.forEach(noteElement => {
+      const reactionButton = noteElement.querySelector('.reaction-action');
+      if (reactionButton) {
+        // Show the reaction emoji
+        reactionButton.textContent = reactionEvent.content;
+        reactionButton.classList.add('reacted');
+      }
+    });
+  }
   
   handleNote(event) {
     // Handle different event kinds
-    if (event.kind === 1) {
+    if (event.kind === 6) {
+      // Repost events
+      console.log('📨 Received kind 6 repost event from:', event.pubkey.substring(0, 16) + '...', 'Current feed:', this.currentFeedType);
+      this.handleRepost(event);
+      return;
+    } else if (event.kind === 7) {
+      // Reaction events
+      console.log('😊 Received kind 7 reaction event from:', event.pubkey.substring(0, 16) + '...', 'Reaction:', event.content);
+      this.handleReaction(event);
+      return;
+    } else if (event.kind === 1) {
       // Text notes
       
       // FILTER OUT ALL REPLIES - Check for 'e' tags which indicate this is a reply
@@ -1586,6 +1733,14 @@ class SidecarApp {
       
       // Update any loading quoted note placeholders for this event
       this.updateQuotedNotePlaceholders(event);
+      
+      // Check if this event was requested for a pending repost
+      if (this.pendingReposts && this.pendingReposts.has(event.id)) {
+        const repostEvent = this.pendingReposts.get(event.id);
+        console.log('🔁 Found original note for pending repost:', event.id.substring(0, 16) + '...');
+        this.displayRepost(repostEvent, event);
+        this.pendingReposts.delete(event.id);
+      }
       
       // Track notes that actually get displayed during batched operations
       if (this.batchedLoadInProgress && this.batchNotesDisplayed !== undefined) {
@@ -1962,7 +2117,7 @@ class SidecarApp {
       // Historical notes subscription for this batch (last 24 hours to get recent notes)
       const dayAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
       const filter = {
-        kinds: [1],
+        kinds: [1, 6, 7],
         authors: batch,
         since: dayAgo, // Only get notes from the last 24 hours
         limit: 15 // Reduced from 40 to 15 to avoid overwhelming profile fetching
@@ -2066,7 +2221,7 @@ class SidecarApp {
       
       // Historical notes subscription for this batch (older notes)
       const filter = {
-        kinds: [1],
+        kinds: [1, 6, 7],
         authors: batch,
         until: untilTimestamp,
         limit: Math.max(5, Math.ceil(20 / batches.length)) // At least 5 per batch, distribute 20 total for better performance
@@ -2154,7 +2309,7 @@ class SidecarApp {
     try {
       // Create subscription for older notes from trending authors
       const filter = {
-        kinds: [1],
+        kinds: [1, 6, 7],
         authors: trendingAuthorsList.slice(0, 20), // Limit to top 20 authors to avoid huge queries
         until: oldestTimestamp - 1,
         limit: 30
@@ -2312,7 +2467,7 @@ class SidecarApp {
           const dayEnd = dayStart + 86400; // 24 hours later
           
           const filter = {
-            kinds: [1],
+            kinds: [1, 6, 7],
             authors: [this.currentUser.publicKey],
             since: dayStart,
             until: dayEnd,
@@ -2378,7 +2533,7 @@ class SidecarApp {
           }
         }, 2000);
         
-      }, 5000); // Give 5 seconds for notes to arrive
+      }, 3000); // Give 3 seconds for notes to arrive
       
     } catch (error) {
       console.error('❌ Error loading Me feed:', error);
@@ -2472,7 +2627,7 @@ class SidecarApp {
         const dayEnd = dayStart + 86400;
         
         const filter = {
-          kinds: [1],
+          kinds: [1, 6, 7],
           authors: [this.currentUser.publicKey],
           since: dayStart,
           until: dayEnd,
@@ -2690,7 +2845,7 @@ class SidecarApp {
       
       // Create subscription to fetch the actual note events
       const filter = {
-        kinds: [1],
+        kinds: [1, 6, 7],
         ids: trendingNoteIds
       };
       
@@ -3033,6 +3188,11 @@ class SidecarApp {
             </defs>
           </svg>
         </div>
+        <div class="note-action repost-action" data-event-id="${event.id}">
+          <svg width="16" height="18" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.0352 8.11791C16.8237 8.11808 17.4883 8.70721 17.582 9.48998V11.4831C17.582 14.8189 14.8533 17.5476 11.5176 17.5476H5.99316V19.5603C5.99316 19.7272 5.9061 19.8709 5.75879 19.948C5.6104 20.0251 5.44428 20.0153 5.30664 19.9206L0.189453 16.3884C0.0676321 16.3046 0.000140374 16.1772 0 16.029C0 15.8807 0.0674907 15.7526 0.189453 15.6687L5.30664 12.1365C5.44428 12.0418 5.61139 12.032 5.75879 12.1091C5.90611 12.1872 5.99316 12.3299 5.99316 12.4968V14.4519H11.5176C13.1449 14.4519 14.4873 13.1095 14.4873 11.4822V9.48998C14.581 8.70709 15.2464 8.11791 16.0352 8.11791ZM11.8242 0.0515075C11.9726 -0.02561 12.1387 -0.0158394 12.2764 0.0788513L17.3936 3.6101C17.5156 3.69403 17.583 3.82211 17.583 3.97045C17.583 4.11883 17.5156 4.24685 17.3936 4.3308L12.2764 7.86303C12.1388 7.95759 11.9715 7.96744 11.8242 7.89037C11.6769 7.81232 11.5899 7.66949 11.5898 7.50268V5.5476H6.06543C4.43821 5.5476 3.0959 6.88922 3.0957 8.51635V10.5095C3.00183 11.2922 2.33647 11.8816 1.54785 11.8816C0.759382 11.8814 0.094857 11.2921 0.000976562 10.5095V8.51635C0.00115355 5.1808 2.72984 2.45287 6.06543 2.45287L11.5898 2.4519V0.438226C11.59 0.271594 11.6771 0.128595 11.8242 0.0515075Z" fill="currentColor"/>
+          </svg>
+        </div>
         <div class="note-action reaction-action" data-event-id="${event.id}">
           <svg width="18" height="16" viewBox="0 0 23 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M9.18607 11.8832C9.51685 11.8832 9.79674 11.7814 10.0766 11.6033L13.1809 9.49142C13.9187 8.98253 14.1223 7.96475 13.6134 7.25231C13.1045 6.51442 12.0867 6.31086 11.3743 6.81975L8.29552 8.9062C7.55763 9.41509 7.35407 10.4329 7.86296 11.1453C8.16829 11.6288 8.67718 11.8832 9.18607 11.8832Z" fill="currentColor"/>
@@ -3047,6 +3207,7 @@ class SidecarApp {
     // Add event listeners
     this.setupReactionButton(noteDiv.querySelector('.reaction-action'), event);
     this.setupReplyButton(noteDiv.querySelector('.reply-action'), event);
+    this.setupRepostButton(noteDiv.querySelector('.repost-action'), event);
     this.setupNoteMenu(noteDiv.querySelector('.note-menu'), event);
     this.setupClickableLinks(noteDiv, event);
     
@@ -3054,6 +3215,101 @@ class SidecarApp {
     this.setupNoteContentClick(noteDiv, event);
     
     return noteDiv;
+  }
+
+  createRepostElement(repostEvent, originalNote) {
+    const repostDiv = document.createElement('div');
+    repostDiv.className = 'note repost';
+    repostDiv.dataset.eventId = `repost-${repostEvent.id}`;
+    repostDiv.dataset.originalEventId = originalNote.id;
+    repostDiv.dataset.timestamp = repostEvent.created_at;
+
+    // Get reposter info
+    const reposterProfile = this.profiles.get(repostEvent.pubkey);
+    const reposterName = reposterProfile?.display_name || reposterProfile?.name || this.getAuthorName(repostEvent.pubkey);
+    
+    // Get original note info
+    const originalProfile = this.profiles.get(originalNote.pubkey);
+    const originalAuthorName = originalProfile?.display_name || originalProfile?.name || this.getAuthorName(originalNote.pubkey);
+    const repostTimeAgo = this.formatTimeAgo(repostEvent.created_at);
+    const originalAvatarUrl = originalProfile?.picture;
+    const originalAuthorId = this.formatProfileIdentifier(originalProfile?.nip05, originalNote.pubkey);
+
+    // Process original note content
+    const formattedContent = this.formatNoteContent(originalNote.content);
+
+    // Create repost HTML with repost indicator
+    repostDiv.innerHTML = `
+      <div class="repost-indicator">
+        <svg width="14" height="16" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 6px;">
+          <path d="M16.0352 8.11791C16.8237 8.11808 17.4883 8.70721 17.582 9.48998V11.4831C17.582 14.8189 14.8533 17.5476 11.5176 17.5476H5.99316V19.5603C5.99316 19.7272 5.9061 19.8709 5.75879 19.948C5.6104 20.0251 5.44428 20.0153 5.30664 19.9206L0.189453 16.3884C0.0676321 16.3046 0.000140374 16.1772 0 16.029C0 15.8807 0.0674907 15.7526 0.189453 15.6687L5.30664 12.1365C5.44428 12.0418 5.61139 12.032 5.75879 12.1091C5.90611 12.1872 5.99316 12.3299 5.99316 12.4968V14.4519H11.5176C13.1449 14.4519 14.4873 13.1095 14.4873 11.4822V9.48998C14.581 8.70709 15.2464 8.11791 16.0352 8.11791ZM11.8242 0.0515075C11.9726 -0.02561 12.1387 -0.0158394 12.2764 0.0788513L17.3936 3.6101C17.5156 3.69403 17.583 3.82211 17.583 3.97045C17.583 4.11883 17.5156 4.24685 17.3936 4.3308L12.2764 7.86303C12.1388 7.95759 11.9715 7.96744 11.8242 7.89037C11.6769 7.81232 11.5899 7.66949 11.5898 7.50268V5.5476H6.06543C4.43821 5.5476 3.0959 6.88922 3.0957 8.51635V10.5095C3.00183 11.2922 2.33647 11.8816 1.54785 11.8816C0.759382 11.8814 0.094857 11.2921 0.000976562 10.5095V8.51635C0.00115355 5.1808 2.72984 2.45287 6.06543 2.45287L11.5898 2.4519V0.438226C11.59 0.271594 11.6771 0.128595 11.8242 0.0515075Z" fill="currentColor"/>
+        </svg>
+        <span>${reposterName} reposted</span>
+      </div>
+      <div class="note-header">
+        <div class="note-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(originalNote.pubkey)}">
+          ${originalAvatarUrl ? 
+            `<img src="${originalAvatarUrl}" alt="" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(originalAuthorName)}</div>` :
+            `<div class="avatar-placeholder">${this.getAvatarPlaceholder(originalAuthorName)}</div>`
+          }
+        </div>
+        <div class="note-info">
+          <span class="note-author" data-profile-link="${window.NostrTools.nip19.npubEncode(originalNote.pubkey)}">${originalAuthorName}</span>
+          <span class="note-npub" ${originalProfile?.nip05 ? 'data-nip05="true"' : ''}>${originalAuthorId}</span>
+        </div>
+        <span class="note-time" data-note-link="${repostEvent.id}">${repostTimeAgo}</span>
+        <div class="note-menu">
+          <button class="menu-btn" data-event-id="${originalNote.id}">⋯</button>
+          <div class="menu-dropdown" data-event-id="${originalNote.id}">
+            <div class="menu-item" data-action="open-note">Open Note</div>
+            <div class="menu-item" data-action="copy-note-id">Copy Note ID</div>
+            <div class="menu-item" data-action="copy-note-text">Copy Note Text</div>
+            <div class="menu-item" data-action="copy-raw-data">Copy Raw Data</div>
+            <div class="menu-item" data-action="copy-pubkey">Copy Public Key</div>
+            <div class="menu-item" data-action="view-user-profile">View User Profile</div>
+          </div>
+        </div>
+      </div>
+      <div class="note-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, originalNote.id, originalNote.pubkey) : ''}${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}</div>
+      <div class="note-actions">
+        <div class="note-action reply-action" data-event-id="${originalNote.id}">
+          <svg width="16" height="15" viewBox="0 0 20 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g clip-path="url(#clip0_21_172)">
+              <path d="M18.8398 1.17375C18.1031 0.430985 17.081 0 16.0405 0H3.95948C2.90055 0 1.90608 0.412645 1.16022 1.17375C0.414365 1.92568 0 2.93436 0 3.99807V16.2215C0 16.7717 0.156538 17.3036 0.460405 17.7621C0.764273 18.2206 1.18785 18.5782 1.69429 18.7891C2.02578 18.9266 2.3849 19 2.74401 19C2.92818 19 3.10313 18.9817 3.27808 18.945C3.81215 18.8349 4.30018 18.5782 4.68692 18.1839L6.29834 16.5516H16.0405C17.081 16.5516 18.1031 16.1207 18.8398 15.3779C19.5856 14.626 20 13.6173 20 12.5536V3.99807C20 2.93436 19.5856 1.92568 18.8398 1.17375ZM3.07551 3.99807C3.07551 3.75965 3.16759 3.53041 3.33333 3.36535C3.49908 3.20029 3.72007 3.10859 3.95028 3.10859H16.0313C16.2615 3.10859 16.4825 3.20029 16.6483 3.36535C16.814 3.53041 16.9061 3.75965 16.9061 3.99807V12.5536C16.9061 12.792 16.814 13.0212 16.6483 13.1863C16.4825 13.3514 16.2615 13.4431 16.0313 13.4431H5.24862C5.1105 13.4431 4.97238 13.4981 4.87109 13.5989L3.08471 15.4054V3.99807H3.07551Z" fill="currentColor"/>
+            </g>
+            <defs>
+              <clipPath id="clip0_21_172">
+                <rect width="20" height="19" fill="white"/>
+              </clipPath>
+            </defs>
+          </svg>
+        </div>
+        <div class="note-action repost-action" data-event-id="${originalNote.id}">
+          <svg width="16" height="18" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.0352 8.11791C16.8237 8.11808 17.4883 8.70721 17.582 9.48998V11.4831C17.582 14.8189 14.8533 17.5476 11.5176 17.5476H5.99316V19.5603C5.99316 19.7272 5.9061 19.8709 5.75879 19.948C5.6104 20.0251 5.44428 20.0153 5.30664 19.9206L0.189453 16.3884C0.0676321 16.3046 0.000140374 16.1772 0 16.029C0 15.8807 0.0674907 15.7526 0.189453 15.6687L5.30664 12.1365C5.44428 12.0418 5.61139 12.032 5.75879 12.1091C5.90611 12.1872 5.99316 12.3299 5.99316 12.4968V14.4519H11.5176C13.1449 14.4519 14.4873 13.1095 14.4873 11.4822V9.48998C14.581 8.70709 15.2464 8.11791 16.0352 8.11791ZM11.8242 0.0515075C11.9726 -0.02561 12.1387 -0.0158394 12.2764 0.0788513L17.3936 3.6101C17.5156 3.69403 17.583 3.82211 17.583 3.97045C17.583 4.11883 17.5156 4.24685 17.3936 4.3308L12.2764 7.86303C12.1388 7.95759 11.9715 7.96744 11.8242 7.89037C11.6769 7.81232 11.5899 7.66949 11.5898 7.50268V5.5476H6.06543C4.43821 5.5476 3.0959 6.88922 3.0957 8.51635V10.5095C3.00183 11.2922 2.33647 11.8816 1.54785 11.8816C0.759382 11.8814 0.094857 11.2921 0.000976562 10.5095V8.51635C0.00115355 5.1808 2.72984 2.45287 6.06543 2.45287L11.5898 2.4519V0.438226C11.59 0.271594 11.6771 0.128595 11.8242 0.0515075Z" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="note-action reaction-action" data-event-id="${originalNote.id}">
+          <svg width="18" height="16" viewBox="0 0 23 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9.18607 11.8832C9.51685 11.8832 9.79674 11.7814 10.0766 11.6033L13.1809 9.49142C13.9187 8.98253 14.1223 7.96475 13.6134 7.25231C13.1045 6.51442 12.0867 6.31086 11.3743 6.81975L8.29552 8.9062C7.55763 9.41509 7.35407 10.4329 7.86296 11.1453C8.16829 11.6288 8.67718 11.8832 9.18607 11.8832Z" fill="currentColor"/>
+            <path d="M6.61619 9.28787C6.94697 9.28787 7.22686 9.18609 7.53219 9.00798L10.5855 6.92153C11.3234 6.41264 11.5015 5.39486 11.0181 4.68241C10.5092 3.94452 9.49142 3.76641 8.77897 4.24986L5.72563 6.33631C4.98774 6.84519 4.80963 7.86298 5.29308 8.57542C5.59841 9.03342 6.08186 9.28787 6.61619 9.28787Z" fill="currentColor"/>
+            <path d="M11.756 14.4531C12.0868 14.4531 12.3666 14.3513 12.6465 14.1732L15.7253 12.0868C16.4632 11.5779 16.6668 10.5601 16.1579 9.84765C15.649 9.10976 14.6312 8.9062 13.9188 9.41509L10.84 11.4761C10.1021 11.985 9.89853 13.0028 10.4074 13.7152C10.7382 14.1987 11.2471 14.4531 11.756 14.4531Z" fill="currentColor"/>
+            <path d="M8.42276 20C10.3311 20 12.2903 19.3639 13.8679 18.0917C14.4531 17.6082 15.191 17.1248 16.107 16.5395L22.1119 12.7992C22.8752 12.3158 23.1042 11.3234 22.6462 10.5601C22.1882 9.79676 21.1705 9.56776 20.4071 10.0258L14.4022 13.7661C13.3844 14.3768 12.5448 14.962 11.8069 15.5218C9.74588 17.1757 6.81976 17.1502 4.93687 15.42C3.53742 14.1223 3.00309 12.1377 3.51198 10.3056C4.50431 6.6162 4.37709 3.76641 3.07942 0.942077C2.69775 0.127853 1.73086 -0.228369 0.942084 0.153298C0.127861 0.534965 -0.228362 1.50186 0.153305 2.29063C1.1202 4.37708 1.17108 6.48898 0.40775 9.41509C-0.431918 12.4175 0.45864 15.6235 2.74864 17.7609C4.35165 19.2367 6.36176 20 8.42276 20Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+    `;
+
+    // Set up event listeners for the repost (using original note ID for actions)
+    this.setupReactionButton(repostDiv.querySelector('.reaction-action'), originalNote);
+    this.setupReplyButton(repostDiv.querySelector('.reply-action'), originalNote);
+    this.setupRepostButton(repostDiv.querySelector('.repost-action'), originalNote);
+    this.setupNoteMenu(repostDiv.querySelector('.note-menu'), originalNote);
+    this.setupClickableLinks(repostDiv, originalNote);
+    console.log('🔗 Setting up click-to-open for repost of note:', originalNote.id.substring(0, 16) + '...');
+    this.setupNoteContentClick(repostDiv, originalNote);
+
+    return repostDiv;
   }
   
   setupReplyButton(button, event) {
@@ -3063,6 +3319,19 @@ class SidecarApp {
       e.stopPropagation();
       console.log('💬 Reply button clicked for note:', event.id.substring(0, 16) + '...');
       this.showReplyModal(event);
+    });
+  }
+
+  setupRepostButton(button, event) {
+    if (!button) {
+      console.log('❌ Repost button not found for note:', event.id.substring(0, 16) + '...');
+      return;
+    }
+    
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      console.log('🔁 Repost button clicked for note:', event.id.substring(0, 16) + '...');
+      this.showRepostModal(event);
     });
   }
 
@@ -3148,6 +3417,210 @@ class SidecarApp {
     } catch (error) {
       console.error('❌ Failed to send reply:', error);
       alert('Failed to send reply. Please try again.');
+    }
+  }
+
+  showRepostModal(event) {
+    console.log('🔁 showRepostModal called for note:', event.id.substring(0, 16) + '...');
+    
+    if (!this.currentUser) {
+      alert('Please sign in to repost notes');
+      return;
+    }
+
+    console.log('🔁 Opening repost modal for note:', event.id.substring(0, 16) + '...');
+
+    // Store the event we're reposting
+    this.repostingEvent = event;
+
+    // Show note context in modal
+    const profile = this.profiles.get(event.pubkey);
+    const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
+    const timeAgo = this.formatTimeAgo(event.created_at);
+    
+    document.getElementById('repost-note').innerHTML = `
+      <div class="note-author">${authorName} • ${timeAgo}</div>
+      <div class="reply-content">${event.content.length > 200 ? event.content.substring(0, 200) + '...' : event.content}</div>
+    `;
+
+    // Reset modal state
+    this.hideQuoteCompose();
+    
+    // Show the repost modal
+    document.getElementById('repost-modal').classList.remove('hidden');
+  }
+
+  async sendSimpleRepost() {
+    if (!this.currentUser || !this.repostingEvent) return;
+
+    console.log('🔁 Sending simple repost for note:', this.repostingEvent.id.substring(0, 16) + '...');
+
+    const event = {
+      kind: 6, // Repost event kind
+      content: '',
+      tags: [
+        ['e', this.repostingEvent.id],
+        ['p', this.repostingEvent.pubkey],
+        ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io']
+      ],
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    try {
+      const signedEvent = await this.signEvent(event);
+      await this.publishEvent(signedEvent);
+      
+      console.log('✅ Simple repost published successfully');
+      
+      // Immediately handle the repost locally to display it
+      this.handleRepost(signedEvent);
+      
+      this.hideModal('repost-modal');
+      this.showNotePostedNotification();
+      
+    } catch (error) {
+      console.error('❌ Failed to send repost:', error);
+      alert('Failed to repost. Please try again.');
+    }
+  }
+
+  showQuoteCompose() {
+    // Hide the repost modal and show the regular compose section
+    this.hideModal('repost-modal');
+    
+    // Show the regular compose section
+    this.showComposeSection();
+    
+    // Add the quoted note preview below the compose area
+    this.addQuotePreview();
+    
+    // Focus on the compose text area
+    document.getElementById('compose-text').focus();
+  }
+
+  addQuotePreview() {
+    if (!this.repostingEvent) return;
+
+    // Get or create the quote preview container
+    let quotePreview = document.getElementById('quote-preview');
+    if (!quotePreview) {
+      quotePreview = document.createElement('div');
+      quotePreview.id = 'quote-preview';
+      quotePreview.className = 'quote-preview';
+      
+      // Insert after the compose textarea
+      const composeSection = document.getElementById('compose-section');
+      const composeActions = composeSection.querySelector('.compose-actions');
+      composeSection.insertBefore(quotePreview, composeActions);
+    }
+
+    // Show quote preview with the note content
+    const event = this.repostingEvent;
+    const profile = this.profiles.get(event.pubkey);
+    const authorName = profile?.display_name || profile?.name || this.getAuthorName(event.pubkey);
+    const timeAgo = this.formatTimeAgo(event.created_at);
+    
+    quotePreview.innerHTML = `
+      <div class="quote-preview-header">
+        <span>Quoting:</span>
+        <button id="remove-quote-btn" class="remove-quote-btn">×</button>
+      </div>
+      <div class="quote-preview-content">
+        <div class="note-author">${authorName} • ${timeAgo}</div>
+        <div class="quote-preview-text">${event.content.length > 200 ? event.content.substring(0, 200) + '...' : event.content}</div>
+      </div>
+    `;
+
+    // Add remove quote functionality
+    document.getElementById('remove-quote-btn').addEventListener('click', () => {
+      this.removeQuotePreview();
+    });
+
+    // Mark that we're in quote mode
+    this.isQuoting = true;
+    
+    // Update the post button text
+    const postBtn = document.getElementById('post-btn');
+    postBtn.textContent = 'Quote Post';
+  }
+
+  removeQuotePreview() {
+    const quotePreview = document.getElementById('quote-preview');
+    if (quotePreview) {
+      quotePreview.remove();
+    }
+    
+    this.isQuoting = false;
+    this.repostingEvent = null;
+    
+    // Restore the post button text
+    const postBtn = document.getElementById('post-btn');
+    postBtn.textContent = 'Post';
+  }
+
+  hideQuoteCompose() {
+    document.getElementById('quote-compose').classList.add('hidden');
+    document.getElementById('quote-text').value = '';
+    this.updateQuoteCharCount();
+  }
+
+  updateQuoteCharCount() {
+    const quoteText = document.getElementById('quote-text');
+    const charCount = document.getElementById('quote-char-count');
+    const sendBtn = document.getElementById('send-quote-btn');
+    
+    const remaining = 2100 - quoteText.value.length;
+    charCount.textContent = remaining;
+    
+    if (remaining < 0) {
+      charCount.style.color = '#ff4444';
+    } else if (remaining < 100) {
+      charCount.style.color = '#ffaa44';
+    } else {
+      charCount.style.color = '#888';
+    }
+    
+    sendBtn.disabled = remaining < 0 || quoteText.value.trim().length === 0;
+  }
+
+  async sendQuotePost() {
+    if (!this.currentUser || !this.repostingEvent) return;
+    
+    const quoteText = document.getElementById('quote-text').value.trim();
+    if (!quoteText) return;
+
+    console.log('🔁 Sending quote post:', quoteText.substring(0, 50) + '...');
+    console.log('🔁 Quoting note:', this.repostingEvent.id.substring(0, 16) + '...');
+
+    // Create quote post with the original note ID at the end
+    const noteId = window.NostrTools.nip19.noteEncode(this.repostingEvent.id);
+    const content = `${quoteText}\n\nnostr:${noteId}`;
+
+    const event = {
+      kind: 1,
+      content: content,
+      tags: [
+        ['e', this.repostingEvent.id, '', 'mention'],
+        ['p', this.repostingEvent.pubkey],
+        ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io']
+      ],
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    try {
+      const signedEvent = await this.signEvent(event);
+      await this.publishEvent(signedEvent);
+      
+      console.log('✅ Quote post published successfully');
+      this.hideModal('repost-modal');
+      this.showNotePostedNotification();
+      
+      // Add to feed
+      this.handleNote(signedEvent);
+      
+    } catch (error) {
+      console.error('❌ Failed to send quote post:', error);
+      alert('Failed to send quote post. Please try again.');
     }
   }
 
@@ -4014,6 +4487,21 @@ class SidecarApp {
     const content = document.getElementById('compose-text').value.trim();
     if (!content) return;
 
+    // Check if this is a quote post
+    if (this.isQuoting && this.repostingEvent) {
+      // Handle as quote post
+      this.publishQuotePost(content);
+    } else {
+      // Handle as regular post
+      this.showPublishingCountdown(content);
+    }
+  }
+
+  async publishQuotePost(userContent) {
+    // Create quote post with the original note ID at the end
+    const noteId = window.NostrTools.nip19.noteEncode(this.repostingEvent.id);
+    const content = `${userContent}\n\nnostr:${noteId}`;
+
     // Show publishing state with countdown
     this.showPublishingCountdown(content);
   }
@@ -4205,6 +4693,9 @@ class SidecarApp {
     // Clear compose text - only used after successful posting
     document.getElementById('compose-text').value = '';
     this.updateCharCount();
+    
+    // Remove quote preview if present
+    this.removeQuotePreview();
   }
   
   async loadUserProfile() {
@@ -4722,6 +5213,9 @@ class SidecarApp {
       
       // Track that user has reacted to this event
       this.userReactions.add(event.id);
+      
+      // Immediately handle the reaction locally to show it
+      this.handleReaction(signedEvent);
       
       // Update the UI
       this.updateReactionButton(event, emoji);
