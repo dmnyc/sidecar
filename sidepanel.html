@@ -273,6 +273,49 @@
         </div>
     </div>
 
+    <!-- Zap Modal -->
+    <div id="zap-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚡ Send Zap</h2>
+                <button class="close-btn" id="close-zap-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="zap-recipient">
+                    <div class="recipient-info">
+                        <div id="zap-recipient-name">Loading...</div>
+                        <div id="zap-recipient-npub"></div>
+                    </div>
+                </div>
+                
+                <div class="zap-amount-section">
+                    <label for="zap-amount">Amount (sats)</label>
+                    <input type="number" id="zap-amount" value="21" min="1" step="1">
+                </div>
+                
+                <div class="zap-comment-section">
+                    <label for="zap-comment">Comment (optional)</label>
+                    <input type="text" id="zap-comment" placeholder="Add a comment..." maxlength="250">
+                </div>
+                
+                <div class="zap-actions">
+                    <button id="send-zap-btn" class="btn btn-primary">Generate Invoice</button>
+                </div>
+                
+                <div id="zap-invoice-display" class="hidden">
+                    <div class="zap-qr-section">
+                        <div id="zap-qr-code"></div>
+                        <button id="copy-zap-invoice" class="btn btn-secondary">Copy Invoice</button>
+                    </div>
+                    <div class="zap-invoice-section">
+                        <button id="show-invoice-btn" class="btn-link-small">Show invoice details</button>
+                        <div id="zap-invoice-text" class="hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Profile Dropdown (positioned absolutely) -->
     <div class="user-dropdown" id="user-dropdown">
         <div class="dropdown-header">
@@ -284,6 +327,22 @@
         <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
     </div>
 
+    <script src="qrious.min.js"></script>
+    <script>
+        // Debug QRious library loading
+        window.addEventListener('load', function() {
+            console.log('🔧 Checking QRious library after window load...');
+            if (typeof QRious !== 'undefined') {
+                console.log('✅ QRious library loaded successfully');
+                if (QRious.VERSION) {
+                    console.log('📦 Version:', QRious.VERSION);
+                }
+            } else {
+                console.error('❌ QRious library failed to load');
+                console.log('Available globals:', Object.keys(window).filter(k => k.includes('QR')));
+            }
+        });
+    </script>
     <script src="nostr-tools.js"></script>
     <script src="sidepanel.js"></script>
 </body>
