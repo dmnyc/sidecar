@@ -151,7 +151,7 @@ class SidecarApp {
     // Compose
     document.getElementById('compose-text').addEventListener('input', this.updateCharCount);
     document.getElementById('post-btn').addEventListener('click', () => this.publishNote());
-    document.getElementById('cancel-compose-btn').addEventListener('click', () => this.hideComposeSection());
+    document.getElementById('cancel-compose-btn').addEventListener('click', () => this.handleCancelClick());
     
     // Reply modal
     document.getElementById('close-reply-modal').addEventListener('click', () => this.hideModal('reply-modal'));
@@ -4013,6 +4013,127 @@ class SidecarApp {
     
     const content = document.getElementById('compose-text').value.trim();
     if (!content) return;
+
+    // Show publishing state with countdown
+    this.showPublishingCountdown(content);
+  }
+
+  async showPublishingCountdown(content) {
+    const postBtn = document.getElementById('post-btn');
+    const cancelBtn = document.getElementById('cancel-compose-btn');
+    const composeText = document.getElementById('compose-text');
+    
+    // Set publishing state flag
+    this.isPublishingCountdown = true;
+    
+    // Disable text editing during countdown
+    composeText.disabled = true;
+    
+    // Store original button states
+    const originalPostText = postBtn.textContent;
+    const originalPostDisabled = postBtn.disabled;
+    
+    // Change cancel button to "Undo"
+    cancelBtn.textContent = 'Undo';
+    postBtn.disabled = true;
+    
+    let countdown = 5;
+    let countdownInterval;
+    
+    // Store the countdown interval so we can cancel it
+    this.currentCountdownInterval = countdownInterval;
+    
+    // Start countdown
+    const updateCountdown = () => {
+      postBtn.textContent = `Publishing in ${countdown}...`;
+      countdown--;
+      
+      if (countdown < 0) {
+        clearInterval(countdownInterval);
+        this.actuallyPublishNote(content, originalPostText, originalPostDisabled);
+      }
+    };
+    
+    updateCountdown(); // Show initial countdown
+    countdownInterval = setInterval(updateCountdown, 1000);
+    this.currentCountdownInterval = countdownInterval;
+  }
+
+  handleCancelClick() {
+    if (this.isPublishingCountdown) {
+      // This is the "Undo" action during countdown
+      this.cancelPublishing();
+    } else {
+      // This is the regular "Cancel" action - clear and close
+      this.hideComposeSection();
+    }
+  }
+
+  cancelPublishing() {
+    const postBtn = document.getElementById('post-btn');
+    const cancelBtn = document.getElementById('cancel-compose-btn');
+    const composeText = document.getElementById('compose-text');
+    
+    // Clear countdown interval
+    if (this.currentCountdownInterval) {
+      clearInterval(this.currentCountdownInterval);
+      this.currentCountdownInterval = null;
+    }
+    
+    // Clear publishing state
+    this.isPublishingCountdown = false;
+    
+    // Restore button states
+    postBtn.textContent = 'Post';
+    postBtn.disabled = composeText.value.trim().length === 0;
+    cancelBtn.textContent = 'Cancel';
+    
+    // Re-enable text editing - compose window stays open
+    composeText.disabled = false;
+    composeText.focus();
+    
+    console.log('📝 Post undone - compose window stays open for editing');
+  }
+
+  hideComposeSectionPreservingContent() {
+    const composeSection = document.getElementById('compose-section');
+    const floatingBtn = document.getElementById('floating-compose-btn');
+    
+    // Hide the compose section but don't clear the text
+    composeSection.classList.add('hidden');
+    if (this.currentUser) {
+      floatingBtn.classList.remove('hidden');
+    }
+    
+    console.log('📝 Compose section hidden - content preserved');
+  }
+
+  showNotePostedNotification() {
+    const notification = document.getElementById('note-posted-notification');
+    
+    // Show the notification
+    notification.classList.remove('hidden');
+    notification.classList.add('show');
+    
+    // Hide it after 3 seconds
+    setTimeout(() => {
+      notification.classList.remove('show');
+      
+      // Wait for fade out animation before hiding completely
+      setTimeout(() => {
+        notification.classList.add('hidden');
+      }, 300); // Match the CSS transition duration
+    }, 3000);
+  }
+
+  async actuallyPublishNote(content, originalPostText, originalPostDisabled) {
+    const postBtn = document.getElementById('post-btn');
+    const cancelBtn = document.getElementById('cancel-compose-btn');
+    const composeText = document.getElementById('compose-text');
+    
+    // Clear publishing state
+    this.isPublishingCountdown = false;
+    this.currentCountdownInterval = null;
     
     try {
       const event = {
@@ -4029,7 +4150,7 @@ class SidecarApp {
       await this.publishEvent(signedEvent);
       
       // Clear compose area
-      document.getElementById('compose-text').value = '';
+      composeText.value = '';
       this.updateCharCount();
       
       // Add to feed
@@ -4037,9 +4158,25 @@ class SidecarApp {
       
       // Hide compose section after posting
       this.hideComposeSection();
+      
+      // Show "Note posted" notification
+      this.showNotePostedNotification();
+      
+      console.log('📝 Post published successfully');
     } catch (error) {
       console.error('Publish error:', error);
       alert('Failed to publish note');
+      
+      // Restore UI state on error
+      postBtn.textContent = originalPostText;
+      postBtn.disabled = originalPostDisabled;
+      cancelBtn.textContent = 'Cancel';
+      composeText.disabled = false;
+      composeText.focus();
+      
+      // Restore original cancel handler  
+      cancelBtn.removeEventListener('click', this.cancelPublishing);
+      cancelBtn.addEventListener('click', () => this.hideComposeSectionPreservingContent());
     }
   }
   
@@ -4065,7 +4202,7 @@ class SidecarApp {
       floatingBtn.classList.remove('hidden');
     }
     
-    // Clear compose text
+    // Clear compose text - only used after successful posting
     document.getElementById('compose-text').value = '';
     this.updateCharCount();
   }

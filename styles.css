@@ -513,7 +513,7 @@ body {
 
 #compose-text {
     width: 100%;
-    min-height: 80px;
+    min-height: 120px;
     padding: 12px;
     border: 1px solid #2d1b69;
     border-radius: 8px;
@@ -1678,6 +1678,28 @@ pre, code {
 
 .text-center {
     text-align: center;
+}
+
+/* Note Posted Notification */
+.note-posted-notification {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #a78bfa;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    box-shadow: 0 2px 8px rgba(167, 139, 250, 0.3);
+}
+
+.note-posted-notification.show {
+    opacity: 1;
 }
 
 /* Floating Compose Button */
