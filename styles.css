@@ -2038,12 +2038,65 @@ pre, code {
     border-color: #ea6390;
 }
 
-.zap-actions {
-    margin-bottom: 15px;
+/* Wallet Connection Section */
+.wallet-connection-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid #a78bfa;
+    border-radius: 8px;
 }
 
-#send-zap-btn {
-    width: 100%;
+.wallet-status {
+    text-align: center;
+}
+
+.wallet-help {
+    color: #9ca3af;
+    font-size: 12px;
+    margin: 8px 0 0 0;
+    line-height: 1.4;
+}
+
+.wallet-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.wallet-icon {
+    color: #eab308;
+}
+
+#wallet-name {
+    color: #a78bfa;
+    font-weight: 500;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+}
+
+.btn-link:hover {
+    color: #ea6390;
+}
+
+.zap-actions {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+#send-zap-btn,
+#pay-with-wallet-btn {
+    flex: 1;
 }
 
 #zap-invoice-display {

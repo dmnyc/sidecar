@@ -1,6 +1,9 @@
 // Main sidepanel script for Sidecar Nostr extension
 console.log('🟢 SIDEPANEL.JS SCRIPT LOADED!');
 
+// Import bitcoin-connect for wallet connectivity
+import { init, requestProvider, launchModal } from 'https://esm.sh/@getalby/bitcoin-connect@^3.8.1';
+
 class SidecarApp {
   constructor() {
     console.log('🏗️ SIDECAR APP CONSTRUCTOR CALLED');
@@ -44,6 +47,13 @@ class SidecarApp {
     this.expectedBatches = 0; // Track expected number of batches for completion
     this.completedBatches = new Set(); // Track which batches have completed
     this.currentBatchSubIds = []; // Track current batch subscription IDs for cleanup
+    
+    // Wallet connection state
+    this.walletConnected = false;
+    this.walletProvider = null;
+    
+    // Initialize bitcoin-connect
+    this.initBitcoinConnect();
     
     // Memory management settings - balanced for good UX and performance
     this.maxNotes = 1000; // Maximum notes to keep in memory - increased for better scroll experience
@@ -214,6 +224,167 @@ class SidecarApp {
     
     // Logo click for version modal
     document.querySelector('.logo').addEventListener('click', () => this.showVersionModal());
+    
+    // Wallet connection event listeners
+    this.setupWalletEventListeners();
+  }
+  
+  async initBitcoinConnect() {
+    try {
+      console.log('🔌 Initializing bitcoin-connect...');
+      await init({
+        appName: 'Sidecar - Nostr Client'
+      });
+      console.log('✅ bitcoin-connect initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize bitcoin-connect:', error);
+    }
+  }
+  
+  setupWalletEventListeners() {
+    // Connect wallet button
+    document.getElementById('connect-wallet-btn').addEventListener('click', () => this.connectWallet());
+    
+    // Disconnect wallet button  
+    document.getElementById('disconnect-wallet-btn').addEventListener('click', () => this.disconnectWallet());
+    
+    // Pay with wallet button
+    document.getElementById('pay-with-wallet-btn').addEventListener('click', () => this.payWithWallet());
+  }
+  
+  async connectWallet() {
+    try {
+      console.log('🔌 Connecting to wallet...');
+      
+      // Launch the bitcoin-connect modal
+      await launchModal();
+      
+      // Get the provider
+      const provider = await requestProvider();
+      this.walletProvider = provider;
+      this.walletConnected = true;
+      
+      // Update UI
+      this.updateWalletUI();
+      
+      console.log('✅ Wallet connected successfully');
+    } catch (error) {
+      console.error('❌ Failed to connect wallet:', error);
+      // User cancelled or other error - just log it
+    }
+  }
+  
+  disconnectWallet() {
+    console.log('🔌 Disconnecting wallet...');
+    this.walletProvider = null;
+    this.walletConnected = false;
+    this.updateWalletUI();
+    console.log('✅ Wallet disconnected');
+  }
+  
+  updateWalletUI() {
+    const walletDisconnected = document.getElementById('wallet-disconnected');
+    const walletConnected = document.getElementById('wallet-connected');
+    const sendZapBtn = document.getElementById('send-zap-btn');
+    const payWithWalletBtn = document.getElementById('pay-with-wallet-btn');
+    
+    if (this.walletConnected) {
+      // Show connected state
+      walletDisconnected.classList.add('hidden');
+      walletConnected.classList.remove('hidden');
+      
+      // Show pay with wallet button, hide generate invoice button
+      sendZapBtn.classList.add('hidden');
+      payWithWalletBtn.classList.remove('hidden');
+      
+      // Update wallet name if we have provider info
+      const walletName = document.getElementById('wallet-name');
+      walletName.textContent = 'Wallet Connected';
+    } else {
+      // Show disconnected state
+      walletDisconnected.classList.remove('hidden');
+      walletConnected.classList.add('hidden');
+      
+      // Show generate invoice button, hide pay with wallet button
+      sendZapBtn.classList.remove('hidden');
+      payWithWalletBtn.classList.add('hidden');
+    }
+  }
+  
+  async payWithWallet() {
+    try {
+      if (!this.walletConnected || !this.walletProvider) {
+        throw new Error('No wallet connected');
+      }
+      
+      console.log('💰 Paying with connected wallet...');
+      
+      // Get zap details from the modal
+      const zapAmount = parseInt(document.getElementById('zap-amount').value) || 21;
+      const zapComment = document.getElementById('zap-comment').value || '';
+      
+      if (!zapAmount || zapAmount < 1) {
+        alert('Please enter a valid amount');
+        return;
+      }
+      
+      if (!this.zappingEvent) {
+        console.error('No event to zap');
+        return;
+      }
+      
+      // Generate the invoice using existing logic but return the invoice string
+      console.log(`⚡ Generating ${zapAmount} sat zap for wallet payment...`);
+      const invoice = await this.generateZapInvoiceForWallet(zapAmount, zapComment);
+      
+      if (!invoice) {
+        throw new Error('Failed to generate invoice');
+      }
+      
+      // Pay the invoice using the connected wallet
+      console.log('⚡ Sending payment through wallet...');
+      const response = await this.walletProvider.sendPayment(invoice);
+      console.log('✅ Payment successful! Preimage:', response.preimage);
+      
+      // Show success message
+      this.showPaymentSuccessMessage(zapAmount);
+      
+      return response;
+      
+    } catch (error) {
+      console.error('❌ Payment failed:', error);
+      alert(`Payment failed: ${error.message}`);
+      throw error;
+    }
+  }
+  
+  async generateZapInvoiceForWallet(amount, comment) {
+    try {
+      // Get recipient's profile to find Lightning address
+      const profile = this.profiles.get(this.zappingEvent.pubkey);
+      let lightningAddress = null;
+      
+      // Look for Lightning address in profile metadata (NIP-57 fields)
+      if (profile?.lud06) {
+        lightningAddress = profile.lud06; // LNURL
+        console.log('🔍 Using LNURL from profile:', lightningAddress);
+      } else if (profile?.lud16) {
+        lightningAddress = profile.lud16; // Lightning Address
+        console.log('🔍 Using Lightning Address from profile:', lightningAddress);
+      }
+      
+      if (!lightningAddress) {
+        throw new Error('Recipient has no Lightning address configured in their profile');
+      }
+      
+      // Generate real Lightning invoice using LNURL-pay
+      const invoice = await this.getLightningInvoice(lightningAddress, amount * 1000, comment);
+      return invoice;
+      
+    } catch (error) {
+      console.error('❌ Error generating invoice for wallet:', error);
+      throw error;
+    }
   }
   
   setupImageErrorHandling() {
@@ -3825,6 +3996,9 @@ class SidecarApp {
     document.getElementById('zap-amount').value = 21;
     document.getElementById('zap-comment').value = '';
     document.getElementById('zap-invoice-display').classList.add('hidden');
+    
+    // Initialize wallet UI state
+    this.updateWalletUI();
     
     // Show the zap modal
     document.getElementById('zap-modal').classList.remove('hidden');

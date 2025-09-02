@@ -298,8 +298,25 @@
                     <input type="text" id="zap-comment" placeholder="Add a comment..." maxlength="250">
                 </div>
                 
+                <div class="wallet-connection-section">
+                    <div id="wallet-status" class="wallet-status">
+                        <div id="wallet-disconnected" class="wallet-state">
+                            <button id="connect-wallet-btn" class="btn btn-secondary">⚡ Connect Wallet</button>
+                            <p class="wallet-help">Connect your Lightning wallet to pay directly without QR codes</p>
+                        </div>
+                        <div id="wallet-connected" class="wallet-state hidden">
+                            <div class="wallet-info">
+                                <span class="wallet-icon">⚡</span>
+                                <span id="wallet-name">Wallet Connected</span>
+                                <button id="disconnect-wallet-btn" class="btn-link">Disconnect</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="zap-actions">
                     <button id="send-zap-btn" class="btn btn-primary">Generate Invoice</button>
+                    <button id="pay-with-wallet-btn" class="btn btn-primary hidden">Pay with Wallet</button>
                 </div>
                 
                 <div id="zap-invoice-display" class="hidden">
@@ -344,6 +361,6 @@
         });
     </script>
     <script src="nostr-tools.js"></script>
-    <script src="sidepanel.js"></script>
+    <script type="module" src="sidepanel.js"></script>
 </body>
 </html>
