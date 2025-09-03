@@ -1,9 +1,6 @@
 // Main sidepanel script for Sidecar Nostr extension
 console.log('🟢 SIDEPANEL.JS SCRIPT LOADED!');
 
-// Import bitcoin-connect for wallet connectivity
-import { init, requestProvider, launchModal } from 'https://esm.sh/@getalby/bitcoin-connect@^3.8.1';
-
 class SidecarApp {
   constructor() {
     console.log('🏗️ SIDECAR APP CONSTRUCTOR CALLED');
@@ -51,9 +48,11 @@ class SidecarApp {
     // Wallet connection state
     this.walletConnected = false;
     this.walletProvider = null;
+    this.webLNSessionActive = false; // Prevent multiple concurrent WebLN sessions
+    this.lastWebLNRequest = null; // Track last WebLN request to prevent duplicates
     
-    // Initialize bitcoin-connect
-    this.initBitcoinConnect();
+    // Initialize WebLN detection
+    this.initWebLN();
     
     // Memory management settings - balanced for good UX and performance
     this.maxNotes = 1000; // Maximum notes to keep in memory - increased for better scroll experience
@@ -167,7 +166,7 @@ class SidecarApp {
     
     // Reply modal
     document.getElementById('close-reply-modal').addEventListener('click', () => this.hideModal('reply-modal'));
-    document.getElementById('cancel-reply-btn').addEventListener('click', () => this.hideModal('reply-modal'));
+    document.getElementById('cancel-reply-btn').addEventListener('click', () => this.handleReplyCancelClick());
     document.getElementById('send-reply-btn').addEventListener('click', () => this.sendReply());
     document.getElementById('reply-text').addEventListener('input', this.updateReplyCharCount.bind(this));
     
@@ -175,7 +174,7 @@ class SidecarApp {
     document.getElementById('close-repost-modal').addEventListener('click', () => this.hideModal('repost-modal'));
     document.getElementById('simple-repost-btn').addEventListener('click', () => this.sendSimpleRepost());
     document.getElementById('quote-repost-btn').addEventListener('click', () => this.showQuoteCompose());
-    document.getElementById('cancel-quote-btn').addEventListener('click', () => this.hideQuoteCompose());
+    document.getElementById('cancel-quote-btn').addEventListener('click', () => this.handleQuoteCancelClick());
     document.getElementById('send-quote-btn').addEventListener('click', () => this.sendQuotePost());
     document.getElementById('quote-text').addEventListener('input', this.updateQuoteCharCount.bind(this));
     
@@ -229,15 +228,77 @@ class SidecarApp {
     this.setupWalletEventListeners();
   }
   
-  async initBitcoinConnect() {
+  async initWebLN() {
     try {
-      console.log('🔌 Initializing bitcoin-connect...');
-      await init({
-        appName: 'Sidecar - Nostr Client'
-      });
-      console.log('✅ bitcoin-connect initialized successfully');
+      console.log('🔌 Checking for WebLN support via background script...');
+      
+      // Check WebLN support through the background script bridge
+      const response = await this.sendMessage({ type: 'GET_WEBLN_SUPPORT' });
+      
+      if (response && response.supported) {
+        console.log('✅ WebLN detected via background script');
+        this.walletProvider = true; // Mark as available
+        
+        // If user is already signed in with NIP-07 (Alby), we can auto-connect WebLN
+        if (this.currentUser && this.currentUser.useNip07) {
+          console.log('🔗 User already signed in with NIP-07 - auto-connecting WebLN...');
+          await this.autoConnectWebLN();
+        }
+      } else {
+        console.log('ℹ️ WebLN not available - wallet features will be disabled');
+        console.log('Error:', response?.error);
+        this.walletProvider = null;
+      }
+      
+      // Update UI based on WebLN availability
+      this.updateWalletAvailability();
+      
     } catch (error) {
-      console.error('❌ Failed to initialize bitcoin-connect:', error);
+      console.error('❌ Error initializing WebLN:', error);
+      this.walletProvider = null;
+      this.updateWalletAvailability();
+    }
+  }
+  
+  async autoConnectWebLN() {
+    try {
+      if (this.walletProvider && !this.walletConnected) {
+        console.log('🔗 Auto-connecting to WebLN since user is already authenticated with Alby...');
+        
+        // Enable WebLN via background script
+        const enableResponse = await this.sendMessage({
+          type: 'WEBLN_REQUEST',
+          data: { method: 'enable' }
+        });
+        
+        if (enableResponse && enableResponse.success) {
+          console.log('✅ WebLN enabled via background script');
+          
+          // Try to get wallet info
+          try {
+            const infoResponse = await this.sendMessage({
+              type: 'WEBLN_REQUEST',
+              data: { method: 'getInfo' }
+            });
+            
+            if (infoResponse && infoResponse.success) {
+              console.log('💰 Wallet info:', infoResponse.data);
+              this.walletInfo = infoResponse.data;
+            }
+          } catch (e) {
+            console.log('ℹ️ Could not get wallet info:', e.message);
+          }
+          
+          this.walletConnected = true;
+          this.updateWalletUI(); // Update UI to show connected state
+          console.log('✅ WebLN auto-connected successfully');
+        } else {
+          console.log('❌ WebLN auto-enable failed:', enableResponse?.error);
+        }
+      }
+    } catch (error) {
+      console.log('ℹ️ Auto-connect failed:', error.message);
+      // Don't show error to user for auto-connect failures
     }
   }
   
@@ -254,32 +315,106 @@ class SidecarApp {
   
   async connectWallet() {
     try {
-      console.log('🔌 Connecting to wallet...');
+      console.log('🔌 Connecting to WebLN wallet...');
       
-      // Launch the bitcoin-connect modal
-      await launchModal();
+      if (!this.walletProvider) {
+        // Show setup instructions if user has Alby for Nostr but not WebLN
+        if (this.currentUser && this.currentUser.useNip07) {
+          this.showWebLNSetupInstructions();
+          return;
+        } else {
+          throw new Error('No WebLN provider available. Please install a Lightning wallet extension like Alby.');
+        }
+      }
       
-      // Get the provider
-      const provider = await requestProvider();
-      this.walletProvider = provider;
+      // Enable WebLN via background script
+      const enableResponse = await this.sendMessage({
+        type: 'WEBLN_REQUEST',
+        data: { method: 'enable' }
+      });
+      
+      if (!enableResponse || !enableResponse.success) {
+        throw new Error(enableResponse?.error || 'Failed to enable WebLN');
+      }
+      
+      console.log('✅ WebLN enabled via background script');
+      
+      // Get wallet info if available
+      try {
+        const infoResponse = await this.sendMessage({
+          type: 'WEBLN_REQUEST',
+          data: { method: 'getInfo' }
+        });
+        
+        if (infoResponse && infoResponse.success) {
+          console.log('💰 Wallet info:', infoResponse.data);
+          this.walletInfo = infoResponse.data;
+        }
+      } catch (e) {
+        console.log('ℹ️ Could not get wallet info:', e.message);
+      }
+      
       this.walletConnected = true;
       
       // Update UI
       this.updateWalletUI();
       
-      console.log('✅ Wallet connected successfully');
+      console.log('✅ WebLN wallet connected successfully');
     } catch (error) {
       console.error('❌ Failed to connect wallet:', error);
-      // User cancelled or other error - just log it
+      alert(`Failed to connect wallet: ${error.message}`);
     }
   }
   
   disconnectWallet() {
     console.log('🔌 Disconnecting wallet...');
-    this.walletProvider = null;
     this.walletConnected = false;
+    this.walletInfo = null;
+    // Keep the provider reference for re-connection, but update both UI states
     this.updateWalletUI();
+    this.updateWalletAvailability();
     console.log('✅ Wallet disconnected');
+  }
+  
+  
+  showWebLNSetupInstructions() {
+    const instructions = `To enable Lightning payments with your Alby extension:
+
+1. Click the Alby extension icon in your browser
+2. Go to Settings → Advanced
+3. Enable "WebLN" or "Lightning Wallet" features
+4. Refresh this page and try connecting again
+
+Note: You might need to connect a Lightning wallet to your Alby account first if you haven't already.`;
+    
+    alert(instructions);
+  }
+  
+  updateWalletAvailability() {
+    const walletSection = document.querySelector('.wallet-connection-section');
+    const connectBtn = document.getElementById('connect-wallet-btn');
+    
+    if (!this.walletProvider) {
+      // No WebLN available
+      if (this.currentUser && this.currentUser.useNip07) {
+        connectBtn.disabled = false;
+        connectBtn.textContent = '⚡ Setup Lightning Wallet';
+      } else {
+        connectBtn.disabled = true;
+        connectBtn.textContent = '⚡ Install Alby Extension';
+      }
+      walletSection.style.opacity = '0.6';
+    } else {
+      // WebLN available
+      connectBtn.disabled = false;
+      if (this.walletConnected) {
+        connectBtn.textContent = '⚡ Connected';
+        connectBtn.disabled = true;
+      } else {
+        connectBtn.textContent = '⚡ Connect Wallet';
+      }
+      walletSection.style.opacity = '1';
+    }
   }
   
   updateWalletUI() {
@@ -297,9 +432,13 @@ class SidecarApp {
       sendZapBtn.classList.add('hidden');
       payWithWalletBtn.classList.remove('hidden');
       
-      // Update wallet name if we have provider info
+      // Update wallet name with info if available
       const walletName = document.getElementById('wallet-name');
-      walletName.textContent = 'Wallet Connected';
+      if (this.walletInfo && this.walletInfo.node && this.walletInfo.node.alias) {
+        walletName.textContent = this.walletInfo.node.alias;
+      } else {
+        walletName.textContent = 'Wallet Connected';
+      }
     } else {
       // Show disconnected state
       walletDisconnected.classList.remove('hidden');
@@ -307,6 +446,7 @@ class SidecarApp {
       
       // Show generate invoice button, hide pay with wallet button
       sendZapBtn.classList.remove('hidden');
+      sendZapBtn.disabled = false; // Ensure generate invoice button is always enabled
       payWithWalletBtn.classList.add('hidden');
     }
   }
@@ -316,6 +456,18 @@ class SidecarApp {
       if (!this.walletConnected || !this.walletProvider) {
         throw new Error('No wallet connected');
       }
+      
+      // Check if a WebLN session is already active
+      if (this.webLNSessionActive) {
+        console.log('🚫 WebLN session already active, ignoring request');
+        alert('Payment already in progress. Please wait for current payment to complete.');
+        return;
+      }
+      
+      // Lock the WebLN session
+      this.webLNSessionActive = true;
+      this.webLNSessionStart = Date.now();
+      console.log('🔒 WebLN session locked');
       
       console.log('💰 Paying with connected wallet...');
       
@@ -333,6 +485,12 @@ class SidecarApp {
         return;
       }
       
+      // Show loading state
+      const payWithWalletBtn = document.getElementById('pay-with-wallet-btn');
+      const originalText = payWithWalletBtn.textContent;
+      payWithWalletBtn.textContent = '⚡ Processing...';
+      payWithWalletBtn.disabled = true;
+      
       // Generate the invoice using existing logic but return the invoice string
       console.log(`⚡ Generating ${zapAmount} sat zap for wallet payment...`);
       const invoice = await this.generateZapInvoiceForWallet(zapAmount, zapComment);
@@ -341,20 +499,114 @@ class SidecarApp {
         throw new Error('Failed to generate invoice');
       }
       
-      // Pay the invoice using the connected wallet
+      // Set up payment tracking for WebLN payments (same as regular payments)
+      this.currentZapInvoice = {
+        invoice: invoice,
+        eventId: this.zappingEvent.id,
+        amount: zapAmount,
+        timestamp: Date.now()
+      };
+      
+      // Start payment monitoring for zap receipt detection
+      this.startPaymentMonitoring();
+      
+      // Try to reset WebLN state before payment
+      console.log('🔄 Attempting to reset WebLN state...');
+      try {
+        await this.sendMessage({
+          type: 'WEBLN_REQUEST',
+          data: { method: 'enable' }
+        });
+        console.log('✅ WebLN re-enabled before payment');
+      } catch (e) {
+        console.log('⚠️ WebLN reset failed, proceeding anyway:', e.message);
+      }
+      
+      // Check for duplicate invoice payments
+      if (this.lastWebLNRequest === invoice) {
+        console.log('🚫 Duplicate WebLN payment detected, blocking request');
+        throw new Error('Payment already in progress for this invoice');
+      }
+      
+      this.lastWebLNRequest = invoice;
+      console.log('📝 WebLN request recorded for duplicate prevention');
+      
+      // Pay the invoice using the connected wallet via background script
       console.log('⚡ Sending payment through wallet...');
-      const response = await this.walletProvider.sendPayment(invoice);
-      console.log('✅ Payment successful! Preimage:', response.preimage);
+      console.log('📄 Invoice being paid:', invoice.substring(0, 50) + '...');
       
-      // Show success message
-      this.showPaymentSuccessMessage(zapAmount);
+      const paymentResponse = await this.sendMessage({
+        type: 'WEBLN_REQUEST',
+        data: { 
+          method: 'sendPayment',
+          params: invoice
+        }
+      });
       
-      return response;
+      console.log('📨 Payment response received:', paymentResponse);
+      
+      if (!paymentResponse || !paymentResponse.success) {
+        throw new Error(paymentResponse?.error || 'Payment failed');
+      }
+      
+      // WebLN sendPayment returns an object with preimage
+      const preimage = paymentResponse.data?.preimage;
+      if (!preimage) {
+        throw new Error('Payment may have failed - no preimage received');
+      }
+      
+      console.log('✅ Payment successful! Preimage:', preimage);
+      console.log('🔍 Full payment response data:', paymentResponse.data);
+      
+      // Give Alby some time to process and close its popup
+      console.log('⏳ Waiting for Alby popup to close...');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Show success message with preimage info, but keep monitoring for zap receipt
+      this.showPaymentSuccessMessage(zapAmount, preimage);
+      
+      // Note: We don't stop payment monitoring here because we want to detect the zap receipt
+      console.log('⏳ Continuing to monitor for zap receipt confirmation...');
+      
+      // The real-time subscription should catch the zap receipt immediately
+      console.log('📡 Real-time zap subscription active - waiting for zap receipt...');
+      
+      // Also request fresh zap receipts as a backup after a short delay
+      setTimeout(() => {
+        console.log('🔄 Backup: Requesting fresh zap receipts after WebLN payment...');
+        if (this.zapReceiptRequests.has(this.zappingEvent.id)) {
+          this.zapReceiptRequests.delete(this.zappingEvent.id);
+        }
+        this.requestZapReceipts(this.zappingEvent.id);
+      }, 1000); // Reduced from 2000ms to 1000ms
+      
+      // Add a note about Alby popup behavior
+      console.log('💡 If Alby popup is still open, you can safely close it - payment was successful!');
+      
+      return paymentResponse;
       
     } catch (error) {
       console.error('❌ Payment failed:', error);
+      
+      // Reset button state on error
+      const payWithWalletBtn = document.getElementById('pay-with-wallet-btn');
+      if (payWithWalletBtn) {
+        payWithWalletBtn.textContent = 'Zap!';
+        payWithWalletBtn.disabled = false;
+      }
+      
       alert(`Payment failed: ${error.message}`);
       throw error;
+    } finally {
+      // Always unlock WebLN session
+      this.webLNSessionActive = false;
+      console.log('🔓 WebLN session unlocked');
+      
+      // Clear last request after delay to allow for retries of different invoices
+      setTimeout(() => {
+        this.lastWebLNRequest = null;
+        console.log('🧹 WebLN request history cleared');
+      }, 5000);
     }
   }
   
@@ -1007,6 +1259,12 @@ class SidecarApp {
         this.updateAuthUI();
         this.hideModal('auth-modal');
         this.loadFeed();
+        
+        // Auto-connect WebLN since user just signed in with Alby
+        setTimeout(() => {
+          this.autoConnectWebLN();
+          this.updateWalletAvailability(); // Update wallet UI after sign-in
+        }, 1000);
         
         // Fetch contact list after a short delay to ensure relays are connected
         setTimeout(() => {
@@ -1929,8 +2187,8 @@ class SidecarApp {
         console.log('📊 Total zaps for this note:', existingZaps.length + 1, 'zaps');
       }
       
-      // Update the zap display for the note
-      this.updateZapDisplay(zappedEventId);
+      // Update the zap display for the note with retry logic
+      this.updateZapDisplayWithRetry(zappedEventId);
       
       // Check if this zap receipt matches our current payment monitoring
       this.checkPaymentCompletion(zapInfo, zappedEventId);
@@ -1940,35 +2198,65 @@ class SidecarApp {
     }
   }
   
+  updateZapDisplayWithRetry(eventId, attempt = 1, maxAttempts = 5) {
+    const success = this.updateZapDisplay(eventId);
+    
+    if (!success && attempt < maxAttempts) {
+      console.log(`🔄 Retrying zap display update for ${eventId.substring(0, 16)}... (attempt ${attempt + 1}/${maxAttempts})`);
+      
+      // Use shorter delays for more responsive updates
+      const delay = attempt <= 2 ? 500 * attempt : 1000 * attempt; // 500ms, 1s, 3s, 4s, 5s
+      
+      setTimeout(() => {
+        this.updateZapDisplayWithRetry(eventId, attempt + 1, maxAttempts);
+      }, delay);
+    } else if (success) {
+      console.log(`✅ Zap display updated successfully for ${eventId.substring(0, 16)} on attempt ${attempt}`);
+    } else {
+      console.log(`❌ Failed to update zap display for ${eventId.substring(0, 16)} after ${maxAttempts} attempts`);
+    }
+  }
+
   updateZapDisplay(eventId) {
+    console.log('🔄 updateZapDisplay called for:', eventId.substring(0, 16) + '...');
+    
     // Look for regular note first
     let noteElement = document.querySelector(`.note[data-event-id="${eventId}"]`);
     let zapButton = null;
     
     if (noteElement) {
       zapButton = noteElement.querySelector('.zap-action');
+      console.log('📋 Found regular note element and zap button:', !!zapButton);
     } else {
       // If not found as regular note, look for repost containing this note
       noteElement = document.querySelector(`.repost[data-event-id="repost-${eventId}"]`);
       if (noteElement) {
         zapButton = noteElement.querySelector('.zap-action');
+        console.log('📋 Found repost element and zap button:', !!zapButton);
       } else {
         // Last resort: search for zap button directly with this event ID (for cases where zap button uses original note ID)
         zapButton = document.querySelector(`.zap-action[data-event-id="${eventId}"]`);
         if (zapButton) {
           noteElement = zapButton.closest('.note, .repost');
+          console.log('📋 Found zap button directly and parent element:', !!noteElement);
+        } else {
+          console.log('❌ No note element or zap button found for event ID:', eventId.substring(0, 16) + '...');
+          console.log('🔍 All note elements:', document.querySelectorAll('.note, .repost').length);
+          console.log('🔍 All zap buttons:', document.querySelectorAll('.zap-action').length);
+          return false;
         }
       }
     }
     
     if (!noteElement || !zapButton) {
       console.log('📝 Note element not found for zap update:', eventId.substring(0, 16) + '...');
-      return;
+      return false;
     }
     
     const zapReceipts = this.zapReceipts?.get(eventId) || [];
     if (zapReceipts.length === 0) {
-      return;
+      console.log('📝 No zap receipts found for event:', eventId.substring(0, 16) + '...');
+      return false;
     }
     
     // Calculate total zap amount (round to whole sats)
@@ -1995,6 +2283,7 @@ class SidecarApp {
     zapButton.style.color = '#eab308'; // Yellow color for zapped notes
     
     console.log('✅ Updated zap display for note:', eventId.substring(0, 16) + '...', 'Total:', totalAmount, 'sats');
+    return true; // Successfully updated
   }
   
   requestZapReceipts(eventId) {
@@ -2060,8 +2349,14 @@ class SidecarApp {
       
       // Check if this zap receipt includes our invoice (bolt11 match)
       if (zapInfo.bolt11 && zapInfo.bolt11 === this.currentZapInvoice.invoice) {
-        console.log('💰 Payment confirmed! Invoice matches.');
+        console.log('💰 Payment confirmed! Invoice matches exactly.');
         this.showPaymentSuccessMessage(this.currentZapInvoice.amount);
+        
+        // Stop monitoring immediately since we found our exact payment
+        setTimeout(() => {
+          this.stopPaymentMonitoring();
+          this.currentZapInvoice = null;
+        }, 2000); // Brief delay to show success message
         return;
       }
       
@@ -2071,7 +2366,18 @@ class SidecarApp {
       
       if (amountMatches && timeDiff < 300) { // Within 5 minutes
         console.log('💰 Payment likely confirmed based on amount and timing.');
+        console.log('⏰ Time difference:', timeDiff, 'seconds');
         this.showPaymentSuccessMessage(this.currentZapInvoice.amount);
+        
+        // Stop monitoring after likely match found
+        setTimeout(() => {
+          this.stopPaymentMonitoring();
+          this.currentZapInvoice = null;
+        }, 3000); // Slightly longer delay for likely matches
+      } else {
+        console.log('❓ Zap receipt received for monitored event but doesn\'t match our payment details');
+        console.log('🔍 Amount match:', amountMatches, '(expected:', this.currentZapInvoice.amount, 'got:', zapInfo.amount, ')');
+        console.log('🔍 Time diff:', timeDiff, 'seconds');
       }
     }
   }
@@ -3036,7 +3342,7 @@ class SidecarApp {
           <h3>Error loading your notes</h3>
           <p>Error loading Me feed</p>
           <p style="font-size: 12px; color: #888;">${error.message}</p>
-          <button class="retry-me-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+          <button class="retry-me-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea772f; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
         </div>
       `;
       
@@ -3269,10 +3575,10 @@ class SidecarApp {
                   <path d="M16 0C12.8355 0 9.74207 0.938384 7.11088 2.69649C4.4797 4.45459 2.42894 6.95345 1.21793 9.87706C0.0069325 12.8007 -0.309921 16.0177 0.307443 19.1214C0.924806 22.2251 2.44866 25.0761 4.6863 27.3137C6.92394 29.5513 9.77486 31.0752 12.8786 31.6926C15.9823 32.3099 19.1993 31.9931 22.1229 30.7821C25.0466 29.5711 27.5454 27.5203 29.3035 24.8891C31.0616 22.2579 32 19.1645 32 16C32 11.7565 30.3143 7.68687 27.3137 4.68629C24.3131 1.68571 20.2435 0 16 0ZM16 28C13.6266 28 11.3066 27.2962 9.33316 25.9776C7.35977 24.6591 5.8217 22.7849 4.91345 20.5922C4.0052 18.3995 3.76756 15.9867 4.23058 13.6589C4.6936 11.3311 5.83649 9.19295 7.51472 7.51472C9.19295 5.83649 11.3311 4.6936 13.6589 4.23058C15.9867 3.76755 18.3995 4.00519 20.5922 4.91344C22.7849 5.8217 24.6591 7.35976 25.9776 9.33315C27.2962 11.3065 28 13.6266 28 16C28 19.1826 26.7357 22.2348 24.4853 24.4853C22.2348 26.7357 19.1826 28 16 28Z" fill="currentColor"/>
                 </svg>
               </div>
-              <p style="margin-bottom: 8px; color: #ea6390; font-weight: bold;">The trending data service is currently offline.</p>
+              <p style="margin-bottom: 8px; color: #ea772f; font-weight: bold;">The trending data service is currently offline.</p>
               <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
               <div style="display: flex; justify-content: center; gap: 12px;">
-                <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
+                <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea772f; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
                 ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
               </div>
             </div>
@@ -3281,10 +3587,10 @@ class SidecarApp {
         } else {
           // Some API calls succeeded but returned no data
           document.getElementById('feed').innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: #ea6390;">
+            <div style="text-align: center; padding: 40px 20px; color: #ea772f;">
               <p>No trending notes available right now.</p>
               <p>Try refreshing or check back later!</p>
-              <button class="retry-trending-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea6390; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+              <button class="retry-trending-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea772f; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
             </div>
           `;
         }
@@ -3397,10 +3703,10 @@ class SidecarApp {
               <path d="M16 0C12.8355 0 9.74207 0.938384 7.11088 2.69649C4.4797 4.45459 2.42894 6.95345 1.21793 9.87706C0.0069325 12.8007 -0.309921 16.0177 0.307443 19.1214C0.924806 22.2251 2.44866 25.0761 4.6863 27.3137C6.92394 29.5513 9.77486 31.0752 12.8786 31.6926C15.9823 32.3099 19.1993 31.9931 22.1229 30.7821C25.0466 29.5711 27.5454 27.5203 29.3035 24.8891C31.0616 22.2579 32 19.1645 32 16C32 11.7565 30.3143 7.68687 27.3137 4.68629C24.3131 1.68571 20.2435 0 16 0ZM16 28C13.6266 28 11.3066 27.2962 9.33316 25.9776C7.35977 24.6591 5.8217 22.7849 4.91345 20.5922C4.0052 18.3995 3.76756 15.9867 4.23058 13.6589C4.6936 11.3311 5.83649 9.19295 7.51472 7.51472C9.19295 5.83649 11.3311 4.6936 13.6589 4.23058C15.9867 3.76755 18.3995 4.00519 20.5922 4.91344C22.7849 5.8217 24.6591 7.35976 25.9776 9.33315C27.2962 11.3065 28 13.6266 28 16C28 19.1826 26.7357 22.2348 24.4853 24.4853C22.2348 26.7357 19.1826 28 16 28Z" fill="currentColor"/>
             </svg>
           </div>
-          <p style="margin-bottom: 8px; color: #ea6390; font-weight: bold;">The trending data service is currently offline.</p>
+          <p style="margin-bottom: 8px; color: #ea772f; font-weight: bold;">The trending data service is currently offline.</p>
           <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
           <div style="display: flex; justify-content: center; gap: 12px;">
-            <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea6390; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
+            <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea772f; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
             ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
           </div>
         </div>
@@ -3884,11 +4190,26 @@ class SidecarApp {
       </div>
     `;
     
-    // Clear reply text
+    // Clear reply text and reset state
     const replyText = document.getElementById('reply-text');
+    const sendBtn = document.getElementById('send-reply-btn');
+    const cancelBtn = document.getElementById('cancel-reply-btn');
+    const charCount = document.getElementById('reply-char-count');
+    
     replyText.value = '';
-    document.getElementById('reply-char-count').textContent = '2100';
-    document.getElementById('send-reply-btn').disabled = true;
+    replyText.disabled = false;
+    charCount.textContent = '2100';
+    charCount.style.display = 'none';
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Reply';
+    cancelBtn.textContent = 'Cancel';
+    
+    // Reset countdown state
+    if (this.currentCountdownInterval) {
+      clearInterval(this.currentCountdownInterval);
+      this.currentCountdownInterval = null;
+    }
+    this.isPublishingCountdown = false;
     
     // Store the event we're replying to
     this.replyingToEvent = event;
@@ -3906,7 +4227,7 @@ class SidecarApp {
     const remaining = 2100 - replyText.value.length;
     charCount.textContent = remaining;
     charCount.style.display = replyText.value.length > 0 ? 'inline' : 'none';
-    charCount.style.color = remaining < 100 ? '#ea6390' : '#9e4280';
+    charCount.style.color = remaining < 100 ? '#ea772f' : '#9e4280';
     
     sendBtn.disabled = replyText.value.trim().length === 0 || remaining < 0;
   }
@@ -3916,13 +4237,59 @@ class SidecarApp {
     
     const replyText = document.getElementById('reply-text').value.trim();
     if (!replyText) return;
+
+    // Show countdown for reply
+    this.showReplyCountdown(replyText);
+  }
+
+  async showReplyCountdown(replyContent) {
+    const sendBtn = document.getElementById('send-reply-btn');
+    const undoBtn = document.getElementById('cancel-reply-btn');
+    const replyText = document.getElementById('reply-text');
     
-    console.log('💬 Sending reply:', replyText.substring(0, 50) + '...');
+    // Set publishing state flag
+    this.isPublishingCountdown = true;
+    
+    // Disable text editing during countdown
+    replyText.disabled = true;
+    
+    // Store original button states
+    const originalSendText = sendBtn.textContent;
+    const originalSendDisabled = sendBtn.disabled;
+    
+    // Change cancel button to "Undo"
+    undoBtn.textContent = 'Undo';
+    sendBtn.disabled = true;
+    
+    let countdown = 5;
+    let countdownInterval;
+    
+    // Store the countdown interval so we can cancel it
+    this.currentCountdownInterval = countdownInterval;
+    
+    // Start countdown
+    const updateCountdown = () => {
+      sendBtn.textContent = `Publishing in ${countdown}...`;
+      countdown--;
+      
+      if (countdown < 0) {
+        clearInterval(countdownInterval);
+        this.actuallyPublishReply(replyContent, originalSendText, originalSendDisabled);
+      }
+    };
+    
+    updateCountdown(); // Show initial countdown
+    countdownInterval = setInterval(updateCountdown, 1000);
+    this.currentCountdownInterval = countdownInterval;
+  }
+
+  async actuallyPublishReply(replyContent, originalSendText, originalSendDisabled) {
+    console.log('💬 Publishing reply:', replyContent.substring(0, 50) + '...');
     console.log('💬 Replying to:', this.replyingToEvent.id.substring(0, 16) + '...');
     
     const event = {
       kind: 1,
-      content: replyText,
+      content: replyContent,
       tags: [
         ['e', this.replyingToEvent.id, '', 'reply'],
         ['p', this.replyingToEvent.pubkey],
@@ -3938,12 +4305,26 @@ class SidecarApp {
       console.log('✅ Reply published successfully');
       this.hideModal('reply-modal');
       
-      // Optional: Show success message
-      // You could add a toast notification here
+      // Reset state
+      this.isPublishingCountdown = false;
+      this.currentCountdownInterval = null;
       
     } catch (error) {
       console.error('❌ Failed to send reply:', error);
       alert('Failed to send reply. Please try again.');
+      
+      // Restore button states on error
+      const sendBtn = document.getElementById('send-reply-btn');
+      const undoBtn = document.getElementById('cancel-reply-btn');
+      const replyText = document.getElementById('reply-text');
+      
+      sendBtn.textContent = originalSendText;
+      sendBtn.disabled = originalSendDisabled;
+      undoBtn.textContent = 'Cancel';
+      replyText.disabled = false;
+      
+      this.isPublishingCountdown = false;
+      this.currentCountdownInterval = null;
     }
   }
 
@@ -3973,6 +4354,13 @@ class SidecarApp {
     // Reset modal state
     this.hideQuoteCompose();
     
+    // Reset countdown state
+    if (this.currentCountdownInterval) {
+      clearInterval(this.currentCountdownInterval);
+      this.currentCountdownInterval = null;
+    }
+    this.isPublishingCountdown = false;
+    
     // Show the repost modal
     document.getElementById('repost-modal').classList.remove('hidden');
   }
@@ -3980,8 +4368,18 @@ class SidecarApp {
   showZapModal(event) {
     console.log('⚡ showZapModal called for note:', event.id.substring(0, 16) + '...');
     
+    // Clean up any stuck WebLN session when opening modal
+    if (this.webLNSessionActive) {
+      console.log('⚠️ WebLN session active during modal open, forcing unlock');
+      this.webLNSessionActive = false;
+    }
+    
     // Store the event we're zapping
     this.zappingEvent = event;
+    
+    // Stop any existing payment monitoring from previous zaps
+    this.stopPaymentMonitoring();
+    this.currentZapInvoice = null;
     
     // Get recipient info (the note author)
     const profile = this.profiles.get(event.pubkey);
@@ -3995,10 +4393,44 @@ class SidecarApp {
     // Reset modal state
     document.getElementById('zap-amount').value = 21;
     document.getElementById('zap-comment').value = '';
-    document.getElementById('zap-invoice-display').classList.add('hidden');
+    
+    // Clear and hide invoice display (removes any previous success messages)
+    const zapInvoiceDisplay = document.getElementById('zap-invoice-display');
+    zapInvoiceDisplay.innerHTML = '';
+    zapInvoiceDisplay.classList.add('hidden');
+    
+    // Reset button visibility - show Create Invoice button
+    const sendZapBtn = document.getElementById('send-zap-btn');
+    if (sendZapBtn) {
+      sendZapBtn.style.display = 'block';
+    }
+    
+    // Unlock amount and comment fields for new invoice
+    const zapAmountField = document.getElementById('zap-amount');
+    const zapCommentField = document.getElementById('zap-comment');
+    if (zapAmountField) {
+      zapAmountField.disabled = false;
+      zapAmountField.style.opacity = '1';
+    }
+    if (zapCommentField) {
+      zapCommentField.disabled = false;
+      zapCommentField.style.opacity = '1';
+    }
+    
+    // Remove any success overlays from previous payments
+    const existingOverlays = document.querySelectorAll('.payment-success-overlay');
+    existingOverlays.forEach(overlay => overlay.remove());
+    
+    // Reset Zap button state
+    const payWithWalletBtn = document.getElementById('pay-with-wallet-btn');
+    if (payWithWalletBtn) {
+      payWithWalletBtn.textContent = 'Zap!';
+      payWithWalletBtn.disabled = false;
+    }
     
     // Initialize wallet UI state
-    this.updateWalletUI();
+    this.updateWalletAvailability(); // Check if WebLN is available
+    this.updateWalletUI(); // Update connection status
     
     // Show the zap modal
     document.getElementById('zap-modal').classList.remove('hidden');
@@ -4113,8 +4545,20 @@ class SidecarApp {
   }
 
   hideQuoteCompose() {
-    document.getElementById('quote-compose').classList.add('hidden');
-    document.getElementById('quote-text').value = '';
+    const quoteCompose = document.getElementById('quote-compose');
+    const quoteText = document.getElementById('quote-text');
+    const sendBtn = document.getElementById('send-quote-btn');
+    const cancelBtn = document.getElementById('cancel-quote-btn');
+    const charCount = document.getElementById('quote-char-count');
+    
+    quoteCompose.classList.add('hidden');
+    quoteText.value = '';
+    quoteText.disabled = false;
+    sendBtn.textContent = 'Post Quote';
+    sendBtn.disabled = true;
+    cancelBtn.textContent = 'Cancel';
+    charCount.style.display = 'none';
+    
     this.updateQuoteCharCount();
   }
 
@@ -4124,17 +4568,22 @@ class SidecarApp {
     const sendBtn = document.getElementById('send-quote-btn');
     
     const remaining = 2100 - quoteText.value.length;
-    charCount.textContent = remaining;
+    const hasText = quoteText.value.trim().length > 0;
     
-    if (remaining < 0) {
-      charCount.style.color = '#ff4444';
-    } else if (remaining < 100) {
-      charCount.style.color = '#ffaa44';
+    // Always show character count when there's text
+    if (hasText) {
+      charCount.textContent = remaining;
+      charCount.style.display = 'inline';
+      
+      charCount.className = 'char-count';
+      if (remaining < 100) charCount.classList.add('warning');
+      if (remaining < 0) charCount.classList.add('error');
     } else {
-      charCount.style.color = '#888';
+      charCount.style.display = 'none';
     }
     
-    sendBtn.disabled = remaining < 0 || quoteText.value.trim().length === 0;
+    // Enable/disable Post Quote button only
+    sendBtn.disabled = remaining < 0 || !hasText;
   }
 
   async sendQuotePost() {
@@ -4143,12 +4592,58 @@ class SidecarApp {
     const quoteText = document.getElementById('quote-text').value.trim();
     if (!quoteText) return;
 
-    console.log('🔁 Sending quote post:', quoteText.substring(0, 50) + '...');
+    // Show countdown for quote post
+    this.showQuoteCountdown(quoteText);
+  }
+
+  async showQuoteCountdown(quoteContent) {
+    const sendBtn = document.getElementById('send-quote-btn');
+    const cancelBtn = document.getElementById('cancel-quote-btn');
+    const quoteText = document.getElementById('quote-text');
+    
+    // Set publishing state flag
+    this.isPublishingCountdown = true;
+    
+    // Disable text editing during countdown
+    quoteText.disabled = true;
+    
+    // Store original button states
+    const originalSendText = sendBtn.textContent;
+    const originalSendDisabled = sendBtn.disabled;
+    
+    // Change cancel button to "Undo"
+    cancelBtn.textContent = 'Undo';
+    sendBtn.disabled = true;
+    
+    let countdown = 5;
+    let countdownInterval;
+    
+    // Store the countdown interval so we can cancel it
+    this.currentCountdownInterval = countdownInterval;
+    
+    // Start countdown
+    const updateCountdown = () => {
+      sendBtn.textContent = `Publishing in ${countdown}...`;
+      countdown--;
+      
+      if (countdown < 0) {
+        clearInterval(countdownInterval);
+        this.actuallyPublishQuote(quoteContent, originalSendText, originalSendDisabled);
+      }
+    };
+    
+    updateCountdown(); // Show initial countdown
+    countdownInterval = setInterval(updateCountdown, 1000);
+    this.currentCountdownInterval = countdownInterval;
+  }
+
+  async actuallyPublishQuote(quoteContent, originalSendText, originalSendDisabled) {
+    console.log('🔁 Publishing quote post:', quoteContent.substring(0, 50) + '...');
     console.log('🔁 Quoting note:', this.repostingEvent.id.substring(0, 16) + '...');
 
     // Create quote post with the original note ID at the end
     const noteId = window.NostrTools.nip19.noteEncode(this.repostingEvent.id);
-    const content = `${quoteText}\n\nnostr:${noteId}`;
+    const content = `${quoteContent}\n\nnostr:${noteId}`;
 
     const event = {
       kind: 1,
@@ -4169,12 +4664,29 @@ class SidecarApp {
       this.hideModal('repost-modal');
       this.showNotePostedNotification();
       
+      // Reset state
+      this.isPublishingCountdown = false;
+      this.currentCountdownInterval = null;
+      
       // Add to feed
       this.handleNote(signedEvent);
       
     } catch (error) {
       console.error('❌ Failed to send quote post:', error);
       alert('Failed to send quote post. Please try again.');
+      
+      // Restore button states on error
+      const sendBtn = document.getElementById('send-quote-btn');
+      const cancelBtn = document.getElementById('cancel-quote-btn');
+      const quoteText = document.getElementById('quote-text');
+      
+      sendBtn.textContent = originalSendText;
+      sendBtn.disabled = originalSendDisabled;
+      cancelBtn.textContent = 'Cancel';
+      quoteText.disabled = false;
+      
+      this.isPublishingCountdown = false;
+      this.currentCountdownInterval = null;
     }
   }
 
@@ -5014,23 +5526,47 @@ class SidecarApp {
     const postBtn = document.getElementById('post-btn');
     
     const remaining = 2100 - textarea.value.length;
+    const hasText = textarea.value.trim().length > 0;
     
-    // Only show counter when approaching limit (under 200 characters remaining)
-    if (remaining < 200) {
+    // Always show character count when there's text
+    if (hasText) {
       counter.textContent = remaining;
-      counter.style.display = 'block';
+      counter.style.display = 'inline';
       
       counter.className = 'char-count';
-      if (remaining < 50) counter.classList.add('warning');
+      if (remaining < 100) counter.classList.add('warning');
       if (remaining < 0) counter.classList.add('error');
     } else {
       counter.style.display = 'none';
     }
     
-    postBtn.disabled = remaining < 0 || textarea.value.trim().length === 0;
+    // Enable/disable Post button only
+    postBtn.disabled = remaining < 0 || !hasText;
   }
   
-  // updateReplyCharCount removed - replies no longer supported
+  updateReplyCharCount() {
+    const replyText = document.getElementById('reply-text');
+    const charCount = document.getElementById('reply-char-count');
+    const sendBtn = document.getElementById('send-reply-btn');
+    
+    const remaining = 2100 - replyText.value.length;
+    const hasText = replyText.value.trim().length > 0;
+    
+    // Always show character count when there's text
+    if (hasText) {
+      charCount.textContent = remaining;
+      charCount.style.display = 'inline';
+      
+      charCount.className = 'char-count';
+      if (remaining < 100) charCount.classList.add('warning');
+      if (remaining < 0) charCount.classList.add('error');
+    } else {
+      charCount.style.display = 'none';
+    }
+    
+    // Enable/disable Reply button only
+    sendBtn.disabled = remaining < 0 || !hasText;
+  }
   
   async publishNote() {
     if (!this.currentUser) {
@@ -5150,6 +5686,78 @@ class SidecarApp {
     console.log('📝 Compose section hidden - content preserved');
   }
 
+  handleReplyCancelClick() {
+    if (this.isPublishingCountdown) {
+      // This is the "Undo" action during countdown
+      this.cancelReplyPublishing();
+    } else {
+      // This is the regular "Cancel" action - close modal
+      this.hideModal('reply-modal');
+    }
+  }
+
+  cancelReplyPublishing() {
+    const sendBtn = document.getElementById('send-reply-btn');
+    const cancelBtn = document.getElementById('cancel-reply-btn');
+    const replyText = document.getElementById('reply-text');
+    
+    // Clear countdown interval
+    if (this.currentCountdownInterval) {
+      clearInterval(this.currentCountdownInterval);
+      this.currentCountdownInterval = null;
+    }
+    
+    // Reset publishing state
+    this.isPublishingCountdown = false;
+    
+    // Restore button text
+    sendBtn.textContent = 'Reply';
+    sendBtn.disabled = replyText.value.trim().length === 0;
+    cancelBtn.textContent = 'Cancel';
+    
+    // Re-enable text editing
+    replyText.disabled = false;
+    replyText.focus();
+    
+    console.log('💬 Reply undone - modal stays open for editing');
+  }
+
+  handleQuoteCancelClick() {
+    if (this.isPublishingCountdown) {
+      // This is the "Undo" action during countdown
+      this.cancelQuotePublishing();
+    } else {
+      // This is the regular "Cancel" action - hide quote compose
+      this.hideQuoteCompose();
+    }
+  }
+
+  cancelQuotePublishing() {
+    const sendBtn = document.getElementById('send-quote-btn');
+    const cancelBtn = document.getElementById('cancel-quote-btn');
+    const quoteText = document.getElementById('quote-text');
+    
+    // Clear countdown interval
+    if (this.currentCountdownInterval) {
+      clearInterval(this.currentCountdownInterval);
+      this.currentCountdownInterval = null;
+    }
+    
+    // Reset publishing state
+    this.isPublishingCountdown = false;
+    
+    // Restore button text
+    sendBtn.textContent = 'Post Quote';
+    sendBtn.disabled = quoteText.value.trim().length === 0;
+    cancelBtn.textContent = 'Cancel';
+    
+    // Re-enable text editing
+    quoteText.disabled = false;
+    quoteText.focus();
+    
+    console.log('🔁 Quote post undone - compose stays open for editing');
+  }
+
   showNotePostedNotification() {
     const notification = document.getElementById('note-posted-notification');
     
@@ -5225,13 +5833,30 @@ class SidecarApp {
   showComposeSection() {
     const composeSection = document.getElementById('compose-section');
     const floatingBtn = document.getElementById('floating-compose-btn');
+    const composeText = document.getElementById('compose-text');
+    const postBtn = document.getElementById('post-btn');
+    const cancelBtn = document.getElementById('cancel-compose-btn');
+    const charCount = document.getElementById('char-count');
     
     composeSection.classList.remove('hidden');
     floatingBtn.classList.add('hidden');
     
+    // Reset state
+    composeText.disabled = false;
+    postBtn.textContent = 'Post';
+    cancelBtn.textContent = 'Cancel';
+    charCount.style.display = 'none';
+    
+    // Reset countdown state
+    if (this.currentCountdownInterval) {
+      clearInterval(this.currentCountdownInterval);
+      this.currentCountdownInterval = null;
+    }
+    this.isPublishingCountdown = false;
+    
     // Focus on textarea
     setTimeout(() => {
-      document.getElementById('compose-text').focus();
+      composeText.focus();
     }, 100);
   }
   
@@ -5818,12 +6443,13 @@ class SidecarApp {
 
   // Basic Zap Functions (simplified for now)
   async generateZapInvoice() {
-    console.log('⚡ Generating zap invoice...');
-    
     if (!this.zappingEvent) {
-      console.error('No event to zap');
+      alert('Error: No event selected for zapping');
       return;
     }
+    
+    // Wait a moment for modal to fully render
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     const amount = document.getElementById('zap-amount').value;
     const comment = document.getElementById('zap-comment').value;
@@ -5854,8 +6480,30 @@ class SidecarApp {
         throw new Error('Recipient has no Lightning address configured in their profile');
       }
       
-      // Show loading state
-      document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea6390;">⚡ Generating invoice...</p>';
+      // Show invoice display and ensure elements exist
+      const zapInvoiceDisplay = document.getElementById('zap-invoice-display');
+      zapInvoiceDisplay.classList.remove('hidden');
+      
+      // Create missing elements if needed
+      let zapQRCode = document.getElementById('zap-qr-code');
+      if (!zapQRCode) {
+        zapInvoiceDisplay.innerHTML = `
+          <div class="zap-qr-section">
+            <div id="zap-qr-code"></div>
+            <button id="copy-zap-invoice" class="btn btn-secondary">Copy Invoice</button>
+          </div>
+          <div class="zap-invoice-section">
+            <button id="show-invoice-btn" class="btn-link-small">Show invoice details</button>
+            <div id="zap-invoice-text" class="hidden"></div>
+          </div>
+        `;
+        zapQRCode = document.getElementById('zap-qr-code');
+        
+        // Add event listeners
+        document.getElementById('copy-zap-invoice').addEventListener('click', () => this.copyZapInvoice());
+        document.getElementById('show-invoice-btn').addEventListener('click', () => this.toggleInvoiceDisplay());
+      }
+      zapQRCode.innerHTML = '<p style="color: #ea772f;">⚡ Generating invoice...</p>';
       
       // Generate real Lightning invoice using LNURL-pay
       const invoice = await this.getLightningInvoice(lightningAddress, amount * 1000, comment);
@@ -5863,9 +6511,33 @@ class SidecarApp {
       // Generate QR code
       this.generateQRCode(invoice);
       
+      // Hide the Create Invoice button since QR is now shown
+      const sendZapBtn = document.getElementById('send-zap-btn');
+      if (sendZapBtn) {
+        sendZapBtn.style.display = 'none';
+      }
+      
+      // Lock the amount and comment fields since invoice is generated
+      const zapAmountField = document.getElementById('zap-amount');
+      const zapCommentField = document.getElementById('zap-comment');
+      if (zapAmountField) {
+        zapAmountField.disabled = true;
+        zapAmountField.style.opacity = '0.6';
+      }
+      if (zapCommentField) {
+        zapCommentField.disabled = true;
+        zapCommentField.style.opacity = '0.6';
+      }
+      
       // Show the invoice in the modal
-      document.getElementById('zap-invoice-text').textContent = invoice;
-      document.getElementById('zap-invoice-display').classList.remove('hidden');
+      const zapInvoiceText = document.getElementById('zap-invoice-text');
+      
+      if (!zapInvoiceText) {
+        throw new Error('Zap invoice text element not found');
+      }
+      
+      zapInvoiceText.textContent = invoice;
+      // zapInvoiceDisplay is already visible from earlier
       
       // Store the invoice for payment tracking
       this.currentZapInvoice = {
@@ -5882,11 +6554,27 @@ class SidecarApp {
       
     } catch (error) {
       console.error('❌ Failed to generate zap invoice:', error);
+      console.error('❌ Error details:', error.message, error.stack);
       
-      // Show error message
-      document.getElementById('zap-qr-code').innerHTML = `<p style="color: #ea6390;">Error: ${error.message}</p>`;
-      document.getElementById('zap-invoice-text').textContent = 'Failed to generate invoice';
-      document.getElementById('zap-invoice-display').classList.remove('hidden');
+      // Show error message in UI
+      const errorMessage = error.message || 'Unknown error occurred';
+      
+      const zapQRCode = document.getElementById('zap-qr-code');
+      const zapInvoiceText = document.getElementById('zap-invoice-text');
+      const zapInvoiceDisplay = document.getElementById('zap-invoice-display');
+      
+      if (zapQRCode) {
+        zapQRCode.innerHTML = `<p style="color: #ea772f;">Error: ${errorMessage}</p>`;
+      }
+      if (zapInvoiceText) {
+        zapInvoiceText.textContent = 'Failed to generate invoice';
+      }
+      if (zapInvoiceDisplay) {
+        zapInvoiceDisplay.classList.remove('hidden');
+      }
+      
+      // Also show alert for immediate user feedback
+      alert(`Failed to generate invoice: ${errorMessage}`);
     }
   }
   
@@ -5937,6 +6625,11 @@ class SidecarApp {
     
     console.log('👀 Starting payment monitoring for invoice...');
     
+    // Create a real-time subscription for zap receipts during payment monitoring
+    if (this.currentZapInvoice && this.currentZapInvoice.eventId) {
+      this.createRealTimeZapSubscription(this.currentZapInvoice.eventId);
+    }
+    
     // Monitor for payment completion via zap receipts
     // The payment monitoring will be handled by the existing handleZapReceipt function
     // We just need to set up a timeout for the monitoring period
@@ -5955,17 +6648,60 @@ class SidecarApp {
       clearTimeout(this.paymentMonitoringTimeout);
       this.paymentMonitoringTimeout = null;
     }
+    
+    // Clean up real-time zap subscription
+    if (this.realTimeZapSubId) {
+      this.relayConnections.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(['CLOSE', this.realTimeZapSubId]));
+        }
+      });
+      this.subscriptions.delete(this.realTimeZapSubId);
+      console.log('🧹 Cleaned up real-time zap subscription:', this.realTimeZapSubId);
+      this.realTimeZapSubId = null;
+    }
   }
   
-  showPaymentSuccessMessage(zapAmount) {
-    console.log('🎉 Showing payment success message for', zapAmount, 'sats');
+  createRealTimeZapSubscription(eventId) {
+    // Create a subscription specifically for real-time zap receipts during payment monitoring
+    this.realTimeZapSubId = `realtime-zap-${eventId.substring(0, 8)}-${Date.now()}`;
+    
+    // Use a since filter starting from now to catch only new zap receipts
+    const now = Math.floor(Date.now() / 1000);
+    const filter = {
+      kinds: [9735], // Zap receipts only
+      '#e': [eventId], // Events that reference this note ID
+      since: now - 30 // Start from 30 seconds ago to catch any that just happened
+    };
+    
+    const subscription = ['REQ', this.realTimeZapSubId, filter];
+    this.subscriptions.set(this.realTimeZapSubId, subscription);
+    
+    // Send to all connected relays
+    let sentCount = 0;
+    this.relayConnections.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+        sentCount++;
+      }
+    });
+    
+    console.log('📡 Created real-time zap subscription for payment monitoring:', eventId.substring(0, 16) + '...', `(sent to ${sentCount} relays)`);
+  }
+  
+  showPaymentSuccessMessage(zapAmount, preimage = null) {
+    console.log('🎉 Showing payment success message for', zapAmount, 'sats', preimage ? 'with preimage' : '');
     
     // Replace the zap invoice display with success message
     const zapInvoiceDisplay = document.getElementById('zap-invoice-display');
     if (zapInvoiceDisplay && !zapInvoiceDisplay.classList.contains('hidden')) {
+      
       zapInvoiceDisplay.innerHTML = `
         <div class="zap-success">
-          <div class="success-icon">✅</div>
+          <div class="success-icon"><svg width="96" height="96" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M50 0C22.449 0 0 22.449 0 50C0 77.551 22.449 100 50 100C77.551 100 100 77.551 100 50C100 22.449 77.551 0 50 0ZM50 93.1973C26.1905 93.1973 6.80272 73.8095 6.80272 50C6.80272 26.1905 26.1905 6.80272 50 6.80272C73.8095 6.80272 93.1973 26.1905 93.1973 50C93.1973 73.8095 73.8095 93.1973 50 93.1973Z" fill="#EA772F"/>
+<path d="M64.9787 43.3578H53.2654C52.3406 43.3578 52.0324 42.4187 52.3406 42.1056L62.821 19.2522C63.2834 18.7826 62.3586 18 61.8963 18H42.785C42.3226 18 41.8603 18.4696 41.8603 18.9392L34 54.1584C34 55.0976 34.4624 55.4106 34.9247 55.4106H45.4051C45.8675 55.4106 46.3298 55.8802 46.3298 56.3498L43.5556 80.612C43.4015 82.0207 45.251 82.4903 45.8675 81.3946L65.9034 44.9231C66.2117 44.297 65.7493 43.3578 64.9787 43.3578Z" fill="#EA772F"/>
+</svg></div>
           <div class="success-message">
             <h3>Payment Successful!</h3>
             <p>Your ${zapAmount} sat zap has been sent</p>
@@ -5986,6 +6722,42 @@ class SidecarApp {
           this.hideModal('zap-modal');
         }
       }, 5000);
+    } else {
+      // If no invoice display (e.g., direct wallet payment), show success in modal
+      const zapModal = document.getElementById('zap-modal');
+      if (zapModal && !zapModal.classList.contains('hidden')) {
+        // Create a temporary success overlay in the modal
+        const successOverlay = document.createElement('div');
+        successOverlay.className = 'payment-success-overlay';
+        
+        successOverlay.innerHTML = `
+          <div class="zap-success">
+            <div class="success-icon"><svg width="96" height="96" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M50 0C22.449 0 0 22.449 0 50C0 77.551 22.449 100 50 100C77.551 100 100 77.551 100 50C100 22.449 77.551 0 50 0ZM50 93.1973C26.1905 93.1973 6.80272 73.8095 6.80272 50C6.80272 26.1905 26.1905 6.80272 50 6.80272C73.8095 6.80272 93.1973 26.1905 93.1973 50C93.1973 73.8095 73.8095 93.1973 50 93.1973Z" fill="#EA772F"/>
+<path d="M64.9787 43.3578H53.2654C52.3406 43.3578 52.0324 42.4187 52.3406 42.1056L62.821 19.2522C63.2834 18.7826 62.3586 18 61.8963 18H42.785C42.3226 18 41.8603 18.4696 41.8603 18.9392L34 54.1584C34 55.0976 34.4624 55.4106 34.9247 55.4106H45.4051C45.8675 55.4106 46.3298 55.8802 46.3298 56.3498L43.5556 80.612C43.4015 82.0207 45.251 82.4903 45.8675 81.3946L65.9034 44.9231C66.2117 44.297 65.7493 43.3578 64.9787 43.3578Z" fill="#EA772F"/>
+</svg></div>
+            <div class="success-message">
+              <h3>Payment Successful!</h3>
+              <p>Your ${zapAmount} sat zap has been sent</p>
+            </div>
+            <button id="close-success-overlay-btn" class="btn btn-secondary">Close</button>
+          </div>
+        `;
+        
+        zapModal.appendChild(successOverlay);
+        
+        // Close button handler
+        document.getElementById('close-success-overlay-btn').addEventListener('click', () => {
+          this.hideModal('zap-modal');
+        });
+        
+        // Auto-close after 3 seconds
+        setTimeout(() => {
+          if (!zapModal.classList.contains('hidden')) {
+            this.hideModal('zap-modal');
+          }
+        }, 3000);
+      }
     }
     
     // Stop payment monitoring
@@ -6094,8 +6866,16 @@ class SidecarApp {
   }
   
   async createZapRequest(amountMsat, comment) {
+    console.log('🔍 Creating zap request - Current user:', this.currentUser);
+    console.log('🔍 Zapping event:', this.zappingEvent?.id?.substring(0, 16) + '...');
+    
     if (!this.currentUser) {
       console.log('⚠️ No current user, creating zap request without signature');
+      return null;
+    }
+    
+    if (!this.zappingEvent) {
+      console.error('❌ No zapping event set!');
       return null;
     }
     
@@ -6110,14 +6890,17 @@ class SidecarApp {
           ['e', this.zappingEvent.id], // Event being zapped
           ['p', this.zappingEvent.pubkey], // Recipient pubkey
           ['amount', amountMsat.toString()], // Amount in millisats
-          ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io']
+          ['relays', ...this.relays], // Relays where the zap receipt should be published (NIP-57 requirement)
         ],
+        pubkey: this.currentUser.pubkey,
         created_at: Math.floor(Date.now() / 1000),
       };
       
+      console.log('📝 Zap request before signing:', zapRequest);
+      
       // Sign the zap request
       const signedZapRequest = await this.signEvent(zapRequest);
-      console.log('✅ Zap request created and signed');
+      console.log('✅ Zap request created and signed:', signedZapRequest);
       
       return signedZapRequest;
       
@@ -6141,7 +6924,7 @@ class SidecarApp {
             return;
           } else {
             console.error('❌ QRious library not available after retries');
-            document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea6390;">QR code library not loaded</p>';
+            document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea772f;">QR code library not loaded</p>';
             return;
           }
         }
@@ -6168,7 +6951,7 @@ class SidecarApp {
         
       } catch (error) {
         console.error('❌ Error generating QR code:', error);
-        document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea6390;">Error generating QR code: ' + error.message + '</p>';
+        document.getElementById('zap-qr-code').innerHTML = '<p style="color: #ea772f;">Error generating QR code: ' + error.message + '</p>';
       }
     };
     

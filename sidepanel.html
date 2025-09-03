@@ -86,8 +86,10 @@
             <textarea id="compose-text" placeholder="What's happening?" maxlength="2100"></textarea>
             <div class="compose-actions">
                 <span id="char-count" class="char-count" style="display: none;">2100</span>
-                <button id="cancel-compose-btn" class="btn btn-secondary">Cancel</button>
-                <button id="post-btn" class="btn btn-primary" disabled>Post</button>
+                <div class="action-buttons">
+                    <button id="cancel-compose-btn" class="btn btn-secondary">Cancel</button>
+                    <button id="post-btn" class="btn btn-primary" disabled>Post</button>
+                </div>
             </div>
         </div>
     </div>
@@ -155,8 +157,10 @@
                 <textarea id="reply-text" placeholder="Write your reply..." maxlength="2100"></textarea>
                 <div class="reply-actions">
                     <span id="reply-char-count" class="char-count" style="display: none;">2100</span>
-                    <button id="cancel-reply-btn" class="btn btn-secondary">Cancel</button>
-                    <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
+                    <div class="action-buttons">
+                        <button id="cancel-reply-btn" class="btn btn-secondary">Cancel</button>
+                        <button id="send-reply-btn" class="btn btn-primary" disabled>Reply</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -189,9 +193,11 @@
                 <div id="quote-compose" class="quote-compose-section hidden">
                     <textarea id="quote-text" placeholder="Add your thoughts..." maxlength="2100"></textarea>
                     <div class="quote-actions">
-                        <span id="quote-char-count" class="char-count">2100</span>
-                        <button id="cancel-quote-btn" class="btn btn-secondary">Cancel</button>
-                        <button id="send-quote-btn" class="btn btn-primary" disabled>Post Quote</button>
+                        <span id="quote-char-count" class="char-count" style="display: none;">2100</span>
+                        <div class="action-buttons">
+                            <button id="cancel-quote-btn" class="btn btn-secondary">Cancel</button>
+                            <button id="send-quote-btn" class="btn btn-primary" disabled>Post Quote</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -302,7 +308,6 @@
                     <div id="wallet-status" class="wallet-status">
                         <div id="wallet-disconnected" class="wallet-state">
                             <button id="connect-wallet-btn" class="btn btn-secondary">⚡ Connect Wallet</button>
-                            <p class="wallet-help">Connect your Lightning wallet to pay directly without QR codes</p>
                         </div>
                         <div id="wallet-connected" class="wallet-state hidden">
                             <div class="wallet-info">
@@ -315,8 +320,8 @@
                 </div>
                 
                 <div class="zap-actions">
-                    <button id="send-zap-btn" class="btn btn-primary">Generate Invoice</button>
-                    <button id="pay-with-wallet-btn" class="btn btn-primary hidden">Pay with Wallet</button>
+                    <button id="send-zap-btn" class="btn btn-primary">Create Invoice</button>
+                    <button id="pay-with-wallet-btn" class="btn btn-primary hidden">Zap!</button>
                 </div>
                 
                 <div id="zap-invoice-display" class="hidden">
@@ -361,6 +366,6 @@
         });
     </script>
     <script src="nostr-tools.js"></script>
-    <script type="module" src="sidepanel.js"></script>
+    <script src="sidepanel.js"></script>
 </body>
 </html>

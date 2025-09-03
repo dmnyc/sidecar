@@ -3,6 +3,9 @@
 // Track pending NIP-07 requests
 const pendingNip07Requests = new Map();
 
+// Track pending WebLN requests
+const pendingWebLNRequests = new Map();
+
 // Enable side panel on extension install
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -21,9 +24,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       checkNip07Support(sendResponse);
       return true; // Keep message channel open for async response
       
+    case 'GET_WEBLN_SUPPORT':
+      // Check if WebLN extension is available
+      checkWebLNSupport(sendResponse);
+      return true; // Keep message channel open for async response
+      
     case 'NIP07_REQUEST':
       // Forward NIP-07 requests to content script
       forwardNip07Request(message.data, sendResponse);
+      return true;
+      
+    case 'WEBLN_REQUEST':
+      // Forward WebLN requests to content script
+      forwardWebLNRequest(message.data, sendResponse);
       return true;
       
     case 'STORE_KEYS':
@@ -44,6 +57,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'NIP07_RESPONSE':
       // Handle NIP-07 response from content script
       handleNip07Response(message.data, message.requestId);
+      return false; // Don't keep channel open
+      
+    case 'WEBLN_RESPONSE':
+      // Handle WebLN response from content script
+      handleWebLNResponse(message.data, message.requestId);
       return false; // Don't keep channel open
       
     default:
@@ -138,6 +156,93 @@ async function checkNip07Support(sendResponse) {
   }
 }
 
+async function checkWebLNSupport(sendResponse) {
+  console.log('🔍 Checking WebLN support via content script bridge...');
+  try {
+    // Get all tabs, prioritizing active tabs and regular web pages
+    const allTabs = await chrome.tabs.query({});
+    const activeTabs = allTabs.filter(tab => tab.active);
+    const regularTabs = allTabs.filter(tab => 
+      tab.url && 
+      (tab.url.startsWith('http://') || tab.url.startsWith('https://')) &&
+      !tab.url.includes('chrome://') &&
+      !tab.url.includes('extension://')
+    );
+    
+    // Check active tabs first, then regular tabs
+    const tabsToCheck = [...new Set([...activeTabs, ...regularTabs])];
+    console.log(`📋 Found ${tabsToCheck.length} suitable tabs to check for WebLN (${activeTabs.length} active)`);
+    
+    if (tabsToCheck.length === 0) {
+      console.log('❌ No suitable tabs found for WebLN check. User needs to open a regular webpage.');
+      sendResponse({ 
+        supported: false, 
+        error: 'No regular webpages open. Please open a website like google.com first.' 
+      });
+      return;
+    }
+    
+    let found = false;
+    let checkedTabs = 0;
+    
+    for (const tab of tabsToCheck) {
+      try {
+        console.log(`🔍 Checking tab for WebLN: ${tab.url} (active: ${tab.active})`);
+        checkedTabs++;
+        
+        let response;
+        try {
+          // First try with existing content script (with timeout)
+          response = await Promise.race([
+            chrome.tabs.sendMessage(tab.id, { type: 'CHECK_WEBLN_SUPPORT' }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+          ]);
+        } catch (error) {
+          console.log(`💉 Need to inject content script for WebLN check into ${tab.url}: ${error.message}`);
+          
+          try {
+            // Inject content script
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['content.js']
+            });
+            
+            // Wait longer for script to fully initialize
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try again with timeout
+            response = await Promise.race([
+              chrome.tabs.sendMessage(tab.id, { type: 'CHECK_WEBLN_SUPPORT' }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout after injection')), 3000))
+            ]);
+          } catch (injectionError) {
+            console.log(`❌ Failed to inject/communicate for WebLN check with ${tab.url}: ${injectionError.message}`);
+            continue;
+          }
+        }
+        
+        console.log(`📊 Tab ${tab.url} WebLN result:`, response);
+        
+        if (response && response.supported) {
+          found = true;
+          console.log('✅ WebLN extension found!');
+          break;
+        }
+      } catch (error) {
+        console.log(`⚠️ Error checking tab for WebLN ${tab.url}: ${error.message}`);
+        continue;
+      }
+    }
+    
+    console.log(`📈 Checked ${checkedTabs}/${tabsToCheck.length} tabs for WebLN, support: ${found}`);
+    sendResponse({ supported: found });
+    
+  } catch (error) {
+    console.error('💥 Error checking WebLN support:', error);
+    sendResponse({ supported: false, error: error.message });
+  }
+}
+
 async function forwardNip07Request(data, sendResponse) {
   console.log('Forwarding NIP-07 request via content script bridge:', data);
   try {
@@ -228,6 +333,124 @@ function handleNip07Response(data, requestId) {
   if (sendResponse) {
     sendResponse(data);
     pendingNip07Requests.delete(requestId);
+  }
+}
+
+async function forwardWebLNRequest(data, sendResponse) {
+  console.log('Forwarding WebLN request via content script bridge:', data);
+  try {
+    // Find a tab with WebLN support and use content script bridge
+    const tabs = await chrome.tabs.query({});
+    let success = false;
+    
+    for (const tab of tabs) {
+      try {
+        // Skip extension pages and special URLs
+        if (!tab.url || tab.url.startsWith('chrome://') || 
+            tab.url.startsWith('chrome-extension://') ||
+            tab.url.startsWith('moz-extension://') ||
+            tab.url.startsWith('about:') ||
+            tab.url.startsWith('edge://') ||
+            tab.url.startsWith('opera://')) {
+          continue;
+        }
+        
+        console.log(`Trying WebLN request on tab via content script: ${tab.url}`);
+        
+        // Generate request ID for tracking
+        const requestId = 'webln_' + Date.now() + '_' + Math.random();
+        
+        // Store the response callback
+        pendingWebLNRequests.set(requestId, sendResponse);
+        
+        try {
+          // Try to send request via existing content script
+          await chrome.tabs.sendMessage(tab.id, {
+            type: 'WEBLN_REQUEST',
+            data: data,
+            requestId: requestId
+          });
+          
+          success = true;
+          break;
+        } catch (error) {
+          // If content script doesn't exist, inject it
+          console.log(`Content script not found for WebLN request, injecting into ${tab.url}`);
+          
+          try {
+            // Inject content script
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['content.js']
+            });
+            
+            // Wait a moment for script to initialize
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Try sending request again
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'WEBLN_REQUEST',
+              data: data,
+              requestId: requestId
+            });
+            
+            success = true;
+            break;
+          } catch (injectionError) {
+            console.log(`Failed to inject content script for WebLN request into ${tab.url}:`, injectionError.message);
+            // Clean up pending request
+            pendingWebLNRequests.delete(requestId);
+            continue;
+          }
+        }
+        
+      } catch (error) {
+        console.log(`Error on tab ${tab.url}:`, error.message);
+        continue;
+      }
+    }
+    
+    if (!success) {
+      console.log('No tab could handle WebLN request via content script');
+      sendResponse({ success: false, error: 'No tab with content script found for WebLN request' });
+    }
+    
+  } catch (error) {
+    console.error('Error forwarding WebLN request:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+function handleWebLNResponse(data, requestId) {
+  console.log('📨 Handling WebLN response:', { data, requestId });
+  console.log('🔍 Pending WebLN requests:', pendingWebLNRequests.size);
+  
+  const sendResponse = pendingWebLNRequests.get(requestId);
+  if (sendResponse) {
+    console.log('✅ Found pending request, sending response');
+    sendResponse(data);
+    pendingWebLNRequests.delete(requestId);
+    console.log('🧹 Cleaned up request, remaining:', pendingWebLNRequests.size);
+  } else {
+    console.warn('⚠️ No pending request found for WebLN response:', requestId);
+    console.warn('🔍 This may indicate Alby is sending duplicate responses');
+    
+    // If we're getting orphaned responses, try to signal completion to Alby
+    // by broadcasting a completion message
+    try {
+      chrome.tabs.query({}, (tabs) => {
+        tabs.forEach(tab => {
+          if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: 'WEBLN_CLEANUP',
+              requestId: requestId
+            }).catch(() => {}); // Ignore errors for tabs without content script
+          }
+        });
+      });
+    } catch (e) {
+      console.log('Could not send cleanup message:', e);
+    }
   }
 }
 
