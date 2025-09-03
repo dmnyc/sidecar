@@ -33,6 +33,18 @@
         data: data
       });
     }
+    
+    // Check if this is a Sidecar WebLN response
+    if (event.data && event.data.type === 'SIDECAR_WEBLN_RESPONSE') {
+      const { requestId, data } = event.data;
+      
+      // Send response back to background script
+      chrome.runtime.sendMessage({
+        type: 'WEBLN_RESPONSE',
+        requestId: requestId,
+        data: data
+      });
+    }
   });
   
   // Listen for messages from background script
@@ -58,6 +70,25 @@
       return true; // Keep message channel open for async response
     }
     
+    if (message.type === 'CHECK_WEBLN_SUPPORT') {
+      // Check if window.webln is available by asking injected script
+      const requestId = 'check_webln_' + Date.now();
+      
+      // Store callback for this request
+      pendingRequests.set(requestId, (result) => {
+        sendResponse(result);
+        pendingRequests.delete(requestId);
+      });
+      
+      // Ask injected script to check for WebLN support
+      window.postMessage({
+        type: 'SIDECAR_CHECK_WEBLN',
+        requestId: requestId
+      }, window.location.origin);
+      
+      return true; // Keep message channel open for async response
+    }
+    
     if (message.type === 'NIP07_REQUEST') {
       console.log('Forwarding NIP-07 request to injected script:', message.data);
       
@@ -76,6 +107,25 @@
       
       return true; // Keep message channel open for async response
     }
+    
+    if (message.type === 'WEBLN_REQUEST') {
+      console.log('Forwarding WebLN request to injected script:', message.data);
+      
+      // Store callback for this request
+      pendingRequests.set(message.requestId, (result) => {
+        sendResponse(result);
+        pendingRequests.delete(message.requestId);
+      });
+      
+      // Forward to injected script
+      window.postMessage({
+        type: 'SIDECAR_WEBLN_REQUEST',
+        data: message.data,
+        requestId: message.requestId
+      }, window.location.origin);
+      
+      return true; // Keep message channel open for async response
+    }
   });
   
   // Handle responses from injected script
@@ -86,6 +136,15 @@
       const callback = pendingRequests.get(event.data.requestId);
       if (callback) {
         callback(event.data.data);
+      }
+    }
+    
+    if (event.data && event.data.type === 'SIDECAR_WEBLN_RESPONSE') {
+      const callback = pendingRequests.get(event.data.requestId);
+      if (callback) {
+        callback(event.data.data);
+        // Clean up the callback to prevent duplicate handling
+        pendingRequests.delete(event.data.requestId);
       }
     }
   });
