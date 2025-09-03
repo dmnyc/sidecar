@@ -5225,11 +5225,39 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         });
         this.subscriptions.delete(subId);
         
-        // Remove any remaining loading placeholders for this event
+        // Replace any remaining loading placeholders with fallback links
         const stillLoadingPlaceholders = document.querySelectorAll(`.quoted-note.loading[data-event-id="${quotedNote.eventId}"]`);
-        console.log(`🧹 Removing ${stillLoadingPlaceholders.length} unfound quoted note placeholders for:`, quotedNote.eventId.substring(0, 16) + '...');
+        console.log(`🔗 Converting ${stillLoadingPlaceholders.length} unfound quoted note placeholders to fallback links for:`, quotedNote.eventId.substring(0, 16) + '...');
         stillLoadingPlaceholders.forEach(placeholder => {
-          placeholder.remove();
+          // Create fallback link instead of removing
+          const bech32 = placeholder.dataset.bech32 || quotedNote.bech32;
+          const uniqueId = 'quoted-fallback-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+          const fallbackHTML = `<div id="${uniqueId}" class="quoted-note fallback" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd; border: 1px dashed rgba(167, 139, 250, 0.3);" data-note-id="${quotedNote.eventId}" data-bech32="${bech32}">
+            <span>View quoted note</span>
+            <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+              <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
+            </svg>
+          </div>`;
+          
+          placeholder.outerHTML = fallbackHTML;
+          
+          // Set up click handler for fallback link
+          setTimeout(() => {
+            const fallbackElement = document.getElementById(uniqueId);
+            if (fallbackElement) {
+              fallbackElement.addEventListener('click', () => {
+                const noteId = fallbackElement.dataset.noteId;
+                const bech32Id = fallbackElement.dataset.bech32;
+                if (bech32Id) {
+                  // Open with bech32 ID (more precise)
+                  window.open(`https://jumble.social/${bech32Id}`, '_blank');
+                } else if (noteId) {
+                  // Fallback to hex ID
+                  window.open(`https://jumble.social/note${window.NostrTools.nip19.noteEncode(noteId)}`, '_blank');
+                }
+              });
+            }
+          }, 100);
         });
       }, 5000);
     }
