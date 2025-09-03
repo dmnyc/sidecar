@@ -1547,7 +1547,6 @@ img:not(.avatar-img) {
 }
 
 .repost {
-    border-left: 3px solid #a78bfa;
     padding-left: 8px;
 }
 

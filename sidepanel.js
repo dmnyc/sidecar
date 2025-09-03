@@ -8,10 +8,21 @@ class SidecarApp {
     this.currentFeed = 'trending';
     console.log('📝 Initial feed set to:', this.currentFeed);
     this.relays = [
+      // Original relays
       'wss://relay.damus.io',
       'wss://nos.lol',
       'wss://relay.nostr.band',
-      'wss://nostr.wine'
+      'wss://nostr.wine',
+      
+      // Additional major relays for better coverage
+      'wss://relay.snort.social',
+      'wss://relay.current.fyi',
+      'wss://brb.io',
+      'wss://relay.primal.net',
+      'wss://purplepag.es',
+      'wss://offchain.pub',
+      'wss://relayable.org',
+      'wss://relay.nostrgraph.net'
     ];
     this.relayConnections = new Map();
     this.subscriptions = new Map();
@@ -22,6 +33,7 @@ class SidecarApp {
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
     this.profileNotFound = new Set(); // Track pubkeys that don't have profiles
+    this.userRelays = new Set(); // Track relays discovered from user's relay list
     this.pendingNoteDisplays = new Map(); // Track notes waiting to be displayed (eventId -> timeoutId)
     this.initialFeedLoaded = false; // Track if initial feed has been loaded
     this.profileQueue = new Set(); // Queue profile requests for batching
@@ -1266,6 +1278,11 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           this.updateWalletAvailability(); // Update wallet UI after sign-in
         }, 1000);
         
+        // Fetch user's relay list (NIP-65) to discover their preferred relays
+        setTimeout(() => {
+          this.requestUserRelayList();
+        }, 500);
+        
         // Fetch contact list after a short delay to ensure relays are connected
         setTimeout(() => {
           console.log('Fetching contact list after NIP-07 sign-in delay...');
@@ -1335,6 +1352,11 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         this.loadFeed();
         input.value = '';
         
+        // Fetch user's relay list (NIP-65) to discover their preferred relays
+        setTimeout(() => {
+          this.requestUserRelayList();
+        }, 500);
+        
         // Fetch contact list after a short delay to ensure relays are connected
         setTimeout(() => {
           console.log('Fetching contact list after private key import delay...');
@@ -1393,6 +1415,11 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         this.updateAuthUI();
         this.hideModal('auth-modal');
         this.loadFeed();
+        
+        // Fetch user's relay list (NIP-65) to discover their preferred relays
+        setTimeout(() => {
+          this.requestUserRelayList();
+        }, 500);
         
         // Fetch contact list after a short delay to ensure relays are connected
         setTimeout(() => {
@@ -1763,6 +1790,65 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   
   connectToRelays() {
     this.relays.forEach(relay => this.connectToRelay(relay));
+  }
+
+  async requestUserRelayList() {
+    if (!this.currentUser) return;
+    
+    console.log('📡 Requesting user relay list (NIP-65)...');
+    
+    // Request user's relay list (kind 10002)
+    const relayListFilter = {
+      kinds: [10002],
+      authors: [this.currentUser.publicKey],
+      limit: 1
+    };
+    
+    const subId = `relay-list-${Date.now()}`;
+    const subscription = ['REQ', subId, relayListFilter];
+    this.subscriptions.set(subId, subscription);
+    
+    // Send to all connected relays
+    this.relayConnections.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+      }
+    });
+  }
+
+  handleRelayListEvent(event) {
+    console.log('📡 Processing user relay list event...');
+    
+    // Extract relay URLs from tags
+    const relayUrls = event.tags
+      .filter(tag => tag[0] === 'r')
+      .map(tag => tag[1])
+      .filter(url => url && url.startsWith('wss://'));
+    
+    console.log('📡 Found user relays:', relayUrls);
+    
+    // Add discovered relays to our relay list
+    let newRelaysAdded = 0;
+    relayUrls.forEach(relay => {
+      if (!this.relays.includes(relay)) {
+        this.relays.push(relay);
+        this.userRelays.add(relay);
+        newRelaysAdded++;
+        
+        // Connect to the new relay
+        this.connectToRelay(relay);
+      }
+    });
+    
+    if (newRelaysAdded > 0) {
+      console.log(`📡 Added ${newRelaysAdded} new user relays, total relays: ${this.relays.length}`);
+      
+      // Refresh the current feed to get content from new relays
+      setTimeout(() => {
+        console.log('🔄 Refreshing feed to include content from user relays...');
+        this.loadFeed();
+      }, 2000); // Wait 2 seconds for relay connections
+    }
   }
   
   connectToRelay(relay) {
@@ -2431,6 +2517,13 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       // Zap receipt events
       console.log('⚡ Received zap receipt from:', event.pubkey.substring(0, 16) + '...');
       this.handleZapReceipt(event);
+      return;
+    } else if (event.kind === 10002) {
+      // Relay list events (NIP-65)
+      console.log('📡 Received relay list event from:', event.pubkey.substring(0, 16) + '...');
+      if (this.currentUser && event.pubkey === this.currentUser.publicKey) {
+        this.handleRelayListEvent(event);
+      }
       return;
     } else if (event.kind === 1) {
       // Text notes
