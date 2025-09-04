@@ -1,6 +1,128 @@
 // Main sidepanel script for Sidecar Nostr extension
 console.log('🟢 SIDEPANEL.JS SCRIPT LOADED!');
 
+// Simple thread manager for tracking reply relationships (Phase 1: tracking only)
+class ThreadManager {
+  constructor() {
+    this.replyCounts = new Map(); // eventId -> number of direct replies
+    this.replyRelationships = new Map(); // replyId -> parentId
+    this.parentReplies = new Map(); // parentId -> Set of replyIds
+  }
+
+  // Detect if a note is a reply by checking 'e' tags
+  getParentEventId(event) {
+    if (!event.tags) return null;
+    
+    const eTags = event.tags.filter(tag => tag[0] === 'e');
+    if (eTags.length === 0) return null;
+    
+    // Look for explicit 'reply' marker, otherwise use the last e-tag
+    for (let i = eTags.length - 1; i >= 0; i--) {
+      const tag = eTags[i];
+      if (tag[3] === 'reply' || i === eTags.length - 1) {
+        return tag[1]; // Return parent event ID
+      }
+    }
+    
+    return null;
+  }
+
+  // Track a note and its reply relationships (silent operation)
+  trackNote(event) {
+    const eventId = event.id;
+    const parentId = this.getParentEventId(event);
+    
+    if (parentId) {
+      // This is a reply
+      this.replyRelationships.set(eventId, parentId);
+      
+      // Track replies for the parent
+      if (!this.parentReplies.has(parentId)) {
+        this.parentReplies.set(parentId, new Set());
+      }
+      this.parentReplies.get(parentId).add(eventId);
+      
+      // Update reply count for parent
+      const count = this.parentReplies.get(parentId).size;
+      this.replyCounts.set(parentId, count);
+      
+      console.log('🔗 Reply tracked:', eventId.substring(0, 8) + '...', '→', parentId.substring(0, 8) + '...', `(${count} replies)`);
+      
+      // Update UI to show new count
+      this.updateReplyCountInUI(parentId);
+    }
+  }
+
+  // Get reply count for a note (0 if no replies)
+  getReplyCount(eventId) {
+    return this.replyCounts.get(eventId) || 0;
+  }
+
+  // Check if a note has replies
+  hasReplies(eventId) {
+    return this.getReplyCount(eventId) > 0;
+  }
+
+  // Fetch historical replies for a note from relays
+  async fetchRepliesForNote(eventId, relayConnections) {
+    if (!relayConnections || relayConnections.size === 0) return;
+    
+    const subscriptionId = `replies_${eventId.substring(0, 8)}_${Date.now()}`;
+    const filter = {
+      kinds: [1],
+      '#e': [eventId],
+      limit: 50
+    };
+
+    const subscription = ["REQ", subscriptionId, filter];
+    console.log('📡 Fetching historical replies for:', eventId.substring(0, 8) + '...');
+    
+    let relaySent = 0;
+    relayConnections.forEach((ws, relayUrl) => {
+      if (relaySent >= 5) return; // Limit to first 5 relays
+      if (ws.readyState !== WebSocket.OPEN) return;
+      
+      try {
+        ws.send(JSON.stringify(subscription));
+        relaySent++;
+        console.log(`📤 Requesting replies from: ${relayUrl}`);
+      } catch (error) {
+        console.log('⚠️ Error fetching replies from relay:', relayUrl, error);
+      }
+    });
+    
+    // Auto-close subscription after 5 seconds
+    setTimeout(() => {
+      const closeMsg = ["CLOSE", subscriptionId];
+      relayConnections.forEach((ws, relayUrl) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify(closeMsg));
+          } catch (error) {
+            console.log('⚠️ Error closing subscription:', error);
+          }
+        }
+      });
+    }, 5000);
+  }
+
+  // Update reply count display in the DOM
+  updateReplyCountInUI(eventId) {
+    const replyCountElements = document.querySelectorAll(`.reply-count[data-event-id="${eventId}"]`);
+    const newCount = this.getReplyCount(eventId);
+    
+    replyCountElements.forEach(element => {
+      if (newCount > 0) {
+        element.textContent = newCount;
+        element.style.display = '';
+      } else {
+        element.textContent = '';
+        element.style.display = 'none';
+      }
+    });
+  }
+}
+
 class SidecarApp {
   constructor() {
     console.log('🏗️ SIDECAR APP CONSTRUCTOR CALLED');
@@ -30,10 +152,14 @@ class SidecarApp {
     this.userReactions = new Set(); // Track events user has already reacted to
     this.zapReceipts = new Map(); // Track zap receipts for notes (eventId -> [zapInfo])
     this.zapReceiptRequests = new Set(); // Track which note IDs we've requested zap receipts for
+    this.repostAggregation = new Map(); // Track multiple reposts of same note (originalNoteId -> repostInfo)
     this.profiles = new Map(); // Cache for user profiles (pubkey -> profile data)
     this.profileRequests = new Set(); // Track pending profile requests
     this.profileNotFound = new Set(); // Track pubkeys that don't have profiles
     this.userRelays = new Set(); // Track relays discovered from user's relay list
+    
+    // Initialize thread manager for reply tracking (Phase 1: tracking only)
+    this.threadManager = new ThreadManager();
     this.pendingNoteDisplays = new Map(); // Track notes waiting to be displayed (eventId -> timeoutId)
     this.initialFeedLoaded = false; // Track if initial feed has been loaded
     this.profileQueue = new Set(); // Queue profile requests for batching
@@ -2021,7 +2147,12 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
 
   handleRepost(repostEvent) {
-    console.log('🔁 Handling repost from:', repostEvent.pubkey.substring(0, 16) + '...', 'Current feed:', this.currentFeedType);
+    console.log('🔁 Handling repost from:', repostEvent.pubkey.substring(0, 16) + '...', 'Event ID:', repostEvent.id.substring(0, 16) + '...', 'Current feed:', this.currentFeed);
+    
+    // Proactively fetch reposter's profile if not cached
+    if (!this.profiles.has(repostEvent.pubkey)) {
+      this.fetchProfileForAuthor(repostEvent.pubkey);
+    }
     
     // Find the original note being reposted from the 'e' tag
     const eTags = repostEvent.tags?.filter(tag => tag[0] === 'e') || [];
@@ -2067,7 +2198,250 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
 
   displayRepost(repostEvent, originalNote) {
+    // Check if we have both profiles
+    const hasReposterProfile = this.profiles.has(repostEvent.pubkey);
+    const hasOriginalProfile = this.profiles.has(originalNote.pubkey);
     
+    console.log('🔁 displayRepost - Reposter profile cached:', hasReposterProfile, 'Original profile cached:', hasOriginalProfile);
+    
+    // If we have both profiles, check for repost aggregation
+    if (hasReposterProfile && hasOriginalProfile) {
+      console.log('✅ Both profiles available, checking for repost aggregation');
+      this.handleRepostAggregation(repostEvent, originalNote);
+      return;
+    }
+    
+    // Missing profiles - queue the repost and fetch profiles
+    console.log('⏸️ Queueing repost until profiles are available');
+    this.queueRepostForProfiles(repostEvent, originalNote);
+    
+    // Fetch missing profiles
+    if (!hasReposterProfile) {
+      console.log('📤 Fetching reposter profile:', repostEvent.pubkey.substring(0, 16) + '...');
+      this.fetchProfileForAuthor(repostEvent.pubkey);
+    }
+    if (!hasOriginalProfile) {
+      console.log('📤 Fetching original author profile:', originalNote.pubkey.substring(0, 16) + '...');
+      this.fetchProfileForAuthor(originalNote.pubkey);
+    }
+  }
+  
+  // Handle repost aggregation - group multiple reposts of the same note
+  handleRepostAggregation(repostEvent, originalNote) {
+    const originalNoteId = originalNote.id;
+    
+    // Check if this note has already been reposted
+    if (this.repostAggregation.has(originalNoteId)) {
+      // Add this reposter to the existing aggregation
+      const aggregation = this.repostAggregation.get(originalNoteId);
+      
+      // Avoid duplicate reposters (same user reposting multiple times)
+      if (!aggregation.reposters.some(r => r.pubkey === repostEvent.pubkey)) {
+        aggregation.reposters.push({
+          pubkey: repostEvent.pubkey,
+          timestamp: repostEvent.created_at,
+          eventId: repostEvent.id
+        });
+        
+        // Sort reposters by timestamp (most recent first)
+        aggregation.reposters.sort((a, b) => b.timestamp - a.timestamp);
+        
+        console.log(`📚 Added reposter to aggregation - Total reposters: ${aggregation.reposters.length}`);
+        
+        // Update the existing repost display
+        this.updateAggregatedRepostDisplay(originalNoteId);
+      } else {
+        console.log('🔄 Duplicate repost from same user, ignoring');
+      }
+    } else {
+      // First repost of this note - create new aggregation
+      const aggregation = {
+        originalNote,
+        reposters: [{
+          pubkey: repostEvent.pubkey,
+          timestamp: repostEvent.created_at,
+          eventId: repostEvent.id
+        }],
+        displayTimestamp: repostEvent.created_at,
+        domElementId: `repost-aggregated-${originalNoteId}`
+      };
+      
+      this.repostAggregation.set(originalNoteId, aggregation);
+      console.log('📝 Created new repost aggregation for note:', originalNoteId.substring(0, 16) + '...');
+      
+      // Display the repost normally (first one shows as regular repost)
+      this.displayRepostImmediate(repostEvent, originalNote);
+    }
+  }
+  
+  // Update the display of an aggregated repost to show multiple reposters
+  updateAggregatedRepostDisplay(originalNoteId) {
+    const aggregation = this.repostAggregation.get(originalNoteId);
+    if (!aggregation || aggregation.reposters.length <= 1) return;
+    
+    // Find the DOM element for this repost
+    const repostElement = document.querySelector(`[data-original-event-id="${originalNoteId}"]`);
+    if (!repostElement) {
+      console.log('⚠️ Could not find DOM element for repost aggregation update');
+      return;
+    }
+    
+    // Update the repost indicator text
+    const repostIndicator = repostElement.querySelector('.repost-indicator span');
+    if (!repostIndicator) {
+      console.log('⚠️ Could not find repost indicator for aggregation update');
+      return;
+    }
+    
+    const primaryReposter = aggregation.reposters[0];
+    const primaryProfile = this.profiles.get(primaryReposter.pubkey);
+    const primaryName = primaryProfile?.display_name || primaryProfile?.name || this.getAuthorName(primaryReposter.pubkey);
+    
+    let repostText;
+    if (aggregation.reposters.length === 2) {
+      const secondReposter = aggregation.reposters[1];
+      const secondProfile = this.profiles.get(secondReposter.pubkey);
+      const secondName = secondProfile?.display_name || secondProfile?.name || this.getAuthorName(secondReposter.pubkey);
+      repostText = `${primaryName} and ${secondName} reposted`;
+    } else {
+      const otherCount = aggregation.reposters.length - 1;
+      repostText = `${primaryName} and ${otherCount} others reposted`;
+    }
+    
+    repostIndicator.textContent = repostText;
+    
+    // Add aggregated styling and click handler
+    const repostIndicatorElement = repostIndicator.parentElement;
+    if (!repostIndicatorElement.classList.contains('aggregated')) {
+      repostIndicatorElement.classList.add('aggregated');
+      repostIndicatorElement.title = 'Click to see all reposters';
+      
+      // Add click handler to show all reposters
+      repostIndicatorElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.showRepostDetails(originalNoteId);
+      });
+    }
+    
+    console.log(`📚 Updated repost display: ${repostText}`);
+  }
+  
+  // Show details of all reposters when clicking on aggregated repost indicator
+  showRepostDetails(originalNoteId) {
+    const aggregation = this.repostAggregation.get(originalNoteId);
+    if (!aggregation) return;
+    
+    console.log('📋 Showing repost details for', aggregation.reposters.length, 'reposters');
+    
+    // Create a simple tooltip-style display
+    const repostElement = document.querySelector(`[data-original-event-id="${originalNoteId}"]`);
+    if (!repostElement) return;
+    
+    // Remove any existing tooltip
+    const existingTooltip = document.querySelector('.repost-details-tooltip');
+    if (existingTooltip) {
+      existingTooltip.remove();
+    }
+    
+    // Create tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'repost-details-tooltip';
+    tooltip.innerHTML = `
+      <div class="repost-details-header">Reposted by:</div>
+      <div class="repost-details-list">
+        ${aggregation.reposters.map(reposter => {
+          const profile = this.profiles.get(reposter.pubkey);
+          const name = profile?.display_name || profile?.name || this.getAuthorName(reposter.pubkey);
+          const timeAgo = this.formatTimeAgo(reposter.timestamp);
+          return `<div class="repost-details-item">
+            <strong>${name}</strong>
+            <span class="repost-time">${timeAgo}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="repost-details-close">✕</div>
+    `;
+    
+    // Position tooltip near the repost indicator
+    const rect = repostElement.getBoundingClientRect();
+    tooltip.style.position = 'fixed';
+    tooltip.style.top = (rect.top + window.scrollY - 10) + 'px';
+    tooltip.style.left = (rect.left + 20) + 'px';
+    tooltip.style.zIndex = '1000';
+    
+    document.body.appendChild(tooltip);
+    
+    // Add close handlers
+    tooltip.querySelector('.repost-details-close').addEventListener('click', () => {
+      tooltip.remove();
+    });
+    
+    // Close when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function closeTooltip(e) {
+        if (!tooltip.contains(e.target)) {
+          tooltip.remove();
+          document.removeEventListener('click', closeTooltip);
+        }
+      });
+    }, 10);
+  }
+  
+  // Queue reposts that are waiting for profiles
+  queueRepostForProfiles(repostEvent, originalNote) {
+    if (!this.pendingRepostQueue) {
+      this.pendingRepostQueue = [];
+    }
+    
+    const queueEntry = {
+      repostEvent,
+      originalNote,
+      timestamp: Date.now()
+    };
+    
+    this.pendingRepostQueue.push(queueEntry);
+    console.log(`📋 Queued repost - Queue size: ${this.pendingRepostQueue.length}`);
+  }
+  
+  // Process queued reposts when profiles become available
+  processRepostQueue() {
+    if (!this.pendingRepostQueue || this.pendingRepostQueue.length === 0) {
+      return;
+    }
+    
+    console.log(`🔄 Processing repost queue - ${this.pendingRepostQueue.length} items`);
+    
+    const readyReposts = [];
+    const stillWaiting = [];
+    
+    for (const entry of this.pendingRepostQueue) {
+      const hasReposterProfile = this.profiles.has(entry.repostEvent.pubkey);
+      const hasOriginalProfile = this.profiles.has(entry.originalNote.pubkey);
+      
+      if (hasReposterProfile && hasOriginalProfile) {
+        readyReposts.push(entry);
+      } else {
+        // Only keep items that aren't too old (avoid infinite queue buildup)
+        const age = Date.now() - entry.timestamp;
+        if (age < 30000) { // Keep for max 30 seconds
+          stillWaiting.push(entry);
+        } else {
+          console.log('⏰ Dropping old queued repost after 30s timeout');
+        }
+      }
+    }
+    
+    // Update queue with items still waiting
+    this.pendingRepostQueue = stillWaiting;
+    
+    // Display ready reposts with aggregation
+    for (const entry of readyReposts) {
+      console.log('✅ Profile now available, processing queued repost with aggregation');
+      this.handleRepostAggregation(entry.repostEvent, entry.originalNote);
+    }
+  }
+  
+  displayRepostImmediate(repostEvent, originalNote) {
     // FILTER OUT MUTED USERS - Check if the reposter is muted
     if (this.userMutes.has(repostEvent.pubkey)) {
       console.log('🔇 Filtering out repost from muted user:', repostEvent.pubkey.substring(0, 16) + '...');
@@ -2075,12 +2449,12 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     }
     
     // Apply feed-specific filtering for reposts
-    if (this.currentFeedType === 'following') {
+    if (this.currentFeed === 'following') {
       if (!this.userFollows.has(repostEvent.pubkey)) {
         console.log('🚫 Filtering out repost from unfollowed user in following feed:', repostEvent.pubkey.substring(0, 16) + '...');
         return;
       }
-    } else if (this.currentFeedType === 'me') {
+    } else if (this.currentFeed === 'me') {
       if (repostEvent.pubkey !== this.currentUser?.publicKey) {
         console.log('🚫 Me feed: Filtering out repost from different user:', repostEvent.pubkey.substring(0, 16) + '...');
         return;
@@ -2505,7 +2879,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     // Handle different event kinds
     if (event.kind === 6) {
       // Repost events
-      console.log('📨 Received kind 6 repost event from:', event.pubkey.substring(0, 16) + '...', 'Current feed:', this.currentFeedType);
+      console.log('📨 Received kind 6 repost event from:', event.pubkey.substring(0, 16) + '...', 'Event ID:', event.id.substring(0, 16) + '...', 'Current feed:', this.currentFeed);
       this.handleRepost(event);
       return;
     } else if (event.kind === 7) {
@@ -2527,6 +2901,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       return;
     } else if (event.kind === 1) {
       // Text notes
+      
+      // Track reply relationships silently (Phase 1: tracking only, no UI changes)
+      this.threadManager.trackNote(event);
       
       // FILTER OUT ALL REPLIES - Check for 'e' tags which indicate this is a reply
       const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
@@ -2707,9 +3084,14 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       return;
     }
     
-    // Determine delay based on whether we have the profile
+    // Check if we have the profile, if not - proactively fetch it
     const hasProfile = this.profiles.has(event.pubkey);
-    const baseDelay = hasProfile ? 50 : 300; // 50ms if profile cached, 300ms if not
+    if (!hasProfile) {
+      this.fetchProfileForAuthor(event.pubkey);
+    }
+    
+    // Determine delay based on whether we have the profile
+    const baseDelay = hasProfile ? 50 : 500; // 50ms if profile cached, 500ms if not (increased from 300ms)
     
     // Add a small random stagger (0-100ms) to avoid all notes appearing simultaneously
     const stagger = Math.random() * 100;
@@ -2724,9 +3106,72 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.pendingNoteDisplays.set(event.id, timeoutId);
   }
   
+  // Proactively fetch profile for unknown authors
+  fetchProfileForAuthor(pubkey) {
+    // Avoid duplicate requests
+    if (this.profileFetchRequests && this.profileFetchRequests.has(pubkey)) {
+      return;
+    }
+    
+    if (!this.profileFetchRequests) {
+      this.profileFetchRequests = new Set();
+    }
+    
+    this.profileFetchRequests.add(pubkey);
+    console.log('👤 Fetching profile for:', pubkey.substring(0, 16) + '...');
+    
+    const subscriptionId = `profile_${pubkey.substring(0, 8)}_${Date.now()}`;
+    const filter = {
+      kinds: [0],
+      authors: [pubkey],
+      limit: 1
+    };
+
+    const subscription = ["REQ", subscriptionId, filter];
+    
+    let sentCount = 0;
+    this.relayConnections.forEach((ws, relayUrl) => {
+      if (sentCount >= 3) return; // Limit to 3 relays for profile fetching
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.log('⚠️ Relay not ready for profile fetch:', relayUrl);
+        return;
+      }
+      
+      try {
+        ws.send(JSON.stringify(subscription));
+        sentCount++;
+        console.log(`📤 Profile request sent to: ${relayUrl}`);
+      } catch (error) {
+        console.log('⚠️ Error fetching profile from relay:', relayUrl, error);
+      }
+    });
+    
+    console.log(`📡 Profile fetch requests sent to ${sentCount} relays for:`, pubkey.substring(0, 16) + '...');
+    
+    // Auto-close subscription after 3 seconds
+    setTimeout(() => {
+      const closeMsg = ["CLOSE", subscriptionId];
+      this.relayConnections.forEach((ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify(closeMsg));
+          } catch (error) {
+            console.log('⚠️ Error closing profile subscription:', error);
+          }
+        }
+      });
+      // Remove from pending requests
+      if (this.profileFetchRequests) {
+        this.profileFetchRequests.delete(pubkey);
+      }
+    }, 3000);
+  }
+  
   handleProfile(event) {
     try {
       const profile = JSON.parse(event.content);
+      
+      console.log('👤 handleProfile - Received profile for:', event.pubkey.substring(0, 16) + '...', 'Display name:', profile?.display_name, 'Name:', profile?.name);
       
       this.profiles.set(event.pubkey, {
         ...profile,
@@ -2735,9 +3180,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       
       // Remove from pending sets since we got the profile
       this.profileRequests.delete(event.pubkey);
+      if (this.profileFetchRequests) {
+        this.profileFetchRequests.delete(event.pubkey);
+      }
       
       // Update any displayed notes from this author (including quoted notes)
       this.updateAuthorDisplay(event.pubkey);
+      
+      // Process any reposts that were waiting for this profile
+      this.processRepostQueue();
       
       // Check for any pending note displays from this author and show them immediately
       this.displayPendingNotesFromAuthor(event.pubkey);
@@ -3958,10 +4409,23 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   
   
   displayTopLevelNote(event) {
-    // Safety check: Don't display notes from other users in Me feed
+    // Proactively fetch profile if not cached
+    if (!this.profiles.has(event.pubkey)) {
+      this.fetchProfileForAuthor(event.pubkey);
+    }
+    
+    // Comprehensive safety checks: Validate event belongs to current feed
     if (this.currentFeed === 'me' && this.currentUser && event.pubkey !== this.currentUser.publicKey) {
       console.log('🚨 SAFETY: Prevented display of other user note in Me feed:', event.pubkey.substring(0, 16) + '...');
       return;
+    }
+    
+    if (this.currentFeed === 'following' && this.currentUser) {
+      // Only show notes from followed users in Following feed
+      if (!this.userFollows.has(event.pubkey) && event.pubkey !== this.currentUser.publicKey) {
+        console.log('🚨 SAFETY: Prevented display of unfollowed user note in Following feed:', event.pubkey.substring(0, 16) + '...');
+        return;
+      }
     }
     
     const feed = document.getElementById('feed');
@@ -4078,6 +4542,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
               </clipPath>
             </defs>
           </svg>
+          <span class="reply-count" data-event-id="${event.id}">${this.threadManager.getReplyCount(event.id) > 0 ? this.threadManager.getReplyCount(event.id) : ''}</span>
         </div>
         <div class="note-action repost-action" data-event-id="${event.id}">
           <svg width="16" height="18" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -4108,6 +4573,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.setupNoteMenu(noteDiv.querySelector('.note-menu'), event);
     this.setupClickableLinks(noteDiv, event);
     
+    // Fetch historical replies to get accurate counts
+    this.threadManager.fetchRepliesForNote(event.id, this.relayConnections);
+    
     // Add click-to-expand/open functionality for note content
     this.setupNoteContentClick(noteDiv, event);
     
@@ -4115,6 +4583,16 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
 
   createRepostElement(repostEvent, originalNote) {
+    console.log('🏗️ createRepostElement - Repost ID:', repostEvent.id.substring(0, 16) + '...', 'Original ID:', originalNote.id.substring(0, 16) + '...', 'Original author:', originalNote.pubkey.substring(0, 16) + '...');
+    
+    // Proactively fetch original note author's profile if not cached
+    if (!this.profiles.has(originalNote.pubkey)) {
+      console.log('📤 createRepostElement fetching profile for original author:', originalNote.pubkey.substring(0, 16) + '...');
+      this.fetchProfileForAuthor(originalNote.pubkey);
+    } else {
+      console.log('✅ createRepostElement - Original author profile already cached');
+    }
+    
     const repostDiv = document.createElement('div');
     repostDiv.className = 'note repost';
     repostDiv.dataset.eventId = `repost-${repostEvent.id}`;
@@ -4131,6 +4609,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     const repostTimeAgo = this.formatTimeAgo(repostEvent.created_at);
     const originalAvatarUrl = originalProfile?.picture;
     const originalAuthorId = this.formatProfileIdentifier(originalProfile?.nip05, originalNote.pubkey);
+    
+    console.log('👤 createRepostElement profile info - Original profile found:', !!originalProfile, 'Display name:', originalProfile?.display_name, 'Name:', originalProfile?.name, 'Final name used:', originalAuthorName);
 
     // Process original note content
     const formattedContent = this.formatNoteContent(originalNote.content);
@@ -4180,6 +4660,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
               </clipPath>
             </defs>
           </svg>
+          <span class="reply-count" data-event-id="${originalNote.id}">${this.threadManager.getReplyCount(originalNote.id) > 0 ? this.threadManager.getReplyCount(originalNote.id) : ''}</span>
         </div>
         <div class="note-action repost-action" data-event-id="${originalNote.id}">
           <svg width="16" height="18" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -4209,6 +4690,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.setupZapButton(repostDiv.querySelector('.zap-action'), originalNote);
     this.setupNoteMenu(repostDiv.querySelector('.note-menu'), originalNote);
     this.setupClickableLinks(repostDiv, originalNote);
+    
+    // Fetch historical replies to get accurate counts for the original note
+    this.threadManager.fetchRepliesForNote(originalNote.id, this.relayConnections);
     console.log('🔗 Setting up click-to-open for repost of note:', originalNote.id.substring(0, 16) + '...');
     this.setupNoteContentClick(repostDiv, originalNote);
 
@@ -4790,9 +5274,17 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       return (profile.display_name || profile.name).trim();
     }
     
-    // If no profile available and we haven't tried yet or marked as not found, request it
-    if (!profile && !this.profileRequests.has(pubkey) && !this.profileNotFound.has(pubkey)) {
-      this.requestProfile(pubkey);
+    // If no profile available, use the new profile fetching system
+    if (!profile) {
+      // Check both old and new request tracking systems
+      const oldSystemRequesting = this.profileRequests.has(pubkey);
+      const newSystemRequesting = this.profileFetchRequests?.has(pubkey);
+      const notFound = this.profileNotFound?.has(pubkey);
+      
+      if (!oldSystemRequesting && !newSystemRequesting && !notFound) {
+        console.log('🔄 getAuthorName triggering profile fetch for:', pubkey.substring(0, 16) + '...');
+        this.fetchProfileForAuthor(pubkey);
+      }
     }
     
     // Provide a more user-friendly fallback while waiting for profile
@@ -5096,8 +5588,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         console.error('❌ Error processing individual quoted note:', quoted.eventId, error);
         // Create error message with specific note ID for better jumble.social link
         const uniqueId = 'quoted-error-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        quotedHTML += `<div id="${uniqueId}" class="quoted-note error" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd;" data-note-id="${quoted.eventId}">
-          <span>Unable to display quoted content</span>
+        quotedHTML += `<div id="${uniqueId}" class="quoted-note fallback" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd; border: 1px dashed rgba(167, 139, 250, 0.3);" data-note-id="${quoted.eventId}">
+          <span>View quoted note</span>
           <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
             <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
           </svg>
@@ -5177,8 +5669,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       }, 10);
       
       return `<div class="quoted-notes">
-        <div id="${uniqueId}" class="quoted-note error" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px;">
-          <span>Unable to display quoted content</span>
+        <div id="${uniqueId}" class="quoted-note fallback" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd; border: 1px dashed rgba(167, 139, 250, 0.3);">
+          <span>View quoted note</span>
           <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
             <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
           </svg>
