@@ -1,5 +1,45 @@
 /* Reset and Base Styles */
 
+/* Repost Styles */
+.repost-item {
+    margin-bottom: 0;
+}
+
+.repost-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 16px 16px 0 16px;
+    color: #a78bfa;
+    font-size: 13px;
+    background: #1a0b3d;
+}
+
+.repost-icon {
+    color: #a78bfa;
+    width: 14px;
+    height: 14px;
+}
+
+.reposter-name {
+    color: #a78bfa;
+    font-weight: 500;
+}
+
+.repost-text {
+    color: #a78bfa;
+}
+
+.repost-header .time-ago {
+    color: #6b7280;
+    font-size: 12px;
+    margin-left: auto;
+}
+
+.reposted-content {
+    margin: 0;
+}
+
 /* Nostr Mentions and Quoted Notes */
 .nostr-mention {
     color: #ea772f;
@@ -20,8 +60,7 @@
 
 
 .quoted-notes {
-    margin-top: 4px;
-    padding-top: 4px;
+    margin: 16px 0;
 }
 
 .quoted-note {
@@ -2392,4 +2431,64 @@ pre, code {
     font-weight: 600;
     margin-left: 4px;
     color: inherit;
+}
+
+/* Relay Status Modal */
+.relay-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.relay-section h3 {
+    color: #ea772f;
+    font-size: 16px;
+    margin: 0 0 10px 0;
+    font-weight: 600;
+}
+
+.relay-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.relay-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 13px;
+}
+
+.relay-status {
+    font-size: 14px;
+    min-width: 20px;
+}
+
+.relay-url {
+    color: #a78bfa;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.relay-status-text {
+    color: #9ca3af;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 80px;
+    text-align: right;
+}
+
+.no-relays {
+    color: #6b7280;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
 }

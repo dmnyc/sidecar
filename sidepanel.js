@@ -129,22 +129,23 @@ class SidecarApp {
     this.currentUser = null;
     this.currentFeed = 'trending';
     console.log('📝 Initial feed set to:', this.currentFeed);
+    this.useNewFeedImplementations = true; // Toggle for new feed implementations
+    this.predictiveLoadingEnabled = true; // Enable predictive loading
+    this.lastScrollY = 0;
+    this.scrollTimeout = null;
     this.relays = [
-      // Original relays
+      // Core reliable relays (confirmed working)
       'wss://relay.damus.io',
       'wss://nos.lol',
-      'wss://relay.nostr.band',
-      'wss://nostr.wine',
-      
-      // Additional major relays for better coverage
+      'wss://relay.nostr.band', 
       'wss://relay.snort.social',
-      'wss://relay.current.fyi',
-      'wss://brb.io',
-      'wss://relay.primal.net',
+      'wss://nostrelites.org',
       'wss://purplepag.es',
       'wss://offchain.pub',
-      'wss://relayable.org',
-      'wss://relay.nostrgraph.net'
+      'wss://lightningrelay.com',
+      'wss://nostr.mom'
+      
+      // Note: User's preferred relays will be added automatically via NIP-65
     ];
     this.relayConnections = new Map();
     this.subscriptions = new Map();
@@ -1235,9 +1236,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       this.showAutoLoader();
       return;
     } else if (this.currentFeed === 'me') {
-      // Me feed: use trending-style approach for user's own notes
-      console.log('🙋 Loading more for Me feed using trending-style approach');
-      this.loadMoreMeFeed();
+      // Me feed: choose load more implementation based on toggle
+      if (this.useNewFeedImplementations) {
+        console.log('🙋 Loading more for NEW Me feed implementation');
+        // Load more for new Me feed implementation
+        this.loadMoreNewMeFeed();
+      } else {
+        console.log('🙋 Loading more for Me feed using old trending-style approach');
+        this.loadMoreMeFeed();
+      }
       return;
     } else if (this.currentFeed === 'trending') {
       // For trending feed, load more days of trending data
@@ -1274,14 +1281,24 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
             
             let emptyLoadThreshold = 3;
             if (this.currentFeed === 'me') {
-              // Smart threshold for Me feed based on total notes
+              // More lenient thresholds for Me feed
               const totalNotes = this.notes.size;
               if (totalNotes <= 3) {
-                emptyLoadThreshold = 1;
+                emptyLoadThreshold = 3; // Still lenient for very small feeds
               } else if (totalNotes <= 10) {
-                emptyLoadThreshold = 2;
+                emptyLoadThreshold = 4; // More lenient for small feeds
               } else {
-                emptyLoadThreshold = 3;
+                emptyLoadThreshold = 5; // Lenient for regular feeds
+              }
+            } else if (this.currentFeed === 'following') {
+              // Following feeds need higher thresholds due to complexity
+              const followCount = this.userFollows?.size || 0;
+              if (followCount > 1000) {
+                emptyLoadThreshold = 10; // Very lenient for large follow lists
+              } else if (followCount > 200) {
+                emptyLoadThreshold = 8; // Lenient for medium follow lists  
+              } else {
+                emptyLoadThreshold = 6; // More lenient for smaller follow lists
               }
             }
             
@@ -1407,7 +1424,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         // Fetch user's relay list (NIP-65) to discover their preferred relays
         setTimeout(() => {
           this.requestUserRelayList();
-        }, 500);
+        }, 2000); // Increased delay to ensure relays are connected
         
         // Fetch contact list after a short delay to ensure relays are connected
         setTimeout(() => {
@@ -1481,7 +1498,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         // Fetch user's relay list (NIP-65) to discover their preferred relays
         setTimeout(() => {
           this.requestUserRelayList();
-        }, 500);
+        }, 2000); // Increased delay to ensure relays are connected
         
         // Fetch contact list after a short delay to ensure relays are connected
         setTimeout(() => {
@@ -1545,7 +1562,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         // Fetch user's relay list (NIP-65) to discover their preferred relays
         setTimeout(() => {
           this.requestUserRelayList();
-        }, 500);
+        }, 2000); // Increased delay to ensure relays are connected
         
         // Fetch contact list after a short delay to ensure relays are connected
         setTimeout(() => {
@@ -1577,6 +1594,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.profileRequests.clear();
     this.profileNotFound.clear();
     this.pendingNoteDisplays.clear();
+    this.userRelays.clear(); // Clear discovered user relays
     
     // Clear loading states
     this.contactListLoaded = false;
@@ -1718,6 +1736,12 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       dropdown.classList.remove('show');
     });
     
+    document.getElementById('relay-status-btn').addEventListener('click', () => {
+      this.showRelayStatusModal();
+      profileBtn.classList.remove('open');
+      dropdown.classList.remove('show');
+    });
+    
     document.getElementById('sign-out-btn').addEventListener('click', () => {
       this.signOut();
       profileBtn.classList.remove('open');
@@ -1835,6 +1859,19 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   switchFeed(feedType) {
     console.log('🔄 SWITCH FEED CALLED! Type:', feedType, 'Current:', this.currentFeed);
     
+    // TEMPORARY: Block switching to broken feeds (unless using new implementations)
+    if ((feedType === 'me' || feedType === 'following') && !this.useNewFeedImplementations) {
+      console.log('🚧 TEMPORARY: Feeds', feedType, 'are disabled while being rebuilt');
+      alert(`${feedType.charAt(0).toUpperCase() + feedType.slice(1)} feed is temporarily disabled while being rebuilt. Please use Trending feed.`);
+      // Force switch to trending instead
+      feedType = 'trending';
+    } else if (feedType === 'following' && this.useNewFeedImplementations) {
+      console.log('🚧 TEMPORARY: Following feed new implementation not ready yet');
+      alert('Following feed new implementation is not ready yet. Please use Trending or Me feed.');
+      // Force switch to trending instead
+      feedType = 'trending';
+    }
+    
     // Close all existing subscriptions BEFORE changing currentFeed to prevent cross-feed contamination
     console.log('🚫 Closing all subscriptions before feed switch');
     this.subscriptions.forEach((subscription, subId) => {
@@ -1921,7 +1958,14 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   async requestUserRelayList() {
     if (!this.currentUser) return;
     
-    console.log('📡 Requesting user relay list (NIP-65)...');
+    // Check if we have connected relays
+    const connectedRelays = Array.from(this.relayConnections.entries())
+      .filter(([relay, ws]) => ws.readyState === WebSocket.OPEN);
+    
+    if (connectedRelays.length === 0) {
+      setTimeout(() => this.requestUserRelayList(), 2000);
+      return;
+    }
     
     // Request user's relay list (kind 10002)
     const relayListFilter = {
@@ -1935,7 +1979,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.subscriptions.set(subId, subscription);
     
     // Send to all connected relays
-    this.relayConnections.forEach(ws => {
+    this.relayConnections.forEach((ws, relay) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(subscription));
       }
@@ -1943,15 +1987,11 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
 
   handleRelayListEvent(event) {
-    console.log('📡 Processing user relay list event...');
-    
     // Extract relay URLs from tags
     const relayUrls = event.tags
       .filter(tag => tag[0] === 'r')
       .map(tag => tag[1])
       .filter(url => url && url.startsWith('wss://'));
-    
-    console.log('📡 Found user relays:', relayUrls);
     
     // Add discovered relays to our relay list
     let newRelaysAdded = 0;
@@ -1963,15 +2003,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         
         // Connect to the new relay
         this.connectToRelay(relay);
+      } else {
+        // Mark existing relay as user relay
+        this.userRelays.add(relay);
       }
     });
     
     if (newRelaysAdded > 0) {
-      console.log(`📡 Added ${newRelaysAdded} new user relays, total relays: ${this.relays.length}`);
-      
       // Refresh the current feed to get content from new relays
       setTimeout(() => {
-        console.log('🔄 Refreshing feed to include content from user relays...');
         this.loadFeed();
       }, 2000); // Wait 2 seconds for relay connections
     }
@@ -2059,6 +2099,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       // End of stored events
       console.log(`📋 EOSE received for subscription: ${subId}`);
       
+      // Show summary for Me feed only
+      if (subId.startsWith('new-me-feed-') && this.userNoteStats) {
+        console.log(`📊 USER NOTE SUMMARY: Received ${this.userNoteStats.received} notes, Added ${this.userNoteStats.added} to feed`);
+        if (this.userNoteStats.received > this.userNoteStats.added) {
+          console.log(`⚠️ ${this.userNoteStats.received - this.userNoteStats.added} notes were filtered out`);
+        }
+      }
+      
+      
       // Special handling for trending feed to show summary
       if (subId.startsWith('trending-feed-')) {
         console.log(`🎯 TRENDING FEED LOADED - Authors collected: ${this.trendingAuthors ? this.trendingAuthors.size : 0}`);
@@ -2111,7 +2160,19 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
               this.consecutiveEmptyLoads++;
               console.log(`📋 EOSE: Load more returned no results and no timestamp advancement (${this.consecutiveEmptyLoads} consecutive empty loads)`);
               
-              const emptyLoadThreshold = 3;
+              let emptyLoadThreshold = 5; // More lenient default for Me feed
+              if (this.currentFeed === 'following') {
+                // Following feeds need higher thresholds due to complexity
+                const followCount = this.userFollows?.size || 0;
+                if (followCount > 1000) {
+                  emptyLoadThreshold = 10; // Very lenient for large follow lists
+                } else if (followCount > 200) {
+                  emptyLoadThreshold = 8; // Lenient for medium follow lists
+                } else {
+                  emptyLoadThreshold = 6; // More lenient for smaller follow lists
+                }
+              }
+              
               if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
                 console.log(`📋 EOSE: ${this.consecutiveEmptyLoads} consecutive empty loads (threshold: ${emptyLoadThreshold}), setting feedHasMore = false`);
                 this.feedHasMore = false;
@@ -2147,14 +2208,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
 
   handleRepost(repostEvent) {
-    console.log('🔁 Handling repost from:', repostEvent.pubkey.substring(0, 16) + '...', 'Event ID:', repostEvent.id.substring(0, 16) + '...', 'Current feed:', this.currentFeed);
+    console.log('🔁 PROCESSING REPOST - From:', repostEvent.pubkey.substring(0, 16) + '...', 'Event ID:', repostEvent.id.substring(0, 16) + '...', 'Current feed:', this.currentFeed);
     
-    // Proactively fetch reposter's profile if not cached
-    if (!this.profiles.has(repostEvent.pubkey)) {
-      this.fetchProfileForAuthor(repostEvent.pubkey);
+    // Apply feed filtering first - only show if this repost should be in current feed
+    if (!this.shouldShowRepostInCurrentFeed(repostEvent)) {
+      console.log('🚫 Repost filtered out for current feed:', this.currentFeed);
+      return;
     }
     
-    // Find the original note being reposted from the 'e' tag
+    // Extract original note info from repost
     const eTags = repostEvent.tags?.filter(tag => tag[0] === 'e') || [];
     if (eTags.length === 0) {
       console.log('🚫 Repost event has no e tags, skipping');
@@ -2168,33 +2230,81 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     const originalNote = this.notes.get(originalNoteId);
     if (originalNote) {
       // We have the original note, display it as a repost
-      this.displayRepost(repostEvent, originalNote);
+      console.log('✅ Original note found in cache, displaying repost with content');
+      this.displayRepostWithContent(repostEvent, originalNote);
     } else {
       // We don't have the original note yet, try to fetch it
-      console.log('🔄 Original note not found, attempting to fetch:', originalNoteId.substring(0, 16) + '...');
+      console.log('🔄 Original note not found in cache, attempting to fetch:', originalNoteId.substring(0, 16) + '...');
       this.fetchOriginalNoteForRepost(repostEvent, originalNoteId);
     }
   }
+  
+  shouldShowRepostInCurrentFeed(repostEvent) {
+    console.log('🔍 CHECKING REPOST FILTER - Feed:', this.currentFeed, 'Repost from:', repostEvent.pubkey.substring(0, 16) + '...');
+    
+    // Check muted users first
+    if (this.userMutes.has(repostEvent.pubkey)) {
+      console.log('🔇 REPOST FILTERED: Muted user');
+      return false;
+    }
+    
+    // Feed-specific filtering
+    if (this.currentFeed === 'following') {
+      const shouldShow = this.userFollows.has(repostEvent.pubkey);
+      console.log('📋 Following feed filter:', shouldShow ? 'PASS' : 'FAIL');
+      return shouldShow;
+    } else if (this.currentFeed === 'me') {
+      const shouldShow = repostEvent.pubkey === this.currentUser?.publicKey;
+      console.log('👤 Me feed filter - Current user pubkey:', this.currentUser?.publicKey.substring(0, 16) + '...', 'Result:', shouldShow ? 'PASS' : 'FAIL');
+      return shouldShow;
+    }
+    
+    console.log('✅ Other feed - showing repost');
+    return true; // Other feeds show all reposts
+  }
 
   async fetchOriginalNoteForRepost(repostEvent, originalNoteId) {
+    console.log('⏳ FETCHING ORIGINAL NOTE FOR REPOST:', originalNoteId.substring(0, 16) + '...', 'Repost ID:', repostEvent.id.substring(0, 16) + '...');
+    
     // Create subscription to fetch the specific original note
-    const subscription = ['REQ', `repost-${Date.now()}`, {
+    const subId = `repost-${Date.now()}`;
+    const subscription = ['REQ', subId, {
       ids: [originalNoteId]
     }];
     
     // Send to all connected relays
+    let sentToRelays = 0;
     this.relayConnections.forEach((ws, relay) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(subscription));
+        sentToRelays++;
         console.log(`📤 Fetching original note for repost from: ${relay}`);
       }
     });
+    
+    console.log(`📡 Sent repost original note request to ${sentToRelays} relays`);
     
     // Store the repost event temporarily
     if (!this.pendingReposts) {
       this.pendingReposts = new Map();
     }
     this.pendingReposts.set(originalNoteId, repostEvent);
+    
+    // Set timeout to cleanup pending repost if original note is never found
+    setTimeout(() => {
+      if (this.pendingReposts && this.pendingReposts.has(originalNoteId)) {
+        console.log('⏰ TIMEOUT: Original note not found for repost after 10 seconds:', originalNoteId.substring(0, 16) + '...', 'Cleaning up pending repost');
+        this.pendingReposts.delete(originalNoteId);
+        
+        // Close the subscription
+        const closeMsg = ['CLOSE', subId];
+        this.relayConnections.forEach((ws, relay) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(closeMsg));
+          }
+        });
+      }
+    }, 10000);
   }
 
   displayRepost(repostEvent, originalNote) {
@@ -2441,35 +2551,18 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     }
   }
   
-  displayRepostImmediate(repostEvent, originalNote) {
-    // FILTER OUT MUTED USERS - Check if the reposter is muted
-    if (this.userMutes.has(repostEvent.pubkey)) {
-      console.log('🔇 Filtering out repost from muted user:', repostEvent.pubkey.substring(0, 16) + '...');
-      return;
-    }
-    
-    // Apply feed-specific filtering for reposts
-    if (this.currentFeed === 'following') {
-      if (!this.userFollows.has(repostEvent.pubkey)) {
-        console.log('🚫 Filtering out repost from unfollowed user in following feed:', repostEvent.pubkey.substring(0, 16) + '...');
-        return;
-      }
-    } else if (this.currentFeed === 'me') {
-      if (repostEvent.pubkey !== this.currentUser?.publicKey) {
-        console.log('🚫 Me feed: Filtering out repost from different user:', repostEvent.pubkey.substring(0, 16) + '...');
-        return;
-      }
-    }
+  displayRepostWithContent(repostEvent, originalNote) {
+    console.log('🚀 DISPLAYING REPOST WITH CONTENT - Reposter:', repostEvent.pubkey.substring(0, 16) + '...', 'Original note:', originalNote.id.substring(0, 16) + '...');
     
     // Check if we already displayed this repost
     const repostId = `repost-${repostEvent.id}`;
     if (document.querySelector(`[data-event-id="${repostId}"]`)) {
-      console.log('📋 Repost already displayed, skipping:', repostEvent.id.substring(0, 16) + '...');
+      console.log('📋 Repost already displayed, skipping');
       return;
     }
     
-    // Create repost display
-    const repostDiv = this.createRepostElement(repostEvent, originalNote);
+    // Create repost element with actual content
+    const repostDiv = this.createRepostWithContentElement(repostEvent, originalNote);
     
     // Insert into feed in chronological order
     const feed = document.getElementById('feed');
@@ -2487,6 +2580,104 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     
     if (!inserted) {
       feed.appendChild(repostDiv);
+    }
+    
+    console.log('✅ Repost with content displayed successfully');
+  }
+
+  createRepostWithContentElement(repostEvent, originalNote) {
+    const div = document.createElement('div');
+    div.className = 'note-item repost-item';
+    div.dataset.eventId = `repost-${repostEvent.id}`;
+    div.dataset.timestamp = repostEvent.created_at;
+    div.dataset.pubkey = repostEvent.pubkey;
+    div.dataset.originalEventId = originalNote.id;
+    
+    // Get reposter profile
+    const reposterProfile = this.profiles.get(repostEvent.pubkey);
+    const reposterDisplayName = reposterProfile?.display_name || reposterProfile?.name || repostEvent.pubkey.substring(0, 16) + '...';
+    
+    const timeAgo = this.formatTimeAgo(repostEvent.created_at);
+    
+    // Create repost header
+    const repostHeader = document.createElement('div');
+    repostHeader.className = 'repost-header';
+    repostHeader.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="repost-icon">
+        <path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-3.06c-.414 0-.75.336-.75.75s.336.75.75.75h3.06c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.061 0s-.293.768 0 1.061l3.5 3.5c.145.147.337.22.53.22s.385-.073.53-.22l3.5-3.5c.294-.293.294-.767.001-1.06zM10.91 16.25H7.85c-1.24 0-2.25-1.01-2.25-2.25V3.76l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.061l-3.5-3.5c-.293-.294-.768-.294-1.061 0l-3.5 3.5c-.294.293-.294.767 0 1.06s.767.294 1.06 0l2.22-2.22V14c0 2.068 1.683 3.75 3.75 3.75h3.06c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/>
+      </svg>
+      <span class="reposter-name">${reposterDisplayName}</span>
+      <span class="repost-text">reposted</span>
+      <span class="time-ago">${timeAgo}</span>
+    `;
+    
+    // Create the actual note content using existing note creation logic
+    const noteElement = this.createNoteElement(originalNote);
+    noteElement.classList.add('reposted-content');
+    
+    // Combine repost header with original note content
+    div.appendChild(repostHeader);
+    div.appendChild(noteElement);
+    
+    return div;
+  }
+
+  createSimpleRepostElement(repostEvent, originalNoteId, originalAuthorPubkey) {
+    const div = document.createElement('div');
+    div.className = 'note-item repost-note';
+    div.dataset.eventId = `repost-${repostEvent.id}`;
+    div.dataset.timestamp = repostEvent.created_at;
+    div.dataset.pubkey = repostEvent.pubkey;
+    
+    // Get reposter profile
+    const reposterProfile = this.profiles.get(repostEvent.pubkey);
+    const reposterDisplayName = reposterProfile?.display_name || reposterProfile?.name || repostEvent.pubkey.substring(0, 16) + '...';
+    const reposterProfileImage = reposterProfile?.picture || '';
+    
+    // Get original author profile if available
+    const originalAuthorProfile = originalAuthorPubkey ? this.profiles.get(originalAuthorPubkey) : null;
+    const originalAuthorName = originalAuthorProfile?.display_name || originalAuthorProfile?.name || (originalAuthorPubkey ? originalAuthorPubkey.substring(0, 16) + '...' : 'Unknown');
+    
+    const timeAgo = this.formatTimeAgo(repostEvent.created_at);
+    
+    div.innerHTML = `
+      <div class="repost-indicator">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="repost-icon">
+          <path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-3.06c-.414 0-.75.336-.75.75s.336.75.75.75h3.06c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.061 0s-.293.768 0 1.061l3.5 3.5c.145.147.337.22.53.22s.385-.073.53-.22l3.5-3.5c.294-.293.294-.767.001-1.06zM10.91 16.25H7.85c-1.24 0-2.25-1.01-2.25-2.25V3.76l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.061l-3.5-3.5c-.293-.294-.768-.294-1.061 0l-3.5 3.5c-.294.293-.294.767 0 1.06s.767.294 1.06 0l2.22-2.22V14c0 2.068 1.683 3.75 3.75 3.75h3.06c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/>
+        </svg>
+        <span class="reposter-name">${reposterDisplayName}</span>
+        <span class="repost-text">reposted</span>
+        <span class="time-ago">${timeAgo}</span>
+      </div>
+      
+      <div class="note-header">
+        <div class="profile-info">
+          <img class="profile-image" src="${reposterProfileImage}" alt="Profile" onerror="this.style.display='none';">
+          <div class="note-meta">
+            <span class="original-author-name">${originalAuthorName}</span>
+          </div>
+        </div>
+        <button class="view-original-btn" onclick="sidecar.viewOriginalNote('${originalNoteId}')">
+          View Note
+        </button>
+      </div>
+    `;
+    
+    return div;
+  }
+
+  viewOriginalNote(noteId) {
+    console.log('🔍 Viewing original note:', noteId);
+    // Try to find and fetch the original note
+    const originalNote = this.notes.get(noteId);
+    if (originalNote) {
+      // Show the note in a modal or expand it
+      console.log('✅ Original note found in cache');
+      // TODO: Implement note viewing modal
+    } else {
+      // Fetch the original note
+      console.log('📡 Fetching original note...');
+      this.fetchAndDisplayNote(noteId);
     }
   }
 
@@ -2647,8 +2838,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         console.log('📊 Total zaps for this note:', existingZaps.length + 1, 'zaps');
       }
       
-      // Update the zap display for the note with retry logic
-      this.updateZapDisplayWithRetry(zappedEventId);
+      // Update the zap display for the note
+      this.updateZapDisplay(zappedEventId);
       
       // Check if this zap receipt matches our current payment monitoring
       this.checkPaymentCompletion(zapInfo, zappedEventId);
@@ -2658,27 +2849,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     }
   }
   
-  updateZapDisplayWithRetry(eventId, attempt = 1, maxAttempts = 5) {
-    const success = this.updateZapDisplay(eventId);
-    
-    if (!success && attempt < maxAttempts) {
-      console.log(`🔄 Retrying zap display update for ${eventId.substring(0, 16)}... (attempt ${attempt + 1}/${maxAttempts})`);
-      
-      // Use shorter delays for more responsive updates
-      const delay = attempt <= 2 ? 500 * attempt : 1000 * attempt; // 500ms, 1s, 3s, 4s, 5s
-      
-      setTimeout(() => {
-        this.updateZapDisplayWithRetry(eventId, attempt + 1, maxAttempts);
-      }, delay);
-    } else if (success) {
-      console.log(`✅ Zap display updated successfully for ${eventId.substring(0, 16)} on attempt ${attempt}`);
-    } else {
-      console.log(`❌ Failed to update zap display for ${eventId.substring(0, 16)} after ${maxAttempts} attempts`);
-    }
-  }
 
   updateZapDisplay(eventId) {
-    console.log('🔄 updateZapDisplay called for:', eventId.substring(0, 16) + '...');
+    // Update zap display for event
     
     // Look for regular note first
     let noteElement = document.querySelector(`.note[data-event-id="${eventId}"]`);
@@ -2686,23 +2859,20 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     
     if (noteElement) {
       zapButton = noteElement.querySelector('.zap-action');
-      console.log('📋 Found regular note element and zap button:', !!zapButton);
+      // Found regular note
     } else {
       // If not found as regular note, look for repost containing this note
       noteElement = document.querySelector(`.repost[data-event-id="repost-${eventId}"]`);
       if (noteElement) {
         zapButton = noteElement.querySelector('.zap-action');
-        console.log('📋 Found repost element and zap button:', !!zapButton);
+        // Found in repost
       } else {
         // Last resort: search for zap button directly with this event ID (for cases where zap button uses original note ID)
         zapButton = document.querySelector(`.zap-action[data-event-id="${eventId}"]`);
         if (zapButton) {
           noteElement = zapButton.closest('.note, .repost');
-          console.log('📋 Found zap button directly and parent element:', !!noteElement);
+          // Found zap button directly
         } else {
-          console.log('❌ No note element or zap button found for event ID:', eventId.substring(0, 16) + '...');
-          console.log('🔍 All note elements:', document.querySelectorAll('.note, .repost').length);
-          console.log('🔍 All zap buttons:', document.querySelectorAll('.zap-action').length);
           return false;
         }
       }
@@ -2876,10 +3046,29 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
   
   handleNote(event) {
+    // Track specific note: "Samesies! 🐾👅"
+    const targetNoteId = 'b3605ff2fbbb719fcb4b0d1308dfc290a1b46a106a68e063c9ac5152ec234b39';
+    const isTargetNote = event.id === targetNoteId;
+    if (isTargetNote) {
+      console.log(`🎯 FOUND TARGET NOTE: ${event.id}`);
+      console.log(`🎯 Author: ${event.pubkey}`);
+      console.log(`🎯 Kind: ${event.kind}`);
+      console.log(`🎯 Content: "${event.content}"`);
+      console.log(`🎯 Current user: ${this.currentUser?.publicKey}`);
+      console.log(`🎯 Current feed: ${this.currentFeed}`);
+    }
+    
+    // Safe diagnostic: Count current user's notes (no logging yet)
+    const isCurrentUserNote = this.currentUser && event.pubkey === this.currentUser.publicKey && event.kind === 1;
+    if (isCurrentUserNote) {
+      if (!this.userNoteStats) this.userNoteStats = { received: 0, added: 0 };
+      this.userNoteStats.received++;
+    }
+    
     // Handle different event kinds
     if (event.kind === 6) {
       // Repost events
-      console.log('📨 Received kind 6 repost event from:', event.pubkey.substring(0, 16) + '...', 'Event ID:', event.id.substring(0, 16) + '...', 'Current feed:', this.currentFeed);
+      console.log('🔁 REPOST RECEIVED - From:', event.pubkey.substring(0, 16) + '...', 'Event ID:', event.id.substring(0, 16) + '...', 'Current feed:', this.currentFeed, 'Is current user:', event.pubkey === this.currentUser?.publicKey);
       this.handleRepost(event);
       return;
     } else if (event.kind === 7) {
@@ -2905,11 +3094,30 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       // Track reply relationships silently (Phase 1: tracking only, no UI changes)
       this.threadManager.trackNote(event);
       
-      // FILTER OUT ALL REPLIES - Check for 'e' tags which indicate this is a reply
+      // FILTER OUT REPLIES (but not quote-posts) - Check for 'e' tags that indicate replies
       const eTags = event.tags?.filter(tag => tag[0] === 'e') || [];
-      if (eTags.length > 0) {
-        console.log('🚫 Filtering out reply from:', event.pubkey.substring(0, 16) + '...', 'Reply to:', eTags[0][1].substring(0, 16) + '...');
+      
+      // Check if this is actually a reply vs a quote-post/mention
+      const isReply = eTags.some(tag => {
+        const marker = tag[3]; // 4th element is the marker
+        // If no marker, it's a reply (NIP-10 legacy). If marker is "reply" or "root", it's a reply.
+        // If marker is "mention", it's a quote-post and should NOT be filtered.
+        return !marker || marker === 'reply' || marker === 'root';
+      });
+      
+      if (isReply) {
+        const targetNoteId = 'b3605ff2fbbb719fcb4b0d1308dfc290a1b46a106a68e063c9ac5152ec234b39';
+        if (event.id === targetNoteId) {
+          console.log(`🎯 TARGET NOTE FILTERED: Reply filter - replying to ${eTags[0][1].substring(0, 16)}...`);
+          console.log(`🎯 TARGET NOTE content: "${event.content}"`);
+        }
         
+        // Log the first few characters of filtered notes to help identify the missing one
+        if (this.currentUser && event.pubkey === this.currentUser.publicKey) {
+          console.log(`🚫 FILTERED USER REPLY: "${event.content.substring(0, 50)}..." → ${eTags[0][1].substring(0, 16)}...`);
+        }
+        
+        console.log('🚫 Filtering out reply from:', event.pubkey.substring(0, 16) + '...', 'Reply to:', eTags[0][1].substring(0, 16) + '...');
         
         // Still cache the event for quoted note updates but don't display it
         this.notes.set(event.id, event);
@@ -2937,6 +3145,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       }
       
       console.log('📝 Received note from:', event.pubkey.substring(0, 16) + '...', 'Content:', event.content.substring(0, 50) + '...');
+      
+      // Filter for Me feed
       
       // Filter notes based on current feed type
       if (this.currentFeed === 'following') {
@@ -2998,6 +3208,12 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       
       this.notes.set(event.id, event);
       
+      // Safe diagnostic: Count current user's notes that get added
+      const isCurrentUserNote = this.currentUser && event.pubkey === this.currentUser.publicKey && event.kind === 1;
+      if (isCurrentUserNote) {
+        if (!this.userNoteStats) this.userNoteStats = { received: 0, added: 0 };
+        this.userNoteStats.added++;
+      }
       
       // Update any loading quoted note placeholders for this event
       this.updateQuotedNotePlaceholders(event);
@@ -3005,8 +3221,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       // Check if this event was requested for a pending repost
       if (this.pendingReposts && this.pendingReposts.has(event.id)) {
         const repostEvent = this.pendingReposts.get(event.id);
-        console.log('🔁 Found original note for pending repost:', event.id.substring(0, 16) + '...');
-        this.displayRepost(repostEvent, event);
+        console.log('🎉 FOUND ORIGINAL NOTE FOR PENDING REPOST:', event.id.substring(0, 16) + '...', 'Proceeding to display repost with content');
+        this.displayRepostWithContent(repostEvent, event);
         this.pendingReposts.delete(event.id);
       }
       
@@ -3711,15 +3927,26 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       console.log(`📋 Batched load more returned no results (${this.consecutiveEmptyLoads} consecutive empty loads)`);
       
       // Use smart thresholds based on feed type and size
-      let emptyLoadThreshold = 3;
+      let emptyLoadThreshold = 5; // More lenient default
       if (this.currentFeed === 'me') {
         const totalNotes = this.notes.size;
         if (totalNotes <= 3) {
-          emptyLoadThreshold = 1;
+          emptyLoadThreshold = 4; // Lenient for very small feeds
         } else if (totalNotes <= 10) {
-          emptyLoadThreshold = 2;
+          emptyLoadThreshold = 5; // More lenient for small feeds
         } else {
-          emptyLoadThreshold = 3;
+          emptyLoadThreshold = 6; // Lenient for regular feeds
+        }
+      } else if (this.currentFeed === 'following') {
+        // Following feeds, especially with large follow counts, need higher thresholds
+        // due to batching complexity and relay inconsistencies
+        const followCount = this.userFollows?.size || 0;
+        if (followCount > 1000) {
+          emptyLoadThreshold = 10; // Very lenient for large follow lists
+        } else if (followCount > 200) {
+          emptyLoadThreshold = 8; // Lenient for medium follow lists
+        } else {
+          emptyLoadThreshold = 6; // More lenient for smaller follow lists
         }
       }
       
@@ -3999,12 +4226,14 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         if (notesReceived === 0) {
           this.consecutiveEmptyLoads++;
           
-          // More aggressive cutoff for small feeds
-          let emptyLoadThreshold = 3;
+          // More lenient cutoffs for all Me feed sizes
+          let emptyLoadThreshold = 5;
           if (totalNotes <= 3) {
-            emptyLoadThreshold = 1; // Stop after 1 empty load for very small feeds
+            emptyLoadThreshold = 4; // Lenient for very small feeds
           } else if (totalNotes <= 10) {
-            emptyLoadThreshold = 2; // Stop after 2 empty loads for small feeds
+            emptyLoadThreshold = 5; // Lenient for small feeds
+          } else {
+            emptyLoadThreshold = 6; // More lenient for regular feeds
           }
           
           console.log(`📋 Empty loads: ${this.consecutiveEmptyLoads}/${emptyLoadThreshold} (total notes: ${totalNotes})`);
@@ -4364,8 +4593,14 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         return;
       }
     } else if (this.currentFeed === 'me') {
-      // Me feed: use trending-style approach for user's own notes  
-      this.loadMeFeed();
+      // Me feed: choose implementation based on toggle
+      if (this.useNewFeedImplementations) {
+        console.log('📱 Using NEW Me feed implementation');
+        this.loadNewMeFeed();
+      } else {
+        console.log('📱 Using OLD Me feed implementation');
+        this.loadMeFeed();
+      }
       return;
     }
     
@@ -5409,6 +5644,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     
     // Clean up extra whitespace and format text
     textContent = textContent
+      .trim() // Remove leading/trailing whitespace to prevent extra <br> tags before quoted content
       .replace(/\n/g, '<br>') // Convert newlines to HTML breaks - preserve user intent
       .replace(/(https?:\/\/[^\s]+)/g, (match, url) => {
         // Use single tab for jumble.social links, new tabs for others
@@ -5589,10 +5825,10 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         // Create error message with specific note ID for better jumble.social link
         const uniqueId = 'quoted-error-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         quotedHTML += `<div id="${uniqueId}" class="quoted-note fallback" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd; border: 1px dashed rgba(167, 139, 250, 0.3);" data-note-id="${quoted.eventId}">
-          <span>View quoted note</span>
           <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
-            <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
+            <path d="M22 16.565V6.72967C22 6.02624 22.001 5.4207 21.9605 4.92407C21.9187 4.41244 21.8264 3.9034 21.5768 3.41367H21.5769C21.2047 2.68314 20.611 2.08947 19.8805 1.71726C19.3908 1.46772 18.8817 1.37544 18.37 1.33365C17.8734 1.29309 17.2679 1.29411 16.5645 1.29411H14.2351C13.5203 1.29411 12.9409 1.8735 12.9409 2.58821C12.9409 3.30293 13.5203 3.88236 14.2351 3.88236H16.5645C17.3106 3.88236 17.7925 3.88333 18.1593 3.91329C18.5111 3.94203 18.6415 3.99083 18.7055 4.0234H18.7055C18.949 4.14746 19.1466 4.34516 19.2707 4.58865V4.58869C19.3033 4.65259 19.3521 4.783 19.3808 5.1348C19.4108 5.50162 19.4118 5.98356 19.4118 6.72967V16.565C19.4118 17.3111 19.4108 17.7928 19.3808 18.1593C19.3521 18.5108 19.3034 18.641 19.2707 18.705H19.2707C19.1501 18.9417 18.9605 19.1349 18.7282 19.2591L18.7056 19.2709L18.7054 19.271C18.6417 19.3035 18.5116 19.3522 18.1605 19.3808C17.7944 19.4108 17.3134 19.4118 16.5687 19.4118H6.72539C5.98068 19.4118 5.5 19.4108 5.13415 19.3808C4.78352 19.3522 4.65357 19.3035 4.58975 19.271L4.5896 19.2709C4.34592 19.1468 4.14706 18.9479 4.0232 18.7048L4.02313 18.7046C3.99063 18.6408 3.94194 18.5109 3.91326 18.1601C3.88334 17.7942 3.88236 17.3134 3.88236 16.5687V14.2353C3.88235 13.5206 3.30293 12.9412 2.58821 12.9412C1.8735 12.9412 1.29411 13.5206 1.29411 14.2353V16.5687C1.29411 17.2707 1.2931 17.8752 1.33365 18.371C1.37543 18.882 1.4677 19.3903 1.717 19.8796C2.0893 20.6104 2.68446 21.2051 3.41473 21.5771L3.41477 21.5771C3.90401 21.8264 4.41225 21.9187 4.9232 21.9605C5.41901 22.001 6.02341 22 6.72539 22H16.5687C17.2707 22 17.8753 22.001 18.3714 21.9605C18.8824 21.9187 19.3911 21.8265 19.8805 21.5771V21.577C20.6004 21.2103 21.1865 20.6283 21.5593 19.9142L21.5768 19.8801C21.8263 19.3905 21.9186 18.8817 21.9605 18.3701C22.001 17.8737 22 17.2684 22 16.565ZM0 7.76471C5.72205e-06 8.47943 0.579388 9.05882 1.29411 9.05882C2.00882 9.05882 2.58821 8.47943 2.58821 7.76471V4.41838L9.43784 11.268C9.94323 11.7734 10.7626 11.7734 11.268 11.268C11.7734 10.7626 11.7734 9.94323 11.268 9.43784L4.41838 2.58821H7.76471C8.47943 2.58821 9.05882 2.00882 9.05882 1.29411C9.05882 0.579388 8.47943 6.56327e-06 7.76471 0H1.29411C0.579384 4.00228e-07 0 0.579384 0 1.29411V7.76471Z" fill="currentColor"/>
           </svg>
+          <span>View quoted note</span>
         </div>`;
         
         // Set up click handler with specific note ID
@@ -5670,10 +5906,10 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       
       return `<div class="quoted-notes">
         <div id="${uniqueId}" class="quoted-note fallback" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd; border: 1px dashed rgba(167, 139, 250, 0.3);">
-          <span>View quoted note</span>
           <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
-            <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
+            <path d="M22 16.565V6.72967C22 6.02624 22.001 5.4207 21.9605 4.92407C21.9187 4.41244 21.8264 3.9034 21.5768 3.41367H21.5769C21.2047 2.68314 20.611 2.08947 19.8805 1.71726C19.3908 1.46772 18.8817 1.37544 18.37 1.33365C17.8734 1.29309 17.2679 1.29411 16.5645 1.29411H14.2351C13.5203 1.29411 12.9409 1.8735 12.9409 2.58821C12.9409 3.30293 13.5203 3.88236 14.2351 3.88236H16.5645C17.3106 3.88236 17.7925 3.88333 18.1593 3.91329C18.5111 3.94203 18.6415 3.99083 18.7055 4.0234H18.7055C18.949 4.14746 19.1466 4.34516 19.2707 4.58865V4.58869C19.3033 4.65259 19.3521 4.783 19.3808 5.1348C19.4108 5.50162 19.4118 5.98356 19.4118 6.72967V16.565C19.4118 17.3111 19.4108 17.7928 19.3808 18.1593C19.3521 18.5108 19.3034 18.641 19.2707 18.705H19.2707C19.1501 18.9417 18.9605 19.1349 18.7282 19.2591L18.7056 19.2709L18.7054 19.271C18.6417 19.3035 18.5116 19.3522 18.1605 19.3808C17.7944 19.4108 17.3134 19.4118 16.5687 19.4118H6.72539C5.98068 19.4118 5.5 19.4108 5.13415 19.3808C4.78352 19.3522 4.65357 19.3035 4.58975 19.271L4.5896 19.2709C4.34592 19.1468 4.14706 18.9479 4.0232 18.7048L4.02313 18.7046C3.99063 18.6408 3.94194 18.5109 3.91326 18.1601C3.88334 17.7942 3.88236 17.3134 3.88236 16.5687V14.2353C3.88235 13.5206 3.30293 12.9412 2.58821 12.9412C1.8735 12.9412 1.29411 13.5206 1.29411 14.2353V16.5687C1.29411 17.2707 1.2931 17.8752 1.33365 18.371C1.37543 18.882 1.4677 19.3903 1.717 19.8796C2.0893 20.6104 2.68446 21.2051 3.41473 21.5771L3.41477 21.5771C3.90401 21.8264 4.41225 21.9187 4.9232 21.9605C5.41901 22.001 6.02341 22 6.72539 22H16.5687C17.2707 22 17.8753 22.001 18.3714 21.9605C18.8824 21.9187 19.3911 21.8265 19.8805 21.5771V21.577C20.6004 21.2103 21.1865 20.6283 21.5593 19.9142L21.5768 19.8801C21.8263 19.3905 21.9186 18.8817 21.9605 18.3701C22.001 17.8737 22 17.2684 22 16.565ZM0 7.76471C5.72205e-06 8.47943 0.579388 9.05882 1.29411 9.05882C2.00882 9.05882 2.58821 8.47943 2.58821 7.76471V4.41838L9.43784 11.268C9.94323 11.7734 10.7626 11.7734 11.268 11.268C11.7734 10.7626 11.7734 9.94323 11.268 9.43784L4.41838 2.58821H7.76471C8.47943 2.58821 9.05882 2.00882 9.05882 1.29411C9.05882 0.579388 8.47943 6.56327e-06 7.76471 0H1.29411C0.579384 4.00228e-07 0 0.579384 0 1.29411V7.76471Z" fill="currentColor"/>
           </svg>
+          <span>View quoted note</span>
         </div>
       </div>`;
     }
@@ -5717,6 +5953,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         });
         this.subscriptions.delete(subId);
         
+        // Before giving up, try one more time with user relays if available
+        const hasUserRelays = this.userRelays && this.userRelays.size > 0;
+        if (hasUserRelays && (!quotedNote.retryCount || quotedNote.retryCount < 1)) {
+          console.log(`🔄 Retrying quote note request on user relays for: ${quotedNote.eventId.substring(0, 16)}...`);
+          quotedNote.retryCount = (quotedNote.retryCount || 0) + 1;
+          setTimeout(() => this.fetchQuotedEvent(quotedNote), 2000);
+          return;
+        }
+        
         // Replace any remaining loading placeholders with fallback links
         const stillLoadingPlaceholders = document.querySelectorAll(`.quoted-note.loading[data-event-id="${quotedNote.eventId}"]`);
         console.log(`🔗 Converting ${stillLoadingPlaceholders.length} unfound quoted note placeholders to fallback links for:`, quotedNote.eventId.substring(0, 16) + '...');
@@ -5725,10 +5970,10 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           const bech32 = placeholder.dataset.bech32 || quotedNote.bech32;
           const uniqueId = 'quoted-fallback-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
           const fallbackHTML = `<div id="${uniqueId}" class="quoted-note fallback" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 12px; min-height: 60px; color: #c4b5fd; border: 1px dashed rgba(167, 139, 250, 0.3);" data-note-id="${quotedNote.eventId}" data-bech32="${bech32}">
-            <span>View quoted note</span>
             <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
-              <path d="M2.37397e-06 16.565V6.72967C2.37397e-06 6.02624 -0.00101785 5.4207 0.0395463 4.92407C0.0813371 4.41244 0.173631 3.9034 0.423157 3.41367H0.423119C0.795321 2.68314 1.38897 2.08947 2.11949 1.71726C2.60923 1.46772 3.11831 1.37544 3.62997 1.33365C4.12659 1.29309 4.7321 1.29411 5.43553 1.29411H7.76494C8.47966 1.29411 9.05908 1.8735 9.05909 2.58821C9.05909 3.30293 8.47967 3.88236 7.76494 3.88236H5.43553C4.68943 3.88236 4.20752 3.88333 3.84069 3.91329C3.48889 3.94203 3.35845 3.99083 3.29455 4.0234H3.29451C3.05102 4.14746 2.85335 4.34516 2.72929 4.58865V4.58869C2.69673 4.65259 2.64792 4.783 2.61919 5.1348C2.58923 5.50162 2.58822 5.98356 2.58822 6.72967V16.565C2.58822 17.3111 2.58923 17.7928 2.61919 18.1593C2.64791 18.5108 2.69664 18.641 2.72925 18.705H2.72929C2.84986 18.9417 3.03946 19.1349 3.2718 19.2591L3.29443 19.2709L3.29462 19.271C3.3583 19.3035 3.48841 19.3522 3.83948 19.3808C4.20563 19.4108 4.68659 19.4118 5.43128 19.4118H15.2746C16.0193 19.4118 16.5 19.4108 16.8658 19.3808C17.2165 19.3522 17.3464 19.3035 17.4103 19.271L17.4104 19.2709C17.6541 19.1468 17.8529 18.9479 17.9768 18.7048L17.9769 18.7046C18.0094 18.6408 18.0581 18.5109 18.0867 18.1601C18.1167 17.7942 18.1176 17.3134 18.1176 16.5687V14.2353C18.1177 13.5206 18.6971 12.9412 19.4118 12.9412C20.1265 12.9412 20.7059 13.5206 20.7059 14.2353V16.5687C20.7059 17.2707 20.7069 17.8752 20.6664 18.371C20.6246 18.882 20.5323 19.3903 20.283 19.8796C19.9107 20.6104 19.3155 21.2051 18.5853 21.5771L18.5852 21.5771C18.096 21.8264 17.5878 21.9187 17.0768 21.9605C16.581 22.001 15.9766 22 15.2746 22H5.43128C4.72927 22 4.12466 22.001 3.62864 21.9605C3.11757 21.9187 2.60888 21.8265 2.11945 21.5771V21.577C1.39959 21.2103 0.813511 20.6283 0.440748 19.9142L0.423157 19.8801C0.173666 19.3905 0.0813545 18.8817 0.0395463 18.3701C-0.001023 17.8737 2.37397e-06 17.2684 2.37397e-06 16.565ZM22 7.76471C22 8.47943 21.4206 9.05882 20.7059 9.05882C19.9912 9.05882 19.4118 8.47943 19.4118 7.76471V4.41838L12.5622 11.268C12.0568 11.7734 11.2374 11.7734 10.732 11.268C10.2266 10.7626 10.2266 9.94323 10.732 9.43784L17.5816 2.58821H14.2353C13.5206 2.58821 12.9412 2.00882 12.9412 1.29411C12.9412 0.579388 13.5206 6.56327e-06 14.2353 0H20.7059C21.4206 4.00228e-07 22 0.579384 22 1.29411V7.76471Z" fill="currentColor"/>
+              <path d="M22 16.565V6.72967C22 6.02624 22.001 5.4207 21.9605 4.92407C21.9187 4.41244 21.8264 3.9034 21.5768 3.41367H21.5769C21.2047 2.68314 20.611 2.08947 19.8805 1.71726C19.3908 1.46772 18.8817 1.37544 18.37 1.33365C17.8734 1.29309 17.2679 1.29411 16.5645 1.29411H14.2351C13.5203 1.29411 12.9409 1.8735 12.9409 2.58821C12.9409 3.30293 13.5203 3.88236 14.2351 3.88236H16.5645C17.3106 3.88236 17.7925 3.88333 18.1593 3.91329C18.5111 3.94203 18.6415 3.99083 18.7055 4.0234H18.7055C18.949 4.14746 19.1466 4.34516 19.2707 4.58865V4.58869C19.3033 4.65259 19.3521 4.783 19.3808 5.1348C19.4108 5.50162 19.4118 5.98356 19.4118 6.72967V16.565C19.4118 17.3111 19.4108 17.7928 19.3808 18.1593C19.3521 18.5108 19.3034 18.641 19.2707 18.705H19.2707C19.1501 18.9417 18.9605 19.1349 18.7282 19.2591L18.7056 19.2709L18.7054 19.271C18.6417 19.3035 18.5116 19.3522 18.1605 19.3808C17.7944 19.4108 17.3134 19.4118 16.5687 19.4118H6.72539C5.98068 19.4118 5.5 19.4108 5.13415 19.3808C4.78352 19.3522 4.65357 19.3035 4.58975 19.271L4.5896 19.2709C4.34592 19.1468 4.14706 18.9479 4.0232 18.7048L4.02313 18.7046C3.99063 18.6408 3.94194 18.5109 3.91326 18.1601C3.88334 17.7942 3.88236 17.3134 3.88236 16.5687V14.2353C3.88235 13.5206 3.30293 12.9412 2.58821 12.9412C1.8735 12.9412 1.29411 13.5206 1.29411 14.2353V16.5687C1.29411 17.2707 1.2931 17.8752 1.33365 18.371C1.37543 18.882 1.4677 19.3903 1.717 19.8796C2.0893 20.6104 2.68446 21.2051 3.41473 21.5771L3.41477 21.5771C3.90401 21.8264 4.41225 21.9187 4.9232 21.9605C5.41901 22.001 6.02341 22 6.72539 22H16.5687C17.2707 22 17.8753 22.001 18.3714 21.9605C18.8824 21.9187 19.3911 21.8265 19.8805 21.5771V21.577C20.6004 21.2103 21.1865 20.6283 21.5593 19.9142L21.5768 19.8801C21.8263 19.3905 21.9186 18.8817 21.9605 18.3701C22.001 17.8737 22 17.2684 22 16.565ZM0 7.76471C5.72205e-06 8.47943 0.579388 9.05882 1.29411 9.05882C2.00882 9.05882 2.58821 8.47943 2.58821 7.76471V4.41838L9.43784 11.268C9.94323 11.7734 10.7626 11.7734 11.268 11.268C11.7734 10.7626 11.7734 9.94323 11.268 9.43784L4.41838 2.58821H7.76471C8.47943 2.58821 9.05882 2.00882 9.05882 1.29411C9.05882 0.579388 8.47943 6.56327e-06 7.76471 0H1.29411C0.579384 4.00228e-07 0 0.579384 0 1.29411V7.76471Z" fill="currentColor"/>
             </svg>
+            <span>View quoted note</span>
           </div>`;
           
           placeholder.outerHTML = fallbackHTML;
@@ -5751,7 +5996,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
             }
           }, 100);
         });
-      }, 5000);
+      }, 8000); // Balanced timeout with retry mechanism
     }
   }
   
@@ -6067,20 +6312,60 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       document.removeEventListener('scroll', this.scrollListener);
     }
     
-    // Create new scroll listener
+    // Create new scroll listener with predictive loading
     this.scrollListener = () => {
       const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
       const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
       const clientHeight = document.documentElement.clientHeight || window.innerHeight;
       
-      // Load more when user scrolls to bottom 200px
-      if (scrollTop + clientHeight >= scrollHeight - 200) {
+      // Calculate scroll percentage
+      const scrollPercent = (scrollTop + clientHeight) / scrollHeight;
+      
+      // Predictive loading: Start loading when 70% down
+      if (this.predictiveLoadingEnabled && scrollPercent >= 0.7 && this.feedHasMore && !this.loadingMore) {
+        console.log('🚀 Predictive loading triggered at 70% scroll');
         this.loadMoreNotes();
       }
+      // Fallback: Load more when user scrolls to bottom 200px  
+      else if (scrollTop + clientHeight >= scrollHeight - 200) {
+        this.loadMoreNotes();
+      }
+      
+      // Track scroll for pause detection
+      this.lastScrollY = scrollTop;
+      this.onScrollActivity();
     };
     
     // Add scroll listener
     document.addEventListener('scroll', this.scrollListener);
+  }
+  
+  onScrollActivity() {
+    // Clear previous timeout
+    if (this.scrollTimeout) {
+      clearTimeout(this.scrollTimeout);
+    }
+    
+    // Set timeout to detect scroll pause (user stopped scrolling)
+    this.scrollTimeout = setTimeout(() => {
+      this.onScrollPause();
+    }, 1500); // 1.5 seconds of no scrolling = pause
+  }
+  
+  onScrollPause() {
+    // User has paused scrolling - good time for background prefetch
+    if (this.predictiveLoadingEnabled && this.feedHasMore && !this.loadingMore) {
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+      const clientHeight = document.documentElement.clientHeight || window.innerHeight;
+      const scrollPercent = (scrollTop + clientHeight) / scrollHeight;
+      
+      // If user is more than 50% down and paused, prefetch next batch
+      if (scrollPercent >= 0.5) {
+        console.log('📦 Background prefetch triggered during scroll pause');
+        this.loadMoreNotes();
+      }
+    }
   }
   
   showLoading() {
@@ -7569,6 +7854,200 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     };
     
     tryGenerateQR();
+  }
+
+  // NEW CLEAN ME FEED IMPLEMENTATION
+  async loadNewMeFeed() {
+    console.log('🔄 === NEW ME FEED LOADING ===');
+    
+    if (!this.currentUser) {
+      console.log('❌ No current user for Me feed');
+      return;
+    }
+
+    this.showLoading();
+    
+    // Clear current feed state
+    const feedElement = document.getElementById('feed');
+    if (feedElement) {
+      feedElement.innerHTML = '';
+    }
+    this.notes.clear();
+    this.userReactions.clear();
+    this.loadingMore = false;
+    this.feedHasMore = true;
+    this.consecutiveEmptyLoads = 0;
+    this.definitelyNoMoreNotes = false;
+    
+    // Clear any pending reposts from previous load
+    if (this.pendingReposts) {
+      console.log('🧹 Clearing', this.pendingReposts.size, 'pending reposts from previous load');
+      this.pendingReposts.clear();
+    }
+    
+    // Load user's notes with larger initial batch
+    const filter = {
+      kinds: [1, 6, 7, 9735], // Include reposts (6), reactions (7), and zaps (9735) 
+      authors: [this.currentUser.publicKey],
+      limit: 200 // Much larger initial batch for smoother scrolling
+    };
+
+
+    const subId = 'new-me-feed-' + Date.now();
+    const subscription = ['REQ', subId, filter];
+    this.subscriptions.set(subId, subscription);
+    
+    console.log(`🔍 Me feed subscription: ${JSON.stringify(subscription)}`);
+    console.log(`🔍 Looking for notes by: ${this.currentUser.publicKey}`);
+
+    // Loading user's notes
+
+    let sentToRelays = 0;
+    const connectedRelays = [];
+    const disconnectedRelays = [];
+    
+    this.relayConnections.forEach((ws, relay) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log('📡 Sending to relay:', relay);
+        ws.send(JSON.stringify(subscription));
+        sentToRelays++;
+        connectedRelays.push(relay);
+      } else {
+        console.log('❌ Relay not connected:', relay, 'state:', ws.readyState);
+        disconnectedRelays.push(relay);
+      }
+    });
+
+    // Hide loading after timeout - faster for better UX
+    setTimeout(() => {
+      if (this.currentFeed === 'me') {
+        this.hideLoading();
+      }
+    }, 3000); // Reduced from 5000ms for faster loading feel
+  }
+
+  // NEW CLEAN ME FEED LOAD MORE
+  async loadMoreNewMeFeed() {
+    console.log('🔄 === NEW ME FEED LOAD MORE ===');
+    
+    if (!this.currentUser) {
+      console.log('❌ No current user for Me feed load more');
+      return;
+    }
+
+    this.loadingMore = true;
+    this.showAutoLoader();
+    
+    // Find oldest timestamp from DOM
+    const notes = document.querySelectorAll('.note-item');
+    if (notes.length === 0) {
+      this.loadingMore = false;
+      this.hideLoading();
+      return;
+    }
+
+    const oldestNote = notes[notes.length - 1];
+    const oldestTimestamp = parseInt(oldestNote.dataset.timestamp);
+    
+    if (!oldestTimestamp) {
+      this.loadingMore = false;
+      this.hideLoading();
+      return;
+    }
+
+    // Try a smaller 3-day window with higher limit to catch more notes
+    const windowStart = oldestTimestamp - (3 * 24 * 60 * 60); // 3 days before oldest
+    const windowEnd = oldestTimestamp - 1; // Up to oldest timestamp
+    
+    const filter = {
+      kinds: [1, 6, 7, 9735], // Include reposts (6), reactions (7), and zaps (9735)
+      authors: [this.currentUser.publicKey],
+      since: windowStart,
+      until: windowEnd,
+      limit: 150 // Even higher limit for smoother continuous scrolling
+    };
+
+    const subId = 'new-me-loadmore-' + Date.now();
+    const subscription = ['REQ', subId, filter];
+    this.subscriptions.set(subId, subscription);
+
+    const startNoteCount = this.notes.size;
+    
+    this.relayConnections.forEach((ws, relay) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+      }
+    });
+
+    // Complete load more operation after timeout - ALWAYS reset loadingMore flag
+    setTimeout(() => {
+      const notesReceived = this.notes.size - startNoteCount;
+      
+      if (notesReceived === 0) {
+        this.consecutiveEmptyLoads++;
+        if (this.consecutiveEmptyLoads >= 8) {
+          this.feedHasMore = false;
+        }
+      } else {
+        this.consecutiveEmptyLoads = 0;
+        this.feedHasMore = true;
+      }
+      
+      this.loadingMore = false;
+      this.hideLoading();
+    }, 3000);
+  }
+
+
+  showRelayStatusModal() {
+    const modal = document.getElementById('relay-status-modal');
+    const defaultRelaysList = document.getElementById('default-relays-list');
+    const userRelaysList = document.getElementById('user-relays-list');
+    
+    // Clear existing content
+    defaultRelaysList.innerHTML = '';
+    userRelaysList.innerHTML = '';
+    
+    // Get default relays status
+    this.relays.forEach(relay => {
+      const connection = this.relayConnections.get(relay);
+      const isConnected = connection && connection.readyState === WebSocket.OPEN;
+      const status = isConnected ? '🟢' : '🔴';
+      const statusText = isConnected ? 'Connected' : 'Disconnected';
+      
+      const relayItem = document.createElement('div');
+      relayItem.className = 'relay-item';
+      relayItem.innerHTML = `
+        <span class="relay-status">${status}</span>
+        <span class="relay-url">${relay}</span>
+        <span class="relay-status-text">${statusText}</span>
+      `;
+      defaultRelaysList.appendChild(relayItem);
+    });
+    
+    // Get user relays status (NIP-65)
+    if (this.userRelays.size > 0) {
+      this.userRelays.forEach(relay => {
+        const connection = this.relayConnections.get(relay);
+        const isConnected = connection && connection.readyState === WebSocket.OPEN;
+        const status = isConnected ? '🟢' : '🔴';
+        const statusText = isConnected ? 'Connected' : 'Disconnected';
+        
+        const relayItem = document.createElement('div');
+        relayItem.className = 'relay-item';
+        relayItem.innerHTML = `
+          <span class="relay-status">${status}</span>
+          <span class="relay-url">${relay}</span>
+          <span class="relay-status-text">${statusText}</span>
+        `;
+        userRelaysList.appendChild(relayItem);
+      });
+    } else {
+      userRelaysList.innerHTML = '<div class="no-relays">No user relays discovered yet</div>';
+    }
+    
+    // Show the modal
+    modal.classList.remove('hidden');
   }
 }
 
