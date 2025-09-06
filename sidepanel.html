@@ -51,7 +51,7 @@
         <!-- Feed Toggle -->
         <div class="feed-toggle">
             <button id="following-feed-btn" class="toggle-btn hidden" disabled>Following</button>
-            <button id="trending-feed-btn" class="toggle-btn active">Trending</button>
+            <button id="happening-feed-btn" class="toggle-btn active">Happening</button>
             <button id="me-feed-btn" class="toggle-btn hidden" disabled>Me</button>
         </div>
 
@@ -385,21 +385,6 @@
     </div>
 
     <script src="qrious.min.js"></script>
-    <script>
-        // Debug QRious library loading
-        window.addEventListener('load', function() {
-            console.log('🔧 Checking QRious library after window load...');
-            if (typeof QRious !== 'undefined') {
-                console.log('✅ QRious library loaded successfully');
-                if (QRious.VERSION) {
-                    console.log('📦 Version:', QRious.VERSION);
-                }
-            } else {
-                console.error('❌ QRious library failed to load');
-                console.log('Available globals:', Object.keys(window).filter(k => k.includes('QR')));
-            }
-        });
-    </script>
     <script src="nostr-tools.js"></script>
     <script src="sidepanel.js"></script>
 </body>

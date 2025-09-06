@@ -127,7 +127,7 @@ class SidecarApp {
   constructor() {
     console.log('🏗️ SIDECAR APP CONSTRUCTOR CALLED');
     this.currentUser = null;
-    this.currentFeed = 'trending';
+    this.currentFeed = 'happening';
     console.log('📝 Initial feed set to:', this.currentFeed);
     this.useNewFeedImplementations = true; // Toggle for new feed implementations
     this.predictiveLoadingEnabled = true; // Enable predictive loading
@@ -200,8 +200,8 @@ class SidecarApp {
     this.memoryCheckInterval = 60000; // Check memory every 60 seconds - less frequent cleanup
     this.maxSubscriptions = 50; // Maximum concurrent subscriptions
     this.lastMemoryCheck = Date.now();
-    this.trendingNoteIds = new Set(); // Track which notes are from trending feed
-    this.trendingDaysLoaded = 0; // Track how many days of trending data we've loaded
+    this.happeningNoteIds = new Set(); // Track which notes are from happening feed
+    this.happeningDaysLoaded = 0; // Track how many days of happening data we've loaded
     this.meDaysLoaded = 0; // Track how many days of Me feed data we've loaded
     
     this.init();
@@ -289,9 +289,20 @@ class SidecarApp {
     // Feed toggle
     console.log('🔗 Setting up feed toggle event listeners');
     document.getElementById('following-feed-btn').addEventListener('click', () => this.handleFeedButtonClick('following'));
-    document.getElementById('trending-feed-btn').addEventListener('click', () => {
-      console.log('🔥 TRENDING FEED BUTTON CLICKED!');
-      this.handleFeedButtonClick('trending');
+    document.getElementById('happening-feed-btn').addEventListener('click', () => {
+      console.log('🔥 HAPPENING FEED BUTTON CLICKED!');
+      
+      // IMMEDIATE DOM CLEARING - before any other processing
+      const feedElement = document.getElementById('feed');
+      console.log('💥 IMMEDIATELY clearing feed DOM');
+      feedElement.innerHTML = '';
+      
+      // IMMEDIATE PENDING DISPLAYS CLEARING - prevent cached content
+      console.log('💥 IMMEDIATELY clearing pending note displays');
+      this.pendingNoteDisplays.forEach(timeoutId => clearTimeout(timeoutId));
+      this.pendingNoteDisplays.clear();
+      
+      this.handleFeedButtonClick('happening');
     });
     document.getElementById('me-feed-btn').addEventListener('click', () => this.handleFeedButtonClick('me'));
     
@@ -1127,7 +1138,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       this.profiles.clear();
         
       // Clear DOM
-      const feed = document.getElementById('feed');
+      const feed = this.getCurrentFeedElement();
       if (feed) {
         feed.innerHTML = '';
       }
@@ -1178,7 +1189,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     if (endOfFeed) endOfFeed.classList.add('hidden');
     
     // Get the timestamp of the oldest note currently displayed
-    const feed = document.getElementById('feed');
+    const feed = this.getCurrentFeedElement();
     const notes = Array.from(feed.children);
     if (notes.length === 0) {
       console.log('❌ No notes in feed, resetting loadingMore flag');
@@ -1242,14 +1253,14 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         // Load more for new Me feed implementation
         this.loadMoreNewMeFeed();
       } else {
-        console.log('🙋 Loading more for Me feed using old trending-style approach');
+        console.log('🙋 Loading more for Me feed using old happening-style approach');
         this.loadMoreMeFeed();
       }
       return;
-    } else if (this.currentFeed === 'trending') {
-      // For trending feed, load more days of trending data
-      console.log('📡 TRENDING LOAD MORE TRIGGERED - calling loadMoreTrendingDays()');
-      this.loadMoreTrendingDays();
+    } else if (this.currentFeed === 'happening') {
+      // For happening feed, load more days of happening data
+      console.log('📡 HAPPENING LOAD MORE TRIGGERED - calling loadMoreHappeningDays()');
+      this.loadMoreHappeningDays();
       return;
     }
     
@@ -1626,9 +1637,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       await this.sendMessage({ type: 'CLEAR_KEYS' });
       this.clearUserData();
       
-      // Force switch to trending feed if currently on Me feed
+      // Force switch to happening feed if currently on Me feed
       if (this.currentFeed === 'me') {
-          this.switchFeed('trending');
+          this.switchFeed('happening');
       } else {
         this.updateAuthUI();
         this.loadFeed();
@@ -1653,8 +1664,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       followingFeedBtn.classList.remove('hidden');
       
       // Switch to Following feed when user logs in (unless already on a specific feed)
-      if (this.currentFeed === 'trending') {
-        console.log('🔄 User logged in, switching from Trending to Following feed');
+      if (this.currentFeed === 'happening') {
+        console.log('🔄 User logged in, switching from Happening to Following feed');
         this.currentFeed = 'following';
         this.updateFeedToggle();
       }
@@ -1683,9 +1694,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       meFeedBtn.disabled = true;
       followingFeedBtn.disabled = true;
       
-      // Switch to trending feed if on following
+      // Switch to happening feed if on following
       if (this.currentFeed === 'following') {
-        this.switchFeed('trending');
+        this.switchFeed('happening');
       }
     }
   }
@@ -1862,18 +1873,18 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     // TEMPORARY: Block switching to broken feeds (unless using new implementations)
     if ((feedType === 'me' || feedType === 'following') && !this.useNewFeedImplementations) {
       console.log('🚧 TEMPORARY: Feeds', feedType, 'are disabled while being rebuilt');
-      alert(`${feedType.charAt(0).toUpperCase() + feedType.slice(1)} feed is temporarily disabled while being rebuilt. Please use Trending feed.`);
-      // Force switch to trending instead
-      feedType = 'trending';
+      alert(`${feedType.charAt(0).toUpperCase() + feedType.slice(1)} feed is temporarily disabled while being rebuilt. Please use Happening feed.`);
+      // Force switch to happening instead
+      feedType = 'happening';
     } else if (feedType === 'following' && this.useNewFeedImplementations) {
       console.log('🚧 TEMPORARY: Following feed new implementation not ready yet');
-      alert('Following feed new implementation is not ready yet. Please use Trending or Me feed.');
-      // Force switch to trending instead
-      feedType = 'trending';
+      alert('Following feed new implementation is not ready yet. Please use Happening or Me feed.');
+      // Force switch to happening instead
+      feedType = 'happening';
     }
     
-    // Close all existing subscriptions BEFORE changing currentFeed to prevent cross-feed contamination
-    console.log('🚫 Closing all subscriptions before feed switch');
+    // Clean subscription cleanup for all feeds
+    console.log('🚫 Closing subscriptions for feed switch to:', feedType);
     this.subscriptions.forEach((subscription, subId) => {
       this.relayConnections.forEach(ws => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -1897,8 +1908,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     // Add active class to the selected button
     if (feedType === 'following') {
       document.getElementById('following-feed-btn').classList.add('active');
-    } else if (feedType === 'trending') {
-      document.getElementById('trending-feed-btn').classList.add('active');
+    } else if (feedType === 'happening') {
+      document.getElementById('happening-feed-btn').classList.add('active');
     } else if (feedType === 'me') {
       document.getElementById('me-feed-btn').classList.add('active');
     }
@@ -1907,9 +1918,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     const feedElement = document.getElementById('feed');
     feedElement.innerHTML = '';
     
-    // Force DOM clearing with immediate re-render for Me feed
-    if (feedType === 'me') {
-      // Force immediate DOM update
+    // Force DOM clearing with immediate re-render for Me and Happening feeds  
+    if (feedType === 'me' || feedType === 'happening') {
+      // Force immediate DOM update to prevent cross-feed content interference
       feedElement.style.display = 'none';
       setTimeout(() => {
         feedElement.style.display = 'block';
@@ -1922,12 +1933,19 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.userReactions.clear();
     this.loadingMore = false;
     
-    // Clear feed-specific data
+    // Clear pending note displays to prevent cached content from appearing
+    this.pendingNoteDisplays.forEach(timeoutId => clearTimeout(timeoutId));
+    this.pendingNoteDisplays.clear();
+    
+    // Clear feed-specific data to prevent cross-feed contamination
     if (feedType === 'me') {
-      this.trendingNoteIds.clear();
-      this.trendingAuthors = null;
+      this.happeningNoteIds.clear();
+      this.happeningAuthors = null;
       this.meDaysLoaded = 0;
-    } else if (feedType === 'trending') {
+    } else if (feedType === 'happening') {
+      // Clear happening data for fresh load, just like Me feed does
+      this.happeningNoteIds.clear();
+      this.happeningAuthors = null;
       this.meDaysLoaded = 0;
     }
     // Keep profiles cache - no need to refetch profile data
@@ -1937,16 +1955,23 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.loadFeed();
   }
   
+  getCurrentFeedElement() {
+    return document.getElementById('feed');
+  }
   
   refreshFeed() {
     console.log('🔄 refreshFeed called - currentFeed:', this.currentFeed);
     // Clear current feed and reload
-    document.getElementById('feed').innerHTML = '';
+    this.getCurrentFeedElement().innerHTML = '';
     this.notes.clear();
     this.userReactions.clear();
     this.profileNotFound.clear(); // Clear profile not found set to allow retry
     this.loadingMore = false;
     // Keep profiles cache - no need to refetch profile data
+    
+    // Clear pending note displays to prevent cached content from appearing
+    this.pendingNoteDisplays.forEach(timeoutId => clearTimeout(timeoutId));
+    this.pendingNoteDisplays.clear();
     
     this.loadFeed();
   }
@@ -2108,14 +2133,14 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       }
       
       
-      // Special handling for trending feed to show summary
-      if (subId.startsWith('trending-feed-')) {
-        console.log(`🎯 TRENDING FEED LOADED - Authors collected: ${this.trendingAuthors ? this.trendingAuthors.size : 0}`);
-        console.log(`🎯 First 5 trending authors:`, this.trendingAuthors ? [...this.trendingAuthors].slice(0, 5).map(a => a.substring(0, 16) + '...') : 'None');
+      // Special handling for happening feed to show summary
+      if (subId.startsWith('happening-feed-')) {
+        console.log(`🎯 HAPPENING FEED LOADED - Authors collected: ${this.happeningAuthors ? this.happeningAuthors.size : 0}`);
+        console.log(`🎯 First 5 happening authors:`, this.happeningAuthors ? [...this.happeningAuthors].slice(0, 5).map(a => a.substring(0, 16) + '...') : 'None');
       }
       
       // For load more subscriptions, track EOSE completion (excluding Me feed which uses its own system)
-      if (subId.startsWith('loadmore-') || subId.startsWith('trending-loadmore-')) {
+      if (subId.startsWith('loadmore-') || subId.startsWith('happening-loadmore-')) {
         // Track completed batches for batched operations
         if (subId.includes('batch')) {
           if (!this.completedBatches) this.completedBatches = new Set();
@@ -2191,9 +2216,16 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         }
       }
       
-      // Only call hideLoading for non-batched load more operations
-      // Individual batch EOSE events should not update UI state
-      if (!((subId.startsWith('loadmore-') || subId.startsWith('trending-loadmore-')) && subId.includes('batch'))) {
+      // Special handling for happening subscriptions (all types)
+      if (subId.startsWith('happening-loadmore-') || subId.startsWith('happening-simple-') || 
+          subId.startsWith('happening-curated-') || subId.startsWith('happening-popular-')) {
+        console.log(`🎯 Happening EOSE received: ${subId}`);
+        this.loadingMore = false;
+        this.hideLoading();
+        console.log(`🎯 Reset loadingMore = false for happening completion`);
+      }
+      // Only call hideLoading for other non-batched load more operations
+      else if (!((subId.startsWith('loadmore-') || subId.startsWith('happening-loadmore-')) && subId.includes('batch'))) {
         this.hideLoading();
       } else {
         console.log(`📋 Skipping hideLoading for batch EOSE: ${subId}`);
@@ -2257,6 +2289,10 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       const shouldShow = repostEvent.pubkey === this.currentUser?.publicKey;
       console.log('👤 Me feed filter - Current user pubkey:', this.currentUser?.publicKey.substring(0, 16) + '...', 'Result:', shouldShow ? 'PASS' : 'FAIL');
       return shouldShow;
+    } else if (this.currentFeed === 'happening') {
+      // Happening feed should NOT show reposts - only original happening notes from nostr.band
+      console.log('🔥 HAPPENING FEED FILTER: Rejecting repost (happening shows only original notes)');
+      return false;
     }
     
     console.log('✅ Other feed - showing repost');
@@ -2554,6 +2590,12 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   displayRepostWithContent(repostEvent, originalNote) {
     console.log('🚀 DISPLAYING REPOST WITH CONTENT - Reposter:', repostEvent.pubkey.substring(0, 16) + '...', 'Original note:', originalNote.id.substring(0, 16) + '...');
     
+    // FINAL SAFEGUARD: Double-check if this repost should be shown in current feed
+    if (!this.shouldShowRepostInCurrentFeed(repostEvent)) {
+      console.log('🚫 FINAL SAFEGUARD: Repost blocked at display time for feed:', this.currentFeed);
+      return;
+    }
+    
     // Check if we already displayed this repost
     const repostId = `repost-${repostEvent.id}`;
     if (document.querySelector(`[data-event-id="${repostId}"]`)) {
@@ -2565,7 +2607,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     const repostDiv = this.createRepostWithContentElement(repostEvent, originalNote);
     
     // Insert into feed in chronological order
-    const feed = document.getElementById('feed');
+    const feed = this.getCurrentFeedElement();
     const existingNotes = Array.from(feed.children);
     let inserted = false;
     
@@ -3012,6 +3054,198 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     }
   }
 
+  calculateContentQuality(event) {
+    let score = 0;
+
+    // Check for bridged users (mostr.pub and other bridges) - immediate disqualification
+    const profile = this.profiles[event.pubkey];
+    if (profile) {
+      // Check if this is a bridged user
+      const isBridgedUser = this.isBridgedUser(profile, event.pubkey, event);
+      if (isBridgedUser) {
+        console.log('🚫 User filtered for being bridged (mostr.pub/fediverse):', event.pubkey.substring(0, 16) + '...');
+        return 0; // Immediate disqualification for bridged users
+      }
+      
+      // We have profile data - apply completeness check
+      if (!profile.name || !profile.picture) {
+        console.log('🚫 User filtered for incomplete profile:', event.pubkey.substring(0, 16) + '...', 
+          'Has name:', !!profile.name, 'Has picture:', !!profile.picture);
+        return 0; // Disqualification for incomplete profile when we have the data
+      }
+      // Profile completeness bonus
+      score += 2; // Good for having complete profile
+    } else {
+      // Profile not loaded yet - give benefit of the doubt but fetch it
+      console.log('⏳ No profile data yet for:', event.pubkey.substring(0, 16) + '...', 'proceeding with content-based scoring');
+      score += 1; // Base assumption
+    }
+
+    // NSFW content filtering - check content and hashtags
+    const content = event.content?.toLowerCase() || '';
+    const nsfwKeywords = [
+      'nsfw', 'porn', 'xxx', 'adult', 'sex', 'nude', 'naked', 'topless', 'bottomless',
+      'boobs', 'tits', 'ass', 'dick', 'cock', 'pussy', 'fuck', 'fucking', 'horny',
+      'milf', 'dildo', 'vibrator', 'orgasm', 'cumshot', 'blowjob', 'anal', 'bdsm',
+      'fetish', 'kinky', 'slutty', 'whore', 'bitch', 'erotic', 'sensual', 'seductive'
+    ];
+    
+    // Check for NSFW keywords in content
+    for (const keyword of nsfwKeywords) {
+      if (content.includes(keyword) || content.includes(`#${keyword}`)) {
+        console.log('🚫 Content filtered for NSFW keyword:', event.pubkey.substring(0, 16) + '...', 'keyword:', keyword);
+        return 0; // Immediate disqualification for NSFW content
+      }
+    }
+    
+    // Check hashtags in event tags
+    const hashtags = event.tags?.filter(tag => tag[0] === 't')?.map(tag => tag[1]?.toLowerCase()) || [];
+    for (const hashtag of hashtags) {
+      if (nsfwKeywords.includes(hashtag)) {
+        console.log('🚫 Content filtered for NSFW hashtag:', event.pubkey.substring(0, 16) + '...', 'hashtag:', hashtag);
+        return 0; // Immediate disqualification for NSFW hashtag
+      }
+    }
+
+    // Check engagement level - but be lenient if we don't have the data yet
+    const followingCount = this.followingCounts?.[event.pubkey];
+    
+    if (followingCount !== undefined) {
+      // We have following count data - apply engagement threshold
+      if (followingCount < 200) {
+        console.log('🚫 User filtered for low engagement:', event.pubkey.substring(0, 16) + '...', `(following: ${followingCount})`);
+        return 0; // Immediate disqualification for low engagement
+      }
+      
+      // Engagement bonus for highly connected users
+      if (followingCount >= 500) score += 2;
+      else if (followingCount >= 300) score += 1;
+    } else {
+      // We don't have following count data yet - give benefit of the doubt with base score
+      console.log('⏳ No following count data yet for:', event.pubkey.substring(0, 16) + '...', 'proceeding with content-based scoring');
+      score += 1; // Base engagement assumption
+    }
+
+    // Content length score (reasonable length preferred)
+    const contentLength = event.content?.length || 0;
+    if (contentLength >= 50 && contentLength <= 500) {
+      score += 2; // Good length
+    } else if (contentLength >= 20 && contentLength <= 1000) {
+      score += 1; // Acceptable length
+    }
+
+    // Additional profile bonuses (if profile exists)
+    if (profile && profile.about && profile.about.length > 10) score += 1;
+    if (profile && profile.nip05) score += 1;
+
+    // Content quality indicators (content already defined above)
+    
+    // Positive indicators
+    if (content.includes('http') && !content.match(/https?:\/\/[^\s]+/g)?.some(url => 
+      url.includes('porn') || url.includes('xxx') || url.includes('adult')
+    )) {
+      score += 1; // Contains links (but not adult content)
+    }
+    
+    if (content.match(/[.!?][\s]*[A-Z]/)) {
+      score += 1; // Multiple sentences (proper punctuation)
+    }
+
+    // Negative indicators (spam/low quality patterns)
+    if (content.match(/(.)\1{4,}/)) score -= 1; // Repeated characters
+    if (content.match(/🚀|💎|🌕|hodl|moon|lambo/gi)) score -= 1; // Crypto spam
+    if (content.match(/follow\s+me|follow\s+back|f4f|l4l/gi)) score -= 1; // Follow spam
+    if (content.match(/[🔥💯⚡]{3,}/)) score -= 1; // Excessive emojis
+    if (content.includes('🟠') || content.match(/zap.*me/gi)) score -= 1; // Zap begging
+    
+    // All caps penalty
+    if (content.length > 20 && content.toUpperCase() === content && content.match(/[A-Z]/)) {
+      score -= 2;
+    }
+
+    // Recent content bonus
+    const hoursAgo = (Date.now() / 1000 - event.created_at) / 3600;
+    if (hoursAgo < 6) score += 1;
+    else if (hoursAgo < 24) score += 0.5;
+
+    return Math.max(0, score);
+  }
+
+  isBridgedUser(profile, pubkey, event = null) {
+    // Check for mostr.pub bridged users and other fediverse bridges
+    
+    // Check client tag if event is provided
+    if (event && event.tags) {
+      const clientTag = event.tags.find(tag => tag[0] === 'client');
+      if (clientTag && clientTag[1]) {
+        const clientName = clientTag[1].toLowerCase();
+        if (clientName.includes('mostr') || clientName.includes('bridge') || clientName.includes('mastodon')) {
+          return true;
+        }
+      }
+    }
+    
+    // Check NIP-05 identifier for bridged domains
+    if (profile.nip05) {
+      const bridgedDomains = [
+        'mostr.pub',             // Main Mostr bridge
+        'channels-im.mostr.pub', // Mostr channels bridge
+        'bridge.nostr.pub',      // Generic bridge domain
+        'mastodon.social',       // Direct Mastodon references
+        'fediverse.pub',         // Fediverse bridges
+        'activitypub.pub',       // ActivityPub bridges
+        'pleroma.pub',           // Pleroma bridges
+        'misskey.pub',           // Misskey bridges
+        'mstdn.jp',              // Japanese Mastodon instances
+        'social.vivaldi.net',    // Vivaldi's Mastodon
+        'mas.to'                 // Common Mastodon instance
+      ];
+      
+      const nip05Lower = profile.nip05.toLowerCase();
+      for (const domain of bridgedDomains) {
+        if (nip05Lower.includes(domain)) {
+          return true;
+        }
+      }
+    }
+    
+    // Check profile content for bridge indicators
+    if (profile.about) {
+      const aboutLower = profile.about.toLowerCase();
+      const bridgeIndicators = [
+        'bridged from',
+        'mostr.pub',
+        'fediverse',
+        'mastodon',
+        'activitypub',
+        'this account is bridged',
+        'using mostr',
+        'via mostr',
+        'channels-im.mostr.pub',
+        'originally from mastodon'
+      ];
+      
+      for (const indicator of bridgeIndicators) {
+        if (aboutLower.includes(indicator)) {
+          return true;
+        }
+      }
+    }
+    
+    // Check display name for bridge indicators  
+    if (profile.display_name || profile.name) {
+      const nameContent = ((profile.display_name || '') + ' ' + (profile.name || '')).toLowerCase();
+      if (nameContent.includes('mostr.pub') || 
+          nameContent.includes('bridged') || 
+          nameContent.includes('using mostr') ||
+          nameContent.includes('channels-im.mostr.pub')) {
+        return true;
+      }
+    }
+    
+    return false; // Not a bridged user
+  }
+
   handleReaction(reactionEvent) {
     // Only show reactions from the current user
     if (!this.currentUser || reactionEvent.pubkey !== this.currentUser.publicKey) {
@@ -3170,39 +3404,36 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           return;
         }
         console.log('✅ Me feed: Showing note from current user:', event.pubkey.substring(0, 16) + '...');
-      } else if (this.currentFeed === 'trending') {
-        // Show notes that are either in our trending note IDs list OR from trending authors 
-        const isTrendingNote = this.trendingNoteIds.has(event.id);
-        const isTrendingAuthor = this.trendingAuthors && this.trendingAuthors.has(event.pubkey);
+      } else if (this.currentFeed === 'happening') {
+        // HAPPENING FEED: Show curated happening notes OR popular relay content (hybrid approach)
+        const isHappeningNote = this.happeningNoteIds.has(event.id);
         
-        // During initial trending load (when we have trending IDs but no authors yet),
-        // allow through any note that is in trending IDs list
-        // For load-more operations, also check trending authors
-        if (!isTrendingNote && !isTrendingAuthor) {
-          // Before filtering out, check if this event can update any quoted note placeholders
-          // Cache it temporarily for quoted note updates even if it won't be displayed
-          this.notes.set(event.id, event);
-          this.updateQuotedNotePlaceholders(event);
-          
-          // If this is initial load (we have trending IDs but no authors yet), only show trending notes
-          if (this.trendingNoteIds.size > 0 && (!this.trendingAuthors || this.trendingAuthors.size === 0)) {
-            console.log('🚫 Filtering out non-curated note during initial trending load (cached for quotes):', event.id.substring(0, 16) + '...');
+        if (!isHappeningNote && !this.happeningApiExhausted) {
+          // Still in curated phase - only show official happening notes
+          console.log('🚫 Happening feed: Blocked non-happening note (curated phase):', event.id.substring(0, 16) + '...');
+          return;
+        } else if (!isHappeningNote && this.happeningApiExhausted) {
+          // In popular content phase - apply quality filtering
+          const qualityScore = this.calculateContentQuality(event);
+          if (qualityScore < 1) {
+            console.log('🚫 Happening feed: Low quality popular content filtered:', event.id.substring(0, 16) + '...', `(score: ${qualityScore})`);
             return;
           }
-          // If this is load-more operation, filter out completely
-          console.log('🚫 Filtering out non-trending note (cached for quotes):', event.id.substring(0, 16) + '...', 'from author:', event.pubkey.substring(0, 16) + '...');
-          return;
+          console.log('✅ Happening feed: High quality popular content:', event.id.substring(0, 16) + '...', `(score: ${qualityScore})`);
+        } else {
+          // This is a curated happening note - always show it
+          console.log('✅ Happening feed: Showing curated happening note:', event.id.substring(0, 16) + '...');
         }
         
-        if (isTrendingNote) {
-          console.log('✅ Showing curated trending note:', event.id.substring(0, 16) + '...');
-          // Add this author to trending authors set for future filtering
-          if (!this.trendingAuthors) this.trendingAuthors = new Set();
-          this.trendingAuthors.add(event.pubkey);
-          console.log('👥 Added trending author:', event.pubkey.substring(0, 16) + '...', 'Total trending authors:', this.trendingAuthors.size);
-        } else {
-          console.log('✅ Showing note from trending author:', event.id.substring(0, 16) + '...', 'author:', event.pubkey.substring(0, 16) + '...');
+        // For happening content, immediately fetch profile if we don't have it
+        if (!this.profiles.has(event.pubkey)) {
+          console.log('🎯 Happening content detected - priority profile fetch for:', event.pubkey.substring(0, 16) + '...');
+          this.fetchProfileForAuthor(event.pubkey);
         }
+        
+        // Add author to happening authors for future reference
+        if (!this.happeningAuthors) this.happeningAuthors = new Set();
+        this.happeningAuthors.add(event.pubkey);
       }
       // Other feeds (if any) show everything - no additional filtering needed
       
@@ -3305,6 +3536,12 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     if (!hasProfile) {
       this.fetchProfileForAuthor(event.pubkey);
     }
+
+    // Check if we have the following count, if not - proactively fetch it
+    const hasFollowingCount = this.followingCounts && this.followingCounts[event.pubkey] !== undefined;
+    if (!hasFollowingCount) {
+      this.fetchContactListForAuthor(event.pubkey);
+    }
     
     // Determine delay based on whether we have the profile
     const baseDelay = hasProfile ? 50 : 500; // 50ms if profile cached, 500ms if not (increased from 300ms)
@@ -3347,7 +3584,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     
     let sentCount = 0;
     this.relayConnections.forEach((ws, relayUrl) => {
-      if (sentCount >= 3) return; // Limit to 3 relays for profile fetching
+      if (sentCount >= 5) return; // Increased to 5 relays for better coverage
       if (ws.readyState !== WebSocket.OPEN) {
         console.log('⚠️ Relay not ready for profile fetch:', relayUrl);
         return;
@@ -3364,7 +3601,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     
     console.log(`📡 Profile fetch requests sent to ${sentCount} relays for:`, pubkey.substring(0, 16) + '...');
     
-    // Auto-close subscription after 3 seconds
+    // Auto-close subscription after 5 seconds (increased timeout)
     setTimeout(() => {
       const closeMsg = ["CLOSE", subscriptionId];
       this.relayConnections.forEach((ws) => {
@@ -3376,11 +3613,72 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           }
         }
       });
-      // Remove from pending requests
-      if (this.profileFetchRequests) {
-        this.profileFetchRequests.delete(pubkey);
+      
+      // Check if we got the profile, if not - schedule a retry
+      if (!this.profiles.has(pubkey)) {
+        console.log('❌ Profile fetch failed for:', pubkey.substring(0, 16) + '...', 'scheduling retry');
+        // Remove from pending so we can retry
+        if (this.profileFetchRequests) {
+          this.profileFetchRequests.delete(pubkey);
+        }
+        // Retry after 2 seconds if we still don't have it
+        setTimeout(() => {
+          if (!this.profiles.has(pubkey)) {
+            console.log('🔄 Retrying profile fetch for:', pubkey.substring(0, 16) + '...');
+            this.fetchProfileForAuthor(pubkey);
+          }
+        }, 2000);
+      } else {
+        // Remove from pending requests
+        if (this.profileFetchRequests) {
+          this.profileFetchRequests.delete(pubkey);
+        }
       }
-    }, 3000);
+    }, 5000);
+  }
+
+  // Proactively fetch contact list for unknown authors (for engagement scoring)
+  fetchContactListForAuthor(pubkey) {
+    // Avoid duplicate requests
+    if (!this.contactListFetchRequests) {
+      this.contactListFetchRequests = new Set();
+    }
+    
+    if (this.contactListFetchRequests.has(pubkey)) {
+      return;
+    }
+    
+    this.contactListFetchRequests.add(pubkey);
+    const subscriptionId = 'contact-list-fetch-' + pubkey.substring(0, 8) + '-' + Date.now();
+    const filter = { kinds: [3], authors: [pubkey], limit: 1 };
+    const subscription = ['REQ', subscriptionId, filter];
+    
+    let sentCount = 0;
+    this.relayConnections.forEach((ws, relayUrl) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      
+      try {
+        ws.send(JSON.stringify(subscription));
+        sentCount++;
+      } catch (error) {
+        console.log('⚠️ Error fetching contact list from relay:', relayUrl, error);
+      }
+    });
+    
+    // Auto-close subscription after 2 seconds (faster than profile)
+    setTimeout(() => {
+      const closeMsg = ["CLOSE", subscriptionId];
+      this.relayConnections.forEach((ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify(closeMsg));
+          } catch (error) {
+            console.log('⚠️ Error closing contact list subscription:', error);
+          }
+        }
+      });
+      this.contactListFetchRequests.delete(pubkey);
+    }, 2000);
   }
   
   handleProfile(event) {
@@ -3402,6 +3700,20 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       
       // Update any displayed notes from this author (including quoted notes)
       this.updateAuthorDisplay(event.pubkey);
+      
+      // For happening feed, immediately update any generic profile displays
+      if (this.currentFeed === 'happening') {
+        console.log('🎯 Happening feed - forcing UI update for new profile:', event.pubkey.substring(0, 16) + '...');
+        // Force update any "User XXXXXX" displays to use real profile data
+        const genericUserElements = document.querySelectorAll(`[data-author="${event.pubkey}"] .note-author, [data-pubkey="${event.pubkey}"] .note-author`);
+        genericUserElements.forEach(nameElement => {
+          const currentText = nameElement.textContent;
+          if (currentText && currentText.startsWith('User ')) {
+            nameElement.textContent = profile.display_name || profile.name || this.getAuthorName(event.pubkey);
+            console.log('✅ Updated generic user display to:', nameElement.textContent);
+          }
+        });
+      }
       
       // Process any reposts that were waiting for this profile
       this.processRepostQueue();
@@ -3432,10 +3744,19 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
   
   handleContactList(event) {
-    // Only process contact lists from the current user
+    // Initialize followingCounts if not exists
+    if (!this.followingCounts) {
+      this.followingCounts = {};
+    }
+
+    // Track following count for all users (for quality scoring)
+    const userFollowCount = event.tags.filter(tag => tag[0] === 'p' && tag[1]).length;
+    this.followingCounts[event.pubkey] = userFollowCount;
+    console.log('📊 Tracked following count for', event.pubkey.substring(0, 16) + '...:', userFollowCount);
+
+    // Only process contact lists from the current user for following feed
     if (!this.currentUser || event.pubkey !== this.currentUser.publicKey) {
-      console.log('❌ Ignoring contact list from different user:', event.pubkey, '(expected:', this.currentUser?.publicKey, ')');
-      return;
+      return; // Still track the count but don't process for following feed
     }
     
     console.log('✅ === PROCESSING CONTACT LIST ===');
@@ -3476,7 +3797,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     if (this.currentFeed === 'following') {
       console.log('🔄 Reloading following feed with contact list data');
       // Clear the current feed content to ensure fresh reload
-      document.getElementById('feed').innerHTML = '';
+      this.getCurrentFeedElement().innerHTML = '';
       this.loadFeed();
     }
   }
@@ -3819,93 +4140,81 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     }, 20000); // 20 second safety timeout - increased for larger batch requests
   }
   
-  async loadMoreTrendingDays() {
-    console.log('🔥 loadMoreTrendingDays() called!');
-    this.loadMoreStartNoteCount = this.notes.size; // Track starting note count
+  async loadMoreHappeningDays() {
+    console.log('🔥 HYBRID HAPPENING LOAD MORE - curated + popular content');
+    console.log('🔍 State check: happeningApiExhausted=', this.happeningApiExhausted, 'attempts=', this.happeningApiAttempts, 'popularBatches=', this.popularContentBatches);
     
-    // Since nostr.band API doesn't support pagination (confirmed by testing), 
-    // we'll load older content from trending authors using Nostr relays
+    // Skip the nostr.band API entirely - we know it only has ~50 static notes
+    // Go directly to popular relay-based content for endless scroll
+    console.log('🌟 Skipping exhausted nostr.band API - loading popular relay content');
     
-    const notes = document.querySelectorAll('.note');
-    if (notes.length === 0) {
-      console.log('📊 No notes in DOM to determine oldest timestamp');
-      this.feedHasMore = false;
-      this.loadingMore = false;
-      this.hideLoading();
-      return;
+    if (!this.happeningApiExhausted) {
+      this.happeningApiExhausted = true;
+      console.log('🔄 Marked nostr.band API as exhausted, switching to relay content');
     }
     
-    const oldestNote = notes[notes.length - 1];
-    const oldestTimestamp = parseInt(oldestNote.dataset.timestamp);
+    // Load popular content from progressively older time windows
+    const batchNumber = (this.popularContentBatches || 0) + 1;
+    const hoursBack = batchNumber * 3; // 3-hour windows: 0-3h, 3-6h, 6-9h, etc.
+    const since = Math.floor(Date.now() / 1000) - (hoursBack * 3600);
+    const until = Math.floor(Date.now() / 1000) - ((hoursBack - 3) * 3600);
     
-    if (!oldestTimestamp) {
-      console.log('📊 No timestamp found on oldest note');
-      this.feedHasMore = false;
-      this.loadingMore = false;
-      this.hideLoading();
-      return;
-    }
+    console.log(`🔥 Loading popular content batch ${batchNumber}: ${hoursBack-3}h to ${hoursBack}h ago`);
+    console.log(`📅 Time range: ${new Date(since * 1000).toLocaleString()} to ${new Date(until * 1000).toLocaleString()}`);
     
-    console.log('🕰️ Loading more trending content older than:', new Date(oldestTimestamp * 1000).toLocaleString());
+    // Get notes from this time window
+    const filter = {
+      kinds: [1], // Text notes only
+      since: since,
+      until: until,
+      limit: 50 // Reasonable batch size
+    };
     
-    // Use cached trending authors set
-    const trendingAuthorsList = this.trendingAuthors ? [...this.trendingAuthors] : [];
-      
-    console.log('👥 Found', trendingAuthorsList.length, 'cached trending authors for load more');
-    console.log('📋 Trending authors:', trendingAuthorsList.slice(0, 5).map(a => a.substring(0, 16) + '...'));
-    
-    if (trendingAuthorsList.length === 0) {
-      console.log('📊 No trending authors found, ending load more');
-      console.log('📋 Current trending note IDs count:', this.trendingNoteIds.size);
-      console.log('📋 Current trending authors set:', this.trendingAuthors);
-      this.feedHasMore = false;
-      this.loadingMore = false;
-      this.hideLoading();
-      return;
-    }
-    
-    try {
-      // Create subscription for older notes from trending authors
-      const filter = {
-        kinds: [1, 6, 7, 9735],
-        authors: trendingAuthorsList.slice(0, 20), // Limit to top 20 authors to avoid huge queries
-        until: oldestTimestamp - 1,
-        limit: 30
-      };
-      
-      const subId = 'trending-loadmore-' + Date.now();
-      const subscription = ['REQ', subId, filter];
-      this.subscriptions.set(subId, subscription);
-      
-      console.log('📤 Trending load more subscription:', JSON.stringify(subscription));
-      
-      // Send to all connected relays
-      let sentToRelays = 0;
-      this.relayConnections.forEach((ws, relay) => {
+    // Close existing subscriptions to prevent interference
+    this.subscriptions.forEach((sub, id) => {
+      this.relayConnections.forEach(ws => {
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(subscription));
-          sentToRelays++;
-          console.log('📡 Sending trending load more subscription to:', relay);
+          ws.send(JSON.stringify(['CLOSE', id]));
         }
       });
-      
-      console.log('📡 Trending load more subscription sent to', sentToRelays, 'relays');
-      
-      // Set up timeout to prevent infinite loading
-      setTimeout(() => {
-        if (this.loadingMore) {
-          console.log('⏰ Trending load more timeout reached');
-          this.loadingMore = false;
-          this.hideLoading();
+    });
+    this.subscriptions.clear();
+    
+    const subId = 'happening-popular-' + Date.now();
+    const subscription = ['REQ', subId, filter];
+    this.subscriptions.set(subId, subscription);
+    
+    let sentToRelays = 0;
+    this.relayConnections.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(subscription));
+        sentToRelays++;
+      }
+    });
+    
+    console.log(`📡 Popular content subscription sent to ${sentToRelays} relays for batch ${batchNumber}`);
+    
+    // Track this batch
+    this.popularContentBatches = batchNumber;
+    
+    // Set timeout for completion
+    setTimeout(() => {
+      if (this.loadingMore) {
+        console.log(`⏰ Popular content batch ${batchNumber} timeout - completing load more`);
+        this.loadingMore = false;
+        this.hideLoading();
+        
+        // Check if we should continue loading more batches
+        if (this.popularContentBatches < 200) { // 200 batches = ~25 days of 3-hour windows
+          console.log(`✅ Batch ${batchNumber} complete - ready for next batch`);
+          this.feedHasMore = true;
+        } else {
+          console.log('📊 Exhausted popular content after 200 batches (~25 days)');
+          this.feedHasMore = false;
+          this.definitelyNoMoreNotes = true;
         }
-      }, 8000); // 8 second timeout
-      
-    } catch (error) {
-      console.error('❌ Error in trending load more:', error);
-      this.loadingMore = false;
-      this.feedHasMore = false;
-      this.hideLoading();
-    }
+      }
+    }, 8000);
   }
 
   finalizeBatchedLoad() {
@@ -4108,7 +4417,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       console.error('❌ Error loading Me feed:', error);
       this.hideLoading();
       
-      document.getElementById('feed').innerHTML = `
+      this.getCurrentFeedElement().innerHTML = `
         <div style="text-align: center; padding: 40px; color: #888;">
           <h3>Error loading your notes</h3>
           <p>Error loading Me feed</p>
@@ -4261,18 +4570,32 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
   
   async loadTopFeed() {
-    console.log('🔥 LOADING TRENDING FEED FROM NOSTR.BAND!!!');
+    console.log('🔥 LOADING HAPPENING FEED FROM NOSTR.BAND!!!');
     this.showLoading();
+    
+    // Reset pagination state for happening feed
+    this.oldestNoteTimestamp = null;
+    this.feedHasMore = true;
+    this.definitelyNoMoreNotes = false;
+    this.loadingMore = false;
+    this.consecutiveEmptyLoads = 0;
+    
+    // Reset hybrid happening state
+    this.happeningApiExhausted = false;
+    this.happeningApiAttempts = 0;
+    this.popularContentBatches = 0;
+    
+    console.log('🔄 Reset happening feed pagination state: feedHasMore=true, definitelyNoMoreNotes=false');
     
     try {
       console.log('✅ loadTopFeed started successfully');
-      // Fetch trending notes from multiple days for a richer feed experience
-      const allTrendingNoteIds = [];
-      const daysToFetch = 3; // Conservative initial fetch to prevent crashes
+      // Fetch happening notes from multiple days for a richer feed experience - match Me feed's coverage
+      const allHappeningNoteIds = [];
+      const daysToFetch = 14; // Increased from 3 to 14 for better initial coverage (2 weeks)
       let apiFailures = 0;
       let totalAttempts = 0;
       
-      console.log('📡 Fetching trending notes from the last', daysToFetch, 'days...');
+      console.log('📡 Fetching happening notes from the last', daysToFetch, 'days for initial load...');
       
       for (let daysBack = 0; daysBack < daysToFetch; daysBack++) {
         const date = new Date();
@@ -4281,7 +4604,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         totalAttempts++;
         
         try {
-          console.log(`📡 Fetching trending notes for ${dateStr} (${daysBack === 0 ? 'today' : daysBack + ' days ago'})`);
+          console.log(`📡 Fetching happening notes for ${dateStr} (${daysBack === 0 ? 'today' : daysBack + ' days ago'})`);
           
           // Add timeout to prevent hanging on slow/down API
           const controller = new AbortController();
@@ -4297,17 +4620,17 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
             const data = await response.json();
             if (data.notes && data.notes.length > 0) {
               const noteIds = data.notes.map(note => note.id);
-              allTrendingNoteIds.push(...noteIds);
-              console.log(`📈 Added ${noteIds.length} trending notes from ${dateStr}`);
+              allHappeningNoteIds.push(...noteIds);
+              console.log(`📈 Added ${noteIds.length} happening notes from ${dateStr}`);
             } else {
-              console.log(`📊 No trending data for ${dateStr}`);
+              console.log(`📊 No happening data for ${dateStr}`);
             }
           } else {
-            console.warn(`⚠️ Failed to fetch trending data for ${dateStr}: ${response.status}`);
+            console.warn(`⚠️ Failed to fetch happening data for ${dateStr}: ${response.status}`);
             apiFailures++;
           }
         } catch (error) {
-          console.warn(`⚠️ Error fetching trending data for ${dateStr}:`, error.message);
+          console.warn(`⚠️ Error fetching happening data for ${dateStr}:`, error.message);
           apiFailures++;
           // Continue with other days even if one fails
         }
@@ -4318,10 +4641,10 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         }
       }
       
-      if (allTrendingNoteIds.length === 0) {
-        // Only show error if user is still on trending feed
-        if (this.currentFeed !== 'trending') {
-          console.log('🔄 User switched away from trending feed, skipping error display');
+      if (allHappeningNoteIds.length === 0) {
+        // Only show error if user is still on happening feed
+        if (this.currentFeed !== 'happening') {
+          console.log('🔄 User switched away from happening feed, skipping error display');
           return;
         }
         
@@ -4330,15 +4653,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         this.feedHasMore = false; // Prevent auto-loader from showing again
         
         // Cancel any pending auto-loader timeout
-        if (this.trendingAutoLoaderTimeout) {
-          clearTimeout(this.trendingAutoLoaderTimeout);
-          this.trendingAutoLoaderTimeout = null;
+        if (this.happeningAutoLoaderTimeout) {
+          clearTimeout(this.happeningAutoLoaderTimeout);
+          this.happeningAutoLoaderTimeout = null;
         }
         
         // Check if all API calls failed vs. just no data available
         if (apiFailures === totalAttempts) {
           // All API calls failed - likely service is down
-          document.getElementById('feed').innerHTML = `
+          this.getCurrentFeedElement().innerHTML = `
             <div style="text-align: center; padding: 40px 20px; color: #a78bfa;">
               <div style="margin-bottom: 16px;">
                 <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -4348,10 +4671,10 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
                   <path d="M16 0C12.8355 0 9.74207 0.938384 7.11088 2.69649C4.4797 4.45459 2.42894 6.95345 1.21793 9.87706C0.0069325 12.8007 -0.309921 16.0177 0.307443 19.1214C0.924806 22.2251 2.44866 25.0761 4.6863 27.3137C6.92394 29.5513 9.77486 31.0752 12.8786 31.6926C15.9823 32.3099 19.1993 31.9931 22.1229 30.7821C25.0466 29.5711 27.5454 27.5203 29.3035 24.8891C31.0616 22.2579 32 19.1645 32 16C32 11.7565 30.3143 7.68687 27.3137 4.68629C24.3131 1.68571 20.2435 0 16 0ZM16 28C13.6266 28 11.3066 27.2962 9.33316 25.9776C7.35977 24.6591 5.8217 22.7849 4.91345 20.5922C4.0052 18.3995 3.76756 15.9867 4.23058 13.6589C4.6936 11.3311 5.83649 9.19295 7.51472 7.51472C9.19295 5.83649 11.3311 4.6936 13.6589 4.23058C15.9867 3.76755 18.3995 4.00519 20.5922 4.91344C22.7849 5.8217 24.6591 7.35976 25.9776 9.33315C27.2962 11.3065 28 13.6266 28 16C28 19.1826 26.7357 22.2348 24.4853 24.4853C22.2348 26.7357 19.1826 28 16 28Z" fill="currentColor"/>
                 </svg>
               </div>
-              <p style="margin-bottom: 8px; color: #ea772f; font-weight: bold;">The trending data service is currently offline.</p>
+              <p style="margin-bottom: 8px; color: #ea772f; font-weight: bold;">The happening data service is currently offline.</p>
               <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
               <div style="display: flex; justify-content: center; gap: 12px;">
-                <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea772f; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
+                <button class="retry-happening-btn" style="padding: 12px 24px; background: #ea772f; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
                 ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
               </div>
             </div>
@@ -4359,30 +4682,30 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           
         } else {
           // Some API calls succeeded but returned no data
-          document.getElementById('feed').innerHTML = `
+          this.getCurrentFeedElement().innerHTML = `
             <div style="text-align: center; padding: 40px 20px; color: #ea772f;">
-              <p>No trending notes available right now.</p>
+              <p>No happening notes available right now.</p>
               <p>Try refreshing or check back later!</p>
-              <button class="retry-trending-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea772f; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
+              <button class="retry-happening-btn" style="margin-top: 16px; padding: 8px 16px; background: #ea772f; color: white; border: none; border-radius: 6px; cursor: pointer;">Try Again</button>
             </div>
           `;
         }
         
         // Add button functionality for both cases with a longer timeout to ensure DOM is ready
         setTimeout(() => {
-          const retryBtn = document.querySelector('.retry-trending-btn');
+          const retryBtn = document.querySelector('.retry-happening-btn');
           const switchBtn = document.querySelector('.switch-to-following-btn');
           
           if (retryBtn) {
             retryBtn.addEventListener('click', () => {
-              console.log('User clicked retry trending feed');
+              console.log('User clicked retry happening feed');
               this.loadTopFeed();
             });
           }
           
           if (switchBtn) {
             switchBtn.addEventListener('click', () => {
-              console.log('User switching to following feed from trending error');
+              console.log('User switching to following feed from happening error');
               this.switchFeed('following');
             });
           }
@@ -4391,20 +4714,22 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       }
       
       // Remove duplicates and limit total count for performance
-      const uniqueTrendingNoteIds = [...new Set(allTrendingNoteIds)];
-      const trendingNoteIds = uniqueTrendingNoteIds.slice(0, 50); // Reduced from 200 to 50 to avoid overwhelming profile fetching
-      console.log('🎯 Collected', uniqueTrendingNoteIds.length, 'unique trending notes from', allTrendingNoteIds.length, 'total, using', trendingNoteIds.length);
+      const uniqueHappeningNoteIds = [...new Set(allHappeningNoteIds)];
+      const happeningNoteIds = uniqueHappeningNoteIds.slice(0, 150); // Increased from 50 to 150 to match 14 days of coverage
+      console.log('🎯 Collected', uniqueHappeningNoteIds.length, 'unique happening notes from', allHappeningNoteIds.length, 'total, using', happeningNoteIds.length);
       
-      // Store trending note IDs for filtering
-      this.trendingNoteIds.clear();
-      trendingNoteIds.forEach(id => this.trendingNoteIds.add(id));
+      // Store happening note IDs for filtering
+      this.happeningNoteIds.clear();
+      happeningNoteIds.forEach(id => this.happeningNoteIds.add(id));
       
-      // Initialize trending authors set - will be populated as we receive trending notes
-      this.trendingAuthors = new Set();
+      // Initialize happening authors set - will be populated as we receive happening notes
+      this.happeningAuthors = new Set();
       
-      this.trendingDaysLoaded = daysToFetch; // Track that we loaded this many days
-      this.feedHasMore = true; // Enable load more for trending feed
-      console.log('🎯 Set feedHasMore = true for trending feed');
+      this.happeningDaysLoaded = daysToFetch; // Track that we loaded this many days
+      this.feedHasMore = true; // Enable load more for happening feed
+      console.log('🎯 Set feedHasMore = true for happening feed');
+      
+      
       
       // Clear existing subscriptions
       this.subscriptions.forEach((sub, id) => {
@@ -4417,41 +4742,42 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       // Create subscription to fetch the actual note events
       const filter = {
         kinds: [1, 6, 7, 9735],
-        ids: trendingNoteIds
+        ids: happeningNoteIds
       };
       
-      const subId = 'trending-feed-' + Date.now();
+      const subId = 'happening-feed-' + Date.now();
       const subscription = ['REQ', subId, filter];
       this.subscriptions.set(subId, subscription);
-      console.log('📤 Trending feed subscription:', JSON.stringify(subscription));
+      console.log('📤 Happening feed subscription:', JSON.stringify(subscription));
       
       // Send to all connected relays
       let sentToRelays = 0;
       this.relayConnections.forEach((ws, relay) => {
         if (ws.readyState === WebSocket.OPEN) {
-          console.log('📡 Sending trending feed subscription to:', relay);
+          console.log('📡 Sending happening feed subscription to:', relay);
           ws.send(JSON.stringify(subscription));
           sentToRelays++;
         } else {
           console.log('❌ Relay not ready for subscription:', relay);
         }
       });
-      console.log('📡 Trending feed subscription sent to', sentToRelays, 'relays');
+      console.log('📡 Happening feed subscription sent to', sentToRelays, 'relays');
       
-      // Make sure auto-loader is visible for trending feed
-      this.trendingAutoLoaderTimeout = setTimeout(() => {
+      // Make sure auto-loader is visible for happening feed
+      this.happeningAutoLoaderTimeout = setTimeout(() => {
         if (this.feedHasMore) {
-          console.log('🔄 Making sure auto-loader is visible for trending feed');
+          console.log('🔄 Making sure auto-loader is visible for happening feed');
           this.showAutoLoader();
         }
       }, 2000);
       
     } catch (error) {
-      console.error('❌ Error loading trending feed:', error);
+      console.error('❌ Error loading happening feed:', error);
       
-      // Only show error if user is still on trending feed
-      if (this.currentFeed !== 'trending') {
-        console.log('🔄 User switched away from trending feed, skipping error display');
+      
+      // Only show error if user is still on happening feed
+      if (this.currentFeed !== 'happening') {
+        console.log('🔄 User switched away from happening feed, skipping error display');
         return;
       }
       
@@ -4460,13 +4786,13 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       this.feedHasMore = false; // Prevent auto-loader from showing again
       
       // Cancel any pending auto-loader timeout
-      if (this.trendingAutoLoaderTimeout) {
-        clearTimeout(this.trendingAutoLoaderTimeout);
-        this.trendingAutoLoaderTimeout = null;
+      if (this.happeningAutoLoaderTimeout) {
+        clearTimeout(this.happeningAutoLoaderTimeout);
+        this.happeningAutoLoaderTimeout = null;
       }
       
       // Show service unavailable message for any unexpected errors
-      document.getElementById('feed').innerHTML = `
+      this.getCurrentFeedElement().innerHTML = `
         <div style="text-align: center; padding: 40px 20px; color: #a78bfa;">
           <div style="margin-bottom: 16px;">
             <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -4476,10 +4802,10 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
               <path d="M16 0C12.8355 0 9.74207 0.938384 7.11088 2.69649C4.4797 4.45459 2.42894 6.95345 1.21793 9.87706C0.0069325 12.8007 -0.309921 16.0177 0.307443 19.1214C0.924806 22.2251 2.44866 25.0761 4.6863 27.3137C6.92394 29.5513 9.77486 31.0752 12.8786 31.6926C15.9823 32.3099 19.1993 31.9931 22.1229 30.7821C25.0466 29.5711 27.5454 27.5203 29.3035 24.8891C31.0616 22.2579 32 19.1645 32 16C32 11.7565 30.3143 7.68687 27.3137 4.68629C24.3131 1.68571 20.2435 0 16 0ZM16 28C13.6266 28 11.3066 27.2962 9.33316 25.9776C7.35977 24.6591 5.8217 22.7849 4.91345 20.5922C4.0052 18.3995 3.76756 15.9867 4.23058 13.6589C4.6936 11.3311 5.83649 9.19295 7.51472 7.51472C9.19295 5.83649 11.3311 4.6936 13.6589 4.23058C15.9867 3.76755 18.3995 4.00519 20.5922 4.91344C22.7849 5.8217 24.6591 7.35976 25.9776 9.33315C27.2962 11.3065 28 13.6266 28 16C28 19.1826 26.7357 22.2348 24.4853 24.4853C22.2348 26.7357 19.1826 28 16 28Z" fill="currentColor"/>
             </svg>
           </div>
-          <p style="margin-bottom: 8px; color: #ea772f; font-weight: bold;">The trending data service is currently offline.</p>
+          <p style="margin-bottom: 8px; color: #ea772f; font-weight: bold;">The happening data service is currently offline.</p>
           <p style="margin-bottom: 24px; color: #a78bfa;">Please try again later${this.currentUser ? ' or switch to Following feed' : ''}.</p>
           <div style="display: flex; justify-content: center; gap: 12px;">
-            <button class="retry-trending-btn" style="padding: 12px 24px; background: #ea772f; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
+            <button class="retry-happening-btn" style="padding: 12px 24px; background: #ea772f; color: white; border: none; border-radius: 8px; cursor: pointer;">Try Again</button>
             ${this.currentUser ? '<button class="switch-to-following-btn" style="padding: 12px 24px; background: #a78bfa; color: white; border: none; border-radius: 8px; cursor: pointer;">Go to Following</button>' : ''}
           </div>
         </div>
@@ -4487,19 +4813,19 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       
       // Add button functionality
       setTimeout(() => {
-        const retryBtn = document.querySelector('.retry-trending-btn');
+        const retryBtn = document.querySelector('.retry-happening-btn');
         const switchBtn = document.querySelector('.switch-to-following-btn');
         
         if (retryBtn) {
           retryBtn.addEventListener('click', () => {
-            console.log('User clicked retry trending feed from catch block');
+            console.log('User clicked retry happening feed from catch block');
             this.loadTopFeed();
           });
         }
         
         if (switchBtn) {
           switchBtn.addEventListener('click', () => {
-            console.log('User switching to following feed from trending catch block');
+            console.log('User switching to following feed from happening catch block');
             this.switchFeed('following');
           });
         }
@@ -4538,9 +4864,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     const subId = 'feed-' + Date.now();
     let filter;
     
-    if (this.currentFeed === 'trending') {
-      // Trending feed: trending notes from nostr.band
-      console.log('🎯 DETECTED TRENDING FEED - CALLING loadTopFeed()');
+    if (this.currentFeed === 'happening') {
+      // Happening feed: happening notes from nostr.band
+      console.log('🎯 DETECTED HAPPENING FEED - CALLING loadTopFeed()');
       this.loadTopFeed();
       return;
     } else if (this.currentFeed === 'following' && this.currentUser) {
@@ -4568,20 +4894,20 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         // User follows no one, show empty feed message
         console.log('User follows no accounts, showing empty state');
         this.hideLoading();
-        document.getElementById('feed').innerHTML = `
+        this.getCurrentFeedElement().innerHTML = `
           <div style="text-align: center; padding: 40px 20px; color: #a78bfa;">
             <p>You're not following anyone yet.</p>
-            <p>Switch to Trending feed to discover interesting content and people!</p>
+            <p>Switch to Happening feed to discover interesting content and people!</p>
             <br>
-            <button id="switch-to-trending" class="btn btn-primary" style="margin-top: 10px;">Go to Trending</button>
+            <button id="switch-to-happening" class="btn btn-primary" style="margin-top: 10px;">Go to Happening</button>
             <button id="retry-contact-list" class="btn btn-secondary" style="margin-top: 10px; margin-left: 8px;">Retry</button>
           </div>
         `;
         
         // Add button functionality
-        document.getElementById('switch-to-trending').addEventListener('click', () => {
-          console.log('Switching to trending feed from empty following state');
-          this.switchFeed('trending');
+        document.getElementById('switch-to-happening').addEventListener('click', () => {
+          console.log('Switching to happening feed from empty following state');
+          this.switchFeed('happening');
         });
         
         document.getElementById('retry-contact-list').addEventListener('click', () => {
@@ -4663,7 +4989,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       }
     }
     
-    const feed = document.getElementById('feed');
+    const feed = this.getCurrentFeedElement();
+    
     
     // Check if note already exists in DOM to prevent duplicates
     const existingElement = document.querySelector(`[data-event-id="${event.id}"]`);
@@ -5691,8 +6018,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     
     // If not NSFW, check feed-specific blur rules
     if (!shouldBlur) {
-      if (this.currentFeed === 'trending') {
-        // Don't blur images in trending feed - it's curated content
+      if (this.currentFeed === 'happening') {
+        // Don't blur images in happening feed - it's curated content
         shouldBlur = false;
       } else if (this.currentFeed === 'me') {
         // Don't blur images in Me feed - they're your own photos
@@ -6249,7 +6576,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     console.log('📄 Loading single note:', noteId.substring(0, 16) + '...');
     
     // Clear current feed
-    document.getElementById('feed').innerHTML = '';
+    this.getCurrentFeedElement().innerHTML = '';
     this.showLoading();
     
     // Check if we already have the note
@@ -6282,7 +6609,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   displaySingleNote(note) {
     console.log('📄 Displaying single note:', note.id.substring(0, 16) + '...');
     
-    const feed = document.getElementById('feed');
+    const feed = this.getCurrentFeedElement();
     
     // Create and display the main note
     const noteElement = this.createNoteElement(note);
@@ -7868,7 +8195,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.showLoading();
     
     // Clear current feed state
-    const feedElement = document.getElementById('feed');
+    const feedElement = this.getCurrentFeedElement();
     if (feedElement) {
       feedElement.innerHTML = '';
     }
@@ -8055,4 +8382,18 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🚀 DOM LOADED - Initializing SidecarApp!');
   window.sidecarApp = new SidecarApp();
+});
+
+// Debug QRious library loading
+window.addEventListener('load', function() {
+  console.log('🔧 Checking QRious library after window load...');
+  if (typeof QRious !== 'undefined') {
+    console.log('✅ QRious library loaded successfully');
+    if (QRious.VERSION) {
+      console.log('📦 Version:', QRious.VERSION);
+    }
+  } else {
+    console.error('❌ QRious library failed to load');
+    console.log('Available globals:', Object.keys(window).filter(k => k.includes('QR')));
+  }
 });
