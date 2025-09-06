@@ -1870,18 +1870,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   switchFeed(feedType) {
     console.log('🔄 SWITCH FEED CALLED! Type:', feedType, 'Current:', this.currentFeed);
     
-    // TEMPORARY: Block switching to broken feeds (unless using new implementations)
-    if ((feedType === 'me' || feedType === 'following') && !this.useNewFeedImplementations) {
-      console.log('🚧 TEMPORARY: Feeds', feedType, 'are disabled while being rebuilt');
-      alert(`${feedType.charAt(0).toUpperCase() + feedType.slice(1)} feed is temporarily disabled while being rebuilt. Please use Happening feed.`);
-      // Force switch to happening instead
-      feedType = 'happening';
-    } else if (feedType === 'following' && this.useNewFeedImplementations) {
-      console.log('🚧 TEMPORARY: Following feed new implementation not ready yet');
-      alert('Following feed new implementation is not ready yet. Please use Happening or Me feed.');
-      // Force switch to happening instead
-      feedType = 'happening';
-    }
+    // Allow all feeds to be accessed
     
     // Clean subscription cleanup for all feeds
     console.log('🚫 Closing subscriptions for feed switch to:', feedType);
@@ -3434,6 +3423,31 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         // Add author to happening authors for future reference
         if (!this.happeningAuthors) this.happeningAuthors = new Set();
         this.happeningAuthors.add(event.pubkey);
+      } else if (this.currentFeed === 'following') {
+        // FOLLOWING FEED: Show notes only from accounts we follow
+        if (!this.currentUser) {
+          console.log('🚫 Following feed: No current user, cannot show following content');
+          return;
+        }
+        
+        if (this.userFollows.size === 0) {
+          console.log('🚫 Following feed: No follows loaded yet, skipping note');
+          return;
+        }
+        
+        // Check if this note is from someone we follow
+        if (!this.userFollows.has(event.pubkey)) {
+          console.log('🚫 Following feed: Note from user we don\'t follow:', event.pubkey.substring(0, 16) + '...');
+          return;
+        }
+        
+        console.log('✅ Following feed: Showing note from followed user:', event.pubkey.substring(0, 16) + '...');
+        
+        // For following content, fetch profile if we don't have it
+        if (!this.profiles.has(event.pubkey)) {
+          console.log('👥 Following content detected - fetching profile for:', event.pubkey.substring(0, 16) + '...');
+          this.fetchProfileForAuthor(event.pubkey);
+        }
       }
       // Other feeds (if any) show everything - no additional filtering needed
       
@@ -3964,7 +3978,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     console.log('Total authors to batch:', followsArray.length);
     
     
-    const BATCH_SIZE = 100; // Safe limit for most relays
+    const BATCH_SIZE = 50; // Smaller batches for better reliability and less overwhelming relays
     const batches = [];
     
     // Split authors into batches
@@ -3993,13 +4007,11 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       
       console.log(`📤 Batch ${batchIndex + 1}: Creating subscription for ${batch.length} authors`);
       
-      // Historical notes subscription for this batch (last 24 hours to get recent notes)
-      const dayAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
+      // Historical notes subscription for this batch (smaller initial load)
       const filter = {
         kinds: [1, 6, 7, 9735],
         authors: batch,
-        since: dayAgo, // Only get notes from the last 24 hours
-        limit: 15 // Reduced from 40 to 15 to avoid overwhelming profile fetching
+        limit: 20 // Smaller initial load for better reliability and faster startup
       };
       
       const subscription = ['REQ', subId, filter];
@@ -4046,6 +4058,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     console.log('Loading notes older than timestamp:', untilTimestamp);
     console.log('Until date:', new Date(untilTimestamp * 1000).toLocaleString());
     
+    // Let infinite scroll continue naturally - only stop when truly out of content
+    
     // Additional safety check to prevent overlapping batched operations
     if (this.batchedLoadInProgress) {
       console.log('⚠️ Batched load already in progress, skipping');
@@ -4069,7 +4083,23 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.batchNewNotesReceived = 0; // Track notes received specifically for this batch operation
     this.batchNotesDisplayed = 0; // Track notes actually displayed after filtering
     
-    const BATCH_SIZE = 100; // Safe limit for most relays
+    // Set a timeout to prevent indefinite loading
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+    }
+    this.batchTimeout = setTimeout(() => {
+      if (this.batchedLoadInProgress) {
+        console.log('⏰ Following feed batch timeout - appears stuck, showing end message');
+        this.definitelyNoMoreNotes = true;
+        this.feedHasMore = false;
+        this.loadingMore = false;
+        this.batchedLoadInProgress = false;
+        this.hideAutoLoader();
+        this.showEndOfFeed('Unable to load more notes at this time.');
+      }
+    }, 30000); // 30 second timeout - only for truly stuck situations
+    
+    const BATCH_SIZE = 50; // Smaller batches for better reliability and less overwhelming relays
     const batches = [];
     
     // Split authors into batches
@@ -4223,6 +4253,12 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       return;
     }
     
+    // Clear the batch timeout since we're finishing normally
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+      this.batchTimeout = null;
+    }
+    
     console.log('📋 finalizeBatchedLoad() called - starting cleanup process');
     console.log(`📋 STATE: completedBatches=${this.completedBatches.size}, expectedBatches=${this.expectedBatches}, loadingMore=${this.loadingMore}`);
     
@@ -4247,21 +4283,22 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           emptyLoadThreshold = 6; // Lenient for regular feeds
         }
       } else if (this.currentFeed === 'following') {
-        // Following feeds, especially with large follow counts, need higher thresholds
-        // due to batching complexity and relay inconsistencies
+        // Following feeds with smaller batches need more patience before concluding we're done
+        // due to potential gaps in relay data
         const followCount = this.userFollows?.size || 0;
         if (followCount > 1000) {
-          emptyLoadThreshold = 10; // Very lenient for large follow lists
+          emptyLoadThreshold = 12; // More patient for large follow lists with smaller batches
         } else if (followCount > 200) {
-          emptyLoadThreshold = 8; // Lenient for medium follow lists
+          emptyLoadThreshold = 10; // More patient for medium follow lists
         } else {
-          emptyLoadThreshold = 6; // More lenient for smaller follow lists
+          emptyLoadThreshold = 8; // More patient for smaller follow lists
         }
       }
       
       if (this.consecutiveEmptyLoads >= emptyLoadThreshold) {
         console.log(`📋 Multiple consecutive empty loads (${this.consecutiveEmptyLoads}/${emptyLoadThreshold}), setting feedHasMore = false`);
         this.feedHasMore = false;
+        // The showAutoLoader() method will automatically show end-of-feed when feedHasMore = false
       } else {
         // Only keep it true if we haven't definitively determined there are no more notes
         if (!this.definitelyNoMoreNotes) {
@@ -5507,6 +5544,11 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   showZapModal(event) {
     console.log('⚡ showZapModal called for note:', event.id.substring(0, 16) + '...');
     
+    if (!this.currentUser) {
+      alert('Please sign in to zap notes');
+      return;
+    }
+    
     // Clean up any stuck WebLN session when opening modal
     if (this.webLNSessionActive) {
       console.log('⚠️ WebLN session active during modal open, forcing unlock');
@@ -6687,9 +6729,9 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       const clientHeight = document.documentElement.clientHeight || window.innerHeight;
       const scrollPercent = (scrollTop + clientHeight) / scrollHeight;
       
-      // If user is more than 50% down and paused, prefetch next batch
-      if (scrollPercent >= 0.5) {
-        console.log('📦 Background prefetch triggered during scroll pause');
+      // If user is more than 70% down and paused, prefetch next batch
+      if (scrollPercent >= 0.7) {
+        console.log('📦 Background prefetch triggered during scroll pause at 70%');
         this.loadMoreNotes();
       }
     }
@@ -6737,6 +6779,17 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     // Hide all auto-loader states
     document.getElementById('auto-loading').classList.add('hidden');
     document.getElementById('end-of-feed').classList.add('hidden');
+  }
+  
+  showEndOfFeed(message = 'End of feed.') {
+    // Hide loading states and show end of feed message
+    document.getElementById('auto-loading').classList.add('hidden');
+    const endOfFeedElement = document.getElementById('end-of-feed');
+    const messageElement = endOfFeedElement.querySelector('span');
+    if (messageElement) {
+      messageElement.textContent = message;
+    }
+    endOfFeedElement.classList.remove('hidden');
   }
   
   showError() {

@@ -85,27 +85,28 @@
 
 .quoted-note.loading {
     cursor: default;
+    border-left: none; /* Remove border from loading state */
+    height: 60px; /* Force exact height to match view quoted note */
+    box-sizing: border-box; /* Include padding in height calculation */
 }
 
 .quoted-loading {
     text-align: center;
-    color: #888;
+    color: #c4b5fd;
     font-style: italic;
-    padding: 8px;
+    padding: 6px 8px; /* Match the exact padding of regular quoted notes */
     font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .quoted-note.loading .quoted-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    display: none; /* Hide header in loading state to reduce height */
 }
 
 .quoted-note.loading .quoted-info {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    display: none; /* Hide info in loading state to reduce height */
 }
 
 .quoted-note.loading:hover {
@@ -518,7 +519,7 @@ body {
 }
 
 .toggle-btn.secondary {
-    color: #888;
+    color: #c4b5fd;
     font-size: 12px;
 }
 
@@ -1555,13 +1556,13 @@ img:not(.avatar-img) {
     align-items: center;
     margin-bottom: 8px;
     font-size: 12px;
-    color: #888;
+    color: #c4b5fd;
 }
 
 .remove-quote-btn {
     background: none;
     border: none;
-    color: #888;
+    color: #c4b5fd;
     cursor: pointer;
     font-size: 18px;
     padding: 0;
@@ -1578,7 +1579,7 @@ img:not(.avatar-img) {
 
 .quote-preview-content .note-author {
     font-size: 12px;
-    color: #888;
+    color: #c4b5fd;
     margin-bottom: 4px;
 }
 
@@ -2058,7 +2059,7 @@ pre, code {
 
 .build-number {
     font-size: 12px;
-    color: #888;
+    color: #c4b5fd;
     font-family: monospace;
     margin-bottom: 24px;
 }
