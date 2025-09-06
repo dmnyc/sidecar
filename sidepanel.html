@@ -50,8 +50,8 @@
 
         <!-- Feed Toggle -->
         <div class="feed-toggle">
-            <button id="following-feed-btn" class="toggle-btn hidden" disabled>Following</button>
-            <button id="trending-feed-btn" class="toggle-btn active">Trending</button>
+            <button id="following-feed-btn" class="toggle-btn">Following</button>
+            <button id="happening-feed-btn" class="toggle-btn active">Happening</button>
             <button id="me-feed-btn" class="toggle-btn hidden" disabled>Me</button>
         </div>
 
@@ -338,6 +338,40 @@
         </div>
     </div>
 
+    <!-- Relay Status Modal -->
+    <div id="relay-status-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📡 Relay Status</h2>
+                <button class="close-btn" data-modal="relay-status-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="relay-sections">
+                    <div class="relay-section">
+                        <h3>Default Relays</h3>
+                        <div id="default-relays-list" class="relay-list">
+                            <!-- Default relays will be populated by JS -->
+                        </div>
+                    </div>
+                    <div class="relay-section">
+                        <h3>Your Relays (NIP-65)</h3>
+                        <div id="user-relays-list" class="relay-list">
+                            <!-- User relays will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+                <div class="relay-summary">
+                    <div class="summary-item">
+                        <strong>Connected:</strong> <span id="connected-count">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Total:</strong> <span id="total-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Profile Dropdown (positioned absolutely) -->
     <div class="user-dropdown" id="user-dropdown">
         <div class="dropdown-header">
@@ -346,25 +380,11 @@
         </div>
         <div class="dropdown-item" id="view-profile-btn">View My Profile</div>
         <div class="dropdown-item" id="copy-key-btn">Copy My Public Key</div>
+        <div class="dropdown-item" id="relay-status-btn">Relay Status</div>
         <div class="dropdown-item" id="sign-out-btn">Sign Out</div>
     </div>
 
     <script src="qrious.min.js"></script>
-    <script>
-        // Debug QRious library loading
-        window.addEventListener('load', function() {
-            console.log('🔧 Checking QRious library after window load...');
-            if (typeof QRious !== 'undefined') {
-                console.log('✅ QRious library loaded successfully');
-                if (QRious.VERSION) {
-                    console.log('📦 Version:', QRious.VERSION);
-                }
-            } else {
-                console.error('❌ QRious library failed to load');
-                console.log('Available globals:', Object.keys(window).filter(k => k.includes('QR')));
-            }
-        });
-    </script>
     <script src="nostr-tools.js"></script>
     <script src="sidepanel.js"></script>
 </body>
