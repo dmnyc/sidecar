@@ -793,6 +793,16 @@ body {
     font-size: 16px;
 }
 
+.avatar-placeholder svg {
+    width: 100%;
+    height: 100%;
+}
+
+.reply-avatar .avatar-placeholder svg {
+    width: 100%;
+    height: 100%;
+}
+
 .note-author {
     font-weight: 600;
     font-size: 14px;
@@ -1223,7 +1233,7 @@ img:not(.avatar-img) {
 .reply {
     background: #0d0221;
     border-bottom: 1px solid #2d1b69;
-    padding: 12px 16px;
+    padding: 6px 12px;
     position: relative;
     overflow: visible;
 }
@@ -1232,21 +1242,11 @@ img:not(.avatar-img) {
     background: #1a0b3d;
 }
 
-.reply::before {
-    content: '';
-    position: absolute;
-    left: -2px;
-    top: 0;
-    width: 2px;
-    height: 100%;
-    background: #ea772f;
-}
-
 .reply-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 6px;
+    margin-bottom: 4px;
 }
 
 .reply-avatar {
@@ -1304,7 +1304,7 @@ img:not(.avatar-img) {
 
 .reply-time {
     font-size: 11px;
-    color: #ea772f;
+    color: #bda1ff;
     margin-left: auto;
     transition: color 0.2s;
 }
@@ -1312,7 +1312,7 @@ img:not(.avatar-img) {
 .reply-content {
     font-size: 12px;
     line-height: 1.4;
-    margin: 6px 0 5px 0;
+    margin: 2px 0 4px 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-word;
@@ -1342,7 +1342,7 @@ img:not(.avatar-img) {
     display: flex;
     gap: 12px;
     font-size: 11px;
-    color: #ea772f;
+    color: #bda1ff;
 }
 
 .reply-action {
@@ -1362,7 +1362,7 @@ img:not(.avatar-img) {
 
 .reply-action.liked,
 .reply-action.reacted {
-    color: #ea772f;
+    color: #bda1ff;
     background: #2d1b69;
 }
 
@@ -1886,6 +1886,55 @@ a:visited {
 .reply-content a:hover {
     color: #ea772f;
     text-decoration-color: #ea772f;
+}
+
+/* Replies Section - expandable replies display */
+.replies-section {
+    margin-top: 8px;
+    border-top: 1px solid #2d1b69;
+    padding-top: 8px;
+}
+
+.see-replies-link {
+    cursor: pointer;
+    color: #bda1ff;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    display: inline-block;
+}
+
+.see-replies-link:hover {
+    background-color: #2d1b69;
+    color: #ffffff;
+}
+
+.see-replies-link span {
+    font-weight: 500;
+}
+
+.replies-container {
+    margin-top: 8px;
+    margin-left: -16px;
+    padding-left: 16px;
+}
+
+.thread-link {
+    margin-top: 8px;
+    margin-left: 0px;
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+.thread-link a {
+    color: #bda1ff;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.thread-link a:hover {
+    text-decoration: underline;
 }
 
 /* Image Error Handling */
