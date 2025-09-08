@@ -20,6 +20,13 @@ class ThreadManager {
     for (let i = eTags.length - 1; i >= 0; i--) {
       const tag = eTags[i];
       if (tag[3] === 'reply' || i === eTags.length - 1) {
+        console.log('🔍 getParentEventId found:', {
+          eventId: event.id.substring(0, 8) + '...',
+          parentId: tag[1].substring(0, 8) + '...',
+          marker: tag[3] || 'none',
+          tagIndex: i,
+          totalETags: eTags.length
+        });
         return tag[1]; // Return parent event ID
       }
     }
@@ -31,6 +38,14 @@ class ThreadManager {
   trackNote(event) {
     const eventId = event.id;
     const parentId = this.getParentEventId(event);
+    
+    console.log('🔍 trackNote called:', {
+      eventId: eventId.substring(0, 8) + '...',
+      parentId: parentId ? parentId.substring(0, 8) + '...' : 'none',
+      isReply: !!parentId,
+      eventKind: event.kind,
+      contentPreview: event.content ? event.content.substring(0, 30) + '...' : 'no content'
+    });
     
     if (parentId) {
       // This is a reply
@@ -47,6 +62,7 @@ class ThreadManager {
       this.replyCounts.set(parentId, count);
       
       console.log('🔗 Reply tracked:', eventId.substring(0, 8) + '...', '→', parentId.substring(0, 8) + '...', `(${count} replies)`);
+      console.log('🔗 All replies for', parentId.substring(0, 8) + '...:', Array.from(this.parentReplies.get(parentId)).map(id => id.substring(0, 8) + '...'));
       
       // Update UI to show new count
       this.updateReplyCountInUI(parentId);
@@ -61,6 +77,11 @@ class ThreadManager {
   // Check if a note has replies
   hasReplies(eventId) {
     return this.getReplyCount(eventId) > 0;
+  }
+
+  // Get direct reply IDs for a note
+  getDirectReplies(eventId) {
+    return this.parentReplies.get(eventId) || new Set();
   }
 
   // Fetch historical replies for a note from relays
@@ -120,6 +141,50 @@ class ThreadManager {
         element.style.display = 'none';
       }
     });
+    
+    // Also update replies section visibility and count
+    const noteElement = document.querySelector(`.note[data-event-id="${eventId}"]`);
+    if (noteElement) {
+      let repliesSection = noteElement.querySelector('.replies-section');
+      
+      if (newCount > 0) {
+        // Show replies section if it exists, or create it if it doesn't
+        if (!repliesSection) {
+          const noteActions = noteElement.querySelector('.note-actions');
+          if (noteActions) {
+            const repliesSectionHTML = `
+              <div class="replies-section" data-event-id="${eventId}">
+                <div class="see-replies-link" data-event-id="${eventId}">
+                  <span>See replies (${newCount})</span>
+                </div>
+                <div class="replies-container" data-event-id="${eventId}" style="display: none;">
+                </div>
+              </div>
+            `;
+            noteActions.insertAdjacentHTML('afterend', repliesSectionHTML);
+            
+            // Set up event listener for the new link
+            const newSeeRepliesLink = noteElement.querySelector('.see-replies-link');
+            if (newSeeRepliesLink) {
+              newSeeRepliesLink.addEventListener('click', (e) => {
+                e.stopPropagation();
+                console.log('💬 See replies clicked for note:', eventId.substring(0, 16) + '...');
+                window.sidecarApp.toggleReplies(eventId);
+              });
+            }
+          }
+        } else {
+          // Update existing replies section
+          const seeRepliesLink = repliesSection.querySelector('.see-replies-link span');
+          if (seeRepliesLink) {
+            seeRepliesLink.textContent = `See replies (${newCount})`;
+          }
+        }
+      } else if (repliesSection) {
+        // Hide replies section if count is 0
+        repliesSection.style.display = 'none';
+      }
+    }
   }
 }
 
@@ -3341,6 +3406,8 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
         }
         
         console.log('🚫 Filtering out reply from:', event.pubkey.substring(0, 16) + '...', 'Reply to:', eTags[0][1].substring(0, 16) + '...');
+        console.log('🚫 Reply content preview:', event.content.substring(0, 50) + '...');
+        console.log('🚫 Reply stored in notes:', event.id.substring(0, 8) + '...');
         
         // Still cache the event for quoted note updates but don't display it
         this.notes.set(event.id, event);
@@ -5162,6 +5229,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           </svg>
         </div>
       </div>
+      ${this.threadManager.hasReplies(event.id) ? `
+      <div class="replies-section" data-event-id="${event.id}">
+        <div class="see-replies-link" data-event-id="${event.id}">
+          <span>See replies (${this.threadManager.getReplyCount(event.id)})</span>
+        </div>
+        <div class="replies-container" data-event-id="${event.id}" style="display: none;">
+        </div>
+      </div>
+      ` : ''}
     `;
     
     // Add event listeners
@@ -5171,6 +5247,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.setupZapButton(noteDiv.querySelector('.zap-action'), event);
     this.setupNoteMenu(noteDiv.querySelector('.note-menu'), event);
     this.setupClickableLinks(noteDiv, event);
+    this.setupRepliesToggle(noteDiv.querySelector('.see-replies-link'), event);
     
     // Fetch historical replies to get accurate counts
     this.threadManager.fetchRepliesForNote(event.id, this.relayConnections);
@@ -5280,6 +5357,15 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
           </svg>
         </div>
       </div>
+      ${this.threadManager.hasReplies(originalNote.id) ? `
+      <div class="replies-section" data-event-id="${originalNote.id}">
+        <div class="see-replies-link" data-event-id="${originalNote.id}">
+          <span>See replies (${this.threadManager.getReplyCount(originalNote.id)})</span>
+        </div>
+        <div class="replies-container" data-event-id="${originalNote.id}" style="display: none;">
+        </div>
+      </div>
+      ` : ''}
     `;
 
     // Set up event listeners for the repost (using original note ID for actions)
@@ -5289,6 +5375,7 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
     this.setupZapButton(repostDiv.querySelector('.zap-action'), originalNote);
     this.setupNoteMenu(repostDiv.querySelector('.note-menu'), originalNote);
     this.setupClickableLinks(repostDiv, originalNote);
+    this.setupRepliesToggle(repostDiv.querySelector('.see-replies-link'), originalNote);
     
     // Fetch historical replies to get accurate counts for the original note
     this.threadManager.fetchRepliesForNote(originalNote.id, this.relayConnections);
@@ -5306,6 +5393,178 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
       console.log('💬 Reply button clicked for note:', event.id.substring(0, 16) + '...');
       this.showReplyModal(event);
     });
+  }
+
+  setupRepliesToggle(button, event) {
+    if (!button) return;
+    
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      console.log('💬 See replies clicked for note:', event.id.substring(0, 16) + '...');
+      this.toggleReplies(event.id);
+    });
+  }
+
+  async toggleReplies(parentEventId) {
+    const noteElement = document.querySelector(`.note[data-event-id="${parentEventId}"]`);
+    if (!noteElement) return;
+    
+    const repliesSection = noteElement.querySelector('.replies-section');
+    const repliesContainer = noteElement.querySelector('.replies-container');
+    const seeRepliesLink = noteElement.querySelector('.see-replies-link');
+    
+    console.log('🔍 toggleReplies debug:', {
+      parentEventId: parentEventId.substring(0, 16) + '...',
+      noteElement: !!noteElement,
+      repliesSection: !!repliesSection,
+      repliesContainer: !!repliesContainer,
+      seeRepliesLink: !!seeRepliesLink
+    });
+    
+    if (!repliesSection || !repliesContainer || !seeRepliesLink) return;
+    
+    if (repliesContainer.style.display === 'none') {
+      // Show replies
+      const replyCount = this.threadManager.getReplyCount(parentEventId);
+      seeRepliesLink.querySelector('span').textContent = `Hide replies (${replyCount})`;
+      repliesContainer.style.display = 'block';
+      
+      // Render existing replies immediately
+      if (repliesContainer.children.length === 0) {
+        await this.renderReplies(parentEventId, repliesContainer);
+      }
+      
+      // Also fetch fresh replies in the background for next time
+      console.log('🔄 Fetching fresh replies in background for:', parentEventId.substring(0, 16) + '...');
+      this.threadManager.fetchRepliesForNote(parentEventId, this.relayConnections);
+      
+    } else {
+      // Hide replies
+      const replyCount = this.threadManager.getReplyCount(parentEventId);
+      seeRepliesLink.querySelector('span').textContent = `See replies (${replyCount})`;
+      repliesContainer.style.display = 'none';
+    }
+  }
+
+  async renderReplies(parentEventId, container) {
+    const replyIds = this.threadManager.getDirectReplies(parentEventId);
+    const replyEventIds = Array.from(replyIds);
+    
+    console.log('🔍 renderReplies detailed debug:', {
+      parentEventId: parentEventId.substring(0, 16) + '...',
+      replyIds: replyIds.size,
+      replyEventIds: replyEventIds.map(id => id.substring(0, 8) + '...'),
+      notesStoreSize: this.notes.size
+    });
+    
+    // Check each reply ID individually
+    replyEventIds.forEach(id => {
+      const note = this.notes.get(id);
+      console.log(`🔍 Reply ${id.substring(0, 8)}... found in notes:`, !!note);
+      if (note) {
+        console.log(`  - Content: "${note.content.substring(0, 50)}..."`);
+        console.log(`  - Created: ${new Date(note.created_at * 1000).toLocaleString()}`);
+      }
+    });
+    
+    const replies = replyEventIds
+      .map(id => this.notes.get(id))
+      .filter(event => event)
+      .sort((a, b) => a.created_at - b.created_at);
+    
+    console.log('🔍 Final replies found:', replies.length);
+    
+    container.innerHTML = '';
+    
+    if (replies.length === 0) {
+      container.innerHTML = '<div style="color: #9ca3af; font-size: 11px; padding: 4px;">No replies found</div>';
+      return;
+    }
+    
+    for (const replyEvent of replies) {
+      const replyElement = this.createReplyElement(replyEvent, parentEventId);
+      container.appendChild(replyElement);
+    }
+    
+    const hasNestedReplies = replies.some(reply => this.threadManager.hasReplies(reply.id));
+    if (hasNestedReplies) {
+      const threadLink = document.createElement('div');
+      threadLink.className = 'thread-link';
+      threadLink.innerHTML = '<a href="#" data-note-link="' + parentEventId + '">← Read thread in browser</a>';
+      container.appendChild(threadLink);
+    }
+  }
+
+  createReplyElement(replyEvent, parentEventId) {
+    const replyDiv = document.createElement('div');
+    replyDiv.className = 'reply';
+    replyDiv.dataset.eventId = replyEvent.id;
+    
+    const profile = this.profiles.get(replyEvent.pubkey);
+    const authorName = profile?.display_name || profile?.name || this.getAuthorName(replyEvent.pubkey);
+    const authorId = this.formatProfileIdentifier(profile?.nip05, replyEvent.pubkey);
+    const avatarUrl = profile?.picture;
+    const timeAgo = this.formatTimeAgo(replyEvent.created_at);
+    const formattedContent = this.formatNoteContent(replyEvent.content);
+    
+    replyDiv.innerHTML = `
+      <div class="reply-header">
+        <div class="reply-avatar" data-profile-link="${window.NostrTools.nip19.npubEncode(replyEvent.pubkey)}">
+          ${avatarUrl ? 
+            `<img src="${avatarUrl}" alt="" class="avatar-img">
+             <div class="avatar-placeholder" style="display: none;">${this.getAvatarPlaceholder(authorName)}</div>` :
+            `<div class="avatar-placeholder">${this.getAvatarPlaceholder(authorName)}</div>`
+          }
+        </div>
+        <div class="reply-info" data-profile-link="${window.NostrTools.nip19.npubEncode(replyEvent.pubkey)}">
+          <span class="reply-author">${authorName}</span>
+          <span class="reply-npub" ${profile?.nip05 ? 'data-nip05="true"' : ''}>${authorId}</span>
+        </div>
+        <span class="reply-time" data-note-link="${replyEvent.id}">${timeAgo}</span>
+      </div>
+      <div class="reply-content">${formattedContent.text}${formattedContent.images.length > 0 ? this.createImageGallery(formattedContent.images, replyEvent.id, replyEvent.pubkey) : ''}${formattedContent.quotedNotes && formattedContent.quotedNotes.length > 0 ? this.createQuotedNotes(formattedContent.quotedNotes) : ''}</div>
+      <div class="reply-actions">
+        <div class="reply-action reply-reply-action" data-event-id="${replyEvent.id}">
+          <svg width="14" height="13" viewBox="0 0 20 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g clip-path="url(#clip0_21_172)">
+              <path d="M18.8398 1.17375C18.1031 0.430985 17.081 0 16.0405 0H3.95948C2.90055 0 1.90608 0.412645 1.16022 1.17375C0.414365 1.92568 0 2.93436 0 3.99807V16.2215C0 16.7717 0.156538 17.3036 0.460405 17.7621C0.764273 18.2206 1.18785 18.5782 1.69429 18.7891C2.02578 18.9266 2.3849 19 2.74401 19C2.92818 19 3.10313 18.9817 3.27808 18.945C3.81215 18.8349 4.30018 18.5782 4.68692 18.1839L6.29834 16.5516H16.0405C17.081 16.5516 18.1031 16.1207 18.8398 15.3779C19.5856 14.626 20 13.6173 20 12.5536V3.99807C20 2.93436 19.5856 1.92568 18.8398 1.17375ZM3.07551 3.99807C3.07551 3.75965 3.16759 3.53041 3.33333 3.36535C3.49908 3.20029 3.72007 3.10859 3.95028 3.10859H16.0313C16.2615 3.10859 16.4825 3.20029 16.6483 3.36535C16.814 3.53041 16.9061 3.75965 16.9061 3.99807V12.5536C16.9061 12.792 16.814 13.0212 16.6483 13.1863C16.4825 13.3514 16.2615 13.4431 16.0313 13.4431H5.24862C5.1105 13.4431 4.97238 13.4981 4.87109 13.5989L3.08471 15.4054V3.99807H3.07551Z" fill="currentColor"/>
+            </g>
+            <defs>
+              <clipPath id="clip0_21_172">
+                <rect width="20" height="19" fill="white"/>
+              </clipPath>
+            </defs>
+          </svg>
+        </div>
+        <div class="reply-action reply-repost-action" data-event-id="${replyEvent.id}">
+          <svg width="14" height="16" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.0352 8.11791C16.8237 8.11808 17.4883 8.70721 17.582 9.48998V11.4831C17.582 14.8189 14.8533 17.5476 11.5176 17.5476H5.99316V19.5603C5.99316 19.7272 5.9061 19.8709 5.75879 19.948C5.6104 20.0251 5.44428 20.0153 5.30664 19.9206L0.189453 16.3884C0.0676321 16.3046 0.000140374 16.1772 0 16.029C0 15.8807 0.0674907 15.7526 0.189453 15.6687L5.30664 12.1365C5.44428 12.0418 5.61139 12.032 5.75879 12.1091C5.90611 12.1872 5.99316 12.3299 5.99316 12.4968V14.4519H11.5176C13.1449 14.4519 14.4873 13.1095 14.4873 11.4822V9.48998C14.581 8.70709 15.2464 8.11791 16.0352 8.11791ZM11.8242 0.0515075C11.9726 -0.02561 12.1387 -0.0158394 12.2764 0.0788513L17.3936 3.6101C17.5156 3.69403 17.583 3.82211 17.583 3.97045C17.583 4.11883 17.5156 4.24685 17.3936 4.3308L12.2764 7.86303C12.1388 7.95759 11.9715 7.96744 11.8242 7.89037C11.6769 7.81232 11.5899 7.66949 11.5898 7.50268V5.5476H6.06543C4.43821 5.5476 3.0959 6.88922 3.0957 8.51635V10.5095C3.00183 11.2922 2.33647 11.8816 1.54785 11.8816C0.759382 11.8814 0.094857 11.2921 0.000976562 10.5095V8.51635C0.00115355 5.1808 2.72984 2.45287 6.06543 2.45287L11.5898 2.4519V0.438226C11.59 0.271594 11.6771 0.128595 11.8242 0.0515075Z" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="reply-action reply-reaction-action" data-event-id="${replyEvent.id}">
+          <svg width="16" height="14" viewBox="0 0 23 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9.18607 11.8832C9.51685 11.8832 9.79674 11.7814 10.0766 11.6033L13.1809 9.49142C13.9187 8.98253 14.1223 7.96475 13.6134 7.25231C13.1045 6.51442 12.0867 6.31086 11.3743 6.81975L8.29552 8.9062C7.55763 9.41509 7.35407 10.4329 7.86296 11.1453C8.16829 11.6288 8.67718 11.8832 9.18607 11.8832Z" fill="currentColor"/>
+            <path d="M6.61619 9.28787C6.94697 9.28787 7.22686 9.18609 7.53219 9.00798L10.5855 6.92153C11.3234 6.41264 11.5015 5.39486 11.0181 4.68241C10.5092 3.94452 9.49142 3.76641 8.77897 4.24986L5.72563 6.33631C4.98774 6.84519 4.80963 7.86298 5.29308 8.57542C5.59841 9.03342 6.08186 9.28787 6.61619 9.28787Z" fill="currentColor"/>
+            <path d="M11.756 14.4531C12.0868 14.4531 12.3666 14.3513 12.6465 14.1732L15.7253 12.0868C16.4632 11.5779 16.6668 10.5601 16.1579 9.84765C15.649 9.10976 14.6312 8.9062 13.9188 9.41509L10.84 11.4761C10.1021 11.985 9.89853 13.0028 10.4074 13.7152C10.7382 14.1987 11.2471 14.4531 11.756 14.4531Z" fill="currentColor"/>
+            <path d="M8.42276 20C10.3311 20 12.2903 19.3639 13.8679 18.0917C14.4531 17.6082 15.191 17.1248 16.107 16.5395L22.1119 12.7992C22.8752 12.3158 23.1042 11.3234 22.6462 10.5601C22.1882 9.79676 21.1705 9.56776 20.4071 10.0258L14.4022 13.7661C13.3844 14.3768 12.5448 14.962 11.8069 15.5218C9.74588 17.1757 6.81976 17.1502 4.93687 15.42C3.53742 14.1223 3.00309 12.1377 3.51198 10.3056C4.50431 6.6162 4.37709 3.76641 3.07942 0.942077C2.69775 0.127853 1.73086 -0.228369 0.942084 0.153298C0.127861 0.534965 -0.228362 1.50186 0.153305 2.29063C1.1202 4.37708 1.17108 6.48898 0.40775 9.41509C-0.431918 12.4175 0.45864 15.6235 2.74864 17.7609C4.35165 19.2367 6.36176 20 8.42276 20Z" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="reply-action reply-zap-action" data-event-id="${replyEvent.id}">
+          <svg width="12" height="14" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15.9025 6.11111C15.7069 5.64316 15.2505 5.34188 14.7353 5.34188H12.3358L14.6919 1.9359C14.9549 1.55342 14.9831 1.0641 14.7636 0.660256C14.5441 0.254273 14.1181 0 13.6486 0H6.9109C6.48925 0 6.09585 0.207265 5.86112 0.551282L0.212306 8.88462C-0.046335 9.26496 -0.070243 9.75214 0.149276 10.156C0.368795 10.5598 0.794793 10.8098 1.25991 10.8098H4.65485L0.996924 18.2179C0.727416 18.7628 0.894772 19.4124 1.39684 19.7671C1.61201 19.9188 1.86631 20 2.13147 20C2.46401 20 2.77699 19.8739 3.01607 19.6453L15.6221 7.46581C15.9894 7.11111 16.1003 6.57906 15.9047 6.11325L15.9025 6.11111ZM11.2687 2.47863L8.91265 5.88462C8.64967 6.26709 8.62141 6.75641 8.84093 7.16026C9.06045 7.56624 9.48645 7.82051 9.95591 7.82051H11.6556L6.45447 12.8462L7.80419 10.1154C7.99546 9.72863 7.97155 9.27991 7.73899 8.91667C7.50643 8.55128 7.10869 8.33547 6.66965 8.33547H3.61594L7.58685 2.48077H11.2687V2.47863Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+    `;
+    
+    // Set up event listeners for reply actions
+    this.setupReactionButton(replyDiv.querySelector('.reply-reaction-action'), replyEvent);
+    this.setupReplyButton(replyDiv.querySelector('.reply-reply-action'), replyEvent);
+    this.setupRepostButton(replyDiv.querySelector('.reply-repost-action'), replyEvent);
+    this.setupZapButton(replyDiv.querySelector('.reply-zap-action'), replyEvent);
+    this.setupClickableLinks(replyDiv, replyEvent);
+    
+    return replyDiv;
   }
 
   setupRepostButton(button, event) {
@@ -5902,9 +6161,14 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
   
   getAvatarPlaceholder(name) {
-    // Generate a simple initial from the name
-    const initial = (name?.charAt(0) || '?').toUpperCase();
-    return initial;
+    // Return the anon SVG icon instead of initials
+    return `<svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M30.4325 17.6925H21.1725C20.6225 17.6925 20.1725 18.1425 20.1725 18.6925C20.1725 18.9625 20.2825 19.2125 20.4625 19.4025L27.2325 26.1725C29.3125 23.8425 30.4625 20.8225 30.4425 17.7025L30.4325 17.6925Z" fill="white"/>
+<path d="M30.3325 16.1825C29.9425 13.0525 28.3925 10.1725 25.9825 8.13251L19.6325 14.4825C19.2425 14.8725 19.2425 15.5025 19.6325 15.8925C19.8225 16.0825 20.0725 16.1825 20.3425 16.1825H30.3225H30.3325Z" fill="white"/>
+<path d="M26.1625 27.2225L19.3925 20.4525C19.0025 20.0625 18.3725 20.0625 17.9825 20.4525C17.7925 20.6425 17.6925 20.8925 17.6925 21.1625V30.4225C20.8125 30.4425 23.8325 29.3025 26.1625 27.2225Z" fill="white"/>
+<path d="M16.1825 30.3325V20.3425C16.1825 19.7925 15.7325 19.3425 15.1825 19.3425C14.9125 19.3425 14.6625 19.4525 14.4725 19.6325L8.11249 25.9925C10.1625 28.4025 13.0425 29.9525 16.1825 30.3225V30.3325Z" fill="white"/>
+<path d="M29.2425 6.2925C28.8525 5.9025 28.2225 5.9025 27.8325 6.2925L27.0625 7.0625C32.9725 12.2025 33.5825 21.1625 28.4425 27.0725C23.3025 32.9825 14.3425 33.5925 8.4325 28.4525C7.9425 28.0225 7.4825 27.5625 7.0525 27.0725L6.2925 27.8325C5.9025 28.2225 5.9025 28.8525 6.2925 29.2425C12.6325 35.5825 22.9025 35.5825 29.2425 29.2425C35.5825 22.9025 35.5825 12.6325 29.2425 6.2925Z" fill="white"/>
+</svg>`;
   }
   
   formatTimeAgo(timestamp) {
@@ -7685,19 +7949,25 @@ Note: You might need to connect a Lightning wallet to your Alby account first if
   }
   
   updateReactionButton(event, emoji) {
-    // Find reaction buttons specifically for this event (not nested replies)
-    const eventElement = document.querySelector(`[data-event-id="${event.id}"]`);
-    if (!eventElement) return;
+    // Find all elements with this event ID (notes and replies)
+    const eventElements = document.querySelectorAll(`[data-event-id="${event.id}"]`);
     
-    // Select reaction buttons that are direct children of this event's actions
-    const buttons = eventElement.querySelectorAll(':scope > .note-actions > .reaction-action');
-    buttons.forEach(button => {
-      // Replace the button content with just the emoji at the same size as the icon
-      button.innerHTML = `<span style="font-size: 16px; line-height: 1;">${emoji}</span>`;
+    eventElements.forEach(eventElement => {
+      // Check for main note reaction buttons
+      const noteButtons = eventElement.querySelectorAll(':scope > .note-actions > .reaction-action');
+      // Check for reply reaction buttons  
+      const replyButtons = eventElement.querySelectorAll(':scope > .reply-actions > .reply-reaction-action');
       
-      // Remove all event listeners by cloning the button
-      const newButton = button.cloneNode(true);
-      button.parentNode.replaceChild(newButton, button);
+      const allButtons = [...noteButtons, ...replyButtons];
+      
+      allButtons.forEach(button => {
+        // Replace the button content with just the emoji at the same size as the icon
+        button.innerHTML = `<span style="font-size: 16px; line-height: 1;">${emoji}</span>`;
+        
+        // Remove all event listeners by cloning the button
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+      });
     });
   }
   
