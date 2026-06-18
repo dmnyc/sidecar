@@ -31,6 +31,8 @@
     unlock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path>',
     wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line>',
     more: '<circle cx="5" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="19" cy="12" r="1.6" fill="currentColor"></circle>',
+    'user-plus': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -46,7 +48,7 @@
   // ---- top-level routing ----
   async function refresh() {
     state = await call({ type: 'SIDECAR_GET_STATE' });
-    [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings')].forEach(hide);
+    [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit')].forEach(hide);
     if (!state.initialized) {
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
@@ -119,6 +121,7 @@
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-' + name));
       if (name === 'activity') renderActivity();
+      else if (name === 'profile') renderProfile();
     });
   });
 
@@ -154,12 +157,29 @@
     return box;
   }
 
-  // ---- kind:0 profile import (name + picture) ----
+  // ---- relay pool (fetch + publish) ----
   let _pool = null;
-  const poolGet = (relays, filter) => {
+  function getPool() {
     if (!_pool) _pool = new NT.SimplePool();
-    return _pool.get(relays, filter);
-  };
+    return _pool;
+  }
+  const poolGet = (relays, filter) => getPool().get(relays, filter);
+
+  async function relayUrls(writableOnly) {
+    const map = await call({ type: 'SIDECAR_GET_RELAYS' });
+    return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
+  }
+
+  // Publish an already-signed event to the configured (write) relays.
+  async function publishSigned(signed) {
+    const relays = await relayUrls(true);
+    if (!relays.length) throw new Error('No relays configured (add some in Settings)');
+    const results = await Promise.allSettled(getPool().publish(relays, signed));
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    if (!ok) throw new Error('Could not publish to any relay');
+    return ok;
+  }
+
   const profileFetchAttempted = new Set();
 
   async function fetchAndStoreProfile(pubkey) {
@@ -262,6 +282,13 @@
     return b;
   }
 
+  function labelButton(id, name, text) {
+    const b = $(id);
+    b.textContent = '';
+    b.append(icon(name), h('span', { textContent: text }));
+  }
+  labelButton('add-generate', 'user-plus', 'Generate new');
+  labelButton('add-import', 'download', 'Import nsec');
   $('add-generate').addEventListener('click', () => addAccountModal(true));
   $('add-import').addEventListener('click', () => addAccountModal(false));
 
@@ -275,10 +302,12 @@
     modal.innerHTML = '';
     buildContent(modal);
     show($('modal-overlay'));
+    document.documentElement.classList.add('modal-open');
   }
   function closeModal() {
     hide($('modal-overlay'));
     $('modal').innerHTML = '';
+    document.documentElement.classList.remove('modal-open');
   }
   $('modal-overlay').addEventListener('click', (e) => {
     if (e.target === $('modal-overlay')) closeModal();
@@ -544,6 +573,522 @@
     await call({ type: 'SIDECAR_CLEAR_ACTIVITY' });
     renderActivity();
   });
+
+  // ---- profile (active account): view + edit + publish kind 0 ----
+  // Fetch the active account's latest kind:0 (used for both display and edit-merge).
+  async function fetchActiveProfile() {
+    const pk = state.activePubkey;
+    if (!pk) return { content: {}, event: null };
+    let event = null;
+    try {
+      event = await Promise.race([
+        poolGet(await relayUrls(false), { kinds: [0], authors: [pk] }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+    } catch (_) {
+      /* offline */
+    }
+    let content = {};
+    if (event) {
+      try {
+        content = JSON.parse(event.content) || {};
+      } catch (_) {}
+    }
+    return { content, event };
+  }
+
+  async function renderProfile() {
+    const view = $('profile-view');
+    const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+    view.innerHTML = '';
+    if (!active) {
+      view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
+      return;
+    }
+    view.append(h('p', { className: 'hint', textContent: 'Loading profile…' }));
+    const { content } = await fetchActiveProfile();
+    view.innerHTML = '';
+
+    const header = h('div', { className: 'profile-header' });
+    if (content.banner) {
+      const banner = document.createElement('img');
+      banner.className = 'profile-banner';
+      banner.alt = '';
+      banner.referrerPolicy = 'no-referrer';
+      banner.src = content.banner;
+      banner.onerror = () => banner.classList.add('profile-banner-ph');
+      header.append(banner);
+    } else {
+      header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
+    }
+    header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
+    view.append(header);
+
+    // identity block: name / nip05 / npub on the left, flat pencil edit on the right
+    const idMain = h('div', { className: 'profile-id-main' });
+    idMain.append(
+      h('div', {
+        className: 'profile-name',
+        textContent: content.display_name || content.name || active.name || shortNpub(active.npub),
+      })
+    );
+    if (content.nip05) idMain.append(h('div', { className: 'profile-meta', textContent: content.nip05 }));
+    idMain.append(npubChip(active.npub));
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn profile-edit-btn';
+    editBtn.title = 'Edit profile';
+    editBtn.appendChild(icon('edit'));
+    editBtn.addEventListener('click', () => openProfileEdit(content));
+    view.append(h('div', { className: 'profile-id' }, [idMain, editBtn]));
+
+    if (content.about) {
+      const about = h('p', { className: 'profile-about' });
+      view.append(about);
+      renderAbout(about, content.about);
+    }
+    if (content.lud16) view.append(h('div', { className: 'profile-meta', textContent: '⚡ ' + content.lud16 }));
+    if (content.website) {
+      const w = h('div', { className: 'profile-meta' });
+      const a = document.createElement('a');
+      a.href = normalizeUrl(content.website);
+      a.target = '_blank';
+      a.rel = 'noreferrer noopener';
+      a.textContent = content.website;
+      w.append(a);
+      view.append(w);
+    }
+
+    renderBackupSection(view, active);
+  }
+
+  // ---- rich about text: links + npub/nprofile mentions, with show more/less ----
+  const normalizeUrl = (u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
+  const mentionNameCache = new Map(); // pubkey -> name|null
+  const TOKEN_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?((?:npub1|nprofile1)[0-9a-z]+)/gi;
+
+  function npubChip(npub) {
+    const el = h('div', { className: 'profile-npub', title: 'Copy npub' });
+    el.append(icon('copy'), h('span', { textContent: shortNpub(npub) }));
+    el.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(npub);
+        const span = el.querySelector('span');
+        const prev = span.textContent;
+        span.textContent = 'Copied ✓';
+        setTimeout(() => (span.textContent = prev), 1200);
+      } catch (_) {}
+    });
+    return el;
+  }
+
+  async function resolveMentions(mentions) {
+    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !mentionNameCache.has(pk));
+    if (need.length) {
+      try {
+        const events = await Promise.race([
+          getPool().querySync(await relayUrls(false), { kinds: [0], authors: need }),
+          new Promise((res) => setTimeout(() => res([]), 6000)),
+        ]);
+        const latest = {};
+        (events || []).forEach((ev) => {
+          if (!latest[ev.pubkey] || ev.created_at > latest[ev.pubkey].created_at) latest[ev.pubkey] = ev;
+        });
+        need.forEach((pk) => {
+          let name = null;
+          if (latest[pk]) {
+            try {
+              const m = JSON.parse(latest[pk].content);
+              name = m.display_name || m.name || null;
+            } catch (_) {}
+          }
+          mentionNameCache.set(pk, name);
+        });
+      } catch (_) {}
+    }
+    mentions.forEach(({ el, pubkey }) => {
+      const name = mentionNameCache.get(pubkey);
+      if (name) el.textContent = '@' + name;
+    });
+  }
+
+  function renderAbout(container, text) {
+    const bodyEl = h('div', { className: 'about-clamp' });
+    const mentions = [];
+    let last = 0;
+    let m;
+    TOKEN_RE.lastIndex = 0;
+    while ((m = TOKEN_RE.exec(text)) !== null) {
+      if (m.index > last) bodyEl.append(document.createTextNode(text.slice(last, m.index)));
+      if (m[1]) {
+        const a = document.createElement('a');
+        a.href = m[1];
+        a.target = '_blank';
+        a.rel = 'noreferrer noopener';
+        a.textContent = m[1];
+        bodyEl.append(a);
+      } else if (m[2]) {
+        const bech = m[2];
+        let pubkey = null;
+        try {
+          const d = NT.nip19.decode(bech);
+          pubkey = d.type === 'npub' ? d.data : d.type === 'nprofile' ? d.data.pubkey : null;
+        } catch (_) {}
+        if (pubkey) {
+          const a = document.createElement('a');
+          a.className = 'mention';
+          a.target = '_blank';
+          a.rel = 'noreferrer noopener';
+          a.href = 'https://njump.me/' + bech;
+          a.textContent = '@' + bech.slice(0, 10) + '…';
+          mentions.push({ el: a, pubkey });
+          bodyEl.append(a);
+        } else {
+          bodyEl.append(document.createTextNode(m[0]));
+        }
+      }
+      last = TOKEN_RE.lastIndex;
+    }
+    if (last < text.length) bodyEl.append(document.createTextNode(text.slice(last)));
+    container.append(bodyEl);
+    resolveMentions(mentions);
+
+    requestAnimationFrame(() => {
+      if (bodyEl.scrollHeight > bodyEl.clientHeight + 4) {
+        const toggle = h('button', { className: 'show-toggle', textContent: 'Show more' });
+        let expanded = false;
+        toggle.addEventListener('click', () => {
+          expanded = !expanded;
+          bodyEl.classList.toggle('about-clamp', !expanded);
+          toggle.textContent = expanded ? 'Show less' : 'Show more';
+        });
+        container.append(toggle);
+      } else {
+        bodyEl.classList.remove('about-clamp');
+      }
+    });
+  }
+
+  // ---- image upload (NIP-98 → nostr.build) ----
+  async function uploadImage(file, kind) {
+    if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    const url = 'https://nostr.build/api/v2/upload/' + (kind === 'profile' ? 'profile' : 'files');
+    const authEvent = {
+      kind: 27235,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['u', url], ['method', 'POST']],
+      content: '',
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent });
+    const token = 'Nostr ' + btoa(JSON.stringify(signed));
+    const form = new FormData();
+    form.append('file', file);
+    const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
+    if (!resp.ok) throw new Error('Upload failed (' + resp.status + ')');
+    const json = await resp.json().catch(() => null);
+    const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
+    if (!u) throw new Error('Upload returned no URL');
+    return u;
+  }
+
+  // ---- edit profile (full-panel overlay) ----
+  function openProfileEdit(current) {
+    const draft = { ...current };
+    const body = $('profile-edit-body');
+    body.innerHTML = '';
+    const err = h('div', { className: 'error' });
+    const urlInputs = {};
+
+    const makeUpload = (label, kind, field, isBanner) => {
+      const prev = h('div', { className: 'upload-preview' + (isBanner ? ' banner' : '') });
+      const img = document.createElement('img');
+      img.referrerPolicy = 'no-referrer';
+      if (draft[field]) img.src = draft[field];
+      prev.append(img);
+      const btn = h('button', { className: 'secondary', textContent: 'Upload ' + label.toLowerCase() });
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+      btn.addEventListener('click', () => input.click());
+      input.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        err.textContent = '';
+        btn.disabled = true;
+        const t = btn.textContent;
+        btn.textContent = 'Uploading…';
+        try {
+          const u = await uploadImage(file, kind);
+          draft[field] = u;
+          img.src = u;
+          if (urlInputs[field]) urlInputs[field].value = u;
+        } catch (e) {
+          err.textContent = e.message;
+        }
+        btn.disabled = false;
+        btn.textContent = t;
+        input.value = '';
+      });
+      body.append(h('label', { className: 'field-label', textContent: label }), h('div', { className: 'upload-row' }, [prev, btn, input]));
+      return img;
+    };
+
+    const avImg = makeUpload('Avatar', 'profile', 'picture', false);
+    const bnImg = makeUpload('Banner', 'files', 'banner', true);
+
+    const fieldDefs = [
+      ['display_name', 'Display name', 'text'],
+      ['name', 'Username', 'text'],
+      ['about', 'About', 'textarea'],
+      ['nip05', 'NIP-05 identifier', 'text'],
+      ['lud16', 'Lightning address', 'text'],
+      ['website', 'Website', 'text'],
+    ];
+    const inputs = {};
+    fieldDefs.forEach(([key, label, type]) => {
+      body.append(h('label', { className: 'field-label', textContent: label }));
+      const el = document.createElement(type === 'textarea' ? 'textarea' : 'input');
+      if (type !== 'textarea') el.type = 'text';
+      el.value = current[key] || '';
+      inputs[key] = el;
+      body.append(el);
+    });
+
+    // advanced: raw image URLs
+    const adv = document.createElement('details');
+    adv.className = 'advanced';
+    const sum = document.createElement('summary');
+    sum.textContent = 'Advanced — image URLs';
+    adv.append(sum);
+    [['picture', 'Avatar URL', () => avImg], ['banner', 'Banner URL', () => bnImg]].forEach(([field, label, getImg]) => {
+      adv.append(h('label', { className: 'field-label', textContent: label }));
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.value = draft[field] || '';
+      urlInputs[field] = inp;
+      inp.addEventListener('input', () => {
+        draft[field] = inp.value.trim();
+        getImg().src = draft[field];
+      });
+      adv.append(inp);
+    });
+    body.append(adv);
+
+    body.append(h('label', { className: 'field-label', textContent: 'PIN (required to publish)' }));
+    const pin = h('input', { type: 'password', maxLength: 32 });
+    body.append(pin, err);
+
+    const publish = h('button', { className: 'primary', textContent: 'Publish profile' });
+    publish.addEventListener('click', async () => {
+      err.textContent = '';
+      if (!pin.value) return (err.textContent = 'Enter your PIN to publish.');
+      publish.disabled = true;
+      publish.textContent = 'Publishing…';
+      try {
+        const fields = { picture: draft.picture || '', banner: draft.banner || '' };
+        fieldDefs.forEach(([k]) => (fields[k] = inputs[k].value));
+        await publishProfile(fields, pin.value);
+        hide($('view-profile-edit'));
+        show($('view-main'));
+        renderProfile();
+        renderMain();
+      } catch (e) {
+        err.textContent = e.message;
+        publish.disabled = false;
+        publish.textContent = 'Publish profile';
+      }
+    });
+    body.append(h('div', { className: 'actions' }, [publish]));
+
+    hide($('view-main'));
+    show($('view-profile-edit'));
+    const content = $('view-profile-edit').querySelector('.content');
+    if (content) content.scrollTop = 0;
+  }
+
+  $('profile-edit-close').addEventListener('click', () => {
+    hide($('view-profile-edit'));
+    show($('view-main'));
+  });
+
+  // Fetch-merge-sign-publish: preserve unknown fields, overlay edits, sign (step-up PIN), publish.
+  async function publishProfile(fields, pin) {
+    const { content } = await fetchActiveProfile();
+    const merged = { ...content };
+    Object.keys(fields).forEach((k) => {
+      const v = (fields[k] || '').trim();
+      if (v) merged[k] = v;
+      else delete merged[k];
+    });
+    const event = { kind: 0, created_at: Math.floor(Date.now() / 1000), tags: [], content: JSON.stringify(merged) };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin });
+    await publishSigned(signed);
+    await call({
+      type: 'SIDECAR_SET_PROFILE',
+      pubkey: state.activePubkey,
+      name: merged.display_name || merged.name || '',
+      picture: merged.picture || '',
+    });
+    state = await call({ type: 'SIDECAR_GET_STATE' });
+  }
+
+  // ---- NIP-78 encrypted backup/restore (profile / follows / mute) ----
+  const BACKUP_TYPES = [
+    { key: 'profile', label: 'Profile', kind: 0, dtag: 'sidecar:profile-backup' },
+    { key: 'follows', label: 'Follows', kind: 3, dtag: 'sidecar:follows-backup' },
+    { key: 'mute', label: 'Mute list', kind: 10000, dtag: 'sidecar:mute-backup' },
+  ];
+
+  async function fetchLatestEvent(kind) {
+    return Promise.race([
+      poolGet(await relayUrls(false), { kinds: [kind], authors: [state.activePubkey] }),
+      new Promise((res) => setTimeout(() => res(null), 6000)),
+    ]).catch(() => null);
+  }
+  async function fetchBackupEvent(dtag) {
+    return Promise.race([
+      poolGet(await relayUrls(false), { kinds: [30078], authors: [state.activePubkey], '#d': [dtag] }),
+      new Promise((res) => setTimeout(() => res(null), 6000)),
+    ]).catch(() => null);
+  }
+
+  // Snapshot the active account's latest kind:0/3/10000, encrypt to self, store as NIP-78.
+  async function createBackup(t) {
+    const src = await fetchLatestEvent(t.kind);
+    if (!src) throw new Error('Nothing to back up yet for ' + t.label.toLowerCase());
+    const blob = {
+      v: 1,
+      ts: Math.floor(Date.now() / 1000),
+      source: { kind: src.kind, created_at: src.created_at, tags: src.tags, content: src.content },
+    };
+    const ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: JSON.stringify(blob) });
+    const event = {
+      kind: 30078,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['d', t.dtag], ['encrypted', 'nip04']],
+      content: ciphertext,
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+    await publishSigned(signed);
+  }
+
+  // Decrypt the latest backup and re-publish it as the current event (PIN-gated).
+  async function restoreBackup(t, pin) {
+    const ev = await fetchBackupEvent(t.dtag);
+    if (!ev) throw new Error('No backup found for ' + t.label.toLowerCase());
+    const plaintext = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content });
+    let blob;
+    try {
+      blob = JSON.parse(plaintext);
+    } catch (_) {
+      throw new Error('Backup could not be read');
+    }
+    const s = blob.source || {};
+    const event = { kind: s.kind, created_at: Math.floor(Date.now() / 1000), tags: s.tags || [], content: s.content || '' };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin });
+    await publishSigned(signed);
+  }
+
+  // Plain signed-JSON export of the account's identity events (download, no relays).
+  async function exportBundle(active) {
+    const events = [];
+    for (const k of [0, 3, 10002, 10000]) {
+      const ev = await fetchLatestEvent(k);
+      if (ev) events.push(ev);
+    }
+    if (!events.length) throw new Error('Nothing found to export');
+    const bundle = { version: 1, exportedAt: new Date().toISOString(), pubkey: active.pubkey, npub: active.npub, events };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sidecar-backup-' + active.npub.slice(0, 12) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function restoreModal(t) {
+    openModal((modal) => {
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Restore' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        go.disabled = true;
+        go.textContent = 'Restoring…';
+        try {
+          await restoreBackup(t, pin.value);
+          closeModal();
+        } catch (e) {
+          err.textContent = e.message;
+          go.disabled = false;
+          go.textContent = 'Restore';
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Restore ' + t.label }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            'Re-publishes your latest ' + t.label.toLowerCase() + ' backup as your current ' + t.label.toLowerCase() + '. Requires your PIN.',
+        }),
+        h('label', { textContent: 'PIN' }),
+        pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  function renderBackupSection(view, active) {
+    const setting = h('div', { className: 'setting' });
+    setting.append(
+      h('h3', { textContent: 'Backup & restore' }),
+      h('p', { className: 'hint', textContent: 'Encrypted to your own key and stored on your relays (NIP-78).' })
+    );
+    const list = h('div', { className: 'list flat' });
+    BACKUP_TYPES.forEach((t) => {
+      const status = h('div', { className: 'item-sub', textContent: '' });
+      const backup = h('button', { className: 'mini', textContent: 'Back up' });
+      backup.addEventListener('click', async () => {
+        status.textContent = '';
+        backup.disabled = true;
+        backup.textContent = 'Backing up…';
+        try {
+          await createBackup(t);
+          status.textContent = 'Backed up just now ✓';
+        } catch (e) {
+          status.textContent = e.message;
+        }
+        backup.disabled = false;
+        backup.textContent = 'Back up';
+      });
+      const restore = h('button', { className: 'mini ghost', textContent: 'Restore' });
+      restore.addEventListener('click', () => restoreModal(t));
+      const row = h('div', { className: 'item' }, [
+        h('div', { className: 'item-main' }, [h('div', { className: 'item-label', textContent: t.label }), status]),
+        h('div', { className: 'item-actions' }, [backup, restore]),
+      ]);
+      list.append(row);
+    });
+    setting.append(list);
+    const exportBtn = h('button', { className: 'secondary', textContent: 'Download signed JSON…' });
+    exportBtn.addEventListener('click', async () => {
+      exportBtn.disabled = true;
+      try {
+        await exportBundle(active);
+      } catch (e) {
+        alert(e.message);
+      }
+      exportBtn.disabled = false;
+    });
+    setting.append(exportBtn);
+    view.append(setting);
+  }
 
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });

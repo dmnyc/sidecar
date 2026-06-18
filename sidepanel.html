@@ -67,7 +67,7 @@
         <div class="active-account" id="active-account"></div>
         <h2>Accounts</h2>
         <div id="account-list" class="list"></div>
-        <div class="row-actions">
+        <div class="add-actions">
           <button class="secondary" id="add-generate">Generate new</button>
           <button class="secondary" id="add-import">Import nsec</button>
         </div>
@@ -79,19 +79,18 @@
         <div class="setting">
           <h3>Connected sites</h3>
           <p class="hint">Set how much each site is trusted with your signer.</p>
-          <div id="sites-list" class="list"></div>
+          <div id="sites-list" class="list flat"></div>
         </div>
         <div class="setting">
           <h3>Recent activity</h3>
-          <div id="activity-list" class="list"></div>
+          <div id="activity-list" class="list flat"></div>
           <button class="ghost" id="activity-clear">Clear history</button>
         </div>
       </div>
 
-      <!-- Profile (filled in Profile phase) -->
+      <!-- Profile — scoped to the active account -->
       <div class="tabview hidden" id="tab-profile">
-        <h2>Profile</h2>
-        <p class="hint" id="profile-placeholder">Profile editing &amp; backup coming next.</p>
+        <div id="profile-view"></div>
       </div>
 
       <!-- Wallet (filled in Wallet phase) -->
@@ -100,6 +99,20 @@
         <p class="hint" id="wallet-placeholder">Lightning wallet (NWC) coming next.</p>
       </div>
 
+    </main>
+  </section>
+
+  <!-- ===== Edit profile (full-panel overlay) ===== -->
+  <section id="view-profile-edit" class="hidden">
+    <header class="topbar">
+      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <button id="profile-edit-close" class="icon-btn" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </header>
+    <main class="content">
+      <h2>Edit profile</h2>
+      <div id="profile-edit-body"></div>
     </main>
   </section>
 
