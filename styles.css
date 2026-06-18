@@ -562,9 +562,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   color: #1a0e08; border: none; cursor: pointer;
   background: linear-gradient(160deg, #f4b860, var(--gold));
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
-  transition: transform 0.12s, box-shadow 0.15s;
+  transition: transform 0.12s, box-shadow 0.15s, opacity 0.16s ease;
 }
-.fab:hover { transform: translateY(-1px) scale(1.03); }
+.fab.is-scrolling { opacity: 0.45; }
+.fab:hover { transform: translateY(-1px) scale(1.03); opacity: 1; }
 .fab:active { transform: scale(0.97); }
 .fab svg { width: 24px; height: 24px; }
 .compose-author { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
@@ -614,7 +615,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .countdown-ring .ring-fill { fill: none; stroke: var(--gold); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
 .countdown-num {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700; font-size: 28px; color: var(--gold);
+  font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1; color: var(--gold);
 }
 
 /* "your note is live" banner */

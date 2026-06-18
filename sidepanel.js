@@ -139,6 +139,24 @@
 
   $('compose-fab').addEventListener('click', () => openComposer());
 
+  // Dim the FAB while the content is actively scrolling so it doesn't distract;
+  // snap back ~160ms after scrolling stops (mirrors zap.cooking's create FAB).
+  (function fabScrollDim() {
+    const fab = $('compose-fab');
+    const scroller = document.querySelector('#view-main .content');
+    if (!fab || !scroller) return;
+    let t = null;
+    scroller.addEventListener(
+      'scroll',
+      () => {
+        fab.classList.add('is-scrolling');
+        if (t) clearTimeout(t);
+        t = setTimeout(() => fab.classList.remove('is-scrolling'), 160);
+      },
+      { passive: true }
+    );
+  })();
+
   // ---- settings (gear icon ↔ overlay view) ----
   $('settings-btn').addEventListener('click', () => {
     hide($('view-main'));
