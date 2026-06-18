@@ -289,9 +289,45 @@
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
-  // Publish an already-signed event to the configured (write) relays.
+  // ---- NIP-65 (kind 10002) relay list, cached per account ----
+  const nip65Cache = new Map(); // pubkey -> { read:[], write:[] } | null
+
+  async function getNip65(pubkey) {
+    if (!pubkey) return null;
+    if (nip65Cache.has(pubkey)) return nip65Cache.get(pubkey);
+    let parsed = null;
+    try {
+      const ev = await Promise.race([
+        poolGet(await relayUrls(false), { kinds: [10002], authors: [pubkey] }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+      if (ev) {
+        const read = [], write = [];
+        ev.tags.forEach((t) => {
+          if (t[0] !== 'r' || !t[1]) return;
+          const marker = t[2];
+          if (!marker) { read.push(t[1]); write.push(t[1]); }
+          else if (marker === 'read') read.push(t[1]);
+          else if (marker === 'write') write.push(t[1]);
+        });
+        if (read.length || write.length) parsed = { read, write };
+      }
+    } catch (_) {}
+    nip65Cache.set(pubkey, parsed);
+    return parsed;
+  }
+
+  // Where to publish the active account's events: its NIP-65 write relays if it
+  // has them, else the relays configured in Settings.
+  async function postRelays() {
+    const n = await getNip65(state.activePubkey);
+    if (n && n.write.length) return n.write;
+    return relayUrls(true);
+  }
+
+  // Publish an already-signed event to the account's write relays (NIP-65 → configured).
   async function publishSigned(signed) {
-    const relays = await relayUrls(true);
+    const relays = await postRelays();
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     const results = await Promise.allSettled(getPool().publish(relays, signed));
     const ok = results.filter((r) => r.status === 'fulfilled').length;
@@ -1146,7 +1182,7 @@
 
   async function neventFor(signed) {
     let relays = [];
-    try { relays = (await relayUrls(true)).slice(0, 2); } catch (_) {}
+    try { relays = (await postRelays()).slice(0, 2); } catch (_) {}
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
