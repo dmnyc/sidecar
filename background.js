@@ -375,6 +375,20 @@ async function handleControl(message, sendResponse) {
         result = [];
         break;
       }
+      case 'SIDECAR_SET_NWC':
+        await KS.setNwc(message.pubkey, message.connection);
+        result = { ok: true };
+        break;
+      case 'SIDECAR_GET_NWC':
+        result = { connection: await KS.getNwc(message.pubkey) };
+        break;
+      case 'SIDECAR_HAS_NWC':
+        result = { has: await KS.hasNwc(message.pubkey) };
+        break;
+      case 'SIDECAR_CLEAR_NWC':
+        await KS.clearNwc(message.pubkey);
+        result = { ok: true };
+        break;
       default:
         throw new Error('Unknown control message: ' + message.type);
     }

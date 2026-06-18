@@ -270,6 +270,9 @@
     const bytes = unlocked.get(pubkey);
     if (bytes) C.wipe(bytes);
     unlocked.delete(pubkey);
+    // Drop the account's encrypted NWC connection too.
+    const nwc = await loadNwcStore();
+    if (nwc[pubkey]) { delete nwc[pubkey]; await set({ [NWC_KEY]: nwc }); }
     // Reassign active if we just removed it.
     const active = (await get(ACTIVE_KEY))[ACTIVE_KEY] || null;
     if (active === pubkey) {
@@ -326,6 +329,41 @@
     return !!(store && store.accounts[pubkey]);
   }
 
+  // ---- NWC connection strings (per account, encrypted at rest like the nsec) ----
+  // The connection string embeds a spendable secret, so it is wrapped with the
+  // same derived key and only ever decrypted in memory while unlocked.
+  const NWC_KEY = 'sidecar_nwc_connections';
+
+  async function loadNwcStore() {
+    return (await get(NWC_KEY))[NWC_KEY] || {};
+  }
+  async function setNwc(pubkey, connectionString) {
+    requireUnlocked();
+    const pk = pubkey || (await getActivePubkey());
+    if (!pk) throw new Error('No active account');
+    const all = await loadNwcStore();
+    all[pk] = await C.encryptString(derivedKey, connectionString);
+    await set({ [NWC_KEY]: all });
+  }
+  async function getNwc(pubkey) {
+    requireUnlocked();
+    const pk = pubkey || (await getActivePubkey());
+    const all = await loadNwcStore();
+    if (!all[pk]) return null;
+    return C.decryptString(derivedKey, all[pk]);
+  }
+  async function hasNwc(pubkey) {
+    const pk = pubkey || (await getActivePubkey());
+    const all = await loadNwcStore();
+    return !!all[pk];
+  }
+  async function clearNwc(pubkey) {
+    const pk = pubkey || (await getActivePubkey());
+    const all = await loadNwcStore();
+    delete all[pk];
+    await set({ [NWC_KEY]: all });
+  }
+
   // Return decrypted private-key bytes for signing. Defaults to the active account.
   async function getPrivkey(pubkey) {
     requireUnlocked();
@@ -380,6 +418,10 @@
     getActivePubkey,
     hasAccount,
     getPrivkey,
+    setNwc,
+    getNwc,
+    hasNwc,
+    clearNwc,
     changePin,
     // expose the derived key getter for sibling modules (e.g. NWC string encryption)
     _getDerivedKey: () => derivedKey,

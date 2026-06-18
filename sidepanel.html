@@ -104,10 +104,9 @@
         <div id="profile-view"></div>
       </div>
 
-      <!-- Wallet (filled in Wallet phase) -->
+      <!-- Wallet — NWC (NIP-47) -->
       <div class="tabview hidden" id="tab-wallet">
-        <h2>Wallet</h2>
-        <p class="hint" id="wallet-placeholder">Lightning wallet (NWC) coming next.</p>
+        <div id="wallet-view"></div>
       </div>
 
     </main>
@@ -191,6 +190,8 @@
   <div id="toasts" class="toasts"></div>
 
   <script src="nostr-tools.js"></script>
+  <script src="qrious.min.js"></script>
+  <script src="nwc-client.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

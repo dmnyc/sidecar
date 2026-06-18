@@ -39,6 +39,8 @@
     grip: '<circle cx="9" cy="7" r="1.5" fill="currentColor"></circle><circle cx="15" cy="7" r="1.5" fill="currentColor"></circle><circle cx="9" cy="12" r="1.5" fill="currentColor"></circle><circle cx="15" cy="12" r="1.5" fill="currentColor"></circle><circle cx="9" cy="17" r="1.5" fill="currentColor"></circle><circle cx="15" cy="17" r="1.5" fill="currentColor"></circle>',
     external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>',
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
+    'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>',
+    'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -77,6 +79,7 @@
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
     } else if (state.locked) {
+      if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
       show($('view-lock'));
       setTimeout(() => $('unlock-pin').focus(), 50);
     } else {
@@ -89,6 +92,7 @@
       const name = activeTab && activeTab.dataset.tab;
       if (name === 'activity') renderActivity();
       else if (name === 'profile') renderProfile();
+      else if (name === 'wallet') renderWallet();
     }
   }
 
@@ -253,6 +257,7 @@
       show($('tab-' + name));
       if (name === 'activity') renderActivity();
       else if (name === 'profile') renderProfile();
+      else if (name === 'wallet') renderWallet();
     });
   });
 
@@ -1946,6 +1951,271 @@
     exportWrap.append(exportBtn, importBtn, fileInput);
     setting.append(exportWrap);
     view.append(setting);
+  }
+
+  // ====================== Wallet (NWC / NIP-47) ======================
+  let nwc = null; // active SidecarNWC client for the current account
+  let nwcPubkey = null; // which account the client belongs to
+  const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
+  const msatToSat = (m) => Math.floor((m || 0) / 1000);
+
+  // Build (or reuse) the NWC client for the active account from its stored string.
+  async function ensureNwc() {
+    const pk = state.activePubkey;
+    if (nwc && nwcPubkey === pk) return nwc;
+    if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
+    const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
+    if (!connection) return null;
+    nwc = window.SidecarNWC.makeClient(connection);
+    nwcPubkey = pk;
+    return nwc;
+  }
+
+  async function renderWallet() {
+    const view = $('wallet-view');
+    view.innerHTML = '';
+    if (!state.activePubkey) {
+      view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
+      return;
+    }
+    const { has } = await call({ type: 'SIDECAR_HAS_NWC' });
+    if (!has) {
+      renderWalletConnect(view);
+      return;
+    }
+    renderWalletConnected(view);
+  }
+
+  function renderWalletConnect(view) {
+    view.append(h('h2', { textContent: 'Wallet' }));
+    view.append(
+      h('p', {
+        className: 'hint',
+        textContent:
+          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Coinos, Primal, or any NWC-capable wallet. Sidecar never holds your funds.',
+      })
+    );
+    const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
+    const err = h('div', { className: 'error' });
+    const connect = h('button', { className: 'primary', textContent: 'Connect wallet' });
+    connect.addEventListener('click', async () => {
+      const conn = input.value.trim();
+      if (!conn) return (err.textContent = 'Paste a connection string.');
+      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = 'That doesn’t look like an NWC string.');
+      err.textContent = '';
+      connect.disabled = true;
+      connect.textContent = 'Connecting…';
+      try {
+        // Validate by parsing + a getInfo round-trip before saving.
+        const client = window.SidecarNWC.makeClient(conn);
+        await client.getInfo();
+        client.close();
+        await call({ type: 'SIDECAR_SET_NWC', connection: conn });
+        toast('Wallet connected', 'success');
+        renderWallet();
+      } catch (e) {
+        err.textContent = e.message || 'Could not reach that wallet.';
+        toast('Could not connect wallet', 'error');
+        connect.disabled = false;
+        connect.textContent = 'Connect wallet';
+      }
+    });
+    view.append(input, err, connect);
+  }
+
+  async function renderWalletConnected(view) {
+    // Balance card
+    const card = h('div', { className: 'wallet-card' });
+    const bal = h('div', { className: 'wallet-balance', textContent: '—' });
+    const unit = h('div', { className: 'wallet-unit', textContent: 'sats' });
+    card.append(h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit);
+    view.append(card);
+
+    // Actions
+    const actions = h('div', { className: 'wallet-actions' });
+    const sendBtn = h('button', { className: 'primary', textContent: 'Send' });
+    const recvBtn = h('button', { className: 'secondary', textContent: 'Receive' });
+    sendBtn.addEventListener('click', () => sendModal());
+    recvBtn.addEventListener('click', () => receiveModal());
+    actions.append(sendBtn, recvBtn);
+    view.append(actions);
+
+    // Transactions
+    const txWrap = h('div', { className: 'setting' });
+    txWrap.append(h('h3', { textContent: 'Recent transactions' }));
+    const txList = h('div', { className: 'list flat' });
+    txWrap.append(txList);
+    view.append(txWrap);
+
+    // Disconnect
+    const disc = h('button', { className: 'ghost wallet-disconnect', textContent: 'Disconnect wallet' });
+    disc.addEventListener('click', () => disconnectModal());
+    view.append(disc);
+
+    // Load data
+    let client = null;
+    try { client = await ensureNwc(); } catch (_) {}
+    if (!client) { view.innerHTML = ''; renderWalletConnect(view); return; }
+    try {
+      const b = await client.getBalance();
+      bal.textContent = fmtSats(msatToSat(b && b.balance));
+    } catch (_) {
+      bal.textContent = '—';
+      unit.textContent = 'balance unavailable';
+    }
+    loadTransactions(txList, client);
+  }
+
+  async function loadTransactions(listEl, client) {
+    listEl.innerHTML = '';
+    listEl.append(h('p', { className: 'hint', textContent: 'Loading…' }));
+    try {
+      const res = await client.listTransactions({ limit: 20, unpaid: false });
+      const txns = (res && res.transactions) || [];
+      listEl.innerHTML = '';
+      if (!txns.length) {
+        listEl.append(h('p', { className: 'hint', textContent: 'No transactions yet.' }));
+        return;
+      }
+      txns.forEach((tx) => listEl.append(txRow(tx)));
+    } catch (e) {
+      listEl.innerHTML = '';
+      listEl.append(h('p', { className: 'hint', textContent: 'Could not load transactions.' }));
+    }
+  }
+
+  function txRow(tx) {
+    const incoming = tx.type === 'incoming';
+    const sats = msatToSat(tx.amount);
+    const row = h('div', { className: 'item tx-row' });
+    const ic = h('span', { className: 'tx-icon ' + (incoming ? 'in' : 'out') });
+    ic.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
+    const main = h('div', { className: 'item-main' }, [
+      h('div', { className: 'item-label', textContent: tx.description || (incoming ? 'Received' : 'Sent') }),
+      h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : 'pending' }),
+    ]);
+    const amt = h('div', { className: 'tx-amt ' + (incoming ? 'in' : 'out'), textContent: (incoming ? '+' : '−') + fmtSats(sats) });
+    row.append(ic, main, amt);
+    return row;
+  }
+
+  function sendModal() {
+    openModal((modal) => {
+      const input = h('textarea', { className: 'compose-text', placeholder: 'Lightning invoice (lnbc…) or lightning address' });
+      const err = h('div', { className: 'error' });
+      const pay = h('button', { className: 'primary', textContent: 'Pay' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      pay.addEventListener('click', async () => {
+        const val = input.value.trim();
+        if (!val) return (err.textContent = 'Paste an invoice or lightning address.');
+        err.textContent = '';
+        pay.disabled = true;
+        pay.textContent = 'Paying…';
+        try {
+          const client = await ensureNwc();
+          let invoice = val;
+          // Lightning address → LNURL-pay would be needed; for v1 require a BOLT11 invoice.
+          if (!/^ln(bc|tb)/i.test(invoice)) {
+            throw new Error('Enter a BOLT11 invoice (lnbc…). Lightning-address sending is coming soon.');
+          }
+          await client.payInvoice(invoice);
+          closeModal();
+          toast('Payment sent', 'success');
+          renderWallet();
+        } catch (e) {
+          err.textContent = e.message;
+          pay.disabled = false;
+          pay.textContent = 'Pay';
+        }
+      });
+      modal.append(
+        h('h3', { textContent: 'Send' }),
+        input,
+        err,
+        h('div', { className: 'actions' }, [pay, cancel])
+      );
+    });
+  }
+
+  function receiveModal() {
+    openModal((modal) => {
+      const amount = h('input', { type: 'number', min: '1', placeholder: 'Amount in sats' });
+      const memo = h('input', { type: 'text', placeholder: 'Note (optional)' });
+      const err = h('div', { className: 'error' });
+      const create = h('button', { className: 'primary', textContent: 'Create invoice' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      const out = h('div', { className: 'recv-out' });
+      create.addEventListener('click', async () => {
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        err.textContent = '';
+        create.disabled = true;
+        create.textContent = 'Creating…';
+        try {
+          const client = await ensureNwc();
+          const res = await client.makeInvoice(sats * 1000, memo.value.trim());
+          const invoice = res && (res.invoice || res.payment_request || res.bolt11);
+          if (!invoice) throw new Error('Wallet returned no invoice');
+          showInvoice(out, invoice);
+          create.textContent = 'Create invoice';
+          create.disabled = false;
+        } catch (e) {
+          err.textContent = e.message;
+          create.disabled = false;
+          create.textContent = 'Create invoice';
+        }
+      });
+      modal.append(
+        h('h3', { textContent: 'Receive' }),
+        h('label', { textContent: 'Amount (sats)' }),
+        amount,
+        h('label', { textContent: 'Note' }),
+        memo,
+        err,
+        h('div', { className: 'actions' }, [create, cancel]),
+        out
+      );
+    });
+  }
+
+  function showInvoice(container, invoice) {
+    container.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'recv-qr';
+    try {
+      new window.QRious({ element: canvas, value: invoice.toUpperCase(), size: 220, level: 'M' });
+    } catch (_) {}
+    const copy = h('button', { className: 'secondary', textContent: 'Copy invoice' });
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(invoice);
+        copy.textContent = 'Copied ✓';
+        setTimeout(() => (copy.textContent = 'Copy invoice'), 1200);
+      } catch (_) {}
+    });
+    container.append(canvas, h('div', { className: 'recv-bolt', textContent: invoice }), copy);
+  }
+
+  function disconnectModal() {
+    openModal((modal) => {
+      const go = h('button', { className: 'danger', textContent: 'Disconnect' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      go.addEventListener('click', async () => {
+        await call({ type: 'SIDECAR_CLEAR_NWC' });
+        if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
+        closeModal();
+        toast('Wallet disconnected', 'success');
+        renderWallet();
+      });
+      modal.append(
+        h('h3', { textContent: 'Disconnect wallet?' }),
+        h('p', { className: 'hint', textContent: 'Removes this account’s saved NWC connection from Sidecar. Your wallet and funds are unaffected.' }),
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
   }
 
   $('autolock-select').addEventListener('change', async (e) => {

@@ -638,6 +638,33 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1; color: var(--gold);
 }
 
+/* ===== wallet (NWC) ===== */
+.nwc-input { min-height: 84px; font-family: var(--font-mono); font-size: 12px; margin-bottom: 4px; }
+.wallet-card {
+  text-align: center; padding: 22px 16px; border-radius: 16px; margin-bottom: 14px;
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(203, 161, 78, 0.14), transparent 60%),
+    linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--gold-soft); box-shadow: var(--sheen), var(--shadow-sm);
+}
+.wallet-bal-label { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.wallet-balance { font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1.1; color: var(--gold); margin: 4px 0 0; }
+.wallet-unit { font-size: 13px; color: var(--muted); }
+.wallet-actions { display: flex; gap: 10px; margin-bottom: 20px; }
+.wallet-actions button { flex: 1; }
+.wallet-disconnect { display: block; margin: 8px auto 0; }
+.tx-row { gap: 10px; }
+.tx-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.tx-icon svg { width: 15px; height: 15px; }
+.tx-icon.in { color: #6ee7a8; background: rgba(110, 231, 168, 0.12); }
+.tx-icon.out { color: #f4a64b; background: rgba(244, 166, 75, 0.12); }
+.tx-amt { font-family: var(--font-mono); font-size: 13px; font-weight: 600; flex-shrink: 0; }
+.tx-amt.in { color: #6ee7a8; }
+.tx-amt.out { color: var(--lav); }
+.recv-out { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 14px; }
+.recv-qr { background: #fff; border-radius: 12px; padding: 10px; width: 200px; height: 200px; }
+.recv-bolt { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); word-break: break-all; max-width: 100%; text-align: center; }
+
 /* "your note is live" banner */
 .post-banner {
   display: flex; align-items: center; gap: 10px;
