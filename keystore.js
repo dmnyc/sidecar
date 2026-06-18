@@ -121,7 +121,7 @@
     if (store) {
       let dirty = false;
       for (const a of Object.values(store.accounts)) {
-        if (!a.name) { a.name = randomName(); dirty = true; }
+        if (!a.name) { a.name = randomName(); a.placeholderName = true; dirty = true; }
       }
       if (dirty) await set({ [STORE_KEY]: store });
     }
@@ -138,6 +138,7 @@
         npub: root.NostrTools.nip19.npubEncode(a.pubkey),
         name: a.name || '',
         picture: a.picture || '',
+        placeholderName: !!a.placeholderName,
         createdAt: a.createdAt,
       };
     });
@@ -298,7 +299,10 @@
   async function setProfile(pubkey, profile) {
     const store = await loadStore();
     if (!store || !store.accounts[pubkey]) throw new Error('No such account');
-    if (profile.name != null) store.accounts[pubkey].name = profile.name;
+    if (profile.name != null && profile.name !== '') {
+      store.accounts[pubkey].name = profile.name;
+      store.accounts[pubkey].placeholderName = false;
+    }
     if (profile.picture != null) store.accounts[pubkey].picture = profile.picture;
     await set({ [STORE_KEY]: store });
     return getState();

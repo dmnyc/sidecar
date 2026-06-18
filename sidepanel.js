@@ -349,9 +349,10 @@
     state.accounts.forEach((a) => list.appendChild(accountRow(a)));
     makeSortable(list);
 
-    // Lazily pull name + picture from kind:0 for any account missing them.
+    // Lazily pull name + picture from kind:0 for accounts that still lack a
+    // real (kind:0-sourced) profile — placeholder cocktail names don't count.
     state.accounts.forEach((a) => {
-      if (!a.name && !a.picture) maybeFetchProfile(a.pubkey);
+      if (a.placeholderName || (!a.name && !a.picture)) maybeFetchProfile(a.pubkey);
     });
   }
 
