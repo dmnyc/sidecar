@@ -962,6 +962,18 @@
     return { content, event };
   }
 
+  // Skeleton placeholder mirroring the centered profile layout while kind:0 loads.
+  function profileSkeleton() {
+    const sk = h('div', { className: 'profile-skeleton' });
+    sk.append(h('div', { className: 'sk sk-banner' }));
+    sk.append(h('div', { className: 'sk sk-avatar' }));
+    sk.append(h('div', { className: 'sk sk-line sk-name' }));
+    sk.append(h('div', { className: 'sk sk-line sk-sub' }));
+    sk.append(h('div', { className: 'sk sk-line sk-bio1' }));
+    sk.append(h('div', { className: 'sk sk-line sk-bio2' }));
+    return sk;
+  }
+
   async function renderProfile() {
     const view = $('profile-view');
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
@@ -970,7 +982,7 @@
       view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
       return;
     }
-    view.append(h('p', { className: 'hint', textContent: 'Loading profile…' }));
+    view.append(profileSkeleton());
     const { content } = await fetchActiveProfile();
     view.innerHTML = '';
 

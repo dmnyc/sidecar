@@ -128,6 +128,23 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ===== profile (active account) ===== */
+/* profile loading skeleton (mirrors the centered layout) */
+.profile-skeleton { display: flex; flex-direction: column; align-items: center; }
+.sk {
+  background: linear-gradient(100deg, var(--velvet-1) 30%, rgba(167, 139, 250, 0.14) 50%, var(--velvet-1) 70%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.3s ease-in-out infinite;
+  border-radius: 8px;
+}
+@keyframes sk-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.sk-banner { width: 100%; height: 104px; border-radius: 14px; }
+.sk-avatar { width: 68px; height: 68px; border-radius: 50%; margin-top: -34px; border: 3px solid var(--bg); }
+.sk-line { height: 13px; margin-top: 10px; }
+.sk-name { width: 45%; height: 20px; margin-top: 12px; }
+.sk-sub { width: 60%; }
+.sk-bio1 { width: 90%; margin-top: 18px; }
+.sk-bio2 { width: 75%; }
+
 .profile-header {
   position: relative; display: flex; flex-direction: column; align-items: center;
   margin-bottom: 8px;
