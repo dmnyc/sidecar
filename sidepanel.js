@@ -33,6 +33,10 @@
     more: '<circle cx="5" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="19" cy="12" r="1.6" fill="currentColor"></circle>',
     'user-plus': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>',
+    check: '<polyline points="20 6 9 17 4 12"></polyline>',
+    camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle>',
+    alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+    grip: '<circle cx="9" cy="7" r="1.5" fill="currentColor"></circle><circle cx="15" cy="7" r="1.5" fill="currentColor"></circle><circle cx="9" cy="12" r="1.5" fill="currentColor"></circle><circle cx="15" cy="12" r="1.5" fill="currentColor"></circle><circle cx="9" cy="17" r="1.5" fill="currentColor"></circle><circle cx="15" cy="17" r="1.5" fill="currentColor"></circle>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -43,11 +47,29 @@
     return wrap.firstElementChild;
   }
 
+  // ---- toast notifications ----
+  function toast(message, type) {
+    const t = document.createElement('div');
+    t.className = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+    t.appendChild(icon(type === 'error' ? 'alert' : 'check'));
+    const span = document.createElement('span');
+    span.textContent = message;
+    t.appendChild(span);
+    const host = document.getElementById('toasts');
+    host.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => {
+      t.classList.remove('show');
+      setTimeout(() => t.remove(), 250);
+    }, 3200);
+  }
+
   let state = null;
 
   // ---- top-level routing ----
   async function refresh() {
     state = await call({ type: 'SIDECAR_GET_STATE' });
+    closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit')].forEach(hide);
     if (!state.initialized) {
       show($('view-onboarding'));
@@ -74,9 +96,11 @@
     try {
       await call({ type: 'SIDECAR_INIT', pin });
       await refresh();
+      toast('Keystore created', 'success');
       promptAddFirstAccount();
     } catch (e) {
       err.textContent = e.message;
+      toast(e.message, 'error');
     }
   });
 
@@ -89,9 +113,11 @@
       await call({ type: 'SIDECAR_UNLOCK', pin: $('unlock-pin').value });
       $('unlock-pin').value = '';
       await refresh();
+      toast('Unlocked', 'success');
     } catch (e) {
       err.textContent = e.message;
       $('unlock-pin').value = '';
+      toast(e.message, 'error');
     }
   });
 
@@ -99,6 +125,7 @@
   $('lock-btn').addEventListener('click', async () => {
     await call({ type: 'SIDECAR_LOCK' });
     await refresh();
+    toast('Locked', 'success');
   });
 
   // ---- settings (gear icon ↔ overlay view) ----
@@ -110,6 +137,63 @@
   $('settings-close').addEventListener('click', () => {
     hide($('view-settings'));
     show($('view-main'));
+  });
+
+  // ---- header account switcher (dropdown) ----
+  function buildAcctMenu() {
+    const menu = $('acct-menu');
+    menu.innerHTML = '';
+    state.accounts.forEach((a) => {
+      const row = h('button', { className: 'acct-row' + (a.pubkey === state.activePubkey ? ' active' : '') });
+      const av = document.createElement('span');
+      av.className = 'acct-row-av';
+      applyAvatar(av, a);
+      const info = h('div', { className: 'acct-row-info' }, [
+        h('div', { className: 'acct-row-name', textContent: displayName(a) }),
+        h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
+      ]);
+      row.append(av, info);
+      if (a.pubkey === state.activePubkey) {
+        const c = icon('check');
+        c.classList.add('acct-row-check');
+        row.append(c);
+      }
+      row.addEventListener('click', async () => {
+        closeAcctMenu();
+        if (a.pubkey !== state.activePubkey) {
+          await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
+          await refresh();
+          toast('Switched to ' + displayName(a), 'success');
+        }
+      });
+      menu.append(row);
+    });
+    const foot = h('button', { className: 'acct-row foot' }, [
+      h('span', { className: 'acct-row-name', textContent: 'Manage accounts' }),
+    ]);
+    foot.addEventListener('click', () => {
+      closeAcctMenu();
+      document.querySelector('.tab[data-tab="accounts"]').click();
+    });
+    menu.append(foot);
+  }
+  function openAcctMenu() {
+    buildAcctMenu();
+    show($('acct-menu'));
+  }
+  function closeAcctMenu() {
+    hide($('acct-menu'));
+  }
+  $('acct-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if ($('acct-menu').classList.contains('hidden')) openAcctMenu();
+    else closeAcctMenu();
+  });
+  document.addEventListener('click', (e) => {
+    const menu = $('acct-menu');
+    if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !$('acct-btn').contains(e.target)) {
+      closeAcctMenu();
+    }
   });
 
   // ---- tabs ----
@@ -135,25 +219,31 @@
     return a.name && a.name.trim() ? a.name.trim() : shortNpub(a.npub);
   }
 
-  // A circular avatar element: the account's kind:0 picture, or the anon placeholder.
-  function avatarEl(a, cls) {
-    const box = document.createElement('div');
-    box.className = cls;
+  // Fill an element with an account avatar: its kind:0 picture, or the default garnish.
+  function applyAvatar(box, a) {
+    box.innerHTML = '';
+    box.classList.remove('avatar-ph');
     const img = document.createElement('img');
     img.alt = '';
     img.referrerPolicy = 'no-referrer';
-    if (a.picture) {
+    if (a && a.picture) {
       img.src = a.picture;
       img.onerror = () => {
-        img.src = 'icons/anon.svg';
+        img.src = 'icons/avatar-default.svg';
         img.onerror = null;
         box.classList.add('avatar-ph');
       };
     } else {
-      img.src = 'icons/anon.svg';
+      img.src = 'icons/avatar-default.svg';
       box.classList.add('avatar-ph');
     }
     box.appendChild(img);
+  }
+  // A circular avatar element: the account's kind:0 picture, or the default garnish.
+  function avatarEl(a, cls) {
+    const box = document.createElement('div');
+    box.className = cls;
+    applyAvatar(box, a);
     return box;
   }
 
@@ -213,6 +303,11 @@
 
   function renderMain() {
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+
+    // persistent header chip (current account)
+    applyAvatar($('chip-av'), active || {});
+    $('chip-name').textContent = active ? displayName(active) : 'No account';
+
     const head = $('active-account');
     head.innerHTML = '';
     if (active) {
@@ -234,6 +329,7 @@
     const list = $('account-list');
     list.innerHTML = '';
     state.accounts.forEach((a) => list.appendChild(accountRow(a)));
+    makeSortable(list);
 
     // Lazily pull name + picture from kind:0 for any account missing them.
     state.accounts.forEach((a) => {
@@ -241,9 +337,58 @@
     });
   }
 
+  function makeSortable(listEl) {
+    let dragged = null;
+    listEl.addEventListener('dragstart', (e) => {
+      dragged = e.target.closest('.item[draggable]');
+      if (!dragged) return;
+      dragged.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    listEl.addEventListener('dragend', () => {
+      if (dragged) dragged.classList.remove('dragging');
+      listEl.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach((el) => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      dragged = null;
+    });
+    listEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!dragged) return;
+      const target = e.target.closest('.item[draggable]');
+      listEl.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach((el) => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      if (!target || target === dragged) return;
+      const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+      target.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+    });
+    listEl.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      if (!dragged) return;
+      const target = e.target.closest('.item[draggable]');
+      if (target && target !== dragged) {
+        const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+        listEl.insertBefore(dragged, e.clientY < mid ? target : target.nextSibling);
+      }
+      listEl.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach((el) => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      const pubkeys = [...listEl.querySelectorAll('.item[data-pubkey]')].map((el) => el.dataset.pubkey);
+      await call({ type: 'SIDECAR_REORDER_ACCOUNTS', pubkeys });
+    });
+  }
+
   function accountRow(a) {
     const row = document.createElement('div');
     row.className = 'item' + (a.pubkey === state.activePubkey ? ' item-active' : '');
+    row.draggable = true;
+    row.dataset.pubkey = a.pubkey;
+
+    const grip = document.createElement('span');
+    grip.className = 'grip-handle';
+    grip.appendChild(icon('grip'));
+    row.appendChild(grip);
 
     row.appendChild(avatarEl(a, 'avatar'));
 
@@ -355,7 +500,11 @@
 
       modal.append(secretWrap);
       modal.append(
-        h('p', { className: 'hint', textContent: 'Your name and picture are loaded from your Nostr profile (kind 0).' }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            'Your name and picture come from your Nostr profile, if you have one. A new account gets a placeholder name you can change anytime.',
+        }),
         err
       );
 
@@ -364,8 +513,9 @@
         err.textContent = '';
         try {
           if (chooseGenerate === null) throw new Error('Choose “Generate new” or “Import nsec”.');
+          let gen = null;
           if (chooseGenerate) {
-            await call({ type: 'SIDECAR_ADD_ACCOUNT', generate: true });
+            gen = await call({ type: 'SIDECAR_ADD_ACCOUNT', generate: true });
           } else {
             const secret = secretInput.value.trim();
             if (!secret) throw new Error('Enter an nsec or hex private key.');
@@ -373,8 +523,18 @@
           }
           closeModal();
           await refresh(); // renderMain() then pulls the profile for the new account
+          toast('Account added', 'success');
+          if (gen && gen.nsec) {
+            nsecModal({
+              nsec: gen.nsec,
+              title: 'Back up your new key',
+              intro:
+                'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
+            });
+          }
         } catch (e) {
           err.textContent = e.message;
+          toast(e.message, 'error');
         }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
@@ -395,8 +555,10 @@
       const list = h('div', { className: 'menu-list' }, [
         menuItem('Copy npub', 'copy', () => {
           navigator.clipboard.writeText(a.npub);
+          toast('npub copied', 'success');
           closeModal();
         }),
+        menuItem('Back up private key', 'key', () => revealNsecModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
       ]);
@@ -406,6 +568,64 @@
         h('h3', { textContent: displayName(a) }),
         list,
         h('div', { className: 'actions' }, [cancel])
+      );
+    });
+  }
+
+  // Show an nsec with copy + warning (used after generate, and from reveal).
+  function nsecModal(opts) {
+    openModal((modal) => {
+      const box = h('div', { className: 'secret-box', textContent: opts.nsec });
+      const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(opts.nsec);
+          toast('nsec copied', 'success');
+        } catch (_) {}
+      });
+      const done = h('button', { className: 'primary', textContent: "I've saved it" });
+      done.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: opts.title }),
+        opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
+        box,
+        copy,
+        h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
+        h('div', { className: 'actions' }, [done])
+      );
+    });
+  }
+
+  // Reveal an existing account's nsec — PIN-gated step-up.
+  function revealNsecModal(a) {
+    openModal((modal) => {
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Reveal' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        go.disabled = true;
+        go.textContent = 'Revealing…';
+        try {
+          const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
+          nsecModal({ nsec: r.nsec, title: 'Private key', intro: 'Back this up somewhere safe.' });
+        } catch (e) {
+          err.textContent = e.message;
+          go.disabled = false;
+          go.textContent = 'Reveal';
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Back up private key' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the nsec for ' + displayName(a) + '.' }),
+        h('label', { textContent: 'PIN' }),
+        pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
       );
     });
   }
@@ -453,8 +673,10 @@
           await call({ type: 'SIDECAR_REMOVE_ACCOUNT', pubkey: a.pubkey });
           closeModal();
           await refresh();
+          toast('Account removed', 'success');
         } catch (e) {
           err.textContent = e.message;
+          toast(e.message, 'error');
         }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
@@ -799,14 +1021,27 @@
     body.innerHTML = '';
     const err = h('div', { className: 'error' });
     const urlInputs = {};
+    const setPreviewFns = {};
 
     const makeUpload = (label, kind, field, isBanner) => {
       const prev = h('div', { className: 'upload-preview' + (isBanner ? ' banner' : '') });
-      const img = document.createElement('img');
-      img.referrerPolicy = 'no-referrer';
-      if (draft[field]) img.src = draft[field];
-      prev.append(img);
-      const btn = h('button', { className: 'secondary', textContent: 'Upload ' + label.toLowerCase() });
+      function setPreview(url) {
+        prev.innerHTML = '';
+        if (url) {
+          const im = document.createElement('img');
+          im.referrerPolicy = 'no-referrer';
+          im.src = url;
+          prev.append(im);
+        } else {
+          const ic = icon('camera');
+          ic.classList.add('upload-ph-icon');
+          prev.append(ic);
+        }
+      }
+      setPreviewFns[field] = setPreview;
+      setPreview(draft[field]);
+
+      const btn = h('button', { className: 'secondary upload-btn', textContent: 'Upload ' + label.toLowerCase() });
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
@@ -822,21 +1057,21 @@
         try {
           const u = await uploadImage(file, kind);
           draft[field] = u;
-          img.src = u;
+          setPreview(u);
           if (urlInputs[field]) urlInputs[field].value = u;
         } catch (e) {
           err.textContent = e.message;
+          toast(e.message, 'error');
         }
         btn.disabled = false;
         btn.textContent = t;
         input.value = '';
       });
       body.append(h('label', { className: 'field-label', textContent: label }), h('div', { className: 'upload-row' }, [prev, btn, input]));
-      return img;
     };
 
-    const avImg = makeUpload('Avatar', 'profile', 'picture', false);
-    const bnImg = makeUpload('Banner', 'files', 'banner', true);
+    makeUpload('Avatar', 'profile', 'picture', false);
+    makeUpload('Banner', 'files', 'banner', true);
 
     const fieldDefs = [
       ['display_name', 'Display name', 'text'],
@@ -862,7 +1097,7 @@
     const sum = document.createElement('summary');
     sum.textContent = 'Advanced — image URLs';
     adv.append(sum);
-    [['picture', 'Avatar URL', () => avImg], ['banner', 'Banner URL', () => bnImg]].forEach(([field, label, getImg]) => {
+    [['picture', 'Avatar URL'], ['banner', 'Banner URL']].forEach(([field, label]) => {
       adv.append(h('label', { className: 'field-label', textContent: label }));
       const inp = document.createElement('input');
       inp.type = 'text';
@@ -870,7 +1105,7 @@
       urlInputs[field] = inp;
       inp.addEventListener('input', () => {
         draft[field] = inp.value.trim();
-        getImg().src = draft[field];
+        if (setPreviewFns[field]) setPreviewFns[field](draft[field]);
       });
       adv.append(inp);
     });
@@ -894,10 +1129,12 @@
         show($('view-main'));
         renderProfile();
         renderMain();
+        toast('Profile published', 'success');
       } catch (e) {
         err.textContent = e.message;
         publish.disabled = false;
         publish.textContent = 'Publish profile';
+        toast(e.message, 'error');
       }
     });
     body.append(h('div', { className: 'actions' }, [publish]));
@@ -1021,10 +1258,12 @@
         try {
           await restoreBackup(t, pin.value);
           closeModal();
+          toast(t.label + ' restored', 'success');
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
           go.textContent = 'Restore';
+          toast(e.message, 'error');
         }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
@@ -1061,8 +1300,10 @@
         try {
           await createBackup(t);
           status.textContent = 'Backed up just now ✓';
+          toast(t.label + ' backed up', 'success');
         } catch (e) {
           status.textContent = e.message;
+          toast(e.message, 'error');
         }
         backup.disabled = false;
         backup.textContent = 'Back up';
@@ -1121,8 +1362,10 @@
         try {
           await call({ type: 'SIDECAR_CHANGE_PIN', oldPin: oldP.value, newPin: newP.value });
           closeModal();
+          toast('PIN changed', 'success');
         } catch (e) {
           err.textContent = e.message;
+          toast(e.message, 'error');
         }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });

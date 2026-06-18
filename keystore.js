@@ -118,15 +118,29 @@
   async function getState() {
     const store = await loadStore();
     const active = (await get(ACTIVE_KEY))[ACTIVE_KEY] || null;
-    const accounts = store
-      ? Object.values(store.accounts).map((a) => ({
-          pubkey: a.pubkey,
-          npub: root.NostrTools.nip19.npubEncode(a.pubkey),
-          name: a.name || '',
-          picture: a.picture || '',
-          createdAt: a.createdAt,
-        }))
+    if (store) {
+      let dirty = false;
+      for (const a of Object.values(store.accounts)) {
+        if (!a.name) { a.name = randomName(); dirty = true; }
+      }
+      if (dirty) await set({ [STORE_KEY]: store });
+    }
+    const order = store && store.order ? store.order : (store ? Object.keys(store.accounts) : []);
+    const sorted = store
+      ? order.filter(pk => store.accounts[pk]).concat(
+          Object.keys(store.accounts).filter(pk => !order.includes(pk))
+        )
       : [];
+    const accounts = sorted.map((pk) => {
+      const a = store.accounts[pk];
+      return {
+        pubkey: a.pubkey,
+        npub: root.NostrTools.nip19.npubEncode(a.pubkey),
+        name: a.name || '',
+        picture: a.picture || '',
+        createdAt: a.createdAt,
+      };
+    });
     return {
       initialized: store !== null,
       locked: isLocked(),
@@ -210,6 +224,8 @@
       enc: await C.encryptBytes(derivedKey, privBytes),
       createdAt: Date.now(),
     };
+    if (!store.order) store.order = Object.keys(store.accounts).filter(pk => pk !== pubkey);
+    store.order.push(pubkey);
     await set({ [STORE_KEY]: store });
     unlocked.set(pubkey, privBytes);
     const wasEmpty = Object.keys(store.accounts).length === 1;
@@ -221,14 +237,34 @@
     return addAccountFromBytes(decodeSecret(nsecOrHex), label);
   }
 
-  async function generateAccount(label) {
-    return addAccountFromBytes(root.NostrTools.generateSecretKey(), label);
+  // Friendly default name for a fresh key — drinks you'd order at a fancy bar.
+  const COCKTAILS = ['Negroni', 'Martini', 'Manhattan', 'Boulevardier', 'Sidecar', 'Daiquiri',
+    'Margarita', 'Sazerac', 'Aviation', 'Gimlet', 'Cosmopolitan', 'Vesper', 'Bellini', 'Mojito',
+    'Paloma', 'Spritz', 'Mule', 'Sour', 'Highball', 'Collins', 'Julep', 'Cobbler', 'Americano',
+    'Bramble', 'Gibson', 'Stinger', 'Hurricane', 'Gascogne', 'Martinez', 'Bijou'];
+  const ADJECTIVES = ['Velvet', 'Smoky', 'Golden', 'Midnight', 'Gilded', 'Bitter', 'Spiced',
+    'Twilight', 'Crimson', 'Amber', 'Dry', 'Vintage', 'Frosted', 'Burnt', 'Silken', 'Oaked',
+    'Sparkling', 'Top-Shelf', 'Neat', 'Mahogany', 'Botanical', 'Barrel-Aged', 'Hush', 'Last-Call'];
+  function randomName() {
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    return pick(ADJECTIVES) + ' ' + pick(COCKTAILS);
+  }
+
+  // Generate a fresh account with a default cocktail name. Returns the nsec ONCE so the
+  // panel can prompt the user to back it up immediately after creation.
+  async function generateAccount(providedName) {
+    const sk = root.NostrTools.generateSecretKey();
+    const name = providedName || randomName();
+    const nsec = root.NostrTools.nip19.nsecEncode(sk);
+    const res = await addAccountFromBytes(sk, name);
+    return { pubkey: res.pubkey, npub: res.npub, name, nsec };
   }
 
   async function removeAccount(pubkey) {
     const store = await loadStore();
     if (!store || !store.accounts[pubkey]) throw new Error('No such account');
     delete store.accounts[pubkey];
+    if (store.order) store.order = store.order.filter(pk => pk !== pubkey);
     await set({ [STORE_KEY]: store });
     const bytes = unlocked.get(pubkey);
     if (bytes) C.wipe(bytes);
@@ -239,6 +275,14 @@
       const next = Object.keys(store.accounts)[0] || null;
       await set({ [ACTIVE_KEY]: next });
     }
+    return getState();
+  }
+
+  async function reorderAccounts(pubkeys) {
+    const store = await loadStore();
+    if (!store) throw new Error('Keystore not initialized');
+    store.order = pubkeys.filter(pk => store.accounts[pk]);
+    await set({ [STORE_KEY]: store });
     return getState();
   }
 
@@ -311,6 +355,7 @@
     ensureLoaded,
     verifyPin,
     getState,
+    reorderAccounts,
     initialize,
     unlock,
     lock,

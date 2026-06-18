@@ -234,6 +234,9 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_RENAME_ACCOUNT':
         result = await KS.renameAccount(message.pubkey, message.name);
         break;
+      case 'SIDECAR_REORDER_ACCOUNTS':
+        result = await KS.reorderAccounts(message.pubkeys);
+        break;
       case 'SIDECAR_SET_PROFILE':
         result = await KS.setProfile(message.pubkey, { name: message.name, picture: message.picture });
         break;
@@ -247,6 +250,14 @@ async function handleControl(message, sendResponse) {
         // Step-up re-auth for sensitive ops (reveal nsec/NWC, publish profile).
         result = { valid: await KS.verifyPin(message.pin) };
         break;
+      case 'SIDECAR_REVEAL_NSEC': {
+        // Extract private data — always step-up PIN, even while unlocked.
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        if (!(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        const bytes = await KS.getPrivkey(message.pubkey);
+        result = { nsec: self.NostrTools.nip19.nsecEncode(bytes) };
+        break;
+      }
 
       // ---- owner actions: sign/encrypt with the ACTIVE account's key ----
       // The panel builds events; signing happens here so the key never leaves the SW.

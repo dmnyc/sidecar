@@ -43,7 +43,11 @@
   <!-- ===== Main app (unlocked) ===== -->
   <section id="view-main" class="hidden">
     <header class="topbar">
-      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <button id="acct-btn" class="acct-chip" title="Switch account">
+        <span class="chip-av" id="chip-av"></span>
+        <span class="chip-name" id="chip-name">…</span>
+        <svg class="chip-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
       <div class="topbar-actions">
         <button id="settings-btn" class="icon-btn" title="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -52,6 +56,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </button>
       </div>
+      <div id="acct-menu" class="acct-menu hidden"></div>
     </header>
 
     <nav class="tabs">
@@ -70,6 +75,9 @@
         <div class="add-actions">
           <button class="secondary" id="add-generate">Generate new</button>
           <button class="secondary" id="add-import">Import nsec</button>
+        </div>
+        <div class="brand-foot">
+          <img src="icons/sidecar-logo.svg" alt="Sidecar" />
         </div>
       </div>
 
@@ -159,6 +167,9 @@
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal" id="modal"></div>
   </div>
+
+  <!-- ===== Toast host ===== -->
+  <div id="toasts" class="toasts"></div>
 
   <script src="nostr-tools.js"></script>
   <script src="sidepanel.js"></script>
