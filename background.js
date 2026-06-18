@@ -247,6 +247,32 @@ async function handleControl(message, sendResponse) {
         // Step-up re-auth for sensitive ops (reveal nsec/NWC, publish profile).
         result = { valid: await KS.verifyPin(message.pin) };
         break;
+
+      // ---- owner actions: sign/encrypt with the ACTIVE account's key ----
+      // The panel builds events; signing happens here so the key never leaves the SW.
+      case 'SIDECAR_OWNER_SIGN': {
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        if (message.pin != null && !(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        const pk = await KS.getActivePubkey();
+        result = self.NostrTools.finalizeEvent(message.event, await KS.getPrivkey(pk));
+        break;
+      }
+      case 'SIDECAR_OWNER_ENCRYPT': {
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        const pk = await KS.getActivePubkey();
+        const peer = message.peer || pk; // default: encrypt to self (backups)
+        const m = message.nip === 44 ? 'nip44.encrypt' : 'nip04.encrypt';
+        result = await SIGNER.perform(m, { pubkey: peer, plaintext: message.plaintext }, await KS.getPrivkey(pk), pk);
+        break;
+      }
+      case 'SIDECAR_OWNER_DECRYPT': {
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        const pk = await KS.getActivePubkey();
+        const peer = message.peer || pk;
+        const m = message.nip === 44 ? 'nip44.decrypt' : 'nip04.decrypt';
+        result = await SIGNER.perform(m, { pubkey: peer, ciphertext: message.ciphertext }, await KS.getPrivkey(pk), pk);
+        break;
+      }
       case 'SIDECAR_GET_RELAYS':
         result = await getConfiguredRelays();
         break;
