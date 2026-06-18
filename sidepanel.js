@@ -143,8 +143,17 @@
   function buildAcctMenu() {
     const menu = $('acct-menu');
     menu.innerHTML = '';
+    let pendingRow = null;
+
+    function resetRow(row, a) {
+      row.classList.remove('acct-row-pending');
+      row.querySelector('.acct-row-name').textContent = displayName(a);
+      row.querySelector('.acct-row-npub').textContent = shortNpub(a.npub);
+    }
+
     state.accounts.forEach((a) => {
-      const row = h('button', { className: 'acct-row' + (a.pubkey === state.activePubkey ? ' active' : '') });
+      const isActive = a.pubkey === state.activePubkey;
+      const row = h('button', { className: 'acct-row' + (isActive ? ' active' : '') });
       const av = document.createElement('span');
       av.className = 'acct-row-av';
       applyAvatar(av, a);
@@ -153,19 +162,28 @@
         h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
       ]);
       row.append(av, info);
-      if (a.pubkey === state.activePubkey) {
+      if (isActive) {
         const c = icon('check');
         c.classList.add('acct-row-check');
         row.append(c);
       }
-      row.addEventListener('click', async () => {
-        closeAcctMenu();
-        if (a.pubkey !== state.activePubkey) {
-          await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
-          await refresh();
-          toast('Switched to ' + displayName(a), 'success');
-        }
-      });
+      if (!isActive) {
+        row.addEventListener('click', async () => {
+          if (pendingRow && pendingRow !== row) resetRow(pendingRow, state.accounts.find(x => x.pubkey === pendingRow.dataset.pubkey));
+          if (row.classList.contains('acct-row-pending')) {
+            closeAcctMenu();
+            await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
+            await refresh();
+            toast('Switched to ' + displayName(a), 'success');
+          } else {
+            row.classList.add('acct-row-pending');
+            row.querySelector('.acct-row-name').textContent = 'Switch to ' + displayName(a) + '?';
+            row.querySelector('.acct-row-npub').textContent = 'Tap again to confirm';
+            pendingRow = row;
+            row.dataset.pubkey = a.pubkey;
+          }
+        });
+      }
       menu.append(row);
     });
     const foot = h('button', { className: 'acct-row foot' }, [
@@ -394,8 +412,6 @@
 
     const main = document.createElement('div');
     main.className = 'item-main';
-    main.style.cursor = 'pointer';
-    main.title = 'Make active';
     const label = document.createElement('div');
     label.className = 'item-label';
     label.textContent = displayName(a);
@@ -403,15 +419,41 @@
     sub.className = 'item-sub';
     sub.textContent = shortNpub(a.npub);
     main.append(label, sub);
-    main.addEventListener('click', async () => {
-      if (a.pubkey !== state.activePubkey) {
-        await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
-        await refresh();
+
+    const isActive = a.pubkey === state.activePubkey;
+    if (!isActive) {
+      main.style.cursor = 'pointer';
+      main.title = 'Set as active account';
+      function resetRow() {
+        row.classList.remove('item-pending');
+        label.textContent = displayName(a);
+        sub.textContent = shortNpub(a.npub);
       }
-    });
+      main.addEventListener('click', async () => {
+        const list = row.parentElement;
+        list.querySelectorAll('.item-pending').forEach((el) => {
+          if (el !== row && el._resetRow) el._resetRow();
+        });
+        if (row.classList.contains('item-pending')) {
+          await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
+          await refresh();
+          toast('Switched to ' + displayName(a), 'success');
+        } else {
+          row.classList.add('item-pending');
+          label.textContent = 'Set as active?';
+          sub.textContent = 'Tap again to confirm';
+        }
+      });
+      row._resetRow = resetRow;
+    }
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
+    if (isActive) {
+      const check = icon('check');
+      check.classList.add('active-check');
+      actions.appendChild(check);
+    }
     actions.appendChild(iconButton('Account options', 'more', () => accountMenuModal(a)));
 
     row.append(main, actions);
