@@ -519,6 +519,17 @@
       const secretWrap = h('div', { className: generate === false ? '' : 'hidden' });
       const secretInput = h('input', { type: 'password', placeholder: 'nsec1… or 64-char hex' });
       secretWrap.append(h('label', { textContent: 'Private key' }), secretInput);
+      // Detailed security rationale only on the dedicated import path; the
+      // first-account screen carries a shorter combined note instead.
+      if (generate === false) {
+        secretWrap.append(
+          h('p', {
+            className: 'hint',
+            textContent:
+              'Safer than pasting your nsec into a website: Sidecar keeps it encrypted on this device and signs locally, so sites only ever receive signatures — never your key. A web app you paste into can copy or leak it.',
+          })
+        );
+      }
 
       if (generate === null) {
         // First-account flow: let them pick generate vs import.
@@ -539,17 +550,17 @@
         });
         choice.append(genBtn, impBtn);
         modal.append(choice);
+        modal.append(
+          h('p', {
+            className: 'hint',
+            textContent:
+              'Your name and picture come from your Nostr profile; a new account gets a placeholder name you can change. Importing here is safer than pasting your nsec into a website — Sidecar signs locally and never exposes your key.',
+          })
+        );
       }
 
       modal.append(secretWrap);
-      modal.append(
-        h('p', {
-          className: 'hint',
-          textContent:
-            'Your name and picture come from your Nostr profile, if you have one. A new account gets a placeholder name you can change anytime.',
-        }),
-        err
-      );
+      modal.append(err);
 
       const save = h('button', { className: 'primary', textContent: 'Add account' });
       save.addEventListener('click', async () => {
@@ -1269,11 +1280,11 @@
       ts: Math.floor(Date.now() / 1000),
       source: { kind: src.kind, created_at: src.created_at, tags: src.tags, content: src.content },
     };
-    const ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: JSON.stringify(blob) });
+    const ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: JSON.stringify(blob), nip: 44 });
     const event = {
       kind: 30078,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [['d', t.dtag], ['encrypted', 'nip04']],
+      tags: [['d', t.dtag], ['encrypted', 'nip44']],
       content: ciphertext,
     };
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
@@ -1284,7 +1295,9 @@
   async function restoreBackup(t, pin) {
     const ev = await fetchBackupEvent(t.dtag);
     if (!ev) throw new Error('No backup found for ' + t.label.toLowerCase());
-    const plaintext = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content });
+    const scheme = (ev.tags.find((x) => x[0] === 'encrypted') || [])[1];
+    const nip = scheme === 'nip44' ? 44 : 4; // older backups were NIP-04
+    const plaintext = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
     let blob;
     try {
       blob = JSON.parse(plaintext);
@@ -1312,6 +1325,87 @@
     a.download = 'sidecar-backup-' + active.npub.slice(0, 12) + '.json';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  const KIND_LABELS = { 0: 'Profile', 3: 'Follows', 10000: 'Mute list', 10002: 'Relay list' };
+  const kindLabel = (k) => KIND_LABELS[k] || ('kind ' + k);
+
+  // Import a downloaded backup file: verify signatures + ownership, then rebroadcast.
+  function importBundleModal(bundle, active) {
+    const events = Array.isArray(bundle && bundle.events) ? bundle.events : null;
+    if (!events || !events.length) {
+      toast('That file has no events to restore', 'error');
+      return;
+    }
+    // Keep only well-formed, validly-signed events authored by the active account.
+    const valid = events.filter((ev) => {
+      try {
+        return ev && ev.pubkey === active.pubkey && NT.verifyEvent(ev);
+      } catch (_) {
+        return false;
+      }
+    });
+    const foreign = events.filter((ev) => ev && ev.pubkey && ev.pubkey !== active.pubkey).length;
+
+    openModal((modal) => {
+      const go = h('button', { className: 'primary', textContent: 'Restore to relays' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      const children = [
+        h('h3', { textContent: 'Restore from file' }),
+      ];
+      if (!valid.length) {
+        go.disabled = true;
+        children.push(
+          h('p', {
+            className: 'hint',
+            textContent: foreign
+              ? 'This backup belongs to a different account, so nothing here can be restored to ' + displayName(active) + '.'
+              : 'No valid, signed events were found in this file.',
+          })
+        );
+        modal.append(...children, h('div', { className: 'actions' }, [cancel]));
+        return;
+      }
+
+      const summary = h('ul', { className: 'restore-list' });
+      valid.forEach((ev) => summary.append(h('li', { textContent: kindLabel(ev.kind) })));
+      children.push(
+        h('p', {
+          className: 'hint',
+          textContent: 'Re-publishes these already-signed events to your relays as your current data:',
+        }),
+        summary
+      );
+      if (foreign) {
+        children.push(h('p', { className: 'hint warn', textContent: foreign + ' event(s) from another account were skipped.' }));
+      }
+
+      const err = h('div', { className: 'error' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        go.disabled = true;
+        go.textContent = 'Restoring…';
+        let ok = 0;
+        for (const ev of valid) {
+          try {
+            await publishSigned(ev);
+            ok++;
+          } catch (_) {}
+        }
+        closeModal();
+        if (ok) {
+          toast('Restored ' + ok + ' item(s) to your relays', 'success');
+          renderProfile();
+          renderMain();
+        } else {
+          toast('Could not publish to any relay', 'error');
+        }
+      });
+
+      modal.append(...children, err, h('div', { className: 'actions' }, [go, cancel]));
+    });
   }
 
   function restoreModal(t) {
@@ -1356,7 +1450,7 @@
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
       h('h3', { textContent: 'Backup & restore' }),
-      h('p', { className: 'hint', textContent: 'Encrypted to your own key and stored on your relays (NIP-78).' })
+      h('p', { className: 'hint', textContent: 'Stored on your relays as a NIP-78 record, encrypted to your own key with NIP-44.' })
     );
     const list = h('div', { className: 'list flat' });
     BACKUP_TYPES.forEach((t) => {
@@ -1392,7 +1486,7 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Or download a signed copy of your profile, follows, and lists as a single file — keep it offline or import it into another Nostr app.',
+          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later.',
       })
     );
     const exportBtn = h('button', { className: 'secondary', textContent: 'Download backup file' });
@@ -1406,7 +1500,26 @@
       }
       exportBtn.disabled = false;
     });
-    exportWrap.append(exportBtn);
+
+    const importBtn = h('button', { className: 'secondary', textContent: 'Restore from file' });
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'application/json,.json';
+    fileInput.style.display = 'none';
+    importBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        importBundleModal(JSON.parse(text), active);
+      } catch (_) {
+        toast('That file is not a valid Sidecar backup', 'error');
+      }
+      fileInput.value = '';
+    });
+
+    exportWrap.append(exportBtn, importBtn, fileInput);
     setting.append(exportWrap);
     view.append(setting);
   }

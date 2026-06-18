@@ -472,7 +472,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .backup-status.done { color: var(--gold); }
 .export-block { margin-top: 14px; }
 .export-block .hint { margin-bottom: 10px; }
-.export-block .secondary { width: 100%; }
+.export-block .secondary { display: block; width: 100%; margin-bottom: 8px; }
+.restore-list { margin: 4px 0 10px; padding-left: 20px; color: var(--text); }
+.restore-list li { margin: 3px 0; }
 .show-more-btn { display: block; width: 100%; margin: 4px 0 10px; color: var(--lav); font-weight: 600; }
 
 /* connected-site rows with a tier selector */
