@@ -830,8 +830,23 @@
     list.innerHTML = '';
     if (!log.length) {
       list.append(h('p', { className: 'hint', textContent: 'No signing activity yet.' }));
+      hide($('activity-more'));
+      return;
     }
-    log.slice(0, 100).forEach((e) => list.append(activityRow(e)));
+    const PAGE = 30;
+    let shown = 0;
+    const more = $('activity-more');
+    function renderPage() {
+      log.slice(shown, shown + PAGE).forEach((e) => list.append(activityRow(e)));
+      shown = Math.min(shown + PAGE, log.length);
+      if (shown >= log.length) hide(more);
+      else {
+        show(more);
+        more.textContent = 'Show more (' + (log.length - shown) + ')';
+      }
+    }
+    more.onclick = renderPage;
+    renderPage();
   }
 
   $('activity-clear').addEventListener('click', async () => {
@@ -1068,35 +1083,43 @@
 
     const makeUpload = (label, kind, field, isBanner) => {
       const prev = h('div', { className: 'upload-preview' + (isBanner ? ' banner' : '') });
+      const overlay = h('span', { className: 'upload-overlay' });
+      overlay.append(icon('camera'));
       function setPreview(url) {
         prev.innerHTML = '';
+        prev.classList.toggle('empty', !url);
         if (url) {
           const im = document.createElement('img');
           im.referrerPolicy = 'no-referrer';
           im.src = url;
           prev.append(im);
-        } else {
-          const ic = icon('camera');
-          ic.classList.add('upload-ph-icon');
-          prev.append(ic);
         }
+        prev.append(overlay);
+        if (capLabel) capLabel.textContent = url ? 'Change ' + label.toLowerCase() : 'Upload ' + label.toLowerCase();
       }
-      setPreviewFns[field] = setPreview;
-      setPreview(draft[field]);
 
-      const btn = h('button', { className: 'secondary upload-btn', textContent: 'Upload ' + label.toLowerCase() });
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.style.display = 'none';
-      btn.addEventListener('click', () => input.click());
+      const capLabel = h('span', { className: 'upload-cap-label' });
+      const capHint = h('span', { className: 'upload-cap-hint', textContent: 'JPG, PNG or GIF' });
+      const caption = h('div', { className: 'upload-caption' }, [capLabel, capHint]);
+
+      setPreviewFns[field] = setPreview;
+      setPreview(draft[field]);
+
+      const trigger = () => input.click();
+      prev.addEventListener('click', trigger);
+      caption.addEventListener('click', trigger);
+
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
         if (!file) return;
         err.textContent = '';
-        btn.disabled = true;
-        const t = btn.textContent;
-        btn.textContent = 'Uploading…';
+        prev.classList.add('uploading');
+        const before = capLabel.textContent;
+        capLabel.textContent = 'Uploading…';
         try {
           const u = await uploadImage(file, kind);
           draft[field] = u;
@@ -1104,13 +1127,16 @@
           if (urlInputs[field]) urlInputs[field].value = u;
         } catch (e) {
           err.textContent = e.message;
+          capLabel.textContent = before;
           toast(e.message, 'error');
         }
-        btn.disabled = false;
-        btn.textContent = t;
+        prev.classList.remove('uploading');
         input.value = '';
       });
-      body.append(h('label', { className: 'field-label', textContent: label }), h('div', { className: 'upload-row' }, [prev, btn, input]));
+      body.append(
+        h('label', { className: 'field-label', textContent: label }),
+        h('div', { className: 'upload-row' + (isBanner ? ' banner' : ''), role: 'button' }, [prev, caption, input])
+      );
     };
 
     makeUpload('Avatar', 'profile', 'picture', false);
@@ -1327,22 +1353,22 @@
   }
 
   function renderBackupSection(view, active) {
-    const setting = h('div', { className: 'setting' });
+    const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
       h('h3', { textContent: 'Backup & restore' }),
       h('p', { className: 'hint', textContent: 'Encrypted to your own key and stored on your relays (NIP-78).' })
     );
     const list = h('div', { className: 'list flat' });
     BACKUP_TYPES.forEach((t) => {
-      const status = h('div', { className: 'item-sub', textContent: '' });
+      const status = h('div', { className: 'item-sub backup-status', textContent: 'Not backed up yet' });
       const backup = h('button', { className: 'mini', textContent: 'Back up' });
       backup.addEventListener('click', async () => {
-        status.textContent = '';
         backup.disabled = true;
         backup.textContent = 'Backing up…';
         try {
           await createBackup(t);
-          status.textContent = 'Backed up just now ✓';
+          status.textContent = 'Backed up ✓';
+          status.classList.add('done');
           toast(t.label + ' backed up', 'success');
         } catch (e) {
           status.textContent = e.message;
@@ -1360,17 +1386,28 @@
       list.append(row);
     });
     setting.append(list);
-    const exportBtn = h('button', { className: 'secondary', textContent: 'Download signed JSON…' });
+
+    const exportWrap = h('div', { className: 'export-block' });
+    exportWrap.append(
+      h('p', {
+        className: 'hint',
+        textContent:
+          'Or download a signed copy of your profile, follows, and lists as a single file — keep it offline or import it into another Nostr app.',
+      })
+    );
+    const exportBtn = h('button', { className: 'secondary', textContent: 'Download backup file' });
     exportBtn.addEventListener('click', async () => {
       exportBtn.disabled = true;
       try {
         await exportBundle(active);
+        toast('Backup file downloaded', 'success');
       } catch (e) {
-        alert(e.message);
+        toast(e.message, 'error');
       }
       exportBtn.disabled = false;
     });
-    setting.append(exportBtn);
+    exportWrap.append(exportBtn);
+    setting.append(exportWrap);
     view.append(setting);
   }
 
