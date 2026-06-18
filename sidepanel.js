@@ -1130,7 +1130,7 @@
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   const NOTE_COUNTDOWN_SECS = 15;
-  const CLIENT_TAG = ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io'];
+  const CLIENT_TAG = ['client', 'Sidecar 🍸', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io'];
   const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
   const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
@@ -1167,7 +1167,7 @@
     open.href = client.url(nevent);
     open.target = '_blank';
     open.rel = 'noreferrer noopener';
-    open.append(h('span', { textContent: 'Open in ' + client.label }), icon('external'));
+    open.append(h('span', { textContent: 'Open in ' + client.label }));
     const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
     close.append(icon('x'));
     close.addEventListener('click', () => hide(banner));
