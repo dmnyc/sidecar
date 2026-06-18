@@ -176,9 +176,20 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
     if (status === 'reject') throw new Error('This site is blocked in Sidecar');
 
+    // NIP-42 relay auth (kind 22242) is an automatic, ephemeral connection-auth
+    // event that relays request frequently; an interactive prompt for it
+    // guarantees client-side timeouts ("Signer did not respond in time"). Treat
+    // it as pre-approved for any non-blocked site — only an unlock can gate it.
+    let signKind = null;
+    if (method === 'signEvent') {
+      const ev = params && (params.event || params);
+      signKind = ev && ev.kind;
+    }
+    const isRelayAuth = method === 'signEvent' && signKind === 22242;
+
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
-    const needApproval = status === 'ask';
+    const needApproval = status === 'ask' && !isRelayAuth;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -217,12 +228,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // Pin this host to the account it just successfully used (idempotent).
     await setSiteAccount(host, activePubkey);
 
-    let kind;
-    if (method === 'signEvent') {
-      const ev = params && (params.event || params);
-      kind = ev && ev.kind;
-    }
-    logActivity({ ts: Date.now(), host, method, kind, pubkey: activePubkey });
+    logActivity({ ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey });
 
     sendResponse({ ok: true, result });
   } catch (e) {

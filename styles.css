@@ -379,6 +379,39 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .tabview { flex: 1; display: flex; flex-direction: column; }
 .brand-foot { margin-top: auto; padding-top: 40px; padding-bottom: 4px; text-align: center; opacity: 1; pointer-events: none; user-select: none; }
 .brand-foot img { width: 120px; display: block; margin: 0 auto; }
+/* clickable About trigger */
+.brand-foot-btn { pointer-events: auto; cursor: pointer; }
+.brand-foot-btn img { transition: opacity 0.15s ease; }
+.brand-foot-btn:hover img { opacity: 0.8; }
+
+/* modal close (X) in the top-right corner */
+.modal-x {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
+}
+.modal-x:hover { color: var(--text); background: rgba(167, 139, 250, 0.1); }
+.modal-x svg { width: 18px; height: 18px; }
+
+/* filled lightning bolt (wordswithzaps bolt), inline with text */
+.bolt-ico { height: 0.92em; width: auto; display: inline-block; vertical-align: -0.1em; }
+
+/* About modal */
+.about-modal { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding-top: 4px; }
+.about-logo { width: 132px; margin: 2px 0; }
+.about-description { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 2px 0 0; }
+.about-creator { color: var(--muted); font-size: 13px; margin-top: 6px; }
+.about-creator-link, .about-link { color: var(--lav); font-weight: 600; text-decoration: none; }
+.about-creator-link:hover, .about-link:hover { text-decoration: underline; }
+.about-version { color: var(--faint); font-size: 11.5px; font-family: var(--font-mono); margin-top: 2px; }
+.about-links { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; margin-top: 12px; }
+.about-link-btn { background: none; border: none; padding: 0; cursor: pointer; font-size: 14px; color: var(--gold); font-weight: 600; }
+.about-link-btn:hover { text-decoration: underline; }
+/* zap-the-creator inline send */
+.zap-inline { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
+.zap-inline input { flex: 1; min-width: 0; }
+.zap-inline .primary { flex: 0 0 auto; width: auto; min-width: 104px; padding-left: 18px; padding-right: 18px; }
+.zap-noconnect { text-align: center; margin-top: 12px; }
 .tabview h2 {
   font-family: var(--font-display);
   font-weight: 700;
@@ -510,9 +543,11 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .show-more-btn { display: block; width: 100%; margin: 4px 0 10px; color: var(--lav); font-weight: 600; }
 #activity-clear { display: block; margin: 8px auto 0; }
 
-/* connected-site rows: host + binding on top, controls on their own row */
+/* connected-site rows: host + binding on top, controls fill the row below */
 .site-item { flex-direction: column; align-items: stretch; gap: 10px; }
-.site-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.site-controls { display: flex; align-items: center; gap: 8px; }
+.site-controls .level-select { flex: 1; width: auto; }
+.site-controls .switch-site-btn { flex: 1; }
 .level-select {
   width: auto;
   flex-shrink: 0;
@@ -684,6 +719,64 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .recv-out { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 14px; }
 .recv-qr { background: #fff; border-radius: 12px; padding: 10px; width: 200px; height: 200px; }
 .recv-bolt { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); word-break: break-all; max-width: 100%; text-align: center; }
+
+/* centered loading/empty/error state inside list cards */
+.list-state { text-align: center; padding: 24px 14px; margin: 0; color: var(--faint); font-size: 13px; }
+
+/* send/receive buttons with arrow icons */
+.wallet-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.wallet-actions button svg { width: 16px; height: 16px; }
+
+/* connect screen: full-width primary + separated restore block */
+.wallet-connect-btn { display: block; width: 100%; }
+.wallet-restore-block { margin-top: 18px; }
+.wallet-restore-block .secondary { display: block; width: 100%; }
+.wallet-restore-block .hint { text-align: center; }
+.wallet-or {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 12px; color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+}
+.wallet-or::before, .wallet-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* wallet backup card: label + status on top, full-width buttons below */
+.wallet-backup-card {
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+  box-shadow: var(--sheen);
+}
+.wallet-backup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.wallet-backup-head .item-label { font-size: 14px; }
+.wallet-backup-head .backup-status { margin-top: 0; flex-shrink: 0; }
+.wallet-backup-actions { display: flex; gap: 8px; }
+.wallet-backup-actions button { flex: 1; }
+
+/* amount preset chips (receive) */
+.amount-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.preset-chip {
+  flex: 1 1 auto; padding: 7px 10px; font-size: 12px; font-family: var(--font-mono);
+  border-radius: 8px; cursor: pointer; white-space: nowrap;
+  color: var(--text-2); background: rgba(167, 139, 250, 0.08); border: 1px solid var(--border);
+}
+.preset-chip:hover { border-color: var(--gold-soft); }
+.preset-chip.active { color: #1a0d33; background: var(--gold); border-color: var(--gold); }
+
+/* receive: waiting + success states */
+.recv-waiting { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.recv-spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border-strong); border-top-color: var(--lav);
+  animation: recv-spin 0.8s linear infinite;
+}
+@keyframes recv-spin { to { transform: rotate(360deg); } }
+.recv-success { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0 6px; }
+.recv-check {
+  width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: #1a0d33; background: #6ee7a8; box-shadow: 0 0 0 6px rgba(110, 231, 168, 0.16);
+}
+.recv-check svg { width: 30px; height: 30px; }
+.recv-success-title { font-family: var(--font-display); font-size: 18px; color: var(--text); }
+.recv-success-amt { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: #6ee7a8; }
+.wallet-backup { margin-top: 20px; }
 
 /* "your note is live" banner */
 .post-banner {

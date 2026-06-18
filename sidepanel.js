@@ -41,6 +41,8 @@
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
     'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>',
     'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
+    'arrow-up-right': '<line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>',
+    'arrow-down-left': '<line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -48,6 +50,16 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
       (ICONS[name] || '') +
       '</svg>';
+    return wrap.firstElementChild;
+  }
+
+  // Filled lightning bolt (from wordswithzaps' bolt-yellow.svg). Inherits color
+  // via currentColor; sized inline with text by the .bolt-ico class.
+  function boltIcon(cls) {
+    const wrap = document.createElement('span');
+    wrap.innerHTML =
+      '<svg class="bolt-ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 55 94" fill="currentColor">' +
+      '<path d="M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z"></path></svg>';
     return wrap.firstElementChild;
   }
 
@@ -1101,7 +1113,7 @@
       body.append(about);
       renderAbout(about, content.about);
     }
-    if (content.lud16) body.append(h('div', { className: 'profile-meta', textContent: '⚡ ' + content.lud16 }));
+    if (content.lud16) body.append(h('div', { className: 'profile-meta' }, [boltIcon(), document.createTextNode(' ' + content.lud16)]));
     if (content.website) {
       const w = h('div', { className: 'profile-meta' });
       const a = document.createElement('a');
@@ -1275,18 +1287,46 @@
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   const NOTE_COUNTDOWN_SECS = 15;
   const CLIENT_TAG = ['client', 'Sidecar 🍸', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io'];
+  // ---- About / zap-the-creator ----
+  const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
+  const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
+  const CREATOR_HANDLE = '@thedaniel';
+  const CREATOR_LN = 'daniel@breez.tips';
   const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
   const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
   const VIEW_CLIENTS = {
-    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne },
-    njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne },
-    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne },
-    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne },
-    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne },
+    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
+    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
+    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
+    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
+    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/notes/' + ne, profile: (np) => 'https://yakihonne.com/users/' + np },
+    njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
   };
   const DEFAULT_CLIENT = 'jumble';
+
+  async function preferredClient() {
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
+    return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  // Resolve a kind:0 display name for an npub (best-effort, for the About credit).
+  async function fetchProfileName(npub) {
+    try {
+      const hex = NT.nip19.decode(npub).data;
+      const ev = await Promise.race([
+        poolGet(await relayUrls(false), { kinds: [0], authors: [hex] }),
+        new Promise((r) => setTimeout(() => r(null), 5000)),
+      ]);
+      if (!ev) return null;
+      const c = JSON.parse(ev.content);
+      return c.display_name || c.name || null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   async function neventFor(signed) {
     let relays = [];
@@ -1812,6 +1852,53 @@
     await publishSigned(signed);
   }
 
+  // ---- wallet (NWC) backup to relays — NIP-78, encrypted to self ----
+  // Mirrors zap.cooking: the connection string is a spendable secret, so it is
+  // encrypted to the account's own key (NIP-44, NIP-04 fallback) and stored as a
+  // replaceable kind:30078 record that can be restored on another device.
+  const NWC_BACKUP_DTAG = 'sidecar:nwc-backup';
+
+  async function hasNwcBackup() {
+    return !!(await fetchBackupEvent(NWC_BACKUP_DTAG));
+  }
+
+  async function backupNwcToRelays() {
+    const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
+    if (!connection) throw new Error('No wallet connected to back up');
+    let ciphertext, algo;
+    try {
+      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: connection, nip: 44 });
+      algo = 'nip44';
+    } catch (_) {
+      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: connection, nip: 4 });
+      algo = 'nip04';
+    }
+    const event = {
+      kind: 30078,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['d', NWC_BACKUP_DTAG], ['encryption', algo]],
+      content: ciphertext,
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+    await publishSigned(signed);
+  }
+
+  async function restoreNwcFromRelays() {
+    const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+    if (!ev) throw new Error('No wallet backup found on your relays');
+    const scheme = (ev.tags.find((x) => x[0] === 'encryption') || [])[1];
+    const nip = scheme === 'nip04' ? 4 : 44;
+    const connection = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
+    if (!connection || !connection.startsWith('nostr+walletconnect://')) {
+      throw new Error('Backup could not be read');
+    }
+    // Validate with a getInfo round-trip before saving, like manual connect.
+    const client = window.SidecarNWC.makeClient(connection);
+    await client.getInfo();
+    client.close();
+    await call({ type: 'SIDECAR_SET_NWC', connection });
+  }
+
   // Plain signed-JSON export of the account's identity events (download, no relays).
   async function exportBundle(active) {
     const events = [];
@@ -2070,7 +2157,7 @@
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
     const err = h('div', { className: 'error' });
-    const connect = h('button', { className: 'primary', textContent: 'Connect wallet' });
+    const connect = h('button', { className: 'primary wallet-connect-btn', textContent: 'Connect wallet' });
     connect.addEventListener('click', async () => {
       const conn = input.value.trim();
       if (!conn) return (err.textContent = 'Paste a connection string.');
@@ -2094,6 +2181,29 @@
       }
     });
     view.append(input, err, connect);
+
+    // Restore a previously backed-up connection from the user's relays. Kept in
+    // its own block (with its own status line) so its messages don't land in the
+    // middle of the connect form.
+    const restoreBlock = h('div', { className: 'wallet-restore-block' });
+    restoreBlock.append(h('div', { className: 'wallet-or', textContent: 'or' }));
+    const restore = h('button', { className: 'secondary', textContent: 'Restore from Nostr' });
+    const restoreNote = h('p', { className: 'hint compact', textContent: 'Bring back a wallet you backed up to your relays.' });
+    restore.addEventListener('click', async () => {
+      restore.disabled = true;
+      restore.textContent = 'Checking relays…';
+      try {
+        await restoreNwcFromRelays();
+        toast('Wallet restored', 'success');
+        renderWallet();
+      } catch (e) {
+        toast(e.message, 'error');
+        restore.disabled = false;
+        restore.textContent = 'Restore from Nostr';
+      }
+    });
+    restoreBlock.append(restore, restoreNote);
+    view.append(restoreBlock);
   }
 
   async function renderWalletConnected(view) {
@@ -2106,8 +2216,8 @@
 
     // Actions
     const actions = h('div', { className: 'wallet-actions' });
-    const sendBtn = h('button', { className: 'primary', textContent: 'Send' });
-    const recvBtn = h('button', { className: 'secondary', textContent: 'Receive' });
+    const sendBtn = h('button', { className: 'primary' }, [icon('arrow-up-right'), h('span', { textContent: 'Send' })]);
+    const recvBtn = h('button', { className: 'secondary' }, [icon('arrow-down-left'), h('span', { textContent: 'Receive' })]);
     sendBtn.addEventListener('click', () => sendModal());
     recvBtn.addEventListener('click', () => receiveModal());
     actions.append(sendBtn, recvBtn);
@@ -2119,6 +2229,9 @@
     const txList = h('div', { className: 'list flat' });
     txWrap.append(txList);
     view.append(txWrap);
+
+    // Backup to relays (detection mirrors zap.cooking)
+    view.append(renderWalletBackup());
 
     // Disconnect
     const disc = h('button', { className: 'ghost wallet-disconnect', textContent: 'Disconnect wallet' });
@@ -2139,22 +2252,49 @@
     loadTransactions(txList, client);
   }
 
-  async function loadTransactions(listEl, client) {
+  // Centered placeholder for list cards (loading / empty / error) so the text
+  // sits in the middle of the card instead of jammed in the top-left corner.
+  function listState(listEl, text) {
     listEl.innerHTML = '';
-    listEl.append(h('p', { className: 'hint', textContent: 'Loading…' }));
-    try {
-      const res = await client.listTransactions({ limit: 20, unpaid: false });
-      const txns = (res && res.transactions) || [];
-      listEl.innerHTML = '';
-      if (!txns.length) {
-        listEl.append(h('p', { className: 'hint', textContent: 'No transactions yet.' }));
-        return;
+    listEl.append(h('p', { className: 'list-state', textContent: text }));
+  }
+
+  async function loadTransactions(listEl, client) {
+    const PAGE = 15;
+    let offset = 0;
+    let loading = false;
+    const host = listEl.parentNode; // append the "Show more" button below the card
+    const more = h('button', { className: 'ghost show-more-btn' });
+    hide(more);
+    more.textContent = 'Show more';
+    if (host) host.append(more);
+
+    listState(listEl, 'Loading…');
+
+    async function loadPage() {
+      if (loading) return;
+      loading = true;
+      try {
+        const res = await client.listTransactions({ limit: PAGE, offset, unpaid: false });
+        const txns = (res && res.transactions) || [];
+        if (offset === 0) {
+          if (!txns.length) { listState(listEl, 'No transactions yet.'); hide(more); return; }
+          listEl.innerHTML = '';
+        }
+        txns.forEach((tx) => listEl.append(txRow(tx)));
+        offset += txns.length;
+        // A full page back suggests there may be more to fetch.
+        if (txns.length >= PAGE) { show(more); more.textContent = 'Show more'; }
+        else hide(more);
+      } catch (e) {
+        if (offset === 0) listState(listEl, 'Could not load transactions.');
+        hide(more);
+      } finally {
+        loading = false;
       }
-      txns.forEach((tx) => listEl.append(txRow(tx)));
-    } catch (e) {
-      listEl.innerHTML = '';
-      listEl.append(h('p', { className: 'hint', textContent: 'Could not load transactions.' }));
     }
+    more.addEventListener('click', () => { more.textContent = 'Loading…'; loadPage(); });
+    loadPage();
   }
 
   function txRow(tx) {
@@ -2172,9 +2312,66 @@
     return row;
   }
 
+  // Backup the NWC connection to relays, with detection of an existing backup.
+  function renderWalletBackup() {
+    const wrap = h('div', { className: 'setting wallet-backup' });
+    wrap.append(h('h3', { textContent: 'Backup' }));
+    wrap.append(h('p', { className: 'hint', textContent: 'Encrypt your wallet connection to your own key and store it on your relays (NIP-78). Restore it on another device or after a reset.' }));
+
+    const status = h('span', { className: 'backup-status', textContent: 'Checking…' });
+    const back = h('button', { className: 'secondary', textContent: 'Back up' });
+    const restore = h('button', { className: 'secondary', textContent: 'Restore' });
+    back.addEventListener('click', async () => {
+      back.disabled = true;
+      back.textContent = 'Backing up…';
+      try {
+        await backupNwcToRelays();
+        status.textContent = 'Backed up ✓';
+        status.classList.add('done');
+        toast('Wallet backed up', 'success');
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+      back.disabled = false;
+      back.textContent = 'Back up';
+    });
+    restore.addEventListener('click', async () => {
+      restore.disabled = true;
+      restore.textContent = 'Restoring…';
+      try {
+        await restoreNwcFromRelays();
+        toast('Wallet restored', 'success');
+        renderWallet();
+      } catch (e) {
+        toast(e.message, 'error');
+        restore.disabled = false;
+        restore.textContent = 'Restore';
+      }
+    });
+    const card = h('div', { className: 'wallet-backup-card' }, [
+      h('div', { className: 'wallet-backup-head' }, [
+        h('span', { className: 'item-label', textContent: 'Wallet connection' }),
+        status,
+      ]),
+      h('div', { className: 'wallet-backup-actions' }, [back, restore]),
+    ]);
+    wrap.append(card);
+
+    hasNwcBackup()
+      .then((has) => {
+        status.textContent = has ? 'Backed up ✓' : 'Not backed up';
+        status.classList.toggle('done', has);
+      })
+      .catch(() => {
+        status.textContent = 'Not backed up';
+      });
+    return wrap;
+  }
+
   function sendModal() {
     openModal((modal) => {
       const input = h('textarea', { className: 'compose-text', placeholder: 'Lightning invoice (lnbc…) or lightning address' });
+      const amount = h('input', { type: 'number', min: '1', placeholder: 'Amount in sats (for lightning addresses)' });
       const err = h('div', { className: 'error' });
       const pay = h('button', { className: 'primary', textContent: 'Pay' });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
@@ -2187,10 +2384,15 @@
         pay.textContent = 'Paying…';
         try {
           const client = await ensureNwc();
-          let invoice = val;
-          // Lightning address → LNURL-pay would be needed; for v1 require a BOLT11 invoice.
+          let invoice = val.replace(/^lightning:/i, '').trim();
+          // Lightning address (user@domain) → resolve to a BOLT11 invoice via LNURL-pay.
           if (!/^ln(bc|tb)/i.test(invoice)) {
-            throw new Error('Enter a BOLT11 invoice (lnbc…). Lightning-address sending is coming soon.');
+            if (!/^[^@\s]+@[^@\s]+$/.test(invoice)) {
+              throw new Error('Enter a BOLT11 invoice (lnbc…) or a lightning address.');
+            }
+            const sats = parseInt(amount.value, 10);
+            if (!sats || sats < 1) throw new Error('Enter an amount in sats for a lightning address.');
+            invoice = await lnAddressToInvoice(invoice, sats * 1000, 'Sidecar payment');
           }
           await client.payInvoice(invoice);
           closeModal();
@@ -2205,52 +2407,151 @@
       modal.append(
         h('h3', { textContent: 'Send' }),
         input,
+        amount,
         err,
         h('div', { className: 'actions' }, [pay, cancel])
       );
     });
   }
 
+  const RECEIVE_PRESETS = [100, 1000, 5000, 21000, 100000];
+
   function receiveModal() {
+    let pollTimer = null;
+    const stopPoll = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+
     openModal((modal) => {
-      const amount = h('input', { type: 'number', min: '1', placeholder: 'Amount in sats' });
-      const memo = h('input', { type: 'text', placeholder: 'Note (optional)' });
-      const err = h('div', { className: 'error' });
-      const create = h('button', { className: 'primary', textContent: 'Create invoice' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-      cancel.addEventListener('click', closeModal);
-      const out = h('div', { className: 'recv-out' });
-      create.addEventListener('click', async () => {
-        const sats = parseInt(amount.value, 10);
-        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
-        err.textContent = '';
-        create.disabled = true;
-        create.textContent = 'Creating…';
-        try {
-          const client = await ensureNwc();
-          const res = await client.makeInvoice(sats * 1000, memo.value.trim());
-          const invoice = res && (res.invoice || res.payment_request || res.bolt11);
-          if (!invoice) throw new Error('Wallet returned no invoice');
-          showInvoice(out, invoice);
-          create.textContent = 'Create invoice';
-          create.disabled = false;
-        } catch (e) {
-          err.textContent = e.message;
-          create.disabled = false;
-          create.textContent = 'Create invoice';
-        }
+      modal.append(h('h3', { textContent: 'Receive' }));
+
+      // Tabs: Invoice (always) + Lightning address (added if the profile has lud16).
+      const tabs = h('div', { className: 'compose-tabs' });
+      const tabInvoice = h('button', { className: 'compose-tab active', textContent: 'Invoice' });
+      tabs.append(tabInvoice);
+      modal.append(tabs);
+      const body = h('div');
+      modal.append(body);
+
+      function showInvoiceMode() {
+        stopPoll();
+        body.innerHTML = '';
+        const presets = h('div', { className: 'amount-presets' });
+        const amount = h('input', { type: 'number', min: '1', placeholder: 'Amount in sats' });
+        const chipLabel = (n) => (n >= 1000 ? n / 1000 + 'K' : String(n));
+        RECEIVE_PRESETS.forEach((p) => {
+          const b = h('button', { className: 'preset-chip', textContent: chipLabel(p) });
+          b.addEventListener('click', () => {
+            amount.value = String(p);
+            presets.querySelectorAll('.preset-chip').forEach((c) => c.classList.remove('active'));
+            b.classList.add('active');
+          });
+          presets.append(b);
+        });
+        const memo = h('input', { type: 'text', placeholder: 'Note (optional)' });
+        const err = h('div', { className: 'error' });
+        const out = h('div', { className: 'recv-out' });
+        const create = h('button', { className: 'primary', textContent: 'Create invoice' });
+        const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+        cancel.addEventListener('click', closeModal);
+        create.addEventListener('click', async () => {
+          const sats = parseInt(amount.value, 10);
+          if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+          err.textContent = '';
+          create.disabled = true;
+          create.textContent = 'Creating…';
+          try {
+            const client = await ensureNwc();
+            const res = await client.makeInvoice(sats * 1000, memo.value.trim());
+            const invoice = res && (res.invoice || res.payment_request || res.bolt11);
+            if (!invoice) throw new Error('Wallet returned no invoice');
+            showInvoice(out, invoice);
+            create.textContent = 'Create invoice';
+            create.disabled = false;
+            // Poll for settlement so we can show a success state.
+            const lookupArg = res.payment_hash ? { payment_hash: res.payment_hash } : { invoice };
+            pollTimer = setInterval(async () => {
+              try {
+                const inv = await client.lookupInvoice(lookupArg);
+                if (inv && (inv.settled_at || inv.preimage || inv.state === 'settled')) {
+                  stopPoll();
+                  showReceiveSuccess(body, sats);
+                  renderWallet();
+                }
+              } catch (_) {}
+            }, 2500);
+          } catch (e) {
+            err.textContent = e.message;
+            create.disabled = false;
+            create.textContent = 'Create invoice';
+          }
+        });
+        body.append(
+          h('label', { textContent: 'Amount (sats)' }),
+          presets,
+          amount,
+          h('label', { textContent: 'Note' }),
+          memo,
+          err,
+          h('div', { className: 'actions' }, [create, cancel]),
+          out
+        );
+      }
+
+      function showAddressMode(lud16) {
+        stopPoll();
+        body.innerHTML = '';
+        const out = h('div', { className: 'recv-out' });
+        const canvas = document.createElement('canvas');
+        canvas.className = 'recv-qr';
+        try { new window.QRious({ element: canvas, value: 'lightning:' + lud16, size: 220, level: 'M' }); } catch (_) {}
+        const copy = h('button', { className: 'secondary', textContent: lud16 });
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(lud16);
+            copy.textContent = 'Copied ✓';
+            setTimeout(() => (copy.textContent = lud16), 1200);
+          } catch (_) {}
+        });
+        out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Your reusable lightning address — anyone can pay it any amount.' }));
+        const cancel = h('button', { className: 'ghost', textContent: 'Close' });
+        cancel.addEventListener('click', closeModal);
+        body.append(out, h('div', { className: 'actions' }, [cancel]));
+      }
+
+      tabInvoice.addEventListener('click', () => {
+        tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
+        tabInvoice.classList.add('active');
+        showInvoiceMode();
       });
-      modal.append(
-        h('h3', { textContent: 'Receive' }),
-        h('label', { textContent: 'Amount (sats)' }),
-        amount,
-        h('label', { textContent: 'Note' }),
-        memo,
-        err,
-        h('div', { className: 'actions' }, [create, cancel]),
-        out
-      );
-    });
+      showInvoiceMode();
+
+      // If the active account advertises a lightning address, add an Address tab.
+      fetchActiveProfile().then(({ content }) => {
+        const lud16 = content && content.lud16;
+        if (!lud16) return;
+        const tabAddress = h('button', { className: 'compose-tab', textContent: 'Address' });
+        tabAddress.addEventListener('click', () => {
+          tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
+          tabAddress.classList.add('active');
+          showAddressMode(lud16);
+        });
+        tabs.append(tabAddress);
+      });
+    }, stopPoll);
+  }
+
+  function showReceiveSuccess(container, sats) {
+    container.innerHTML = '';
+    const wrap = h('div', { className: 'recv-success' });
+    const badge = h('div', { className: 'recv-check' });
+    badge.append(icon('check'));
+    wrap.append(
+      badge,
+      h('div', { className: 'recv-success-title', textContent: 'Payment received' }),
+      h('div', { className: 'recv-success-amt', textContent: '+' + fmtSats(sats) + ' sats' })
+    );
+    const done = h('button', { className: 'primary', textContent: 'Done' });
+    done.addEventListener('click', closeModal);
+    container.append(wrap, h('div', { className: 'actions' }, [done]));
   }
 
   function showInvoice(container, invoice) {
@@ -2268,7 +2569,8 @@
         setTimeout(() => (copy.textContent = 'Copy invoice'), 1200);
       } catch (_) {}
     });
-    container.append(canvas, h('div', { className: 'recv-bolt', textContent: invoice }), copy);
+    const waiting = h('div', { className: 'recv-waiting' }, [h('span', { className: 'recv-spinner' }), h('span', { textContent: 'Waiting for payment…' })]);
+    container.append(canvas, h('div', { className: 'recv-bolt', textContent: invoice }), copy, waiting);
   }
 
   function disconnectModal() {
@@ -2289,6 +2591,134 @@
         h('div', { className: 'actions' }, [go, cancel])
       );
     });
+  }
+
+  // Resolve a lightning address (user@domain) to a BOLT11 invoice via LNURL-pay.
+  async function lnAddressToInvoice(addr, msats, comment) {
+    const [name, domain] = addr.split('@');
+    if (!name || !domain) throw new Error('Invalid lightning address');
+    const meta = await (await fetch('https://' + domain + '/.well-known/lnurlp/' + name)).json();
+    if (meta.tag !== 'payRequest' || !meta.callback) throw new Error('Not a valid lightning address');
+    if (msats < meta.minSendable || msats > meta.maxSendable) {
+      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+    }
+    const cb = new URL(meta.callback);
+    cb.searchParams.set('amount', String(msats));
+    if (comment && meta.commentAllowed > 0) cb.searchParams.set('comment', comment.slice(0, meta.commentAllowed));
+    const res = await (await fetch(cb.toString())).json();
+    if (!res.pr) throw new Error(res.reason || 'No invoice returned');
+    return res.pr;
+  }
+
+  // ---- About + zap the creator (opened from the Sidecar logo) ----
+  function aboutModal() {
+    openModal((modal) => {
+      const build = window.SIDECAR_BUILD || {};
+      const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+      const verText = 'Version ' + ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '');
+
+      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      xClose.append(icon('x'));
+      xClose.addEventListener('click', closeModal);
+
+      const logo = h('img', { className: 'about-logo', src: 'icons/sidecar-logo.svg', alt: 'Sidecar' });
+      const creator = h('a', {
+        className: 'about-creator-link', textContent: CREATOR_HANDLE,
+        href: '#', target: '_blank', rel: 'noopener noreferrer',
+      });
+      // Open the creator's profile in the user's preferred client; resolve their
+      // current kind:0 name instead of a hardcoded handle.
+      preferredClient().then((client) => { creator.href = client.profile(CREATOR_NPUB); }).catch(() => {});
+      fetchProfileName(CREATOR_NPUB).then((name) => { if (name) creator.textContent = '@' + name.replace(/^@/, ''); });
+
+      const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
+      const issues = h('a', { className: 'about-link', textContent: 'Report an issue', href: GITHUB_URL + '/issues', target: '_blank', rel: 'noopener noreferrer' });
+      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Zap the creator '), boltIcon()]);
+      zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
+
+      modal.append(
+        xClose,
+        h('div', { className: 'about-modal' }, [
+          logo,
+          h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
+          h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
+          ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
+          h('div', { className: 'about-links' }, [repo, issues, zap]),
+        ])
+      );
+    });
+  }
+
+  const ZAP_MAX_SATS = 100000000; // 100M cap
+
+  async function creatorZapModal() {
+    const { has } = await call({ type: 'SIDECAR_HAS_NWC' });
+    openModal((modal) => {
+      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      xClose.append(icon('x'));
+      xClose.addEventListener('click', closeModal);
+      modal.append(xClose, h('h3', {}, [document.createTextNode('Zap the creator '), boltIcon()]));
+
+      const qr = h('div', { className: 'recv-out' });
+      const canvas = document.createElement('canvas');
+      canvas.className = 'recv-qr';
+      try { new window.QRious({ element: canvas, value: 'lightning:' + CREATOR_LN, size: 200, level: 'M' }); } catch (_) {}
+      const copy = h('button', { className: 'secondary', textContent: CREATOR_LN });
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(CREATOR_LN);
+          copy.textContent = 'Copied ✓';
+          setTimeout(() => (copy.textContent = CREATOR_LN), 1200);
+        } catch (_) {}
+      });
+      qr.append(canvas, copy, h('p', { className: 'hint', textContent: 'Scan to zap from any wallet.' }));
+      modal.append(qr);
+
+      // No connected wallet: leave the QR/address only, with a gentle nudge.
+      if (!has) {
+        modal.append(h('p', { className: 'hint zap-noconnect', textContent: 'Connect a wallet in the Wallet tab to zap from here.' }));
+        return;
+      }
+
+      // Inline send via the connected NWC wallet.
+      const err = h('div', { className: 'error' });
+      const message = h('input', { type: 'text', placeholder: 'Message (optional)', value: 'Thanks for Sidecar! 🍸', maxLength: 200 });
+      const amount = h('input', { type: 'number', min: '1', max: String(ZAP_MAX_SATS), placeholder: 'sats' });
+      const send = h('button', { className: 'primary', textContent: 'Zap' });
+      send.addEventListener('click', async () => {
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        if (sats > ZAP_MAX_SATS) return (err.textContent = 'Maximum is ' + fmtSats(ZAP_MAX_SATS) + ' sats.');
+        err.textContent = '';
+        send.disabled = true;
+        send.textContent = 'Sending…';
+        try {
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          const invoice = await lnAddressToInvoice(CREATOR_LN, sats * 1000, message.value.trim() || 'Sidecar zap');
+          await client.payInvoice(invoice);
+          closeModal();
+          toast('Thank you! Zap sent', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+          send.disabled = false;
+          send.textContent = 'Zap';
+        }
+      });
+      modal.append(
+        h('label', { textContent: 'Message' }),
+        message,
+        h('div', { className: 'zap-inline' }, [amount, send]),
+        err
+      );
+    });
+  }
+
+  const brandFoot = document.querySelector('.brand-foot');
+  if (brandFoot) {
+    brandFoot.classList.add('brand-foot-btn');
+    brandFoot.title = 'About Sidecar';
+    brandFoot.addEventListener('click', aboutModal);
   }
 
   $('autolock-select').addEventListener('change', async (e) => {

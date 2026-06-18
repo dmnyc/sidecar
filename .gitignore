@@ -26,3 +26,5 @@ npm-debug.log*
 *.tmp
 *.temp
 *.log
+# Generated build stamp
+version.js
