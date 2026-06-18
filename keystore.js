@@ -32,6 +32,45 @@
     return new Promise((resolve) => chrome.storage.local.set(obj, resolve));
   }
 
+  // chrome.storage.session is in-memory (never written to disk) and cleared when the
+  // browser closes — but it SURVIVES service-worker eviction. We stash the exported
+  // derived key here so the keystore stays unlocked across SW restarts.
+  const SESSION_KEY = 'sidecar_session';
+  function sessGet() {
+    return new Promise((resolve) => chrome.storage.session.get(SESSION_KEY, (r) => resolve(r[SESSION_KEY])));
+  }
+  function sessSet(value) {
+    return new Promise((resolve) => chrome.storage.session.set({ [SESSION_KEY]: value }, resolve));
+  }
+  function sessClear() {
+    return new Promise((resolve) => chrome.storage.session.remove(SESSION_KEY, resolve));
+  }
+
+  async function persistSession(key) {
+    await sessSet({ k: await C.exportKeyRaw(key) });
+  }
+
+  // Rebuild the in-memory unlocked state from storage.session after a SW restart.
+  // No-op if already loaded in this worker, or if there's no live session (locked).
+  async function ensureLoaded() {
+    if (derivedKey) return;
+    const sess = await sessGet();
+    if (!sess || !sess.k) return;
+    const store = await loadStore();
+    if (!store) return;
+    const key = await C.importKeyRaw(sess.k);
+    if (!(await C.checkVerifier(key, store.verifier))) {
+      await sessClear();
+      return;
+    }
+    const map = new Map();
+    for (const acct of Object.values(store.accounts)) {
+      map.set(acct.pubkey, await C.decryptBytes(key, acct.enc));
+    }
+    derivedKey = key;
+    unlocked = map;
+  }
+
   // ---- hex helpers ----
   function bytesToHex(bytes) {
     let s = '';
@@ -109,6 +148,7 @@
     };
     await set({ [STORE_KEY]: store });
     unlocked = new Map();
+    await persistSession(derivedKey);
     return getState();
   }
 
@@ -126,13 +166,24 @@
     }
     derivedKey = key;
     unlocked = map;
+    await persistSession(key);
     return getState();
   }
 
-  function lock() {
+  async function lock() {
     for (const bytes of unlocked.values()) C.wipe(bytes);
     unlocked.clear();
     derivedKey = null;
+    await sessClear();
+  }
+
+  // Verify a PIN without changing lock state — used to "step up" before sensitive
+  // operations (reveal nsec / NWC string, publish profile changes).
+  async function verifyPin(pin) {
+    const store = await loadStore();
+    if (!store) return false;
+    const key = await C.deriveKey(pin, store.kdf);
+    return C.checkVerifier(key, store.verifier);
   }
 
   function requireUnlocked() {
@@ -247,6 +298,7 @@
     store.verifier = await C.makeVerifier(newKey);
     await set({ [STORE_KEY]: store });
     derivedKey = newKey; // stay unlocked
+    await persistSession(newKey);
     return getState();
   }
 
@@ -256,6 +308,8 @@
     decodeSecret,
     isInitialized,
     isLocked,
+    ensureLoaded,
+    verifyPin,
     getState,
     initialize,
     unlock,

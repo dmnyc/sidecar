@@ -34,6 +34,16 @@ async function getConfiguredRelays() {
   return (await sget('sidecar_relays')).sidecar_relays || DEFAULT_RELAYS;
 }
 
+// ---- signing activity log (newest first, capped) ----
+const ACTIVITY_KEY = 'sidecar_activity';
+const ACTIVITY_MAX = 200;
+async function logActivity(entry) {
+  const cur = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
+  cur.unshift(entry);
+  if (cur.length > ACTIVITY_MAX) cur.length = ACTIVITY_MAX;
+  await sset({ [ACTIVITY_KEY]: cur });
+}
+
 // ---- side panel open on toolbar click ----
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -115,18 +125,20 @@ function settlePrompt(promptId, action) {
 async function handleNostrRpc(method, params, host, sendResponse) {
   try {
     if (!host) throw new Error('Missing host');
+    await KS.ensureLoaded(); // rehydrate unlocked session if the SW was restarted
     if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
 
     const activePubkey = await KS.getActivePubkey();
     if (!activePubkey) throw new Error('No active Sidecar account');
 
-    const status = await PERMS.getPermissionStatus(host, method);
-    if (status === 'reject') throw new Error('Request rejected by user policy');
+    const status = await PERMS.getPermissionStatus(host, method); // allow | reject | ask
+    if (status === 'reject') throw new Error('This site is blocked in Sidecar');
 
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
-    const needApproval = status !== 'allow';
+    const needApproval = status === 'ask';
 
+    // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
       const decision = await openPrompt({
         host,
@@ -136,13 +148,15 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
         needUnlock,
         needApproval,
+        level: await PERMS.getLevel(host),
       });
-      if (decision.action === 'reject' || decision.action === 'reject-forever') {
-        if (decision.action === 'reject-forever') await PERMS.setPermission(host, method, 'reject');
-        throw new Error('User rejected the request');
+      if (decision.action === 'reject') throw new Error('You rejected this request');
+      if (decision.action === 'block') {
+        await PERMS.setLevel(host, 'blocked');
+        throw new Error('This site is now blocked');
       }
-      if (decision.action === 'allow-forever') await PERMS.setPermission(host, method, 'allow');
-      // The prompt only returns allow* after a successful unlock (if one was needed).
+      if (decision.action === 'trust') await PERMS.setLevel(host, 'trusted');
+      // 'once' | 'trust' → proceed (after a successful unlock, if one was needed)
     }
 
     bumpAutoLock();
@@ -154,6 +168,14 @@ async function handleNostrRpc(method, params, host, sendResponse) {
       const privBytes = needsKey ? await KS.getPrivkey(activePubkey) : null;
       result = await SIGNER.perform(method, params, privBytes, activePubkey);
     }
+
+    let kind;
+    if (method === 'signEvent') {
+      const ev = params && (params.event || params);
+      kind = ev && ev.kind;
+    }
+    logActivity({ ts: Date.now(), host, method, kind, pubkey: activePubkey });
+
     sendResponse({ ok: true, result });
   } catch (e) {
     sendResponse({ ok: false, error: e.message });
@@ -164,7 +186,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
 // Keystore control messages (from side panel and prompt)
 // ============================================================================
 async function lockKeystore() {
-  KS.lock();
+  await KS.lock();
   SIGNER.clearCache();
   chrome.alarms.clear(AUTO_LOCK_ALARM);
 }
@@ -184,6 +206,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 async function handleControl(message, sendResponse) {
   try {
+    await KS.ensureLoaded(); // reflect a session unlock that survived SW restart
     let result;
     switch (message.type) {
       case 'SIDECAR_GET_STATE':
@@ -220,6 +243,10 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_CHANGE_PIN':
         result = await KS.changePin(message.oldPin, message.newPin);
         break;
+      case 'SIDECAR_VERIFY_PIN':
+        // Step-up re-auth for sensitive ops (reveal nsec/NWC, publish profile).
+        result = { valid: await KS.verifyPin(message.pin) };
+        break;
       case 'SIDECAR_GET_RELAYS':
         result = await getConfiguredRelays();
         break;
@@ -237,11 +264,18 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_GET_PERMISSIONS':
         result = await PERMS.getAll();
         break;
-      case 'SIDECAR_REMOVE_PERMISSION':
-        result = await PERMS.removePermission(message.host, message.method);
+      case 'SIDECAR_SET_LEVEL':
+        result = await PERMS.setLevel(message.host, message.level);
         break;
-      case 'SIDECAR_CLEAR_HOST':
-        result = await PERMS.clearHost(message.host);
+      case 'SIDECAR_REMOVE_HOST':
+        result = await PERMS.removeHost(message.host);
+        break;
+      case 'SIDECAR_GET_ACTIVITY':
+        result = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
+        break;
+      case 'SIDECAR_CLEAR_ACTIVITY':
+        await sset({ [ACTIVITY_KEY]: [] });
+        result = [];
         break;
       default:
         throw new Error('Unknown control message: ' + message.type);

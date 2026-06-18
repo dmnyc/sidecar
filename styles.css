@@ -169,6 +169,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 }
 .icon-btn:hover { color: var(--lav); background: rgba(167, 139, 250, 0.1); }
 .icon-btn.sm { font-size: 14px; padding: 5px 6px; }
+.icon-btn svg { width: 19px; height: 19px; display: block; }
+.icon-btn.sm svg { width: 16px; height: 16px; }
+.topbar-actions { display: flex; align-items: center; gap: 2px; }
 
 /* ===== main app ===== */
 .topbar {
@@ -190,10 +193,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   background: transparent;
   border: none;
   color: var(--muted);
-  padding: 13px 4px;
-  font-size: 13px;
+  padding: 12px 2px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   transition: color 0.15s;
 }
 .tab:hover { color: var(--text); }
@@ -288,6 +291,32 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 
 .setting { margin-bottom: 24px; }
 
+/* connected-site rows with a tier selector */
+.site-item { gap: 8px; }
+.level-select {
+  width: auto;
+  flex-shrink: 0;
+  padding: 7px 9px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* signing activity rows */
+.activity-item { gap: 11px; }
+.act-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lav);
+  border-radius: 9px;
+  background: linear-gradient(180deg, #2a1257, #160a30);
+  border: 1px solid var(--border);
+}
+.act-icon svg { width: 16px; height: 16px; display: block; }
+
 /* ===== modal ===== */
 .modal-overlay {
   position: fixed;
@@ -328,6 +357,27 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .modal h3 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin: 0 0 8px; }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+/* action-menu (⋯) inside a modal */
+.menu-list { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 12px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.menu-item:hover { background: rgba(167, 139, 250, 0.1); }
+.menu-item svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--muted); }
+.menu-item.danger { color: var(--red); }
+.menu-item.danger svg { color: var(--red); }
 
 /* ===== scrollbar ===== */
 ::-webkit-scrollbar { width: 9px; height: 9px; }

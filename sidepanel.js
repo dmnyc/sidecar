@@ -20,12 +20,33 @@
   const show = (el) => el.classList.remove('hidden');
   const hide = (el) => el.classList.add('hidden');
 
+  // ---- flat (line) icons — inherit currentColor ----
+  const ICONS = {
+    copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
+    edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
+    trash: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
+    key: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>',
+    feather: '<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15" x2="9" y2="15"></line>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
+    unlock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path>',
+    wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line>',
+    more: '<circle cx="5" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="19" cy="12" r="1.6" fill="currentColor"></circle>',
+  };
+  function icon(name) {
+    const wrap = document.createElement('span');
+    wrap.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      (ICONS[name] || '') +
+      '</svg>';
+    return wrap.firstElementChild;
+  }
+
   let state = null;
 
   // ---- top-level routing ----
   async function refresh() {
     state = await call({ type: 'SIDECAR_GET_STATE' });
-    [$('view-onboarding'), $('view-lock'), $('view-main')].forEach(hide);
+    [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings')].forEach(hide);
     if (!state.initialized) {
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
@@ -78,6 +99,17 @@
     await refresh();
   });
 
+  // ---- settings (gear icon ↔ overlay view) ----
+  $('settings-btn').addEventListener('click', () => {
+    hide($('view-main'));
+    show($('view-settings'));
+    renderSettings();
+  });
+  $('settings-close').addEventListener('click', () => {
+    hide($('view-settings'));
+    show($('view-main'));
+  });
+
   // ---- tabs ----
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -86,7 +118,7 @@
       const name = tab.dataset.tab;
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-' + name));
-      if (name === 'settings') renderSettings();
+      if (name === 'activity') renderActivity();
     });
   });
 
@@ -215,19 +247,17 @@
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
-    actions.appendChild(iconButton('Copy npub', '⧉', () => navigator.clipboard.writeText(a.npub)));
-    actions.appendChild(iconButton('Rename', '✎', () => renameModal(a)));
-    actions.appendChild(iconButton('Remove', '🗑', () => removeModal(a)));
+    actions.appendChild(iconButton('Account options', 'more', () => accountMenuModal(a)));
 
     row.append(main, actions);
     return row;
   }
 
-  function iconButton(title, glyph, onClick) {
+  function iconButton(title, name, onClick) {
     const b = document.createElement('button');
     b.className = 'icon-btn sm';
     b.title = title;
-    b.textContent = glyph;
+    b.appendChild(icon(name));
     b.addEventListener('click', onClick);
     return b;
   }
@@ -324,6 +354,33 @@
     });
   }
 
+  function accountMenuModal(a) {
+    openModal((modal) => {
+      const menuItem = (label, name, onClick, danger) => {
+        const b = h('button', { className: 'menu-item' + (danger ? ' danger' : '') });
+        b.appendChild(icon(name));
+        b.appendChild(h('span', { textContent: label }));
+        b.addEventListener('click', onClick);
+        return b;
+      };
+      const list = h('div', { className: 'menu-list' }, [
+        menuItem('Copy npub', 'copy', () => {
+          navigator.clipboard.writeText(a.npub);
+          closeModal();
+        }),
+        menuItem('Rename', 'edit', () => renameModal(a)),
+        menuItem('Remove account', 'trash', () => removeModal(a), true),
+      ]);
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: displayName(a) }),
+        list,
+        h('div', { className: 'actions' }, [cancel])
+      );
+    });
+  }
+
   function renameModal(a) {
     openModal((modal) => {
       const input = h('input', { type: 'text', value: a.name || '', placeholder: 'Display name' });
@@ -390,7 +447,7 @@
     Object.keys(relays).forEach((url) => {
       const row = h('div', { className: 'item' });
       row.append(h('div', { className: 'item-main' }, [h('div', { className: 'item-sub', textContent: url })]));
-      const rm = iconButton('Remove', '🗑', async () => {
+      const rm = iconButton('Remove', 'trash', async () => {
         const next = { ...relays };
         delete next[url];
         await call({ type: 'SIDECAR_SET_RELAYS', relays: next });
@@ -399,33 +456,94 @@
       row.append(h('div', { className: 'item-actions' }, [rm]));
       rlist.append(row);
     });
-
-    // permissions
-    const perms = await call({ type: 'SIDECAR_GET_PERMISSIONS' });
-    const plist = $('perm-list');
-    plist.innerHTML = '';
-    const hosts = Object.keys(perms);
-    if (hosts.length === 0) {
-      plist.append(h('p', { className: 'hint', textContent: 'No sites have requested access yet.' }));
-    }
-    hosts.forEach((host) => {
-      const methods = Object.keys(perms[host]);
-      const row = h('div', { className: 'item' });
-      const main = h('div', { className: 'item-main' }, [
-        h('div', { className: 'item-label', textContent: host }),
-        h('div', {
-          className: 'item-sub',
-          textContent: methods.map((m) => m + ': ' + perms[host][m].policy).join(', '),
-        }),
-      ]);
-      const rm = iconButton('Forget site', '🗑', async () => {
-        await call({ type: 'SIDECAR_CLEAR_HOST', host });
-        renderSettings();
-      });
-      row.append(main, h('div', { className: 'item-actions' }, [rm]));
-      plist.append(row);
-    });
   }
+
+  // ---- activity tab: connected sites (permission tiers) + signing history ----
+  const LEVELS = [
+    ['ask', 'Ask every time'],
+    ['readonly', 'Read only'],
+    ['trusted', 'Trusted'],
+    ['blocked', 'Blocked'],
+  ];
+  const KIND_NAMES = {
+    0: 'profile', 1: 'note', 3: 'contacts', 4: 'direct message', 5: 'deletion',
+    6: 'repost', 7: 'reaction', 1059: 'gift wrap', 9734: 'zap request',
+    10002: 'relay list', 22242: 'relay auth', 24133: 'connect', 27235: 'HTTP auth', 30023: 'article',
+  };
+  const METHOD_META = {
+    getPublicKey: { icon: 'key', label: () => 'Shared public key' },
+    signEvent: { icon: 'feather', label: (e) => 'Signed ' + (KIND_NAMES[e.kind] || ('kind ' + e.kind)) },
+    getRelays: { icon: 'wifi', label: () => 'Read relay list' },
+    'nip04.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
+    'nip04.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
+    'nip44.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
+    'nip44.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
+  };
+
+  function relTime(ts) {
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (s < 45) return 'just now';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    if (s < 86400) return Math.round(s / 3600) + 'h ago';
+    if (s < 604800) return Math.round(s / 86400) + 'd ago';
+    return new Date(ts).toLocaleDateString();
+  }
+
+  function siteRow(host, level) {
+    const row = h('div', { className: 'item site-item' });
+    const main = h('div', { className: 'item-main' }, [h('div', { className: 'item-label', textContent: host })]);
+    const sel = document.createElement('select');
+    sel.className = 'level-select';
+    LEVELS.forEach(([v, l]) => {
+      const o = h('option', { value: v, textContent: l });
+      if (v === level) o.selected = true;
+      sel.append(o);
+    });
+    sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
+    const rm = iconButton('Forget site', 'trash', async () => {
+      await call({ type: 'SIDECAR_REMOVE_HOST', host });
+      renderActivity();
+    });
+    row.append(main, sel, rm);
+    return row;
+  }
+
+  function activityRow(e) {
+    const meta = METHOD_META[e.method] || { icon: 'feather', label: () => e.method };
+    const row = h('div', { className: 'item activity-item' });
+    const iconBox = h('div', { className: 'act-icon' });
+    iconBox.appendChild(icon(meta.icon));
+    const main = h('div', { className: 'item-main' }, [
+      h('div', { className: 'item-label', textContent: meta.label(e) }),
+      h('div', { className: 'item-sub', textContent: e.host + ' · ' + relTime(e.ts) }),
+    ]);
+    row.append(iconBox, main);
+    return row;
+  }
+
+  async function renderActivity() {
+    const perms = await call({ type: 'SIDECAR_GET_PERMISSIONS' });
+    const sites = $('sites-list');
+    sites.innerHTML = '';
+    const hosts = Object.keys(perms).sort();
+    if (!hosts.length) {
+      sites.append(h('p', { className: 'hint', textContent: 'No sites have connected yet.' }));
+    }
+    hosts.forEach((host) => sites.append(siteRow(host, perms[host].level)));
+
+    const log = await call({ type: 'SIDECAR_GET_ACTIVITY' });
+    const list = $('activity-list');
+    list.innerHTML = '';
+    if (!log.length) {
+      list.append(h('p', { className: 'hint', textContent: 'No signing activity yet.' }));
+    }
+    log.slice(0, 100).forEach((e) => list.append(activityRow(e)));
+  }
+
+  $('activity-clear').addEventListener('click', async () => {
+    await call({ type: 'SIDECAR_CLEAR_ACTIVITY' });
+    renderActivity();
+  });
 
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });

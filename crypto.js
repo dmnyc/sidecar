@@ -68,9 +68,18 @@
       },
       baseKey,
       { name: 'AES-GCM', length: 256 },
-      false, // non-extractable
+      true, // extractable: lets us stash it in in-memory storage.session to survive SW restarts
       ['encrypt', 'decrypt']
     );
+  }
+
+  // Export/import the derived AES key as raw base64 — used to persist the unlocked
+  // session in chrome.storage.session (memory-only) so signing survives SW eviction.
+  async function exportKeyRaw(key) {
+    return bytesToBase64(new Uint8Array(await subtle.exportKey('raw', key)));
+  }
+  async function importKeyRaw(b64) {
+    return subtle.importKey('raw', base64ToBytes(b64), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
   }
 
   // Encrypt raw bytes → { iv, ct } (both base64). A fresh IV is generated per call.
@@ -124,6 +133,8 @@
     base64ToBytes,
     newKdf,
     deriveKey,
+    exportKeyRaw,
+    importKeyRaw,
     encryptBytes,
     decryptBytes,
     encryptString,

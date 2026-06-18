@@ -17,7 +17,7 @@
     pin: $('pin'),
     error: $('error'),
     allow: $('allow'),
-    allowForever: $('allowForever'),
+    trust: $('trust'),
     reject: $('reject'),
   };
 
@@ -86,11 +86,11 @@
       els.unlock.classList.remove('hidden');
       setTimeout(() => els.pin.focus(), 50);
     }
-    // A pure unlock (site already permitted, just locked) doesn't need the
-    // "Allow for this site" choice — it's already remembered.
+    // A pure unlock (site already trusted, keystore just locked) doesn't need the
+    // "Trust this site" choice — it's already remembered.
     if (data.needUnlock && !data.needApproval) {
       els.allow.textContent = 'Unlock & continue';
-      els.allowForever.classList.add('hidden');
+      els.trust.classList.add('hidden');
     }
   }
 
@@ -101,8 +101,8 @@
 
   async function decide(action) {
     els.error.textContent = '';
-    // Unlock first if needed (Allow / Allow-forever only).
-    if (data.needUnlock && (action === 'allow' || action === 'allow-forever')) {
+    // Unlock first if needed (Allow once / Trust only).
+    if (data.needUnlock && (action === 'once' || action === 'trust')) {
       const pin = els.pin.value;
       if (!pin) {
         els.error.textContent = 'Enter your PIN.';
@@ -120,12 +120,12 @@
     window.close();
   }
 
-  els.allow.addEventListener('click', () => decide('allow'));
-  els.allowForever.addEventListener('click', () => decide('allow-forever'));
+  els.allow.addEventListener('click', () => decide('once'));
+  els.trust.addEventListener('click', () => decide('trust'));
   els.reject.addEventListener('click', () => decide('reject'));
   els.pin &&
     els.pin.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') decide('allow');
+      if (e.key === 'Enter') decide('once');
     });
 
   init();

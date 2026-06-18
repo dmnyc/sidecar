@@ -1,16 +1,19 @@
-// Sidecar permissions — per-host, per-method allow/reject policy for window.nostr.
+// Sidecar permissions — per-site trust TIERS for window.nostr (modeled on nos2x / Alby).
 //
-// Runs in the service worker (importScripts). A web page's call to a window.nostr
-// method is gated by the policy stored for (host, method). "Allow forever" / "Reject
-// forever" persist here; "Allow once" does not write anything.
+// Each host has one level:
+//   blocked   — reject everything
+//   ask       — prompt for every request (default when unset)
+//   readonly  — auto-allow read methods (getPublicKey, getRelays); prompt to sign/encrypt
+//   trusted   — auto-allow everything
 //
-// Storage layout:
-//   sidecar_permissions = { <host>: { <type>: { policy:'allow'|'reject', created } } }
+// Storage: sidecar_permissions = { <host>: { level, updatedAt } }
 
 (function (root) {
   'use strict';
 
   const PERM_KEY = 'sidecar_permissions';
+  const LEVELS = ['blocked', 'ask', 'readonly', 'trusted'];
+  const READ_METHODS = ['getPublicKey', 'getRelays'];
 
   function get(keys) {
     return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
@@ -23,43 +26,51 @@
     return (await get(PERM_KEY))[PERM_KEY] || {};
   }
 
-  // 'allow' | 'reject' | 'unknown'
-  async function getPermissionStatus(host, type) {
+  async function getLevel(host) {
     const all = await loadAll();
-    const entry = all[host] && all[host][type];
-    return entry ? entry.policy : 'unknown';
+    return (all[host] && all[host].level) || 'ask';
   }
 
-  async function setPermission(host, type, policy) {
+  async function setLevel(host, level) {
+    if (!LEVELS.includes(level)) throw new Error('Invalid permission level: ' + level);
     const all = await loadAll();
-    if (!all[host]) all[host] = {};
-    all[host][type] = { policy, created: Date.now() };
+    all[host] = { level, updatedAt: Date.now() };
     await set({ [PERM_KEY]: all });
     return all;
   }
 
-  async function removePermission(host, type) {
-    const all = await loadAll();
-    if (all[host]) {
-      delete all[host][type];
-      if (Object.keys(all[host]).length === 0) delete all[host];
-      await set({ [PERM_KEY]: all });
-    }
-    return all;
-  }
-
-  async function clearHost(host) {
+  async function removeHost(host) {
     const all = await loadAll();
     delete all[host];
     await set({ [PERM_KEY]: all });
     return all;
   }
 
+  // 'allow' | 'reject' | 'ask' for a (host, method) given its tier.
+  function statusForLevel(level, method) {
+    switch (level) {
+      case 'blocked':
+        return 'reject';
+      case 'trusted':
+        return 'allow';
+      case 'readonly':
+        return READ_METHODS.includes(method) ? 'allow' : 'ask';
+      default:
+        return 'ask';
+    }
+  }
+
+  async function getPermissionStatus(host, method) {
+    return statusForLevel(await getLevel(host), method);
+  }
+
   root.SidecarPermissions = {
+    LEVELS,
+    READ_METHODS,
+    getLevel,
+    setLevel,
+    removeHost,
     getPermissionStatus,
-    setPermission,
-    removePermission,
-    clearHost,
     getAll: loadAll,
   };
 })(typeof self !== 'undefined' ? self : this);
