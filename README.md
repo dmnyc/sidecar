@@ -5,40 +5,82 @@
 A NIP-07 nostr signing extension that lives in your browser's side panel. Sidecar
 holds your keys locally — encrypted behind a PIN — and provides `window.nostr` to the
 web apps you use, so you can sign in and sign events across nostr clients without
-pasting your nsec anywhere.
+pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
+Connect) for sending and receiving sats.
 
 ## Features
 
-- **Multiple accounts** — store as many nsecs as you like, switch the active one in a click.
+- **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click.
 - **PIN-protected** — every private key is encrypted at rest (PBKDF2 → AES-GCM, WebCrypto). Nothing is stored in plaintext, and the keystore re-locks automatically.
 - **In-extension signing** — implements the full NIP-07 surface: `getPublicKey`, `signEvent`, `nip04`/`nip44` encrypt & decrypt, and `getRelays`.
-- **Per-site permissions** — approve or reject each site, per method, with a clear prompt that previews what you're signing.
-- **Identity from your profile** — account names and avatars are imported from your kind 0 metadata.
+- **Per-site permissions** — approve or reject each site, per method, with a clear prompt that previews what you're signing. Relay auth (NIP-42) signs automatically so clients stay connected.
+- **Per-site account binding** — each site stays pinned to the account it logged in with (no NIP-07 desync). Switch a site to another account from **Connected Sites**.
+- **Identity from your profile** — account names and avatars are imported from your kind 0 metadata; view and edit your profile and publish kind 0.
+- **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle.
+- **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Coinos, Primal, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays. Sidecar never holds your funds.
 
 ### Coming next
 
-- **Lightning wallet** — pay and receive over WebLN, backed by Nostr Wallet Connect (NIP-47).
-- **Profile management** — view, edit, and back up your profile, follows, and lists.
+- **WebLN provider** — let web apps pay and make invoices through Sidecar's connected wallet (`window.webln`), with per-origin payment approval.
 
-## Install (developer / unpacked)
+## Install (unpacked / developer build)
 
-1. Open `chrome://extensions` and enable **Developer mode**.
-2. Click **Load unpacked** and select this folder.
-3. Click the Sidecar toolbar icon to open the side panel, set a PIN, and add an account.
+Sidecar has **no build step** — it's plain JavaScript loaded directly. To run it from source:
+
+1. **Get the code.**
+   ```sh
+   git clone https://github.com/dmnyc/sidecar.git
+   ```
+   (or download the ZIP from GitHub and unzip it).
+
+2. **Open the extensions page** in a Chromium browser:
+   - Chrome / Brave: visit `chrome://extensions`
+   - Edge: visit `edge://extensions`
+
+3. **Enable Developer mode** (toggle in the top-right on Chrome/Brave, left sidebar on Edge).
+
+4. **Click "Load unpacked"** and select the `sidecar` folder (the one containing `manifest.json`).
+
+5. **Pin it (optional).** Click the puzzle-piece toolbar icon and pin Sidecar so its icon is always visible.
+
+6. **Open the side panel.** Click the Sidecar toolbar icon. On first run you'll set a PIN, then add an account (generate a new key or import an existing `nsec`).
+
+7. **Use it on a nostr site.** Open any NIP-07 client (e.g. [Jumble](https://jumble.social), [Coracle](https://coracle.social), [noStrudel](https://nostrudel.ninja)) and choose "log in with extension" — Sidecar will prompt you to approve.
+
+**Updating:** pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
+
+### Build version stamp (optional)
+
+The About dialog shows a version + git commit read from `version.js` (gitignored, generated). A `post-commit` hook keeps it current automatically — install it once with:
+
+```sh
+printf '#!/usr/bin/env bash\nexec "$(git rev-parse --show-toplevel)/scripts/stamp-version.sh" >/dev/null 2>&1 || true\n' > .git/hooks/post-commit
+chmod +x .git/hooks/post-commit
+```
+
+Or regenerate it manually any time:
+
+```sh
+./scripts/stamp-version.sh
+```
 
 ## Architecture
-
-No build step — plain JavaScript loaded directly.
 
 | Area | Files |
 |------|-------|
 | Service worker (RPC router, permissions, prompt orchestration, auto-lock) | `background.js` |
-| Page bridge | `content.js`, `nostr-provider.js` |
+| Page bridge / provider | `content.js`, `nostr-provider.js` |
 | Crypto & keystore | `crypto.js`, `keystore.js`, `permissions.js`, `signer.js` |
 | Approval prompt | `prompt.html`, `prompt.js` |
 | Side panel UI | `sidepanel.html`, `sidepanel.js`, `styles.css`, `fonts.css` |
+| Lightning (NWC / NIP-47) | `nwc-client.js` |
 | Vendored | `nostr-tools.js`, `qrious.min.js`, `fonts/` (Playfair Display + Manrope, SIL OFL) |
+| Generated | `version.js` (build stamp), `scripts/stamp-version.sh` |
+
+Decrypted private keys live only in the service worker's in-memory map. If the worker
+is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
 ## License
 
 MIT. Bundled fonts are licensed under the SIL Open Font License (see `fonts/`).
+The `qrious` QR library is bundled for the wallet's receive flow.
