@@ -567,6 +567,14 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .fab:hover { transform: translateY(-1px) scale(1.03); }
 .fab:active { transform: scale(0.97); }
 .fab svg { width: 24px; height: 24px; }
+.compose-author { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
+.compose-author-av { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  background: linear-gradient(180deg, #2a1257, #160a30); border: 1px solid var(--border); }
+.compose-author-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.compose-author-av.avatar-ph img { width: 60%; height: 60%; margin: 20%; opacity: 0.72; }
+.compose-author-info { display: flex; flex-direction: column; min-width: 0; }
+.compose-author-eyebrow { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.compose-author-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compose-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
 .compose-tab {
   background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
@@ -583,12 +591,6 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   border: 1px solid var(--border); border-radius: 10px; padding: 12px;
   background: rgba(13, 6, 30, 0.3);
 }
-.preview-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.preview-av { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
-  background: linear-gradient(180deg, #2a1257, #160a30); border: 1px solid var(--border); }
-.preview-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.preview-av.avatar-ph img { width: 60%; height: 60%; margin: 20%; opacity: 0.72; }
-.preview-name { font-weight: 600; font-size: 14px; }
 .preview-body { font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .preview-body a { color: var(--lav); }
 .preview-body .mention { color: var(--orange); font-weight: 600; }

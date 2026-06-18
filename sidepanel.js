@@ -1262,11 +1262,6 @@
       const previewPane = h('div', { className: 'compose-preview hidden' });
       function renderPreview() {
         previewPane.innerHTML = '';
-        const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
-        const head = h('div', { className: 'preview-head' });
-        head.append(avatarEl(active || {}, 'preview-av'));
-        head.append(h('span', { className: 'preview-name', textContent: active ? displayName(active) : '' }));
-        previewPane.append(head);
         const bodyText = draft.text.trim();
         if (bodyText) {
           const body = h('div', { className: 'preview-body' });
@@ -1354,8 +1349,20 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
 
+      // Show which account is posting so the user is never confused about identity.
+      const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+      const author = h('div', { className: 'compose-author' });
+      author.append(avatarEl(active || {}, 'compose-author-av'));
+      author.append(
+        h('div', { className: 'compose-author-info' }, [
+          h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+          h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
+        ])
+      );
+
       modal.append(
         h('h3', { textContent: 'New note' }),
+        author,
         tabBar,
         ta,
         previewPane,
