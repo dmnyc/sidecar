@@ -1681,11 +1681,22 @@
       ts: Math.floor(Date.now() / 1000),
       source: { kind: src.kind, created_at: src.created_at, tags: src.tags, content: src.content },
     };
-    const ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: JSON.stringify(blob), nip: 44 });
+    // Prefer NIP-44, but it caps plaintext at 65535 bytes — large follow lists
+    // exceed that, so fall back to NIP-04 (no hard cap). The `encrypted` tag
+    // records which scheme was used so restore decrypts correctly.
+    const plaintext = JSON.stringify(blob);
+    let ciphertext, algo;
+    try {
+      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext, nip: 44 });
+      algo = 'nip44';
+    } catch (_) {
+      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext, nip: 4 });
+      algo = 'nip04';
+    }
     const event = {
       kind: 30078,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [['d', t.dtag], ['encrypted', 'nip44']],
+      tags: [['d', t.dtag], ['encrypted', algo]],
       content: ciphertext,
     };
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
@@ -1851,11 +1862,11 @@
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
       h('h3', { textContent: 'Backup & restore' }),
-      h('p', { className: 'hint', textContent: 'Stored on your relays as a NIP-78 record, encrypted to your own key with NIP-44.' })
+      h('p', { className: 'hint', textContent: 'Stored on your relays as a NIP-78 record, encrypted to your own key (NIP-44, or NIP-04 for very large lists).' })
     );
     const list = h('div', { className: 'list flat' });
     BACKUP_TYPES.forEach((t) => {
-      const status = h('div', { className: 'item-sub backup-status', textContent: 'Not backed up yet' });
+      const status = h('div', { className: 'backup-status', textContent: 'Not backed up yet' });
       const backup = h('button', { className: 'mini', textContent: 'Back up' });
       backup.addEventListener('click', async () => {
         backup.disabled = true;
@@ -1866,7 +1877,7 @@
           status.classList.add('done');
           toast(t.label + ' backed up', 'success');
         } catch (e) {
-          status.textContent = e.message;
+          // Keep the row tidy — surface the detail in a toast, not inline.
           toast(e.message, 'error');
         }
         backup.disabled = false;
