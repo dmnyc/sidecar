@@ -489,6 +489,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 }
 .list.flat .item:last-child { border-bottom: none; }
 .list.flat .item:hover { background: rgba(167, 139, 250, 0.06); border-bottom-color: var(--border); }
+/* empty state: drop the card chrome, just show the hint text */
+.list.flat.empty { background: none; border: none; box-shadow: none; }
+.list.flat.empty .hint { margin: 2px 0 0; }
 
 .setting { margin-bottom: 24px; }
 
@@ -507,8 +510,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .show-more-btn { display: block; width: 100%; margin: 4px 0 10px; color: var(--lav); font-weight: 600; }
 #activity-clear { display: block; margin: 8px auto 0; }
 
-/* connected-site rows with a tier selector */
-.site-item { gap: 8px; }
+/* connected-site rows: host + binding on top, controls on their own row */
+.site-item { flex-direction: column; align-items: stretch; gap: 10px; }
+.site-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .level-select {
   width: auto;
   flex-shrink: 0;
@@ -516,6 +520,22 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   font-size: 12px;
   border-radius: 8px;
 }
+/* which account a site is pinned to */
+.site-bound {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 3px; font-size: 11.5px; color: var(--faint);
+}
+.site-bound-av { width: 16px; height: 16px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+.site-bound-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.site-bound-other { color: var(--gold); }
+/* the obvious "switch this site to the active account" affordance */
+.switch-site-btn {
+  flex-shrink: 0; white-space: nowrap;
+  padding: 7px 12px; font-size: 12px; font-weight: 600;
+  border-radius: 8px; cursor: pointer;
+  color: #1a0d33; background: var(--gold); border: 1px solid var(--gold);
+}
+.switch-site-btn:hover { filter: brightness(1.08); }
 
 /* signing activity rows */
 .activity-item { gap: 11px; }

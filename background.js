@@ -44,6 +44,9 @@ const SITE_ACCTS_KEY = 'sidecar_site_accounts';
 async function getSiteAccount(host) {
   return ((await sget(SITE_ACCTS_KEY))[SITE_ACCTS_KEY] || {})[host] || null;
 }
+async function getAllSiteAccounts() {
+  return (await sget(SITE_ACCTS_KEY))[SITE_ACCTS_KEY] || {};
+}
 async function setSiteAccount(host, pubkey) {
   const all = (await sget(SITE_ACCTS_KEY))[SITE_ACCTS_KEY] || {};
   if (all[host] === pubkey) return; // no-op when already bound (called on every RPC)
@@ -360,6 +363,15 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_REMOVE_HOST':
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
+        break;
+      case 'SIDECAR_GET_SITE_BINDINGS':
+        result = await getAllSiteAccounts();
+        break;
+      case 'SIDECAR_CLEAR_BINDING':
+        // Detach only the account binding (leaves the bound account's
+        // permissions intact) so a re-login on that site picks a new account.
+        await clearSiteAccount(message.host);
+        result = true;
         break;
       case 'SIDECAR_GET_ACTIVITY': {
         const me = await KS.getActivePubkey();

@@ -873,9 +873,40 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  function siteRow(host, level) {
+  function siteRow(host, level, boundPk) {
+    const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
+    const isActiveBound = boundPk && boundPk === state.activePubkey;
+
     const row = h('div', { className: 'item site-item' });
-    const main = h('div', { className: 'item-main' }, [h('div', { className: 'item-label', textContent: host })]);
+    const main = h('div', { className: 'item-main' });
+    main.append(h('div', { className: 'item-label', textContent: host }));
+    if (boundAcct) {
+      const who = h('div', { className: 'site-bound' + (isActiveBound ? '' : ' site-bound-other') });
+      who.append(avatarEl(boundAcct, 'site-bound-av'));
+      who.append(h('span', { textContent: 'Signs in as ' + displayName(boundAcct) }));
+      main.append(who);
+    }
+    row.append(main);
+
+    // Controls go on their own row below the host so the "Signs in as" line
+    // always gets full width and never wraps mid-phrase.
+    const controls = h('div', { className: 'site-controls' });
+    row.append(controls);
+
+    if (boundPk && !isActiveBound) {
+      // Bound to a different account: the obvious path to switch profiles here.
+      const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+      const btn = h('button', {
+        className: 'switch-site-btn',
+        textContent: 'Use ' + (active ? displayName(active) : 'this account'),
+        title: 'Switch ' + host + ' to the active account',
+      });
+      btn.addEventListener('click', () => switchSiteModal(host, boundAcct, active));
+      controls.append(btn);
+      return row;
+    }
+
+    // Bound to the active account (or unbound): tier selector + forget.
     const sel = document.createElement('select');
     sel.className = 'level-select';
     LEVELS.forEach(([v, l]) => {
@@ -888,8 +919,42 @@
       await call({ type: 'SIDECAR_REMOVE_HOST', host });
       renderActivity();
     });
-    row.append(main, sel, rm);
+    controls.append(sel, rm);
     return row;
+  }
+
+  // Explain + confirm switching a site from its bound account to the active one.
+  // Detaching alone isn't enough — the web client caches the old pubkey, so the
+  // user must sign out and back in for Sidecar to re-bind it.
+  function switchSiteModal(host, boundAcct, active) {
+    const activeName = active ? displayName(active) : 'the active account';
+    openModal((modal) => {
+      const p = h('p', { className: 'hint' }, [
+        document.createTextNode(host + ' is signing in as '),
+        h('b', { textContent: displayName(boundAcct) }),
+        document.createTextNode('. To use '),
+        h('b', { textContent: activeName }),
+        document.createTextNode(' instead:'),
+      ]);
+      const go = h('button', { className: 'primary', textContent: 'Detach ' + host });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      go.addEventListener('click', async () => {
+        await call({ type: 'SIDECAR_CLEAR_BINDING', host });
+        closeModal();
+        toast('Detached. Sign out of ' + host + ' and back in as ' + activeName + '.', 'success');
+        renderActivity();
+      });
+      modal.append(
+        h('h3', { textContent: 'Switch ' + host }),
+        p,
+        h('ol', { className: 'restore-list' }, [
+          h('li', { textContent: 'Detach the site below.' }),
+          h('li', { textContent: 'On ' + host + ', sign out and sign back in.' }),
+        ]),
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
   }
 
   function activityRow(e) {
@@ -906,14 +971,22 @@
   }
 
   async function renderActivity() {
-    const perms = await call({ type: 'SIDECAR_GET_PERMISSIONS' });
+    const [perms, bindings] = await Promise.all([
+      call({ type: 'SIDECAR_GET_PERMISSIONS' }),
+      call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
+    ]);
     const sites = $('sites-list');
     sites.innerHTML = '';
-    const hosts = Object.keys(perms).sort();
+    // Union of the active account's permissioned hosts and every bound host, so
+    // a site pinned to a different account still shows up (and can be switched).
+    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort();
+    sites.classList.toggle('empty', !hosts.length);
     if (!hosts.length) {
       sites.append(h('p', { className: 'hint', textContent: 'No sites have connected yet.' }));
     }
-    hosts.forEach((host) => sites.append(siteRow(host, perms[host].level)));
+    hosts.forEach((host) =>
+      sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
+    );
 
     const log = await call({ type: 'SIDECAR_GET_ACTIVITY' });
     const list = $('activity-list');
@@ -1883,7 +1956,7 @@
     );
     const list = h('div', { className: 'list flat' });
     BACKUP_TYPES.forEach((t) => {
-      const status = h('div', { className: 'backup-status', textContent: 'Not backed up yet' });
+      const status = h('div', { className: 'backup-status', textContent: 'Not backed up' });
       const backup = h('button', { className: 'mini', textContent: 'Back up' });
       backup.addEventListener('click', async () => {
         backup.disabled = true;
