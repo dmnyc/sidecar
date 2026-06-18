@@ -80,7 +80,11 @@
     data = resp.data;
     els.host.textContent = data.host;
     els.ask.textContent = 'wants to ' + (METHOD_LABELS[data.method] || data.method);
-    els.account.innerHTML = 'Acting as <b>' + escapeHtml(shortNpub(data.npub)) + '</b>';
+    els.account.innerHTML =
+      'Signing as <b>' +
+      escapeHtml(data.accountName || shortNpub(data.npub)) +
+      '</b>' +
+      (data.accountName ? ' <span class="acct-npub">' + escapeHtml(shortNpub(data.npub)) + '</span>' : '');
     renderPreview();
     if (data.needUnlock) {
       els.unlock.classList.remove('hidden');

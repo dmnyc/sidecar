@@ -34,6 +34,43 @@ async function getConfiguredRelays() {
   return (await sget('sidecar_relays')).sidecar_relays || DEFAULT_RELAYS;
 }
 
+// ---- per-site account binding ----
+// A web client caches the pubkey from its first getPublicKey() and has no way to
+// learn about an account switch. So we PIN each host to the account it logged in
+// with: that host keeps signing as its bound identity regardless of which account
+// is globally active. The global active account only drives new logins + the panel UI.
+const SITE_ACCTS_KEY = 'sidecar_site_accounts';
+
+async function getSiteAccount(host) {
+  return ((await sget(SITE_ACCTS_KEY))[SITE_ACCTS_KEY] || {})[host] || null;
+}
+async function setSiteAccount(host, pubkey) {
+  const all = (await sget(SITE_ACCTS_KEY))[SITE_ACCTS_KEY] || {};
+  if (all[host] === pubkey) return; // no-op when already bound (called on every RPC)
+  all[host] = pubkey;
+  await sset({ [SITE_ACCTS_KEY]: all });
+}
+async function clearSiteAccount(host) {
+  const all = (await sget(SITE_ACCTS_KEY))[SITE_ACCTS_KEY] || {};
+  delete all[host];
+  await sset({ [SITE_ACCTS_KEY]: all });
+}
+async function clearSiteAccountsForPubkey(pubkey) {
+  const all = (await sget(SITE_ACCTS_KEY))[SITE_ACCTS_KEY] || {};
+  let changed = false;
+  for (const h of Object.keys(all)) if (all[h] === pubkey) { delete all[h]; changed = true; }
+  if (changed) await sset({ [SITE_ACCTS_KEY]: all });
+}
+
+// Resolve which account a host signs as: its valid binding, else the active
+// account. Does NOT persist — we bind only after a request actually succeeds
+// (see handleNostrRpc), so rejected/unused sites leave no stale binding.
+async function resolveSiteAccount(host) {
+  const bound = await getSiteAccount(host);
+  if (bound && (await KS.hasAccount(bound))) return bound;
+  return KS.getActivePubkey();
+}
+
 // ---- signing activity log (newest first, capped) ----
 const ACTIVITY_KEY = 'sidecar_activity';
 const ACTIVITY_MAX = 200;
@@ -128,7 +165,9 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     await KS.ensureLoaded(); // rehydrate unlocked session if the SW was restarted
     if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
 
-    const activePubkey = await KS.getActivePubkey();
+    // The identity this host signs as — pinned to whatever it logged in with,
+    // independent of the globally-active account (prevents NIP-07 desync).
+    const activePubkey = await resolveSiteAccount(host);
     if (!activePubkey) throw new Error('No active Sidecar account');
 
     const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
@@ -140,12 +179,15 @@ async function handleNostrRpc(method, params, host, sendResponse) {
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
+      const st = await KS.getState();
+      const acct = st.accounts.find((a) => a.pubkey === activePubkey);
       const decision = await openPrompt({
         host,
         method,
         params,
         activePubkey,
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
+        accountName: (acct && acct.name) || '',
         needUnlock,
         needApproval,
         level: await PERMS.getLevel(activePubkey, host),
@@ -168,6 +210,9 @@ async function handleNostrRpc(method, params, host, sendResponse) {
       const privBytes = needsKey ? await KS.getPrivkey(activePubkey) : null;
       result = await SIGNER.perform(method, params, privBytes, activePubkey);
     }
+
+    // Pin this host to the account it just successfully used (idempotent).
+    await setSiteAccount(host, activePubkey);
 
     let kind;
     if (method === 'signEvent') {
@@ -231,6 +276,7 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_REMOVE_ACCOUNT': {
         result = await KS.removeAccount(message.pubkey);
         await PERMS.clearAccount(message.pubkey);
+        await clearSiteAccountsForPubkey(message.pubkey);
         const acts = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
         await sset({ [ACTIVITY_KEY]: acts.filter((e) => e.pubkey !== message.pubkey) });
         break;
@@ -313,6 +359,7 @@ async function handleControl(message, sendResponse) {
         break;
       case 'SIDECAR_REMOVE_HOST':
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
+        await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
         break;
       case 'SIDECAR_GET_ACTIVITY': {
         const me = await KS.getActivePubkey();

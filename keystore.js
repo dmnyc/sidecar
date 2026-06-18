@@ -319,6 +319,13 @@
     return (await get(ACTIVE_KEY))[ACTIVE_KEY] || null;
   }
 
+  // Does this pubkey still correspond to a stored account?
+  async function hasAccount(pubkey) {
+    if (!pubkey) return false;
+    const store = await loadStore();
+    return !!(store && store.accounts[pubkey]);
+  }
+
   // Return decrypted private-key bytes for signing. Defaults to the active account.
   async function getPrivkey(pubkey) {
     requireUnlocked();
@@ -371,6 +378,7 @@
     setProfile,
     setActive,
     getActivePubkey,
+    hasAccount,
     getPrivkey,
     changePin,
     // expose the derived key getter for sibling modules (e.g. NWC string encryption)
