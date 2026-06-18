@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sidecar</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <style>
+    :root {
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
+      --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+      --bg: #0a0118;
+      --velvet-1: #23114a;
+      --velvet-2: #160a30;
+      --border: rgba(167, 139, 250, 0.16);
+      --border-strong: rgba(167, 139, 250, 0.28);
+      --orange: #ea772f;
+      --gold: #cba14e;
+      --gold-soft: rgba(203, 161, 78, 0.5);
+      --purple: #a78bfa;
+      --lav: #bda1ff;
+      --text: #f1e8f8;
+      --muted: #9a86c4;
+      --faint: #6f5fa0;
+      --red: #f0566b;
+      --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 22px;
+      font-family: var(--font-ui);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      background-color: var(--bg);
+      background-image:
+        url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='38'%20height='38'%3E%3Cpath%20d='M0%2019%2019%200%2038%2019%2019%2038Z'%20fill='none'%20stroke='%23a78bfa'%20stroke-opacity='0.05'/%3E%3Ccircle%20cx='19'%20cy='19'%20r='1'%20fill='%23cba14e'%20fill-opacity='0.08'/%3E%3C/svg%3E"),
+        radial-gradient(900px 420px at 50% -14%, rgba(167, 139, 250, 0.16), transparent 60%),
+        radial-gradient(700px 480px at 118% 116%, rgba(234, 119, 47, 0.12), transparent 55%),
+        linear-gradient(165deg, #170630 0%, var(--bg) 64%);
+      background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+      background-attachment: fixed;
+    }
+    .brand { display: flex; align-items: center; margin-bottom: 18px; }
+    .brand img { height: 26px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
+    .host {
+      font-family: var(--font-display); font-weight: 700;
+      font-size: 19px; color: var(--lav);
+      word-break: break-all; margin-bottom: 3px;
+    }
+    .ask { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+    .card {
+      position: relative;
+      background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 13px; margin-bottom: 16px; font-size: 13px;
+      box-shadow: var(--sheen);
+    }
+    .card .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+    .card .row span:first-child { color: var(--muted); }
+    .card .row span:last-child { word-break: break-all; text-align: right; font-family: var(--font-mono); font-size: 12px; }
+    pre {
+      background: rgba(8, 2, 20, 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
+      font-family: var(--font-mono);
+      font-size: 12px; white-space: pre-wrap; word-break: break-word;
+      max-height: 160px; overflow: auto; color: var(--text);
+    }
+    .account { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+    .account b { color: var(--lav); font-family: var(--font-mono); }
+    label { display: block; font-size: 12px; letter-spacing: 0.03em; color: var(--muted); margin: 0 0 6px; }
+    input[type=password] {
+      width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6));
+      color: var(--text); font-size: 16px; margin-bottom: 8px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type=password]:focus { outline: none; border-color: var(--gold-soft); box-shadow: 0 0 0 3px rgba(203, 161, 78, 0.16); }
+    .error { color: var(--red); font-size: 13px; min-height: 18px; margin-bottom: 8px; }
+    .actions { display: flex; flex-direction: column; gap: 8px; }
+    button {
+      width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer;
+      font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.01em;
+      transition: transform 0.12s, filter 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    .primary {
+      background: linear-gradient(180deg, #f29248, var(--orange) 55%, #d4621f); color: #1c0c00;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px rgba(234, 119, 47, 0.28);
+    }
+    .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .secondary {
+      background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+      color: var(--text); border: 1px solid var(--border); box-shadow: var(--sheen);
+    }
+    .secondary:hover { border-color: var(--gold-soft); }
+    .ghost { background: transparent; color: var(--muted); }
+    .ghost:hover { color: var(--text); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="brand"><img src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+  <div class="host" id="host">…</div>
+  <div class="ask" id="ask">wants to…</div>
+
+  <div id="preview" class="card hidden"></div>
+
+  <div class="account" id="account"></div>
+
+  <div id="unlock" class="hidden">
+    <label for="pin">Enter your PIN to unlock</label>
+    <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
+  </div>
+
+  <div class="error" id="error"></div>
+
+  <div class="actions">
+    <button class="primary" id="allow">Allow</button>
+    <button class="secondary" id="allowForever">Allow for this site</button>
+    <button class="ghost" id="reject">Reject</button>
+  </div>
+
+  <script src="prompt.js"></script>
+</body>
+</html>

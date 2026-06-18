@@ -1,0 +1,276 @@
+// Sidecar keystore — multi-account encrypted nostr key storage.
+//
+// Runs in the service worker (loaded via importScripts after nostr-tools.js and
+// crypto.js). Owns the persistent encrypted records in chrome.storage.local AND the
+// in-memory map of decrypted private keys that exists only while unlocked. Decrypted
+// keys never touch disk; they are wiped on lock / browser restart / SW death.
+//
+// Storage layout:
+//   sidecar_keystore = {
+//     version, kdf:{name,hash,iterations,salt},
+//     accounts: { <pubkeyHex>: { pubkey, label, enc:{iv,ct}, createdAt } },
+//     verifier: { iv, ct }              // AES-GCM of a known constant (PIN check)
+//   }
+//   sidecar_active_pubkey = <pubkeyHex>
+
+(function (root) {
+  'use strict';
+
+  const C = root.SidecarCrypto;
+  const STORE_KEY = 'sidecar_keystore';
+  const ACTIVE_KEY = 'sidecar_active_pubkey';
+
+  // ---- in-memory unlocked state (module scope; gone when SW is killed) ----
+  let derivedKey = null;                 // non-extractable AES-GCM CryptoKey, held while unlocked
+  let unlocked = new Map();              // pubkeyHex -> Uint8Array(32) private key
+
+  // ---- promisified chrome.storage.local ----
+  function get(keys) {
+    return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
+  }
+  function set(obj) {
+    return new Promise((resolve) => chrome.storage.local.set(obj, resolve));
+  }
+
+  // ---- hex helpers ----
+  function bytesToHex(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, '0');
+    return s;
+  }
+  function hexToBytes(hex) {
+    if (hex.length % 2) throw new Error('invalid hex');
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    return out;
+  }
+
+  function pubkeyOf(privBytes) {
+    return root.NostrTools.getPublicKey(privBytes);
+  }
+
+  // Decode an nsec (NIP-19) or 64-char hex string into 32 private-key bytes.
+  function decodeSecret(input) {
+    const s = (input || '').trim();
+    if (s.startsWith('nsec')) {
+      const decoded = root.NostrTools.nip19.decode(s);
+      if (decoded.type !== 'nsec') throw new Error('Not an nsec key');
+      return decoded.data instanceof Uint8Array ? decoded.data : hexToBytes(decoded.data);
+    }
+    if (/^[0-9a-fA-F]{64}$/.test(s)) return hexToBytes(s.toLowerCase());
+    throw new Error('Enter a valid nsec or 64-character hex private key');
+  }
+
+  async function loadStore() {
+    return (await get(STORE_KEY))[STORE_KEY] || null;
+  }
+
+  // ---- public API ----
+
+  async function isInitialized() {
+    return (await loadStore()) !== null;
+  }
+
+  function isLocked() {
+    return derivedKey === null;
+  }
+
+  // Safe metadata for the UI — works locked or unlocked, never exposes secrets.
+  async function getState() {
+    const store = await loadStore();
+    const active = (await get(ACTIVE_KEY))[ACTIVE_KEY] || null;
+    const accounts = store
+      ? Object.values(store.accounts).map((a) => ({
+          pubkey: a.pubkey,
+          npub: root.NostrTools.nip19.npubEncode(a.pubkey),
+          name: a.name || '',
+          picture: a.picture || '',
+          createdAt: a.createdAt,
+        }))
+      : [];
+    return {
+      initialized: store !== null,
+      locked: isLocked(),
+      activePubkey: active,
+      accounts,
+    };
+  }
+
+  // Create a brand-new keystore protected by `pin`. Leaves it unlocked (empty).
+  async function initialize(pin) {
+    if (await isInitialized()) throw new Error('Keystore already initialized');
+    const kdf = C.newKdf();
+    derivedKey = await C.deriveKey(pin, kdf);
+    const store = {
+      version: 1,
+      kdf,
+      accounts: {},
+      verifier: await C.makeVerifier(derivedKey),
+    };
+    await set({ [STORE_KEY]: store });
+    unlocked = new Map();
+    return getState();
+  }
+
+  // Derive the key from `pin`, verify it, and decrypt every account into memory.
+  async function unlock(pin) {
+    const store = await loadStore();
+    if (!store) throw new Error('Keystore not initialized');
+    const key = await C.deriveKey(pin, store.kdf);
+    if (!(await C.checkVerifier(key, store.verifier))) {
+      throw new Error('Incorrect PIN');
+    }
+    const map = new Map();
+    for (const acct of Object.values(store.accounts)) {
+      map.set(acct.pubkey, await C.decryptBytes(key, acct.enc));
+    }
+    derivedKey = key;
+    unlocked = map;
+    return getState();
+  }
+
+  function lock() {
+    for (const bytes of unlocked.values()) C.wipe(bytes);
+    unlocked.clear();
+    derivedKey = null;
+  }
+
+  function requireUnlocked() {
+    if (isLocked()) throw new Error('Keystore is locked');
+  }
+
+  // Add an account from raw private-key bytes. Sets it active if it's the first.
+  // name/picture default empty — they're populated from the account's kind:0 profile.
+  async function addAccountFromBytes(privBytes, name) {
+    requireUnlocked();
+    if (!(privBytes instanceof Uint8Array) || privBytes.length !== 32) {
+      throw new Error('Private key must be 32 bytes');
+    }
+    const pubkey = pubkeyOf(privBytes);
+    const store = await loadStore();
+    if (store.accounts[pubkey]) {
+      C.wipe(privBytes);
+      throw new Error('Account already exists');
+    }
+    store.accounts[pubkey] = {
+      pubkey,
+      name: name || '',
+      picture: '',
+      enc: await C.encryptBytes(derivedKey, privBytes),
+      createdAt: Date.now(),
+    };
+    await set({ [STORE_KEY]: store });
+    unlocked.set(pubkey, privBytes);
+    const wasEmpty = Object.keys(store.accounts).length === 1;
+    if (wasEmpty) await set({ [ACTIVE_KEY]: pubkey });
+    return { pubkey, npub: root.NostrTools.nip19.npubEncode(pubkey) };
+  }
+
+  async function importSecret(nsecOrHex, label) {
+    return addAccountFromBytes(decodeSecret(nsecOrHex), label);
+  }
+
+  async function generateAccount(label) {
+    return addAccountFromBytes(root.NostrTools.generateSecretKey(), label);
+  }
+
+  async function removeAccount(pubkey) {
+    const store = await loadStore();
+    if (!store || !store.accounts[pubkey]) throw new Error('No such account');
+    delete store.accounts[pubkey];
+    await set({ [STORE_KEY]: store });
+    const bytes = unlocked.get(pubkey);
+    if (bytes) C.wipe(bytes);
+    unlocked.delete(pubkey);
+    // Reassign active if we just removed it.
+    const active = (await get(ACTIVE_KEY))[ACTIVE_KEY] || null;
+    if (active === pubkey) {
+      const next = Object.keys(store.accounts)[0] || null;
+      await set({ [ACTIVE_KEY]: next });
+    }
+    return getState();
+  }
+
+  async function renameAccount(pubkey, name) {
+    const store = await loadStore();
+    if (!store || !store.accounts[pubkey]) throw new Error('No such account');
+    store.accounts[pubkey].name = name;
+    await set({ [STORE_KEY]: store });
+    return getState();
+  }
+
+  // Cache public profile fields (name/picture) pulled from the account's kind:0 event.
+  async function setProfile(pubkey, profile) {
+    const store = await loadStore();
+    if (!store || !store.accounts[pubkey]) throw new Error('No such account');
+    if (profile.name != null) store.accounts[pubkey].name = profile.name;
+    if (profile.picture != null) store.accounts[pubkey].picture = profile.picture;
+    await set({ [STORE_KEY]: store });
+    return getState();
+  }
+
+  async function setActive(pubkey) {
+    const store = await loadStore();
+    if (!store || !store.accounts[pubkey]) throw new Error('No such account');
+    await set({ [ACTIVE_KEY]: pubkey });
+    return getState();
+  }
+
+  async function getActivePubkey() {
+    return (await get(ACTIVE_KEY))[ACTIVE_KEY] || null;
+  }
+
+  // Return decrypted private-key bytes for signing. Defaults to the active account.
+  async function getPrivkey(pubkey) {
+    requireUnlocked();
+    const pk = pubkey || (await getActivePubkey());
+    if (!pk) throw new Error('No active account');
+    const bytes = unlocked.get(pk);
+    if (!bytes) throw new Error('Account not unlocked');
+    return bytes;
+  }
+
+  // Re-wrap every account (and the verifier) under a new PIN.
+  async function changePin(oldPin, newPin) {
+    const store = await loadStore();
+    if (!store) throw new Error('Keystore not initialized');
+    const oldKey = await C.deriveKey(oldPin, store.kdf);
+    if (!(await C.checkVerifier(oldKey, store.verifier))) throw new Error('Incorrect current PIN');
+    const kdf = C.newKdf();
+    const newKey = await C.deriveKey(newPin, kdf);
+    for (const acct of Object.values(store.accounts)) {
+      const bytes = await C.decryptBytes(oldKey, acct.enc);
+      acct.enc = await C.encryptBytes(newKey, bytes);
+      C.wipe(bytes);
+    }
+    store.kdf = kdf;
+    store.verifier = await C.makeVerifier(newKey);
+    await set({ [STORE_KEY]: store });
+    derivedKey = newKey; // stay unlocked
+    return getState();
+  }
+
+  root.SidecarKeystore = {
+    bytesToHex,
+    hexToBytes,
+    decodeSecret,
+    isInitialized,
+    isLocked,
+    getState,
+    initialize,
+    unlock,
+    lock,
+    addAccountFromBytes,
+    importSecret,
+    generateAccount,
+    removeAccount,
+    renameAccount,
+    setProfile,
+    setActive,
+    getActivePubkey,
+    getPrivkey,
+    changePin,
+    // expose the derived key getter for sibling modules (e.g. NWC string encryption)
+    _getDerivedKey: () => derivedKey,
+  };
+})(typeof self !== 'undefined' ? self : this);

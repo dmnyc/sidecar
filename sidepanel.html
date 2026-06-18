@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sidecar</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== Onboarding: create a PIN (no keystore yet) ===== -->
+  <section id="view-onboarding" class="screen hidden">
+    <div class="brand-lg">
+      <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" />
+    </div>
+    <p class="headline">Your keys, your identity.</p>
+    <p class="lede">Set a PIN to protect the Nostr accounts stored on this device.</p>
+    <form id="onboarding-form" class="stack">
+      <label for="ob-pin">Create a PIN or passphrase</label>
+      <input type="password" id="ob-pin" autocomplete="new-password" maxlength="32" />
+      <label for="ob-pin2">Confirm</label>
+      <input type="password" id="ob-pin2" autocomplete="new-password" maxlength="32" />
+      <p class="hint">A longer alphanumeric passphrase is stronger than a short numeric PIN. There is no recovery if you forget it.</p>
+      <div class="error" id="ob-error"></div>
+      <button type="submit" class="primary">Create keystore</button>
+    </form>
+  </section>
+
+  <!-- ===== Lock screen (initialized, locked) ===== -->
+  <section id="view-lock" class="screen hidden">
+    <div class="brand-lg">
+      <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" />
+    </div>
+    <p class="lede">Locked. Enter your PIN to unlock your accounts.</p>
+    <form id="unlock-form" class="stack">
+      <label for="unlock-pin">PIN or passphrase</label>
+      <input type="password" id="unlock-pin" autocomplete="current-password" maxlength="32" autofocus />
+      <div class="error" id="unlock-error"></div>
+      <button type="submit" class="primary">Unlock</button>
+    </form>
+  </section>
+
+  <!-- ===== Main app (unlocked) ===== -->
+  <section id="view-main" class="hidden">
+    <header class="topbar">
+      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <button id="lock-btn" class="icon-btn" title="Lock">🔒</button>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="accounts">Accounts</button>
+      <button class="tab" data-tab="profile">Profile</button>
+      <button class="tab" data-tab="wallet">Wallet</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <main class="content">
+      <!-- Accounts -->
+      <div class="tabview" id="tab-accounts">
+        <div class="active-account" id="active-account"></div>
+        <h2>Accounts</h2>
+        <div id="account-list" class="list"></div>
+        <div class="row-actions">
+          <button class="secondary" id="add-generate">Generate new</button>
+          <button class="secondary" id="add-import">Import nsec</button>
+        </div>
+      </div>
+
+      <!-- Profile (filled in Profile phase) -->
+      <div class="tabview hidden" id="tab-profile">
+        <h2>Profile</h2>
+        <p class="hint" id="profile-placeholder">Profile editing &amp; backup coming next.</p>
+      </div>
+
+      <!-- Wallet (filled in Wallet phase) -->
+      <div class="tabview hidden" id="tab-wallet">
+        <h2>Wallet</h2>
+        <p class="hint" id="wallet-placeholder">Lightning wallet (NWC) coming next.</p>
+      </div>
+
+      <!-- Settings -->
+      <div class="tabview hidden" id="tab-settings">
+        <h2>Settings</h2>
+
+        <div class="setting">
+          <h3>Auto-lock</h3>
+          <select id="autolock-select">
+            <option value="0">Never</option>
+            <option value="1">After 1 minute</option>
+            <option value="5">After 5 minutes</option>
+            <option value="15">After 15 minutes</option>
+            <option value="60">After 1 hour</option>
+          </select>
+        </div>
+
+        <div class="setting">
+          <h3>Relays</h3>
+          <p class="hint">Returned to apps via <code>getRelays()</code>.</p>
+          <div id="relay-list" class="list"></div>
+          <div class="row-actions">
+            <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
+            <button class="secondary" id="relay-add">Add</button>
+          </div>
+        </div>
+
+        <div class="setting">
+          <h3>Site permissions</h3>
+          <div id="perm-list" class="list"></div>
+        </div>
+
+        <div class="setting">
+          <h3>Change PIN</h3>
+          <button class="secondary" id="change-pin-btn">Change PIN…</button>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===== Modal host ===== -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="nostr-tools.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
