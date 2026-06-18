@@ -552,9 +552,14 @@
         modal.append(choice);
         modal.append(
           h('p', {
-            className: 'hint',
+            className: 'hint compact',
             textContent:
-              'Your name and picture come from your Nostr profile; a new account gets a placeholder name you can change. Importing here is safer than pasting your nsec into a website — Sidecar signs locally and never exposes your key.',
+              'Your name and picture come from your Nostr profile. A new account gets a placeholder name you can change.',
+          }),
+          h('p', {
+            className: 'hint compact',
+            textContent:
+              'Importing here is safer than pasting your nsec into a website. Sidecar signs locally and never reveals your key to the sites you log into.',
           })
         );
       }
@@ -912,33 +917,32 @@
     } else {
       header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
     }
-    header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
-    view.append(header);
-
-    // identity block: name / nip05 / npub on the left, flat pencil edit on the right
-    const idMain = h('div', { className: 'profile-id-main' });
-    idMain.append(
-      h('div', {
-        className: 'profile-name',
-        textContent: content.display_name || content.name || active.name || shortNpub(active.npub),
-      })
-    );
-    if (content.nip05) idMain.append(h('div', { className: 'profile-meta', textContent: content.nip05 }));
-    idMain.append(npubChip(active.npub));
-
     const editBtn = document.createElement('button');
     editBtn.className = 'icon-btn profile-edit-btn';
     editBtn.title = 'Edit profile';
     editBtn.appendChild(icon('edit'));
     editBtn.addEventListener('click', () => openProfileEdit(content));
-    view.append(h('div', { className: 'profile-id' }, [idMain, editBtn]));
+    header.append(editBtn);
+    header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
+    view.append(header);
+
+    // centered identity + bio
+    const body = h('div', { className: 'profile-body' });
+    body.append(
+      h('div', {
+        className: 'profile-name',
+        textContent: content.display_name || content.name || active.name || shortNpub(active.npub),
+      })
+    );
+    if (content.nip05) body.append(h('div', { className: 'profile-meta', textContent: content.nip05 }));
+    body.append(npubChip(active.npub));
 
     if (content.about) {
       const about = h('p', { className: 'profile-about' });
-      view.append(about);
+      body.append(about);
       renderAbout(about, content.about);
     }
-    if (content.lud16) view.append(h('div', { className: 'profile-meta', textContent: '⚡ ' + content.lud16 }));
+    if (content.lud16) body.append(h('div', { className: 'profile-meta', textContent: '⚡ ' + content.lud16 }));
     if (content.website) {
       const w = h('div', { className: 'profile-meta' });
       const a = document.createElement('a');
@@ -947,8 +951,9 @@
       a.rel = 'noreferrer noopener';
       a.textContent = content.website;
       w.append(a);
-      view.append(w);
+      body.append(w);
     }
+    view.append(body);
 
     renderBackupSection(view, active);
   }
