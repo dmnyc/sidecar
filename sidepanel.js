@@ -37,6 +37,8 @@
     camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle>',
     alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
     grip: '<circle cx="9" cy="7" r="1.5" fill="currentColor"></circle><circle cx="15" cy="7" r="1.5" fill="currentColor"></circle><circle cx="9" cy="12" r="1.5" fill="currentColor"></circle><circle cx="15" cy="12" r="1.5" fill="currentColor"></circle><circle cx="9" cy="17" r="1.5" fill="currentColor"></circle><circle cx="15" cy="17" r="1.5" fill="currentColor"></circle>',
+    external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>',
+    x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -79,7 +81,14 @@
       setTimeout(() => $('unlock-pin').focus(), 50);
     } else {
       show($('view-main'));
+      const banner = $('post-banner');
+      if (banner) hide(banner); // a note link is account-specific; clear on any state change
       renderMain();
+      // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
+      const activeTab = document.querySelector('.tab.active');
+      const name = activeTab && activeTab.dataset.tab;
+      if (name === 'activity') renderActivity();
+      else if (name === 'profile') renderProfile();
     }
   }
 
@@ -127,6 +136,8 @@
     await refresh();
     toast('Locked', 'success');
   });
+
+  $('compose-fab').addEventListener('click', () => openComposer());
 
   // ---- settings (gear icon ↔ overlay view) ----
   $('settings-btn').addEventListener('click', () => {
@@ -485,14 +496,17 @@
   }
 
   // ---- modals ----
-  function openModal(buildContent) {
+  let modalCleanup = null;
+  function openModal(buildContent, onClose) {
     const modal = $('modal');
     modal.innerHTML = '';
+    modalCleanup = onClose || null;
     buildContent(modal);
     show($('modal-overlay'));
     document.documentElement.classList.add('modal-open');
   }
   function closeModal() {
+    if (modalCleanup) { try { modalCleanup(); } catch (_) {} modalCleanup = null; }
     hide($('modal-overlay'));
     $('modal').innerHTML = '';
     document.documentElement.classList.remove('modal-open');
@@ -749,6 +763,7 @@
     // auto-lock
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
+    $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -1086,6 +1101,326 @@
     const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
     if (!u) throw new Error('Upload returned no URL');
     return u;
+  }
+
+  // ---- note media upload (NIP-98 → nostr.build, images + video) ----
+  async function uploadMedia(file) {
+    const isImg = file.type.startsWith('image/');
+    const isVid = file.type.startsWith('video/');
+    if (!isImg && !isVid) throw new Error('Choose an image or video');
+    if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100MB)');
+    const url = 'https://nostr.build/api/v2/upload/files';
+    const authEvent = {
+      kind: 27235,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['u', url], ['method', 'POST']],
+      content: '',
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent });
+    const token = 'Nostr ' + btoa(JSON.stringify(signed));
+    const form = new FormData();
+    form.append('file', file);
+    const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
+    if (!resp.ok) throw new Error('Upload failed (' + resp.status + ')');
+    const json = await resp.json().catch(() => null);
+    const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
+    if (!u) throw new Error('Upload returned no URL');
+    return u;
+  }
+
+  // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
+  const NOTE_COUNTDOWN_SECS = 15;
+  const CLIENT_TAG = ['client', 'sidecar', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io'];
+  const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
+  const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
+
+  // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
+  const VIEW_CLIENTS = {
+    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne },
+    njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne },
+    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne },
+    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne },
+    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne },
+  };
+  const DEFAULT_CLIENT = 'jumble';
+
+  async function neventFor(signed) {
+    let relays = [];
+    try { relays = (await relayUrls(true)).slice(0, 2); } catch (_) {}
+    return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
+  }
+
+  // Persistent "your note is live" banner with an open-in-client link.
+  async function showPostBanner(signed) {
+    const banner = $('post-banner');
+    if (!banner) return;
+    let nevent;
+    try { nevent = await neventFor(signed); } catch (_) { return; }
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
+    const client = VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+
+    banner.innerHTML = '';
+    const msg = h('span', { className: 'post-banner-msg', textContent: 'Your note is live.' });
+    const open = document.createElement('a');
+    open.className = 'post-banner-link';
+    open.href = client.url(nevent);
+    open.target = '_blank';
+    open.rel = 'noreferrer noopener';
+    open.append(h('span', { textContent: 'Open in ' + client.label }), icon('external'));
+    const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
+    close.append(icon('x'));
+    close.addEventListener('click', () => hide(banner));
+    banner.append(msg, open, close);
+    show(banner);
+  }
+
+  // Render composed note content the way a client will: text + inline media + @mentions.
+  function renderNotePreview(container, text) {
+    const mentions = [];
+    let last = 0;
+    let m;
+    TOKEN_RE.lastIndex = 0;
+    const flushText = (s) => { if (s) container.append(document.createTextNode(s)); };
+    while ((m = TOKEN_RE.exec(text)) !== null) {
+      if (m.index > last) flushText(text.slice(last, m.index));
+      if (m[1]) {
+        const url = m[1];
+        if (IMG_EXT.test(url)) {
+          const im = document.createElement('img');
+          im.className = 'note-media';
+          im.referrerPolicy = 'no-referrer';
+          im.src = url;
+          container.append(im);
+        } else if (VID_EXT.test(url)) {
+          const v = document.createElement('video');
+          v.className = 'note-media';
+          v.controls = true;
+          v.src = url;
+          container.append(v);
+        } else {
+          const a = document.createElement('a');
+          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
+          a.textContent = url;
+          container.append(a);
+        }
+      } else if (m[2]) {
+        const bech = m[2];
+        let pubkey = null;
+        try {
+          const d = NT.nip19.decode(bech);
+          pubkey = d.type === 'npub' ? d.data : d.type === 'nprofile' ? d.data.pubkey : null;
+        } catch (_) {}
+        const a = document.createElement('span');
+        a.className = 'mention';
+        a.textContent = '@' + bech.slice(0, 10) + '…';
+        if (pubkey) mentions.push({ el: a, pubkey });
+        container.append(a);
+      }
+      last = TOKEN_RE.lastIndex;
+    }
+    flushText(text.slice(last));
+    resolveMentions(mentions);
+  }
+
+  function openComposer() {
+    if (!state.activePubkey) {
+      toast('Add an account first', 'error');
+      return;
+    }
+    const draft = { text: '', media: [] };
+    const modal = $('modal');
+    let timer = null;
+
+    async function doPublish() {
+      const content = draft.text.trim();
+      const event = {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [CLIENT_TAG.slice()],
+        content,
+      };
+      const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+      await publishSigned(signed);
+      return signed;
+    }
+
+    function showEditor() {
+      if (timer) { clearInterval(timer); timer = null; }
+      modal.innerHTML = '';
+
+      // Write / Preview tab bar
+      let preview = false;
+      const tabWrite = h('button', { className: 'compose-tab active', textContent: 'Write' });
+      const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
+      const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
+
+      const ta = h('textarea', { className: 'compose-text', placeholder: 'What’s on your mind?' });
+      ta.value = draft.text;
+      ta.addEventListener('input', () => { draft.text = ta.value; updatePostState(); });
+
+      const previewPane = h('div', { className: 'compose-preview hidden' });
+      function renderPreview() {
+        previewPane.innerHTML = '';
+        const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+        const head = h('div', { className: 'preview-head' });
+        head.append(avatarEl(active || {}, 'preview-av'));
+        head.append(h('span', { className: 'preview-name', textContent: active ? displayName(active) : '' }));
+        previewPane.append(head);
+        const bodyText = draft.text.trim();
+        if (bodyText) {
+          const body = h('div', { className: 'preview-body' });
+          renderNotePreview(body, bodyText);
+          previewPane.append(body);
+        } else {
+          previewPane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
+        }
+      }
+      function setMode(p) {
+        preview = p;
+        tabWrite.classList.toggle('active', !p);
+        tabPreview.classList.toggle('active', p);
+        ta.classList.toggle('hidden', p);
+        thumbs.classList.toggle('hidden', p);
+        addBtn.classList.toggle('hidden', p);
+        previewPane.classList.toggle('hidden', !p);
+        if (p) renderPreview();
+      }
+      tabWrite.addEventListener('click', () => setMode(false));
+      tabPreview.addEventListener('click', () => setMode(true));
+
+      const thumbs = h('div', { className: 'compose-thumbs' });
+      function renderThumbs() {
+        thumbs.innerHTML = '';
+        draft.media.forEach((m, i) => {
+          const cell = h('div', { className: 'compose-thumb' });
+          const el = m.isVideo ? document.createElement('video') : document.createElement('img');
+          el.src = m.url;
+          if (m.isVideo) el.muted = true;
+          cell.append(el);
+          const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
+          rm.append(icon('trash'));
+          rm.addEventListener('click', () => {
+            draft.text = draft.text.replace('\n' + m.url, '').replace(m.url, '').trimEnd();
+            ta.value = draft.text;
+            draft.media.splice(i, 1);
+            renderThumbs();
+            updatePostState();
+          });
+          cell.append(rm);
+          thumbs.append(cell);
+        });
+      }
+      renderThumbs();
+
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*,video/*';
+      fileInput.style.display = 'none';
+      const addBtn = h('button', { className: 'mini compose-add' });
+      addBtn.append(icon('camera'), h('span', { textContent: 'Add photo or video' }));
+      addBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        err.textContent = '';
+        addBtn.disabled = true;
+        const lbl = addBtn.querySelector('span');
+        const prev = lbl.textContent;
+        lbl.textContent = 'Uploading…';
+        try {
+          const url = await uploadMedia(file);
+          draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+          draft.text = (draft.text ? draft.text.trimEnd() + '\n' : '') + url;
+          ta.value = draft.text;
+          renderThumbs();
+          updatePostState();
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+        addBtn.disabled = false;
+        lbl.textContent = prev;
+        fileInput.value = '';
+      });
+
+      const err = h('div', { className: 'error' });
+      const post = h('button', { className: 'primary', textContent: 'Post' });
+      function updatePostState() { post.disabled = !draft.text.trim() && !draft.media.length; }
+      post.addEventListener('click', () => {
+        if (post.disabled) return;
+        showCountdown();
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      modal.append(
+        h('h3', { textContent: 'New note' }),
+        tabBar,
+        ta,
+        previewPane,
+        thumbs,
+        addBtn,
+        fileInput,
+        err,
+        h('div', { className: 'actions' }, [post, cancel])
+      );
+      updatePostState();
+      ta.focus();
+    }
+
+    function showCountdown() {
+      modal.innerHTML = '';
+      let remaining = NOTE_COUNTDOWN_SECS;
+      const R = 30;
+      const C = 2 * Math.PI * R;
+      const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      ring.setAttribute('viewBox', '0 0 72 72');
+      ring.setAttribute('class', 'countdown-ring');
+      ring.innerHTML =
+        '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
+        '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
+        'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
+      const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
+      const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
+
+      const now = h('button', { className: 'primary', textContent: 'Post now' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+
+      async function fire() {
+        if (timer) { clearInterval(timer); timer = null; }
+        now.disabled = true;
+        now.textContent = 'Posting…';
+        try {
+          const signed = await doPublish();
+          closeModal();
+          toast('Note published', 'success');
+          showPostBanner(signed);
+        } catch (e) {
+          toast(e.message, 'error');
+          showEditor(); // keep the draft so they can retry
+        }
+      }
+      now.addEventListener('click', fire);
+      cancel.addEventListener('click', () => { showEditor(); });
+
+      modal.append(
+        h('h3', { textContent: 'Posting your note' }),
+        h('p', { className: 'hint', textContent: 'Sending in a moment. Post now or cancel to keep editing.' }),
+        ringWrap,
+        h('div', { className: 'actions' }, [now, cancel])
+      );
+
+      const fill = ring.querySelector('.ring-fill');
+      timer = setInterval(() => {
+        remaining -= 1;
+        num.textContent = String(Math.max(remaining, 0));
+        fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / NOTE_COUNTDOWN_SECS)));
+        if (remaining <= 0) fire();
+      }, 1000);
+    }
+
+    openModal(() => showEditor(), () => { if (timer) { clearInterval(timer); timer = null; } });
   }
 
   // ---- edit profile (full-panel overlay) ----
@@ -1531,6 +1866,10 @@
 
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
+  });
+
+  $('client-select').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
   });
 
   $('relay-add').addEventListener('click', async () => {

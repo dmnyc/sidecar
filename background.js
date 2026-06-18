@@ -131,7 +131,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     const activePubkey = await KS.getActivePubkey();
     if (!activePubkey) throw new Error('No active Sidecar account');
 
-    const status = await PERMS.getPermissionStatus(host, method); // allow | reject | ask
+    const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
     if (status === 'reject') throw new Error('This site is blocked in Sidecar');
 
     const needsKey = SIGNER.needsPrivateKey(method);
@@ -148,14 +148,14 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
         needUnlock,
         needApproval,
-        level: await PERMS.getLevel(host),
+        level: await PERMS.getLevel(activePubkey, host),
       });
       if (decision.action === 'reject') throw new Error('You rejected this request');
       if (decision.action === 'block') {
-        await PERMS.setLevel(host, 'blocked');
+        await PERMS.setLevel(activePubkey, host, 'blocked');
         throw new Error('This site is now blocked');
       }
-      if (decision.action === 'trust') await PERMS.setLevel(host, 'trusted');
+      if (decision.action === 'trust') await PERMS.setLevel(activePubkey, host, 'trusted');
       // 'once' | 'trust' → proceed (after a successful unlock, if one was needed)
     }
 
@@ -228,9 +228,13 @@ async function handleControl(message, sendResponse) {
         if (message.generate) result = await KS.generateAccount(message.name);
         else result = await KS.importSecret(message.secret, message.name);
         break;
-      case 'SIDECAR_REMOVE_ACCOUNT':
+      case 'SIDECAR_REMOVE_ACCOUNT': {
         result = await KS.removeAccount(message.pubkey);
+        await PERMS.clearAccount(message.pubkey);
+        const acts = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
+        await sset({ [ACTIVITY_KEY]: acts.filter((e) => e.pubkey !== message.pubkey) });
         break;
+      }
       case 'SIDECAR_RENAME_ACCOUNT':
         result = await KS.renameAccount(message.pubkey, message.name);
         break;
@@ -294,26 +298,36 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_GET_SETTINGS':
         result = (await sget('sidecar_settings')).sidecar_settings || { autoLockMinutes: 0 };
         break;
-      case 'SIDECAR_SET_SETTINGS':
-        await sset({ sidecar_settings: message.settings });
-        result = message.settings;
+      case 'SIDECAR_SET_SETTINGS': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const merged = { ...prev, ...message.settings };
+        await sset({ sidecar_settings: merged });
+        result = merged;
         break;
+      }
       case 'SIDECAR_GET_PERMISSIONS':
-        result = await PERMS.getAll();
+        result = await PERMS.getAll(await KS.getActivePubkey());
         break;
       case 'SIDECAR_SET_LEVEL':
-        result = await PERMS.setLevel(message.host, message.level);
+        result = await PERMS.setLevel(await KS.getActivePubkey(), message.host, message.level);
         break;
       case 'SIDECAR_REMOVE_HOST':
-        result = await PERMS.removeHost(message.host);
+        result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
         break;
-      case 'SIDECAR_GET_ACTIVITY':
-        result = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
+      case 'SIDECAR_GET_ACTIVITY': {
+        const me = await KS.getActivePubkey();
+        const all = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
+        result = all.filter((e) => e.pubkey === me);
         break;
-      case 'SIDECAR_CLEAR_ACTIVITY':
-        await sset({ [ACTIVITY_KEY]: [] });
+      }
+      case 'SIDECAR_CLEAR_ACTIVITY': {
+        const me = await KS.getActivePubkey();
+        const all = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
+        const kept = all.filter((e) => e.pubkey !== me);
+        await sset({ [ACTIVITY_KEY]: kept });
         result = [];
         break;
+      }
       default:
         throw new Error('Unknown control message: ' + message.type);
     }
