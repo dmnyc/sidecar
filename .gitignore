@@ -28,3 +28,6 @@ npm-debug.log*
 *.log
 # Generated build stamp
 version.js
+
+# Temp font preview
+font-preview.html

@@ -77,6 +77,18 @@
       transition: border-color 0.15s, box-shadow 0.15s;
     }
     input[type=password]:focus { outline: none; border-color: var(--gold-soft); box-shadow: 0 0 0 3px rgba(203, 161, 78, 0.16); }
+    .remember { margin-bottom: 14px; }
+    .remember .check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; text-transform: none; letter-spacing: 0; margin-bottom: 8px; cursor: pointer; }
+    .remember input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; }
+    .budget-row { display: flex; align-items: center; gap: 8px; }
+    .remember input[type=number] {
+      width: 110px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6));
+      color: var(--text); font-size: 14px; font-family: var(--font-mono);
+    }
+    .remember input[type=number]:focus { outline: none; border-color: var(--gold-soft); }
+    .remember input[type=number]:disabled { opacity: 0.4; cursor: not-allowed; }
+    .budget-unit { font-size: 12.5px; color: var(--muted); }
     .error { color: var(--red); font-size: 13px; min-height: 18px; margin-bottom: 8px; }
     .actions { display: flex; flex-direction: column; gap: 8px; }
     button {
@@ -111,6 +123,14 @@
   <div id="unlock" class="hidden">
     <label for="pin">Enter your PIN to unlock</label>
     <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
+  </div>
+
+  <div id="remember" class="remember hidden">
+    <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
+    <div class="budget-row">
+      <input type="number" id="budget-amount" min="1" placeholder="sats" />
+      <span class="budget-unit">sats / day without asking</span>
+    </div>
   </div>
 
   <div class="error" id="error"></div>

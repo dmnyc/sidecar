@@ -8,11 +8,13 @@
 // Decrypted private keys live only in the keystore's in-memory map here. If this worker
 // is killed (MV3 ~30s idle), that map is gone and the keystore re-locks — a feature.
 
-importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js');
+importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js');
 
 const KS = self.SidecarKeystore;
 const PERMS = self.SidecarPermissions;
 const SIGNER = self.SidecarSigner;
+const BUDGETS = self.SidecarBudgets;
+const NWC = self.SidecarNWC;
 
 const DEFAULT_RELAYS = {
   'wss://relay.damus.io': { read: true, write: true },
@@ -150,13 +152,13 @@ chrome.windows.onRemoved.addListener((windowId) => {
   }
 });
 
-function settlePrompt(promptId, action) {
+function settlePrompt(promptId, action, extra) {
   const p = pendingPrompts.get(promptId);
   if (!p || p.settled) return;
   p.settled = true;
   pendingPrompts.delete(promptId);
   if (p.windowId != null) chrome.windows.remove(p.windowId).catch(() => {});
-  p.resolve({ action });
+  p.resolve(Object.assign({ action }, extra || {}));
 }
 
 // ============================================================================
@@ -237,11 +239,178 @@ async function handleNostrRpc(method, params, host, sendResponse) {
 }
 
 // ============================================================================
+// Page WebLN handling (window.webln.*) — backed by the account's NWC wallet
+// ============================================================================
+// The NWC client runs here in the SW (it only needs NostrTools + WebSocket), so
+// WebLN works whether or not the side panel is open.
+let swNwc = null; // { client, pubkey }
+async function getSwNwc(pubkey) {
+  if (swNwc && swNwc.pubkey === pubkey) return swNwc.client;
+  if (swNwc) { try { swNwc.client.close(); } catch (_) {} swNwc = null; }
+  const connection = await KS.getNwc(pubkey); // requires unlocked
+  if (!connection) return null;
+  swNwc = { client: NWC.makeClient(connection), pubkey };
+  return swNwc.client;
+}
+function closeSwNwc() {
+  if (swNwc) { try { swNwc.client.close(); } catch (_) {} swNwc = null; }
+}
+
+const msatToSat = (m) => Math.floor((m || 0) / 1000);
+
+// Parse the sat amount out of a BOLT11 invoice's human-readable part, without a
+// full decoder. Returns null for amountless invoices (caller must then prompt).
+function invoiceSats(bolt11) {
+  if (!bolt11) return null;
+  const m = /^ln(?:bc|tb|bcrt)(\d+)([munp]?)/i.exec(String(bolt11).replace(/^lightning:/i, '').trim());
+  if (!m) return null;
+  const digits = m[1];
+  const mult = m[2].toLowerCase();
+  if (!digits) return null; // amountless invoice
+  // BOLT11 amount is in BTC * multiplier; convert to sats (1 BTC = 1e8 sats).
+  const FACTOR = { m: 1e5, u: 1e2, n: 1e-1, p: 1e-4, '': 1e8 };
+  return Math.round(Number(digits) * FACTOR[mult]);
+}
+
+// Open an unlock-only popup for low-risk wallet reads when the keystore is locked.
+async function weblnUnlockGate(host, method, pubkey) {
+  if (!KS.isLocked()) return;
+  const st = await KS.getState();
+  const acct = st.accounts.find((a) => a.pubkey === pubkey);
+  const decision = await openPrompt({
+    scope: 'webln',
+    host,
+    method: 'webln.' + method,
+    npub: self.NostrTools.nip19.npubEncode(pubkey),
+    accountName: (acct && acct.name) || '',
+    needUnlock: true,
+    needApproval: false,
+  });
+  if (decision.action === 'reject') throw new Error('You rejected this request');
+  if (KS.isLocked()) throw new Error('Keystore is locked');
+}
+
+async function handleWeblnRpc(method, params, host, sendResponse) {
+  try {
+    if (!host) throw new Error('Missing host');
+    await KS.ensureLoaded();
+    if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
+    const pubkey = await resolveSiteAccount(host);
+    if (!pubkey) throw new Error('No active Sidecar account');
+
+    // A site blocked for signing is blocked for payments too.
+    if ((await PERMS.getLevel(pubkey, host)) === 'blocked') throw new Error('This site is blocked in Sidecar');
+
+    const hasWallet = await KS.hasNwc(pubkey);
+
+    // isEnabled reports availability without throwing. enable() rejects when no
+    // wallet is connected, so apps get the standard WebLN "unavailable" signal
+    // and can fall back. Neither needs an unlock.
+    if (method === 'isEnabled') {
+      sendResponse({ ok: true, result: { enabled: hasWallet } });
+      return;
+    }
+    if (!hasWallet) throw new Error('No wallet connected in Sidecar');
+    if (method === 'enable') {
+      sendResponse({ ok: true, result: { enabled: true } });
+      return;
+    }
+
+    let result;
+    if (method === 'getInfo') {
+      await weblnUnlockGate(host, method, pubkey);
+      const c = await getSwNwc(pubkey);
+      const info = (await c.getInfo()) || {};
+      result = {
+        node: { alias: info.alias || 'Sidecar wallet', pubkey: info.pubkey || '', color: info.color || '' },
+        methods: ['getInfo', 'makeInvoice', 'sendPayment', 'getBalance'],
+        supports: ['lightning'],
+      };
+    } else if (method === 'getBalance') {
+      await weblnUnlockGate(host, method, pubkey);
+      const c = await getSwNwc(pubkey);
+      const b = await c.getBalance();
+      result = { balance: msatToSat(b && b.balance), currency: 'sats' };
+    } else if (method === 'makeInvoice') {
+      await weblnUnlockGate(host, method, pubkey);
+      const c = await getSwNwc(pubkey);
+      const sats = parseInt(params && params.amount, 10);
+      if (!sats || sats < 1) throw new Error('A positive amount is required to make an invoice');
+      const res = await c.makeInvoice(sats * 1000, (params && params.memo) || '');
+      const invoice = res && (res.invoice || res.payment_request || res.bolt11);
+      if (!invoice) throw new Error('Wallet returned no invoice');
+      result = { paymentRequest: invoice };
+    } else if (method === 'sendPayment') {
+      result = await weblnSendPayment(params, host, pubkey);
+    } else {
+      throw new Error('Sidecar does not support webln.' + method);
+    }
+
+    await setSiteAccount(host, pubkey);
+    sendResponse({ ok: true, result });
+  } catch (e) {
+    sendResponse({ ok: false, error: e.message });
+  }
+}
+
+async function weblnSendPayment(params, host, pubkey) {
+  const invoice = (params && (params.paymentRequest || params.invoice) ? (params.paymentRequest || params.invoice) : '')
+    .replace(/^lightning:/i, '')
+    .trim();
+  if (!invoice) throw new Error('No invoice provided');
+  const sats = invoiceSats(invoice);
+
+  // Pay without a prompt only when unlocked AND the site's budget covers a known amount.
+  const autoOk = !KS.isLocked() && sats != null && (await BUDGETS.covers(pubkey, host, sats));
+
+  if (!autoOk) {
+    const st = await KS.getState();
+    const acct = st.accounts.find((a) => a.pubkey === pubkey);
+    const decision = await openPrompt({
+      scope: 'webln',
+      host,
+      method: 'sendPayment',
+      npub: self.NostrTools.nip19.npubEncode(pubkey),
+      accountName: (acct && acct.name) || '',
+      amountSats: sats, // null for amountless invoices
+      memo: (params && params.memo) || '',
+      needUnlock: KS.isLocked(),
+      needApproval: true,
+    });
+    if (decision.action === 'reject') throw new Error('You rejected this payment');
+    if (KS.isLocked()) throw new Error('Keystore is locked');
+    // 'budget' → remember an allowance for this site before paying.
+    if (decision.action === 'budget' && decision.budgetSats) {
+      await BUDGETS.setBudget(pubkey, host, {
+        budgetSats: decision.budgetSats,
+        perPaymentSats: decision.perPaymentSats || 0,
+      });
+    }
+  }
+
+  bumpAutoLock();
+  const c = await getSwNwc(pubkey);
+  if (!c) throw new Error('No wallet connected in Sidecar');
+  const res = await c.payInvoice(invoice);
+  const preimage = res && (res.preimage || res.payment_preimage);
+
+  // Decrement the budget by the paid amount (known amount only).
+  if (sats != null) await BUDGETS.consume(pubkey, host, sats);
+
+  await setSiteAccount(host, pubkey);
+  logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
+  // Tell an open side panel to refresh its balance/history.
+  chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
+  return { preimage: preimage || '' };
+}
+
+// ============================================================================
 // Keystore control messages (from side panel and prompt)
 // ============================================================================
 async function lockKeystore() {
   await KS.lock();
   SIGNER.clearCache();
+  closeSwNwc();
   chrome.alarms.clear(AUTO_LOCK_ALARM);
 }
 
@@ -285,6 +454,7 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_REMOVE_ACCOUNT': {
         result = await KS.removeAccount(message.pubkey);
         await PERMS.clearAccount(message.pubkey);
+        await BUDGETS.clearAccount(message.pubkey);
         await clearSiteAccountsForPubkey(message.pubkey);
         const acts = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
         await sset({ [ACTIVITY_KEY]: acts.filter((e) => e.pubkey !== message.pubkey) });
@@ -395,6 +565,7 @@ async function handleControl(message, sendResponse) {
       }
       case 'SIDECAR_SET_NWC':
         await KS.setNwc(message.pubkey, message.connection);
+        closeSwNwc(); // rebuild against the new connection on next use
         result = { ok: true };
         break;
       case 'SIDECAR_GET_NWC':
@@ -405,7 +576,20 @@ async function handleControl(message, sendResponse) {
         break;
       case 'SIDECAR_CLEAR_NWC':
         await KS.clearNwc(message.pubkey);
+        closeSwNwc();
         result = { ok: true };
+        break;
+      case 'SIDECAR_GET_BUDGETS':
+        result = await BUDGETS.getAll(await KS.getActivePubkey());
+        break;
+      case 'SIDECAR_SET_BUDGET':
+        result = await BUDGETS.setBudget(await KS.getActivePubkey(), message.host, {
+          budgetSats: message.budgetSats,
+          perPaymentSats: message.perPaymentSats,
+        });
+        break;
+      case 'SIDECAR_REVOKE_BUDGET':
+        result = await BUDGETS.revoke(await KS.getActivePubkey(), message.host);
         break;
       default:
         throw new Error('Unknown control message: ' + message.type);
@@ -430,6 +614,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleNostrRpc(message.method, message.params, message.host, sendResponse);
     return true;
   }
+  if (message.type === 'SIDECAR_WEBLN_RPC') {
+    handleWeblnRpc(message.method, message.params, message.host, sendResponse);
+    return true;
+  }
 
   // Prompt window asking for its context, or returning a decision.
   if (message.type === 'SIDECAR_GET_PROMPT_DATA') {
@@ -438,7 +626,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (message.type === 'SIDECAR_PROMPT_RESULT') {
-    settlePrompt(message.id, message.action);
+    settlePrompt(message.id, message.action, message.extra);
     sendResponse({ ok: true });
     return false;
   }

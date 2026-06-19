@@ -19,6 +19,9 @@
     allow: $('allow'),
     trust: $('trust'),
     reject: $('reject'),
+    remember: $('remember'),
+    rememberBudget: $('remember-budget'),
+    budgetAmount: $('budget-amount'),
   };
 
   function send(message) {
@@ -33,11 +36,27 @@
     'nip04.decrypt': 'decrypt a message (NIP-04)',
     'nip44.encrypt': 'encrypt a message (NIP-44)',
     'nip44.decrypt': 'decrypt a message (NIP-44)',
+    'webln.getInfo': 'see your wallet info',
+    'webln.getBalance': 'see your wallet balance',
+    'webln.makeInvoice': 'create a Lightning invoice',
   };
 
   let data = null;
+  let isPayment = false;
+
+  function fmtSats(n) {
+    return Number(n).toLocaleString('en-US');
+  }
 
   function renderPreview() {
+    if (isPayment) {
+      const rows = [];
+      rows.push(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
+      if (data.memo) rows.push(row('Memo', String(data.memo)));
+      els.preview.innerHTML = rows.join('');
+      els.preview.classList.remove('hidden');
+      return;
+    }
     if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
       const rows = [];
@@ -73,23 +92,45 @@
     if (!resp || !resp.ok) {
       els.ask.textContent = 'This request has expired.';
       els.allow.classList.add('hidden');
-      els.allowForever.classList.add('hidden');
+      els.trust.classList.add('hidden');
       els.reject.textContent = 'Close';
       return;
     }
     data = resp.data;
+    isPayment = data.scope === 'webln' && data.method === 'sendPayment';
+
     els.host.textContent = data.host;
-    els.ask.textContent = 'wants to ' + (METHOD_LABELS[data.method] || data.method);
+    const verb = isPayment ? 'wants to send a Lightning payment' : 'wants to ' + (METHOD_LABELS[data.method] || data.method);
+    els.ask.textContent = verb;
     els.account.innerHTML =
-      'Signing as <b>' +
+      (isPayment ? 'Paying from <b>' : 'Signing as <b>') +
       escapeHtml(data.accountName || shortNpub(data.npub)) +
       '</b>' +
       (data.accountName ? ' <span class="acct-npub">' + escapeHtml(shortNpub(data.npub)) + '</span>' : '');
     renderPreview();
+
     if (data.needUnlock) {
       els.unlock.classList.remove('hidden');
       setTimeout(() => els.pin.focus(), 50);
     }
+
+    if (isPayment) {
+      // Payment: one Pay button + an optional "remember a budget" toggle.
+      els.allow.textContent = data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+      els.trust.classList.add('hidden');
+      els.remember.classList.remove('hidden');
+      // Suggest a daily budget; the field is disabled until the box is ticked, so
+      // it's unambiguous whether a budget is actually being set.
+      const suggested = data.amountSats != null ? Math.max(data.amountSats * 5, 5000) : 5000;
+      els.budgetAmount.value = String(suggested);
+      els.budgetAmount.disabled = true;
+      els.rememberBudget.addEventListener('change', () => {
+        els.budgetAmount.disabled = !els.rememberBudget.checked;
+        if (els.rememberBudget.checked) els.budgetAmount.focus();
+      });
+      return;
+    }
+
     // A pure unlock (site already trusted, keystore just locked) doesn't need the
     // "Trust this site" choice — it's already remembered.
     if (data.needUnlock && !data.needApproval) {
@@ -105,7 +146,7 @@
 
   async function decide(action) {
     els.error.textContent = '';
-    // Unlock first if needed (Allow once / Trust only).
+    // Unlock first if needed (Allow once / Trust / Pay only).
     if (data.needUnlock && (action === 'once' || action === 'trust')) {
       const pin = els.pin.value;
       if (!pin) {
@@ -120,7 +161,20 @@
         return;
       }
     }
-    await send({ type: 'SIDECAR_PROMPT_RESULT', id: promptId, action });
+
+    let extra = null;
+    // Payment + "remember a budget" checked → set an allowance for this site.
+    if (isPayment && action === 'once' && els.rememberBudget.checked) {
+      const budgetSats = parseInt(els.budgetAmount.value, 10);
+      if (!budgetSats || budgetSats < 1) {
+        els.error.textContent = 'Enter a budget in sats, or uncheck the box.';
+        return;
+      }
+      action = 'budget';
+      extra = { budgetSats, perPaymentSats: 0 };
+    }
+
+    await send({ type: 'SIDECAR_PROMPT_RESULT', id: promptId, action, extra });
     window.close();
   }
 
