@@ -120,12 +120,18 @@
 
   // ---- top-level routing ----
   async function refresh() {
+    // A pending signing approval is modal — it stays put until the user decides,
+    // so don't let an incidental refresh navigate away from it.
+    if (pendingApproval) {
+      showApproval();
+      return;
+    }
     state = await call({ type: 'SIDECAR_GET_STATE' });
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     hideBalances = !!(settings && settings.hideBalances);
     applyHideBalances();
     closeAcctMenu();
-    [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit')].forEach(hide);
+    [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
     if (!state.initialized) {
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
@@ -2910,6 +2916,128 @@
       );
     });
   });
+
+  // ---- inline signing approval ----
+  // The service worker keeps a "sidepanel" port open while this panel is visible and,
+  // when it is, pushes approval requests here (SIDECAR_PANEL_APPROVAL) instead of
+  // opening a popup window. We render them inline and reply with SIDECAR_PROMPT_RESULT.
+  let pendingApproval = null; // { id, data }
+
+  const APPROVAL_METHOD_LABELS = {
+    getPublicKey: 'see your public key (npub)',
+    signEvent: 'sign an event with your key',
+    getRelays: 'read your relay list',
+    'nip04.encrypt': 'encrypt a message (NIP-04)',
+    'nip04.decrypt': 'decrypt a message (NIP-04)',
+    'nip44.encrypt': 'encrypt a message (NIP-44)',
+    'nip44.decrypt': 'decrypt a message (NIP-44)',
+  };
+
+  function renderApprovalPreview(data) {
+    const box = $('approval-preview');
+    box.innerHTML = '';
+    const row = (k, v) =>
+      h('div', { className: 'row' }, [h('span', { textContent: k }), h('span', { textContent: v })]);
+    if (data.method === 'signEvent') {
+      const ev = (data.params && (data.params.event || data.params)) || {};
+      box.append(row('Kind', String(ev.kind ?? '—')));
+      if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
+      if (ev.content) box.append(h('pre', { textContent: String(ev.content) }));
+    } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
+      box.append(row('From', (data.params && data.params.pubkey) || '—'));
+    } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
+      box.append(row('To', (data.params && data.params.pubkey) || '—'));
+    } else {
+      hide(box);
+      return;
+    }
+    show(box);
+  }
+
+  function showApproval() {
+    if (!pendingApproval) return;
+    const data = pendingApproval.data;
+    closeAcctMenu();
+    [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit')].forEach(hide);
+    show($('view-approval'));
+
+    $('approval-host').textContent = data.host;
+    $('approval-ask').textContent = 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
+
+    const acct = $('approval-account');
+    acct.innerHTML = '';
+    acct.append(document.createTextNode('Signing as '));
+    acct.append(h('b', { textContent: data.accountName || shortNpub(data.npub) }));
+    if (data.accountName) acct.append(h('span', { className: 'acct-npub', textContent: shortNpub(data.npub) }));
+
+    renderApprovalPreview(data);
+
+    $('approval-error').textContent = '';
+    const allow = $('approval-allow');
+    const trust = $('approval-trust');
+    const pin = $('approval-pin');
+    pin.value = '';
+    if (data.needUnlock) {
+      show($('approval-unlock'));
+      setTimeout(() => pin.focus(), 50);
+    } else {
+      hide($('approval-unlock'));
+    }
+    // A pure unlock (site already trusted, keystore just locked) has nothing to
+    // approve — relabel and drop the "Trust this site" choice.
+    if (data.needUnlock && !data.needApproval) {
+      allow.textContent = 'Unlock & continue';
+      hide(trust);
+    } else {
+      allow.textContent = 'Allow once';
+      show(trust);
+    }
+  }
+
+  async function decideApproval(action) {
+    if (!pendingApproval) return;
+    const { id, data } = pendingApproval;
+    const err = $('approval-error');
+    err.textContent = '';
+    // Unlock first if needed (Allow once / Trust only).
+    if (data.needUnlock && (action === 'once' || action === 'trust')) {
+      const pin = $('approval-pin').value;
+      if (!pin) {
+        err.textContent = 'Enter your PIN.';
+        return;
+      }
+      const resp = await bg({ type: 'SIDECAR_UNLOCK', pin });
+      if (!resp || !resp.ok) {
+        err.textContent = (resp && resp.error) || 'Incorrect PIN';
+        $('approval-pin').value = '';
+        $('approval-pin').focus();
+        return;
+      }
+    }
+    await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action });
+    pendingApproval = null;
+    $('approval-pin').value = '';
+    refresh(); // back to the normal view (now unlocked, if we just unlocked)
+  }
+
+  $('approval-allow').addEventListener('click', () => decideApproval('once'));
+  $('approval-trust').addEventListener('click', () => decideApproval('trust'));
+  $('approval-reject').addEventListener('click', () => decideApproval('reject'));
+  $('approval-pin').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') decideApproval('once');
+  });
+
+  try {
+    const port = chrome.runtime.connect({ name: 'sidepanel' });
+    port.onMessage.addListener((msg) => {
+      if (msg && msg.type === 'SIDECAR_PANEL_APPROVAL') {
+        pendingApproval = { id: msg.id, data: msg.data };
+        showApproval();
+      }
+    });
+  } catch (_) {
+    // No port → approvals just fall back to the popup window in the worker.
+  }
 
   // ---- boot ----
   document.addEventListener('DOMContentLoaded', refresh);

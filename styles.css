@@ -923,3 +923,35 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #3a2470, #251147); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: #4a2f8a; background-clip: padding-box; }
+
+/* ===== inline signing approval ===== */
+/* Top-aligned + scrollable so a long event preview never pushes the buttons
+   out of view (the .screen default centers vertically). */
+#view-approval { justify-content: flex-start; min-height: 100vh; overflow-y: auto; }
+.approval-host {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 19px; color: var(--lav);
+  word-break: break-all; margin-bottom: 3px;
+}
+.approval-ask { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+.card {
+  position: relative;
+  background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 13px; margin-bottom: 16px; font-size: 13px;
+  box-shadow: var(--sheen);
+}
+.card .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.card .row span:first-child { color: var(--muted); }
+.card .row span:last-child { word-break: break-all; text-align: right; font-family: var(--font-mono); font-size: 12px; }
+.card pre {
+  background: rgba(8, 2, 20, 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px; white-space: pre-wrap; word-break: break-word;
+  max-height: 160px; overflow: auto; color: var(--text);
+}
+.approval-account { font-size: 13px; color: var(--muted); margin: 4px 0 18px; }
+.approval-account b { color: var(--lav); }
+.approval-account .acct-npub { font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); margin-left: 2px; }
+.approval-actions { display: flex; flex-direction: column; gap: 8px; }
+.approval-actions button { width: 100%; }
