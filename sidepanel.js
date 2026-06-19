@@ -95,6 +95,19 @@
     if (main) main.classList.toggle('balances-hidden', hideBalances);
   }
 
+  // Collapse the balance card into a slim sticky header as the wallet content
+  // scrolls (mirrors zap.cooking). Listener is attached once; it acts only when
+  // a wallet card is present.
+  function syncWalletCardCompact() {
+    const content = document.querySelector('.content');
+    const card = document.querySelector('.wallet-card');
+    if (content && card) card.classList.toggle('compact', content.scrollTop > 8);
+  }
+  (function () {
+    const content = document.querySelector('.content');
+    if (content) content.addEventListener('scroll', syncWalletCardCompact, { passive: true });
+  })();
+
   // Background broadcasts (e.g. a WebLN payment paid via the service worker
   // while the panel is open) — refresh the wallet if it's the visible tab.
   chrome.runtime.onMessage.addListener((msg) => {
@@ -2251,6 +2264,12 @@
     // Balance card — show the last-known balance instantly, refresh below.
     const cached = balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     const card = h('div', { className: 'wallet-card' });
+    // When collapsed, tapping the card (outside its buttons) scrolls back to top.
+    card.addEventListener('click', (e) => {
+      if (card.classList.contains('compact') && !e.target.closest('button')) {
+        document.querySelector('.content').scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
     const bal = h('div', {
       className: 'wallet-balance' + (cached ? '' : ' loading'),
       textContent: cached ? fmtSats(balanceCache.sats) : '…',
@@ -2313,6 +2332,7 @@
     }
     bal.classList.remove('loading');
     loadTransactions(txList, client);
+    syncWalletCardCompact();
   }
 
   // Centered placeholder for list cards (loading / empty / error) so the text
