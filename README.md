@@ -8,6 +8,8 @@ web apps you use, so you can sign in and sign events across nostr clients withou
 pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
 Connect) for sending and receiving sats.
 
+<img width="1411" height="784" alt="image" src="https://github.com/user-attachments/assets/b5290f50-83ab-4459-8fef-2c6099d099c2" />
+
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click.
