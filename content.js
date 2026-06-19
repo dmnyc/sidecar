@@ -69,13 +69,16 @@
   }
 
   function findPageInvoice() {
-    const links = document.querySelectorAll('a[href^="lightning:" i]');
-    for (const a of links) {
-      if (!a.offsetParent && a.getClientRects().length === 0) continue; // not rendered
-      const m = /ln(?:bc|tb)[0-9][a-z0-9]+/i.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
+    // 1. lightning: links — what zap modals / Bitcoin Connect use.
+    for (const a of document.querySelectorAll('a[href^="lightning:" i]')) {
+      const m = /ln(?:bc|tb)[0-9][a-z0-9]{20,}/i.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
       if (m) return m[0].toLowerCase();
     }
-    return '';
+    // 2. fallback: a BOLT11 sitting in the page's visible text (a copyable
+    //    invoice field). Length-gated to avoid matching stray text.
+    const text = document.body ? document.body.innerText : '';
+    const m2 = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i.exec(text);
+    return m2 ? m2[0].toLowerCase() : '';
   }
 
   function removePill() {
