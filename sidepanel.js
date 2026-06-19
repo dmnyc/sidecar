@@ -968,9 +968,19 @@
       sel.append(o);
     });
     sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
-    const rm = iconButton('Forget site', 'trash', async () => {
-      await call({ type: 'SIDECAR_REMOVE_HOST', host });
-      renderActivity();
+    // Forget needs a deliberate step — first tap swaps the controls for an inline
+    // "Forget this site?" confirm so a stray click can't wipe a site's trust.
+    const rm = iconButton('Forget site', 'trash', () => {
+      controls.innerHTML = '';
+      const msg = h('span', { className: 'confirm-msg', textContent: 'Forget this site?' });
+      const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
+      const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+      no.addEventListener('click', () => renderActivity());
+      yes.addEventListener('click', async () => {
+        await call({ type: 'SIDECAR_REMOVE_HOST', host });
+        renderActivity();
+      });
+      controls.append(msg, yes, no);
     });
     controls.append(sel, rm);
     return row;

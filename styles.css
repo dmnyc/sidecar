@@ -548,6 +548,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .site-controls { display: flex; align-items: center; gap: 8px; }
 .site-controls .level-select { flex: 1; width: auto; }
 .site-controls .switch-site-btn { flex: 1; }
+/* inline "Forget this site?" confirm (replaces the controls on a trash tap) */
+.confirm-msg { flex: 1; font-size: 12.5px; color: var(--text-2); }
+.del-confirm { color: var(--red); border-color: rgba(240, 86, 107, 0.45); }
+.del-confirm:hover { color: var(--red); border-color: var(--red); }
 .level-select {
   width: auto;
   flex-shrink: 0;
