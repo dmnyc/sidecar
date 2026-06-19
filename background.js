@@ -485,6 +485,14 @@ function notify(message) {
   );
 }
 
+// Tell a tab a page invoice was paid, so its "Pay with Sidecar" pill clears
+// (the invoice link often lingers in the DOM after the modal shows "Paid").
+function notifyTabPaid(tabId, invoice) {
+  if (tabId != null && chrome.tabs) {
+    chrome.tabs.sendMessage(tabId, { type: 'SIDECAR_EVENT', event: 'paid', invoice }, () => void chrome.runtime.lastError);
+  }
+}
+
 // Resolve the account/wallet for the page, then pay via the shared core.
 async function payFromPage(invoiceRaw, host) {
   await KS.ensureLoaded();
@@ -542,8 +550,11 @@ chrome.contextMenus &&
     try { host = new URL(info.pageUrl || (tab && tab.url) || '').hostname; } catch (_) {}
     const pay = (getInvoice) =>
       Promise.resolve(getInvoice)
-        .then((inv) => payFromPage(inv, host))
-        .then((r) => notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent'))
+        .then((inv) => payFromPage(inv, host).then((r) => ({ r, inv })))
+        .then(({ r, inv }) => {
+          notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+          notifyTabPaid(tab && tab.id, inv);
+        })
         .catch((e) => notify((e && e.message) || 'Payment failed'));
 
     if (info.menuItemId === 'sidecar-pay-qr') {
@@ -785,10 +796,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   // "Pay with Sidecar" pill clicked on a page.
   if (message.type === 'SIDECAR_PAY_PAGE_INVOICE') {
+    const tabId = sender && sender.tab && sender.tab.id;
     let host = '';
     try { host = new URL((sender && sender.url) || '').hostname; } catch (_) {}
     payFromPage(message.invoice, host)
-      .then((r) => notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent'))
+      .then((r) => {
+        notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+        notifyTabPaid(tabId, message.invoice);
+      })
       .catch((e) => notify((e && e.message) || 'Payment failed'));
     sendResponse({ ok: true });
     return false;

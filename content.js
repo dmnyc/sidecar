@@ -173,11 +173,16 @@
     scanTimer = setTimeout(scanForInvoice, 400);
   }
 
-  // React to the setting toggle pushed from the panel.
+  // React to events pushed from the worker: setting toggle, and payment success
+  // (clear the pill — the invoice link often lingers after "Paid").
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg && msg.type === 'SIDECAR_EVENT' && msg.event === 'settings') {
+    if (!msg || msg.type !== 'SIDECAR_EVENT') return;
+    if (msg.event === 'settings') {
       showPill = msg.showPayButton !== false;
       scanForInvoice();
+    } else if (msg.event === 'paid') {
+      dismissedInvoice = msg.invoice; // don't resurface even if the link lingers
+      if (shownInvoice === msg.invoice) removePill();
     }
   });
 
