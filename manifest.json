@@ -6,7 +6,9 @@
   "permissions": [
     "storage",
     "sidePanel",
-    "alarms"
+    "alarms",
+    "contextMenus",
+    "notifications"
   ],
   "host_permissions": [
     "https://*/*",
