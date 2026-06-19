@@ -119,7 +119,15 @@
       els.allow.textContent = data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
       els.trust.classList.add('hidden');
       els.remember.classList.remove('hidden');
-      if (data.amountSats != null) els.budgetAmount.value = String(Math.max(data.amountSats * 5, 1000));
+      // Suggest a daily budget; the field is disabled until the box is ticked, so
+      // it's unambiguous whether a budget is actually being set.
+      const suggested = data.amountSats != null ? Math.max(data.amountSats * 5, 5000) : 5000;
+      els.budgetAmount.value = String(suggested);
+      els.budgetAmount.disabled = true;
+      els.rememberBudget.addEventListener('change', () => {
+        els.budgetAmount.disabled = !els.rememberBudget.checked;
+        if (els.rememberBudget.checked) els.budgetAmount.focus();
+      });
       return;
     }
 

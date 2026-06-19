@@ -399,6 +399,8 @@ async function weblnSendPayment(params, host, pubkey) {
 
   await setSiteAccount(host, pubkey);
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
+  // Tell an open side panel to refresh its balance/history.
+  chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
   return { preimage: preimage || '' };
 }
 
