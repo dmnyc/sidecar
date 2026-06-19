@@ -200,6 +200,14 @@
       <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />
     </div>
 
+    <div id="approval-remember" class="remember hidden">
+      <label class="check"><input type="checkbox" id="approval-remember-budget" /> Allow this site to spend up to</label>
+      <div class="budget-row">
+        <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" />
+        <span class="budget-unit">sats / day without asking</span>
+      </div>
+    </div>
+
     <div class="error" id="approval-error"></div>
 
     <div class="approval-actions">

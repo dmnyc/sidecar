@@ -2931,14 +2931,22 @@
     'nip04.decrypt': 'decrypt a message (NIP-04)',
     'nip44.encrypt': 'encrypt a message (NIP-44)',
     'nip44.decrypt': 'decrypt a message (NIP-44)',
+    'webln.getInfo': 'see your wallet info',
+    'webln.getBalance': 'see your wallet balance',
+    'webln.makeInvoice': 'create a Lightning invoice',
   };
+
+  const isPaymentApproval = (data) => data.scope === 'webln' && data.method === 'sendPayment';
 
   function renderApprovalPreview(data) {
     const box = $('approval-preview');
     box.innerHTML = '';
     const row = (k, v) =>
       h('div', { className: 'row' }, [h('span', { textContent: k }), h('span', { textContent: v })]);
-    if (data.method === 'signEvent') {
+    if (isPaymentApproval(data)) {
+      box.append(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
+      if (data.memo) box.append(row('Memo', String(data.memo)));
+    } else if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
       box.append(row('Kind', String(ev.kind ?? '—')));
       if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
@@ -2961,12 +2969,15 @@
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit')].forEach(hide);
     show($('view-approval'));
 
+    const payment = isPaymentApproval(data);
     $('approval-host').textContent = data.host;
-    $('approval-ask').textContent = 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
+    $('approval-ask').textContent = payment
+      ? 'wants to send a Lightning payment'
+      : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
 
     const acct = $('approval-account');
     acct.innerHTML = '';
-    acct.append(document.createTextNode('Signing as '));
+    acct.append(document.createTextNode(payment ? 'Paying from ' : 'Signing as '));
     acct.append(h('b', { textContent: data.accountName || shortNpub(data.npub) }));
     if (data.accountName) acct.append(h('span', { className: 'acct-npub', textContent: shortNpub(data.npub) }));
 
@@ -2983,14 +2994,33 @@
     } else {
       hide($('approval-unlock'));
     }
-    // A pure unlock (site already trusted, keystore just locked) has nothing to
-    // approve — relabel and drop the "Trust this site" choice.
-    if (data.needUnlock && !data.needApproval) {
-      allow.textContent = 'Unlock & continue';
+
+    // Payment: one Pay button + an optional "remember a budget" toggle (no Trust).
+    const remember = $('approval-remember');
+    const rememberBudget = $('approval-remember-budget');
+    const budgetAmount = $('approval-budget-amount');
+    if (payment) {
+      allow.textContent = data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
       hide(trust);
+      show(remember);
+      rememberBudget.checked = false;
+      budgetAmount.value = String(data.amountSats != null ? Math.max(data.amountSats * 5, 5000) : 5000);
+      budgetAmount.disabled = true;
+      rememberBudget.onchange = () => {
+        budgetAmount.disabled = !rememberBudget.checked;
+        if (rememberBudget.checked) budgetAmount.focus();
+      };
     } else {
-      allow.textContent = 'Allow once';
-      show(trust);
+      hide(remember);
+      // A pure unlock (site already trusted, keystore just locked) has nothing to
+      // approve — relabel and drop the "Trust this site" choice.
+      if (data.needUnlock && !data.needApproval) {
+        allow.textContent = 'Unlock & continue';
+        hide(trust);
+      } else {
+        allow.textContent = 'Allow once';
+        show(trust);
+      }
     }
   }
 
@@ -3014,7 +3044,18 @@
         return;
       }
     }
-    await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action });
+    let extra = null;
+    // Payment + "remember a budget" checked → set an allowance for this site.
+    if (isPaymentApproval(data) && action === 'once' && $('approval-remember-budget').checked) {
+      const budgetSats = parseInt($('approval-budget-amount').value, 10);
+      if (!budgetSats || budgetSats < 1) {
+        err.textContent = 'Enter a budget in sats, or uncheck the box.';
+        return;
+      }
+      action = 'budget';
+      extra = { budgetSats, perPaymentSats: 0 };
+    }
+    await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
     pendingApproval = null;
     $('approval-pin').value = '';
     refresh(); // back to the normal view (now unlocked, if we just unlocked)
@@ -3025,6 +3066,12 @@
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
   $('approval-pin').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') decideApproval('once');
+  });
+  // Numeric-only, capped budget input (static element, so not built via satsInput).
+  $('approval-budget-amount').addEventListener('input', (e) => {
+    let v = e.target.value.replace(/[^0-9]/g, '');
+    if (v) v = String(Math.min(parseInt(v, 10), MAX_SATS));
+    e.target.value = v;
   });
 
   try {
