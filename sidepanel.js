@@ -1050,12 +1050,28 @@
     // a site pinned to a different account still shows up (and can be switched).
     const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort();
     sites.classList.toggle('empty', !hosts.length);
+    const sitesMore = $('sites-more');
     if (!hosts.length) {
       sites.append(h('p', { className: 'hint', textContent: 'No sites have connected yet.' }));
+      hide(sitesMore);
+    } else {
+      // The list can get long — show a handful, then paginate (like the log below).
+      const SITES_PAGE = 6;
+      let shownSites = 0;
+      const renderSitesPage = () => {
+        hosts.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
+          sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
+        );
+        shownSites = Math.min(shownSites + SITES_PAGE, hosts.length);
+        if (shownSites >= hosts.length) hide(sitesMore);
+        else {
+          show(sitesMore);
+          sitesMore.textContent = 'Show more (' + (hosts.length - shownSites) + ')';
+        }
+      };
+      sitesMore.onclick = renderSitesPage;
+      renderSitesPage();
     }
-    hosts.forEach((host) =>
-      sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
-    );
 
     const log = await call({ type: 'SIDECAR_GET_ACTIVITY' });
     const list = $('activity-list');
