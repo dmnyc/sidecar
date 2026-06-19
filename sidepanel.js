@@ -882,6 +882,7 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
     $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
+    $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -2895,6 +2896,10 @@
 
   $('client-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
+  });
+
+  $('paybutton-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: e.target.checked } });
   });
 
   $('relay-add').addEventListener('click', async () => {

@@ -678,6 +678,20 @@ async function handleControl(message, sendResponse) {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const merged = { ...prev, ...message.settings };
         await sset({ sidecar_settings: merged });
+        // Push the pay-pill setting to content scripts so it toggles live.
+        if (chrome.tabs) {
+          chrome.tabs.query({}, (tabs) => {
+            for (const t of tabs) {
+              if (t.id != null) {
+                chrome.tabs.sendMessage(
+                  t.id,
+                  { type: 'SIDECAR_EVENT', event: 'settings', showPayButton: merged.showPayButton },
+                  () => void chrome.runtime.lastError
+                );
+              }
+            }
+          });
+        }
         result = merged;
         break;
       }
@@ -768,6 +782,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SIDECAR_WEBLN_RPC') {
     handleWeblnRpc(message.method, message.params, message.host, sendResponse);
     return true;
+  }
+  // "Pay with Sidecar" pill clicked on a page.
+  if (message.type === 'SIDECAR_PAY_PAGE_INVOICE') {
+    let host = '';
+    try { host = new URL((sender && sender.url) || '').hostname; } catch (_) {}
+    payFromPage(message.invoice, host)
+      .then((r) => notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent'))
+      .catch((e) => notify((e && e.message) || 'Payment failed'));
+    sendResponse({ ok: true });
+    return false;
   }
 
   // Prompt window asking for its context, or returning a decision.
