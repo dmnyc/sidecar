@@ -136,15 +136,18 @@
     }
   });
 
+  // Start detection immediately (default on); refine with the saved setting
+  // async so a settings-fetch hiccup can't prevent the pill from ever appearing.
+  function startPill() {
+    new MutationObserver(scheduleScan).observe(document.documentElement, { childList: true, subtree: true });
+    scanForInvoice();
+  }
+  if (document.body) startPill();
+  else document.addEventListener('DOMContentLoaded', startPill);
+
   chrome.runtime.sendMessage({ type: 'SIDECAR_GET_SETTINGS' }, (s) => {
-    if (chrome.runtime.lastError) return;
+    if (chrome.runtime.lastError) return; // keep the default (on)
     showPill = !(s && s.showPayButton === false);
-    const obs = new MutationObserver(scheduleScan);
-    const start = () => {
-      obs.observe(document.documentElement, { childList: true, subtree: true });
-      scanForInvoice();
-    };
-    if (document.body) start();
-    else document.addEventListener('DOMContentLoaded', start);
+    scanForInvoice();
   });
 })();
