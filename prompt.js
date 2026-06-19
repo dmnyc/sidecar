@@ -102,11 +102,7 @@
     els.host.textContent = data.host;
     const verb = isPayment ? 'wants to send a Lightning payment' : 'wants to ' + (METHOD_LABELS[data.method] || data.method);
     els.ask.textContent = verb;
-    els.account.innerHTML =
-      (isPayment ? 'Paying from <b>' : 'Signing as <b>') +
-      escapeHtml(data.accountName || shortNpub(data.npub)) +
-      '</b>' +
-      (data.accountName ? ' <span class="acct-npub">' + escapeHtml(shortNpub(data.npub)) + '</span>' : '');
+    buildAccountCapsule();
     renderPreview();
 
     if (data.needUnlock) {
@@ -142,6 +138,32 @@
   function shortNpub(npub) {
     if (!npub) return '—';
     return npub.length > 20 ? npub.slice(0, 12) + '…' + npub.slice(-6) : npub;
+  }
+
+  // Account capsule (pfp + name + npub), matching the side panel's account card.
+  function buildAccountCapsule() {
+    els.account.innerHTML = '';
+    const label = document.createElement('div');
+    label.className = 'as-label';
+    label.textContent = isPayment ? 'Paying from' : 'Signing as';
+    const av = document.createElement('img');
+    av.className = 'acct-av';
+    av.referrerPolicy = 'no-referrer';
+    av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
+    av.src = data.accountPicture || 'icons/avatar-default.svg';
+    const name = document.createElement('div');
+    name.className = 'acct-name';
+    name.textContent = data.accountName || shortNpub(data.npub);
+    const np = document.createElement('div');
+    np.className = 'acct-np';
+    np.textContent = shortNpub(data.npub);
+    const meta = document.createElement('div');
+    meta.className = 'acct-meta';
+    meta.append(name, np);
+    const cap = document.createElement('div');
+    cap.className = 'acct-capsule';
+    cap.append(av, meta);
+    els.account.append(label, cap);
   }
 
   async function decide(action) {

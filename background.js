@@ -100,11 +100,65 @@ chrome.action.onClicked.addListener((tab) => {
 const pendingPrompts = new Map(); // promptId -> { resolve, windowId, data, settled }
 let promptMutex = Promise.resolve(); // serialize prompts so only one window is open
 
+// The side panel keeps a long-lived port open while it's visible. When it's open
+// we render approvals inline in the panel (it can't get lost behind a window);
+// when it's closed we fall back to the popup window below — Chrome only lets us
+// open the side panel from a user gesture, so the worker can't force it open.
+let panelPort = null;
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'sidepanel') return;
+  panelPort = port;
+  port.onDisconnect.addListener(() => {
+    if (panelPort === port) panelPort = null;
+    // Closing the panel mid-approval would otherwise leave the page hanging;
+    // reject any inline (windowless) prompts that were awaiting a decision.
+    for (const [id, p] of pendingPrompts) {
+      if (p.windowId == null && !p.settled) {
+        p.settled = true;
+        pendingPrompts.delete(id);
+        p.resolve({ action: 'reject' });
+      }
+    }
+  });
+});
+
+// A page RPC can wake a fresh worker before the open side panel has reconnected
+// its port to this instance. Without waiting, panelPort is null and we'd wrongly
+// open a popup while the panel is sitting right there. Give the panel a brief
+// moment to (re)connect; if it's genuinely closed, nothing connects and we
+// fall through to the popup.
+function waitForPanelPort(ms) {
+  if (panelPort) return Promise.resolve(panelPort);
+  return new Promise((resolve) => {
+    const deadline = Date.now() + ms;
+    const tick = () => {
+      if (panelPort || Date.now() >= deadline) return resolve(panelPort);
+      setTimeout(tick, 40);
+    };
+    tick();
+  });
+}
+
 function openPrompt(data) {
   // Chain onto the mutex: each prompt waits for the previous to finish.
   const run = () =>
-    new Promise((resolve) => {
+    new Promise(async (resolve) => {
       const promptId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+      // Panel open → render inline; the panel decides via SIDECAR_PROMPT_RESULT.
+      const port = await waitForPanelPort(600);
+      if (port) {
+        pendingPrompts.set(promptId, { resolve, windowId: null, data, settled: false });
+        try {
+          port.postMessage({ type: 'SIDECAR_PANEL_APPROVAL', id: promptId, data });
+          return;
+        } catch (_) {
+          // Port died between the check and post; fall through to the popup.
+          pendingPrompts.delete(promptId);
+          panelPort = null;
+        }
+      }
+
       const W = 440;
       const H = 600;
       chrome.windows.getCurrent((cur) => {
@@ -204,6 +258,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         activePubkey,
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
         accountName: (acct && acct.name) || '',
+        accountPicture: (acct && acct.picture) || '',
         needUnlock,
         needApproval,
         level: await PERMS.getLevel(activePubkey, host),
@@ -283,6 +338,7 @@ async function weblnUnlockGate(host, method, pubkey) {
     method: 'webln.' + method,
     npub: self.NostrTools.nip19.npubEncode(pubkey),
     accountName: (acct && acct.name) || '',
+        accountPicture: (acct && acct.picture) || '',
     needUnlock: true,
     needApproval: false,
   });
@@ -372,6 +428,7 @@ async function weblnSendPayment(params, host, pubkey) {
       method: 'sendPayment',
       npub: self.NostrTools.nip19.npubEncode(pubkey),
       accountName: (acct && acct.name) || '',
+        accountPicture: (acct && acct.picture) || '',
       amountSats: sats, // null for amountless invoices
       memo: (params && params.memo) || '',
       needUnlock: KS.isLocked(),
