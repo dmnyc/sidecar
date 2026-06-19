@@ -89,6 +89,7 @@ async function logActivity(entry) {
 // ---- side panel open on toolbar click ----
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  createPayMenu();
 });
 chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
@@ -410,10 +411,18 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
 }
 
 async function weblnSendPayment(params, host, pubkey) {
-  const invoice = (params && (params.paymentRequest || params.invoice) ? (params.paymentRequest || params.invoice) : '')
-    .replace(/^lightning:/i, '')
-    .trim();
+  const invoice = (params && (params.paymentRequest || params.invoice)) || '';
+  return payInvoiceCore(invoice, host, pubkey, params && params.memo);
+}
+
+// Shared payment core: budget-gate (prompt if needed), pay via NWC, decrement
+// budget, log, and notify the panel. Used by window.webln.sendPayment AND the
+// "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
+// checked the account/site is usable.
+async function payInvoiceCore(invoiceRaw, host, pubkey, memo) {
+  const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
   if (!invoice) throw new Error('No invoice provided');
+  if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
   const sats = invoiceSats(invoice);
 
   // Pay without a prompt only when unlocked AND the site's budget covers a known amount.
@@ -428,9 +437,9 @@ async function weblnSendPayment(params, host, pubkey) {
       method: 'sendPayment',
       npub: self.NostrTools.nip19.npubEncode(pubkey),
       accountName: (acct && acct.name) || '',
-        accountPicture: (acct && acct.picture) || '',
+      accountPicture: (acct && acct.picture) || '',
       amountSats: sats, // null for amountless invoices
-      memo: (params && params.memo) || '',
+      memo: memo || '',
       needUnlock: KS.isLocked(),
       needApproval: true,
     });
@@ -458,8 +467,104 @@ async function weblnSendPayment(params, host, pubkey) {
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
   // Tell an open side panel to refresh its balance/history.
   chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
-  return { preimage: preimage || '' };
+  return { preimage: preimage || '', sats };
 }
+
+// ============================================================================
+// "Pay with Sidecar" — pay an invoice found on a page (context menu)
+// ============================================================================
+function notify(message) {
+  chrome.notifications.create(
+    {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title: 'Sidecar',
+      message: String(message),
+    },
+    () => void chrome.runtime.lastError
+  );
+}
+
+// Tell a tab a page invoice was paid, so its "Pay with Sidecar" pill clears
+// (the invoice link often lingers in the DOM after the modal shows "Paid").
+function notifyTabPaid(tabId, invoice) {
+  if (tabId != null && chrome.tabs) {
+    chrome.tabs.sendMessage(tabId, { type: 'SIDECAR_EVENT', event: 'paid', invoice }, () => void chrome.runtime.lastError);
+  }
+}
+
+// Resolve the account/wallet for the page, then pay via the shared core.
+async function payFromPage(invoiceRaw, host) {
+  await KS.ensureLoaded();
+  if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
+  const pubkey = await resolveSiteAccount(host);
+  if (!pubkey) throw new Error('No active Sidecar account');
+  if ((await PERMS.getLevel(pubkey, host)) === 'blocked') throw new Error('This site is blocked in Sidecar');
+  if (!(await KS.hasNwc(pubkey))) throw new Error('No wallet connected in Sidecar');
+  return payInvoiceCore(invoiceRaw, host, pubkey);
+}
+
+// First BOLT11 invoice inside a blob of text (selection, link, decoded QR).
+function extractInvoice(text) {
+  const m = /ln(?:bc|tb)[0-9][a-z0-9]+/i.exec(String(text || '').replace(/^lightning:/i, ''));
+  return m ? m[0].toLowerCase() : '';
+}
+
+// Decode a QR <img> entirely in the worker: fetch it, draw to an OffscreenCanvas,
+// run jsQR. jsQR is heavy (~250KB) so it's imported lazily, only on first QR pay.
+let jsqrReady = false;
+function ensureJsQR() {
+  if (!jsqrReady) { importScripts('jsqr.js'); jsqrReady = true; }
+  return self.jsQR;
+}
+async function invoiceFromQrImage(srcUrl) {
+  if (!srcUrl) throw new Error('No image to read');
+  const blob = await (await fetch(srcUrl)).blob();
+  const bmp = await createImageBitmap(blob);
+  const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bmp, 0, 0);
+  const data = ctx.getImageData(0, 0, bmp.width, bmp.height);
+  const res = ensureJsQR()(data.data, data.width, data.height);
+  if (!res || !res.data) throw new Error('No QR code found in that image');
+  const invoice = extractInvoice(res.data);
+  if (!invoice) throw new Error('That QR is not a Lightning invoice');
+  return invoice;
+}
+
+function createPayMenu() {
+  if (!chrome.contextMenus) return;
+  chrome.contextMenus.removeAll(() => {
+    // Only on lightning: links (not every link), on any text selection, and on
+    // QR images. (Canvas/SVG QRs have no image context — a later pass.)
+    chrome.contextMenus.create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] });
+    chrome.contextMenus.create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
+    chrome.contextMenus.create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
+  });
+}
+chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(createPayMenu);
+
+chrome.contextMenus &&
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    let host = '';
+    try { host = new URL(info.pageUrl || (tab && tab.url) || '').hostname; } catch (_) {}
+    const pay = (getInvoice) =>
+      Promise.resolve(getInvoice)
+        .then((inv) => payFromPage(inv, host).then((r) => ({ r, inv })))
+        .then(({ r, inv }) => {
+          notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+          notifyTabPaid(tab && tab.id, inv);
+        })
+        .catch((e) => notify((e && e.message) || 'Payment failed'));
+
+    if (info.menuItemId === 'sidecar-pay-qr') {
+      pay(invoiceFromQrImage(info.srcUrl));
+    } else if (info.menuItemId === 'sidecar-pay-link' || info.menuItemId === 'sidecar-pay-selection') {
+      const invoice = extractInvoice(info.linkUrl || info.selectionText);
+      if (!invoice) return notify('No Lightning invoice found in the selection.');
+      pay(invoice);
+    }
+  });
 
 // ============================================================================
 // Keystore control messages (from side panel and prompt)
@@ -584,6 +689,20 @@ async function handleControl(message, sendResponse) {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const merged = { ...prev, ...message.settings };
         await sset({ sidecar_settings: merged });
+        // Push the pay-pill setting to content scripts so it toggles live.
+        if (chrome.tabs) {
+          chrome.tabs.query({}, (tabs) => {
+            for (const t of tabs) {
+              if (t.id != null) {
+                chrome.tabs.sendMessage(
+                  t.id,
+                  { type: 'SIDECAR_EVENT', event: 'settings', showPayButton: merged.showPayButton },
+                  () => void chrome.runtime.lastError
+                );
+              }
+            }
+          });
+        }
         result = merged;
         break;
       }
@@ -674,6 +793,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SIDECAR_WEBLN_RPC') {
     handleWeblnRpc(message.method, message.params, message.host, sendResponse);
     return true;
+  }
+  // "Pay with Sidecar" pill clicked on a page.
+  if (message.type === 'SIDECAR_PAY_PAGE_INVOICE') {
+    const tabId = sender && sender.tab && sender.tab.id;
+    let host = '';
+    try { host = new URL((sender && sender.url) || '').hostname; } catch (_) {}
+    payFromPage(message.invoice, host)
+      .then((r) => {
+        notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+        notifyTabPaid(tabId, message.invoice);
+      })
+      .catch((e) => notify((e && e.message) || 'Payment failed'));
+    sendResponse({ ok: true });
+    return false;
   }
 
   // Prompt window asking for its context, or returning a decision.

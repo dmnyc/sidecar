@@ -20,10 +20,8 @@ Connect) for sending and receiving sats.
 - **Identity from your profile** — account names and avatars are imported from your kind 0 metadata; view and edit your profile and publish kind 0.
 - **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle.
 - **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Coinos, Primal, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays. Sidecar never holds your funds.
-
-### Coming next
-
-- **WebLN provider** — let web apps pay and make invoices through Sidecar's connected wallet (`window.webln`), with per-origin payment approval.
+- **WebLN provider** — web apps can pay and make invoices through your connected wallet (`window.webln`), gated by an approval prompt with an optional per-site daily budget.
+- **Pay invoices from any page** — right-click a `lightning:` link, a selected BOLT11 invoice, or a QR image → **Pay with Sidecar** — for clients that only show an invoice and don't use WebLN.
 
 ## Install (unpacked / developer build)
 
