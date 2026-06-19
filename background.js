@@ -496,43 +496,63 @@ async function payFromPage(invoiceRaw, host) {
   return payInvoiceCore(invoiceRaw, host, pubkey);
 }
 
-const PAY_MENU_IDS = ['sidecar-pay-link', 'sidecar-pay-selection'];
+// First BOLT11 invoice inside a blob of text (selection, link, decoded QR).
+function extractInvoice(text) {
+  const m = /ln(?:bc|tb)[0-9][a-z0-9]+/i.exec(String(text || '').replace(/^lightning:/i, ''));
+  return m ? m[0].toLowerCase() : '';
+}
+
+// Decode a QR <img> entirely in the worker: fetch it, draw to an OffscreenCanvas,
+// run jsQR. jsQR is heavy (~250KB) so it's imported lazily, only on first QR pay.
+let jsqrReady = false;
+function ensureJsQR() {
+  if (!jsqrReady) { importScripts('jsqr.js'); jsqrReady = true; }
+  return self.jsQR;
+}
+async function invoiceFromQrImage(srcUrl) {
+  if (!srcUrl) throw new Error('No image to read');
+  const blob = await (await fetch(srcUrl)).blob();
+  const bmp = await createImageBitmap(blob);
+  const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bmp, 0, 0);
+  const data = ctx.getImageData(0, 0, bmp.width, bmp.height);
+  const res = ensureJsQR()(data.data, data.width, data.height);
+  if (!res || !res.data) throw new Error('No QR code found in that image');
+  const invoice = extractInvoice(res.data);
+  if (!invoice) throw new Error('That QR is not a Lightning invoice');
+  return invoice;
+}
+
 function createPayMenu() {
   if (!chrome.contextMenus) return;
   chrome.contextMenus.removeAll(() => {
-    // Only on lightning: links (not every link), and on any text selection.
-    chrome.contextMenus.create({
-      id: 'sidecar-pay-link',
-      title: 'Pay this invoice with Sidecar',
-      contexts: ['link'],
-      targetUrlPatterns: ['lightning:*'],
-    });
-    chrome.contextMenus.create({
-      id: 'sidecar-pay-selection',
-      title: 'Pay Lightning invoice with Sidecar',
-      contexts: ['selection'],
-    });
+    // Only on lightning: links (not every link), on any text selection, and on
+    // QR images. (Canvas/SVG QRs have no image context — a later pass.)
+    chrome.contextMenus.create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] });
+    chrome.contextMenus.create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
+    chrome.contextMenus.create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
   });
 }
 chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(createPayMenu);
 
 chrome.contextMenus &&
   chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (!PAY_MENU_IDS.includes(info.menuItemId)) return;
     let host = '';
     try { host = new URL(info.pageUrl || (tab && tab.url) || '').hostname; } catch (_) {}
-    // Pull a BOLT11 invoice out of the link or the selected text (it may have
-    // surrounding words). Invoices are case-insensitive bech32 → normalize lower.
-    const source = (info.linkUrl || info.selectionText || '').replace(/^lightning:/i, '');
-    const m = /ln(?:bc|tb)[0-9][a-z0-9]+/i.exec(source);
-    const invoice = m ? m[0].toLowerCase() : '';
-    if (!invoice) {
-      notify('No Lightning invoice found in the selection.');
-      return;
+    const pay = (getInvoice) =>
+      Promise.resolve(getInvoice)
+        .then((inv) => payFromPage(inv, host))
+        .then((r) => notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent'))
+        .catch((e) => notify((e && e.message) || 'Payment failed'));
+
+    if (info.menuItemId === 'sidecar-pay-qr') {
+      pay(invoiceFromQrImage(info.srcUrl));
+    } else if (info.menuItemId === 'sidecar-pay-link' || info.menuItemId === 'sidecar-pay-selection') {
+      const invoice = extractInvoice(info.linkUrl || info.selectionText);
+      if (!invoice) return notify('No Lightning invoice found in the selection.');
+      pay(invoice);
     }
-    payFromPage(invoice, host)
-      .then((r) => notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent'))
-      .catch((e) => notify(e.message || 'Payment failed'));
   });
 
 // ============================================================================
