@@ -69,10 +69,11 @@
   }
 
   const INVOICE_RE = /ln(?:bc|tb)[0-9][a-z0-9]{20,}/i;
+  // Returns { invoice, anchor } — anchor is the element to position the pill near
+  // (the lightning link / QR), or null when only found via the text fallback.
   function findPageInvoice() {
     // 1. lightning: links — but pierce shadow DOM, because web-component modals
-    //    (e.g. Bitcoin Connect) render the link inside an open shadow root, where
-    //    document.querySelectorAll can't reach it.
+    //    (e.g. Bitcoin Connect) render the link inside a shadow root.
     const roots = [document];
     for (let i = 0; i < roots.length && i < 2000; i++) {
       let links, all;
@@ -84,40 +85,62 @@
       }
       for (const a of links) {
         const m = INVOICE_RE.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
-        if (m) return m[0].toLowerCase();
+        if (m) return { invoice: m[0].toLowerCase(), anchor: a };
       }
       for (const el of all) if (el.shadowRoot) roots.push(el.shadowRoot);
     }
     // 2. fallback: a BOLT11 in the page's visible text (a copyable invoice field).
     const m2 = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i.exec(document.body ? document.body.innerText : '');
-    return m2 ? m2[0].toLowerCase() : '';
+    return m2 ? { invoice: m2[0].toLowerCase(), anchor: null } : null;
   }
+
+  let pillAnchor = null;
 
   function removePill() {
     if (pillHost && pillHost.parentNode) pillHost.parentNode.removeChild(pillHost);
     pillHost = null;
+    pillAnchor = null;
     shownInvoice = '';
+    window.removeEventListener('scroll', positionPill, true);
+    window.removeEventListener('resize', positionPill);
   }
 
-  function renderPill(invoice) {
+  // Place the pill just under the invoice/QR (centered); fall back to a fixed
+  // bottom-right corner when there's no on-screen anchor (text-only match).
+  function positionPill() {
+    if (!pillHost) return;
+    const r = pillAnchor && pillAnchor.getBoundingClientRect && pillAnchor.getBoundingClientRect();
+    if (r && (r.width || r.height)) {
+      pillHost.style.cssText =
+        'all:initial;position:fixed;z-index:2147483647;left:' +
+        Math.round(r.left + r.width / 2) + 'px;top:' + Math.round(r.bottom + 12) + 'px;transform:translateX(-50%);';
+    } else {
+      pillHost.style.cssText = 'all:initial;position:fixed;z-index:2147483647;bottom:18px;right:18px;';
+    }
+  }
+
+  function renderPill(invoice, anchor) {
     removePill();
     shownInvoice = invoice;
+    pillAnchor = anchor;
     const sats = invoiceSats(invoice);
     const label = sats != null ? 'Pay ' + sats.toLocaleString('en-US') + ' sats with Sidecar' : 'Pay invoice with Sidecar';
     pillHost = document.createElement('div');
-    pillHost.style.cssText = 'all:initial;position:fixed;z-index:2147483647;bottom:18px;right:18px;';
     const s = pillHost.attachShadow({ mode: 'open' });
     s.innerHTML =
       '<style>' +
       '.pill{display:flex;align-items:stretch;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;' +
       'border-radius:12px;overflow:hidden;border:1px solid rgba(203,161,78,0.5);box-shadow:0 10px 30px rgba(0,0,0,0.55);}' +
-      '.pay{cursor:pointer;border:none;padding:12px 15px;font-size:14px;font-weight:600;color:#1c0c00;' +
-      'background:linear-gradient(180deg,#f29248,#ea772f 55%,#d4621f);}' +
+      '.pay{display:flex;align-items:center;gap:7px;cursor:pointer;border:none;padding:11px 15px;font-size:14px;font-weight:600;' +
+      'color:#1c0c00;background:linear-gradient(180deg,#f29248,#ea772f 55%,#d4621f);}' +
       '.pay:hover{filter:brightness(1.06);}' +
+      '.bolt{height:15px;width:auto;display:block;}' +
       '.x{cursor:pointer;border:none;padding:0 11px;background:#160a30;color:#9a86c4;font-size:17px;line-height:1;}' +
       '.x:hover{color:#f1e8f8;}' +
       '</style>' +
-      '<div class="pill"><button class="pay" type="button">⚡ ' + label + '</button>' +
+      '<div class="pill"><button class="pay" type="button">' +
+      '<svg class="bolt" viewBox="0 0 55 94" fill="currentColor"><path d="M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z"/></svg>' +
+      '<span>' + label + '</span></button>' +
       '<button class="x" type="button" title="Dismiss">×</button></div>';
     s.querySelector('.pay').addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: 'SIDECAR_PAY_PAGE_INVOICE', invoice }, () => void chrome.runtime.lastError);
@@ -127,14 +150,21 @@
       removePill();
     });
     (document.documentElement || document.body).appendChild(pillHost);
+    positionPill();
+    window.addEventListener('scroll', positionPill, true);
+    window.addEventListener('resize', positionPill);
   }
 
   function scanForInvoice() {
     if (!showPill) return removePill();
-    const inv = findPageInvoice();
-    if (!inv || inv === dismissedInvoice) return removePill();
-    if (inv === shownInvoice && pillHost) return; // already showing it
-    renderPill(inv);
+    const found = findPageInvoice();
+    if (!found || found.invoice === dismissedInvoice) return removePill();
+    if (found.invoice === shownInvoice && pillHost) {
+      pillAnchor = found.anchor; // keep the anchor fresh across re-renders
+      positionPill();
+      return;
+    }
+    renderPill(found.invoice, found.anchor);
   }
 
   let scanTimer = null;
