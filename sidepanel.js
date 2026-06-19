@@ -2966,7 +2966,7 @@
     if (!pendingApproval) return;
     const data = pendingApproval.data;
     closeAcctMenu();
-    [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit')].forEach(hide);
+    // Overlay on top of whatever's showing — don't hide the base view.
     show($('view-approval'));
 
     const payment = isPaymentApproval(data);
@@ -2977,9 +2977,16 @@
 
     const acct = $('approval-account');
     acct.innerHTML = '';
-    acct.append(document.createTextNode(payment ? 'Paying from ' : 'Signing as '));
-    acct.append(h('b', { textContent: data.accountName || shortNpub(data.npub) }));
-    if (data.accountName) acct.append(h('span', { className: 'acct-npub', textContent: shortNpub(data.npub) }));
+    acct.append(h('div', { className: 'approval-as', textContent: payment ? 'Paying from' : 'Signing as' }));
+    acct.append(
+      h('div', { className: 'active-account approval-capsule' }, [
+        avatarEl({ picture: data.accountPicture }, 'aa-avatar'),
+        h('div', { className: 'aa-info' }, [
+          h('div', { className: 'aa-label', textContent: data.accountName || shortNpub(data.npub) }),
+          h('div', { className: 'aa-npub', textContent: shortNpub(data.npub) }),
+        ]),
+      ])
+    );
 
     renderApprovalPreview(data);
 
@@ -3064,6 +3071,10 @@
   $('approval-allow').addEventListener('click', () => decideApproval('once'));
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
+  // Tapping the dimmed backdrop (outside the card) rejects, like closing the popup.
+  $('view-approval').addEventListener('click', (e) => {
+    if (e.target === $('view-approval')) decideApproval('reject');
+  });
   $('approval-pin').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') decideApproval('once');
   });
@@ -3074,17 +3085,36 @@
     e.target.value = v;
   });
 
-  try {
-    const port = chrome.runtime.connect({ name: 'sidepanel' });
+  // Keep a live port to the worker so inline approvals always reach us. MV3
+  // recycles the service worker (~30s idle; Chrome also force-drops ports after
+  // ~5 min), which silently kills the port — without reconnecting, the panel
+  // goes deaf and a page's request hangs until a refresh. So we re-establish the
+  // connection whenever it drops. (Reconnecting also wakes a sleeping worker.)
+  function connectApprovalPort() {
+    let port;
+    try {
+      port = chrome.runtime.connect({ name: 'sidepanel' });
+    } catch (_) {
+      setTimeout(connectApprovalPort, 1000);
+      return;
+    }
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_PANEL_APPROVAL') {
         pendingApproval = { id: msg.id, data: msg.data };
         showApproval();
       }
     });
-  } catch (_) {
-    // No port → approvals just fall back to the popup window in the worker.
+    port.onDisconnect.addListener(() => {
+      // The worker that owned any in-flight approval is gone, so a showing card
+      // is now stale (the page is failed via the content-script timeout). Drop it.
+      if (pendingApproval) {
+        pendingApproval = null;
+        hide($('view-approval'));
+      }
+      setTimeout(connectApprovalPort, 250);
+    });
   }
+  connectApprovalPort();
 
   // ---- boot ----
   document.addEventListener('DOMContentLoaded', refresh);

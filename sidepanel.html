@@ -184,38 +184,38 @@
   </section>
 
   <!-- ===== Signing approval (inline, replaces the popup when the panel is open) ===== -->
-  <section id="view-approval" class="screen hidden">
-    <div class="brand-lg">
-      <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" />
-    </div>
-    <div class="approval-host" id="approval-host">…</div>
-    <div class="approval-ask" id="approval-ask">wants to…</div>
+  <div id="view-approval" class="approval-overlay hidden">
+    <div class="approval-card">
+      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <div class="approval-host" id="approval-host">…</div>
+      <div class="approval-ask" id="approval-ask">wants to…</div>
 
-    <div id="approval-preview" class="card hidden"></div>
+      <div id="approval-preview" class="card hidden"></div>
 
-    <div class="approval-account" id="approval-account"></div>
+      <div class="approval-account" id="approval-account"></div>
 
-    <div id="approval-unlock" class="hidden stack">
-      <label for="approval-pin">Enter your PIN to unlock</label>
-      <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />
-    </div>
+      <div id="approval-unlock" class="hidden stack">
+        <label for="approval-pin">Enter your PIN to unlock</label>
+        <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />
+      </div>
 
-    <div id="approval-remember" class="remember hidden">
-      <label class="check"><input type="checkbox" id="approval-remember-budget" /> Allow this site to spend up to</label>
-      <div class="budget-row">
-        <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" />
-        <span class="budget-unit">sats / day without asking</span>
+      <div id="approval-remember" class="remember hidden">
+        <label class="check"><input type="checkbox" id="approval-remember-budget" /> Allow this site to spend up to</label>
+        <div class="budget-row">
+          <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" />
+          <span class="budget-unit">sats / day without asking</span>
+        </div>
+      </div>
+
+      <div class="error" id="approval-error"></div>
+
+      <div class="approval-actions">
+        <button class="primary" id="approval-allow">Allow once</button>
+        <button class="lav-btn" id="approval-trust">Trust this site</button>
+        <button class="ghost" id="approval-reject">Reject</button>
       </div>
     </div>
-
-    <div class="error" id="approval-error"></div>
-
-    <div class="approval-actions">
-      <button class="primary" id="approval-allow">Allow once</button>
-      <button class="secondary" id="approval-trust">Trust this site</button>
-      <button class="ghost" id="approval-reject">Reject</button>
-    </div>
-  </section>
+  </div>
 
   <!-- ===== Modal host ===== -->
   <div id="modal-overlay" class="modal-overlay hidden">

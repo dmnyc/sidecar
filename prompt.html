@@ -42,7 +42,8 @@
       background-repeat: repeat, no-repeat, no-repeat, no-repeat;
       background-attachment: fixed;
     }
-    .brand { display: flex; align-items: center; margin-bottom: 18px; }
+    body { text-align: center; }
+    .brand { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
     .brand img { height: 26px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
     .host {
       font-family: var(--font-display); font-weight: 700;
@@ -51,7 +52,7 @@
     }
     .ask { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
     .card {
-      position: relative;
+      position: relative; text-align: left;
       background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
       border: 1px solid var(--border); border-radius: 12px;
       padding: 13px; margin-bottom: 16px; font-size: 13px;
@@ -66,9 +67,17 @@
       font-size: 12px; white-space: pre-wrap; word-break: break-word;
       max-height: 160px; overflow: auto; color: var(--text);
     }
-    .account { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
-    .account b { color: var(--lav); }
-    .account .acct-npub { font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); margin-left: 2px; }
+    .account { margin-bottom: 18px; }
+    .as-label { font-size: 10.5px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.22em; }
+    .acct-capsule {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      background: linear-gradient(150deg, var(--velvet-1), var(--velvet-2));
+      border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; box-shadow: var(--sheen);
+    }
+    .acct-av { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #2a1257; box-shadow: 0 0 0 1px var(--gold-soft); }
+    .acct-meta { min-width: 0; text-align: center; }
+    .acct-name { font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .acct-np { font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); margin-top: 4px; word-break: break-all; }
     label { display: block; font-size: 12px; letter-spacing: 0.03em; color: var(--muted); margin: 0 0 6px; }
     input[type=password] {
       width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border);
@@ -78,9 +87,9 @@
     }
     input[type=password]:focus { outline: none; border-color: var(--gold-soft); box-shadow: 0 0 0 3px rgba(203, 161, 78, 0.16); }
     .remember { margin-bottom: 14px; }
-    .remember .check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; text-transform: none; letter-spacing: 0; margin-bottom: 8px; cursor: pointer; }
+    .remember .check { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text); font-size: 13px; text-transform: none; letter-spacing: 0; margin-bottom: 8px; cursor: pointer; }
     .remember input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; }
-    .budget-row { display: flex; align-items: center; gap: 8px; }
+    .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
     .remember input[type=number] {
       width: 110px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
       background: linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6));
@@ -101,6 +110,11 @@
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px rgba(234, 119, 47, 0.28);
     }
     .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .lav-btn {
+      background: linear-gradient(180deg, #cebfff, var(--lav) 58%, var(--purple)); color: #190a33;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px rgba(167, 139, 250, 0.24);
+    }
+    .lav-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
     .secondary {
       background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
       color: var(--text); border: 1px solid var(--border); box-shadow: var(--sheen);
@@ -137,7 +151,7 @@
 
   <div class="actions">
     <button class="primary" id="allow">Allow once</button>
-    <button class="secondary" id="trust">Trust this site</button>
+    <button class="lav-btn" id="trust">Trust this site</button>
     <button class="ghost" id="reject">Reject</button>
   </div>
 

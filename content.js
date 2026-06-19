@@ -28,20 +28,26 @@
     const type = SCOPE_TO_TYPE[d.scope];
     if (!type) return;
 
+    // Always answer the page exactly once. If the service worker dies mid-request
+    // (MV3 recycles it) the callback may never fire, which would hang the page's
+    // window.nostr/webln promise — so a timeout guarantees a (failed) response.
+    let replied = false;
+    function reply(response) {
+      if (replied) return;
+      replied = true;
+      clearTimeout(timer);
+      window.postMessage({ ext: 'sidecar', scope: d.scope, kind: 'response', id: d.id, response }, '*');
+    }
+    const timer = setTimeout(
+      () => reply({ ok: false, error: 'Sidecar did not respond (timed out). Try again.' }),
+      180000
+    );
+
     chrome.runtime.sendMessage(
       { type, scope: d.scope, method: d.method, params: d.params, host },
       function (response) {
         const err = chrome.runtime.lastError;
-        window.postMessage(
-          {
-            ext: 'sidecar',
-            scope: d.scope,
-            kind: 'response',
-            id: d.id,
-            response: err ? { ok: false, error: err.message } : response,
-          },
-          '*'
-        );
+        reply(err ? { ok: false, error: err.message } : response);
       }
     );
   });

@@ -122,17 +122,35 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
+// A page RPC can wake a fresh worker before the open side panel has reconnected
+// its port to this instance. Without waiting, panelPort is null and we'd wrongly
+// open a popup while the panel is sitting right there. Give the panel a brief
+// moment to (re)connect; if it's genuinely closed, nothing connects and we
+// fall through to the popup.
+function waitForPanelPort(ms) {
+  if (panelPort) return Promise.resolve(panelPort);
+  return new Promise((resolve) => {
+    const deadline = Date.now() + ms;
+    const tick = () => {
+      if (panelPort || Date.now() >= deadline) return resolve(panelPort);
+      setTimeout(tick, 40);
+    };
+    tick();
+  });
+}
+
 function openPrompt(data) {
   // Chain onto the mutex: each prompt waits for the previous to finish.
   const run = () =>
-    new Promise((resolve) => {
+    new Promise(async (resolve) => {
       const promptId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 
       // Panel open → render inline; the panel decides via SIDECAR_PROMPT_RESULT.
-      if (panelPort) {
+      const port = await waitForPanelPort(600);
+      if (port) {
         pendingPrompts.set(promptId, { resolve, windowId: null, data, settled: false });
         try {
-          panelPort.postMessage({ type: 'SIDECAR_PANEL_APPROVAL', id: promptId, data });
+          port.postMessage({ type: 'SIDECAR_PANEL_APPROVAL', id: promptId, data });
           return;
         } catch (_) {
           // Port died between the check and post; fall through to the popup.
@@ -240,6 +258,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         activePubkey,
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
         accountName: (acct && acct.name) || '',
+        accountPicture: (acct && acct.picture) || '',
         needUnlock,
         needApproval,
         level: await PERMS.getLevel(activePubkey, host),
@@ -319,6 +338,7 @@ async function weblnUnlockGate(host, method, pubkey) {
     method: 'webln.' + method,
     npub: self.NostrTools.nip19.npubEncode(pubkey),
     accountName: (acct && acct.name) || '',
+        accountPicture: (acct && acct.picture) || '',
     needUnlock: true,
     needApproval: false,
   });
@@ -408,6 +428,7 @@ async function weblnSendPayment(params, host, pubkey) {
       method: 'sendPayment',
       npub: self.NostrTools.nip19.npubEncode(pubkey),
       accountName: (acct && acct.name) || '',
+        accountPicture: (acct && acct.picture) || '',
       amountSats: sats, // null for amountless invoices
       memo: (params && params.memo) || '',
       needUnlock: KS.isLocked(),
