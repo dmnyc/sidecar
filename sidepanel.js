@@ -2233,6 +2233,9 @@
     // Backup to relays (detection mirrors zap.cooking)
     view.append(renderWalletBackup());
 
+    // Per-site WebLN spending budgets
+    view.append(renderSitePayments());
+
     // Disconnect
     const disc = h('button', { className: 'ghost wallet-disconnect', textContent: 'Disconnect wallet' });
     disc.addEventListener('click', () => disconnectModal());
@@ -2366,6 +2369,44 @@
         status.textContent = 'Not backed up';
       });
     return wrap;
+  }
+
+  // Per-site WebLN spending budgets: sites allowed to pay from the wallet without
+  // a prompt, up to a daily allowance. Lets the user review and revoke them.
+  function renderSitePayments() {
+    const wrap = h('div', { className: 'setting wallet-budgets' });
+    wrap.append(h('h3', { textContent: 'Site payments' }));
+    wrap.append(h('p', { className: 'hint', textContent: 'Sites allowed to pay from your wallet without asking, up to a daily budget. Revoke any time.' }));
+    const list = h('div', { className: 'list flat' });
+    wrap.append(list);
+    listState(list, 'Loading…');
+    call({ type: 'SIDECAR_GET_BUDGETS' })
+      .then((budgets) => {
+        const hosts = Object.keys(budgets || {}).sort();
+        if (!hosts.length) { list.classList.add('empty'); listState(list, 'No sites have a spending budget.'); return; }
+        list.classList.remove('empty');
+        list.innerHTML = '';
+        hosts.forEach((host) => list.append(budgetRow(host, budgets[host])));
+      })
+      .catch(() => listState(list, 'Could not load budgets.'));
+    return wrap;
+  }
+
+  function budgetRow(host, b) {
+    const row = h('div', { className: 'item' });
+    const main = h('div', { className: 'item-main' }, [
+      h('div', { className: 'item-label', textContent: host }),
+      h('div', {
+        className: 'item-sub',
+        textContent: fmtSats(b.remainingSats) + ' of ' + fmtSats(b.budgetSats) + ' sats left today',
+      }),
+    ]);
+    const rm = iconButton('Revoke budget', 'trash', async () => {
+      await call({ type: 'SIDECAR_REVOKE_BUDGET', host });
+      renderWallet();
+    });
+    row.append(main, rm);
+    return row;
   }
 
   function sendModal() {
