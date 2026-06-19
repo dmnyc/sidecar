@@ -68,16 +68,28 @@
     return Math.round(Number(m[1]) * F[m[2].toLowerCase()]);
   }
 
+  const INVOICE_RE = /ln(?:bc|tb)[0-9][a-z0-9]{20,}/i;
   function findPageInvoice() {
-    // 1. lightning: links — what zap modals / Bitcoin Connect use.
-    for (const a of document.querySelectorAll('a[href^="lightning:" i]')) {
-      const m = /ln(?:bc|tb)[0-9][a-z0-9]{20,}/i.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
-      if (m) return m[0].toLowerCase();
+    // 1. lightning: links — but pierce shadow DOM, because web-component modals
+    //    (e.g. Bitcoin Connect) render the link inside an open shadow root, where
+    //    document.querySelectorAll can't reach it.
+    const roots = [document];
+    for (let i = 0; i < roots.length && i < 2000; i++) {
+      let links, all;
+      try {
+        links = roots[i].querySelectorAll('a[href^="lightning:" i]');
+        all = roots[i].querySelectorAll('*');
+      } catch (_) {
+        continue;
+      }
+      for (const a of links) {
+        const m = INVOICE_RE.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
+        if (m) return m[0].toLowerCase();
+      }
+      for (const el of all) if (el.shadowRoot) roots.push(el.shadowRoot);
     }
-    // 2. fallback: a BOLT11 sitting in the page's visible text (a copyable
-    //    invoice field). Length-gated to avoid matching stray text.
-    const text = document.body ? document.body.innerText : '';
-    const m2 = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i.exec(text);
+    // 2. fallback: a BOLT11 in the page's visible text (a copyable invoice field).
+    const m2 = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i.exec(document.body ? document.body.innerText : '');
     return m2 ? m2[0].toLowerCase() : '';
   }
 
