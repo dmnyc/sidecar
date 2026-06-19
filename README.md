@@ -80,6 +80,15 @@ Or regenerate it manually any time:
 Decrypted private keys live only in the service worker's in-memory map. If the worker
 is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
+## Acknowledgments
+
+- Inspired by Nostr Build Shack by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
+
+## Author
+
+- Created by The Daniel 🖖
+- Vibed with Claude ☕️
+
 ## License
 
 MIT. Bundled fonts are licensed under the SIL Open Font License (see `fonts/`).
