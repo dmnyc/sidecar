@@ -553,24 +553,14 @@
     applyAvatar($('chip-av'), active || {});
     $('chip-name').textContent = active ? displayName(active) : 'No account';
 
+    // The active account already shows in the header chip and is marked (check +
+    // highlight) in the list below, so the big "booth" card was a third copy.
+    // Keep this slot only for the empty-state welcome hero.
     const head = $('active-account');
     head.innerHTML = '';
     head.classList.toggle('welcome-mode', !hasAccounts);
-    if (hasAccounts && active) {
-      head.appendChild(avatarEl(active, 'aa-avatar'));
-      const info = document.createElement('div');
-      info.className = 'aa-info';
-      const label = document.createElement('div');
-      label.className = 'aa-label';
-      label.textContent = displayName(active);
-      const npub = document.createElement('div');
-      npub.className = 'aa-npub';
-      npub.textContent = shortNpub(active.npub);
-      info.append(label, npub);
-      head.appendChild(info);
-    } else {
-      head.appendChild(buildWelcome());
-    }
+    head.classList.toggle('hidden', hasAccounts);
+    if (!hasAccounts) head.appendChild(buildWelcome());
 
     const list = $('account-list');
     list.innerHTML = '';
