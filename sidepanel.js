@@ -41,6 +41,7 @@
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
     'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>',
     'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
+    'chevron-down': '<polyline points="6 9 12 15 18 9"></polyline>',
     'arrow-up-right': '<line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>',
     'arrow-down-left': '<line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline>',
     refresh: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
@@ -96,17 +97,22 @@
   }
 
   // Collapse the balance card into a slim sticky header as the wallet content
-  // scrolls (mirrors zap.cooking). Listener is attached once; it acts only when
-  // a wallet card is present.
-  function syncWalletCardCompact() {
-    const content = document.querySelector('.content');
-    const card = document.querySelector('.wallet-card');
-    if (content && card) card.classList.toggle('compact', content.scrollTop > 8);
+  // scrolls (mirrors zap.cooking). We watch a tiny sentinel placed *above* the
+  // card with an IntersectionObserver rather than reading scrollTop: collapsing
+  // the card resizes the layout, and a scrollTop threshold would feed that change
+  // back into itself and flip the state every frame. The sentinel sits above the
+  // card, so the card's resize never moves it — no feedback loop, no flicker.
+  let walletCardObserver = null;
+  function observeWalletCard(card, sentinel) {
+    if (walletCardObserver) { walletCardObserver.disconnect(); walletCardObserver = null; }
+    const root = document.querySelector('.content');
+    if (!root || !('IntersectionObserver' in window)) return;
+    walletCardObserver = new IntersectionObserver(
+      (entries) => card.classList.toggle('compact', !entries[0].isIntersecting),
+      { root, rootMargin: '48px 0px 0px 0px', threshold: 0 }
+    );
+    walletCardObserver.observe(sentinel);
   }
-  (function () {
-    const content = document.querySelector('.content');
-    if (content) content.addEventListener('scroll', syncWalletCardCompact, { passive: true });
-  })();
 
   // Background broadcasts (e.g. a WebLN payment paid via the service worker
   // while the panel is open) — refresh the wallet if it's the visible tab.
@@ -2218,14 +2224,20 @@
     return nwc;
   }
 
+  let walletRenderSeq = 0;
   async function renderWallet() {
     const view = $('wallet-view');
-    view.innerHTML = '';
+    const seq = ++walletRenderSeq;
     if (!state.activePubkey) {
+      view.innerHTML = '';
       view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
       return;
     }
     const { has } = await call({ type: 'SIDECAR_HAS_NWC' });
+    // Bail if another renderWallet() started during the await — otherwise both
+    // would clear + append a card, leaving two overlapping sticky cards.
+    if (seq !== walletRenderSeq) return;
+    view.innerHTML = '';
     if (!has) {
       renderWalletConnect(view);
       return;
@@ -2296,6 +2308,9 @@
   async function renderWalletConnected(view) {
     // Balance card — show the last-known balance instantly, refresh below.
     const cached = balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
+    // Sentinel above the card; its visibility (not scrollTop) drives the collapse.
+    const sentinel = h('div', { className: 'wallet-sentinel' });
+    view.append(sentinel);
     const card = h('div', { className: 'wallet-card' });
     // When collapsed, tapping the card (outside its buttons) scrolls back to top.
     card.addEventListener('click', (e) => {
@@ -2324,6 +2339,7 @@
     });
     card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit);
     view.append(card);
+    observeWalletCard(card, sentinel);
 
     // Actions
     const actions = h('div', { className: 'wallet-actions' });
@@ -2365,7 +2381,6 @@
     }
     bal.classList.remove('loading');
     loadTransactions(txList, client);
-    syncWalletCardCompact();
   }
 
   // Centered placeholder for list cards (loading / empty / error) so the text
@@ -2375,10 +2390,50 @@
     listEl.append(h('p', { className: 'list-state', textContent: text }));
   }
 
+  // Locally-recorded payment metadata (counterparty/comment/fee), keyed by the
+  // BOLT11 invoice. NWC's list_transactions doesn't carry who we paid, so for
+  // lightning-address sends we stash the address here and match it back by
+  // invoice when rendering history. Capped to the most recent entries.
+  const PAY_META_KEY = 'sidecar_pay_meta';
+  function getPayMeta() {
+    return new Promise((res) => {
+      try {
+        chrome.storage.local.get(PAY_META_KEY, (o) => res((o && o[PAY_META_KEY]) || {}));
+      } catch (_) { res({}); }
+    });
+  }
+  async function savePayMeta(invoice, meta) {
+    if (!invoice) return;
+    try {
+      const all = await getPayMeta();
+      all[invoice] = Object.assign({}, all[invoice], meta, { ts: Date.now() });
+      const keys = Object.keys(all);
+      if (keys.length > 300) {
+        keys
+          .sort((a, b) => (all[a].ts || 0) - (all[b].ts || 0))
+          .slice(0, keys.length - 300)
+          .forEach((k) => delete all[k]);
+      }
+      chrome.storage.local.set({ [PAY_META_KEY]: all });
+    } catch (_) {}
+  }
+
+  const satsLabel = (n) => fmtSats(n) + (Math.round(n) === 1 ? ' sat' : ' sats');
+  // fees_paid is in msats; show it rounded to the nearest whole sat.
+  function fmtFeeMsat(msat) {
+    return msat == null ? null : satsLabel(Math.round(msat / 1000));
+  }
+  function truncMid(s, head, tail) {
+    s = String(s || '');
+    head = head || 10; tail = tail || 8;
+    return s.length > head + tail + 1 ? s.slice(0, head) + '…' + s.slice(-tail) : s;
+  }
+
   async function loadTransactions(listEl, client) {
     const PAGE = 15;
     let offset = 0;
     let loading = false;
+    const metaMap = await getPayMeta();
     const host = listEl.parentNode; // append the "Show more" button below the card
     const more = h('button', { className: 'ghost show-more-btn' });
     hide(more);
@@ -2397,7 +2452,7 @@
           if (!txns.length) { listState(listEl, 'No transactions yet.'); hide(more); return; }
           listEl.innerHTML = '';
         }
-        txns.forEach((tx) => listEl.append(txRow(tx)));
+        txns.forEach((tx) => listEl.append(txRow(tx, metaMap)));
         offset += txns.length;
         // A full page back suggests there may be more to fetch.
         if (txns.length >= PAGE) { show(more); more.textContent = 'Show more'; }
@@ -2413,18 +2468,79 @@
     loadPage();
   }
 
-  function txRow(tx) {
+  function txDetailRow(label, value, copyValue, prose) {
+    if (value == null || value === '') return null;
+    const val = h('span', { className: 'tx-d-val' + (prose ? ' prose' : ''), textContent: String(value) });
+    if (copyValue) {
+      val.classList.add('copyable');
+      val.title = 'Copy';
+      val.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(String(copyValue));
+          const old = val.textContent;
+          val.textContent = 'Copied';
+          val.classList.add('copied');
+          setTimeout(() => { val.textContent = old; val.classList.remove('copied'); }, 1000);
+        } catch (_) {}
+      });
+    }
+    return h('div', { className: 'tx-d-row' }, [
+      h('span', { className: 'tx-d-label', textContent: label }),
+      val,
+    ]);
+  }
+
+  function txRow(tx, metaMap) {
     const incoming = tx.type === 'incoming';
     const sats = msatToSat(tx.amount);
+    const meta = (metaMap && tx.invoice && metaMap[tx.invoice]) || {};
+    const counterparty = incoming ? '' : meta.address || '';
+
     const row = h('div', { className: 'item tx-row' });
     const ic = h('span', { className: 'tx-icon ' + (incoming ? 'in' : 'out') });
     ic.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
+    const label = counterparty || tx.description || (incoming ? 'Received' : 'Sent');
     const main = h('div', { className: 'item-main' }, [
-      h('div', { className: 'item-label', textContent: tx.description || (incoming ? 'Received' : 'Sent') }),
+      h('div', { className: 'item-label', textContent: label }),
       h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : 'pending' }),
     ]);
     const amt = h('div', { className: 'tx-amt ' + (incoming ? 'in' : 'out'), textContent: (incoming ? '+' : '−') + fmtSats(sats) });
-    row.append(ic, main, amt);
+    const caret = h('span', { className: 'tx-caret' });
+    caret.append(icon('chevron-down'));
+    const head = h('div', { className: 'tx-head' }, [ic, main, amt, caret]);
+
+    // Expandable invoice/payment details — built lazily on first open.
+    const details = h('div', { className: 'tx-details hidden' });
+    let built = false;
+    function buildDetails() {
+      const fee = tx.fees_paid != null ? tx.fees_paid : meta.feeMsat;
+      const when = tx.settled_at || tx.created_at;
+      const note = meta.comment || (tx.description && tx.description !== counterparty ? tx.description : '');
+      const rows = [
+        txDetailRow(incoming ? 'From' : 'To', counterparty),
+        txDetailRow('Note', note, null, true),
+        txDetailRow('Amount', satsLabel(sats)),
+        incoming ? null : txDetailRow('Fee', fmtFeeMsat(fee)),
+        txDetailRow('Date', when ? new Date(when * 1000).toLocaleString() : null),
+        txDetailRow('Payment hash', tx.payment_hash ? truncMid(tx.payment_hash, 12, 8) : null, tx.payment_hash),
+        txDetailRow('Preimage', tx.preimage ? truncMid(tx.preimage, 12, 8) : null, tx.preimage),
+        txDetailRow('Invoice', tx.invoice ? truncMid(tx.invoice, 12, 10) : null, tx.invoice),
+      ].filter(Boolean);
+      if (!rows.length) {
+        rows.push(h('div', { className: 'tx-d-row' }, [h('span', { className: 'tx-d-label', textContent: 'No extra details.' })]));
+      }
+      rows.forEach((r) => details.append(r));
+      built = true;
+    }
+
+    head.addEventListener('click', () => {
+      if (!built) buildDetails();
+      const nowHidden = details.classList.toggle('hidden');
+      row.classList.toggle('open', !nowHidden);
+    });
+
+    row.append(head, details);
     return row;
   }
 
@@ -2531,6 +2647,7 @@
       const amountLabel = h('label', { className: 'hidden', textContent: 'Amount (sats)' });
       const amount = satsInput('Amount in sats');
       amount.classList.add('hidden');
+      const comment = h('input', { className: 'send-comment', type: 'text', maxLength: 280, placeholder: 'Comment (optional)' });
       const err = h('div', { className: 'error' });
       const pay = h('button', { className: 'primary', textContent: 'Pay' });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
@@ -2549,6 +2666,8 @@
         const val = input.value.replace(/^lightning:/i, '').trim();
         if (!val) return (err.textContent = 'Paste an invoice or lightning address.');
         err.textContent = '';
+        const note = comment.value.trim();
+        let address = ''; // lightning address, when sending to one
         try {
           const client = await ensureNwc();
           let invoice = val;
@@ -2557,17 +2676,24 @@
           } else if (isLnAddress(val)) {
             const sats = parseInt(amount.value, 10);
             if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+            address = val;
             pay.disabled = true;
             pay.textContent = 'Paying…';
-            invoice = await lnAddressToInvoice(val, sats * 1000, 'Sidecar payment');
+            invoice = await lnAddressToInvoice(val, sats * 1000, note || 'Sidecar payment');
           } else {
             return (err.textContent = 'Enter a BOLT11 invoice (lnbc…) or a lightning address.');
           }
           pay.disabled = true;
           pay.textContent = 'Paying…';
-          await client.payInvoice(invoice);
+          const res = await client.payInvoice(invoice);
+          // Record what NWC history won't keep: who we paid, the note, the fee —
+          // keyed by invoice so txRow can match it back.
+          const feeMsat = res && res.fees_paid;
+          if (address || note || feeMsat != null) {
+            await savePayMeta(invoice, { address, comment: note, feeMsat });
+          }
           closeModal();
-          toast('Payment sent', 'success');
+          toast('Payment sent' + (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''), 'success');
           renderWallet();
         } catch (e) {
           err.textContent = e.message;
@@ -2580,6 +2706,7 @@
         input,
         amountLabel,
         amount,
+        comment,
         err,
         h('div', { className: 'actions' }, [pay, cancel])
       );
