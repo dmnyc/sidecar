@@ -795,6 +795,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   // "Pay with Sidecar" pill clicked on a page.
+  // Has this (trusted) host ever connected to Sidecar's signer? The content
+  // script uses this to scope the "Pay with Sidecar" card to nostr clients the
+  // user is actually signed into — a live invoice elsewhere is almost always noise.
+  if (message.type === 'SIDECAR_IS_CONNECTED') {
+    let h = '';
+    try { h = new URL((sender && sender.url) || '').hostname; } catch (_) {}
+    getSiteAccount(h)
+      .then((pk) => sendResponse({ ok: true, connected: !!pk }))
+      .catch(() => sendResponse({ ok: true, connected: false }));
+    return true; // async response
+  }
+
   if (message.type === 'SIDECAR_PAY_PAGE_INVOICE') {
     const tabId = sender && sender.tab && sender.tab.id;
     let host = '';
