@@ -10,14 +10,18 @@
   'use strict';
 
   // Force shadow roots open so the "Pay with Sidecar" detector (content script)
-  // can find invoices inside web-component modals like Bitcoin Connect, which
-  // otherwise use a closed shadow root that's invisible to scripts. This only
-  // changes script visibility, not component behavior. Runs at document_start,
+  // can find invoices inside web-component modals like Bitcoin Connect /
+  // WalletConnect, which otherwise use a closed shadow root that's invisible to
+  // scripts. Scoped to ONLY those payment-modal tag prefixes — a global override
+  // broke clients' own web components (and NIP-07 login). Runs at document_start,
   // before the page's components attach their shadow roots.
   try {
     const _attachShadow = Element.prototype.attachShadow;
+    const PIERCE = /^(bc-|bci-|wcm-|w3m-)/;
     Element.prototype.attachShadow = function (init) {
-      return _attachShadow.call(this, Object.assign({}, init, { mode: 'open' }));
+      const tag = (this.tagName || '').toLowerCase();
+      if (PIERCE.test(tag)) return _attachShadow.call(this, Object.assign({}, init, { mode: 'open' }));
+      return _attachShadow.call(this, init);
     };
   } catch (_) {}
 

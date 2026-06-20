@@ -294,7 +294,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .icon-btn.sm { font-size: 14px; padding: 5px 6px; }
 .icon-btn svg { width: 19px; height: 19px; display: block; }
 .icon-btn.sm svg { width: 16px; height: 16px; }
-.topbar-actions { display: flex; align-items: center; gap: 2px; }
+.topbar-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 
 /* ===== main app ===== */
 .topbar {
@@ -317,6 +317,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   padding: 4px 6px; border-radius: 10px;
 }
 .acct-chip:hover { background: rgba(167, 139, 250, 0.08); }
+.acct-chip:disabled { cursor: default; }
+.acct-chip:disabled .chip-name,
+.acct-chip:disabled .chip-chev { display: none; }
+.acct-chip:disabled .chip-av { opacity: 0.4; }
 .chip-av {
   width: 28px; height: 28px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
   background: linear-gradient(180deg, #2a1257, #160a30); box-shadow: 0 0 0 1px var(--gold-soft);
@@ -370,6 +374,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   transition: color 0.15s;
 }
 .tab:hover { color: var(--text); }
+.tab:disabled { opacity: 0.38; cursor: default; }
 .tab.active { color: var(--lav); }
 .tab.active::after {
   content: '';
@@ -455,6 +460,46 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .aa-info { min-width: 0; }
 .aa-label { font-family: var(--font-display); font-weight: 700; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aa-npub { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 5px; word-break: break-all; }
+
+/* empty-state welcome hero (no accounts yet) — strip the booth chrome */
+.active-account.welcome-mode {
+  display: block; text-align: center; overflow: visible;
+  background: none; border: none; box-shadow: none; padding: 14px 4px 2px; margin-bottom: 16px;
+}
+.active-account.welcome-mode::before { display: none; }
+.welcome { position: relative; }
+.welcome-sparks { position: absolute; left: 0; right: 0; top: 0; height: 120px; pointer-events: none; }
+.welcome-mark { position: relative; width: 76px; height: 76px; margin: 6px auto 16px; display: flex; align-items: center; justify-content: center; }
+.welcome-mark::before {
+  content: ''; position: absolute; inset: -18px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(203, 161, 78, 0.32), transparent 66%);
+}
+.welcome-mark img { position: relative; width: 58px; height: auto; display: block; filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.55)); }
+.welcome-title { font-family: var(--font-display); font-weight: 700; font-size: 27px; margin: 0 0 8px; color: var(--text); }
+.welcome-sub { font-size: 13.5px; line-height: 1.6; color: var(--muted); max-width: 300px; margin: 0 auto; text-wrap: balance; }
+.welcome-cta { font-size: 13px; line-height: 1.5; color: var(--lav); max-width: 300px; margin: 10px auto 0; text-wrap: balance; }
+.welcome-tip {
+  display: flex; align-items: center; gap: 9px; text-align: left;
+  max-width: 300px; margin: 18px auto 0; padding: 10px 13px;
+  border: 1px solid var(--gold-soft); border-radius: 12px;
+  background: rgba(203, 161, 78, 0.08);
+  color: var(--text-2); font-size: 12px; line-height: 1.45; text-wrap: pretty;
+}
+.welcome-tip svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--gold); }
+.spark { position: absolute; color: var(--gold); opacity: 0; animation: spark-twinkle 3s ease-in-out infinite; }
+.spark svg { display: block; width: 100%; height: 100%; }
+@keyframes spark-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  50% { opacity: 0.85; transform: scale(1) rotate(20deg); }
+}
+.spark.s1 { top: 6px;  left: 30%; width: 13px; height: 13px; animation-delay: 0s; }
+.spark.s2 { top: 22px; right: 28%; width: 9px;  height: 9px;  animation-delay: 0.5s; }
+.spark.s3 { top: 54px; left: 23%; width: 10px; height: 10px; animation-delay: 1s; }
+.spark.s4 { top: 48px; right: 22%; width: 12px; height: 12px; animation-delay: 1.5s; }
+.spark.s5 { top: 80px; left: 35%; width: 8px;  height: 8px;  animation-delay: 2.1s; }
+@media (prefers-reduced-motion: reduce) {
+  .spark { animation: none; opacity: 0.55; }
+}
 
 /* avatars (account picture from kind:0, or the anon placeholder) */
 .avatar, .aa-avatar {
@@ -654,6 +699,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   transition: transform 0.12s, box-shadow 0.15s, opacity 0.16s ease;
 }
 .fab.is-scrolling { opacity: 0.45; }
+.fab:disabled { opacity: 0.32; cursor: default; box-shadow: none; transform: none; }
 .fab:hover { transform: translateY(-1px) scale(1.03); opacity: 1; }
 .fab:active { transform: scale(0.97); }
 .fab svg { width: 24px; height: 24px; }
@@ -800,7 +846,15 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .recv-copy { width: 100%; }
 
 /* centered loading/empty/error state inside list cards */
-.list-state { text-align: center; padding: 24px 14px; margin: 0; color: var(--faint); font-size: 13px; }
+.list-state {
+  text-align: center; padding: 18px 14px; margin: 0;
+  color: var(--faint); font-size: 13px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); box-shadow: var(--sheen);
+}
+/* when a list is showing only a placeholder, drop the list's own card chrome so
+   the centered .list-state capsule stands alone (no double border) */
+.list.flat:has(.list-state) { border: none; background: none; box-shadow: none; }
 
 /* send/receive buttons with arrow icons */
 .wallet-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }

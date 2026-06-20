@@ -47,6 +47,7 @@
     refresh: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
+    pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -83,6 +84,28 @@
       setTimeout(() => t.remove(), 250);
     }, 3200);
   }
+
+  // ---- nsec paste guard ----
+  // A secret key should only ever land in the key-import field. Block a paste of
+  // an nsec anywhere else in the panel (note composer, PIN, wallet send, profile
+  // fields, …) so it can't be leaked into the wrong box by a slip of the cursor.
+  const NSEC_RE = /nsec1[a-z0-9]{20,}/i;
+  document.addEventListener(
+    'paste',
+    (e) => {
+      let text = '';
+      try {
+        text = ((e.clipboardData || window.clipboardData) || {}).getData('text') || '';
+      } catch (_) {}
+      if (!NSEC_RE.test(text)) return;
+      const t = e.target;
+      if (t && t.closest && t.closest('.nsec-field')) return; // the one allowed home
+      e.preventDefault();
+      e.stopPropagation();
+      toast('That looks like a secret key. For safety, paste your nsec only into the key import field.', 'error');
+    },
+    true
+  );
 
   let state = null;
   let hideBalances = false; // privacy toggle (persisted in settings)
@@ -175,7 +198,6 @@
       await call({ type: 'SIDECAR_INIT', pin });
       await refresh();
       toast('Keystore created', 'success');
-      promptAddFirstAccount();
     } catch (e) {
       err.textContent = e.message;
       toast(e.message, 'error');
@@ -454,8 +476,78 @@
     fetchAndStoreProfile(pubkey);
   }
 
+  // Sparkle hero shown in the empty (no-account) state — a classy welcome that
+  // carries the brand and points at the add buttons below.
+  const SPARK_SVG =
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c.7 6.4 5.6 11.3 12 12-6.4.7-11.3 5.6-12 12-.7-6.4-5.6-11.3-12-12C6.4 11.3 11.3 6.4 12 0Z"/></svg>';
+  function buildWelcome() {
+    const wrap = h('div', { className: 'welcome' });
+    const sparks = h('div', { className: 'welcome-sparks' });
+    ['s1', 's2', 's3', 's4', 's5'].forEach((c) => {
+      const sp = document.createElement('span');
+      sp.className = 'spark ' + c;
+      sp.innerHTML = SPARK_SVG;
+      sparks.append(sp);
+    });
+    const mark = h('div', { className: 'welcome-mark' });
+    const img = document.createElement('img');
+    img.src = 'icons/sidecar-mark.svg';
+    img.alt = '';
+    mark.append(img);
+    wrap.append(
+      sparks,
+      mark,
+      h('h2', { className: 'welcome-title', textContent: 'Welcome to Sidecar' }),
+      h('p', {
+        className: 'welcome-sub',
+        textContent: 'A classy Nostr signer and Lightning wallet that lives in your browser sidebar.',
+      }),
+      h('p', { className: 'welcome-cta', textContent: 'Create a new account or import your nsec to begin.' })
+    );
+    return wrap;
+  }
+
   function renderMain() {
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+
+    // No accounts yet → the switcher chip has nothing to show or switch to (its
+    // dropdown would only offer "Manage accounts", the tab you're already on),
+    // and the "Accounts" heading is noise next to the welcome hero. Hide both;
+    // the topbar actions stay anchored right (margin-left:auto).
+    const hasAccounts = state.accounts.length > 0;
+    // Empty state: keep a dimmed placeholder avatar in the top-left for balance,
+    // but make the chip inert (no name, no chevron, no dropdown) until an account exists.
+    $('acct-btn').disabled = !hasAccounts;
+    $('accounts-heading').classList.toggle('hidden', !hasAccounts);
+
+    // "Pinned and open" tip sits below the add buttons (where it won't get lost),
+    // shown only while onboarding.
+    let tip = $('welcome-tip');
+    if (!hasAccounts && !tip) {
+      tip = h('div', { id: 'welcome-tip', className: 'welcome-tip' }, [
+        icon('pin'),
+        h('span', { textContent: 'For the best experience, keep Sidecar pinned and open in your sidebar.' }),
+      ]);
+      document.querySelector('#tab-accounts .add-actions').insertAdjacentElement('afterend', tip);
+    } else if (hasAccounts && tip) {
+      tip.remove();
+    }
+
+    // No accounts → gate the rest of the app: the Activity/Profile/Wallet tabs and
+    // the compose FAB are dimmed and inert until an account exists. Snap back to
+    // the Accounts tab if a gated tab was active (e.g. after removing the last one).
+    ['activity', 'profile', 'wallet'].forEach((name) => {
+      const t = document.querySelector('.tab[data-tab="' + name + '"]');
+      if (t) t.disabled = !hasAccounts;
+    });
+    $('compose-fab').disabled = !hasAccounts;
+    if (!hasAccounts) {
+      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+      const acc = document.querySelector('.tab[data-tab="accounts"]');
+      if (acc) acc.classList.add('active');
+      document.querySelectorAll('.tabview').forEach((v) => hide(v));
+      show($('tab-accounts'));
+    }
 
     // persistent header chip (current account)
     applyAvatar($('chip-av'), active || {});
@@ -463,7 +555,8 @@
 
     const head = $('active-account');
     head.innerHTML = '';
-    if (active) {
+    head.classList.toggle('welcome-mode', !hasAccounts);
+    if (hasAccounts && active) {
       head.appendChild(avatarEl(active, 'aa-avatar'));
       const info = document.createElement('div');
       info.className = 'aa-info';
@@ -476,7 +569,7 @@
       info.append(label, npub);
       head.appendChild(info);
     } else {
-      head.textContent = 'No active account — add one below.';
+      head.appendChild(buildWelcome());
     }
 
     const list = $('account-list');
@@ -612,12 +705,8 @@
   }
   labelButton('add-generate', 'user-plus', 'Generate new');
   labelButton('add-import', 'download', 'Import nsec');
-  $('add-generate').addEventListener('click', () => addAccountModal(true));
-  $('add-import').addEventListener('click', () => addAccountModal(false));
-
-  function promptAddFirstAccount() {
-    addAccountModal(null, true);
-  }
+  $('add-generate').addEventListener('click', () => generateAccount());
+  $('add-import').addEventListener('click', () => importAccountModal());
 
   // ---- modals ----
   let modalCleanup = null;
@@ -646,89 +735,50 @@
     return el;
   }
 
-  function addAccountModal(generate, isFirst) {
+  // Generate is instant — create the key, then surface the one-time backup modal.
+  async function generateAccount() {
+    try {
+      const gen = await call({ type: 'SIDECAR_ADD_ACCOUNT', generate: true });
+      await refresh(); // renderMain() then pulls the profile for the new account
+      toast('Account created', 'success');
+      if (gen && gen.nsec) {
+        nsecModal({
+          nsec: gen.nsec,
+          title: 'Back up your new key',
+          intro:
+            'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
+        });
+      }
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  function importAccountModal() {
     openModal((modal) => {
-      const title = h('h3', { textContent: isFirst ? 'Add your first account' : 'Add account' });
+      modal.append(h('h3', { textContent: 'Import account' }));
       const err = h('div', { className: 'error' });
-      modal.append(title);
-
-      let chooseGenerate = generate;
-
-      const secretWrap = h('div', { className: generate === false ? '' : 'hidden' });
-      const secretInput = h('input', { type: 'password', placeholder: 'nsec1… or 64-char hex' });
-      secretWrap.append(h('label', { textContent: 'Private key' }), secretInput);
-      // Detailed security rationale only on the dedicated import path; the
-      // first-account screen carries a shorter combined note instead.
-      if (generate === false) {
-        secretWrap.append(
-          h('p', {
-            className: 'hint',
-            textContent:
-              'Safer than pasting your nsec into a website: Sidecar keeps it encrypted on this device and signs locally, so sites only ever receive signatures — never your key. A web app you paste into can copy or leak it.',
-          })
-        );
-      }
-
-      if (generate === null) {
-        // First-account flow: let them pick generate vs import.
-        const choice = h('div', { className: 'row-actions' });
-        const genBtn = h('button', { className: 'secondary', textContent: 'Generate new' });
-        const impBtn = h('button', { className: 'secondary', textContent: 'Import nsec' });
-        genBtn.addEventListener('click', () => {
-          chooseGenerate = true;
-          secretWrap.classList.add('hidden');
-          genBtn.classList.add('chosen');
-          impBtn.classList.remove('chosen');
-        });
-        impBtn.addEventListener('click', () => {
-          chooseGenerate = false;
-          secretWrap.classList.remove('hidden');
-          impBtn.classList.add('chosen');
-          genBtn.classList.remove('chosen');
-        });
-        choice.append(genBtn, impBtn);
-        modal.append(choice);
-        modal.append(
-          h('p', {
-            className: 'hint compact',
-            textContent:
-              'Your name and picture come from your Nostr profile. A new account gets a placeholder name you can change.',
-          }),
-          h('p', {
-            className: 'hint compact',
-            textContent:
-              'Importing here is safer than pasting your nsec into a website. Sidecar signs locally and never reveals your key to the sites you log into.',
-          })
-        );
-      }
-
-      modal.append(secretWrap);
+      const secretInput = h('input', { type: 'password', className: 'nsec-field', placeholder: 'nsec1… or 64-char hex' });
+      modal.append(h('label', { textContent: 'Private key' }), secretInput);
+      modal.append(
+        h('p', {
+          className: 'hint',
+          textContent:
+            'Your nsec stays encrypted on this device. Sidecar signs locally, so sites only get signatures, never your key. Much safer than pasting it into a website.',
+        })
+      );
       modal.append(err);
 
-      const save = h('button', { className: 'primary', textContent: 'Add account' });
+      const save = h('button', { className: 'primary', textContent: 'Import account' });
       save.addEventListener('click', async () => {
         err.textContent = '';
         try {
-          if (chooseGenerate === null) throw new Error('Choose “Generate new” or “Import nsec”.');
-          let gen = null;
-          if (chooseGenerate) {
-            gen = await call({ type: 'SIDECAR_ADD_ACCOUNT', generate: true });
-          } else {
-            const secret = secretInput.value.trim();
-            if (!secret) throw new Error('Enter an nsec or hex private key.');
-            await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
-          }
+          const secret = secretInput.value.trim();
+          if (!secret) throw new Error('Enter an nsec or hex private key.');
+          await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
           closeModal();
-          await refresh(); // renderMain() then pulls the profile for the new account
+          await refresh();
           toast('Account added', 'success');
-          if (gen && gen.nsec) {
-            nsecModal({
-              nsec: gen.nsec,
-              title: 'Back up your new key',
-              intro:
-                'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
-            });
-          }
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -737,6 +787,7 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [save, cancel]));
+      setTimeout(() => secretInput.focus(), 50);
     });
   }
 
@@ -1059,7 +1110,7 @@
     sites.classList.toggle('empty', !hosts.length);
     const sitesMore = $('sites-more');
     if (!hosts.length) {
-      sites.append(h('p', { className: 'hint', textContent: 'No sites have connected yet.' }));
+      listState(sites, 'No sites have connected yet.');
       hide(sitesMore);
     } else {
       // The list can get long — show a handful, then paginate (like the log below).
@@ -1084,7 +1135,7 @@
     const list = $('activity-list');
     list.innerHTML = '';
     if (!log.length) {
-      list.append(h('p', { className: 'hint', textContent: 'No signing activity yet.' }));
+      listState(list, 'No signing activity yet.');
       hide($('activity-more'));
       return;
     }
