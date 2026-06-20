@@ -144,6 +144,17 @@ function openPrompt(data) {
   // Chain onto the mutex: each prompt waits for the previous to finish.
   const run = () =>
     new Promise(async (resolve) => {
+      // Re-evaluate the lock at execution time. Prompts are serialized, so an
+      // earlier one in the queue may have already unlocked the keystore — the
+      // classic browser-restart case where several signed-in apps each fire a
+      // request at once and would otherwise each demand the PIN. Once unlocked,
+      // collapse the now-redundant unlock prompts: a pure unlock just proceeds,
+      // and an approval still shows but without asking for the PIN again.
+      if (data && data.needUnlock && !KS.isLocked()) {
+        data.needUnlock = false;
+        if (!data.needApproval) return resolve({ action: 'once' });
+      }
+
       const promptId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 
       // Panel open → render inline; the panel decides via SIDECAR_PROMPT_RESULT.
