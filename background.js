@@ -493,6 +493,18 @@ function notifyTabPaid(tabId, invoice) {
   }
 }
 
+// Tell a tab a page-invoice payment failed, so its pending "Pay with Sidecar"
+// card stops spinning and offers a retry instead of hanging forever.
+function notifyTabPayFailed(tabId, invoice, error) {
+  if (tabId != null && chrome.tabs) {
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: 'SIDECAR_EVENT', event: 'payfailed', invoice, error: String(error || 'Payment failed') },
+      () => void chrome.runtime.lastError
+    );
+  }
+}
+
 // Resolve the account/wallet for the page, then pay via the shared core.
 async function payFromPage(invoiceRaw, host) {
   await KS.ensureLoaded();
@@ -816,7 +828,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
         notifyTabPaid(tabId, message.invoice);
       })
-      .catch((e) => notify((e && e.message) || 'Payment failed'));
+      .catch((e) => {
+        const m = (e && e.message) || 'Payment failed';
+        notify(m);
+        notifyTabPayFailed(tabId, message.invoice, m);
+      });
     sendResponse({ ok: true });
     return false;
   }
