@@ -383,7 +383,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 }
 
 #view-main { display: flex; flex-direction: column; height: 100vh; position: relative; }
-.content { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px 16px 28px; display: flex; flex-direction: column; }
+.content { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px 16px 28px; display: flex; flex-direction: column; overflow-anchor: none; }
 .tabview { flex: 1; display: flex; flex-direction: column; }
 .brand-foot { margin-top: auto; padding-top: 40px; padding-bottom: 4px; text-align: center; opacity: 1; pointer-events: none; user-select: none; }
 .brand-foot img { width: 120px; display: block; margin: 0 auto; }
@@ -730,10 +730,14 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   border: 1px solid var(--gold-soft); box-shadow: var(--sheen), var(--shadow-sm);
   transition: padding 0.2s ease;
 }
+/* sentinel above the card; IntersectionObserver watches it to drive the collapse */
+.wallet-sentinel { height: 1px; margin: 0; pointer-events: none; }
 /* collapsed (scrolled) — slim sticky header; tap to scroll back to top */
 .wallet-card.compact { padding: 11px 16px; cursor: pointer; }
 .wallet-card.compact .wallet-bal-label,
-.wallet-card.compact .wallet-unit { display: none; }
+.wallet-card.compact .wallet-unit,
+.wallet-card.compact .wallet-eye,
+.wallet-card.compact .wallet-refresh { display: none; }
 .wallet-card.compact .wallet-balance { font-size: 24px; margin: 0; line-height: 1; }
 .wallet-refresh {
   position: absolute; top: 10px; right: 10px;
@@ -764,7 +768,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .wallet-actions { display: flex; gap: 10px; margin-bottom: 20px; }
 .wallet-actions button { flex: 1; }
 .wallet-disconnect { display: block; margin: 8px auto 0; }
-.tx-row { gap: 10px; }
+/* tx rows are column containers: a clickable head + an expandable details panel */
+.list.flat .item.tx-row { flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; }
+.tx-head { display: flex; align-items: center; gap: 10px; padding: 11px 13px; cursor: pointer; }
 .tx-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .tx-icon svg { width: 15px; height: 15px; }
 .tx-icon.in { color: #6ee7a8; background: rgba(110, 231, 168, 0.12); }
@@ -772,6 +778,18 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .tx-amt { font-family: var(--font-mono); font-size: 13px; font-weight: 600; flex-shrink: 0; }
 .tx-amt.in { color: #6ee7a8; }
 .tx-amt.out { color: var(--lav); }
+.tx-caret { display: flex; flex-shrink: 0; color: var(--muted); transition: transform 0.15s; }
+.tx-caret svg { width: 16px; height: 16px; }
+.tx-row.open .tx-caret { transform: rotate(180deg); }
+.tx-details { padding: 6px 13px 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 1px; }
+.tx-d-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 12px; }
+.tx-d-label { color: var(--muted); flex-shrink: 0; }
+.tx-d-val { font-family: var(--font-mono); font-size: 11.5px; text-align: right; word-break: break-all; min-width: 0; }
+.tx-d-val.prose { font-family: inherit; font-size: 12px; text-align: left; word-break: normal; overflow-wrap: anywhere; }
+.tx-d-val.copyable { cursor: pointer; }
+.tx-d-val.copyable:hover { color: var(--lav); }
+.tx-d-val.copied { color: #6ee7a8; }
+.send-comment { width: 100%; margin-top: 8px; }
 .recv-out { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 16px; }
 .recv-qr { background: #fff; border-radius: 12px; padding: 10px; width: 220px; height: 220px; }
 .recv-bolt {
