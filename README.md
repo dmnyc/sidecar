@@ -8,7 +8,7 @@ web apps you use, so you can sign in and sign events across nostr clients withou
 pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
 Connect) for sending and receiving sats.
 
-<img width="2816" height="1566" alt="Sidecar" src="https://github.com/user-attachments/assets/7bcefeed-9cad-4dd7-a767-f4d68930d87d" />
+<img width="2816" height="1566" alt="Sidecar" src="https://i.nostr.build/Sr11DBpz7pVITHoS.png" />
 
 ## Features
 
