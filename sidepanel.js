@@ -6,6 +6,10 @@
 
   const NT = window.NostrTools;
 
+  // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
+  // a stored value is missing or invalid.
+  const AUTOZAP_DEFAULT_MAX = 100;
+
   // ---- messaging ----
   function bg(message) {
     return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
@@ -930,6 +934,9 @@
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
     $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
+    $('autozap-toggle').checked = settings.autoZap === true;
+    $('autozap-max').value = String(settings.autoZapMaxSats || AUTOZAP_DEFAULT_MAX);
+    $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -3068,6 +3075,20 @@
 
   $('paybutton-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: e.target.checked } });
+  });
+
+  $('autozap-toggle').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    $('autozap-max-row').classList.toggle('hidden', !on);
+    const max = Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX);
+    $('autozap-max').value = String(max);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max } });
+  });
+
+  $('autozap-max').addEventListener('change', async (e) => {
+    const max = Math.max(1, parseInt(e.target.value, 10) || AUTOZAP_DEFAULT_MAX);
+    e.target.value = String(max);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapMaxSats: max } });
   });
 
   $('relay-add').addEventListener('click', async () => {

@@ -161,6 +161,17 @@
       </div>
 
       <div class="setting">
+        <h3>Automatic zaps</h3>
+        <p class="hint">Pay zaps without a prompt, up to a limit per zap. Larger zaps and all other payments still ask.</p>
+        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>
+        <label class="toggle-row hidden" id="autozap-max-row">
+          <span>Max per zap</span>
+          <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
+          <span>sats</span>
+        </label>
+      </div>
+
+      <div class="setting">
         <h3>Open notes in</h3>
         <p class="hint">Which web client to open your published notes in.</p>
         <select id="client-select">
