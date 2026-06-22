@@ -403,6 +403,46 @@
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
+  // Derive the public key (hex) from a pasted nsec/hex secret, locally, so the
+  // import modal can preview which account it belongs to before saving. The raw
+  // secret is already in the panel's input; this only computes the public half.
+  // Returns '' for anything that isn't a valid secret yet.
+  function pubkeyFromSecret(secret) {
+    try {
+      let sk = null;
+      if (/^nsec1/i.test(secret)) {
+        const d = NT.nip19.decode(secret);
+        if (d.type !== 'nsec') return '';
+        sk = d.data; // Uint8Array
+      } else if (/^[0-9a-f]{64}$/i.test(secret)) {
+        sk = new Uint8Array(32);
+        for (let i = 0; i < 32; i++) sk[i] = parseInt(secret.substr(i * 2, 2), 16);
+      } else {
+        return '';
+      }
+      return NT.getPublicKey(sk) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // Fetch just name + picture from kind 0 for a preview (without storing it).
+  async function fetchPreviewProfile(pubkey) {
+    try {
+      const relays = await relayUrls(false);
+      if (!relays.length) return null;
+      const ev = await Promise.race([
+        poolGet(relays, { kinds: [0], authors: [pubkey] }),
+        new Promise((r) => setTimeout(() => r(null), 6000)),
+      ]);
+      if (!ev) return null;
+      const m = JSON.parse(ev.content) || {};
+      return { name: m.display_name || m.displayName || m.name || '', picture: m.picture || '' };
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---- NIP-65 (kind 10002) relay list, cached per account ----
   const nip65Cache = new Map(); // pubkey -> { read:[], write:[] } | null
 
@@ -712,6 +752,17 @@
     show($('modal-overlay'));
     document.documentElement.classList.add('modal-open');
   }
+  // These modals are built from loose inputs + buttons (not a <form>), so Enter
+  // wouldn't submit. Treat Enter in a text input as a click on the primary action.
+  // (Textareas keep Enter for newlines.)
+  $('modal').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    const primary = $('modal').querySelector('button.primary');
+    if (primary && !primary.disabled) {
+      e.preventDefault();
+      primary.click();
+    }
+  });
   function closeModal() {
     if (modalCleanup) { try { modalCleanup(); } catch (_) {} modalCleanup = null; }
     hide($('modal-overlay'));
@@ -754,6 +805,43 @@
       const err = h('div', { className: 'error' });
       const secretInput = h('input', { type: 'password', className: 'nsec-field', placeholder: 'nsec1… or 64-char hex' });
       modal.append(h('label', { textContent: 'Private key' }), secretInput);
+
+      // Live preview: once the pasted key is valid, show whose account it is
+      // (npub + kind 0 name/picture) so the user can confirm before importing.
+      const pav = h('span', { className: 'ip-av' });
+      const pname = h('div', { className: 'ip-name' });
+      const pnpub = h('div', { className: 'ip-npub' });
+      const preview = h('div', { className: 'import-preview hidden' }, [
+        pav,
+        h('div', { className: 'ip-info' }, [pname, pnpub]),
+      ]);
+      modal.append(preview);
+
+      let previewSeq = 0;
+      let previewTimer = null;
+      async function updatePreview() {
+        const pubkey = pubkeyFromSecret(secretInput.value.trim());
+        const seq = ++previewSeq;
+        if (!pubkey) return preview.classList.add('hidden');
+        const npub = NT.nip19.npubEncode(pubkey);
+        applyAvatar(pav, {});
+        pname.textContent = 'Fetching profile…';
+        pnpub.textContent = shortNpub(npub);
+        preview.classList.remove('hidden');
+        const prof = await fetchPreviewProfile(pubkey);
+        if (seq !== previewSeq) return; // a newer key superseded this fetch
+        if (prof && (prof.name || prof.picture)) {
+          applyAvatar(pav, { picture: prof.picture, name: prof.name });
+          pname.textContent = prof.name || shortNpub(npub);
+        } else {
+          pname.textContent = 'No profile found';
+        }
+      }
+      secretInput.addEventListener('input', () => {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(updatePreview, 350);
+      });
+
       modal.append(
         h('p', {
           className: 'hint',
