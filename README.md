@@ -12,8 +12,8 @@ Connect) for sending and receiving sats.
 
 ## Features
 
-- **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click.
-- **PIN-protected** — every private key is encrypted at rest (PBKDF2 → AES-GCM, WebCrypto). Nothing is stored in plaintext, and the keystore re-locks automatically.
+- **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving.
+- **PIN-protected** — every private key is encrypted at rest (PBKDF2 → AES-GCM, WebCrypto). Nothing is stored in plaintext, and the keystore re-locks automatically. A paste guard blocks dropping an nsec anywhere except the import field.
 - **In-extension signing** — implements the full NIP-07 surface: `getPublicKey`, `signEvent`, `nip04`/`nip44` encrypt & decrypt, and `getRelays`.
 - **Per-site permissions** — approve or reject each site, per method, with a clear prompt that previews what you're signing. Relay auth (NIP-42) signs automatically so clients stay connected.
 - **Per-site account binding** — each site stays pinned to the account it logged in with (no NIP-07 desync). Switch a site to another account from **Connected Sites**.
@@ -21,7 +21,8 @@ Connect) for sending and receiving sats.
 - **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle.
 - **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Coinos, Primal, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays. Sidecar never holds your funds.
 - **WebLN provider** — web apps can pay and make invoices through your connected wallet (`window.webln`), gated by an approval prompt with an optional per-site daily budget.
-- **Pay invoices from any page** — right-click a `lightning:` link, a selected BOLT11 invoice, or a QR image → **Pay with Sidecar** — for clients that only show an invoice and don't use WebLN.
+- **Pay invoices from any page** — when a nostr client you're signed into shows a Lightning invoice, a **Pay with Sidecar** card appears so you can pay in a tap. You can also right-click a `lightning:` link, a selected BOLT11 invoice, or a QR image.
+- **Auto-approve zaps** (optional, off by default) — pay zaps without a prompt up to a per-zap limit you set. Verified zaps only; larger zaps, non-zaps, and a locked wallet still ask.
 
 ## Install (unpacked / developer build)
 
@@ -73,8 +74,8 @@ Or regenerate it manually any time:
 | Crypto & keystore | `crypto.js`, `keystore.js`, `permissions.js`, `signer.js` |
 | Approval prompt | `prompt.html`, `prompt.js` |
 | Side panel UI | `sidepanel.html`, `sidepanel.js`, `styles.css`, `fonts.css` |
-| Lightning (NWC / NIP-47) | `nwc-client.js` |
-| Vendored | `nostr-tools.js`, `qrious.min.js`, `fonts/` (Playfair Display + Manrope, SIL OFL) |
+| Lightning (NWC / NIP-47) | `nwc-client.js`, `wallet-budgets.js` |
+| Vendored | `nostr-tools.js`, `qrious.min.js` (receive QR), `jsqr.js` (scan QR to pay), `fonts/` (Playfair Display + Manrope, SIL OFL) |
 | Generated | `version.js` (build stamp), `scripts/stamp-version.sh` |
 
 Decrypted private keys live only in the service worker's in-memory map. If the worker
