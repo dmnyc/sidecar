@@ -426,6 +426,55 @@ async function weblnSendPayment(params, host, pubkey) {
   return payInvoiceCore(invoice, host, pubkey, params && params.memo);
 }
 
+// Decode just the BOLT11 description ('d', tag 13) — bech32, no deps. A zap
+// invoice carries the NIP-57 zap request (kind 9734) JSON there, which is how we
+// tell a genuine zap apart from any other payment for the auto-approve setting.
+const BECH32_CHARS = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+function bolt11Description(invoice) {
+  try {
+    const s = String(invoice).toLowerCase();
+    const sep = s.lastIndexOf('1');
+    if (sep < 1) return '';
+    const words = [];
+    for (const c of s.slice(sep + 1)) {
+      const v = BECH32_CHARS.indexOf(c);
+      if (v < 0) return '';
+      words.push(v);
+    }
+    const body = words.slice(0, words.length - 6); // drop checksum
+    const end = body.length - 104; // signature occupies the final 104 words
+    let i = 7; // skip the 35-bit timestamp
+    while (i + 3 <= end) {
+      const tag = body[i];
+      const len = body[i + 1] * 32 + body[i + 2];
+      const start = i + 3;
+      if (start + len > end) break;
+      if (tag === 13) {
+        let acc = 0, bits = 0;
+        const bytes = [];
+        for (let k = start; k < start + len; k++) {
+          acc = (acc << 5) | body[k];
+          bits += 5;
+          if (bits >= 8) { bits -= 8; bytes.push((acc >> bits) & 0xff); }
+        }
+        return new TextDecoder().decode(new Uint8Array(bytes));
+      }
+      i = start + len;
+    }
+  } catch (_) {}
+  return '';
+}
+function isZapInvoice(invoice) {
+  const desc = bolt11Description(invoice);
+  if (!desc || desc[0] !== '{') return false;
+  try {
+    const ev = JSON.parse(desc);
+    return !!ev && ev.kind === 9734;
+  } catch (_) {
+    return false;
+  }
+}
+
 // Shared payment core: budget-gate (prompt if needed), pay via NWC, decrement
 // budget, log, and notify the panel. Used by window.webln.sendPayment AND the
 // "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
@@ -436,8 +485,14 @@ async function payInvoiceCore(invoiceRaw, host, pubkey, memo) {
   if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
   const sats = invoiceSats(invoice);
 
-  // Pay without a prompt only when unlocked AND the site's budget covers a known amount.
-  const autoOk = !KS.isLocked() && sats != null && (await BUDGETS.covers(pubkey, host, sats));
+  // Pay without a prompt when unlocked and either the site's budget covers a known
+  // amount, or "auto-approve zaps" is on and this is a genuine zap within the limit.
+  const settings = (await sget('sidecar_settings')).sidecar_settings || {};
+  const unlocked = !KS.isLocked() && sats != null;
+  const budgetOk = unlocked && (await BUDGETS.covers(pubkey, host, sats));
+  const zapMax = settings.autoZap === true ? Number(settings.autoZapMaxSats) || 0 : 0;
+  const zapOk = unlocked && zapMax > 0 && sats <= zapMax && isZapInvoice(invoice);
+  const autoOk = budgetOk || zapOk;
 
   if (!autoOk) {
     const st = await KS.getState();
