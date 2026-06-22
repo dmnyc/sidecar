@@ -567,6 +567,8 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .item.item-pending { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft); }
 .item.item-pending .item-label { color: var(--gold); }
 .item.item-pending .item-sub { color: var(--gold-soft); }
+/* budget rows: wrap the "X of Y sats left today" line at spaces, not mid-word */
+.wallet-budgets .item-sub { word-break: normal; overflow-wrap: anywhere; }
 
 .row-actions { display: flex; gap: 8px; align-items: center; }
 .row-actions input { flex: 1; }
