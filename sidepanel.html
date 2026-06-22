@@ -79,9 +79,6 @@
           <button class="secondary" id="add-generate">Generate new</button>
           <button class="secondary" id="add-import">Import nsec</button>
         </div>
-        <div class="brand-foot">
-          <img src="icons/sidecar-logo.svg" alt="Sidecar" />
-        </div>
       </div>
 
       <!-- Activity: signing history + per-site permission tiers -->
@@ -111,6 +108,9 @@
         <div id="wallet-view"></div>
       </div>
 
+      <div class="brand-foot">
+        <img src="icons/sidecar-logo.svg" alt="Sidecar" />
+      </div>
     </main>
 
     <button id="compose-fab" class="fab" title="Post a note">
@@ -197,6 +197,16 @@
       <div class="setting">
         <h3>Change PIN</h3>
         <button class="secondary" id="change-pin-btn">Change PIN…</button>
+      </div>
+
+      <div class="setting danger-zone">
+        <h3>Danger zone</h3>
+        <p class="hint">Erase all accounts, keys, wallets, and settings on this device. This can't be undone. Back up your nsecs first.</p>
+        <button class="danger" id="reset-all-btn">Reset Sidecar</button>
+      </div>
+
+      <div class="brand-foot">
+        <img src="icons/sidecar-logo.svg" alt="Sidecar" />
       </div>
     </main>
   </section>

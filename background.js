@@ -687,6 +687,14 @@ async function handleControl(message, sendResponse) {
         await lockKeystore();
         result = await KS.getState();
         break;
+      case 'SIDECAR_RESET_ALL':
+        // Wipe everything: in-memory keys/session/wallet (lockKeystore) plus all
+        // persisted data (keystore, accounts, permissions, relays, settings, site
+        // bindings, activity, NWC connections, budgets). Unrecoverable.
+        await lockKeystore();
+        await new Promise((res) => chrome.storage.local.clear(() => res()));
+        result = true;
+        break;
       case 'SIDECAR_ADD_ACCOUNT':
         if (message.generate) result = await KS.generateAccount(message.name);
         else result = await KS.importSecret(message.secret, message.name);
