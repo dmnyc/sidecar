@@ -19,7 +19,7 @@ Connect) for sending and receiving sats.
 - **Per-site account binding** — each site stays pinned to the account it logged in with (no NIP-07 desync). Switch a site to another account from **Connected Sites**.
 - **Identity from your profile** — account names and avatars are imported from your kind 0 metadata; view and edit your profile and publish kind 0.
 - **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle.
-- **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Coinos, Primal, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays. Sidecar never holds your funds.
+- **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Rizful, YakiHonne, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays. Sidecar never holds your funds.
 - **WebLN provider** — web apps can pay and make invoices through your connected wallet (`window.webln`), gated by an approval prompt with an optional per-site daily budget you can edit or revoke any time.
 - **Pay invoices from any page** — when a nostr client you're signed into shows a Lightning invoice, a **Pay with Sidecar** card appears so you can pay in a tap. You can also right-click a `lightning:` link, a selected BOLT11 invoice, or a QR image.
 - **Auto-approve zaps** (optional, off by default) — pay zaps without a prompt up to a per-zap limit you set. Verified zaps only; larger zaps, non-zaps, and a locked wallet still ask.
