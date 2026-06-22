@@ -3146,12 +3146,12 @@
     });
   }
 
-  const brandFoot = document.querySelector('.brand-foot');
-  if (brandFoot) {
-    brandFoot.classList.add('brand-foot-btn');
-    brandFoot.title = 'About Sidecar';
-    brandFoot.addEventListener('click', aboutModal);
-  }
+  // Footer logo on every screen (main tabs + settings) opens the About card.
+  document.querySelectorAll('.brand-foot').forEach((foot) => {
+    foot.classList.add('brand-foot-btn');
+    foot.title = 'About Sidecar';
+    foot.addEventListener('click', aboutModal);
+  });
 
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
@@ -3189,6 +3189,48 @@
     await call({ type: 'SIDECAR_SET_RELAYS', relays });
     input.value = '';
     renderSettings();
+  });
+
+  // Danger zone: wipe all Sidecar data. Type-to-confirm, since it's irreversible
+  // and destroys keys. The destructive button is .danger (not .primary), so the
+  // modal's Enter-to-submit shortcut won't fire it — a deliberate click is required.
+  $('reset-all-btn').addEventListener('click', () => {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const warn = h('p', {
+        className: 'hint',
+        textContent:
+          'This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone — any account without a backed-up nsec is lost for good.',
+      });
+      const confirmInput = h('input', { type: 'text', placeholder: 'Type RESET to confirm' });
+      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      del.disabled = true;
+      const matches = () => confirmInput.value.trim().toUpperCase() === 'RESET';
+      confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
+      del.addEventListener('click', async () => {
+        if (!matches()) return;
+        try {
+          await call({ type: 'SIDECAR_RESET_ALL' });
+          closeModal();
+          await refresh(); // no keystore now → onboarding
+          toast('Sidecar reset', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Reset Sidecar?' }),
+        warn,
+        h('label', { textContent: 'Confirm' }),
+        confirmInput,
+        err,
+        h('div', { className: 'actions' }, [del, cancel])
+      );
+      setTimeout(() => confirmInput.focus(), 50);
+    });
   });
 
   $('change-pin-btn').addEventListener('click', () => {
