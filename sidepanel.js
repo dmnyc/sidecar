@@ -166,6 +166,11 @@
     closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
     if (!state.initialized) {
+      // Clear any stale PIN left in the inputs (e.g. after a reset) — the panel is
+      // an SPA, so values would otherwise persist across the view switch.
+      $('ob-pin').value = '';
+      $('ob-pin2').value = '';
+      $('ob-error').textContent = '';
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
     } else if (state.locked) {
