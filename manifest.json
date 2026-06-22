@@ -11,8 +11,7 @@
     "notifications"
   ],
   "host_permissions": [
-    "https://*/*",
-    "wss://*/*"
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
