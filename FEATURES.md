@@ -31,7 +31,7 @@ clients without ever pasting your nsec into a website.
 
 ## Lightning wallet (NWC)
 
-- Connect any Nostr Wallet Connect wallet (Alby Hub, Coinos, Primal, …). Sidecar
+- Connect any Nostr Wallet Connect wallet (Alby Hub, Rizful, YakiHonne, …). Sidecar
   never holds your funds.
 - **Send** (BOLT11 or Lightning address), **Receive** (invoice or your
   Lightning-address QR), and paginated **history** with expandable details —
