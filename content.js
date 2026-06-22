@@ -14,7 +14,7 @@
   };
   (document.head || document.documentElement).appendChild(script);
 
-  const host = location.hostname; // trusted origin identity, set by the content script
+  const host = location.host; // trusted origin identity (includes port, e.g. localhost:3000)
 
   // Whether this page is signed into Sidecar's signer. Seeded from the persistent
   // site binding on startup, then flipped live the moment the page successfully
@@ -271,7 +271,7 @@
     shownInvoice = invoice;
     const sats = invoiceSats(invoice);
     const memo = invoiceMemo(invoice);
-    const site = location.hostname.replace(/^www\./, '');
+    const site = location.host.replace(/^www\./, '');
 
     const eyebrow = sats != null ? "You're paying" : 'Pay with Sidecar';
     const amountBlock =

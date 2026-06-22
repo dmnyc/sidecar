@@ -570,7 +570,7 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(createPayMenu);
 chrome.contextMenus &&
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     let host = '';
-    try { host = new URL(info.pageUrl || (tab && tab.url) || '').hostname; } catch (_) {}
+    try { host = new URL(info.pageUrl || (tab && tab.url) || '').host; } catch (_) {}
     const pay = (getInvoice) =>
       Promise.resolve(getInvoice)
         .then((inv) => payFromPage(inv, host).then((r) => ({ r, inv })))
@@ -823,7 +823,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // user is actually signed into — a live invoice elsewhere is almost always noise.
   if (message.type === 'SIDECAR_IS_CONNECTED') {
     let h = '';
-    try { h = new URL((sender && sender.url) || '').hostname; } catch (_) {}
+    try { h = new URL((sender && sender.url) || '').host; } catch (_) {}
     getSiteAccount(h)
       .then((pk) => sendResponse({ ok: true, connected: !!pk }))
       .catch(() => sendResponse({ ok: true, connected: false }));
@@ -833,7 +833,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SIDECAR_PAY_PAGE_INVOICE') {
     const tabId = sender && sender.tab && sender.tab.id;
     let host = '';
-    try { host = new URL((sender && sender.url) || '').hostname; } catch (_) {}
+    try { host = new URL((sender && sender.url) || '').host; } catch (_) {}
     payFromPage(message.invoice, host)
       .then((r) => {
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
