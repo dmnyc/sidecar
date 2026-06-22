@@ -2774,12 +2774,53 @@
       h('div', { className: 'item-label', textContent: host }),
       sub,
     ]);
+    const edit = iconButton('Edit budget', 'edit', () => editBudgetModal(host, b));
     const rm = iconButton('Revoke budget', 'trash', async () => {
       await call({ type: 'SIDECAR_REVOKE_BUDGET', host });
       renderWallet();
     });
-    row.append(main, rm);
+    row.append(main, h('div', { className: 'item-actions' }, [edit, rm]));
     return row;
+  }
+
+  function editBudgetModal(host, b) {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const input = h('input', { type: 'text', inputMode: 'numeric', value: String(b.budgetSats || 0) });
+      const save = h('button', { className: 'primary', textContent: 'Save budget' });
+      save.addEventListener('click', async () => {
+        err.textContent = '';
+        const budgetSats = parseInt(input.value, 10);
+        if (!budgetSats || budgetSats < 1) {
+          err.textContent = 'Enter a daily budget in sats.';
+          return;
+        }
+        try {
+          await call({ type: 'SIDECAR_SET_BUDGET', host, budgetSats, perPaymentSats: b.perPaymentSats || 0 });
+          closeModal();
+          renderWallet();
+          toast('Budget updated', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Edit budget' }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            'Daily amount ' + host + ' can spend without a prompt. Saving resets the remaining amount for today.',
+        }),
+        h('label', { textContent: 'Daily budget (sats)' }),
+        input,
+        err,
+        h('div', { className: 'actions' }, [save, cancel])
+      );
+      setTimeout(() => input.focus(), 50);
+    });
   }
 
   function sendModal() {
