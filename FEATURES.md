@@ -37,7 +37,7 @@ clients without ever pasting your nsec into a website.
   Lightning-address QR), and paginated **history** with expandable details —
   counterparty, fee, payment hash, preimage.
 - **WebLN** — web apps can pay and make invoices through your wallet, gated by
-  approval with an optional per-site daily budget.
+  approval with an optional per-site daily budget you can edit or revoke any time.
 - **Pay from any page** — when a site shows a Lightning invoice, a "Pay with
   Sidecar" card appears (only on apps you're signed into). You can also right-click
   a `lightning:` link, a selected invoice, or a QR.
