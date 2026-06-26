@@ -908,27 +908,45 @@
   }
 
   // Show an nsec with copy + warning (used after generate, and from reveal).
+  // The key auto-hides after 30s so it can't be left exposed on screen; viewing
+  // it again goes back through the PIN-gated reveal.
+  const NSEC_REVEAL_TIMEOUT_S = 30;
   function nsecModal(opts) {
-    openModal((modal) => {
-      const box = h('div', { className: 'secret-box', textContent: opts.nsec });
-      const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
-      copy.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(opts.nsec);
-          toast('nsec copied', 'success');
-        } catch (_) {}
-      });
-      const done = h('button', { className: 'primary', textContent: "I've saved it" });
-      done.addEventListener('click', closeModal);
-      modal.append(
-        h('h3', { textContent: opts.title }),
-        opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
-        box,
-        copy,
-        h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
-        h('div', { className: 'actions' }, [done])
-      );
-    });
+    let remaining = NSEC_REVEAL_TIMEOUT_S;
+    let timer = null;
+    openModal(
+      (modal) => {
+        const box = h('div', { className: 'secret-box', textContent: opts.nsec });
+        const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(opts.nsec);
+            toast('nsec copied', 'success');
+          } catch (_) {}
+        });
+        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        done.addEventListener('click', closeModal);
+        const countdown = h('p', {
+          className: 'hint',
+          textContent: 'Hiding in ' + remaining + 's. Reveal again with your PIN.',
+        });
+        timer = setInterval(() => {
+          remaining -= 1;
+          if (remaining <= 0) return closeModal(); // cleanup clears the timer
+          countdown.textContent = 'Hiding in ' + remaining + 's. Reveal again with your PIN.';
+        }, 1000);
+        modal.append(
+          h('h3', { textContent: opts.title }),
+          opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
+          box,
+          copy,
+          h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
+          countdown,
+          h('div', { className: 'actions' }, [done])
+        );
+      },
+      () => { if (timer) { clearInterval(timer); timer = null; } }
+    );
   }
 
   // Reveal an existing account's nsec — PIN-gated step-up.
