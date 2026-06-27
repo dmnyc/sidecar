@@ -1680,6 +1680,13 @@
           a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
           a.textContent = url;
           container.append(a);
+          if (url.startsWith('https://')) {
+            const card = document.createElement('a');
+            card.className = 'link-card loading';
+            card.textContent = 'Loading preview…';
+            container.append(card);
+            fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
+          }
         }
       } else if (m[2]) {
         const bech = m[2];
@@ -1757,6 +1764,42 @@
       if (p.picture) applyAvatar(av, { picture: p.picture });
       if (p.name) name.textContent = '@' + p.name;
     });
+  }
+
+  // ---- OG / link preview cards ----
+  const ogCache = new Map(); // url → { title, description, image, site } | null
+
+  async function fetchOgMeta(url) {
+    if (ogCache.has(url)) return ogCache.get(url);
+    ogCache.set(url, null); // mark in-flight so parallel calls don't double-fetch
+    try {
+      const meta = await call({ type: 'SIDECAR_FETCH_OG', url });
+      ogCache.set(url, meta);
+      return meta;
+    } catch (_) { return null; }
+  }
+
+  function renderLinkCard(container, url, meta) {
+    container.classList.remove('loading');
+    if (!meta) { container.remove(); return; }
+    container.innerHTML = '';
+    const body = h('div', { className: 'link-card-body' });
+    if (meta.site) body.append(h('div', { className: 'link-card-site', textContent: meta.site }));
+    if (meta.title) body.append(h('div', { className: 'link-card-title', textContent: meta.title }));
+    if (meta.description) body.append(h('div', { className: 'link-card-desc', textContent: meta.description }));
+    const isHttps = (s) => typeof s === 'string' && s.startsWith('https://');
+    if (isHttps(meta.image)) {
+      const img = document.createElement('img');
+      img.className = 'link-card-img';
+      img.referrerPolicy = 'no-referrer';
+      img.src = meta.image;
+      img.onerror = () => img.remove();
+      container.append(img);
+    }
+    container.append(body);
+    container.href = url;
+    container.target = '_blank';
+    container.rel = 'noreferrer noopener';
   }
 
   // Serialize a contenteditable editor div to plain nostr text.
