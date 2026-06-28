@@ -2729,6 +2729,8 @@
     function showCountdown() {
       modal.innerHTML = '';
       let remaining = NOTE_COUNTDOWN_SECS;
+
+      // Full-size countdown ring, centered below the note preview.
       const R = 30;
       const C = 2 * Math.PI * R;
       const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -2740,6 +2742,14 @@
         'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
       const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
       const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
+
+      // The note exactly as it will be published, for a last review.
+      const previewScroll = h('div', { className: 'countdown-preview' });
+      const previewBody = h('div', { className: 'preview-body' });
+      const bodyText = draft.text.trim();
+      if (bodyText) renderNotePreview(previewBody, bodyText);
+      else previewBody.append(h('p', { className: 'hint', textContent: 'Empty note.' }));
+      previewScroll.append(previewBody);
 
       const now = h('button', { className: 'primary', textContent: 'Post now' });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
@@ -2765,7 +2775,8 @@
 
       modal.append(
         h('h3', { textContent: 'Posting your note' }),
-        h('p', { className: 'hint', textContent: 'Sending in a moment. Post now or cancel to keep editing.' }),
+        h('p', { className: 'hint', textContent: 'Review before it posts.' }),
+        previewScroll,
         ringWrap,
         h('div', { className: 'actions' }, [now, cancel])
       );

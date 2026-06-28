@@ -1017,6 +1017,17 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-variant-numeric: lining-nums tabular-nums;
   font-feature-settings: 'lnum' 1, 'tnum' 1;
 }
+/* the note preview leads; the full-size ring (above) sits centered below it */
+.countdown-preview {
+  max-height: 42vh;
+  overflow-y: auto;
+  background: var(--velvet-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 2px 0;
+}
+.countdown-preview .preview-body { font-size: 14px; line-height: 1.5; }
 
 /* ===== wallet (NWC) ===== */
 .nwc-input { min-height: 84px; font-family: var(--font-mono); font-size: 12px; margin-bottom: 4px; }
