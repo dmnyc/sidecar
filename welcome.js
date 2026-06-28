@@ -57,6 +57,13 @@ const APPS = [
     desc: 'Live streaming platform with real-time Lightning zaps from your audience.',
   },
   {
+    name: 'Shosho',
+    url: 'https://shosho.live',
+    domain: 'shosho.live',
+    cat: 'live',
+    desc: 'Stream your camera and chat with friends and followers live on Nostr. Watch streams on the web or mobile app, connect to any streaming server.',
+  },
+  {
     name: 'Nostr Nests',
     url: 'https://nostrnests.com',
     domain: 'nostrnests.com',
@@ -98,6 +105,13 @@ const APPS = [
     domain: 'gamestr.io',
     cat: 'gaming',
     desc: 'Decentralized gaming on nostr — play games, earn sats, and own your scores on a censorship-resistant network.',
+  },
+  {
+    name: 'Words with Zaps',
+    url: 'https://www.wordswithzaps.top',
+    domain: 'wordswithzaps.top',
+    cat: 'gaming',
+    desc: 'A two-player word game on Nostr with Lightning micropayments. Challenge friends, build words, and zap your way to victory.',
   },
   {
     name: 'Mutable',
