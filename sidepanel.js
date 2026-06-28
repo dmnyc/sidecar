@@ -1779,14 +1779,21 @@
     } catch (_) { return null; }
   }
 
+  function decodeHtml(s) {
+    if (!s) return s;
+    const t = document.createElement('textarea');
+    t.innerHTML = s;
+    return t.value;
+  }
+
   function renderLinkCard(container, url, meta) {
     container.classList.remove('loading');
     if (!meta) { container.remove(); return; }
     container.innerHTML = '';
     const body = h('div', { className: 'link-card-body' });
-    if (meta.site) body.append(h('div', { className: 'link-card-site', textContent: meta.site }));
-    if (meta.title) body.append(h('div', { className: 'link-card-title', textContent: meta.title }));
-    if (meta.description) body.append(h('div', { className: 'link-card-desc', textContent: meta.description }));
+    if (meta.site) body.append(h('div', { className: 'link-card-site', textContent: decodeHtml(meta.site) }));
+    if (meta.title) body.append(h('div', { className: 'link-card-title', textContent: decodeHtml(meta.title) }));
+    if (meta.description) body.append(h('div', { className: 'link-card-desc', textContent: decodeHtml(meta.description) }));
     const isHttps = (s) => typeof s === 'string' && s.startsWith('https://');
     if (isHttps(meta.image)) {
       const img = document.createElement('img');
