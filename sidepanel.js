@@ -117,6 +117,8 @@
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
+  const _notifProfiles = new Map(); // sender pubkey → display name string
+  const _muteLists = new Map(); // pubkey → Set<pubkey>
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
 
@@ -161,6 +163,7 @@
     // A pending signing approval is modal — it stays put until the user decides,
     // so don't let an incidental refresh navigate away from it.
     if (pendingApproval) {
+      closeModal();
       showApproval();
       return;
     }
@@ -274,6 +277,13 @@
       { passive: true }
     );
   })();
+
+  // ---- notification bell (topbar) ----
+  $('notif-bell-btn').addEventListener('click', () => {
+    if (!state?.activePubkey) return;
+    const a = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
+    if (a) showNotifModal(a);
+  });
 
   // ---- settings (gear icon ↔ overlay view) ----
   $('settings-btn').addEventListener('click', () => {
@@ -573,10 +583,11 @@
     return cache.events.filter((ev) => ev.created_at > seenAt).length;
   }
 
-  function refreshBell(pubkey) {
-    const btn = document.querySelector('.notif-bell[data-pubkey="' + pubkey + '"]');
+  function refreshBell() {
+    const btn = $('notif-bell-btn');
     if (!btn) return;
-    const count = notifUnseenCount(pubkey);
+    const pubkey = state?.activePubkey;
+    const count = pubkey ? notifUnseenCount(pubkey) : 0;
     const badge = btn.querySelector('.notif-badge');
     if (!badge) return;
     badge.textContent = count > 99 ? '99+' : count > 0 ? String(count) : '';
@@ -618,6 +629,45 @@
       : { glyph: '@', text: 'mentioned you' };
   }
 
+  function notifAuthorName(pubkey) {
+    const cached = _notifProfiles.get(pubkey);
+    if (typeof cached === 'string' && cached) return cached;
+    try { return NT.nip19.npubEncode(pubkey).slice(0, 12) + '…'; } catch (_) { return pubkey.slice(0, 8) + '…'; }
+  }
+
+  function prefetchNotifProfile(pubkey, relays) {
+    if (_notifProfiles.has(pubkey)) return;
+    _notifProfiles.set(pubkey, ''); // mark as loading
+    poolGet(relays, { kinds: [0], authors: [pubkey] }).then((ev) => {
+      if (!ev) return;
+      const m = JSON.parse(ev.content) || {};
+      _notifProfiles.set(pubkey, m.display_name || m.displayName || m.name || '');
+    }).catch(() => {});
+  }
+
+  function cleanSnippet(content) {
+    return content
+      .replace(/nostr:(npub1\S+|nprofile1\S+)/g, (_, entity) => {
+        try {
+          const decoded = NT.nip19.decode(entity);
+          const pk = decoded.type === 'npub' ? decoded.data : decoded.data && decoded.data.pubkey;
+          if (pk) {
+            const name = _notifProfiles.get(pk);
+            if (name) return '@' + name;
+            return '@' + entity.slice(0, 12) + '…';
+          }
+        } catch (_) {}
+        return '@…';
+      })
+      .replace(/nostr:note1\S+/g, '[note]')
+      .replace(/nostr:nevent1\S+/g, '[note]')
+      .replace(/nostr:naddr1\S+/g, '[article]')
+      .replace(/https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif|mp4|mov|mp3|wav|m3u8)(?:\?\S*)?/gi, '[media]')
+      .replace(/https?:\/\/([^\s/]+)\S*/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   async function initNotifSubs() {
     if (!state || !state.accounts || state.accounts.length === 0) return;
     await loadNotifSeen();
@@ -626,17 +676,44 @@
     const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
 
     for (const a of state.accounts) {
+      // Fetch mute list (kind 10000) if not already loaded — includes both
+      // public p-tag mutes and private mutes encrypted in content (NIP-04 to self).
+      if (!_muteLists.has(a.pubkey)) {
+        (async () => {
+          try {
+            const ev = await poolGet(relays, { kinds: [10000], authors: [a.pubkey], limit: 1 });
+            if (!ev) { _muteLists.set(a.pubkey, new Set()); return; }
+            const muted = new Set(ev.tags.filter((t) => t[0] === 'p').map((t) => t[1]));
+            if (ev.content) {
+              try {
+                const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip: 4 });
+                const privateTags = JSON.parse(plain);
+                if (Array.isArray(privateTags)) {
+                  privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+                }
+              } catch (_) {}
+            }
+            _muteLists.set(a.pubkey, muted);
+          } catch (_) {
+            _muteLists.set(a.pubkey, new Set());
+          }
+        })();
+      }
+
       if (_notifCache.has(a.pubkey)) continue;
       const cache = { events: [], liveSub: null };
       _notifCache.set(a.pubkey, cache);
 
       const addEvent = (ev) => {
         if (ev.pubkey === a.pubkey) return;
+        const muted = _muteLists.get(a.pubkey);
+        if (muted && muted.has(ev.pubkey)) return;
         if (cache.events.some((e) => e.id === ev.id)) return;
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
         if (cache.events.length > 100) cache.events.length = 100;
-        refreshBell(a.pubkey);
+        prefetchNotifProfile(ev.pubkey, relays);
+        if (a.pubkey === state?.activePubkey) refreshBell();
       };
 
       const liveSince = Math.floor(Date.now() / 1000);
@@ -662,12 +739,63 @@
     const cache = _notifCache.get(a.pubkey) || { events: [] };
     const now = Math.floor(Date.now() / 1000);
     await saveNotifSeen(a.pubkey, now);
-    refreshBell(a.pubkey);
+    refreshBell();
 
     const client = await preferredClient();
-    const events = cache.events.slice(0, 30);
+    const events = cache.events;
+    const PAGE = 25;
+
+    // Kick off profile fetches for any senders not yet cached, then wait briefly
+    const relays = await relayUrls(false);
+    const uncached = [...new Set(events.map((e) => e.pubkey))].filter((pk) => !_notifProfiles.get(pk));
+    uncached.forEach((pk) => prefetchNotifProfile(pk, relays));
+    if (uncached.length) await new Promise((r) => setTimeout(r, 600));
+
+    function buildItem(ev) {
+      const isNew = ev.created_at > seenAt;
+      const item = h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
+      const { glyph, text } = notifLabel(ev);
+
+      let linkTarget = '';
+      try {
+        linkTarget = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
+      } catch (_) {}
+
+      // Top row: glyph · name (truncated) · time · arrow
+      const topRow = h('div', { className: 'notif-top' });
+      topRow.append(
+        h('span', { className: 'notif-glyph', textContent: glyph }),
+        h('span', { className: 'notif-author', textContent: notifAuthorName(ev.pubkey) }),
+        h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) })
+      );
+      if (linkTarget) {
+        const link = document.createElement('a');
+        link.className = 'notif-link';
+        link.href = client.url(linkTarget);
+        link.target = '_blank';
+        link.rel = 'noreferrer noopener';
+        link.title = 'Open in ' + client.label;
+        link.appendChild(icon('arrow-up-right'));
+        topRow.appendChild(link);
+      }
+      item.appendChild(topRow);
+
+      // Action row
+      item.appendChild(h('div', { className: 'notif-action', textContent: text }));
+
+      if (ev.kind === 1 && ev.content) {
+        const cleaned = cleanSnippet(ev.content);
+        if (cleaned) {
+          const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+          item.appendChild(h('p', { className: 'notif-content', textContent: snippet }));
+        }
+      }
+      return item;
+    }
 
     openModal((modal) => {
+      modal.classList.add('modal-sheet');
+
       const xBtn = h('button', { className: 'modal-x', title: 'Close' });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
@@ -688,45 +816,28 @@
         return;
       }
 
+      const scroll = h('div', { className: 'notif-scroll' });
       const list = h('div', { className: 'notif-list' });
-      events.forEach((ev) => {
-        const isNew = ev.created_at > seenAt;
-        const item = h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
-        const { glyph, text } = notifLabel(ev);
+      scroll.appendChild(list);
+      modal.appendChild(scroll);
 
-        const meta = h('div', { className: 'notif-meta' });
-        meta.append(
-          h('span', { className: 'notif-glyph', textContent: glyph }),
-          h('span', { className: 'notif-desc', textContent: text }),
-          h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) })
-        );
-        item.appendChild(meta);
+      let shown = 0;
+      let moreBtn = null;
 
-        const body = h('div', { className: 'notif-body' });
-        if (ev.kind === 1 && ev.content) {
-          const raw = ev.content.trim();
-          const snippet = raw.length > 120 ? raw.slice(0, 120) + '…' : raw;
-          body.appendChild(h('p', { className: 'notif-content', textContent: snippet }));
+      function loadMore() {
+        const next = events.slice(shown, shown + PAGE);
+        next.forEach((ev) => list.appendChild(buildItem(ev)));
+        shown += next.length;
+        if (shown >= events.length) {
+          if (moreBtn) { moreBtn.remove(); moreBtn = null; }
+        } else if (!moreBtn) {
+          moreBtn = h('button', { className: 'notif-load-more', textContent: 'Load more' });
+          moreBtn.addEventListener('click', loadMore);
+          scroll.appendChild(moreBtn);
         }
+      }
 
-        let linkTarget = '';
-        try {
-          linkTarget = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
-        } catch (_) {}
-        if (linkTarget) {
-          const link = document.createElement('a');
-          link.className = 'notif-link';
-          link.href = client.url(linkTarget);
-          link.target = '_blank';
-          link.rel = 'noreferrer noopener';
-          link.append(h('span', { textContent: 'Open in ' + client.label }), icon('arrow-up-right'));
-          body.appendChild(link);
-        }
-
-        item.appendChild(body);
-        list.appendChild(item);
-      });
-      modal.appendChild(list);
+      loadMore();
     });
   }
 
@@ -814,6 +925,7 @@
     // persistent header chip (current account)
     applyAvatar($('chip-av'), active || {});
     $('chip-name').textContent = active ? displayName(active) : 'No account';
+    refreshBell();
 
     // The active account already shows in the header chip and is marked (check +
     // highlight) in the list below, so the big "booth" card was a third copy.
@@ -930,21 +1042,6 @@
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
-
-    const bellBtn = document.createElement('button');
-    bellBtn.className = 'icon-btn sm notif-bell';
-    bellBtn.dataset.pubkey = a.pubkey;
-    bellBtn.title = 'Notifications';
-    bellBtn.appendChild(icon('bell'));
-    const badge = document.createElement('span');
-    badge.className = 'notif-badge hidden';
-    bellBtn.appendChild(badge);
-    bellBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showNotifModal(a);
-    });
-    actions.appendChild(bellBtn);
-    Promise.resolve().then(() => refreshBell(a.pubkey));
 
     if (isActive) {
       const check = icon('check');
@@ -4126,6 +4223,7 @@
     }
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_PANEL_APPROVAL') {
+        closeModal();
         pendingApproval = { id: msg.id, data: msg.data };
         showApproval();
       }
