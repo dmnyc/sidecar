@@ -903,6 +903,13 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_GET_NWC':
         result = { connection: await KS.getNwc(message.pubkey) };
         break;
+      case 'SIDECAR_REVEAL_NWC': {
+        // Export the raw connection string — always step-up PIN, even while unlocked.
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        if (!(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        result = { connection: await KS.getNwc(message.pubkey) };
+        break;
+      }
       case 'SIDECAR_HAS_NWC':
         result = { has: await KS.hasNwc(message.pubkey) };
         break;

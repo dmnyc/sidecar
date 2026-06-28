@@ -1353,6 +1353,12 @@
     let timer = null;
     openModal(
       (modal) => {
+        // Scannable QR for QR sign-in on mobile clients (e.g. Wisp). nsec is
+        // case-sensitive bech32, so encode it as-is (lowercase, byte mode).
+        const canvas = document.createElement('canvas');
+        canvas.className = 'recv-qr modal-qr';
+        try { new window.QRious({ element: canvas, value: opts.nsec, size: 220, level: 'M' }); } catch (_) {}
+
         const box = h('div', { className: 'secret-box', textContent: opts.nsec });
         const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
         copy.addEventListener('click', async () => {
@@ -1375,6 +1381,8 @@
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
+          canvas,
+          h('p', { className: 'hint', textContent: 'Scan to sign in on a mobile client that supports QR login.' }),
           box,
           copy,
           h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
@@ -3689,6 +3697,89 @@
   }
 
   // Backup the NWC connection to relays, with detection of an existing backup.
+  // Export the raw NWC connection string — PIN-gated step-up, then a copyable
+  // reveal that auto-hides (mirrors the nsec reveal).
+  function exportNwcModal() {
+    if (!state.activePubkey) { toast('No active account', 'error'); return; }
+    openModal((modal) => {
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Reveal' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        go.disabled = true;
+        go.textContent = 'Revealing…';
+        try {
+          const r = await call({ type: 'SIDECAR_REVEAL_NWC', pubkey: state.activePubkey, pin: pin.value });
+          if (!r.connection) throw new Error('No wallet connection saved for this account');
+          nwcRevealModal(r.connection);
+        } catch (e) {
+          err.textContent = e.message;
+          go.disabled = false;
+          go.textContent = 'Reveal';
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Export wallet connection' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the NWC connection string for this account.' }),
+        h('label', { textContent: 'PIN' }),
+        pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+      setTimeout(() => pin.focus(), 50);
+    });
+  }
+
+  function nwcRevealModal(connection) {
+    let remaining = NSEC_REVEAL_TIMEOUT_S;
+    let timer = null;
+    openModal(
+      (modal) => {
+        // Scannable QR — NWC URIs are case-sensitive, so don't uppercase, and use
+        // level 'L' for the extra capacity these longer strings need.
+        const canvas = document.createElement('canvas');
+        canvas.className = 'recv-qr modal-qr';
+        try { new window.QRious({ element: canvas, value: connection, size: 220, level: 'L' }); } catch (_) {}
+
+        const box = h('div', { className: 'secret-box', textContent: connection });
+        const copy = h('button', { className: 'secondary', textContent: 'Copy connection string' });
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(connection);
+            toast('Connection string copied', 'success');
+          } catch (_) {}
+        });
+        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        done.addEventListener('click', closeModal);
+        const countdown = h('p', {
+          className: 'hint',
+          textContent: 'Hiding in ' + remaining + 's. Reveal again with your PIN.',
+        });
+        timer = setInterval(() => {
+          remaining -= 1;
+          if (remaining <= 0) return closeModal();
+          countdown.textContent = 'Hiding in ' + remaining + 's. Reveal again with your PIN.';
+        }, 1000);
+        modal.append(
+          h('h3', { textContent: 'Wallet connection string' }),
+          h('p', { className: 'hint', textContent: 'Scan in an NWC-compatible app, or copy the string below to connect the same wallet.' }),
+          canvas,
+          box,
+          copy,
+          h('p', { className: 'hint warn', textContent: 'This string can spend from your wallet up to its limits. Store it safely and never share it.' }),
+          countdown,
+          h('div', { className: 'actions' }, [done])
+        );
+      },
+      () => { if (timer) { clearInterval(timer); timer = null; } }
+    );
+  }
+
   function renderWalletBackup() {
     const wrap = h('div', { className: 'setting wallet-backup' });
     wrap.append(h('h3', { textContent: 'Backup' }));
@@ -3724,12 +3815,18 @@
         restore.textContent = 'Restore';
       }
     });
+    const exportBtn = h('button', { className: 'wallet-export-link', textContent: 'Export connection string' });
+    exportBtn.append(icon('key'));
+    exportBtn.addEventListener('click', exportNwcModal);
+    hide(exportBtn); // shown only when a connection exists for the active account
+
     const card = h('div', { className: 'wallet-backup-card' }, [
       h('div', { className: 'wallet-backup-head' }, [
         h('span', { className: 'item-label', textContent: 'Wallet connection' }),
         status,
       ]),
       h('div', { className: 'wallet-backup-actions' }, [back, restore]),
+      exportBtn,
     ]);
     wrap.append(card);
 
@@ -3741,6 +3838,10 @@
       .catch(() => {
         status.textContent = 'Not backed up';
       });
+    // Only offer export when this account actually has a connection saved.
+    call({ type: 'SIDECAR_HAS_NWC', pubkey: state.activePubkey })
+      .then((r) => { if (r && r.has) show(exportBtn); })
+      .catch(() => {});
     return wrap;
   }
 
