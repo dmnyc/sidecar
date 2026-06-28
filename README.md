@@ -6,11 +6,16 @@ A NIP-07 nostr signing extension that lives in your browser's side panel. Sideca
 holds your keys locally — encrypted behind a PIN — and provides `window.nostr` to the
 web apps you use, so you can sign in and sign events across nostr clients without
 pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
-Connect) for sending and receiving sats.
+Connect) and a composer for posting notes directly from the panel.
 
 <img width="2816" height="1566" alt="Sidecar" src="https://i.nostr.build/Sr11DBpz7pVITHoS.png" />
 
+## Install
+
 **[Install from the Chrome Web Store →](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)**
+— works in Chrome, Brave, Edge, and other Chromium browsers.
+
+Or run from source (no build step required — see below).
 
 ## Features
 
@@ -21,6 +26,11 @@ Connect) for sending and receiving sats.
 - **Per-site account binding** — each site stays pinned to the account it logged in with (no NIP-07 desync). Switch a site to another account from **Connected Sites**.
 - **Identity from your profile** — account names and avatars are imported from your kind 0 metadata; view and edit your profile and publish kind 0.
 - **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle.
+- **Note composer** — post kind:1 notes directly from the panel with a 15-second undo window. Features include:
+  - **@mention autocomplete** — type `@` to search your follow list; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
+  - **Nostr event embeds** — paste a `note1`, `nevent1`, or `naddr1` entity and the preview renders a fetched embed card (author, timestamp, content excerpt).
+  - **Link previews** — plain URLs show an OG meta card (title, description, thumbnail) fetched through the extension with no third-party service.
+  - **Media upload** — attach images and video; files are uploaded and appended as URLs.
 - **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Rizful, YakiHonne, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays. Sidecar never holds your funds.
 - **WebLN provider** — web apps can pay and make invoices through your connected wallet (`window.webln`), gated by an approval prompt with an optional per-site daily budget you can edit or revoke any time.
 - **Pay invoices from any page** — when a nostr client you're signed into shows a Lightning invoice, a **Pay with Sidecar** card appears so you can pay in a tap. You can also right-click a `lightning:` link, a selected BOLT11 invoice, or a QR image.

@@ -1,0 +1,295 @@
+/* ============================================================
+   Sidecar — Welcome page
+   Same design tokens as the sidepanel. Standalone so we
+   re-declare the vars rather than import styles.css.
+   ============================================================ */
+
+:root {
+  --bg: #0a0118;
+  --bg-2: #140428;
+  --velvet-1: #23114a;
+  --velvet-2: #160a30;
+  --border: rgba(167, 139, 250, 0.16);
+  --border-strong: rgba(167, 139, 250, 0.30);
+  --orange: #ea772f;
+  --amber: #f4a64b;
+  --gold: #cba14e;
+  --gold-soft: rgba(203, 161, 78, 0.5);
+  --purple: #a78bfa;
+  --lav: #bda1ff;
+  --text: #f1e8f8;
+  --text-2: #e8d5f0;
+  --muted: #9a86c4;
+  --faint: #6f5fa0;
+  --red: #f0566b;
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  min-height: 100%;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  color: var(--text);
+  background-color: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='38'%20height='38'%3E%3Cpath%20d='M0%2019%2019%200%2038%2019%2019%2038Z'%20fill='none'%20stroke='%23a78bfa'%20stroke-opacity='0.05'/%3E%3Ccircle%20cx='19'%20cy='19'%20r='1'%20fill='%23cba14e'%20fill-opacity='0.08'/%3E%3C/svg%3E"),
+    radial-gradient(1100px 480px at 50% -12%, rgba(167, 139, 250, 0.14), transparent 60%),
+    radial-gradient(820px 560px at 115% 112%, rgba(234, 119, 47, 0.12), transparent 55%),
+    linear-gradient(165deg, #170630 0%, var(--bg) 62%);
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed;
+}
+
+/* ===== Layout ===== */
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 64px 32px 96px;
+}
+
+/* ===== Header ===== */
+
+.header {
+  text-align: center;
+  margin-bottom: 52px;
+}
+
+.wordmark {
+  height: 40px;
+  width: auto;
+  margin-bottom: 20px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.header h1 {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+}
+
+.header p {
+  font-size: 16px;
+  color: var(--muted);
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ===== Category filters ===== */
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.filter-btn {
+  padding: 7px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text-2);
+}
+
+.filter-btn.active {
+  background: rgba(167, 139, 250, 0.14);
+  border-color: rgba(167, 139, 250, 0.5);
+  color: var(--lav);
+}
+
+/* ===== App grid ===== */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
+  gap: 14px;
+}
+
+/* ===== App card ===== */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  background: rgba(22, 10, 48, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.18s, transform 0.18s;
+  backdrop-filter: blur(4px);
+}
+
+.card:hover {
+  border-color: rgba(167, 139, 250, 0.35);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.08), 0 10px 28px rgba(0, 0, 0, 0.45);
+  transform: translateY(-2px);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.favicon-wrap {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: var(--velvet-1);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.favicon-wrap img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.favicon-fallback {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--purple);
+  line-height: 1;
+}
+
+.card-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.card-url {
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 1px;
+}
+
+.cat-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.card-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+  flex: 1;
+}
+
+.card-cta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--purple);
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+
+/* Category badge palette */
+.cat-social   { background: rgba(167, 139, 250, 0.14); color: var(--lav); }
+.cat-longform { background: rgba(203, 161, 78,  0.14); color: var(--gold); }
+.cat-live     { background: rgba(234, 119, 47,  0.14); color: var(--orange); }
+.cat-audio    { background: rgba(244, 166, 75,  0.14); color: var(--amber); }
+.cat-food     { background: rgba(74,  222, 128, 0.14); color: #4ade80; }
+.cat-books    { background: rgba(56,  189, 248, 0.14); color: #38bdf8; }
+.cat-gaming   { background: rgba(52,  211, 153, 0.14); color: #34d399; }
+.cat-images   { background: rgba(248, 113, 113, 0.14); color: #f87171; }
+.cat-tools    { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+
+/* ===== Footer ===== */
+
+.footer {
+  margin-top: 64px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-tip {
+  font-size: 13px;
+  color: var(--faint);
+  line-height: 1.6;
+}
+
+.footer-tip a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: rgba(154, 134, 196, 0.35);
+}
+
+.footer-tip a:hover {
+  color: var(--text);
+  text-decoration-color: var(--muted);
+}
+
+.footer-divider {
+  width: 48px;
+  height: 1px;
+  background: var(--border);
+  margin: 4px auto;
+}
+
+/* ===== Hidden cards (filtered out) ===== */
+
+.card.hidden-cat {
+  display: none;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 600px) {
+  .page { padding: 40px 16px 60px; }
+  .header h1 { font-size: 30px; }
+  .grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .card { padding: 14px; }
+}
+
+@media (max-width: 400px) {
+  .grid { grid-template-columns: 1fr; }
+}

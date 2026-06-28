@@ -19,7 +19,8 @@ const NWC = self.SidecarNWC;
 const DEFAULT_RELAYS = {
   'wss://relay.damus.io': { read: true, write: true },
   'wss://nos.lol': { read: true, write: true },
-  'wss://relay.primal.net': { read: true, write: true },
+  'wss://relay.snort.social': { read: true, write: true },
+  'wss://relay.primal.net': { read: true, write: false },
 };
 
 const AUTO_LOCK_ALARM = 'sidecar-auto-lock';
@@ -87,9 +88,13 @@ async function logActivity(entry) {
 }
 
 // ---- side panel open on toolbar click ----
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   createPayMenu();
+  if (details.reason === 'install') {
+    chrome.storage.local.remove('firstPostTipDismissed');
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  }
 });
 chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
@@ -687,6 +692,41 @@ async function handleControl(message, sendResponse) {
         await lockKeystore();
         result = await KS.getState();
         break;
+      case 'SIDECAR_FETCH_OG': {
+        // Fetch a URL from the SW (no CORS restriction) and parse OG/meta tags.
+        // Returns { title, description, image, site } or null on failure.
+        const ogUrl = message.url;
+        try {
+          const resp = await fetch(ogUrl, { signal: AbortSignal.timeout(8000) });
+          if (!resp.ok) { result = null; break; }
+          const ct = resp.headers.get('content-type') || '';
+          if (!ct.includes('text/html')) { result = null; break; }
+          const html = await resp.text();
+          const pick = (html, ...patterns) => {
+            for (const p of patterns) { const m = html.match(p); if (m) return m[1].trim(); }
+            return null;
+          };
+          result = {
+            title: pick(html,
+              /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:title["']/i,
+              /<title[^>]*>([^<]{1,200})<\/title>/i),
+            description: pick(html,
+              /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:description["']/i,
+              /<meta[^>]+name=["']description["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+name=["']description["']/i),
+            image: pick(html,
+              /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:image["']/i),
+            site: pick(html,
+              /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:site_name["']/i),
+          };
+          if (!result.title && !result.description) result = null;
+        } catch (_) { result = null; }
+        break;
+      }
       case 'SIDECAR_RESET_ALL':
         // Wipe everything: in-memory keys/session/wallet (lockKeystore) plus all
         // persisted data (keystore, accounts, permissions, relays, settings, site

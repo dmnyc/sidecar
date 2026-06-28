@@ -112,7 +112,8 @@
   );
 
   let state = null;
-  let hideBalances = false; // privacy toggle (persisted in settings)
+  let hideBalances = false;
+  let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
 
   // Privacy masking is done in CSS (-webkit-text-security on `.balances-hidden`),
@@ -237,7 +238,19 @@
     toast('Locked', 'success');
   });
 
-  $('compose-fab').addEventListener('click', () => openComposer());
+  $('compose-fab').addEventListener('click', () => {
+    const balloon = $('first-post-balloon');
+    const isFirstTime = balloon && !balloon.classList.contains('hidden') && state?.activePubkey;
+    if (isFirstTime) {
+      _firstPostSeenPubkeys = _firstPostSeenPubkeys || new Set();
+      _firstPostSeenPubkeys.add(state.activePubkey);
+      chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
+      balloon.classList.add('hidden');
+      openComposer('Just setting up my #Sidecar 🍸');
+    } else {
+      openComposer();
+    }
+  });
 
   // Dim the FAB while the content is actively scrolling so it doesn't distract;
   // snap back ~160ms after scrolling stops (mirrors zap.cooking's create FAB).
@@ -490,7 +503,10 @@
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     const results = await Promise.allSettled(getPool().publish(relays, signed));
     const ok = results.filter((r) => r.status === 'fulfilled').length;
-    if (!ok) throw new Error('Could not publish to any relay');
+    if (!ok) {
+      const detail = results.map((r, i) => `${relays[i]}: ${r.reason?.message || r.reason || 'rejected'}`).join(' | ');
+      throw new Error(`Could not publish to any relay — ${detail}`);
+    }
     return ok;
   }
 
@@ -590,6 +606,14 @@
       if (t) t.disabled = !hasAccounts;
     });
     $('compose-fab').disabled = !hasAccounts;
+    const balloon = $('first-post-balloon');
+    if (balloon) {
+      const showBalloon = hasAccounts &&
+        !!state.activePubkey &&
+        _firstPostSeenPubkeys !== null &&
+        !_firstPostSeenPubkeys.has(state.activePubkey);
+      balloon.classList.toggle('hidden', !showBalloon);
+    }
     if (!hasAccounts) {
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       const acc = document.querySelector('.tab[data-tab="accounts"]');
@@ -746,6 +770,29 @@
   labelButton('add-import', 'download', 'Import nsec');
   $('add-generate').addEventListener('click', () => generateAccount());
   $('add-import').addEventListener('click', () => importAccountModal());
+  $('explore-apps-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  });
+
+  // ---- first-post tip balloon (once per imported nsec) ----
+  (function initFirstPostBalloon() {
+    const balloon = $('first-post-balloon');
+    if (!balloon) return;
+    chrome.storage.local.get('firstPostTipSeenPubkeys', ({ firstPostTipSeenPubkeys }) => {
+      _firstPostSeenPubkeys = new Set(Array.isArray(firstPostTipSeenPubkeys) ? firstPostTipSeenPubkeys : []);
+      if (state?.accounts) renderMain();
+    });
+    balloon.addEventListener('click', () => {
+      if (state?.activePubkey) {
+        _firstPostSeenPubkeys = _firstPostSeenPubkeys || new Set();
+        _firstPostSeenPubkeys.add(state.activePubkey);
+        chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
+      }
+      balloon.classList.add('hidden');
+      openComposer('Just setting up my #Sidecar 🍸');
+    });
+  })();
 
   // ---- modals ----
   let modalCleanup = null;
@@ -1373,6 +1420,54 @@
   const mentionNameCache = new Map(); // pubkey -> name|null
   const TOKEN_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?((?:npub1|nprofile1)[0-9a-z]+)/gi;
 
+  // Follow list cache for @mention autocomplete (invalidated on account switch)
+  let followListCache = null;
+  let followListPubkey = null;
+
+  async function getFollowList() {
+    if (followListCache && followListPubkey === state.activePubkey) return followListCache;
+    followListPubkey = state.activePubkey;
+    if (!state.activePubkey) return (followListCache = []);
+    try {
+      const relays = await relayUrls(false);
+      const ev = await Promise.race([
+        poolGet(relays, { kinds: [3], authors: [state.activePubkey] }),
+        new Promise((r) => setTimeout(() => r(null), 5000)),
+      ]);
+      if (!ev) return (followListCache = []);
+      const pubkeys = (ev.tags || [])
+        .filter((t) => t[0] === 'p')
+        .map((t) => t[1])
+        .filter((pk) => pk && pk.length === 64);
+      if (!pubkeys.length) return (followListCache = []);
+      const profiles = await Promise.race([
+        getPool().querySync(relays, { kinds: [0], authors: pubkeys }),
+        new Promise((r) => setTimeout(() => r([]), 6000)),
+      ]);
+      const byPk = {};
+      (profiles || []).forEach((p) => {
+        if (!byPk[p.pubkey] || p.created_at > byPk[p.pubkey].created_at) byPk[p.pubkey] = p;
+      });
+      followListCache = pubkeys
+        .map((pk) => {
+          let name = null, picture = null;
+          const prof = byPk[pk];
+          if (prof) {
+            try {
+              const c = JSON.parse(prof.content);
+              name = c.display_name || c.name || null;
+              picture = c.picture || null;
+            } catch (_) {}
+          }
+          return { pubkey: pk, name, picture };
+        })
+        .filter((c) => c.name);
+      return followListCache;
+    } catch (_) {
+      return (followListCache = []);
+    }
+  }
+
   function npubChip(npub) {
     const el = h('div', { className: 'profile-npub', title: 'Copy npub' });
     el.append(icon('copy'), h('span', { textContent: shortNpub(npub) }));
@@ -1601,7 +1696,9 @@
   // Composer preview: inline media / links, profile mentions (@name), and nostr
   // event refs (note1/nevent/naddr) rendered as embed cards fetched from the
   // user's own relays.
-  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]+|nprofile1[0-9a-z]+|note1[0-9a-z]+|nevent1[0-9a-z]+|naddr1[0-9a-z]+)/gi;
+  // npub1/note1 are always exactly 63 chars (5+58); use {58} to prevent the regex
+  // from greedily consuming adjacent lowercase words as bech32 characters.
+  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})/gi;
   function renderNotePreview(container, text) {
     const mentions = [];
     const embeds = [];
@@ -1630,6 +1727,13 @@
           a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
           a.textContent = url;
           container.append(a);
+          if (url.startsWith('https://')) {
+            const card = document.createElement('a');
+            card.className = 'link-card loading';
+            card.textContent = 'Loading preview…';
+            container.append(card);
+            fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
+          }
         }
       } else if (m[2]) {
         const bech = m[2];
@@ -1709,21 +1813,97 @@
     });
   }
 
-  function openComposer() {
+  // ---- OG / link preview cards ----
+  const ogCache = new Map(); // url → { title, description, image, site } | null
+
+  async function fetchOgMeta(url) {
+    if (ogCache.has(url)) return ogCache.get(url);
+    ogCache.set(url, null); // mark in-flight so parallel calls don't double-fetch
+    try {
+      const meta = await call({ type: 'SIDECAR_FETCH_OG', url });
+      ogCache.set(url, meta);
+      return meta;
+    } catch (_) { return null; }
+  }
+
+  function decodeHtml(s) {
+    if (!s) return s;
+    const t = document.createElement('textarea');
+    t.innerHTML = s;
+    return t.value;
+  }
+
+  function renderLinkCard(container, url, meta) {
+    container.classList.remove('loading');
+    if (!meta) { container.remove(); return; }
+    container.innerHTML = '';
+    const body = h('div', { className: 'link-card-body' });
+    if (meta.site) body.append(h('div', { className: 'link-card-site', textContent: decodeHtml(meta.site) }));
+    if (meta.title) body.append(h('div', { className: 'link-card-title', textContent: decodeHtml(meta.title) }));
+    if (meta.description) body.append(h('div', { className: 'link-card-desc', textContent: decodeHtml(meta.description) }));
+    const isHttps = (s) => typeof s === 'string' && s.startsWith('https://');
+    if (isHttps(meta.image)) {
+      const img = document.createElement('img');
+      img.className = 'link-card-img';
+      img.referrerPolicy = 'no-referrer';
+      img.src = meta.image;
+      img.onerror = () => img.remove();
+      container.append(img);
+    }
+    container.append(body);
+    container.href = url;
+    container.target = '_blank';
+    container.rel = 'noreferrer noopener';
+  }
+
+  // Serialize a contenteditable editor div to plain nostr text.
+  // Text nodes → text, BR → \n, block divs → \n prefix, pill spans → their data-bech32.
+  //   (NBSP used after pills to prevent browser whitespace collapse) → regular space.
+  function serializeEditor(el) {
+    let out = '';
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        out += node.textContent.replace(/ /g, ' ');
+      } else if (node.nodeName === 'BR') {
+        out += '\n';
+      } else if (node.dataset && node.dataset.bech32) {
+        out += node.dataset.bech32;
+      } else {
+        const isBlock = node.nodeName === 'DIV' || node.nodeName === 'P';
+        if (isBlock && out && !out.endsWith('\n')) out += '\n';
+        node.childNodes.forEach(walk);
+      }
+    };
+    el.childNodes.forEach(walk);
+    return out;
+  }
+
+  function openComposer(initialText) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
       return;
     }
-    const draft = { text: '', media: [] };
+    const draft = { text: initialText || '', media: [] };
     const modal = $('modal');
     let timer = null;
 
     async function doPublish() {
       const content = draft.text.trim();
+      const pTags = [];
+      const seenPks = new Set();
+      const mentionRe = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+      let mm;
+      while ((mm = mentionRe.exec(content)) !== null) {
+        try {
+          const d = NT.nip19.decode(mm[1]);
+          const pk = d.type === 'npub' ? d.data : d.data.pubkey;
+          if (pk && !seenPks.has(pk)) { seenPks.add(pk); pTags.push(['p', pk]); }
+        } catch (_) {}
+      }
       const event = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [CLIENT_TAG.slice()],
+        tags: [CLIENT_TAG.slice(), ...pTags],
         content,
       };
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
@@ -1741,9 +1921,125 @@
       const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
-      const ta = h('textarea', { className: 'compose-text', placeholder: 'What’s on your mind?' });
-      ta.value = draft.text;
-      ta.addEventListener('input', () => { draft.text = ta.value; updatePostState(); });
+      const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
+      editor.dataset.placeholder = "What’s on your mind?";
+      if (draft.text) { editor.textContent = draft.text; editor.classList.remove('is-empty'); }
+
+      const editorWrap = h('div', { className: 'compose-editor-wrap' });
+      editorWrap.append(editor);
+
+      // ---- @mention autocomplete ----
+      let acDropdown = null, acResults = [], acIndex = 0;
+
+      function getCaretContext() {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return null;
+        const range = sel.getRangeAt(0);
+        if (!range.collapsed) return null;
+        const node = range.startContainer;
+        if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
+        const before = node.textContent.slice(0, range.startOffset);
+        const match = before.match(/@([^\s@]*)$/);
+        if (!match) return null;
+        return { node, query: match[1] };
+      }
+
+      function closeAcDropdown() {
+        if (acDropdown) { acDropdown.remove(); acDropdown = null; }
+        acResults = []; acIndex = 0;
+      }
+
+      function updateAcActiveItem() {
+        if (!acDropdown) return;
+        acDropdown.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acIndex));
+      }
+
+      function selectAcItem(contact, query) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        const node = range.startContainer;
+        if (node.nodeType !== Node.TEXT_NODE) return;
+        const offset = range.startOffset;
+        const atStart = Math.max(0, offset - (query.length + 1));
+        // Auto-insert a leading space when @ immediately follows a non-whitespace char.
+        const charBeforeAt = atStart > 0 ? node.textContent[atStart - 1] : '';
+        const needsLeadingSpace = charBeforeAt && !/\s/.test(charBeforeAt);
+        range.setStart(node, atStart);
+        range.setEnd(node, offset);
+        range.deleteContents();
+        const pill = document.createElement('span');
+        pill.className = 'mention-pill';
+        pill.contentEditable = 'false';
+        pill.dataset.bech32 = 'nostr:' + NT.nip19.npubEncode(contact.pubkey);
+        pill.textContent = '@' + contact.name;
+        if (needsLeadingSpace) range.insertNode(document.createTextNode(' '));
+        range.collapse(false);
+        range.insertNode(pill);
+        // NBSP after pill: never collapsed by the browser, normalized to space by serializer.
+        const trailingSpace = document.createTextNode(' ');
+        range.setStartAfter(pill);
+        range.insertNode(trailingSpace);
+        range.setStartAfter(trailingSpace);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        closeAcDropdown();
+        draft.text = serializeEditor(editor);
+        syncEmptyClass();
+        updatePostState();
+      }
+
+      async function updateAcDropdown() {
+        const ctx = getCaretContext();
+        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
+        const follows = await getFollowList();
+        const q = ctx.query.toLowerCase();
+        acResults = follows.filter((c) => c.name && c.name.toLowerCase().includes(q)).slice(0, 8);
+        if (!acResults.length) { closeAcDropdown(); return; }
+        acIndex = Math.min(acIndex, acResults.length - 1);
+        if (!acDropdown) {
+          acDropdown = h('div', { className: 'ac-dropdown' });
+          editorWrap.append(acDropdown);
+        }
+        acDropdown.innerHTML = '';
+        acResults.forEach((c, i) => {
+          const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
+          const av = h('span', { className: 'ac-item-av' });
+          applyAvatar(av, c.picture ? { picture: c.picture } : {});
+          item.append(av, h('span', { className: 'ac-item-name', textContent: '@' + c.name }));
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const fresh = getCaretContext();
+            selectAcItem(c, fresh ? fresh.query : ctx.query);
+          });
+          acDropdown.append(item);
+        });
+      }
+
+      function syncEmptyClass() {
+        const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
+        editor.classList.toggle('is-empty', isEmpty);
+        if (isEmpty) editor.innerHTML = '';
+      }
+
+      editor.addEventListener('input', () => {
+        draft.text = serializeEditor(editor);
+        syncEmptyClass();
+        updatePostState();
+        updateAcDropdown();
+      });
+
+      editor.addEventListener('keydown', (e) => {
+        if (!acDropdown) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
+        else if (e.key === 'Enter' || e.key === 'Tab') {
+          if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
+        } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
+      });
+
+      editor.addEventListener('blur', () => setTimeout(closeAcDropdown, 150));
 
       const previewPane = h('div', { className: 'compose-preview hidden' });
       function renderPreview() {
@@ -1761,11 +2057,11 @@
         preview = p;
         tabWrite.classList.toggle('active', !p);
         tabPreview.classList.toggle('active', p);
-        ta.classList.toggle('hidden', p);
+        editorWrap.classList.toggle('hidden', p);
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p);
         previewPane.classList.toggle('hidden', !p);
-        if (p) renderPreview();
+        if (p) { closeAcDropdown(); renderPreview(); }
       }
       tabWrite.addEventListener('click', () => setMode(false));
       tabPreview.addEventListener('click', () => setMode(true));
@@ -1782,9 +2078,17 @@
           const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
-            draft.text = draft.text.replace('\n' + m.url, '').replace(m.url, '').trimEnd();
-            ta.value = draft.text;
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+            let wn;
+            while ((wn = walker.nextNode())) {
+              if (wn.textContent.includes(m.url)) {
+                wn.textContent = wn.textContent.replace('\n' + m.url, '').replace(m.url, '');
+                break;
+              }
+            }
             draft.media.splice(i, 1);
+            draft.text = serializeEditor(editor);
+            syncEmptyClass();
             renderThumbs();
             updatePostState();
           });
@@ -1812,8 +2116,11 @@
         try {
           const url = await uploadMedia(file);
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
-          draft.text = (draft.text ? draft.text.trimEnd() + '\n' : '') + url;
-          ta.value = draft.text;
+          const t = editor.textContent;
+          const urlNode = document.createTextNode((t.length && !/\s$/.test(t) ? '\n' : '') + url);
+          editor.append(urlNode);
+          draft.text = serializeEditor(editor);
+          syncEmptyClass();
           renderThumbs();
           updatePostState();
         } catch (e) {
@@ -1823,6 +2130,42 @@
         addBtn.disabled = false;
         lbl.textContent = prev;
         fileInput.value = '';
+      });
+
+      editor.addEventListener('paste', async (e) => {
+        const imageFiles = Array.from(e.clipboardData?.items ?? [])
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+          .map((item) => item.getAsFile())
+          .filter((f) => f !== null);
+        if (imageFiles.length === 0) {
+          e.preventDefault();
+          const plain = e.clipboardData.getData('text/plain');
+          if (plain) document.execCommand('insertText', false, plain);
+          return;
+        }
+        e.preventDefault();
+        addBtn.disabled = true;
+        const lbl = addBtn.querySelector('span');
+        const prev = lbl.textContent;
+        lbl.textContent = 'Uploading…';
+        try {
+          for (const file of imageFiles) {
+            const url = await uploadMedia(file);
+            draft.media.push({ url, isVideo: false });
+            const t = editor.textContent;
+            const urlNode = document.createTextNode((t.length && !/\s$/.test(t) ? '\n' : '') + url);
+            editor.append(urlNode);
+          }
+          draft.text = serializeEditor(editor);
+          syncEmptyClass();
+          renderThumbs();
+          updatePostState();
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+        addBtn.disabled = false;
+        lbl.textContent = prev;
       });
 
       const err = h('div', { className: 'error' });
@@ -1850,7 +2193,7 @@
         h('h3', { textContent: 'New note' }),
         author,
         tabBar,
-        ta,
+        editorWrap,
         previewPane,
         thumbs,
         addBtn,
@@ -1859,7 +2202,7 @@
         h('div', { className: 'actions' }, [post, cancel])
       );
       updatePostState();
-      ta.focus();
+      editor.focus();
     }
 
     function showCountdown() {
@@ -2483,7 +2826,7 @@
     connect.addEventListener('click', async () => {
       const conn = input.value.trim();
       if (!conn) return (err.textContent = 'Paste a connection string.');
-      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = 'That doesn’t look like an NWC string.');
+      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = "That doesn't look like an NWC string.");
       err.textContent = '';
       connect.disabled = true;
       connect.textContent = 'Connecting…';
@@ -3150,7 +3493,7 @@
       });
       modal.append(
         h('h3', { textContent: 'Disconnect wallet?' }),
-        h('p', { className: 'hint', textContent: 'Removes this account’s saved NWC connection from Sidecar. Your wallet and funds are unaffected.' }),
+        h('p', { className: 'hint', textContent: "Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected." }),
         h('div', { className: 'actions' }, [go, cancel])
       );
     });

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welcome to Sidecar</title>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="welcome.css">
+</head>
+<body>
+  <div class="page">
+
+    <header class="header">
+      <img class="wordmark" src="icons/sidecar-logo.svg" alt="Sidecar">
+      <h1>Your nostr signer is ready.</h1>
+      <p>Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.</p>
+    </header>
+
+    <div class="filters" id="filters">
+      <button class="filter-btn active" data-cat="all">All</button>
+      <button class="filter-btn" data-cat="social">Social</button>
+      <button class="filter-btn" data-cat="longform">Long-form</button>
+      <button class="filter-btn" data-cat="live">Live</button>
+      <button class="filter-btn" data-cat="audio">Audio</button>
+      <button class="filter-btn" data-cat="food">Food</button>
+      <button class="filter-btn" data-cat="books">Books</button>
+      <button class="filter-btn" data-cat="gaming">Gaming</button>
+      <button class="filter-btn" data-cat="images">Images</button>
+      <button class="filter-btn" data-cat="tools">Tools</button>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <footer class="footer">
+      <div class="footer-divider"></div>
+      <p class="footer-tip">New to nostr? <a href="https://nostr.how" target="_blank" rel="noopener">nostr.how</a> is a good place to start.</p>
+      <p class="footer-tip">Find more apps at <a href="https://nostrapps.com" target="_blank" rel="noopener">nostrapps.com</a> and <a href="https://nostr.net/" target="_blank" rel="noopener">nostr.net</a>.</p>
+      <p class="footer-tip"><a href="https://github.com/dmnyc/sidecar/issues" target="_blank" rel="noopener">Suggest an app to add →</a></p>
+    </footer>
+
+  </div>
+
+  <script src="welcome.js"></script>
+</body>
+</html>
