@@ -19,7 +19,8 @@ const NWC = self.SidecarNWC;
 const DEFAULT_RELAYS = {
   'wss://relay.damus.io': { read: true, write: true },
   'wss://nos.lol': { read: true, write: true },
-  'wss://relay.primal.net': { read: true, write: true },
+  'wss://relay.snort.social': { read: true, write: true },
+  'wss://relay.primal.net': { read: true, write: false },
 };
 
 const AUTO_LOCK_ALARM = 'sidecar-auto-lock';

@@ -503,7 +503,10 @@
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     const results = await Promise.allSettled(getPool().publish(relays, signed));
     const ok = results.filter((r) => r.status === 'fulfilled').length;
-    if (!ok) throw new Error('Could not publish to any relay');
+    if (!ok) {
+      const detail = results.map((r, i) => `${relays[i]}: ${r.reason?.message || r.reason || 'rejected'}`).join(' | ');
+      throw new Error(`Could not publish to any relay — ${detail}`);
+    }
     return ok;
   }
 
