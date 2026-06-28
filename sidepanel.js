@@ -1175,6 +1175,7 @@
   function openModal(buildContent, onClose) {
     const modal = $('modal');
     modal.innerHTML = '';
+    modal.classList.remove('modal-sheet'); // reset full-height variant; opt back in per modal
     modalCleanup = onClose || null;
     buildContent(modal);
     show($('modal-overlay'));
@@ -2254,14 +2255,51 @@
     return out;
   }
 
-  function openComposer(initialText) {
+  // ---- composer draft autosave (per account, in chrome.storage.local) ----
+  function loadComposeDraft(pubkey) {
+    return new Promise((res) => {
+      chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+        const all = (r && r.sidecar_compose_drafts) || {};
+        res(all[pubkey] || null);
+      });
+    });
+  }
+  function saveComposeDraft(pubkey, draft) {
+    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+      const all = (r && r.sidecar_compose_drafts) || {};
+      if (hasContent) all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+      else delete all[pubkey];
+      chrome.storage.local.set({ sidecar_compose_drafts: all });
+    });
+  }
+  function clearComposeDraft(pubkey) {
+    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+      const all = (r && r.sidecar_compose_drafts) || {};
+      if (!all[pubkey]) return;
+      delete all[pubkey];
+      chrome.storage.local.set({ sidecar_compose_drafts: all });
+    });
+  }
+
+  async function openComposer(initialText) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
       return;
     }
-    const draft = { text: initialText || '', media: [] };
+    const pubkey = state.activePubkey;
+    let draft = { text: initialText || '', media: [] };
     const modal = $('modal');
     let timer = null;
+    let saveTimer = null;
+    let published = false;
+    let enteredEditor = false;
+
+    function persistDraft() { saveComposeDraft(pubkey, draft); }
+    function scheduleSave() {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(persistDraft, 400);
+    }
 
     async function doPublish() {
       const content = draft.text.trim();
@@ -2289,6 +2327,7 @@
 
     function showEditor() {
       if (timer) { clearInterval(timer); timer = null; }
+      enteredEditor = true;
       modal.innerHTML = '';
 
       // Write / Preview tab bar
@@ -2364,6 +2403,7 @@
         draft.text = serializeEditor(editor);
         syncEmptyClass();
         updatePostState();
+        scheduleSave();
       }
 
       async function updateAcDropdown() {
@@ -2404,6 +2444,7 @@
         syncEmptyClass();
         updatePostState();
         updateAcDropdown();
+        scheduleSave();
       });
 
       editor.addEventListener('keydown', (e) => {
@@ -2467,6 +2508,7 @@
             syncEmptyClass();
             renderThumbs();
             updatePostState();
+            scheduleSave();
           });
           cell.append(rm);
           thumbs.append(cell);
@@ -2499,6 +2541,7 @@
           syncEmptyClass();
           renderThumbs();
           updatePostState();
+          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -2536,6 +2579,7 @@
           syncEmptyClass();
           renderThumbs();
           updatePostState();
+          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -2605,6 +2649,8 @@
         now.textContent = 'Posting…';
         try {
           const signed = await doPublish();
+          published = true;
+          clearComposeDraft(pubkey);
           closeModal();
           toast('Note published', 'success');
           showPostBanner(signed);
@@ -2632,7 +2678,51 @@
       }, 1000);
     }
 
-    openModal(() => showEditor(), () => { if (timer) { clearInterval(timer); timer = null; } });
+    // Offer to resume a saved draft (or start fresh) before opening the editor.
+    function showDraftChooser(saved) {
+      modal.innerHTML = '';
+      const snippet = (saved.text || '').trim().replace(/\s+/g, ' ');
+      const preview = snippet.length > 160 ? snippet.slice(0, 160) + '…' : snippet;
+      const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
+      const mediaNote = saved.media && saved.media.length
+        ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
+        : '';
+
+      const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
+      resume.addEventListener('click', () => {
+        draft = { text: saved.text || '', media: (saved.media || []).slice() };
+        showEditor();
+      });
+      const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
+      fresh.addEventListener('click', () => {
+        clearComposeDraft(pubkey);
+        draft = { text: initialText || '', media: [] };
+        showEditor();
+      });
+
+      const parts = [
+        h('h3', { textContent: 'Resume your draft?' }),
+        h('p', { className: 'hint', textContent: 'You have an unsaved draft' + when + '.' }),
+      ];
+      if (preview) parts.push(h('div', { className: 'draft-preview', textContent: preview }));
+      if (mediaNote) parts.push(h('p', { className: 'draft-preview-meta', textContent: mediaNote }));
+      parts.push(h('div', { className: 'actions' }, [resume, fresh]));
+      modal.append(...parts);
+    }
+
+    const saved = await loadComposeDraft(pubkey);
+    const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+
+    openModal(
+      () => { if (hasSaved) showDraftChooser(saved); else showEditor(); },
+      () => {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        // Persist on close only once the user has actually edited — closing the
+        // chooser without choosing must not overwrite the saved draft.
+        if (!published && enteredEditor) persistDraft();
+      }
+    );
   }
 
   // ---- edit profile (full-panel overlay) ----
