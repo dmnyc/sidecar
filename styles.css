@@ -814,7 +814,8 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 }
 .modal.modal-sheet {
   overflow: hidden;
-  height: 96vh;
+  height: 100%;
+  max-height: none;
 }
 .notif-scroll {
   overflow-y: auto;

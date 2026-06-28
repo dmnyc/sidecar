@@ -118,7 +118,8 @@
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
   const _notifProfiles = new Map(); // sender pubkey → display name string
-  const _muteLists = new Map(); // pubkey → Set<pubkey>
+  const _muteLists = new Map(); // pubkey → Set<pubkey> (resolved mute set)
+  const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
 
@@ -668,6 +669,44 @@
       .trim();
   }
 
+  // Load an account's mute list (kind 10000) — newest replaceable event across
+  // relays, including both public p-tag mutes and private mutes encrypted in the
+  // content (NIP-04 to self). Deduped per pubkey via a promise cache; when it
+  // resolves it also drops any already-cached events from muted authors.
+  function loadMuteList(pubkey, relays) {
+    if (_muteListPromises.has(pubkey)) return _muteListPromises.get(pubkey);
+    const p = (async () => {
+      const muted = new Set();
+      try {
+        const evs = await getPool().querySync(relays, { kinds: [10000], authors: [pubkey] });
+        const ev = (evs || []).sort((x, y) => y.created_at - x.created_at)[0];
+        if (ev) {
+          ev.tags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+          if (ev.content) {
+            try {
+              const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip: 4 });
+              const privateTags = JSON.parse(plain);
+              if (Array.isArray(privateTags)) {
+                privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+      _muteLists.set(pubkey, muted);
+      // Drop any events that slipped into the cache before the list was ready.
+      const cache = _notifCache.get(pubkey);
+      if (cache && muted.size) {
+        const before = cache.events.length;
+        cache.events = cache.events.filter((e) => !muted.has(e.pubkey));
+        if (cache.events.length !== before && pubkey === state?.activePubkey) refreshBell();
+      }
+      return muted;
+    })();
+    _muteListPromises.set(pubkey, p);
+    return p;
+  }
+
   async function initNotifSubs() {
     if (!state || !state.accounts || state.accounts.length === 0) return;
     await loadNotifSeen();
@@ -676,31 +715,13 @@
     const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
 
     for (const a of state.accounts) {
-      // Fetch mute list (kind 10000) if not already loaded — includes both
-      // public p-tag mutes and private mutes encrypted in content (NIP-04 to self).
-      if (!_muteLists.has(a.pubkey)) {
-        (async () => {
-          try {
-            const ev = await poolGet(relays, { kinds: [10000], authors: [a.pubkey], limit: 1 });
-            if (!ev) { _muteLists.set(a.pubkey, new Set()); return; }
-            const muted = new Set(ev.tags.filter((t) => t[0] === 'p').map((t) => t[1]));
-            if (ev.content) {
-              try {
-                const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip: 4 });
-                const privateTags = JSON.parse(plain);
-                if (Array.isArray(privateTags)) {
-                  privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
-                }
-              } catch (_) {}
-            }
-            _muteLists.set(a.pubkey, muted);
-          } catch (_) {
-            _muteLists.set(a.pubkey, new Set());
-          }
-        })();
-      }
-
       if (_notifCache.has(a.pubkey)) continue;
+
+      // Load mutes BEFORE subscribing so addEvent filters from the first event.
+      // Cap the wait so a slow relay can't stall notifications — the fetch keeps
+      // running and prunes the cache once it lands.
+      await Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]);
+
       const cache = { events: [], liveSub: null };
       _notifCache.set(a.pubkey, cache);
 
@@ -742,11 +763,15 @@
     refreshBell();
 
     const client = await preferredClient();
-    const events = cache.events;
+    const relays = await relayUrls(false);
+
+    // Final guard: ensure the mute list has resolved, then filter the view.
+    await Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 3000))]);
+    const muted = _muteLists.get(a.pubkey);
+    const events = muted && muted.size ? cache.events.filter((e) => !muted.has(e.pubkey)) : cache.events;
     const PAGE = 25;
 
     // Kick off profile fetches for any senders not yet cached, then wait briefly
-    const relays = await relayUrls(false);
     const uncached = [...new Set(events.map((e) => e.pubkey))].filter((pk) => !_notifProfiles.get(pk));
     uncached.forEach((pk) => prefetchNotifProfile(pk, relays));
     if (uncached.length) await new Promise((r) => setTimeout(r, 600));
