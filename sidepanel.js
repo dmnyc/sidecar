@@ -1598,13 +1598,18 @@
   }
 
   // Render composed note content the way a client will: text + inline media + @mentions.
+  // Composer preview: inline media / links, profile mentions (@name), and nostr
+  // event refs (note1/nevent/naddr) rendered as embed cards fetched from the
+  // user's own relays.
+  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]+|nprofile1[0-9a-z]+|note1[0-9a-z]+|nevent1[0-9a-z]+|naddr1[0-9a-z]+)/gi;
   function renderNotePreview(container, text) {
     const mentions = [];
+    const embeds = [];
     let last = 0;
     let m;
-    TOKEN_RE.lastIndex = 0;
+    PREVIEW_RE.lastIndex = 0;
     const flushText = (s) => { if (s) container.append(document.createTextNode(s)); };
-    while ((m = TOKEN_RE.exec(text)) !== null) {
+    while ((m = PREVIEW_RE.exec(text)) !== null) {
       if (m.index > last) flushText(text.slice(last, m.index));
       if (m[1]) {
         const url = m[1];
@@ -1628,21 +1633,80 @@
         }
       } else if (m[2]) {
         const bech = m[2];
-        let pubkey = null;
-        try {
-          const d = NT.nip19.decode(bech);
-          pubkey = d.type === 'npub' ? d.data : d.type === 'nprofile' ? d.data.pubkey : null;
-        } catch (_) {}
-        const a = document.createElement('span');
-        a.className = 'mention';
-        a.textContent = '@' + bech.slice(0, 10) + '…';
-        if (pubkey) mentions.push({ el: a, pubkey });
-        container.append(a);
+        let d = null;
+        try { d = NT.nip19.decode(bech); } catch (_) {}
+        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
+          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
+          const a = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
+          if (pubkey) mentions.push({ el: a, pubkey });
+          container.append(a);
+        } else if (d && (d.type === 'note' || d.type === 'nevent' || d.type === 'naddr')) {
+          const card = h('div', { className: 'note-embed loading', textContent: 'Loading nostr event…' });
+          embeds.push({ el: card, ref: embedRef(d) });
+          container.append(card);
+        } else {
+          flushText(bech);
+        }
       }
-      last = TOKEN_RE.lastIndex;
+      last = PREVIEW_RE.lastIndex;
     }
     flushText(text.slice(last));
     resolveMentions(mentions);
+    resolveEmbeds(embeds);
+  }
+
+  // Decode a nostr entity into a relay filter (+ any relay hints) for fetching.
+  function embedRef(d) {
+    if (d.type === 'note') return { filter: { ids: [d.data] } };
+    if (d.type === 'nevent') return { filter: { ids: [d.data.id] }, relays: d.data.relays || [] };
+    return {
+      filter: { kinds: [d.data.kind], authors: [d.data.pubkey], '#d': [d.data.identifier] },
+      relays: d.data.relays || [],
+    };
+  }
+
+  async function resolveEmbeds(embeds) {
+    for (const { el, ref } of embeds) {
+      let ev = null;
+      try {
+        const relays = [...new Set([...(await relayUrls(false)), ...(ref.relays || [])])];
+        ev = await Promise.race([
+          poolGet(relays, ref.filter),
+          new Promise((r) => setTimeout(() => r(null), 6000)),
+        ]);
+      } catch (_) {}
+      if (!ev) {
+        el.classList.remove('loading');
+        el.classList.add('embed-missing');
+        el.textContent = 'nostr event (not found)';
+        continue;
+      }
+      renderEmbedCard(el, ev);
+    }
+  }
+
+  function renderEmbedCard(el, ev) {
+    el.classList.remove('loading');
+    el.textContent = '';
+    const av = h('span', { className: 'embed-av' });
+    applyAvatar(av, {});
+    const name = h('span', { className: 'embed-name', textContent: shortNpub(NT.nip19.npubEncode(ev.pubkey)) });
+    const head = h('div', { className: 'embed-head' }, [
+      av,
+      h('div', { className: 'embed-who' }, [
+        name,
+        h('span', { className: 'embed-time', textContent: relTime((ev.created_at || 0) * 1000) }),
+      ]),
+    ]);
+    const titleTag = (ev.tags || []).find((t) => t[0] === 'title');
+    const text = (titleTag && titleTag[1]) || ev.content || '';
+    const body = h('div', { className: 'embed-body', textContent: text.length > 280 ? text.slice(0, 280) + '…' : text });
+    el.append(head, body);
+    fetchPreviewProfile(ev.pubkey).then((p) => {
+      if (!p) return;
+      if (p.picture) applyAvatar(av, { picture: p.picture });
+      if (p.name) name.textContent = '@' + p.name;
+    });
   }
 
   function openComposer() {
