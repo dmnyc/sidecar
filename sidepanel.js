@@ -52,6 +52,7 @@
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
     pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
+    bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -115,6 +116,12 @@
   let hideBalances = false;
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
+  const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
+  const _notifProfiles = new Map(); // sender pubkey → display name string
+  const _muteLists = new Map(); // pubkey → Set<pubkey> (resolved mute set)
+  const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
+  let _notifSeenLoaded = false;
 
   // Privacy masking is done in CSS (-webkit-text-security on `.balances-hidden`),
   // which masks each glyph at its real width so toggling never reflows. We always
@@ -157,6 +164,7 @@
     // A pending signing approval is modal — it stays put until the user decides,
     // so don't let an incidental refresh navigate away from it.
     if (pendingApproval) {
+      closeModal();
       showApproval();
       return;
     }
@@ -184,6 +192,7 @@
       const banner = $('post-banner');
       if (banner) hide(banner); // a note link is account-specific; clear on any state change
       renderMain();
+      initNotifSubs();
       // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
       const activeTab = document.querySelector('.tab.active');
       const name = activeTab && activeTab.dataset.tab;
@@ -269,6 +278,13 @@
       { passive: true }
     );
   })();
+
+  // ---- notification bell (topbar) ----
+  $('notif-bell-btn').addEventListener('click', () => {
+    if (!state?.activePubkey) return;
+    const a = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
+    if (a) showNotifModal(a);
+  });
 
   // ---- settings (gear icon ↔ overlay view) ----
   $('settings-btn').addEventListener('click', () => {
@@ -541,6 +557,377 @@
     fetchAndStoreProfile(pubkey);
   }
 
+  // ---- notification bell ----
+
+  async function loadNotifSeen() {
+    if (_notifSeenLoaded) return;
+    _notifSeenLoaded = true;
+    try {
+      const r = await new Promise((res) => chrome.storage.local.get('sidecar_notif_seen', res));
+      _notifSeenAt = (r && r.sidecar_notif_seen) || {};
+    } catch (_) {}
+  }
+
+  async function saveNotifSeen(pubkey, ts) {
+    _notifSeenAt[pubkey] = ts;
+    try {
+      await new Promise((res) =>
+        chrome.storage.local.set({ sidecar_notif_seen: _notifSeenAt }, res)
+      );
+    } catch (_) {}
+  }
+
+  function notifUnseenCount(pubkey) {
+    const cache = _notifCache.get(pubkey);
+    if (!cache || !cache.events.length) return 0;
+    const seenAt = _notifSeenAt[pubkey] || 0;
+    return cache.events.filter((ev) => ev.created_at > seenAt).length;
+  }
+
+  function refreshBell() {
+    const btn = $('notif-bell-btn');
+    if (!btn) return;
+    const pubkey = state?.activePubkey;
+    const count = pubkey ? notifUnseenCount(pubkey) : 0;
+    const badge = btn.querySelector('.notif-badge');
+    if (!badge) return;
+    badge.textContent = count > 99 ? '99+' : count > 0 ? String(count) : '';
+    badge.classList.toggle('hidden', count === 0);
+  }
+
+  function relativeTime(ts) {
+    const diff = Math.floor(Date.now() / 1000) - ts;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 7 * 86400) return Math.floor(diff / 86400) + 'd ago';
+    return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function notifLabel(ev) {
+    if (ev.kind === 9735) {
+      let sats = '';
+      try {
+        const descTag = ev.tags.find((t) => t[0] === 'description');
+        if (descTag) {
+          const inner = JSON.parse(descTag[1]);
+          const amtTag = inner.tags && inner.tags.find((t) => t[0] === 'amount');
+          if (amtTag) sats = Math.round(parseInt(amtTag[1], 10) / 1000) + ' sats';
+        }
+      } catch (_) {}
+      return { glyph: '⚡', text: sats ? 'zapped ' + sats : 'zapped you' };
+    }
+    if (ev.kind === 6) return { glyph: '🔁', text: 'reposted your note' };
+    if (ev.kind === 7) {
+      const r = (ev.content || '').trim();
+      const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
+      return { glyph, text: 'reacted to your note' };
+    }
+    // kind 1
+    const hasE = ev.tags.some((t) => t[0] === 'e');
+    return hasE
+      ? { glyph: '💬', text: 'replied to your note' }
+      : { glyph: '@', text: 'mentioned you' };
+  }
+
+  function notifAuthorName(pubkey) {
+    const cached = _notifProfiles.get(pubkey);
+    if (typeof cached === 'string' && cached) return cached;
+    try { return NT.nip19.npubEncode(pubkey).slice(0, 12) + '…'; } catch (_) { return pubkey.slice(0, 8) + '…'; }
+  }
+
+  function prefetchNotifProfile(pubkey, relays) {
+    if (_notifProfiles.has(pubkey)) return;
+    _notifProfiles.set(pubkey, ''); // mark as loading
+    poolGet(relays, { kinds: [0], authors: [pubkey] }).then((ev) => {
+      if (!ev) return;
+      const m = JSON.parse(ev.content) || {};
+      _notifProfiles.set(pubkey, m.display_name || m.displayName || m.name || '');
+    }).catch(() => {});
+  }
+
+  const IMG_RE = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif)(?:\?\S*)?/gi;
+  const AV_RE = /https?:\/\/\S+\.(?:mp4|mov|webm|m3u8|mp3|wav|m4a|ogg)(?:\?\S*)?/gi;
+
+  // Pull media URLs out of note content so they can render as previews instead
+  // of as raw links in the text snippet.
+  function extractMedia(content) {
+    const images = content.match(IMG_RE) || [];
+    const av = content.match(AV_RE) || [];
+    return { images, av };
+  }
+
+  function cleanSnippet(content) {
+    return content
+      .replace(/nostr:(npub1\S+|nprofile1\S+)/g, (_, entity) => {
+        try {
+          const decoded = NT.nip19.decode(entity);
+          const pk = decoded.type === 'npub' ? decoded.data : decoded.data && decoded.data.pubkey;
+          if (pk) {
+            const name = _notifProfiles.get(pk);
+            if (name) return '@' + name;
+            return '@' + entity.slice(0, 12) + '…';
+          }
+        } catch (_) {}
+        return '@…';
+      })
+      .replace(/nostr:note1\S+/g, '[note]')
+      .replace(/nostr:nevent1\S+/g, '[note]')
+      .replace(/nostr:naddr1\S+/g, '[article]')
+      .replace(IMG_RE, '') // shown as thumbnails
+      .replace(AV_RE, '') // shown as a media chip
+      .replace(/https?:\/\/([^\s/]+)\S*/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Load an account's mute list (kind 10000) — newest replaceable event across
+  // relays, including both public p-tag mutes and private mutes encrypted in the
+  // content. Private mutes may be NIP-04 (legacy NIP-51) or NIP-44 (newer clients
+  // like Jumble) encrypted to self — try the format the ciphertext looks like,
+  // then fall back to the other. Deduped per pubkey via a promise cache; when it
+  // resolves it also drops any already-cached events from muted authors.
+  function loadMuteList(pubkey, relays) {
+    if (_muteListPromises.has(pubkey)) return _muteListPromises.get(pubkey);
+    const p = (async () => {
+      const muted = new Set();
+      try {
+        const evs = await getPool().querySync(relays, { kinds: [10000], authors: [pubkey] });
+        const ev = (evs || []).sort((x, y) => y.created_at - x.created_at)[0];
+        if (ev) {
+          ev.tags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+          if (ev.content) {
+            // NIP-04 ciphertext is "<base64>?iv=<base64>"; NIP-44 is a single
+            // base64 blob. Try the matching scheme first, then the other.
+            const order = ev.content.includes('?iv=') ? [4, 44] : [44, 4];
+            for (const nip of order) {
+              try {
+                const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
+                const privateTags = JSON.parse(plain);
+                if (Array.isArray(privateTags)) {
+                  privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+                  break;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+      _muteLists.set(pubkey, muted);
+      // Drop any events that slipped into the cache before the list was ready.
+      const cache = _notifCache.get(pubkey);
+      if (cache && muted.size) {
+        const before = cache.events.length;
+        cache.events = cache.events.filter((e) => !muted.has(e.pubkey));
+        if (cache.events.length !== before && pubkey === state?.activePubkey) refreshBell();
+      }
+      return muted;
+    })();
+    _muteListPromises.set(pubkey, p);
+    return p;
+  }
+
+  async function initNotifSubs() {
+    if (!state || !state.accounts || state.accounts.length === 0) return;
+    await loadNotifSeen();
+    const relays = await relayUrls(false);
+    if (!relays.length) return;
+    const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
+
+    for (const a of state.accounts) {
+      if (_notifCache.has(a.pubkey)) continue;
+
+      // Load mutes BEFORE subscribing so addEvent filters from the first event.
+      // Cap the wait so a slow relay can't stall notifications — the fetch keeps
+      // running and prunes the cache once it lands.
+      await Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]);
+
+      const cache = { events: [], liveSub: null };
+      _notifCache.set(a.pubkey, cache);
+
+      const addEvent = (ev) => {
+        if (ev.pubkey === a.pubkey) return;
+        const muted = _muteLists.get(a.pubkey);
+        if (muted && muted.has(ev.pubkey)) return;
+        if (cache.events.some((e) => e.id === ev.id)) return;
+        cache.events.push(ev);
+        cache.events.sort((x, y) => y.created_at - x.created_at);
+        if (cache.events.length > 100) cache.events.length = 100;
+        prefetchNotifProfile(ev.pubkey, relays);
+        if (a.pubkey === state?.activePubkey) refreshBell();
+      };
+
+      const liveSince = Math.floor(Date.now() / 1000);
+      try {
+        getPool().subscribeManyEose(
+          relays,
+          [{ kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since, limit: 50 }],
+          { onevent: addEvent }
+        );
+      } catch (_) {}
+      try {
+        cache.liveSub = getPool().subscribeMany(
+          relays,
+          [{ kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since: liveSince }],
+          { onevent: addEvent }
+        );
+      } catch (_) {}
+    }
+  }
+
+  async function showNotifModal(a) {
+    const seenAt = _notifSeenAt[a.pubkey] || 0;
+    const cache = _notifCache.get(a.pubkey) || { events: [] };
+    const now = Math.floor(Date.now() / 1000);
+    await saveNotifSeen(a.pubkey, now);
+    refreshBell();
+
+    const client = await preferredClient();
+    const relays = await relayUrls(false);
+
+    // Final guard: ensure the mute list has resolved, then filter the view.
+    await Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 3000))]);
+    const muted = _muteLists.get(a.pubkey);
+    const events = muted && muted.size ? cache.events.filter((e) => !muted.has(e.pubkey)) : cache.events;
+    const PAGE = 25;
+
+    // Kick off profile fetches for any senders not yet cached, then wait briefly
+    const uncached = [...new Set(events.map((e) => e.pubkey))].filter((pk) => !_notifProfiles.get(pk));
+    uncached.forEach((pk) => prefetchNotifProfile(pk, relays));
+    if (uncached.length) await new Promise((r) => setTimeout(r, 600));
+
+    function buildItem(ev) {
+      const isNew = ev.created_at > seenAt;
+      const { glyph, text } = notifLabel(ev);
+
+      // A reply/mention (kind 1) opens the event itself; a reaction/repost/zap
+      // (7/6/9735) should open the note it refers to — the `e` tag — not the
+      // meta-event, which renders as a lone heart/repost in the client.
+      let linkTarget = '';
+      try {
+        let targetId = ev.id;
+        let targetAuthor = ev.pubkey;
+        if (ev.kind !== 1) {
+          const eTags = ev.tags.filter((t) => t[0] === 'e' && t[1]);
+          if (eTags.length) {
+            targetId = eTags[eTags.length - 1][1];
+            const pTag = ev.tags.find((t) => t[0] === 'p' && t[1]);
+            targetAuthor = pTag ? pTag[1] : a.pubkey; // referenced note's author (usually you)
+          }
+        }
+        linkTarget = NT.nip19.neventEncode({ id: targetId, author: targetAuthor, relays: [] });
+      } catch (_) {}
+
+      // The whole card is the click target — open the note in the preferred client.
+      const item = linkTarget
+        ? h('a', {
+            className: 'notif-item notif-clickable' + (isNew ? ' notif-new' : ''),
+            href: client.url(linkTarget),
+            target: '_blank',
+            rel: 'noreferrer noopener',
+            title: 'Open in ' + client.label,
+          })
+        : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
+
+      // Top row: glyph · name (truncated) · time · arrow
+      const right = h('div', { className: 'notif-top-right' }, [
+        h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) }),
+      ]);
+      if (linkTarget) {
+        const arrow = h('span', { className: 'notif-link' });
+        arrow.appendChild(icon('arrow-up-right'));
+        right.appendChild(arrow);
+      }
+      const topRow = h('div', { className: 'notif-top' }, [
+        h('span', { className: 'notif-glyph', textContent: glyph }),
+        h('span', { className: 'notif-author', textContent: notifAuthorName(ev.pubkey) }),
+        right,
+      ]);
+      item.appendChild(topRow);
+
+      // Action row
+      item.appendChild(h('div', { className: 'notif-action', textContent: text }));
+
+      if (ev.kind === 1 && ev.content) {
+        const cleaned = cleanSnippet(ev.content);
+        if (cleaned) {
+          const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+          item.appendChild(h('p', { className: 'notif-content', textContent: snippet }));
+        }
+
+        const { images, av } = extractMedia(ev.content);
+        if (images.length) {
+          const media = h('div', { className: 'notif-media' });
+          images.slice(0, 3).forEach((src) => {
+            const img = document.createElement('img');
+            img.className = 'notif-thumb';
+            img.src = src;
+            img.alt = '';
+            img.loading = 'lazy';
+            img.referrerPolicy = 'no-referrer';
+            img.onerror = () => img.remove();
+            media.appendChild(img);
+          });
+          item.appendChild(media);
+        }
+        if (av.length) {
+          const isVideo = /\.(?:mp4|mov|webm|m3u8)(?:\?|$)/i.test(av[0]);
+          item.appendChild(
+            h('div', { className: 'notif-media-chip', textContent: (isVideo ? '🎬 ' : '🎵 ') + (isVideo ? 'Video' : 'Audio') })
+          );
+        }
+      }
+      return item;
+    }
+
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      modal.appendChild(xBtn);
+
+      const heading = h('div', { className: 'notif-modal-head' });
+      heading.append(
+        avatarEl(a, 'notif-modal-av'),
+        h('div', {}, [
+          h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
+          h('div', { className: 'notif-modal-sub', textContent: displayName(a) }),
+        ])
+      );
+      modal.appendChild(heading);
+
+      if (!events.length) {
+        modal.appendChild(h('p', { className: 'hint', textContent: 'No recent notifications found.' }));
+        return;
+      }
+
+      const scroll = h('div', { className: 'notif-scroll' });
+      const list = h('div', { className: 'notif-list' });
+      scroll.appendChild(list);
+      modal.appendChild(scroll);
+
+      let shown = 0;
+      let moreBtn = null;
+
+      function loadMore() {
+        const next = events.slice(shown, shown + PAGE);
+        next.forEach((ev) => list.appendChild(buildItem(ev)));
+        shown += next.length;
+        if (shown >= events.length) {
+          if (moreBtn) { moreBtn.remove(); moreBtn = null; }
+        } else if (!moreBtn) {
+          moreBtn = h('button', { className: 'notif-load-more', textContent: 'Load more' });
+          moreBtn.addEventListener('click', loadMore);
+          scroll.appendChild(moreBtn);
+        }
+      }
+
+      loadMore();
+    });
+  }
+
   // Sparkle hero shown in the empty (no-account) state — a classy welcome that
   // carries the brand and points at the add buttons below.
   const SPARK_SVG =
@@ -625,6 +1012,7 @@
     // persistent header chip (current account)
     applyAvatar($('chip-av'), active || {});
     $('chip-name').textContent = active ? displayName(active) : 'No account';
+    refreshBell();
 
     // The active account already shows in the header chip and is marked (check +
     // highlight) in the list below, so the big "booth" card was a third copy.
@@ -741,6 +1129,7 @@
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
+
     if (isActive) {
       const check = icon('check');
       check.classList.add('active-check');
@@ -799,6 +1188,7 @@
   function openModal(buildContent, onClose) {
     const modal = $('modal');
     modal.innerHTML = '';
+    modal.classList.remove('modal-sheet'); // reset full-height variant; opt back in per modal
     modalCleanup = onClose || null;
     buildContent(modal);
     show($('modal-overlay'));
@@ -1878,14 +2268,51 @@
     return out;
   }
 
-  function openComposer(initialText) {
+  // ---- composer draft autosave (per account, in chrome.storage.local) ----
+  function loadComposeDraft(pubkey) {
+    return new Promise((res) => {
+      chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+        const all = (r && r.sidecar_compose_drafts) || {};
+        res(all[pubkey] || null);
+      });
+    });
+  }
+  function saveComposeDraft(pubkey, draft) {
+    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+      const all = (r && r.sidecar_compose_drafts) || {};
+      if (hasContent) all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+      else delete all[pubkey];
+      chrome.storage.local.set({ sidecar_compose_drafts: all });
+    });
+  }
+  function clearComposeDraft(pubkey) {
+    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+      const all = (r && r.sidecar_compose_drafts) || {};
+      if (!all[pubkey]) return;
+      delete all[pubkey];
+      chrome.storage.local.set({ sidecar_compose_drafts: all });
+    });
+  }
+
+  async function openComposer(initialText) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
       return;
     }
-    const draft = { text: initialText || '', media: [] };
+    const pubkey = state.activePubkey;
+    let draft = { text: initialText || '', media: [] };
     const modal = $('modal');
     let timer = null;
+    let saveTimer = null;
+    let published = false;
+    let enteredEditor = false;
+
+    function persistDraft() { saveComposeDraft(pubkey, draft); }
+    function scheduleSave() {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(persistDraft, 400);
+    }
 
     async function doPublish() {
       const content = draft.text.trim();
@@ -1913,6 +2340,7 @@
 
     function showEditor() {
       if (timer) { clearInterval(timer); timer = null; }
+      enteredEditor = true;
       modal.innerHTML = '';
 
       // Write / Preview tab bar
@@ -1988,6 +2416,7 @@
         draft.text = serializeEditor(editor);
         syncEmptyClass();
         updatePostState();
+        scheduleSave();
       }
 
       async function updateAcDropdown() {
@@ -2028,6 +2457,7 @@
         syncEmptyClass();
         updatePostState();
         updateAcDropdown();
+        scheduleSave();
       });
 
       editor.addEventListener('keydown', (e) => {
@@ -2091,6 +2521,7 @@
             syncEmptyClass();
             renderThumbs();
             updatePostState();
+            scheduleSave();
           });
           cell.append(rm);
           thumbs.append(cell);
@@ -2123,6 +2554,7 @@
           syncEmptyClass();
           renderThumbs();
           updatePostState();
+          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -2160,6 +2592,7 @@
           syncEmptyClass();
           renderThumbs();
           updatePostState();
+          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -2229,6 +2662,8 @@
         now.textContent = 'Posting…';
         try {
           const signed = await doPublish();
+          published = true;
+          clearComposeDraft(pubkey);
           closeModal();
           toast('Note published', 'success');
           showPostBanner(signed);
@@ -2256,7 +2691,51 @@
       }, 1000);
     }
 
-    openModal(() => showEditor(), () => { if (timer) { clearInterval(timer); timer = null; } });
+    // Offer to resume a saved draft (or start fresh) before opening the editor.
+    function showDraftChooser(saved) {
+      modal.innerHTML = '';
+      const snippet = (saved.text || '').trim().replace(/\s+/g, ' ');
+      const preview = snippet.length > 160 ? snippet.slice(0, 160) + '…' : snippet;
+      const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
+      const mediaNote = saved.media && saved.media.length
+        ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
+        : '';
+
+      const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
+      resume.addEventListener('click', () => {
+        draft = { text: saved.text || '', media: (saved.media || []).slice() };
+        showEditor();
+      });
+      const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
+      fresh.addEventListener('click', () => {
+        clearComposeDraft(pubkey);
+        draft = { text: initialText || '', media: [] };
+        showEditor();
+      });
+
+      const parts = [
+        h('h3', { textContent: 'Resume your draft?' }),
+        h('p', { className: 'hint', textContent: 'You have an unsaved draft' + when + '.' }),
+      ];
+      if (preview) parts.push(h('div', { className: 'draft-preview', textContent: preview }));
+      if (mediaNote) parts.push(h('p', { className: 'draft-preview-meta', textContent: mediaNote }));
+      parts.push(h('div', { className: 'actions' }, [resume, fresh]));
+      modal.append(...parts);
+    }
+
+    const saved = await loadComposeDraft(pubkey);
+    const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+
+    openModal(
+      () => { if (hasSaved) showDraftChooser(saved); else showEditor(); },
+      () => {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        // Persist on close only once the user has actually edited — closing the
+        // chooser without choosing must not overwrite the saved draft.
+        if (!published && enteredEditor) persistDraft();
+      }
+    );
   }
 
   // ---- edit profile (full-panel overlay) ----
@@ -3921,6 +4400,7 @@
     }
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_PANEL_APPROVAL') {
+        closeModal();
         pendingApproval = { id: msg.id, data: msg.data };
         showApproval();
       }
