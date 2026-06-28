@@ -10,6 +10,8 @@ Connect) for sending and receiving sats.
 
 <img width="2816" height="1566" alt="Sidecar" src="https://i.nostr.build/Sr11DBpz7pVITHoS.png" />
 
+**[Install from the Chrome Web Store →](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)**
+
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving.
@@ -24,7 +26,11 @@ Connect) for sending and receiving sats.
 - **Pay invoices from any page** — when a nostr client you're signed into shows a Lightning invoice, a **Pay with Sidecar** card appears so you can pay in a tap. You can also right-click a `lightning:` link, a selected BOLT11 invoice, or a QR image.
 - **Auto-approve zaps** (optional, off by default) — pay zaps without a prompt up to a per-zap limit you set. Verified zaps only; larger zaps, non-zaps, and a locked wallet still ask.
 
-## Install (unpacked / developer build)
+## Install
+
+The easiest way is the **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** — open the link and click **Add to Chrome**. Works in Chrome, Brave, and Edge.
+
+### From source (unpacked / developer build)
 
 Sidecar has **no build step** — it's plain JavaScript loaded directly. To run it from source:
 
