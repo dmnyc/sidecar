@@ -1960,10 +1960,96 @@
     });
   }
 
-  // ---- image upload (NIP-98 → nostr.build) ----
+  // ---- Blossom upload (BUD-02, kind:24242) with graceful fallback ----
+  // Mirrors zap.cooking: try the user's own Blossom servers (kind:10063) first,
+  // then fall back to the nostr.build NIP-98 flow below. No hardcoded server, so
+  // users without a Blossom list keep the existing behavior unchanged.
+  const BLOSSOM_AUTH_KIND = 24242;
+  const BLOSSOM_SERVER_LIST_KIND = 10063;
+  const BLOSSOM_CACHE_TTL = 5 * 60 * 1000;
+  const BLOSSOM_UPLOAD_TIMEOUT = 30000;
+  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }
+
+  async function sha256Hex(buffer) {
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function fetchBlossomServers(pubkey) {
+    const cached = _blossomServerCache.get(pubkey);
+    if (cached && cached.expiresAt > Date.now()) return cached.servers;
+    let servers = [];
+    try {
+      const relays = await relayUrls(false);
+      const ev = await poolGet(relays, { kinds: [BLOSSOM_SERVER_LIST_KIND], authors: [pubkey] });
+      if (ev) {
+        servers = ev.tags
+          .filter((t) => t[0] === 'server' && t[1] && t[1].startsWith('https://'))
+          .map((t) => t[1].replace(/\/$/, ''));
+      }
+    } catch (_) {}
+    _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
+    return servers;
+  }
+
+  async function uploadToBlossom(file, servers) {
+    const buffer = await file.arrayBuffer();
+    const hash = await sha256Hex(buffer);
+    const now = Math.floor(Date.now() / 1000);
+    const authEvent = {
+      kind: BLOSSOM_AUTH_KIND,
+      created_at: now,
+      tags: [['t', 'upload'], ['x', hash], ['expiration', String(now + 300)]],
+      content: 'Upload file',
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent });
+    const authorization = 'Nostr ' + btoa(JSON.stringify(signed));
+    let lastError;
+    for (const server of servers) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), BLOSSOM_UPLOAD_TIMEOUT);
+      try {
+        const resp = await fetch(server + '/upload', {
+          method: 'PUT',
+          body: file,
+          headers: { Authorization: authorization, 'Content-Type': file.type || 'application/octet-stream' },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json().catch(() => null);
+        if (data && data.url) return data.url;
+        throw new Error('No URL in Blossom response');
+      } catch (e) {
+        clearTimeout(timer);
+        console.warn('[Blossom] upload to ' + server + ' failed:', e);
+        lastError = e;
+      }
+    }
+    throw lastError || new Error('All Blossom servers failed');
+  }
+
+  // Returns a hosted URL via Blossom, or null when Blossom isn't usable (no
+  // active account, no server list, or every server failed) — caller then falls
+  // back to nostr.build.
+  async function tryBlossomFirst(file) {
+    if (!state.activePubkey) return null;
+    try {
+      const servers = await fetchBlossomServers(state.activePubkey);
+      if (!servers.length) return null;
+      return await uploadToBlossom(file, servers);
+    } catch (e) {
+      console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
+      return null;
+    }
+  }
+
+  // ---- image upload (Blossom → nostr.build via NIP-98) ----
   async function uploadImage(file, kind) {
     if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
     if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    const blossomUrl = await tryBlossomFirst(file);
+    if (blossomUrl) return blossomUrl;
     const url = 'https://nostr.build/api/v2/upload/' + (kind === 'profile' ? 'profile' : 'files');
     const authEvent = {
       kind: 27235,
@@ -1983,12 +2069,14 @@
     return u;
   }
 
-  // ---- note media upload (NIP-98 → nostr.build, images + video) ----
+  // ---- note media upload (Blossom → nostr.build via NIP-98, images + video) ----
   async function uploadMedia(file) {
     const isImg = file.type.startsWith('image/');
     const isVid = file.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error('Choose an image or video');
     if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100MB)');
+    const blossomUrl = await tryBlossomFirst(file);
+    if (blossomUrl) return blossomUrl;
     const url = 'https://nostr.build/api/v2/upload/files';
     const authEvent = {
       kind: 27235,
