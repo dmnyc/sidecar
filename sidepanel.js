@@ -2015,7 +2015,9 @@
       }
 
       function syncEmptyClass() {
-        editor.classList.toggle('is-empty', !editor.textContent.trim() && !editor.querySelector('[data-bech32]'));
+        const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
+        editor.classList.toggle('is-empty', isEmpty);
+        if (isEmpty) editor.innerHTML = '';
       }
 
       editor.addEventListener('input', () => {
@@ -2111,7 +2113,8 @@
         try {
           const url = await uploadMedia(file);
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
-          const urlNode = document.createTextNode((editor.textContent.trim() ? '\n' : '') + url);
+          const t = editor.textContent;
+          const urlNode = document.createTextNode((t.length && !/\s$/.test(t) ? '\n' : '') + url);
           editor.append(urlNode);
           draft.text = serializeEditor(editor);
           syncEmptyClass();
@@ -2124,6 +2127,42 @@
         addBtn.disabled = false;
         lbl.textContent = prev;
         fileInput.value = '';
+      });
+
+      editor.addEventListener('paste', async (e) => {
+        const imageFiles = Array.from(e.clipboardData?.items ?? [])
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+          .map((item) => item.getAsFile())
+          .filter((f) => f !== null);
+        if (imageFiles.length === 0) {
+          e.preventDefault();
+          const plain = e.clipboardData.getData('text/plain');
+          if (plain) document.execCommand('insertText', false, plain);
+          return;
+        }
+        e.preventDefault();
+        addBtn.disabled = true;
+        const lbl = addBtn.querySelector('span');
+        const prev = lbl.textContent;
+        lbl.textContent = 'Uploading…';
+        try {
+          for (const file of imageFiles) {
+            const url = await uploadMedia(file);
+            draft.media.push({ url, isVideo: false });
+            const t = editor.textContent;
+            const urlNode = document.createTextNode((t.length && !/\s$/.test(t) ? '\n' : '') + url);
+            editor.append(urlNode);
+          }
+          draft.text = serializeEditor(editor);
+          syncEmptyClass();
+          renderThumbs();
+          updatePostState();
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+        addBtn.disabled = false;
+        lbl.textContent = prev;
       });
 
       const err = h('div', { className: 'error' });
