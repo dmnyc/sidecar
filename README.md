@@ -19,19 +19,20 @@ Or run from source (no build step required — see below).
 
 ## Features
 
-- **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving.
+- **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
 - **PIN-protected** — every private key is encrypted at rest (PBKDF2 → AES-GCM, WebCrypto). Nothing is stored in plaintext, and the keystore re-locks automatically. A paste guard blocks dropping an nsec anywhere except the import field.
 - **In-extension signing** — implements the full NIP-07 surface: `getPublicKey`, `signEvent`, `nip04`/`nip44` encrypt & decrypt, and `getRelays`.
 - **Per-site permissions** — approve or reject each site, per method, with a clear prompt that previews what you're signing. Relay auth (NIP-42) signs automatically so clients stay connected.
 - **Per-site account binding** — each site stays pinned to the account it logged in with (no NIP-07 desync). Switch a site to another account from **Connected Sites**.
 - **Identity from your profile** — account names and avatars are imported from your kind 0 metadata; view and edit your profile and publish kind 0.
 - **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle.
-- **Note composer** — post kind:1 notes directly from the panel with a 15-second undo window. Features include:
+- **Note composer** — post kind:1 notes directly from the panel with a send countdown you can review (the full note renders) and cancel. Drafts autosave per account, so you can close the composer and resume — or start fresh — later. Features include:
   - **@mention autocomplete** — type `@` to search your follow list; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
   - **Nostr event embeds** — paste a `note1`, `nevent1`, or `naddr1` entity and the preview renders a fetched embed card (author, timestamp, content excerpt).
   - **Link previews** — plain URLs show an OG meta card (title, description, thumbnail) fetched through the extension with no third-party service.
-  - **Media upload** — attach images and video; files are uploaded and appended as URLs.
-- **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Rizful, YakiHonne, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays. Sidecar never holds your funds.
+  - **Media upload** — attach images and video; uploads go to your own Blossom servers (from your kind:10063 list) when available, falling back to nostr.build.
+- **Notifications** — a bell in the header shows replies, mentions, reposts, reactions, and zaps for the active account — each with the sender's name, a content preview, and a tap-through that opens the note in your preferred client. Muted users (public and private mute lists) are filtered out.
+- **Lightning wallet (NWC)** — connect any Nostr Wallet Connect wallet (Alby Hub, Rizful, YakiHonne, …). Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address QR), view paginated history, and back up the connection to your relays — or export it (PIN-gated, with a QR) to move it to another app. New to Lightning? Built-in **wallet suggestions** point you to NWC-capable options. Sidecar never holds your funds.
 - **WebLN provider** — web apps can pay and make invoices through your connected wallet (`window.webln`), gated by an approval prompt with an optional per-site daily budget you can edit or revoke any time.
 - **Pay invoices from any page** — when a nostr client you're signed into shows a Lightning invoice, a **Pay with Sidecar** card appears so you can pay in a tap. You can also right-click a `lightning:` link, a selected BOLT11 invoice, or a QR image.
 - **Auto-approve zaps** (optional, off by default) — pay zaps without a prompt up to a per-zap limit you set. Verified zaps only; larger zaps, non-zaps, and a locked wallet still ask.
@@ -90,6 +91,7 @@ Or regenerate it manually any time:
 | Crypto & keystore | `crypto.js`, `keystore.js`, `permissions.js`, `signer.js` |
 | Approval prompt | `prompt.html`, `prompt.js` |
 | Side panel UI | `sidepanel.html`, `sidepanel.js`, `styles.css`, `fonts.css` |
+| Standalone pages | `welcome.html`/`welcome.js` (nostr app directory, first-run), `wallets.html`/`wallets.js`/`wallets.css` (NWC wallet suggestions) |
 | Lightning (NWC / NIP-47) | `nwc-client.js`, `wallet-budgets.js` |
 | Vendored | `nostr-tools.js`, `qrious.min.js` (receive QR), `jsqr.js` (scan QR to pay), `fonts/` (Playfair Display + Manrope, SIL OFL) |
 | Generated | `version.js` (build stamp), `scripts/stamp-version.sh` |

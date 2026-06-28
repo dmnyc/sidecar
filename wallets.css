@@ -1,0 +1,15 @@
+/* ============================================================
+   Sidecar — Wallet suggestions
+   Reuses welcome.css for layout/cards/filters; only adds the
+   trust-model badge palette specific to wallets.
+   ============================================================ */
+
+.cat-custodial     { background: rgba(203, 161, 78,  0.14); color: var(--gold); }
+.cat-selfcustodial { background: rgba(52,  211, 153, 0.16); color: #34d399; }
+.cat-ecash         { background: rgba(167, 139, 250, 0.14); color: var(--lav); }
+
+/* Fixed 3-up grid (6 wallets → 2 rows of 3). Overrides welcome.css's auto-fill;
+   loaded after it, so these win — including the responsive fallbacks below. */
+.grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 460px) { .grid { grid-template-columns: 1fr; } }
