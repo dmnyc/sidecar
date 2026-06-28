@@ -105,6 +105,8 @@ chrome.action.onClicked.addListener((tab) => {
 // ============================================================================
 const pendingPrompts = new Map(); // promptId -> { resolve, windowId, data, settled }
 let promptMutex = Promise.resolve(); // serialize prompts so only one window is open
+let popupWindowId = null;  // the reusable prompt popup window
+let popupPending = 0;      // count of unsettled popup-bound prompts
 
 // The side panel keeps a long-lived port open while it's visible. When it's open
 // we render approvals inline in the panel (it can't get lost behind a window);
@@ -176,32 +178,48 @@ function openPrompt(data) {
         }
       }
 
-      const W = 440;
-      const H = 600;
-      chrome.windows.getCurrent((cur) => {
-        const left =
-          cur && cur.left != null && cur.width != null
-            ? Math.round(cur.left + (cur.width - W) / 2)
-            : undefined;
-        const top =
-          cur && cur.top != null && cur.height != null
-            ? Math.round(cur.top + (cur.height - H) / 3)
-            : undefined;
-        chrome.windows.create(
-          {
-            url: chrome.runtime.getURL('prompt.html?id=' + promptId),
-            type: 'popup',
-            width: W,
-            height: H,
-            left,
-            top,
-            focused: true,
-          },
-          (win) => {
-            pendingPrompts.set(promptId, { resolve, windowId: win && win.id, data, settled: false });
+      const promptUrl = chrome.runtime.getURL('prompt.html?id=' + promptId);
+
+      function openInNewWindow() {
+        const W = 440, H = 600;
+        chrome.windows.getCurrent((cur) => {
+          const left =
+            cur && cur.left != null && cur.width != null
+              ? Math.round(cur.left + (cur.width - W) / 2)
+              : undefined;
+          const top =
+            cur && cur.top != null && cur.height != null
+              ? Math.round(cur.top + (cur.height - H) / 3)
+              : undefined;
+          chrome.windows.create(
+            { url: promptUrl, type: 'popup', width: W, height: H, left, top, focused: true },
+            (win) => {
+              popupWindowId = win ? win.id : null;
+              popupPending++;
+              pendingPrompts.set(promptId, { resolve, windowId: popupWindowId, data, settled: false });
+            }
+          );
+        });
+      }
+
+      // Reuse the existing popup window when possible — navigate its tab to the
+      // new prompt URL instead of spawning another window.
+      if (popupWindowId != null) {
+        chrome.windows.get(popupWindowId, { populate: true }, (win) => {
+          const tab = win && win.tabs && win.tabs[0];
+          if (!chrome.runtime.lastError && tab) {
+            popupPending++;
+            pendingPrompts.set(promptId, { resolve, windowId: popupWindowId, data, settled: false });
+            chrome.tabs.update(tab.id, { url: promptUrl });
+            chrome.windows.update(popupWindowId, { focused: true });
+          } else {
+            popupWindowId = null;
+            openInNewWindow();
           }
-        );
-      });
+        });
+      } else {
+        openInNewWindow();
+      }
     });
   const result = promptMutex.then(run, run);
   // Keep the chain alive regardless of outcome.
@@ -214,6 +232,10 @@ function openPrompt(data) {
 
 // If the user closes the popup without deciding, treat it as a cancel/reject.
 chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId === popupWindowId) {
+    popupWindowId = null;
+    popupPending = 0;
+  }
   for (const [id, p] of pendingPrompts) {
     if (p.windowId === windowId && !p.settled) {
       p.settled = true;
@@ -228,7 +250,15 @@ function settlePrompt(promptId, action, extra) {
   if (!p || p.settled) return;
   p.settled = true;
   pendingPrompts.delete(promptId);
-  if (p.windowId != null) chrome.windows.remove(p.windowId).catch(() => {});
+  if (p.windowId != null) {
+    popupPending--;
+    if (popupPending <= 0) {
+      popupPending = 0;
+      chrome.windows.remove(p.windowId).catch(() => {});
+      popupWindowId = null;
+    }
+    // else: leave window alive — run() for the next queued prompt will navigate it
+  }
   p.resolve(Object.assign({ action }, extra || {}));
 }
 
