@@ -52,6 +52,7 @@
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
     pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
+    bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -115,6 +116,9 @@
   let hideBalances = false;
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
+  const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
+  let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
+  let _notifSeenLoaded = false;
 
   // Privacy masking is done in CSS (-webkit-text-security on `.balances-hidden`),
   // which masks each glyph at its real width so toggling never reflows. We always
@@ -184,6 +188,7 @@
       const banner = $('post-banner');
       if (banner) hide(banner); // a note link is account-specific; clear on any state change
       renderMain();
+      initNotifSubs();
       // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
       const activeTab = document.querySelector('.tab.active');
       const name = activeTab && activeTab.dataset.tab;
@@ -541,6 +546,190 @@
     fetchAndStoreProfile(pubkey);
   }
 
+  // ---- notification bell ----
+
+  async function loadNotifSeen() {
+    if (_notifSeenLoaded) return;
+    _notifSeenLoaded = true;
+    try {
+      const r = await new Promise((res) => chrome.storage.local.get('sidecar_notif_seen', res));
+      _notifSeenAt = (r && r.sidecar_notif_seen) || {};
+    } catch (_) {}
+  }
+
+  async function saveNotifSeen(pubkey, ts) {
+    _notifSeenAt[pubkey] = ts;
+    try {
+      await new Promise((res) =>
+        chrome.storage.local.set({ sidecar_notif_seen: _notifSeenAt }, res)
+      );
+    } catch (_) {}
+  }
+
+  function notifUnseenCount(pubkey) {
+    const cache = _notifCache.get(pubkey);
+    if (!cache || !cache.events.length) return 0;
+    const seenAt = _notifSeenAt[pubkey] || 0;
+    return cache.events.filter((ev) => ev.created_at > seenAt).length;
+  }
+
+  function refreshBell(pubkey) {
+    const btn = document.querySelector('.notif-bell[data-pubkey="' + pubkey + '"]');
+    if (!btn) return;
+    const count = notifUnseenCount(pubkey);
+    const badge = btn.querySelector('.notif-badge');
+    if (!badge) return;
+    badge.textContent = count > 99 ? '99+' : count > 0 ? String(count) : '';
+    badge.classList.toggle('hidden', count === 0);
+  }
+
+  function relativeTime(ts) {
+    const diff = Math.floor(Date.now() / 1000) - ts;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 7 * 86400) return Math.floor(diff / 86400) + 'd ago';
+    return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function notifLabel(ev) {
+    if (ev.kind === 9735) {
+      let sats = '';
+      try {
+        const descTag = ev.tags.find((t) => t[0] === 'description');
+        if (descTag) {
+          const inner = JSON.parse(descTag[1]);
+          const amtTag = inner.tags && inner.tags.find((t) => t[0] === 'amount');
+          if (amtTag) sats = Math.round(parseInt(amtTag[1], 10) / 1000) + ' sats';
+        }
+      } catch (_) {}
+      return { glyph: '⚡', text: sats ? 'zapped ' + sats : 'zapped you' };
+    }
+    if (ev.kind === 6) return { glyph: '🔁', text: 'reposted your note' };
+    if (ev.kind === 7) {
+      const r = (ev.content || '').trim();
+      const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
+      return { glyph, text: 'reacted to your note' };
+    }
+    // kind 1
+    const hasE = ev.tags.some((t) => t[0] === 'e');
+    return hasE
+      ? { glyph: '💬', text: 'replied to your note' }
+      : { glyph: '@', text: 'mentioned you' };
+  }
+
+  async function initNotifSubs() {
+    if (!state || !state.accounts || state.accounts.length === 0) return;
+    await loadNotifSeen();
+    const relays = await relayUrls(false);
+    if (!relays.length) return;
+    const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
+
+    for (const a of state.accounts) {
+      if (_notifCache.has(a.pubkey)) continue;
+      const cache = { events: [], liveSub: null };
+      _notifCache.set(a.pubkey, cache);
+
+      const addEvent = (ev) => {
+        if (ev.pubkey === a.pubkey) return;
+        if (cache.events.some((e) => e.id === ev.id)) return;
+        cache.events.push(ev);
+        cache.events.sort((x, y) => y.created_at - x.created_at);
+        if (cache.events.length > 100) cache.events.length = 100;
+        refreshBell(a.pubkey);
+      };
+
+      const liveSince = Math.floor(Date.now() / 1000);
+      try {
+        getPool().subscribeManyEose(
+          relays,
+          [{ kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since, limit: 50 }],
+          { onevent: addEvent }
+        );
+      } catch (_) {}
+      try {
+        cache.liveSub = getPool().subscribeMany(
+          relays,
+          [{ kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since: liveSince }],
+          { onevent: addEvent }
+        );
+      } catch (_) {}
+    }
+  }
+
+  async function showNotifModal(a) {
+    const seenAt = _notifSeenAt[a.pubkey] || 0;
+    const cache = _notifCache.get(a.pubkey) || { events: [] };
+    const now = Math.floor(Date.now() / 1000);
+    await saveNotifSeen(a.pubkey, now);
+    refreshBell(a.pubkey);
+
+    const client = await preferredClient();
+    const events = cache.events.slice(0, 30);
+
+    openModal((modal) => {
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      modal.appendChild(xBtn);
+
+      const heading = h('div', { className: 'notif-modal-head' });
+      heading.append(
+        avatarEl(a, 'notif-modal-av'),
+        h('div', {}, [
+          h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
+          h('div', { className: 'notif-modal-sub', textContent: displayName(a) }),
+        ])
+      );
+      modal.appendChild(heading);
+
+      if (!events.length) {
+        modal.appendChild(h('p', { className: 'hint', textContent: 'No recent notifications found.' }));
+        return;
+      }
+
+      const list = h('div', { className: 'notif-list' });
+      events.forEach((ev) => {
+        const isNew = ev.created_at > seenAt;
+        const item = h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
+        const { glyph, text } = notifLabel(ev);
+
+        const meta = h('div', { className: 'notif-meta' });
+        meta.append(
+          h('span', { className: 'notif-glyph', textContent: glyph }),
+          h('span', { className: 'notif-desc', textContent: text }),
+          h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) })
+        );
+        item.appendChild(meta);
+
+        const body = h('div', { className: 'notif-body' });
+        if (ev.kind === 1 && ev.content) {
+          const raw = ev.content.trim();
+          const snippet = raw.length > 120 ? raw.slice(0, 120) + '…' : raw;
+          body.appendChild(h('p', { className: 'notif-content', textContent: snippet }));
+        }
+
+        let linkTarget = '';
+        try {
+          linkTarget = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
+        } catch (_) {}
+        if (linkTarget) {
+          const link = document.createElement('a');
+          link.className = 'notif-link';
+          link.href = client.url(linkTarget);
+          link.target = '_blank';
+          link.rel = 'noreferrer noopener';
+          link.append(h('span', { textContent: 'Open in ' + client.label }), icon('arrow-up-right'));
+          body.appendChild(link);
+        }
+
+        item.appendChild(body);
+        list.appendChild(item);
+      });
+      modal.appendChild(list);
+    });
+  }
+
   // Sparkle hero shown in the empty (no-account) state — a classy welcome that
   // carries the brand and points at the add buttons below.
   const SPARK_SVG =
@@ -741,6 +930,22 @@
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
+
+    const bellBtn = document.createElement('button');
+    bellBtn.className = 'icon-btn sm notif-bell';
+    bellBtn.dataset.pubkey = a.pubkey;
+    bellBtn.title = 'Notifications';
+    bellBtn.appendChild(icon('bell'));
+    const badge = document.createElement('span');
+    badge.className = 'notif-badge hidden';
+    bellBtn.appendChild(badge);
+    bellBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showNotifModal(a);
+    });
+    actions.appendChild(bellBtn);
+    Promise.resolve().then(() => refreshBell(a.pubkey));
+
     if (isActive) {
       const check = icon('check');
       check.classList.add('active-check');
