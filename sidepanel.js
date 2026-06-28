@@ -112,7 +112,8 @@
   );
 
   let state = null;
-  let hideBalances = false; // privacy toggle (persisted in settings)
+  let hideBalances = false;
+  let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
 
   // Privacy masking is done in CSS (-webkit-text-security on `.balances-hidden`),
@@ -237,7 +238,19 @@
     toast('Locked', 'success');
   });
 
-  $('compose-fab').addEventListener('click', () => openComposer());
+  $('compose-fab').addEventListener('click', () => {
+    const balloon = $('first-post-balloon');
+    const isFirstTime = balloon && !balloon.classList.contains('hidden') && state?.activePubkey;
+    if (isFirstTime) {
+      _firstPostSeenPubkeys = _firstPostSeenPubkeys || new Set();
+      _firstPostSeenPubkeys.add(state.activePubkey);
+      chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
+      balloon.classList.add('hidden');
+      openComposer('Just setting up my #Sidecar 🍸');
+    } else {
+      openComposer();
+    }
+  });
 
   // Dim the FAB while the content is actively scrolling so it doesn't distract;
   // snap back ~160ms after scrolling stops (mirrors zap.cooking's create FAB).
@@ -590,6 +603,14 @@
       if (t) t.disabled = !hasAccounts;
     });
     $('compose-fab').disabled = !hasAccounts;
+    const balloon = $('first-post-balloon');
+    if (balloon) {
+      const showBalloon = hasAccounts &&
+        !!state.activePubkey &&
+        _firstPostSeenPubkeys !== null &&
+        !_firstPostSeenPubkeys.has(state.activePubkey);
+      balloon.classList.toggle('hidden', !showBalloon);
+    }
     if (!hasAccounts) {
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       const acc = document.querySelector('.tab[data-tab="accounts"]');
@@ -746,6 +767,29 @@
   labelButton('add-import', 'download', 'Import nsec');
   $('add-generate').addEventListener('click', () => generateAccount());
   $('add-import').addEventListener('click', () => importAccountModal());
+  $('explore-apps-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  });
+
+  // ---- first-post tip balloon (once per imported nsec) ----
+  (function initFirstPostBalloon() {
+    const balloon = $('first-post-balloon');
+    if (!balloon) return;
+    chrome.storage.local.get('firstPostTipSeenPubkeys', ({ firstPostTipSeenPubkeys }) => {
+      _firstPostSeenPubkeys = new Set(Array.isArray(firstPostTipSeenPubkeys) ? firstPostTipSeenPubkeys : []);
+      if (state?.accounts) renderMain();
+    });
+    balloon.addEventListener('click', () => {
+      if (state?.activePubkey) {
+        _firstPostSeenPubkeys = _firstPostSeenPubkeys || new Set();
+        _firstPostSeenPubkeys.add(state.activePubkey);
+        chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
+      }
+      balloon.classList.add('hidden');
+      openComposer('Just setting up my #Sidecar 🍸');
+    });
+  })();
 
   // ---- modals ----
   let modalCleanup = null;
@@ -1831,12 +1875,12 @@
     return out;
   }
 
-  function openComposer() {
+  function openComposer(initialText) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
       return;
     }
-    const draft = { text: '', media: [] };
+    const draft = { text: initialText || '', media: [] };
     const modal = $('modal');
     let timer = null;
 

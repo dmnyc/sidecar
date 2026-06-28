@@ -366,6 +366,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .acct-row.foot { justify-content: center; color: var(--lav); border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; padding-top: 11px; }
 
 /* nsec import preview — confirm the account a pasted key belongs to */
+
 .import-preview {
   display: flex; align-items: center; gap: 11px; padding: 10px 12px; margin-top: 8px;
   border: 1px solid var(--gold-soft); border-radius: 12px;
@@ -575,6 +576,28 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 
 /* full-width stacked account actions with breathing room above */
 .add-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; }
+.explore-link-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; padding: 0 4px; }
+.explore-link { font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; display: block; }
+.explore-link:hover { color: var(--lav); }
+.first-post-balloon {
+  position: absolute; bottom: 90px; right: 12px; z-index: 49;
+  background: var(--amber); color: #1a0e08;
+  font-size: 12px; font-weight: 600;
+  padding: 7px 13px; border-radius: 10px;
+  white-space: nowrap; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  transition: background 0.12s, opacity 0.15s;
+}
+.first-post-balloon::after {
+  content: ''; position: absolute;
+  bottom: -7px; right: 24px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid var(--amber);
+  transition: border-top-color 0.12s;
+}
+.first-post-balloon:hover { background: var(--gold); }
+.first-post-balloon:hover::after { border-top-color: var(--gold); }
 .add-actions button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px; }
 .add-actions button svg { width: 17px; height: 17px; }
 
@@ -727,6 +750,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .fab:hover { transform: translateY(-1px) scale(1.03); opacity: 1; }
 .fab:active { transform: scale(0.97); }
 .fab svg { width: 24px; height: 24px; }
+
 .compose-author { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
 .compose-author-av { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
   background: linear-gradient(180deg, #2a1257, #160a30); border: 1px solid var(--border); }

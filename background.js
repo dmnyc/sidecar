@@ -87,9 +87,13 @@ async function logActivity(entry) {
 }
 
 // ---- side panel open on toolbar click ----
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   createPayMenu();
+  if (details.reason === 'install') {
+    chrome.storage.local.remove('firstPostTipDismissed');
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  }
 });
 chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
