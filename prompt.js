@@ -196,8 +196,11 @@
       extra = { budgetSats, perPaymentSats: 0 };
     }
 
+    els.allow.disabled = true;
+    els.trust.disabled = true;
+    els.reject.disabled = true;
     await send({ type: 'SIDECAR_PROMPT_RESULT', id: promptId, action, extra });
-    window.close();
+    // Background either navigates this window to the next queued request or closes it.
   }
 
   els.allow.addEventListener('click', () => decide('once'));
