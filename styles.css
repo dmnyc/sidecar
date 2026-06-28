@@ -903,6 +903,21 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-author-info { display: flex; flex-direction: column; min-width: 0; }
 .compose-author-eyebrow { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .compose-author-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-preview {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-2);
+  background: var(--velvet-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 4px 0 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: hidden;
+}
+.draft-preview-meta { font-size: 11.5px; color: var(--muted); margin: 0 0 2px; }
 .compose-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
 .compose-tab {
   background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
