@@ -800,9 +800,22 @@
       const isNew = ev.created_at > seenAt;
       const { glyph, text } = notifLabel(ev);
 
+      // A reply/mention (kind 1) opens the event itself; a reaction/repost/zap
+      // (7/6/9735) should open the note it refers to — the `e` tag — not the
+      // meta-event, which renders as a lone heart/repost in the client.
       let linkTarget = '';
       try {
-        linkTarget = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
+        let targetId = ev.id;
+        let targetAuthor = ev.pubkey;
+        if (ev.kind !== 1) {
+          const eTags = ev.tags.filter((t) => t[0] === 'e' && t[1]);
+          if (eTags.length) {
+            targetId = eTags[eTags.length - 1][1];
+            const pTag = ev.tags.find((t) => t[0] === 'p' && t[1]);
+            targetAuthor = pTag ? pTag[1] : a.pubkey; // referenced note's author (usually you)
+          }
+        }
+        linkTarget = NT.nip19.neventEncode({ id: targetId, author: targetAuthor, relays: [] });
       } catch (_) {}
 
       // The whole card is the click target — open the note in the preferred client.
