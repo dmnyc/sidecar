@@ -646,6 +646,17 @@
     }).catch(() => {});
   }
 
+  const IMG_RE = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif)(?:\?\S*)?/gi;
+  const AV_RE = /https?:\/\/\S+\.(?:mp4|mov|webm|m3u8|mp3|wav|m4a|ogg)(?:\?\S*)?/gi;
+
+  // Pull media URLs out of note content so they can render as previews instead
+  // of as raw links in the text snippet.
+  function extractMedia(content) {
+    const images = content.match(IMG_RE) || [];
+    const av = content.match(AV_RE) || [];
+    return { images, av };
+  }
+
   function cleanSnippet(content) {
     return content
       .replace(/nostr:(npub1\S+|nprofile1\S+)/g, (_, entity) => {
@@ -663,7 +674,8 @@
       .replace(/nostr:note1\S+/g, '[note]')
       .replace(/nostr:nevent1\S+/g, '[note]')
       .replace(/nostr:naddr1\S+/g, '[article]')
-      .replace(/https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif|mp4|mov|mp3|wav|m3u8)(?:\?\S*)?/gi, '[media]')
+      .replace(IMG_RE, '') // shown as thumbnails
+      .replace(AV_RE, '') // shown as a media chip
       .replace(/https?:\/\/([^\s/]+)\S*/g, '$1')
       .replace(/\s+/g, ' ')
       .trim();
@@ -671,7 +683,9 @@
 
   // Load an account's mute list (kind 10000) — newest replaceable event across
   // relays, including both public p-tag mutes and private mutes encrypted in the
-  // content (NIP-04 to self). Deduped per pubkey via a promise cache; when it
+  // content. Private mutes may be NIP-04 (legacy NIP-51) or NIP-44 (newer clients
+  // like Jumble) encrypted to self — try the format the ciphertext looks like,
+  // then fall back to the other. Deduped per pubkey via a promise cache; when it
   // resolves it also drops any already-cached events from muted authors.
   function loadMuteList(pubkey, relays) {
     if (_muteListPromises.has(pubkey)) return _muteListPromises.get(pubkey);
@@ -683,13 +697,19 @@
         if (ev) {
           ev.tags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
           if (ev.content) {
-            try {
-              const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip: 4 });
-              const privateTags = JSON.parse(plain);
-              if (Array.isArray(privateTags)) {
-                privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
-              }
-            } catch (_) {}
+            // NIP-04 ciphertext is "<base64>?iv=<base64>"; NIP-44 is a single
+            // base64 blob. Try the matching scheme first, then the other.
+            const order = ev.content.includes('?iv=') ? [4, 44] : [44, 4];
+            for (const nip of order) {
+              try {
+                const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
+                const privateTags = JSON.parse(plain);
+                if (Array.isArray(privateTags)) {
+                  privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+                  break;
+                }
+              } catch (_) {}
+            }
           }
         }
       } catch (_) {}
@@ -778,7 +798,6 @@
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
-      const item = h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
       const { glyph, text } = notifLabel(ev);
 
       let linkTarget = '';
@@ -786,23 +805,31 @@
         linkTarget = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
       } catch (_) {}
 
+      // The whole card is the click target — open the note in the preferred client.
+      const item = linkTarget
+        ? h('a', {
+            className: 'notif-item notif-clickable' + (isNew ? ' notif-new' : ''),
+            href: client.url(linkTarget),
+            target: '_blank',
+            rel: 'noreferrer noopener',
+            title: 'Open in ' + client.label,
+          })
+        : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
+
       // Top row: glyph · name (truncated) · time · arrow
-      const topRow = h('div', { className: 'notif-top' });
-      topRow.append(
+      const right = h('div', { className: 'notif-top-right' }, [
+        h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) }),
+      ]);
+      if (linkTarget) {
+        const arrow = h('span', { className: 'notif-link' });
+        arrow.appendChild(icon('arrow-up-right'));
+        right.appendChild(arrow);
+      }
+      const topRow = h('div', { className: 'notif-top' }, [
         h('span', { className: 'notif-glyph', textContent: glyph }),
         h('span', { className: 'notif-author', textContent: notifAuthorName(ev.pubkey) }),
-        h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) })
-      );
-      if (linkTarget) {
-        const link = document.createElement('a');
-        link.className = 'notif-link';
-        link.href = client.url(linkTarget);
-        link.target = '_blank';
-        link.rel = 'noreferrer noopener';
-        link.title = 'Open in ' + client.label;
-        link.appendChild(icon('arrow-up-right'));
-        topRow.appendChild(link);
-      }
+        right,
+      ]);
       item.appendChild(topRow);
 
       // Action row
@@ -813,6 +840,28 @@
         if (cleaned) {
           const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
           item.appendChild(h('p', { className: 'notif-content', textContent: snippet }));
+        }
+
+        const { images, av } = extractMedia(ev.content);
+        if (images.length) {
+          const media = h('div', { className: 'notif-media' });
+          images.slice(0, 3).forEach((src) => {
+            const img = document.createElement('img');
+            img.className = 'notif-thumb';
+            img.src = src;
+            img.alt = '';
+            img.loading = 'lazy';
+            img.referrerPolicy = 'no-referrer';
+            img.onerror = () => img.remove();
+            media.appendChild(img);
+          });
+          item.appendChild(media);
+        }
+        if (av.length) {
+          const isVideo = /\.(?:mp4|mov|webm|m3u8)(?:\?|$)/i.test(av[0]);
+          item.appendChild(
+            h('div', { className: 'notif-media-chip', textContent: (isVideo ? '🎬 ' : '🎵 ') + (isVideo ? 'Video' : 'Audio') })
+          );
         }
       }
       return item;
