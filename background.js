@@ -970,6 +970,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // async response
   }
 
+  // Is a side panel currently connected? The welcome page uses this to decide
+  // whether to nudge the user to open/pin Sidecar from the toolbar.
+  if (message.type === 'SIDECAR_PANEL_OPEN') {
+    waitForPanelPort(300).then((port) => sendResponse({ ok: true, open: !!port }));
+    return true; // async response
+  }
+
   if (message.type === 'SIDECAR_PAY_PAGE_INVOICE') {
     const tabId = sender && sender.tab && sender.tab.id;
     let host = '';

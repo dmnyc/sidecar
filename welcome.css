@@ -179,6 +179,22 @@ body {
   width: 32px;
   height: 32px;
   object-fit: contain;
+  /* round square favicons for an app-icon look; transparent/circular logos
+     are unaffected */
+  border-radius: 7px;
+}
+
+/* Apps whose icon is a full-bleed tile (often on a white background) look better
+   without the velvet frame — let the icon fill and become its own rounded tile. */
+.favicon-wrap.flush {
+  background: transparent;
+  border-color: transparent;
+}
+.favicon-wrap.flush img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
 }
 
 .favicon-fallback {
@@ -273,6 +289,72 @@ body {
   height: 1px;
   background: var(--border);
   margin: 4px auto;
+}
+
+/* ===== Toolbar nudge (first run, side panel not open) ===== */
+
+.toolbar-callout {
+  position: fixed;
+  top: 14px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 340px;
+  padding: 14px 30px 14px 16px;
+  background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5);
+  animation: callout-bob 1.9s ease-in-out infinite;
+}
+
+.callout-arrow {
+  position: absolute;
+  top: -8px;
+  right: 26px;
+  width: 15px;
+  height: 15px;
+  background: var(--velvet-1);
+  border-left: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
+  transform: rotate(45deg);
+}
+
+.callout-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+.callout-text { display: flex; flex-direction: column; gap: 3px; }
+.callout-text strong { font-size: 14px; color: var(--text); }
+.callout-text span { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+
+.callout-x {
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px;
+}
+.callout-x:hover { color: var(--text); }
+
+@keyframes callout-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+
+@media (max-width: 600px) {
+  .toolbar-callout { left: 16px; right: 16px; max-width: none; }
+  .callout-arrow { right: 26px; }
 }
 
 /* ===== Hidden cards (filtered out) ===== */

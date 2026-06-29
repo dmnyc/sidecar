@@ -4,7 +4,7 @@ const APPS = [
     url: 'https://jank.army',
     domain: 'jank.army',
     cat: 'social',
-    desc: 'A TweetDeck-style multi-column dashboard for nostr — follow lists, search, and notifications in one view.',
+    desc: 'A TweetDeck-style multi-column dashboard for Nostr — follow lists, search, and notifications in one view.',
     logo: `<svg viewBox="230 166 332 281" aria-hidden="true" style="width:32px;height:27px;color:var(--gold)"><path fill="currentColor" d="M554.5,269.9c-10.61-24.36-56.44-8.2-72.12-0.24c-15.68,7.96-45.35,29.91-54.27,20.02c-8.92-9.89,3.81-21.09,9.65-36.18c5.55-14.35,5.79-36.06,5.79-36.06c0-52.58-47.52-50.55-47.52-50.55s-47.52-2.04-47.52,50.55c0,0,0.24,21.71,5.79,36.06c5.83,15.09,18.57,26.29,9.65,36.18c-8.92,9.89-38.59-12.06-54.27-20.02s-61.51-24.12-72.12,0.24c-10.61,24.36-8.92,62.71,4.82,116.74c0,0,5.07,16.4,7.24,19.3c2.17,2.89,11.1,9.65,8.2-1.93c-2.89-11.58-16.76-101.55,10.01-107.34c0,0,2.53-0.42,4.7,1.09c0,0,7.6,2.41,7.24,15.92c-0.38,14.12-1.63,83.04,15.38,108.9c0,0,5.25,9.05,7.42-1.09c1.66-7.73-9.75-63.72,0.2-89.96c5.31-10.82,16.69-6.17,21-3.89l1.63,0.94c0.05,0.03,0.08,0.05,0.08,0.05l-0.01-0.01l0.02,0.01l-0.01,0c0,0,0.03,0.02,0.05,0.02l2.27,1.3c2.84,1.89,7.26,5.84,7.21,12.12c-1.51,33.64-2.45,95.9,10.98,99.32c0,0,4.7,4.34,3.98-13.39c-0.55-13.43-0.68-59.84,8.56-79.85l0,0.01c0,0,2.86-5.44,9.98-4.98l4.05,0.87l0.02,0.01c0,0,0.02,0,0.05,0.01l0.73,0.16c2.66,0.74,11.18,4.72,11.33,25.16c0.1,13.04,1.81,76.52,11.34,77.04c9.53-0.52,11.24-64,11.34-77.04c0.15-20.45,8.67-24.42,11.33-25.16l0.73-0.16c0.03,0,0.06-0.01,0.06-0.01l0.02-0.01l4.05-0.87c7.12-0.46,9.98,4.98,9.98,4.98l0-0.01c9.24,20.01,9.11,66.42,8.56,79.85c-0.72,17.73,3.98,13.39,3.98,13.39c13.43-3.42,12.49-65.68,10.98-99.32c-0.05-6.29,4.37-10.24,7.21-12.12l2.27-1.3c0.01-0.01,0.05-0.02,0.05-0.02l-0.01,0l0.02-0.01l-0.01,0.01c0,0,0.03-0.02,0.08-0.05l1.63-0.94c4.32-2.28,15.69-6.93,21,3.89c9.94,26.25-1.46,82.23,0.2,89.96c2.17,10.13,7.42,1.09,7.42,1.09c17.01-25.87,15.76-94.78,15.38-108.9c-0.36-13.51,7.24-15.92,7.24-15.92c2.17-1.51,4.7-1.09,4.7-1.09c26.77,5.79,12.9,95.76,10.01,107.34s6.03,4.82,8.2,1.93c2.17-2.89,7.24-19.3,7.24-19.3C563.43,332.61,565.12,294.26,554.5,269.9z"/></svg>`,
   },
   {
@@ -40,7 +40,7 @@ const APPS = [
     url: 'https://habla.news',
     domain: 'habla.news',
     cat: 'longform',
-    desc: 'Write and publish long-form articles on nostr with a clean editor and monetization built in.',
+    desc: 'Write and publish long-form articles on Nostr with a clean editor and monetization built in.',
   },
   {
     name: 'YakiHonne',
@@ -68,14 +68,16 @@ const APPS = [
     url: 'https://nostrnests.com',
     domain: 'nostrnests.com',
     cat: 'audio',
-    desc: 'Audio rooms for chatting, debating, jamming, and micro-conferences over nostr.',
+    desc: 'Audio rooms for chatting, debating, jamming, and micro-conferences over Nostr.',
   },
   {
     name: 'zap.cooking',
     url: 'https://zap.cooking',
     domain: 'zap.cooking',
     cat: 'food',
-    desc: 'A recipe community built on nostr — share, discover, and zap great cooking.',
+    icon: 'icons/apps/zapcooking.jpg',
+    flush: true,
+    desc: 'A recipe community built on Nostr — share, discover, and zap great cooking.',
   },
   {
     name: 'Bookstr',
@@ -89,7 +91,7 @@ const APPS = [
     url: 'https://slidestr.net',
     domain: 'slidestr.net',
     cat: 'images',
-    desc: 'A beautiful image viewer and slideshow browser for nostr photo content.',
+    desc: 'A beautiful image viewer and slideshow browser for Nostr photo content.',
     icon: 'https://slidestr.net/slidestr.svg',
   },
   {
@@ -104,7 +106,7 @@ const APPS = [
     url: 'https://gamestr.io',
     domain: 'gamestr.io',
     cat: 'gaming',
-    desc: 'Decentralized gaming on nostr — play games, earn sats, and own your scores on a censorship-resistant network.',
+    desc: 'Decentralized gaming on Nostr — play games, earn sats, and own your scores on a censorship-resistant network.',
   },
   {
     name: 'Words with Zaps',
@@ -118,6 +120,8 @@ const APPS = [
     url: 'https://mutable.top',
     domain: 'mutable.top',
     cat: 'tools',
+    icon: 'icons/apps/mutable.svg',
+    flush: true,
     desc: 'Manage your mute lists and check your privacy — see who is muting you and how exposed your DM metadata is.',
   },
   {
@@ -125,14 +129,15 @@ const APPS = [
     url: 'https://plebsvszombies.cc',
     domain: 'plebsvszombies.cc',
     cat: 'tools',
-    desc: 'A gamified nostr follow manager — cull your zombie followers and keep your network alive.',
+    flush: true,
+    desc: 'A gamified Nostr follow manager — cull your zombie followers and keep your network alive.',
   },
   {
     name: 'Divine',
     url: 'https://divine.video',
     domain: 'divine.video',
     cat: 'live',
-    desc: 'Short-form looping videos on nostr — discover and share clips with Lightning tipping built in.',
+    desc: 'Short-form looping videos on Nostr — discover and share clips with Lightning tipping built in.',
     icon: 'https://divine.video/favicon.png',
   },
   {
@@ -169,7 +174,7 @@ function renderCard(app) {
   a.dataset.cat = app.cat;
 
   const faviconWrap = document.createElement('div');
-  faviconWrap.className = 'favicon-wrap';
+  faviconWrap.className = 'favicon-wrap' + (app.flush ? ' flush' : '');
 
   if (app.logo) {
     faviconWrap.innerHTML = app.logo;
@@ -254,3 +259,61 @@ document.getElementById('filters').addEventListener('click', e => {
     }
   });
 });
+
+// First-run nudge: if no side panel is open yet, float a caption pointing up to
+// the toolbar so the user knows to open and pin Sidecar. It shows at most once —
+// closing it or reloading the page keeps it gone (a "seen" flag is persisted to
+// chrome.storage.local). Also hides itself if the panel connects.
+(function toolbarNudge() {
+  if (!(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage && chrome.storage && chrome.storage.local)) return;
+  const SEEN_KEY = 'welcomeNudgeSeen';
+  let dismissed = false;
+  let poll = null;
+
+  function stop() { if (poll) { clearInterval(poll); poll = null; } }
+  function hide() {
+    const el = document.getElementById('toolbar-callout');
+    if (el) el.remove();
+  }
+
+  function show() {
+    if (dismissed || document.getElementById('toolbar-callout')) return;
+    const el = document.createElement('div');
+    el.className = 'toolbar-callout';
+    el.id = 'toolbar-callout';
+    el.innerHTML =
+      '<div class="callout-arrow"></div>' +
+      '<img class="callout-icon" src="icons/icon128.png" alt="Sidecar">' +
+      '<div class="callout-text">' +
+        '<strong>Open &amp; pin Sidecar</strong>' +
+        '<span>Click the Extensions button (puzzle-piece icon) up here, pin Sidecar, then click it to open the side panel.</span>' +
+      '</div>' +
+      '<button class="callout-x" aria-label="Dismiss">&times;</button>';
+    document.body.appendChild(el);
+    el.querySelector('.callout-x').addEventListener('click', () => {
+      dismissed = true;
+      stop();
+      el.remove();
+    });
+    // Shown once — don't bring it back on reload.
+    try { chrome.storage.local.set({ [SEEN_KEY]: true }); } catch (_) {}
+  }
+
+  function check() {
+    if (dismissed) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'SIDECAR_PANEL_OPEN' }, (resp) => {
+        if (chrome.runtime.lastError) return; // SW not ready — retry on next poll
+        if (resp && resp.open) { hide(); stop(); }
+        else show();
+      });
+    } catch (_) {}
+  }
+
+  chrome.storage.local.get(SEEN_KEY, (r) => {
+    if (!chrome.runtime.lastError && r && r[SEEN_KEY]) return; // already shown before — stay gone
+    check();
+    poll = setInterval(check, 2500);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  });
+})();
