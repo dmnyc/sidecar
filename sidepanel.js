@@ -138,15 +138,33 @@
   // back into itself and flip the state every frame. The sentinel sits above the
   // card, so the card's resize never moves it — no feedback loop, no flicker.
   let walletCardObserver = null;
-  function observeWalletCard(card, sentinel) {
+  function observeWalletCard(card, sentinel, spacer) {
     if (walletCardObserver) { walletCardObserver.disconnect(); walletCardObserver = null; }
     const root = document.querySelector('.content');
     if (!root || !('IntersectionObserver' in window)) return;
-    walletCardObserver = new IntersectionObserver(
-      (entries) => card.classList.toggle('compact', !entries[0].isIntersecting),
-      { root, rootMargin: '48px 0px 0px 0px', threshold: 0 }
-    );
-    walletCardObserver.observe(sentinel);
+    // Defer until the card has laid out so we can measure its collapse delta.
+    requestAnimationFrame(() => {
+      // How much height the card loses when collapsed. A bottom spacer grows by
+      // exactly this amount while compact, so collapsing never changes the total
+      // scroll height. Without it, collapsing shrinks the document, the scroll
+      // clamps at the bottom, the sentinel re-enters view, and it flickers —
+      // worst on a short page like a wallet with no transactions.
+      card.classList.remove('compact');
+      const expandedH = card.offsetHeight;
+      card.classList.add('compact');
+      const compactH = card.offsetHeight;
+      card.classList.remove('compact');
+      const delta = Math.max(0, expandedH - compactH);
+      walletCardObserver = new IntersectionObserver(
+        (entries) => {
+          const compact = !entries[0].isIntersecting;
+          card.classList.toggle('compact', compact);
+          if (spacer) spacer.style.height = compact ? delta + 'px' : '0px';
+        },
+        { root, rootMargin: '48px 0px 0px 0px', threshold: 0 }
+      );
+      walletCardObserver.observe(sentinel);
+    });
   }
 
   // Background broadcasts (e.g. a WebLN payment paid via the service worker
@@ -3455,6 +3473,18 @@
     });
     restoreBlock.append(restore, restoreNote);
     view.append(restoreBlock);
+
+    // Help users who don't have an NWC-capable wallet yet.
+    const find = h('a', {
+      className: 'explore-link wallet-find-link',
+      href: '#',
+      textContent: 'Need a wallet? See suggestions →',
+    });
+    find.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+    });
+    view.append(find);
   }
 
   async function renderWalletConnected(view) {
@@ -3491,7 +3521,6 @@
     });
     card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit);
     view.append(card);
-    observeWalletCard(card, sentinel);
 
     // Actions
     const actions = h('div', { className: 'wallet-actions' });
@@ -3520,6 +3549,22 @@
     disc.addEventListener('click', () => disconnectModal());
     view.append(disc);
 
+    // Self-custody disclaimer (bottom of the wallet screen).
+    view.append(
+      h('p', { className: 'wallet-disclaimer' }, [
+        h('strong', { textContent: 'IMPORTANT: ' }),
+        document.createTextNode(
+          'Sidecar never holds user funds. You manage your own wallet and are responsible for securing it properly.'
+        ),
+      ])
+    );
+
+    // Bottom spacer that absorbs the card's collapse delta so the page height
+    // stays constant when the balance card compacts (prevents scroll flicker).
+    // The collapse observer is attached later, once content has loaded — see below.
+    const spacer = h('div', { className: 'wallet-spacer' });
+    view.append(spacer);
+
     // Load data
     let client = null;
     try { client = await ensureNwc(); } catch (_) {}
@@ -3532,7 +3577,11 @@
       if (!cached) { bal.textContent = '—'; unit.textContent = 'balance unavailable'; }
     }
     bal.classList.remove('loading');
-    loadTransactions(txList, client);
+    // Attach the collapse observer only after the balance and transactions have
+    // loaded — while content is still resizing, an active observer would cross the
+    // collapse trigger repeatedly and flicker (worst on the loading "…" state).
+    await loadTransactions(txList, client);
+    observeWalletCard(card, sentinel, spacer);
   }
 
   // Centered placeholder for list cards (loading / empty / error) so the text
