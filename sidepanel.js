@@ -648,6 +648,76 @@
       : { glyph: '@', text: 'mentioned you' };
   }
 
+  // The actual zapper for a kind:9735 receipt — the receipt's own pubkey is the
+  // LNURL zap service, not the person. Prefer the `P` tag, then the embedded zap
+  // request's pubkey; fall back to the receipt pubkey. For non-zaps, just the author.
+  function zapSender(ev) {
+    if (ev.kind !== 9735) return ev.pubkey;
+    const P = ev.tags.find((t) => t[0] === 'P' && t[1]);
+    if (P) return P[1];
+    const desc = ev.tags.find((t) => t[0] === 'description');
+    if (desc) {
+      try { const r = JSON.parse(desc[1]); if (r && r.pubkey) return r.pubkey; } catch (_) {}
+    }
+    return ev.pubkey;
+  }
+
+  // Resolve where a notification should open, as a full client URL — always
+  // something the client can actually render. A reply/mention opens the note
+  // itself; a reaction/repost/zap opens the note (or article) it refers to.
+  // Crucially, a *profile* zap (no e/a tag — zapping a person, not a note) opens
+  // a PROFILE rather than the kind:9735 receipt, which clients like Jumble show
+  // as "note not found". For zaps we also read the embedded zap request, since
+  // the e/a/p tags and the zapper live there. Returns '' when there's no sensible
+  // target (card just isn't clickable then).
+  function notifLink(ev, client, acctPubkey) {
+    try {
+      // kind 1 (reply/mention) → the note itself.
+      if (ev.kind === 1) {
+        return client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] }));
+      }
+
+      let tags = ev.tags;
+      let zapper = '';
+      if (ev.kind === 9735) {
+        zapper = zapSender(ev);
+        const descTag = ev.tags.find((t) => t[0] === 'description');
+        if (descTag) {
+          try {
+            const req = JSON.parse(descTag[1]);
+            if (req && Array.isArray(req.tags)) tags = ev.tags.concat(req.tags);
+          } catch (_) {}
+        }
+      }
+
+      // A referenced note (reacted/reposted/zapped note, or reply target).
+      const eTag = tags.filter((t) => t[0] === 'e' && t[1]).pop();
+      if (eTag) {
+        const pTag = tags.find((t) => t[0] === 'p' && t[1]); // note author = recipient
+        return client.url(NT.nip19.neventEncode({ id: eTag[1], author: pTag ? pTag[1] : acctPubkey, relays: [] }));
+      }
+
+      // A referenced addressable event (e.g. a long-form article).
+      const aTag = tags.filter((t) => t[0] === 'a' && t[1]).pop();
+      if (aTag) {
+        const parts = aTag[1].split(':');
+        const kind = parseInt(parts[0], 10);
+        if (parts[1] && !Number.isNaN(kind)) {
+          return client.url(NT.nip19.naddrEncode({ kind, pubkey: parts[1], identifier: parts[2] || '', relays: [] }));
+        }
+      }
+
+      // No note/article — a profile zap. Open a profile (renders everywhere):
+      // the zapper if we know them, else the recipient.
+      if (ev.kind === 9735) {
+        const recipient = (tags.find((t) => t[0] === 'p' && t[1]) || [])[1];
+        const who = zapper || recipient || acctPubkey;
+        if (who) return client.profile(NT.nip19.npubEncode(who));
+      }
+    } catch (_) {}
+    return '';
+  }
+
   function notifAuthorName(pubkey) {
     const cached = _notifProfiles.get(pubkey);
     if (typeof cached === 'string' && cached) return cached;
@@ -813,7 +883,7 @@
     // content, so tagged usernames render as names instead of raw npubs.
     const need = new Set();
     events.forEach((e) => {
-      need.add(e.pubkey);
+      need.add(zapSender(e)); // the zapper for zaps, the author otherwise
       if (e.kind === 1 && e.content) {
         const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
         let mm;
@@ -834,29 +904,15 @@
       const isNew = ev.created_at > seenAt;
       const { glyph, text } = notifLabel(ev);
 
-      // A reply/mention (kind 1) opens the event itself; a reaction/repost/zap
-      // (7/6/9735) should open the note it refers to — the `e` tag — not the
-      // meta-event, which renders as a lone heart/repost in the client.
-      let linkTarget = '';
-      try {
-        let targetId = ev.id;
-        let targetAuthor = ev.pubkey;
-        if (ev.kind !== 1) {
-          const eTags = ev.tags.filter((t) => t[0] === 'e' && t[1]);
-          if (eTags.length) {
-            targetId = eTags[eTags.length - 1][1];
-            const pTag = ev.tags.find((t) => t[0] === 'p' && t[1]);
-            targetAuthor = pTag ? pTag[1] : a.pubkey; // referenced note's author (usually you)
-          }
-        }
-        linkTarget = NT.nip19.neventEncode({ id: targetId, author: targetAuthor, relays: [] });
-      } catch (_) {}
+      // Where this notification opens (a renderable note/article/profile URL), or
+      // '' when there's no sensible target.
+      const linkTarget = notifLink(ev, client, a.pubkey);
 
-      // The whole card is the click target — open the note in the preferred client.
+      // The whole card is the click target — open it in the preferred client.
       const item = linkTarget
         ? h('a', {
             className: 'notif-item notif-clickable' + (isNew ? ' notif-new' : ''),
-            href: client.url(linkTarget),
+            href: linkTarget,
             target: '_blank',
             rel: 'noreferrer noopener',
             title: 'Open in ' + client.label,
@@ -874,7 +930,7 @@
       }
       const topRow = h('div', { className: 'notif-top' }, [
         h('span', { className: 'notif-glyph', textContent: glyph }),
-        h('span', { className: 'notif-author', textContent: notifAuthorName(ev.pubkey) }),
+        h('span', { className: 'notif-author', textContent: notifAuthorName(zapSender(ev)) }),
         right,
       ]);
       item.appendChild(topRow);
