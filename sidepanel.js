@@ -750,7 +750,7 @@
     await loadNotifSeen();
     const relays = await relayUrls(false);
     if (!relays.length) return;
-    const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
+    const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // notification backfill window
 
     for (const a of state.accounts) {
       if (_notifCache.has(a.pubkey)) continue;
@@ -809,10 +809,26 @@
     const events = muted && muted.size ? cache.events.filter((e) => !muted.has(e.pubkey)) : cache.events;
     const PAGE = 25;
 
-    // Kick off profile fetches for any senders not yet cached, then wait briefly
-    const uncached = [...new Set(events.map((e) => e.pubkey))].filter((pk) => !_notifProfiles.get(pk));
+    // Resolve display names for the senders AND any @-mentions inside note
+    // content, so tagged usernames render as names instead of raw npubs.
+    const need = new Set();
+    events.forEach((e) => {
+      need.add(e.pubkey);
+      if (e.kind === 1 && e.content) {
+        const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+        let mm;
+        while ((mm = re.exec(e.content)) !== null) {
+          try {
+            const d = NT.nip19.decode(mm[1]);
+            const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
+            if (pk) need.add(pk);
+          } catch (_) {}
+        }
+      }
+    });
+    const uncached = [...need].filter((pk) => !_notifProfiles.get(pk));
     uncached.forEach((pk) => prefetchNotifProfile(pk, relays));
-    if (uncached.length) await new Promise((r) => setTimeout(r, 600));
+    if (uncached.length) await new Promise((r) => setTimeout(r, 700));
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
@@ -928,6 +944,7 @@
 
       let shown = 0;
       let moreBtn = null;
+      let endNote = null;
 
       function loadMore() {
         const next = events.slice(shown, shown + PAGE);
@@ -935,6 +952,29 @@
         shown += next.length;
         if (shown >= events.length) {
           if (moreBtn) { moreBtn.remove(); moreBtn = null; }
+          if (!endNote) {
+            const sub = h('p', { className: 'notif-end-sub' });
+            let profileUrl = '';
+            try { profileUrl = client.profile(NT.nip19.npubEncode(a.pubkey)); } catch (_) {}
+            sub.appendChild(document.createTextNode('Visit '));
+            if (profileUrl) {
+              const link = document.createElement('a');
+              link.className = 'notif-end-link';
+              link.href = profileUrl;
+              link.target = '_blank';
+              link.rel = 'noreferrer noopener';
+              link.textContent = client.label;
+              sub.appendChild(link);
+            } else {
+              sub.appendChild(document.createTextNode(client.label));
+            }
+            sub.appendChild(document.createTextNode(' for more history.'));
+            endNote = h('div', { className: 'notif-end' }, [
+              h('p', { className: 'notif-end-title', textContent: "You're all caught up." }),
+              sub,
+            ]);
+            scroll.appendChild(endNote);
+          }
         } else if (!moreBtn) {
           moreBtn = h('button', { className: 'notif-load-more', textContent: 'Load more' });
           moreBtn.addEventListener('click', loadMore);
@@ -2138,7 +2178,7 @@
     primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
     coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
     nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
-    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/notes/' + ne, profile: (np) => 'https://yakihonne.com/users/' + np },
+    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
     njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
   };
   const DEFAULT_CLIENT = 'jumble';
