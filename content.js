@@ -145,34 +145,125 @@
   }
 
   const INVOICE_RE = /ln(?:bc|tb)[0-9][a-z0-9]{20,}/i;
-  // Returns the first BOLT11 invoice found on the page (lowercased), or ''.
+  const INVOICE_TEXT_RE = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i;
+  // Elements that signal an active pay/zap prompt rather than an incidental
+  // invoice in page content. A QR alongside the invoice is the strongest tell.
+  const QR_SEL = 'canvas, img[alt*="qr" i], img[src*="qr" i], [class*="qr" i], [data-testid*="qr" i]';
+
+  // Skip invoices that have already expired — a lingering or used invoice
+  // shouldn't interrupt the user with a pay prompt. Decodes the BOLT11 timestamp
+  // and `x` (expiry) field from its bech32 data (reuses BECH32 above). Defensive:
+  // any parse doubt returns false (not expired) so a valid invoice is never
+  // wrongly suppressed.
+  function invoiceExpired(bolt11) {
+    try {
+      const s = bolt11.toLowerCase();
+      const sep = s.lastIndexOf('1'); // bech32 data charset excludes '1'
+      if (sep < 1) return false;
+      const data = s.slice(sep + 1);
+      if (data.length < 7 + 104 + 6) return false; // timestamp + sig + checksum
+      const val = (c) => BECH32.indexOf(c);
+      let ts = 0;
+      for (let i = 0; i < 7; i++) { const v = val(data[i]); if (v < 0) return false; ts = ts * 32 + v; }
+      let expiry = 3600; // BOLT11 default
+      const taggedEnd = data.length - 110; // 104-symbol signature + 6-symbol checksum
+      let i = 7;
+      while (i + 3 <= taggedEnd) {
+        const l1 = val(data[i + 1]); const l2 = val(data[i + 2]);
+        if (l1 < 0 || l2 < 0) break;
+        const len = l1 * 32 + l2;
+        const start = i + 3;
+        if (start + len > taggedEnd) break;
+        if (data[i] === 'x') {
+          let v = 0; let ok = true;
+          for (let j = 0; j < len; j++) { const d = val(data[start + j]); if (d < 0) { ok = false; break; } v = v * 32 + d; }
+          if (ok) expiry = v;
+        }
+        i = start + len;
+      }
+      if (!ts) return false;
+      return Math.floor(Date.now() / 1000) > ts + (expiry || 3600) + 30; // 30s grace
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Is this node inside a deliberate pay/zap surface — a modal dialog, a payment
+  // web component (Bitcoin Connect / WalletConnect), or next to a QR — rather
+  // than an invoice incidentally rendered in page content?
+  function hasPayIntent(el) {
+    let node = el, hops = 0;
+    while (node && hops < 24) {
+      if (node.nodeType === 1) {
+        const tag = (node.tagName || '').toLowerCase();
+        if (/^(bc-|bci-|wcm-|w3m-)/.test(tag)) return true;
+        if (node.getAttribute) {
+          const role = node.getAttribute('role');
+          if (role === 'dialog' || role === 'alertdialog' || node.getAttribute('aria-modal') === 'true') return true;
+        }
+        if (hops <= 8 && node.querySelector) {
+          try { if (node.querySelector(QR_SEL)) return true; } catch (_) {}
+        }
+      }
+      node = node.parentNode || node.host || null;
+      hops++;
+    }
+    return false;
+  }
+
+  // Returns a *payable* BOLT11 invoice on the page (lowercased) — one shown with
+  // clear intent (a lightning: link, or an invoice inside a pay/zap modal or
+  // beside a QR) and not expired. A bare invoice sitting in page text/content is
+  // ignored so it can't interrupt the user. Returns '' when there's nothing to act on.
   function findPageInvoice() {
-    // Pierce shadow DOM — web-component modals (e.g. Bitcoin Connect) render the
-    // link inside a shadow root. Scan lightning: links, then input/textarea values
-    // (satellite.earth puts a bare lnbc... in a readonly input), then page text.
+    // Pierce shadow DOM — web-component modals (e.g. Bitcoin Connect) render
+    // inside a shadow root. Collect candidates across all roots, then qualify.
     const roots = [document];
+    const fields = [];
+    const qrEls = [];
     for (let i = 0; i < roots.length && i < 2000; i++) {
-      let links, fields, all;
+      let links, inputs, qrs, all;
       try {
         links = roots[i].querySelectorAll('a[href^="lightning:" i]');
-        fields = roots[i].querySelectorAll('input, textarea');
+        inputs = roots[i].querySelectorAll('input, textarea');
+        qrs = roots[i].querySelectorAll(QR_SEL);
         all = roots[i].querySelectorAll('*');
       } catch (_) {
         continue;
       }
+      // 1) lightning: links — an explicit, user-clickable pay intent.
       for (const a of links) {
         const m = INVOICE_RE.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
-        if (m) return m[0].toLowerCase();
+        if (m) { const inv = m[0].toLowerCase(); if (!invoiceExpired(inv)) return inv; }
       }
-      for (const f of fields) {
-        const m = INVOICE_RE.exec(f.value || f.getAttribute('value') || '');
-        if (m) return m[0].toLowerCase();
-      }
+      for (const f of inputs) fields.push(f);
+      for (const q of qrs) qrEls.push(q);
       for (const el of all) if (el.shadowRoot) roots.push(el.shadowRoot);
     }
-    // Fallback: a BOLT11 in the page's visible text (a copyable invoice field).
-    const m2 = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i.exec(document.body ? document.body.innerText : '');
-    return m2 ? m2[0].toLowerCase() : '';
+    // 2) invoice in an input/textarea, but only when shown in a pay/zap context.
+    for (const f of fields) {
+      const m = INVOICE_RE.exec(f.value || f.getAttribute('value') || '');
+      if (!m) continue;
+      const inv = m[0].toLowerCase();
+      if (!invoiceExpired(inv) && hasPayIntent(f)) return inv;
+    }
+    // 3) invoice rendered as text right beside a QR (the common zap-modal shape).
+    for (const q of qrEls) {
+      let node = q, hops = 0;
+      while (node && hops < 6) {
+        let text = '';
+        try { text = node.innerText || node.textContent || ''; } catch (_) {}
+        const m = INVOICE_TEXT_RE.exec(text);
+        if (m) {
+          const inv = m[0].toLowerCase();
+          if (!invoiceExpired(inv)) return inv;
+          break; // expired — move on to the next QR
+        }
+        node = node.parentNode || node.host || null;
+        hops++;
+      }
+    }
+    return '';
   }
 
   function escapeHtml(s) {
