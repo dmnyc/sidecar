@@ -2865,6 +2865,18 @@
       const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
       const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
 
+      // Same identity strip as the editor — who's posting shouldn't be ambiguous
+      // right before it actually publishes.
+      const active = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
+      const author = h('div', { className: 'compose-author' });
+      author.append(avatarEl(active || {}, 'compose-author-av'));
+      author.append(
+        h('div', { className: 'compose-author-info' }, [
+          h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+          h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
+        ])
+      );
+
       // The note exactly as it will be published, for a last review.
       const previewScroll = h('div', { className: 'countdown-preview' });
       const previewBody = h('div', { className: 'preview-body' });
@@ -2897,6 +2909,7 @@
 
       modal.append(
         h('h3', { textContent: 'Posting your note' }),
+        author,
         h('p', { className: 'hint', textContent: 'Review before it posts.' }),
         previewScroll,
         ringWrap,
