@@ -37,6 +37,43 @@ async function getConfiguredRelays() {
   return (await sget('sidecar_relays')).sidecar_relays || DEFAULT_RELAYS;
 }
 
+// ---- SSRF guard for server-side fetches (link previews) ----
+// The service worker fetch bypasses CORS and can reach the user's private
+// network, so refuse hostnames that resolve to loopback / private / link-local
+// space (incl. cloud metadata at 169.254.169.254) and non-http(s) schemes.
+function isPrivateHostname(host) {
+  const h = (host || '').toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (v4) {
+    const a = +v4[1], b = +v4[2];
+    if ([a, b, +v4[3], +v4[4]].some((n) => n > 255)) return true;
+    if (a === 0 || a === 10 || a === 127) return true;         // this-host, private, loopback
+    if (a === 169 && b === 254) return true;                    // link-local + metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;           // private
+    if (a === 192 && b === 168) return true;                    // private
+    if (a === 100 && b >= 64 && b <= 127) return true;          // CGNAT
+    if (a >= 224) return true;                                  // multicast / reserved
+    return false;
+  }
+  // IPv6 literals (URL.hostname strips the brackets).
+  if (h === '::1' || h === '::') return true;
+  if (h.startsWith('fe80') || h.startsWith('fc') || h.startsWith('fd')) return true; // link-local / ULA
+  if (h.startsWith('::ffff:')) return true; // IPv4-mapped
+  return false;
+}
+
+// Validate a URL intended for a server-side fetch. Returns the parsed URL or null.
+function safeFetchUrl(raw) {
+  let u;
+  try { u = new URL(raw); } catch (_) { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.username || u.password) return null; // no embedded credentials
+  if (isPrivateHostname(u.hostname)) return null;
+  return u;
+}
+
 // ---- per-site account binding ----
 // A web client caches the pubkey from its first getPublicKey() and has no way to
 // learn about an account switch. So we PIN each host to the account it logged in
@@ -265,6 +302,38 @@ function settlePrompt(promptId, action, extra) {
 // ============================================================================
 // Page RPC handling (window.nostr.*)
 // ============================================================================
+
+// A genuine NIP-42 AUTH event (kind 22242): its only tags are `relay` and
+// `challenge`, its content is empty (per spec), and its timestamp is close to
+// now. We auto-approve only these — a kind-22242 event carrying arbitrary tags,
+// content, or a skewed created_at is treated as a normal signing request that
+// needs the user's approval, so the exemption can't be used as a silent oracle.
+const NIP42_MAX_CLOCK_SKEW = 600; // seconds
+function isNip42AuthEvent(ev) {
+  if (!ev || ev.kind !== 22242 || !Array.isArray(ev.tags)) return false;
+  let hasRelay = false;
+  let hasChallenge = false;
+  for (const t of ev.tags) {
+    if (!Array.isArray(t) || typeof t[0] !== 'string') return false;
+    if (t[0] === 'relay') {
+      if (typeof t[1] !== 'string' || !t[1]) return false;
+      hasRelay = true;
+    } else if (t[0] === 'challenge') {
+      if (typeof t[1] !== 'string' || !t[1]) return false;
+      hasChallenge = true;
+    } else {
+      return false; // any other tag ⇒ not a plain auth event
+    }
+  }
+  if (!hasRelay || !hasChallenge) return false;
+  if (ev.content != null && ev.content !== '') return false;
+  if (ev.created_at != null) {
+    const skew = Math.abs(Math.floor(Date.now() / 1000) - Number(ev.created_at));
+    if (!Number.isFinite(skew) || skew > NIP42_MAX_CLOCK_SKEW) return false;
+  }
+  return true;
+}
+
 async function handleNostrRpc(method, params, host, sendResponse) {
   try {
     if (!host) throw new Error('Missing host');
@@ -283,12 +352,17 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // event that relays request frequently; an interactive prompt for it
     // guarantees client-side timeouts ("Signer did not respond in time"). Treat
     // it as pre-approved for any non-blocked site — only an unlock can gate it.
+    // But the exemption is a silent signing oracle if abused, so we only skip the
+    // prompt when the event is a *well-formed* auth event (see isNip42AuthEvent):
+    // relay + challenge tags only, near-current timestamp, no arbitrary payload.
+    // Anything else falls back to the normal approval prompt.
     let signKind = null;
+    let signEvent = null;
     if (method === 'signEvent') {
-      const ev = params && (params.event || params);
-      signKind = ev && ev.kind;
+      signEvent = params && (params.event || params);
+      signKind = signEvent && signEvent.kind;
     }
-    const isRelayAuth = method === 'signEvent' && signKind === 22242;
+    const isRelayAuth = method === 'signEvent' && isNip42AuthEvent(signEvent);
 
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
@@ -725,10 +799,16 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_FETCH_OG': {
         // Fetch a URL from the SW (no CORS restriction) and parse OG/meta tags.
         // Returns { title, description, image, site } or null on failure.
-        const ogUrl = message.url;
+        const ogTarget = safeFetchUrl(message.url);
+        if (!ogTarget) { result = null; break; }
+        const ogUrl = ogTarget.href;
         try {
-          const resp = await fetch(ogUrl, { signal: AbortSignal.timeout(8000) });
+          const resp = await fetch(ogUrl, { signal: AbortSignal.timeout(8000), redirect: 'follow' });
           if (!resp.ok) { result = null; break; }
+          // A redirect can bounce a public URL onto the private network; reject if
+          // the final response landed on a blocked host.
+          const finalUrl = safeFetchUrl(resp.url || ogUrl);
+          if (!finalUrl) { result = null; break; }
           const ct = resp.headers.get('content-type') || '';
           if (!ct.includes('text/html')) { result = null; break; }
           const html = await resp.text();
