@@ -160,11 +160,11 @@ input:focus, select:focus, textarea:focus {
   background: linear-gradient(180deg, #2a1257, #160a30); box-shadow: 0 0 0 1px var(--gold-soft);
 }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.profile-edit-btn {
-  position: absolute; top: 8px; right: 8px;
-  background: rgba(13, 6, 30, 0.55); border: 1px solid var(--border-strong);
-  backdrop-filter: blur(4px);
+.profile-body .profile-edit-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  width: auto; margin: 12px auto 0; padding: 8px 18px; border-radius: 999px;
 }
+.profile-body .profile-edit-cta svg { width: 15px; height: 15px; display: block; }
 .profile-body { text-align: center; }
 .profile-name { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 8px 0 3px; overflow-wrap: anywhere; }
 .profile-npub {

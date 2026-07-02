@@ -1969,12 +1969,6 @@
     } else {
       header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
     }
-    const editBtn = document.createElement('button');
-    editBtn.className = 'icon-btn profile-edit-btn';
-    editBtn.title = 'Edit profile';
-    editBtn.appendChild(icon('edit'));
-    editBtn.addEventListener('click', () => openProfileEdit(content));
-    header.append(editBtn);
     header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
     view.append(header);
 
@@ -2008,6 +2002,11 @@
     getFollowCount(active.pubkey).then((n) => {
       followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
     });
+
+    const editBtn = h('button', { className: 'secondary profile-edit-cta' });
+    editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
+    editBtn.addEventListener('click', () => openProfileEdit(content));
+    body.append(editBtn);
 
     if (content.about) {
       const about = h('p', { className: 'profile-about' });
