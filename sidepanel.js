@@ -1992,8 +1992,17 @@
     // Following count (fetched from the account's kind:3). Followers are out of
     // scope for now — they require an aggregating index, not a single event.
     const followNum = h('strong', { textContent: '…' });
+    const backupJump = h('button', { className: 'profile-backup-jump', title: 'Backup & restore' });
+    backupJump.innerHTML =
+      '<svg viewBox="0 0 22 22" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<path d="M10.9851 0C7.6057 0 4.58375 1.52106 2.56398 3.91405L0.855461 2.20784V7.70159H6.35666L4.78529 6.13235C6.22953 4.30005 8.46896 3.12232 10.9851 3.12232C15.3417 3.12232 18.8734 6.64928 18.8734 11C18.8734 15.3507 15.3417 18.8776 10.9851 18.8776C6.88814 18.8776 3.52149 15.7583 3.13471 11.7682H0C0.395343 17.4845 5.16066 22 10.9851 22C17.0685 22 22 17.0751 22 11C22 4.92486 17.0685 0 10.9851 0Z"/></svg>';
+    backupJump.addEventListener('click', () => {
+      const el = view.querySelector('.backup-setting');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     const followStat = h('div', { className: 'profile-stats' }, [
       h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
+      backupJump,
     ]);
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
@@ -3673,6 +3682,273 @@
       });
   }
 
+  // ---- Follow-list recovery (Powered by Mutable — ported from github.com/dmnyc/mutable) ----
+  // kind:3 is replaceable, so a buggy client publishing an empty/short list
+  // overwrites your follows everywhere. Relays don't delete old versions though —
+  // they just stop serving them as "current". Scanning a broad relay set with a
+  // limit>1 turns them up, so the user can republish a healthy earlier version.
+  // Cast a WIDE net when scanning for old versions — coverage beats reliability
+  // here (dead relays just time out). Includes the big general relays where a
+  // user likely published over the years, plus archival/cache relays that keep
+  // historical events. Queried on top of the user's own configured + NIP-65 relays.
+  const FOLLOW_SCAN_RELAYS = [
+    'wss://purplepag.es',        // aggregates kind:0/3/10002
+    'wss://relay.primal.net',
+    'wss://cache0.primal.net',   // Primal caches keep historical events
+    'wss://cache1.primal.net',
+    'wss://cache2.primal.net',
+    'wss://nos.lol',
+    'wss://relay.snort.social',
+    'wss://relay.damus.io',      // dying, but historically the biggest default → old copies live here
+    'wss://nostr.wine',
+    'wss://offchain.pub',
+    'wss://nostr.mom',
+    'wss://relay.noswhere.com',
+  ];
+  // Where a RESTORED list is republished (in addition to the account's own write
+  // relays) — writable, broad-reach relays only, so the restore actually lands.
+  const FOLLOW_PUBLISH_RELAYS = ['wss://purplepag.es', 'wss://nos.lol', 'wss://offchain.pub', 'wss://nostr.mom'];
+
+  async function scanFollowListHistory(pubkey) {
+    const configured = await relayUrls(false);
+    const n = await getNip65(pubkey);
+    const nip65 = n ? [...n.read, ...n.write] : [];
+    const relays = [...new Set([...configured, ...nip65, ...FOLLOW_SCAN_RELAYS])];
+
+    const byId = new Map();
+    const responding = new Set();
+    await Promise.all(
+      relays.map(async (relay) => {
+        try {
+          const evs = await Promise.race([
+            getPool().querySync([relay], { kinds: [3], authors: [pubkey], limit: 20 }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+          ]);
+          if (evs && evs.length) responding.add(relay);
+          (evs || []).forEach((ev) => {
+            if (ev.kind !== 3 || ev.pubkey !== pubkey) return;
+            let c = byId.get(ev.id);
+            if (!c) {
+              const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
+              c = { event: ev, eventId: ev.id, createdAt: ev.created_at, followCount: set.size, foundOnRelays: [] };
+              byId.set(ev.id, c);
+            }
+            if (!c.foundOnRelays.includes(relay)) c.foundOnRelays.push(relay);
+          });
+        } catch (_) {}
+      })
+    );
+
+    const candidates = [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
+    const current = candidates[0] || null;
+    const recommended = pickRecommendedRecovery(candidates, current);
+    return { current, candidates, recommended, respondingRelays: [...responding] };
+  }
+
+  function pickRecommendedRecovery(candidates, current) {
+    const ranked = [...candidates]
+      .sort((a, b) => b.followCount - a.followCount || b.createdAt - a.createdAt)
+      .filter((c) => c.followCount > 0);
+    const currentCount = current ? current.followCount : 0;
+    const currentId = current ? current.eventId : null;
+    for (const c of ranked) {
+      if (c.eventId === currentId) continue;
+      if (c.followCount > currentCount) return c;
+    }
+    return null;
+  }
+
+  async function recoverFollowList(candidate) {
+    const preserved = candidate.event.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64);
+    const event = {
+      kind: 3,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: preserved,
+      content: candidate.event.content || '',
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+    const targets = [...new Set([...(await postRelays()), ...FOLLOW_PUBLISH_RELAYS])];
+    return publishToRelays(targets, signed);
+  }
+
+  function mutableAttribution() {
+    const a = h('a', {
+      className: 'mutable-credit',
+      href: 'https://mutable.top',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    });
+    const logo = document.createElement('img');
+    logo.className = 'mutable-logo';
+    logo.src = 'icons/apps/mutable.svg';
+    logo.alt = '';
+    a.append(logo, h('span', { textContent: 'Powered by Mutable' }));
+    return a;
+  }
+
+  function followRecoveryModal(active) {
+    openModal((modal) => {
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      const body = h('div', { className: 'recovery-modal' });
+      modal.append(xBtn, body);
+
+      let lastRes = null;
+      const clear = () => { body.innerHTML = ''; };
+      const spinner = (text) =>
+        h('div', { className: 'recv-waiting' }, [h('span', { className: 'recv-spinner' }), h('span', { textContent: text })]);
+
+      function showIntro() {
+        clear();
+        const scan = h('button', { className: 'primary', textContent: 'Scan relays' });
+        scan.addEventListener('click', runScan);
+        body.append(
+          h('h3', { textContent: 'Restore follow list' }),
+          h('p', {
+            className: 'hint',
+            textContent:
+              'If another app wiped or shrank your follows, scan your relays for older versions of your follow list and republish a healthy one.',
+          }),
+          h('div', { className: 'actions' }, [scan]),
+          mutableAttribution()
+        );
+      }
+
+      async function runScan() {
+        clear();
+        body.append(h('h3', { textContent: 'Scanning…' }), spinner('Checking your relays for older versions…'));
+        try {
+          lastRes = await scanFollowListHistory(active.pubkey);
+          showResults();
+        } catch (e) {
+          showError(e.message);
+        }
+      }
+
+      function showResults() {
+        clear();
+        const res = lastRes;
+        // Empty (0-follow) versions are the damage, not something worth restoring — hide them.
+        const shown = res.candidates.filter((c) => c.followCount > 0);
+        if (!shown.length) {
+          const retry = h('button', { className: 'secondary', textContent: 'Scan again' });
+          retry.addEventListener('click', runScan);
+          body.append(
+            h('h3', { textContent: 'No versions found' }),
+            h('p', { className: 'hint', textContent: 'No follow-list versions with follows turned up on your relays.' }),
+            h('div', { className: 'actions' }, [retry])
+          );
+          return;
+        }
+        body.append(
+          h('h3', { textContent: 'Choose a version to restore' }),
+          h('p', {
+            className: 'hint',
+            textContent:
+              'Found ' + shown.length + ' version' + (shown.length === 1 ? '' : 's') +
+              ' across ' + res.respondingRelays.length + ' relay' + (res.respondingRelays.length === 1 ? '' : 's') + '.',
+          })
+        );
+        const list = h('div', { className: 'list flat recovery-list' });
+        shown.forEach((c) => {
+          const isCurrent = res.current && c.eventId === res.current.eventId;
+          const isRec = res.recommended && c.eventId === res.recommended.eventId;
+          const badges = [];
+          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: 'Current' }));
+          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: 'Recommended' }));
+          const meta = h('div', { className: 'recovery-meta' }, [
+            h('div', { className: 'recovery-count' }, [
+              h('strong', { textContent: c.followCount.toLocaleString('en-US') }),
+              document.createTextNode(' following'),
+            ]),
+            h('div', {
+              className: 'recovery-sub',
+              textContent: relativeTime(c.createdAt) + ' · ' + c.foundOnRelays.length + ' relay' + (c.foundOnRelays.length === 1 ? '' : 's'),
+            }),
+            badges.length ? h('div', { className: 'recovery-badges' }, badges) : document.createTextNode(''),
+          ]);
+          const row = h('div', { className: 'item recovery-row' + (isRec ? ' rec' : '') }, [meta]);
+          if (!isCurrent && c.followCount > 0) {
+            const pick = h('button', { className: 'mini', textContent: 'Restore' });
+            pick.addEventListener('click', () => showConfirm(c));
+            row.append(h('div', { className: 'item-actions' }, [pick]));
+          }
+          list.append(row);
+        });
+        body.append(list, mutableAttribution());
+      }
+
+      function showConfirm(c) {
+        clear();
+        const restore = h('button', { className: 'primary', textContent: 'Restore' });
+        restore.addEventListener('click', () => runRestore(c));
+        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        back.addEventListener('click', showResults);
+        body.append(
+          h('h3', { textContent: 'Restore this version?' }),
+          h('p', { className: 'hint warn', textContent: 'This replaces your current follow list everywhere and cannot be automatically undone.' }),
+          h('div', { className: 'recovery-confirm' }, [
+            h('div', { className: 'recovery-count-lg' }, [
+              h('strong', { textContent: c.followCount.toLocaleString('en-US') }),
+              document.createTextNode(' accounts followed'),
+            ]),
+            h('div', {
+              className: 'recovery-sub',
+              textContent: new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt),
+            }),
+          ]),
+          h('div', { className: 'actions' }, [restore, back])
+        );
+      }
+
+      async function runRestore(c) {
+        clear();
+        body.append(h('h3', { textContent: 'Restoring…' }), spinner('Publishing your follow list…'));
+        try {
+          const ok = await recoverFollowList(c);
+          // Invalidate cached follow data so the profile count + @mention list
+          // reflect the restore.
+          followCountCache.delete(active.pubkey);
+          followListCache = null;
+          followListPubkey = null;
+          showDone(ok, c);
+          toast('Follow list restored', 'success');
+        } catch (e) {
+          showError(e.message);
+        }
+      }
+
+      function showDone(ok, c) {
+        clear();
+        const done = h('button', { className: 'primary', textContent: 'Done' });
+        done.addEventListener('click', () => { closeModal(); renderProfile(); });
+        body.append(
+          h('h3', { textContent: 'Follow list restored' }),
+          h('p', {
+            className: 'hint',
+            textContent:
+              'Republished ' + c.followCount.toLocaleString('en-US') + ' follows to ' + ok + ' relay' + (ok === 1 ? '' : 's') + '.',
+          }),
+          h('div', { className: 'actions' }, [done])
+        );
+      }
+
+      function showError(msg) {
+        clear();
+        const retry = h('button', { className: 'secondary', textContent: 'Try again' });
+        retry.addEventListener('click', lastRes ? showResults : runScan);
+        body.append(
+          h('h3', { textContent: 'Something went wrong' }),
+          h('p', { className: 'error', textContent: msg || 'Please try again.' }),
+          h('div', { className: 'actions' }, [retry])
+        );
+      }
+
+      showIntro();
+    });
+  }
+
   function renderBackupSection(view, active) {
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
@@ -3748,6 +4024,20 @@
 
     exportWrap.append(exportBtn, importBtn, fileInput);
     setting.append(exportWrap);
+
+    // Follow-list recovery — scan relays for an older kind:3 and republish it.
+    const recoveryWrap = h('div', { className: 'export-block recovery-block' });
+    recoveryWrap.append(
+      h('p', {
+        className: 'hint',
+        textContent: 'Lost follows to a buggy client? Scan your relays for an older version of your follow list and restore it.',
+      })
+    );
+    const recoveryBtn = h('button', { className: 'secondary', textContent: 'Restore follow list' });
+    recoveryBtn.addEventListener('click', () => followRecoveryModal(active));
+    recoveryWrap.append(recoveryBtn, mutableAttribution());
+    setting.append(recoveryWrap);
+
     view.append(setting);
   }
 

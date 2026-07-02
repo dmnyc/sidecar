@@ -31,3 +31,6 @@ version.js
 
 # Temp font preview
 font-preview.html
+
+# Local store-listing history / working docs (not part of the extension)
+store/
