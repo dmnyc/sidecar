@@ -1657,6 +1657,7 @@
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
     $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
+    $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('autozap-toggle').checked = settings.autoZap === true;
     $('autozap-max').value = String(settings.autoZapMaxSats || AUTOZAP_DEFAULT_MAX);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
@@ -2282,7 +2283,7 @@
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   const NOTE_COUNTDOWN_SECS = 15;
-  const CLIENT_TAG = ['client', 'Sidecar 🍸', 'https://github.com/dmnyc/sidecar', 'wss://nos.lol'];
+  const CLIENT_TAG = ['client', 'Sidecar', 'https://github.com/dmnyc/sidecar', 'wss://nos.lol'];
   // ---- About / zap-the-creator ----
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
@@ -2608,10 +2609,13 @@
           if (pk && !seenPks.has(pk)) { seenPks.add(pk); pTags.push(['p', pk]); }
         } catch (_) {}
       }
+      // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
+      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      const tags = settings && settings.showClientTag === false ? [...pTags] : [CLIENT_TAG.slice(), ...pTags];
       const event = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [CLIENT_TAG.slice(), ...pTags],
+        tags,
         content,
       };
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
@@ -4581,6 +4585,10 @@
 
   $('paybutton-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: e.target.checked } });
+  });
+
+  $('clienttag-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showClientTag: e.target.checked } });
   });
 
   $('autozap-toggle').addEventListener('change', async (e) => {
