@@ -120,6 +120,8 @@
   const _notifProfiles = new Map(); // sender pubkey → display name string
   const _muteLists = new Map(); // pubkey → Set<pubkey> (resolved mute set)
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  const _ownNoteIds = new Map(); // pubkey → Set<eventId> (this account's own recent kind:1 ids)
+  const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
 
@@ -642,6 +644,8 @@
       return { glyph, text: 'reacted to your note' };
     }
     // kind 1
+    const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
+    if (hasQ) return { glyph: '🗨️', text: 'quoted your note' };
     const hasE = ev.tags.some((t) => t[0] === 'e');
     return hasE
       ? { glyph: '💬', text: 'replied to your note' }
@@ -815,6 +819,31 @@
     return p;
   }
 
+  // The account's most recent kind:1 note ids (not bounded by the notification
+  // backfill window — a repost/quote happening now can reference a much older
+  // note). Reposts (kind:6) and NIP-18 quote reposts (kind:1 with a `q` tag)
+  // reference the original note by id via an `e`/`q` tag — a `p` tag naming the
+  // author is only a convention, not required, so some clients omit it. Knowing
+  // our own note ids lets the subscription match on the `e`/`q` tag directly and
+  // catch those reposts/quotes even when the author isn't tagged.
+  function loadOwnNoteIds(pubkey, relays) {
+    if (_ownNoteIdsPromises.has(pubkey)) return _ownNoteIdsPromises.get(pubkey);
+    const p = (async () => {
+      const ids = new Set();
+      try {
+        const evs = await getPool().querySync(relays, { kinds: [1], authors: [pubkey], limit: 150 });
+        (evs || [])
+          .sort((x, y) => y.created_at - x.created_at)
+          .slice(0, 150)
+          .forEach((e) => ids.add(e.id));
+      } catch (_) {}
+      _ownNoteIds.set(pubkey, ids);
+      return ids;
+    })();
+    _ownNoteIdsPromises.set(pubkey, p);
+    return p;
+  }
+
   async function initNotifSubs() {
     if (!state || !state.accounts || state.accounts.length === 0) return;
     await loadNotifSeen();
@@ -825,10 +854,14 @@
     for (const a of state.accounts) {
       if (_notifCache.has(a.pubkey)) continue;
 
-      // Load mutes BEFORE subscribing so addEvent filters from the first event.
-      // Cap the wait so a slow relay can't stall notifications — the fetch keeps
-      // running and prunes the cache once it lands.
-      await Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]);
+      // Load mutes and own note ids BEFORE subscribing so addEvent filters from
+      // the first event and the repost/quote filters below are ready. Cap the
+      // wait so a slow relay can't stall notifications — the fetches keep
+      // running and mutes prune the cache once it lands.
+      const [, ownIds] = await Promise.all([
+        Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
+        Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
+      ]);
 
       const cache = { events: [], liveSub: null };
       _notifCache.set(a.pubkey, cache);
@@ -845,18 +878,30 @@
         if (a.pubkey === state?.activePubkey) refreshBell();
       };
 
+      // Mentions/replies/reactions/zaps tagging the account, plus reposts
+      // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
+      // own notes — matched by id so they're caught even without a `p` tag.
+      const ownIdList = [...ownIds];
+      function buildFilters(sinceTs, limit) {
+        const base = { kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since: sinceTs };
+        const list = [limit ? Object.assign({ limit }, base) : base];
+        if (ownIdList.length) {
+          const repost = { kinds: [6], '#e': ownIdList, since: sinceTs };
+          const quote = { kinds: [1], '#q': ownIdList, since: sinceTs };
+          list.push(limit ? Object.assign({ limit }, repost) : repost);
+          list.push(limit ? Object.assign({ limit }, quote) : quote);
+        }
+        return list;
+      }
+
       const liveSince = Math.floor(Date.now() / 1000);
       try {
-        getPool().subscribeManyEose(
-          relays,
-          [{ kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since, limit: 50 }],
-          { onevent: addEvent }
-        );
+        getPool().subscribeManyEose(relays, buildFilters(since, 50), { onevent: addEvent });
       } catch (_) {}
       try {
         cache.liveSub = getPool().subscribeMany(
           relays,
-          [{ kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since: liveSince }],
+          buildFilters(liveSince),
           { onevent: addEvent }
         );
       } catch (_) {}
