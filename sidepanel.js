@@ -1938,45 +1938,54 @@
 
   async function getFollowList() {
     if (followListCache && followListPubkey === state.activePubkey) return followListCache;
-    followListPubkey = state.activePubkey;
-    if (!state.activePubkey) return (followListCache = []);
+    if (!state.activePubkey) return [];
     try {
       const relays = await relayUrls(false);
-      const ev = await Promise.race([
-        poolGet(relays, { kinds: [3], authors: [state.activePubkey] }),
-        new Promise((r) => setTimeout(() => r(null), 5000)),
-      ]);
-      if (!ev) return (followListCache = []);
+      // maxWait bounds each relay's own connect+EOSE wait individually (they
+      // run in parallel) instead of racing the WHOLE fetch against an external
+      // timeout — the previous approach discarded every result the moment the
+      // race lost, even if most relays had already answered, so one slow relay
+      // could wipe the entire follow list down to zero. Not cached on failure,
+      // so the next @-mention attempt retries instead of being stuck all session.
+      const ev = await getPool().get(relays, { kinds: [3], authors: [state.activePubkey] }, { maxWait: 8000 });
+      if (!ev) return [];
       const pubkeys = (ev.tags || [])
         .filter((t) => t[0] === 'p')
         .map((t) => t[1])
         .filter((pk) => pk && pk.length === 64);
-      if (!pubkeys.length) return (followListCache = []);
-      const profiles = await Promise.race([
-        getPool().querySync(relays, { kinds: [0], authors: pubkeys }),
-        new Promise((r) => setTimeout(() => r([]), 6000)),
-      ]);
+      if (!pubkeys.length) {
+        followListPubkey = state.activePubkey;
+        return (followListCache = []);
+      }
+      const profiles = await getPool().querySync(relays, { kinds: [0], authors: pubkeys }, { maxWait: 10000 });
       const byPk = {};
       (profiles || []).forEach((p) => {
         if (!byPk[p.pubkey] || p.created_at > byPk[p.pubkey].created_at) byPk[p.pubkey] = p;
       });
-      followListCache = pubkeys
-        .map((pk) => {
-          let name = null, picture = null;
-          const prof = byPk[pk];
-          if (prof) {
-            try {
-              const c = JSON.parse(prof.content);
-              name = c.display_name || c.name || null;
-              picture = c.picture || null;
-            } catch (_) {}
-          }
-          return { pubkey: pk, name, picture };
-        })
-        .filter((c) => c.name);
+      const list = pubkeys.map((pk) => {
+        let name = null, picture = null;
+        const prof = byPk[pk];
+        if (prof) {
+          try {
+            const c = JSON.parse(prof.content);
+            name = c.display_name || c.name || null;
+            picture = c.picture || null;
+          } catch (_) {}
+        }
+        // Keep follows with no resolvable profile (no relay had their kind:0,
+        // or the profile fetch just missed them) — fall back to a short npub
+        // so they're still selectable instead of silently vanishing from
+        // @mention results.
+        if (!name) {
+          try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; }
+        }
+        return { pubkey: pk, name, picture };
+      });
+      followListPubkey = state.activePubkey;
+      followListCache = list;
       return followListCache;
     } catch (_) {
-      return (followListCache = []);
+      return [];
     }
   }
 
