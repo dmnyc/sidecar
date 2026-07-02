@@ -176,6 +176,8 @@ input:focus, select:focus, textarea:focus {
 .profile-npub svg { width: 13px; height: 13px; flex-shrink: 0; }
 .profile-meta { font-size: 13px; color: var(--lav); margin: 2px 0; overflow-wrap: anywhere; }
 .profile-meta a { color: var(--lav); }
+.profile-stats { margin: 8px 0 2px; font-size: 13px; color: var(--muted); }
+.profile-stat strong { color: var(--text); font-weight: 700; }
 .profile-about {
   font-size: 14px; line-height: 1.55; color: var(--text); margin: 12px 0;
   white-space: pre-wrap; overflow-wrap: anywhere; text-align: left;
