@@ -17,9 +17,10 @@ const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 
 const DEFAULT_RELAYS = {
-  'wss://relay.damus.io': { read: true, write: true },
   'wss://nos.lol': { read: true, write: true },
   'wss://relay.snort.social': { read: true, write: true },
+  'wss://nostr.mom': { read: true, write: true },
+  'wss://offchain.pub': { read: true, write: true },
   'wss://relay.primal.net': { read: true, write: false },
 };
 
