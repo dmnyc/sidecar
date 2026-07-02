@@ -2982,7 +2982,11 @@
     // Offer to resume a saved draft (or start fresh) before opening the editor.
     function showDraftChooser(saved) {
       modal.innerHTML = '';
-      const snippet = (saved.text || '').trim().replace(/\s+/g, ' ');
+      // Collapse horizontal whitespace and cap long blank-line runs, but keep
+      // real newlines — this preview renders with white-space: pre-wrap, and
+      // "Resume draft" loads the exact saved text, so the preview should look
+      // like what's about to be restored instead of flattening it to one line.
+      const snippet = (saved.text || '').trim().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
       const preview = snippet.length > 160 ? snippet.slice(0, 160) + '…' : snippet;
       const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
