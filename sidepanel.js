@@ -533,9 +533,7 @@
     return relayUrls(true);
   }
 
-  // Publish an already-signed event to the account's write relays (NIP-65 → configured).
-  async function publishSigned(signed) {
-    const relays = await postRelays();
+  async function publishToRelays(relays, signed) {
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     const results = await Promise.allSettled(getPool().publish(relays, signed));
     const ok = results.filter((r) => r.status === 'fulfilled').length;
@@ -543,6 +541,37 @@
       const detail = results.map((r, i) => `${relays[i]}: ${r.reason?.message || r.reason || 'rejected'}`).join(' | ');
       throw new Error(`Could not publish to any relay — ${detail}`);
     }
+    return ok;
+  }
+
+  // Publish an already-signed event to the account's write relays (NIP-65 → configured).
+  async function publishSigned(signed) {
+    return publishToRelays(await postRelays(), signed);
+  }
+
+  // Build and publish a NIP-65 (kind:10002) relay list from the editor's model:
+  // [{ url, read, write }]. A relay with both markers gets a plain ['r', url]
+  // tag (per spec, no marker = both); otherwise the single applicable marker.
+  // Relays with neither checked are dropped instead of leaking a stray marker.
+  async function publishNip65(pubkey, relayList) {
+    const active = relayList.filter((r) => r.read || r.write);
+    const tags = active.map((r) => {
+      if (r.read && r.write) return ['r', r.url];
+      return r.write ? ['r', r.url, 'write'] : ['r', r.url, 'read'];
+    });
+    const event = { kind: 10002, created_at: Math.floor(Date.now() / 1000), tags, content: '' };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+
+    // Publish to the union of: relays that already carry the account's prior
+    // list (so anyone relying on it still sees the update), the relays now
+    // marked write in the NEW list (so it lands where the account claims to
+    // write), and the app's configured relays as a safety net.
+    const prior = nip65Cache.get(pubkey);
+    const newWrite = active.filter((r) => r.write).map((r) => r.url);
+    const fallback = await relayUrls(true);
+    const targets = [...new Set([...(prior ? prior.write : []), ...newWrite, ...fallback])];
+    const ok = await publishToRelays(targets, signed);
+    nip65Cache.delete(pubkey); // invalidate so getNip65()/postRelays() refetch fresh
     return ok;
   }
 
@@ -1977,6 +2006,7 @@
     }
     view.append(body);
 
+    renderNip65Section(view, active);
     renderBackupSection(view, active);
   }
 
@@ -3466,6 +3496,147 @@
         h('div', { className: 'actions' }, [go, cancel])
       );
     });
+  }
+
+  // ---- NIP-65 relay list editor (Profile tab) ----
+  // Loads the account's published read/write relays; if none exist yet, seeds
+  // the editor from Sidecar's own configured relays as a starting point.
+  async function loadNip65Editor(pubkey) {
+    const n = await getNip65(pubkey);
+    if (n) {
+      const urls = [...new Set([...n.read, ...n.write])];
+      return urls.map((url) => ({ url, read: n.read.includes(url), write: n.write.includes(url) }));
+    }
+    const configured = await call({ type: 'SIDECAR_GET_RELAYS' });
+    return Object.keys(configured).map((url) => ({
+      url,
+      read: configured[url].read !== false,
+      write: configured[url].write !== false,
+    }));
+  }
+
+  function renderNip65Section(view, active) {
+    const setting = h('div', { className: 'setting nip65-setting' });
+    setting.append(
+      h('h3', { textContent: 'Relays' }),
+      h('p', {
+        className: 'hint',
+        textContent:
+          'Your public relay list (NIP-65) — tells other Nostr apps where to find your notes and where to send you replies and DMs. Keep it small and reliable.',
+      })
+    );
+
+    const status = h('p', { className: 'hint compact nip65-status', textContent: 'Loading…' });
+    const list = h('div', { className: 'list flat nip65-list' });
+    const warn = h('p', { className: 'hint warn nip65-warn' });
+    const addInput = h('input', { type: 'text', placeholder: 'wss://relay.example.com' });
+    const addBtn = h('button', { className: 'secondary', textContent: 'Add' });
+    const err = h('div', { className: 'error' });
+    const publishBtn = h('button', { className: 'primary', textContent: 'Publish relay list' });
+
+    setting.append(
+      status,
+      list,
+      warn,
+      h('div', { className: 'row-actions' }, [addInput, addBtn]),
+      err,
+      h('div', { className: 'actions nip65-publish' }, [publishBtn])
+    );
+    view.append(setting);
+
+    let relayList = [];
+
+    function updateWarn() {
+      if (!relayList.some((r) => r.write)) {
+        warn.textContent = 'No write relays selected — other apps may not find your new notes.';
+      } else if (!relayList.some((r) => r.read)) {
+        warn.textContent = 'No read relays selected — you may not see replies or mentions here.';
+      } else {
+        warn.textContent = '';
+      }
+    }
+
+    function renderRows() {
+      if (!relayList.length) {
+        listState(list, 'No relays yet — add one below.');
+        updateWarn();
+        return;
+      }
+      list.innerHTML = '';
+      relayList.forEach((r, i) => {
+        const readCb = h('input', { type: 'checkbox' });
+        readCb.checked = r.read;
+        readCb.addEventListener('change', () => { r.read = readCb.checked; updateWarn(); });
+        const writeCb = h('input', { type: 'checkbox' });
+        writeCb.checked = r.write;
+        writeCb.addEventListener('change', () => { r.write = writeCb.checked; updateWarn(); });
+
+        const rm = iconButton('Remove', 'trash', () => {
+          relayList.splice(i, 1);
+          renderRows();
+        });
+        rm.classList.add('nip65-rm');
+
+        // Stacked layout: the URL wraps on its own line, then a toggles row —
+        // the sidebar is too narrow to keep the URL and Read/Write on one line.
+        const row = h('div', { className: 'item nip65-row' }, [
+          h('div', { className: 'nip65-url', textContent: r.url }),
+          h('div', { className: 'nip65-controls' }, [
+            h('label', { className: 'nip65-chip' }, [readCb, document.createTextNode('Read')]),
+            h('label', { className: 'nip65-chip' }, [writeCb, document.createTextNode('Write')]),
+            rm,
+          ]),
+        ]);
+        list.append(row);
+      });
+      updateWarn();
+    }
+
+    addBtn.addEventListener('click', () => {
+      let url = addInput.value.trim();
+      if (!url) return;
+      if (!/^wss?:\/\//i.test(url)) url = 'wss://' + url;
+      url = url.replace(/\/+$/, ''); // drop trailing slash so wss://x and wss://x/ dedupe
+      if (!/^wss?:\/\/[^/]+/i.test(url)) { err.textContent = "That doesn't look like a relay URL."; return; }
+      if (relayList.some((r) => r.url === url)) { addInput.value = ''; return; }
+      err.textContent = '';
+      relayList.push({ url, read: true, write: true });
+      addInput.value = '';
+      renderRows();
+    });
+
+    publishBtn.addEventListener('click', async () => {
+      err.textContent = '';
+      if (!relayList.length) { err.textContent = 'Add at least one relay first.'; return; }
+      if (!relayList.some((r) => r.read || r.write)) {
+        err.textContent = 'Check Read or Write on at least one relay first.';
+        return;
+      }
+      publishBtn.disabled = true;
+      publishBtn.textContent = 'Publishing…';
+      try {
+        await publishNip65(active.pubkey, relayList);
+        status.textContent = 'Published ✓';
+        status.classList.add('done');
+        toast('Relay list published', 'success');
+      } catch (e) {
+        err.textContent = e.message;
+        toast(e.message, 'error');
+      }
+      publishBtn.disabled = false;
+      publishBtn.textContent = 'Publish relay list';
+    });
+
+    loadNip65Editor(active.pubkey)
+      .then((initial) => {
+        relayList = initial;
+        status.textContent = relayList.length ? 'Loaded from your current relay list.' : 'Not published yet.';
+        renderRows();
+      })
+      .catch(() => {
+        status.textContent = 'Could not load your current relay list.';
+        renderRows();
+      });
   }
 
   function renderBackupSection(view, active) {
