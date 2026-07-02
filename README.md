@@ -10,6 +10,10 @@ Connect) and a composer for posting notes directly from the panel.
 
 <img width="2816" height="1566" alt="Sidecar" src="https://i.nostr.build/Sr11DBpz7pVITHoS.png" />
 
+> "Best Nostr Extension ever! Every Nostr app should take notes on this onboarding flow. This makes me want to use Nostr."
+>
+> — [Car](https://github.com/thrillerxx), Co-Founder of [PlebLab](https://github.com/PlebLab)
+
 > "Best UX for a browser key signer so far. And the nsec is encrypted using PBKDF2/AES-GCM, then stored in chrome.storage.local, so other potentially malicious add-ons can't get to it. In my broad testing across multiple browser key signers last year, only Alby did this, though I don't know if others have added it since. Sidecar also has a better UX than Alby. [...] I'm thinking about replacing Alby with Sidecar in NoorNote's onboarding wizard because Sidecar is better for beginners right now."
 >
 > — [77elements](https://github.com/77elements), creator of [NoorNote](https://github.com/77elements/noornote)
