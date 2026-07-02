@@ -1989,6 +1989,17 @@
     if (content.nip05) body.append(h('div', { className: 'profile-meta', textContent: content.nip05 }));
     body.append(npubChip(active.npub));
 
+    // Following count (fetched from the account's kind:3). Followers are out of
+    // scope for now — they require an aggregating index, not a single event.
+    const followNum = h('strong', { textContent: '…' });
+    const followStat = h('div', { className: 'profile-stats' }, [
+      h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
+    ]);
+    body.append(followStat);
+    getFollowCount(active.pubkey).then((n) => {
+      followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+    });
+
     if (content.about) {
       const about = h('p', { className: 'profile-about' });
       body.append(about);
@@ -2019,6 +2030,25 @@
   // Follow list cache for @mention autocomplete (invalidated on account switch)
   let followListCache = null;
   let followListPubkey = null;
+
+  // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
+  // heavy kind:0 profile batch that getFollowList() does, since the profile just
+  // needs a number. Cached per pubkey. Returns null if no list is found.
+  const followCountCache = new Map(); // pubkey -> number|null
+  async function getFollowCount(pubkey) {
+    if (!pubkey) return null;
+    if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
+    let count = null;
+    try {
+      const ev = await getPool().get(await relayUrls(false), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
+      if (ev) {
+        const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
+        count = set.size;
+      }
+    } catch (_) {}
+    followCountCache.set(pubkey, count);
+    return count;
+  }
 
   async function getFollowList() {
     if (followListCache && followListPubkey === state.activePubkey) return followListCache;
