@@ -439,6 +439,13 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .about-creator-link:hover, .about-link:hover { text-decoration: underline; }
 .about-version { color: var(--faint); font-size: 11.5px; font-family: var(--font-mono); margin-top: 2px; }
 .about-links { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; margin-top: 12px; }
+.about-update-btn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 11px; color: var(--faint); text-decoration: underline;
+  text-decoration-color: rgba(154, 134, 196, 0.35); margin-top: 4px;
+}
+.about-update-btn:hover { color: var(--muted); text-decoration-color: var(--muted); }
+.about-update-status { margin-top: 2px; font-size: 11px; }
 .about-link-btn { background: none; border: none; padding: 0; cursor: pointer; font-size: 14px; color: var(--gold); font-weight: 600; }
 .about-link-btn:hover { text-decoration: underline; }
 /* zap-the-creator inline send */

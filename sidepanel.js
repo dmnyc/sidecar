@@ -1644,6 +1644,14 @@
 
   // ---- settings ----
   async function renderSettings() {
+    // version + update check
+    const build = window.SIDECAR_BUILD || {};
+    const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+    $('settings-version').textContent = ver
+      ? 'Version ' + ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '')
+      : '';
+    $('check-update-status').textContent = '';
+
     // auto-lock
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
@@ -4420,6 +4428,35 @@
     return res.pr;
   }
 
+  // Chrome already checks the Web Store for updates every few hours on its own;
+  // requestUpdateCheck() is the one sanctioned way to trigger that early from a
+  // user-initiated button click (not a timer). It only fetches the update —
+  // installing it still waits for the background worker/browser to restart, or
+  // an explicit chrome.runtime.reload() (which we don't call here, since that
+  // would abruptly tear down an in-progress unlock/signing/wallet flow).
+  async function checkForUpdates(btn, statusEl) {
+    const prevLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    statusEl.textContent = '';
+    try {
+      const result = await chrome.runtime.requestUpdateCheck();
+      const status = result && result.status;
+      if (status === 'update_available') {
+        const v = result.version ? ' (v' + result.version + ')' : '';
+        statusEl.textContent = 'Update found' + v + ' — it installs the next time Sidecar restarts.';
+      } else if (status === 'throttled') {
+        statusEl.textContent = 'Checked recently — try again in a few minutes.';
+      } else {
+        statusEl.textContent = "You're on the latest version.";
+      }
+    } catch (_) {
+      statusEl.textContent = 'Could not check for updates.';
+    }
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+  }
+
   // ---- About + zap the creator (opened from the Sidecar logo) ----
   function aboutModal() {
     openModal((modal) => {
@@ -4446,6 +4483,10 @@
       const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Zap the creator '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
+      const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
+      const updateStatus = h('p', { className: 'hint about-update-status' });
+      updateBtn.addEventListener('click', () => checkForUpdates(updateBtn, updateStatus));
+
       modal.append(
         xClose,
         h('div', { className: 'about-modal' }, [
@@ -4453,6 +4494,8 @@
           h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
           h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
           ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
+          updateBtn,
+          updateStatus,
           h('div', { className: 'about-links' }, [repo, issues, zap]),
         ])
       );
@@ -4564,6 +4607,10 @@
     await call({ type: 'SIDECAR_SET_RELAYS', relays });
     input.value = '';
     renderSettings();
+  });
+
+  $('check-update-btn').addEventListener('click', () => {
+    checkForUpdates($('check-update-btn'), $('check-update-status'));
   });
 
   // Danger zone: wipe all Sidecar data. Type-to-confirm, since it's irreversible
