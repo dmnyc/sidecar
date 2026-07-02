@@ -14,13 +14,6 @@ Connect) and a composer for posting notes directly from the panel.
 >
 > — [77elements](https://github.com/77elements), creator of [NoorNote](https://github.com/77elements/noornote)
 
-## Install
-
-**[Install from the Chrome Web Store →](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)**
-— works in Chrome, Brave, Edge, and other Chromium browsers.
-
-Or run from source (no build step required — see below).
-
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
@@ -106,6 +99,7 @@ is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 ## Acknowledgments
 
 - Inspired by Nostr Build Shack by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
+- Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf) and the [Alby](https://github.com/getAlby/lightning-browser-extension) browser extension — the OG reliable browser signers most of nostr grew up with
 
 ## Author
 
