@@ -4,6 +4,11 @@
    ============================================================ */
 
 :root {
+  /* Sidecar is a dark-only UI. Force the dark palette for native controls
+     (select popups, scrollbars, etc.) so they don't render white-on-white
+     when the browser/OS is in Light Mode. */
+  color-scheme: dark;
+
   /* type */
   --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
@@ -120,6 +125,9 @@ input, select, textarea {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
+/* Explicit dark colors for the native option popup — belt-and-suspenders for
+   platforms that draw options with the system theme regardless of color-scheme. */
+select option, select optgroup { background-color: var(--bg-2); color: var(--text); }
 input::placeholder, textarea::placeholder { color: var(--faint); }
 input:focus, select:focus, textarea:focus {
   outline: none;
