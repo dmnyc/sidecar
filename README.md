@@ -10,12 +10,9 @@ Connect) and a composer for posting notes directly from the panel.
 
 <img width="2816" height="1566" alt="Sidecar" src="https://i.nostr.build/Sr11DBpz7pVITHoS.png" />
 
-## Install
-
-**[Install from the Chrome Web Store →](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)**
-— works in Chrome, Brave, Edge, and other Chromium browsers.
-
-Or run from source (no build step required — see below).
+> "Best UX for a browser key signer so far. And the nsec is encrypted using PBKDF2/AES-GCM, then stored in chrome.storage.local, so other potentially malicious add-ons can't get to it. In my broad testing across multiple browser key signers last year, only Alby did this, though I don't know if others have added it since. Sidecar also has a better UX than Alby. [...] I'm thinking about replacing Alby with Sidecar in NoorNote's onboarding wizard because Sidecar is better for beginners right now."
+>
+> — [77elements](https://github.com/77elements), creator of [NoorNote](https://github.com/77elements/noornote)
 
 ## Features
 
@@ -102,6 +99,7 @@ is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 ## Acknowledgments
 
 - Inspired by Nostr Build Shack by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
+- Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf) and the [Alby](https://github.com/getAlby/lightning-browser-extension) browser extension — the OG reliable browser signers most of nostr grew up with
 
 ## Author
 
