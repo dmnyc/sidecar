@@ -2274,7 +2274,7 @@
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   const NOTE_COUNTDOWN_SECS = 15;
-  const CLIENT_TAG = ['client', 'Sidecar 🍸', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io'];
+  const CLIENT_TAG = ['client', 'Sidecar 🍸', 'https://github.com/dmnyc/sidecar', 'wss://nos.lol'];
   // ---- About / zap-the-creator ----
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
