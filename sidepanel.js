@@ -124,6 +124,7 @@
   const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
+  let _postBannerTimer = null; // auto-dismiss for #post-banner
 
   // Privacy masking is done in CSS (-webkit-text-security on `.balances-hidden`),
   // which masks each glyph at its real width so toggling never reflows. We always
@@ -209,8 +210,7 @@
       setTimeout(() => $('unlock-pin').focus(), 50);
     } else {
       show($('view-main'));
-      const banner = $('post-banner');
-      if (banner) hide(banner); // a note link is account-specific; clear on any state change
+      dismissPostBanner(); // a note link is account-specific; clear on any state change
       renderMain();
       initNotifSubs();
       // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
@@ -2322,6 +2322,12 @@
   }
 
   // Persistent "your note is live" banner with an open-in-client link.
+  function dismissPostBanner() {
+    if (_postBannerTimer) { clearTimeout(_postBannerTimer); _postBannerTimer = null; }
+    const banner = $('post-banner');
+    if (banner) hide(banner);
+  }
+
   async function showPostBanner(signed) {
     const banner = $('post-banner');
     if (!banner) return;
@@ -2330,6 +2336,8 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
     const client = VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+
+    if (_postBannerTimer) clearTimeout(_postBannerTimer); // only one note's link shown at a time
 
     banner.innerHTML = '';
     const msg = h('span', { className: 'post-banner-msg', textContent: 'Your note is live.' });
@@ -2341,9 +2349,10 @@
     open.append(h('span', { textContent: 'Open in ' + client.label }));
     const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
     close.append(icon('x'));
-    close.addEventListener('click', () => hide(banner));
+    close.addEventListener('click', dismissPostBanner);
     banner.append(msg, open, close);
     show(banner);
+    _postBannerTimer = setTimeout(dismissPostBanner, 60000);
   }
 
   // Render composed note content the way a client will: text + inline media + @mentions.
