@@ -2154,6 +2154,82 @@
     return count;
   }
 
+  // ---- Nostr Archives profile API ----
+  // Global username search + bulk metadata, used to (A) find people to @mention
+  // who aren't in your follow list and (B) resolve follow-list names the relays
+  // didn't return. Best-effort: any error or rate-limit falls back to relay data.
+  // See docs/username-search-plan.md. Approved endpoints only.
+  const NA_BASE = 'https://api.nostrarchives.com';
+  const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
+  let naCooldownUntil = 0; // epoch ms; a 429 backs us off until this time
+  const naAvailable = () => Date.now() >= naCooldownUntil;
+  function naBackoff(retryAfter) {
+    const secs = Math.min(3600, Math.max(30, Number(retryAfter) || 60));
+    naCooldownUntil = Date.now() + secs * 1000;
+  }
+  const naName = (p) => p.display_name || p.preferred_name || p.name || null;
+
+  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure.
+  async function naSuggest(query) {
+    if (!query || query.length < 2 || !naAvailable()) return [];
+    try {
+      const resp = await fetch(NA_BASE + '/v1/search/suggest?q=' + encodeURIComponent(query) + '&limit=8', {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); return []; }
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      return (data.suggestions || [])
+        .filter((s) => s && isHex64(s.pubkey))
+        .map((s) => {
+          const pk = s.pubkey.toLowerCase();
+          let name = naName(s);
+          if (!name) { try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; } }
+          return { pubkey: pk, name, picture: s.picture || null };
+        });
+    } catch (_) { return []; }
+  }
+
+  // Bulk profile metadata for a set of pubkeys → Map(pubkey → {name, picture}).
+  // Chunks to the API's 500-pubkey limit; stops early on a rate-limit.
+  async function naMetadata(pubkeys) {
+    const out = new Map();
+    const ids = [...new Set((pubkeys || []).filter(isHex64).map((p) => p.toLowerCase()))];
+    if (!ids.length || !naAvailable()) return out;
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      try {
+        const resp = await fetch(NA_BASE + '/v1/profiles/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pubkeys: chunk }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); break; }
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        (data.profiles || []).forEach((p) => {
+          if (p && isHex64(p.pubkey)) out.set(p.pubkey.toLowerCase(), { name: naName(p), picture: p.picture || null });
+        });
+      } catch (_) { /* keep whatever resolved so far */ }
+    }
+    return out;
+  }
+
+  // Fire-and-forget: fill in names/pictures the relays didn't return, mutating the
+  // cached follow-list objects in place so those follows become searchable by name
+  // on the next keystroke. Never blocks the initial dropdown.
+  async function enrichFollowNames(list, missingPubkeys) {
+    if (!missingPubkeys.length) return;
+    const meta = await naMetadata(missingPubkeys);
+    if (!meta.size) return;
+    const byPk = new Map(list.map((c) => [c.pubkey, c]));
+    meta.forEach((m, pk) => {
+      const c = byPk.get(pk);
+      if (c && m.name) { c.name = m.name; if (!c.picture && m.picture) c.picture = m.picture; }
+    });
+  }
+
   async function getFollowList() {
     if (followListCache && followListPubkey === state.activePubkey) return followListCache;
     if (!state.activePubkey) return [];
@@ -2201,6 +2277,10 @@
       });
       followListPubkey = state.activePubkey;
       followListCache = list;
+      // Background: fill names the relays didn't return via Nostr Archives, so
+      // those follows become searchable by name. Mutates the cached objects in
+      // place; not awaited, so the first dropdown render stays instant.
+      enrichFollowNames(list, pubkeys.filter((pk) => !byPk[pk]));
       return followListCache;
     } catch (_) {
       return [];
@@ -2881,6 +2961,7 @@
 
       // ---- @mention autocomplete ----
       let acDropdown = null, acResults = [], acIndex = 0;
+      let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
 
       function getCaretContext() {
         const sel = window.getSelection();
@@ -2942,14 +3023,10 @@
         scheduleSave();
       }
 
-      async function updateAcDropdown() {
-        const ctx = getCaretContext();
-        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
-        const follows = await getFollowList();
-        const q = ctx.query.toLowerCase();
-        acResults = follows.filter((c) => c.name && c.name.toLowerCase().includes(q)).slice(0, 8);
+      function renderAcResults(items, ctx) {
+        acResults = items;
         if (!acResults.length) { closeAcDropdown(); return; }
-        acIndex = Math.min(acIndex, acResults.length - 1);
+        acIndex = Math.max(0, Math.min(acIndex, acResults.length - 1));
         if (!acDropdown) {
           acDropdown = h('div', { className: 'ac-dropdown' });
           editorWrap.append(acDropdown);
@@ -2967,6 +3044,32 @@
           });
           acDropdown.append(item);
         });
+      }
+
+      async function updateAcDropdown() {
+        const ctx = getCaretContext();
+        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
+        const seq = ++acSeq;
+        const q = ctx.query.toLowerCase();
+        const follows = await getFollowList();
+        if (seq !== acSeq) return; // a newer keystroke superseded this
+        const followMatches = follows.filter((c) => c.name && c.name.toLowerCase().includes(q));
+        renderAcResults(followMatches.slice(0, 8), ctx);
+
+        // Also search all of Nostr (not just follows) so you can tag someone you
+        // don't follow. Debounced; merged below the follow matches, deduped by
+        // pubkey. Best-effort — a failure/rate-limit just leaves the follow list.
+        if (ctx.query.length >= 2) {
+          if (acSuggestTimer) clearTimeout(acSuggestTimer);
+          acSuggestTimer = setTimeout(async () => {
+            const globals = await naSuggest(ctx.query);
+            if (seq !== acSeq || !globals.length) return;
+            const seen = new Set(followMatches.map((c) => c.pubkey));
+            const merged = followMatches.slice();
+            for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+            renderAcResults(merged.slice(0, 8), ctx);
+          }, 250);
+        }
       }
 
       function syncEmptyClass() {
