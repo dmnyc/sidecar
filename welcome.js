@@ -40,34 +40,36 @@ const APPS = [
     url: 'https://geyser.fund',
     domain: 'geyser.fund',
     cat: 'commerce',
+    icon: 'https://geyser.fund/logo-brand.svg',
+    flush: true,
     desc: 'Crowdfunding for Bitcoin and Nostr projects — launch a fundraiser and receive Lightning contributions.',
   },
   {
     name: 'YakiHonne',
     url: 'https://yakihonne.com',
     domain: 'yakihonne.com',
-    cat: 'longform',
+    cat: 'reading',
     desc: 'Articles, short notes, and curated content — a versatile client popular in the Global South.',
   },
   {
     name: 'zap.stream',
     url: 'https://zap.stream',
     domain: 'zap.stream',
-    cat: 'live',
+    cat: 'media',
     desc: 'Live streaming platform with real-time Lightning zaps from your audience.',
   },
   {
     name: 'Shosho',
     url: 'https://shosho.live',
     domain: 'shosho.live',
-    cat: 'live',
+    cat: 'media',
     desc: 'Stream your camera and chat with friends and followers live on Nostr. Watch streams on the web or mobile app, connect to any streaming server.',
   },
   {
     name: 'Nostr Nests',
     url: 'https://nostrnests.com',
     domain: 'nostrnests.com',
-    cat: 'audio',
+    cat: 'media',
     desc: 'Audio rooms for chatting, debating, jamming, and micro-conferences over Nostr.',
   },
   {
@@ -83,7 +85,7 @@ const APPS = [
     name: 'Bookstr',
     url: 'https://bookstr.xyz',
     domain: 'bookstr.xyz',
-    cat: 'books',
+    cat: 'reading',
     desc: 'Track your reading, write reviews, and share your shelves on a decentralized network.',
   },
   {
@@ -98,7 +100,7 @@ const APPS = [
     name: 'Fountain',
     url: 'https://fountain.fm',
     domain: 'fountain.fm',
-    cat: 'audio',
+    cat: 'media',
     desc: 'Podcast player with Bitcoin streaming payments — earn sats while you listen, tip hosts with every second.',
   },
   {
@@ -136,7 +138,7 @@ const APPS = [
     name: 'Divine',
     url: 'https://divine.video',
     domain: 'divine.video',
-    cat: 'live',
+    cat: 'media',
     desc: 'Short-form looping videos on Nostr — discover and share clips with Lightning tipping built in.',
     icon: 'https://divine.video/favicon.png',
   },
@@ -145,6 +147,7 @@ const APPS = [
     url: 'https://zapstore.dev',
     domain: 'zapstore.dev',
     cat: 'tools',
+    icon: 'https://zapstore.dev/images/parallax-apps/zapstore.png',
     desc: 'An open app store where apps are published by developers and curated by communities.',
   },
   {
@@ -165,7 +168,7 @@ const APPS = [
     name: 'HiveTalk',
     url: 'https://hivetalk.org',
     domain: 'hivetalk.org',
-    cat: 'live',
+    cat: 'media',
     desc: 'Free browser-based video meetings and rooms with Nostr sign-in and Lightning tipping.',
   },
   {
@@ -179,12 +182,10 @@ const APPS = [
 
 const CAT_LABELS = {
   social:   'Social',
-  longform: 'Long-form',
-  live:     'Live',
-  audio:    'Audio',
-  food:     'Food',
-  books:    'Books',
+  media:    'Media',
+  reading:  'Reading',
   gaming:   'Gaming',
+  food:     'Food',
   images:   'Images',
   commerce: 'Commerce',
   tools:    'Tools',
@@ -266,8 +267,11 @@ function renderCard(app) {
 }
 
 const grid = document.getElementById('grid');
+// Group cards by category in the same order as the filter pills (CAT_LABELS key
+// order), then alphabetically by name within each category.
+const CAT_ORDER = Object.keys(CAT_LABELS);
 const sorted = [...APPS].sort((a, b) =>
-  a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name)
+  (CAT_ORDER.indexOf(a.cat) - CAT_ORDER.indexOf(b.cat)) || a.name.localeCompare(b.name)
 );
 sorted.forEach(app => grid.appendChild(renderCard(app)));
 
