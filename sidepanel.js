@@ -2130,6 +2130,7 @@
   // Follow list cache for @mention autocomplete (invalidated on account switch)
   let followListCache = null;
   let followListPubkey = null;
+  let followListInflight = null; // dedupe concurrent loads (rapid @-keystrokes)
 
   // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
   // heavy kind:0 profile batch that getFollowList() does, since the profile just
@@ -2154,9 +2155,87 @@
     return count;
   }
 
+  // ---- Nostr Archives profile API ----
+  // Global username search + bulk metadata, used to (A) find people to @mention
+  // who aren't in your follow list and (B) resolve follow-list names the relays
+  // didn't return. Best-effort: any error or rate-limit falls back to relay data.
+  // See docs/username-search-plan.md. Approved endpoints only.
+  const NA_BASE = 'https://api.nostrarchives.com';
+  const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
+  let naCooldownUntil = 0; // epoch ms; a 429 backs us off until this time
+  const naAvailable = () => Date.now() >= naCooldownUntil;
+  function naBackoff(retryAfter) {
+    const secs = Math.min(3600, Math.max(30, Number(retryAfter) || 60));
+    naCooldownUntil = Date.now() + secs * 1000;
+  }
+  const naName = (p) => p.display_name || p.preferred_name || p.name || null;
+
+  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure.
+  async function naSuggest(query) {
+    if (!query || query.length < 2 || !naAvailable()) return [];
+    try {
+      const resp = await fetch(NA_BASE + '/v1/search/suggest?q=' + encodeURIComponent(query) + '&limit=8', {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); return []; }
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      return (data.suggestions || [])
+        .filter((s) => s && isHex64(s.pubkey))
+        .map((s) => {
+          const pk = s.pubkey.toLowerCase();
+          let name = naName(s);
+          if (!name) { try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; } }
+          return { pubkey: pk, name, picture: s.picture || null };
+        });
+    } catch (_) { return []; }
+  }
+
+  // Bulk profile metadata for a set of pubkeys → Map(pubkey → {name, picture}).
+  // Chunks to the API's 500-pubkey limit; stops early on a rate-limit.
+  async function naMetadata(pubkeys) {
+    const out = new Map();
+    const ids = [...new Set((pubkeys || []).filter(isHex64).map((p) => p.toLowerCase()))];
+    if (!ids.length || !naAvailable()) return out;
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      try {
+        const resp = await fetch(NA_BASE + '/v1/profiles/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pubkeys: chunk }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); break; }
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        (data.profiles || []).forEach((p) => {
+          if (p && isHex64(p.pubkey)) out.set(p.pubkey.toLowerCase(), { name: naName(p), picture: p.picture || null });
+        });
+      } catch (_) { /* keep whatever resolved so far */ }
+    }
+    return out;
+  }
+
+  // Fire-and-forget: fill in names/pictures the relays didn't return, mutating the
+  // cached follow-list objects in place so those follows become searchable by name
+  // on the next keystroke. Never blocks the initial dropdown.
+  async function enrichFollowNames(list, missingPubkeys) {
+    if (!missingPubkeys.length) return;
+    const meta = await naMetadata(missingPubkeys);
+    if (!meta.size) return;
+    const byPk = new Map(list.map((c) => [c.pubkey, c]));
+    meta.forEach((m, pk) => {
+      const c = byPk.get(pk);
+      if (c && m.name) { c.name = m.name; if (!c.picture && m.picture) c.picture = m.picture; }
+    });
+  }
+
   async function getFollowList() {
     if (followListCache && followListPubkey === state.activePubkey) return followListCache;
+    if (followListInflight) return followListInflight; // a load is already running
     if (!state.activePubkey) return [];
+    followListInflight = (async () => {
     try {
       const relays = await relayUrls(false);
       // maxWait bounds each relay's own connect+EOSE wait individually (they
@@ -2201,10 +2280,17 @@
       });
       followListPubkey = state.activePubkey;
       followListCache = list;
+      // Background: fill names the relays didn't return via Nostr Archives, so
+      // those follows become searchable by name. Mutates the cached objects in
+      // place; not awaited, so the first dropdown render stays instant.
+      enrichFollowNames(list, pubkeys.filter((pk) => !byPk[pk]));
       return followListCache;
     } catch (_) {
       return [];
     }
+    })();
+    try { return await followListInflight; }
+    finally { followListInflight = null; }
   }
 
   function npubChip(npub) {
@@ -2881,6 +2967,7 @@
 
       // ---- @mention autocomplete ----
       let acDropdown = null, acResults = [], acIndex = 0;
+      let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
 
       function getCaretContext() {
         const sel = window.getSelection();
@@ -2942,18 +3029,31 @@
         scheduleSave();
       }
 
-      async function updateAcDropdown() {
-        const ctx = getCaretContext();
-        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
-        const follows = await getFollowList();
-        const q = ctx.query.toLowerCase();
-        acResults = follows.filter((c) => c.name && c.name.toLowerCase().includes(q)).slice(0, 8);
-        if (!acResults.length) { closeAcDropdown(); return; }
-        acIndex = Math.min(acIndex, acResults.length - 1);
+      // Anchor the dropdown just under the caret line rather than the bottom of
+      // the (tall) editor box. Falls back to the CSS default if no caret rect.
+      function positionAcDropdown() {
+        if (!acDropdown) return;
+        try {
+          const sel = window.getSelection();
+          if (!sel.rangeCount) return;
+          const r = sel.getRangeAt(0).getBoundingClientRect();
+          if (!r || (!r.top && !r.bottom)) return;
+          const wrap = editorWrap.getBoundingClientRect();
+          acDropdown.style.top = Math.round(r.bottom - wrap.top + 4) + 'px';
+        } catch (_) {}
+      }
+
+      // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
+      // and keeps the dropdown open even when there are no local matches yet.
+      function renderAcResults(items, ctx, loading) {
+        acResults = items;
+        if (!acResults.length && !loading) { closeAcDropdown(); return; }
+        acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
         if (!acDropdown) {
           acDropdown = h('div', { className: 'ac-dropdown' });
           editorWrap.append(acDropdown);
         }
+        positionAcDropdown();
         acDropdown.innerHTML = '';
         acResults.forEach((c, i) => {
           const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
@@ -2967,6 +3067,60 @@
           });
           acDropdown.append(item);
         });
+        if (loading) {
+          acDropdown.append(h('div', { className: 'ac-loading' }, [
+            h('span', { className: 'ac-spinner' }),
+            h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
+          ]));
+        }
+      }
+
+      // Two async sources feed the dropdown: your follow list (instant from
+      // cache, else a slow first relay load) and a global Nostr search. NEVER
+      // block the UI on the follow list — the first load hits relays and can take
+      // many seconds. Paint immediately (with a spinner), then repaint as each
+      // source resolves. `paint()` renders the deduped union + loading state.
+      async function updateAcDropdown() {
+        const ctx = getCaretContext();
+        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
+        const seq = ++acSeq;
+        const q = ctx.query.toLowerCase();
+        const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
+
+        const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+        let followMatches = [];
+        let globals = [];
+        let globalPending = willSearchGlobal;
+        const paint = () => {
+          if (seq !== acSeq) return;
+          const seen = new Set(followMatches.map((c) => c.pubkey));
+          const merged = followMatches.slice();
+          for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+          renderAcResults(merged.slice(0, 8), ctx, globalPending);
+        };
+
+        // Follows: use the cache synchronously if present; otherwise load in the
+        // background and repaint when ready (no await here).
+        const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
+        if (cached) followMatches = matchFollows(cached);
+        paint(); // instant feedback: local matches (maybe none) + spinner if searching
+        if (!cached) {
+          getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
+        }
+
+        // Global search across all of Nostr so you can tag people you don't
+        // follow. Debounced; best-effort — a failure/rate-limit just clears the
+        // spinner and leaves the follow matches.
+        if (willSearchGlobal) {
+          if (acSuggestTimer) clearTimeout(acSuggestTimer);
+          acSuggestTimer = setTimeout(async () => {
+            const res = await naSuggest(ctx.query);
+            if (seq !== acSeq) return; // query changed since
+            globals = res;
+            globalPending = false;
+            paint();
+          }, 250);
+        }
       }
 
       function syncEmptyClass() {
