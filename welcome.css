@@ -248,13 +248,12 @@ body {
 
 /* Category badge palette */
 .cat-social   { background: rgba(167, 139, 250, 0.14); color: var(--lav); }
-.cat-longform { background: rgba(203, 161, 78,  0.14); color: var(--gold); }
-.cat-live     { background: rgba(234, 119, 47,  0.14); color: var(--orange); }
-.cat-audio    { background: rgba(244, 166, 75,  0.14); color: var(--amber); }
-.cat-food     { background: rgba(74,  222, 128, 0.14); color: #4ade80; }
-.cat-books    { background: rgba(56,  189, 248, 0.14); color: #38bdf8; }
+.cat-media    { background: rgba(234, 119, 47,  0.14); color: var(--orange); }
+.cat-reading  { background: rgba(203, 161, 78,  0.14); color: var(--gold); }
 .cat-gaming   { background: rgba(52,  211, 153, 0.14); color: #34d399; }
+.cat-food     { background: rgba(74,  222, 128, 0.14); color: #4ade80; }
 .cat-images   { background: rgba(248, 113, 113, 0.14); color: #f87171; }
+.cat-commerce { background: rgba(232, 121, 249, 0.14); color: #e879f9; }
 .cat-tools    { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
 
 /* ===== Footer ===== */
