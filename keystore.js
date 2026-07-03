@@ -20,6 +20,16 @@
   const STORE_KEY = 'sidecar_keystore';
   const ACTIVE_KEY = 'sidecar_active_pubkey';
 
+  // Minimum PIN/passphrase length. The panel enforces this in the UI, but we also
+  // check here so the trusted context never wraps keys under a trivially weak
+  // secret regardless of how the request arrived.
+  const MIN_PIN_LENGTH = 8;
+  function assertPinStrength(pin) {
+    if (typeof pin !== 'string' || pin.length < MIN_PIN_LENGTH) {
+      throw new Error(`PIN must be at least ${MIN_PIN_LENGTH} characters`);
+    }
+  }
+
   // ---- in-memory unlocked state (module scope; gone when SW is killed) ----
   let derivedKey = null;                 // non-extractable AES-GCM CryptoKey, held while unlocked
   let unlocked = new Map();              // pubkeyHex -> Uint8Array(32) private key
@@ -153,6 +163,7 @@
   // Create a brand-new keystore protected by `pin`. Leaves it unlocked (empty).
   async function initialize(pin) {
     if (await isInitialized()) throw new Error('Keystore already initialized');
+    assertPinStrength(pin);
     const kdf = C.newKdf();
     derivedKey = await C.deriveKey(pin, kdf);
     const store = {
@@ -378,6 +389,7 @@
   async function changePin(oldPin, newPin) {
     const store = await loadStore();
     if (!store) throw new Error('Keystore not initialized');
+    assertPinStrength(newPin);
     const oldKey = await C.deriveKey(oldPin, store.kdf);
     if (!(await C.checkVerifier(oldKey, store.verifier))) throw new Error('Incorrect current PIN');
     const kdf = C.newKdf();

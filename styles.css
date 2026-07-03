@@ -135,6 +135,28 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(203, 161, 78, 0.16);
 }
 
+/* ===== PIN / passphrase strength + match indicators ===== */
+/* A wrapper that floats a check/x at the right edge of a password box. */
+.pin-field { position: relative; width: 100%; }
+.pin-field input { padding-right: 38px; }
+.pin-indicator {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.pin-indicator svg { width: 18px; height: 18px; display: block; }
+.pin-indicator.ok, .pin-indicator.bad { display: flex; }
+.pin-indicator.ok { color: #6ee7a8; }
+.pin-indicator.bad { color: var(--red); }
+.primary:disabled { opacity: 0.4; cursor: default; box-shadow: none; filter: none; }
+
 /* ===== profile (active account) ===== */
 /* profile loading skeleton (mirrors the centered layout) */
 .profile-skeleton { display: flex; flex-direction: column; align-items: center; }
