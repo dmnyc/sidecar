@@ -1490,6 +1490,11 @@
   async function generateAccount() {
     try {
       const gen = await call({ type: 'SIDECAR_ADD_ACCOUNT', generate: true });
+      // Make the new account active BEFORE anything can publish to it. Generate
+      // only auto-activates the very first account; without this the setup wizard
+      // would publish its kind:0 to whatever account was already active — which
+      // once overwrote an unrelated existing profile.
+      if (gen && gen.pubkey) await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: gen.pubkey });
       await refresh(); // renderMain() then pulls the profile for the new account
       toast('Account created', 'success');
       if (gen && gen.nsec) {
@@ -1498,6 +1503,10 @@
           title: 'Back up your new key',
           intro:
             'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
+          // A brand-new key has no profile yet — once they've backed it up, run a
+          // short setup wizard (name → photo → bio), which publishes what they
+          // fill in and lands them on the Profile tab to complete the rest.
+          onDone: () => profileSetupWizard(gen.pubkey),
         });
       }
     } catch (e) {
@@ -1654,7 +1663,14 @@
           h('div', { className: 'actions' }, [done])
         );
       },
-      () => { if (timer) { clearInterval(timer); timer = null; } }
+      () => {
+        if (timer) { clearInterval(timer); timer = null; }
+        // Runs on any close (button, X, or the 30s auto-hide). Defer to a fresh
+        // tick: onDone opens the setup wizard (another modal), and this
+        // closeModal still nulls modalCleanup and clears #modal right after this
+        // callback returns — running it inline would tear the wizard back down.
+        if (opts.onDone) setTimeout(opts.onDone, 0);
+      }
     );
   }
 
@@ -2117,7 +2133,9 @@
 
   // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
   // heavy kind:0 profile batch that getFollowList() does, since the profile just
-  // needs a number. Cached per pubkey. Returns null if no list is found.
+  // needs a number. Cached per pubkey. A completed query with no follow list means
+  // they aren't following anyone yet → 0 (common for a fresh account); only a
+  // thrown error returns null, which the UI renders as "—".
   const followCountCache = new Map(); // pubkey -> number|null
   async function getFollowCount(pubkey) {
     if (!pubkey) return null;
@@ -2128,6 +2146,8 @@
       if (ev) {
         const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
         count = set.size;
+      } else {
+        count = 0;
       }
     } catch (_) {}
     followCountCache.set(pubkey, count);
@@ -3341,6 +3361,176 @@
     hide($('view-profile-edit'));
     show($('view-main'));
   });
+
+  // First-run profile setup for a freshly generated key: a short, skippable
+  // wizard (name → photo → bio). On exit it publishes whatever was filled in
+  // (kind:0) and lands on the Profile tab to finish the rest. The keystore is
+  // unlocked from account creation, so signing needs no PIN. Every exit path —
+  // Finish, "I'll do this later", the X, or the backdrop — runs `commit` once
+  // (guarded), which publishes BEFORE closing so the profile never flashes the
+  // interim auto-generated cocktail name.
+  function profileSetupWizard(newPubkey) {
+    const draft = { display_name: '', picture: '', about: '' };
+    const STEPS = 3;
+    let step = 1;
+    let committing = false;
+
+    async function commit() {
+      if (committing) return;
+      committing = true;
+      // Only send fields the user actually filled in. publishProfile deletes any
+      // empty field it's handed, so passing blanks would wipe metadata rather
+      // than leave it untouched — keep this purely additive.
+      const fields = {};
+      if (draft.display_name.trim()) fields.display_name = draft.display_name.trim();
+      if (draft.picture) fields.picture = draft.picture;
+      if (draft.about.trim()) fields.about = draft.about.trim();
+      const hasContent = Object.keys(fields).length > 0;
+      // Safety net: publishProfile signs with whatever account is active. Only
+      // publish if the active account is still the one this wizard was opened
+      // for — never risk overwriting a different account's profile.
+      const targetOk = !newPubkey || state.activePubkey === newPubkey;
+      if (hasContent && !targetOk) {
+        toast('Profile setup skipped — active account changed.', 'error');
+      } else if (hasContent) {
+        const primaryBtn = $('modal').querySelector('button.primary');
+        if (primaryBtn) { primaryBtn.disabled = true; primaryBtn.textContent = 'Saving…'; }
+        // Publish and wait for the store to update BEFORE navigating/closing, so
+        // the Profile tab renders the chosen name, not the interim cocktail name.
+        try {
+          await publishProfile(fields, null); // keystore unlocked → no step-up PIN
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      }
+      const tab = document.querySelector('.tab[data-tab="profile"]');
+      if (tab) tab.click();
+      renderMain();
+      closeModal();
+      if (hasContent && targetOk) toast('Profile saved', 'success');
+    }
+
+    openModal(
+      (modal) => {
+        const xBtn = h('button', { className: 'modal-x', title: 'Skip' });
+        xBtn.appendChild(icon('x'));
+        xBtn.addEventListener('click', commit);
+        const body = h('div', { className: 'setup-modal' });
+        modal.append(xBtn, body);
+
+        const head = (title, sub) => {
+          const parts = [
+            h('div', { className: 'setup-progress', textContent: 'Step ' + step + ' of ' + STEPS }),
+            h('h3', { textContent: title }),
+          ];
+          if (sub) parts.push(h('p', { className: 'hint', textContent: sub }));
+          return parts;
+        };
+
+        const footer = (primaryLabel, onPrimary) => {
+          const row = h('div', { className: 'actions setup-actions' });
+          if (step > 1) {
+            const back = h('button', { className: 'ghost', textContent: 'Back' });
+            back.addEventListener('click', () => { step -= 1; render(); });
+            row.append(back);
+          }
+          const primary = h('button', { className: 'primary', textContent: primaryLabel });
+          primary.addEventListener('click', onPrimary);
+          row.append(primary);
+          const later = h('button', { className: 'setup-skip', textContent: "I'll do this later" });
+          later.addEventListener('click', commit);
+          return h('div', {}, [row, later]);
+        };
+
+        function render() {
+          body.innerHTML = '';
+          if (step === 1) renderName();
+          else if (step === 2) renderPhoto();
+          else renderBio();
+        }
+
+        function renderName() {
+          const input = h('input', { type: 'text', placeholder: 'e.g. Gatsby' });
+          input.value = draft.display_name;
+          input.addEventListener('input', () => { draft.display_name = input.value; });
+          body.append(
+            ...head('What should people call you?', 'Your display name — you can change it any time.'),
+            h('label', { className: 'field-label', textContent: 'Display name' }),
+            input,
+            footer('Continue', () => { step = 2; render(); })
+          );
+          setTimeout(() => input.focus(), 30);
+        }
+
+        function renderPhoto() {
+          const prev = h('div', { className: 'upload-preview' });
+          const overlay = h('span', { className: 'upload-overlay' });
+          overlay.append(icon('camera'));
+          const fileInput = document.createElement('input');
+          fileInput.type = 'file';
+          fileInput.accept = 'image/*';
+          fileInput.style.display = 'none';
+          const capLabel = h('span', { className: 'upload-cap-label' });
+          const capHint = h('span', { className: 'upload-cap-hint', textContent: 'JPG, PNG or GIF' });
+          const setPreview = (url) => {
+            prev.innerHTML = '';
+            prev.classList.toggle('empty', !url);
+            if (url) {
+              const im = document.createElement('img');
+              im.referrerPolicy = 'no-referrer';
+              im.src = url;
+              prev.append(im);
+            }
+            prev.append(overlay);
+            capLabel.textContent = url ? 'Change photo' : 'Upload a photo';
+          };
+          setPreview(draft.picture);
+          const trigger = () => fileInput.click();
+          prev.addEventListener('click', trigger);
+          const caption = h('div', { className: 'upload-caption' }, [capLabel, capHint]);
+          caption.addEventListener('click', trigger);
+          fileInput.addEventListener('change', async () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+            prev.classList.add('uploading');
+            const before = capLabel.textContent;
+            capLabel.textContent = 'Uploading…';
+            try {
+              const u = await uploadImage(file, 'profile');
+              draft.picture = u;
+              setPreview(u);
+            } catch (e) {
+              capLabel.textContent = before;
+              toast(e.message, 'error');
+            }
+            prev.classList.remove('uploading');
+            fileInput.value = '';
+          });
+          body.append(
+            ...head('Add a photo', 'Optional — a picture helps people recognize you.'),
+            h('div', { className: 'upload-row', role: 'button' }, [prev, caption, fileInput]),
+            footer('Continue', () => { step = 3; render(); })
+          );
+        }
+
+        function renderBio() {
+          const ta = document.createElement('textarea');
+          ta.value = draft.about;
+          ta.placeholder = 'A sentence or two about you.';
+          ta.addEventListener('input', () => { draft.about = ta.value; });
+          body.append(
+            ...head('Write a short bio', 'Optional — you can flesh out your profile next.'),
+            h('label', { className: 'field-label', textContent: 'About' }),
+            ta,
+            footer('Finish', commit)
+          );
+        }
+
+        render();
+      },
+      commit
+    );
+  }
 
   // Fetch-merge-sign-publish: preserve unknown fields, overlay edits, sign (step-up PIN), publish.
   async function publishProfile(fields, pin) {
