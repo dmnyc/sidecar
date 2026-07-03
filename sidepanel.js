@@ -2606,7 +2606,10 @@
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   const NOTE_COUNTDOWN_SECS = 15;
-  const CLIENT_TAG = ['client', 'Sidecar', 'https://github.com/dmnyc/sidecar', 'wss://nos.lol'];
+  // NIP-89 client tag. Positions 3–4 are meant to be a kind:31990 handler
+  // coordinate + relay hint; we don't publish a handler, so a bare name is the
+  // correct minimal form and avoids adding dead bytes to every note.
+  const CLIENT_TAG = ['client', 'Sidecar'];
   // ---- About / zap-the-creator ----
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
