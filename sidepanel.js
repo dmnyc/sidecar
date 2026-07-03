@@ -1672,18 +1672,27 @@
         // opt-in backup option, not shown unprompted. Generated only on click, so
         // the scannable image never exists on screen unless requested. nsec is
         // case-sensitive bech32, so encode it as-is (lowercase, byte mode).
-        const qrBox = h('div', { className: 'qr-reveal' });
+        const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' }); // holds the canvas once revealed
         const qrHint = h('p', { className: 'hint hidden', textContent: 'Scan to sign in on a mobile client that supports QR login.' });
-        const showQr = h('button', { className: 'secondary qr-reveal-btn' }, [icon('qr'), h('span', { textContent: 'Show QR code' })]);
+        const showQr = h('button', { className: 'secondary qr-reveal-btn' });
+        let qrShown = false, qrCanvas = null;
+        const setQrLabel = () => {
+          showQr.innerHTML = '';
+          showQr.append(icon('qr'), h('span', { textContent: qrShown ? 'Hide QR code' : 'Show QR code' }));
+        };
+        setQrLabel();
         showQr.addEventListener('click', () => {
-          const canvas = document.createElement('canvas');
-          canvas.className = 'recv-qr modal-qr';
-          try { new window.QRious({ element: canvas, value: opts.nsec, size: 220, level: 'M' }); } catch (_) {}
-          qrBox.innerHTML = '';
-          qrBox.append(canvas);
-          qrHint.classList.remove('hidden');
+          qrShown = !qrShown;
+          if (qrShown && !qrCanvas) {
+            qrCanvas = document.createElement('canvas');
+            qrCanvas.className = 'recv-qr modal-qr';
+            try { new window.QRious({ element: qrCanvas, value: opts.nsec, size: 220, level: 'M' }); } catch (_) {}
+            qrCanvasWrap.append(qrCanvas);
+          }
+          qrCanvasWrap.classList.toggle('hidden', !qrShown);
+          qrHint.classList.toggle('hidden', !qrShown);
+          setQrLabel();
         });
-        qrBox.append(showQr);
 
         const box = h('div', { className: 'secret-box', textContent: opts.nsec });
         const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
@@ -1709,7 +1718,8 @@
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
           box,
           copy,
-          qrBox,
+          showQr,
+          qrCanvasWrap,
           qrHint,
           h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
           countdown,
@@ -2157,8 +2167,63 @@
     }
     view.append(body);
 
+    // Offer to sync the profile's lightning address to the connected wallet's
+    // address (from the NWC string) when they differ — filled in async.
+    const lud16Notice = h('div', { className: 'lud16-sync hidden' });
+    view.append(lud16Notice);
+    maybeSuggestLud16(lud16Notice, active, content);
+
     renderNip65Section(view, active);
     renderBackupSection(view, active);
+  }
+
+  // If the connected wallet advertises a lightning address (NWC lud16) that
+  // differs from — or is missing on — the profile, offer a one-tap update so the
+  // profile matches where zaps actually land. Dismissals are remembered for the
+  // session so it doesn't nag.
+  const _lud16SyncDismissed = new Set(); // `${pubkey}|${walletAddr}`
+  async function maybeSuggestLud16(container, active, content) {
+    let walletAddr = null;
+    try {
+      const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
+      walletAddr = connection ? parseNwcLud16(connection) : null;
+    } catch (_) {}
+    if (!walletAddr) return; // no wallet address to sync
+    if (state.activePubkey !== active.pubkey) return; // account switched during await
+    const profileAddr = (content.lud16 || '').trim();
+    if (profileAddr.toLowerCase() === walletAddr.toLowerCase()) return; // already matches
+    const key = active.pubkey + '|' + walletAddr;
+    if (_lud16SyncDismissed.has(key)) return;
+
+    const title = h('div', { className: 'lud16-sync-title' }, [
+      boltIcon('lud16-sync-bolt'),
+      h('span', { textContent: 'Lightning address' }),
+    ]);
+    const msg = h('p', {
+      className: 'lud16-sync-msg',
+      textContent: profileAddr
+        ? "Your profile's lightning address differs from your connected wallet's."
+        : "Add your wallet's lightning address to your profile so people can zap you.",
+    });
+    const addr = h('div', { className: 'lud16-sync-addr', textContent: walletAddr });
+    const useBtn = h('button', { className: 'primary', textContent: profileAddr ? 'Use wallet address' : 'Add to profile' });
+    const dismiss = h('button', { className: 'ghost', textContent: 'Not now' });
+    useBtn.addEventListener('click', async () => {
+      useBtn.disabled = true;
+      useBtn.textContent = 'Updating…';
+      try {
+        await publishProfile({ lud16: walletAddr }, null); // unlocked → no step-up PIN; additive
+        toast('Lightning address updated', 'success');
+        renderProfile(); // re-render: the address now matches, so the notice won't reappear
+      } catch (e) {
+        useBtn.disabled = false;
+        useBtn.textContent = profileAddr ? 'Use wallet address' : 'Add to profile';
+        toast(e.message, 'error');
+      }
+    });
+    dismiss.addEventListener('click', () => { _lud16SyncDismissed.add(key); container.remove(); });
+    container.append(title, msg, addr, h('div', { className: 'actions lud16-sync-actions' }, [useBtn, dismiss]));
+    container.classList.remove('hidden');
   }
 
   // ---- rich about text: links + npub/nprofile mentions, with show more/less ----
@@ -5441,12 +5506,15 @@
         const canvas = document.createElement('canvas');
         canvas.className = 'recv-qr';
         try { new window.QRious({ element: canvas, value: 'lightning:' + lud16, size: 220, level: 'M' }); } catch (_) {}
-        const copy = h('button', { className: 'secondary', textContent: lud16 });
+        // Truncate to one line if it overflows — the full address is still copied.
+        const copy = h('button', { className: 'secondary recv-addr', title: 'Copy address' });
+        const addrText = h('span', { textContent: lud16 });
+        copy.append(addrText);
         copy.addEventListener('click', async () => {
           try {
             await navigator.clipboard.writeText(lud16);
-            copy.textContent = 'Copied ✓';
-            setTimeout(() => (copy.textContent = lud16), 1200);
+            addrText.textContent = 'Copied ✓';
+            setTimeout(() => (addrText.textContent = lud16), 1200);
           } catch (_) {}
         });
         out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Your reusable lightning address — anyone can pay it any amount.' }));
