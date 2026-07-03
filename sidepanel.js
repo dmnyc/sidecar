@@ -557,20 +557,60 @@
   }
 
   // Fetch just name + picture from kind 0 for a preview (without storing it).
+  // ---- shared kind:0 profile cache ----
+  // Many paths need a profile (active profile, import/mention previews, @-mention
+  // name resolution). Without sharing, each re-fetches the same kind:0 from every
+  // relay. This caches by pubkey with a short TTL (profiles change rarely) and
+  // dedupes concurrent fetches, cutting repeat network reads. Invalidated on
+  // self-edit so a freshly published profile shows immediately.
+  const PROFILE_TTL = 5 * 60 * 1000;
+  const _profileCache = new Map();    // pubkey -> { content, name, picture, expiresAt }
+  const _profileInflight = new Map(); // pubkey -> Promise
+  function cacheProfile(pubkey, content) {
+    const c = content || {};
+    const rec = {
+      content: c,
+      name: c.display_name || c.displayName || c.name || '',
+      picture: c.picture || '',
+      expiresAt: Date.now() + PROFILE_TTL,
+    };
+    _profileCache.set(pubkey, rec);
+    return rec;
+  }
+  function cachedProfile(pubkey) {
+    const hit = _profileCache.get(pubkey);
+    return hit && hit.expiresAt > Date.now() ? hit : null;
+  }
+  async function getProfile(pubkey) {
+    if (!pubkey) return null;
+    const hit = cachedProfile(pubkey);
+    if (hit) return hit;
+    if (_profileInflight.has(pubkey)) return _profileInflight.get(pubkey);
+    const p = (async () => {
+      try {
+        const relays = await relayUrls(false);
+        if (!relays.length) return null;
+        const ev = await Promise.race([
+          poolGet(relays, { kinds: [0], authors: [pubkey] }),
+          new Promise((r) => setTimeout(() => r(null), 6000)),
+        ]);
+        let content = {};
+        if (ev) { try { content = JSON.parse(ev.content) || {}; } catch (_) {} }
+        return cacheProfile(pubkey, content); // cache even an absent profile briefly
+      } catch (_) {
+        return null;
+      } finally {
+        _profileInflight.delete(pubkey);
+      }
+    })();
+    _profileInflight.set(pubkey, p);
+    return p;
+  }
+
   async function fetchPreviewProfile(pubkey) {
-    try {
-      const relays = await relayUrls(false);
-      if (!relays.length) return null;
-      const ev = await Promise.race([
-        poolGet(relays, { kinds: [0], authors: [pubkey] }),
-        new Promise((r) => setTimeout(() => r(null), 6000)),
-      ]);
-      if (!ev) return null;
-      const m = JSON.parse(ev.content) || {};
-      return { name: m.display_name || m.displayName || m.name || '', picture: m.picture || '' };
-    } catch (_) {
-      return null;
-    }
+    const rec = await getProfile(pubkey);
+    if (!rec) return null;
+    return { name: rec.name, picture: rec.picture };
   }
 
   // ---- NIP-65 (kind 10002) relay list, cached per account ----
@@ -2007,22 +2047,8 @@
   async function fetchActiveProfile() {
     const pk = state.activePubkey;
     if (!pk) return { content: {}, event: null };
-    let event = null;
-    try {
-      event = await Promise.race([
-        poolGet(await relayUrls(false), { kinds: [0], authors: [pk] }),
-        new Promise((res) => setTimeout(() => res(null), 6000)),
-      ]);
-    } catch (_) {
-      /* offline */
-    }
-    let content = {};
-    if (event) {
-      try {
-        content = JSON.parse(event.content) || {};
-      } catch (_) {}
-    }
-    return { content, event };
+    const rec = await getProfile(pk);
+    return { content: rec ? rec.content : {}, event: null };
   }
 
   // Skeleton placeholder mirroring the centered profile layout while kind:0 loads.
@@ -2124,7 +2150,6 @@
 
   // ---- rich about text: links + npub/nprofile mentions, with show more/less ----
   const normalizeUrl = (u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
-  const mentionNameCache = new Map(); // pubkey -> name|null
   const TOKEN_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?((?:npub1|nprofile1)[0-9a-z]+)/gi;
 
   // Follow list cache for @mention autocomplete (invalidated on account switch)
@@ -2267,6 +2292,7 @@
             const c = JSON.parse(prof.content);
             name = c.display_name || c.name || null;
             picture = c.picture || null;
+            cacheProfile(pk, c); // share with profile previews + @-mention resolution
           } catch (_) {}
         }
         // Keep follows with no resolvable profile (no relay had their kind:0,
@@ -2309,7 +2335,10 @@
   }
 
   async function resolveMentions(mentions) {
-    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !mentionNameCache.has(pk));
+    // Only fetch pubkeys not already in the shared profile cache; batch the rest
+    // in one query (efficient for many authors) and populate the shared cache so
+    // these results are reused by profile previews and future mentions.
+    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !cachedProfile(pk));
     if (need.length) {
       try {
         const events = await Promise.race([
@@ -2321,20 +2350,15 @@
           if (!latest[ev.pubkey] || ev.created_at > latest[ev.pubkey].created_at) latest[ev.pubkey] = ev;
         });
         need.forEach((pk) => {
-          let name = null;
-          if (latest[pk]) {
-            try {
-              const m = JSON.parse(latest[pk].content);
-              name = m.display_name || m.name || null;
-            } catch (_) {}
-          }
-          mentionNameCache.set(pk, name);
+          let content = {};
+          if (latest[pk]) { try { content = JSON.parse(latest[pk].content) || {}; } catch (_) {} }
+          cacheProfile(pk, content);
         });
       } catch (_) {}
     }
     mentions.forEach(({ el, pubkey }) => {
-      const name = mentionNameCache.get(pubkey);
-      if (name) el.textContent = '@' + name;
+      const rec = _profileCache.get(pubkey);
+      if (rec && rec.name) el.textContent = '@' + rec.name;
     });
   }
 
@@ -3792,6 +3816,9 @@
     const event = { kind: 0, created_at: Math.floor(Date.now() / 1000), tags: [], content: JSON.stringify(merged) };
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin });
     await publishSigned(signed);
+    // Refresh the shared profile cache with what we just published so the profile
+    // view / previews reflect the edit immediately instead of a stale cached copy.
+    cacheProfile(state.activePubkey, merged);
     await call({
       type: 'SIDECAR_SET_PROFILE',
       pubkey: state.activePubkey,
@@ -5244,7 +5271,7 @@
 
   function receiveModal() {
     let pollTimer = null;
-    const stopPoll = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+    const stopPoll = () => { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } };
 
     openModal((modal) => {
       const xClose = h('button', { className: 'modal-x', title: 'Close' });
@@ -5291,18 +5318,29 @@
             if (!invoice) throw new Error('Wallet returned no invoice');
             // Swap the whole form for the invoice + QR; the corner ✕ cancels.
             showInvoice(body, invoice);
-            // Poll for settlement so we can show a success state.
+            // Poll for settlement so we can show a success state — with a backoff
+            // and an overall cap so a receive QR left open doesn't hammer the
+            // wallet relay indefinitely (starts at 2.5s, eases to 15s, stops
+            // after 5 minutes).
             const lookupArg = res.payment_hash ? { payment_hash: res.payment_hash } : { invoice };
-            pollTimer = setInterval(async () => {
+            const POLL_MAX = 15000;
+            const pollDeadline = Date.now() + 5 * 60 * 1000;
+            let pollDelay = 2500;
+            const pollOnce = async () => {
               try {
                 const inv = await client.lookupInvoice(lookupArg);
                 if (inv && (inv.settled_at || inv.preimage || inv.state === 'settled')) {
                   stopPoll();
                   showReceiveSuccess(body, sats);
                   renderWallet();
+                  return;
                 }
               } catch (_) {}
-            }, 2500);
+              if (Date.now() >= pollDeadline) { stopPoll(); return; }
+              pollDelay = Math.min(Math.round(pollDelay * 1.5), POLL_MAX);
+              pollTimer = setTimeout(pollOnce, pollDelay);
+            };
+            pollTimer = setTimeout(pollOnce, pollDelay);
           } catch (e) {
             err.textContent = e.message;
             create.disabled = false;
