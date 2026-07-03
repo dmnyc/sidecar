@@ -1062,6 +1062,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .preview-body { font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .preview-body a { color: var(--lav); }
 .preview-body .mention { color: var(--orange); font-weight: 600; }
+.embed-body .mention { color: var(--orange); font-weight: 600; }
+.embed-body a { color: var(--lav); overflow-wrap: anywhere; }
+.embed-body .note-media { max-height: 220px; object-fit: contain; margin: 6px 0; }
 .note-media { display: block; max-width: 100%; border-radius: 10px; margin: 8px 0; border: 1px solid var(--border); }
 /* embedded nostr event/profile preview card in the composer preview */
 .note-embed {

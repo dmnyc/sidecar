@@ -2252,6 +2252,75 @@
     });
   }
 
+  // Render note text into `container`: inline images/videos, links, and
+  // resolved nostr:npub/nprofile mentions — like renderNotePreview, but compact
+  // for a quoted-note card (no OG link cards, no recursion into nested note
+  // embeds). Long text is truncated to `maxLen` visible chars, but trailing
+  // media still renders so an image at the end of a long note isn't lost.
+  function renderNoteText(container, text, maxLen) {
+    const mentions = [];
+    let last = 0;
+    let used = 0;
+    let truncated = false;
+    let m;
+    PREVIEW_RE.lastIndex = 0;
+    const pushText = (s) => {
+      if (!s || truncated) return;
+      if (used + s.length > maxLen) {
+        container.append(document.createTextNode(s.slice(0, Math.max(0, maxLen - used)) + '…'));
+        truncated = true;
+      } else {
+        container.append(document.createTextNode(s));
+        used += s.length;
+      }
+    };
+    while ((m = PREVIEW_RE.exec(text)) !== null) {
+      if (m.index > last) pushText(text.slice(last, m.index));
+      if (m[1]) {
+        const url = m[1];
+        if (IMG_EXT.test(url)) {
+          const im = document.createElement('img');
+          im.className = 'note-media';
+          im.referrerPolicy = 'no-referrer';
+          im.src = url;
+          container.append(im);
+        } else if (VID_EXT.test(url)) {
+          const v = document.createElement('video');
+          v.className = 'note-media';
+          v.controls = true;
+          v.src = url;
+          container.append(v);
+        } else {
+          const a = document.createElement('a');
+          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
+          a.textContent = url;
+          container.append(a);
+        }
+      } else if (m[2]) {
+        const bech = m[2];
+        let d = null;
+        try { d = NT.nip19.decode(bech); } catch (_) {}
+        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
+          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
+          const span = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
+          if (pubkey) mentions.push({ el: span, pubkey });
+          container.append(span);
+        } else {
+          // Nested note/nevent/naddr ref — link out rather than recurse into
+          // another embed card inside this one.
+          const a = document.createElement('a');
+          a.href = 'https://njump.me/' + bech;
+          a.target = '_blank'; a.rel = 'noreferrer noopener';
+          a.textContent = 'quoted note';
+          container.append(a);
+        }
+      }
+      last = PREVIEW_RE.lastIndex;
+    }
+    if (last < text.length) pushText(text.slice(last));
+    resolveMentions(mentions);
+  }
+
   function renderAbout(container, text) {
     const bodyEl = h('div', { className: 'about-clamp' });
     const mentions = [];
@@ -2640,7 +2709,8 @@
     ]);
     const titleTag = (ev.tags || []).find((t) => t[0] === 'title');
     const text = (titleTag && titleTag[1]) || ev.content || '';
-    const body = h('div', { className: 'embed-body', textContent: text.length > 280 ? text.slice(0, 280) + '…' : text });
+    const body = h('div', { className: 'embed-body' });
+    renderNoteText(body, text, 280);
     el.append(head, body);
     fetchPreviewProfile(ev.pubkey).then((p) => {
       if (!p) return;
