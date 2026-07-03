@@ -2130,6 +2130,7 @@
   // Follow list cache for @mention autocomplete (invalidated on account switch)
   let followListCache = null;
   let followListPubkey = null;
+  let followListInflight = null; // dedupe concurrent loads (rapid @-keystrokes)
 
   // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
   // heavy kind:0 profile batch that getFollowList() does, since the profile just
@@ -2232,7 +2233,9 @@
 
   async function getFollowList() {
     if (followListCache && followListPubkey === state.activePubkey) return followListCache;
+    if (followListInflight) return followListInflight; // a load is already running
     if (!state.activePubkey) return [];
+    followListInflight = (async () => {
     try {
       const relays = await relayUrls(false);
       // maxWait bounds each relay's own connect+EOSE wait individually (they
@@ -2285,6 +2288,9 @@
     } catch (_) {
       return [];
     }
+    })();
+    try { return await followListInflight; }
+    finally { followListInflight = null; }
   }
 
   function npubChip(npub) {
@@ -3023,14 +3029,31 @@
         scheduleSave();
       }
 
-      function renderAcResults(items, ctx) {
+      // Anchor the dropdown just under the caret line rather than the bottom of
+      // the (tall) editor box. Falls back to the CSS default if no caret rect.
+      function positionAcDropdown() {
+        if (!acDropdown) return;
+        try {
+          const sel = window.getSelection();
+          if (!sel.rangeCount) return;
+          const r = sel.getRangeAt(0).getBoundingClientRect();
+          if (!r || (!r.top && !r.bottom)) return;
+          const wrap = editorWrap.getBoundingClientRect();
+          acDropdown.style.top = Math.round(r.bottom - wrap.top + 4) + 'px';
+        } catch (_) {}
+      }
+
+      // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
+      // and keeps the dropdown open even when there are no local matches yet.
+      function renderAcResults(items, ctx, loading) {
         acResults = items;
-        if (!acResults.length) { closeAcDropdown(); return; }
-        acIndex = Math.max(0, Math.min(acIndex, acResults.length - 1));
+        if (!acResults.length && !loading) { closeAcDropdown(); return; }
+        acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
         if (!acDropdown) {
           acDropdown = h('div', { className: 'ac-dropdown' });
           editorWrap.append(acDropdown);
         }
+        positionAcDropdown();
         acDropdown.innerHTML = '';
         acResults.forEach((c, i) => {
           const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
@@ -3044,30 +3067,58 @@
           });
           acDropdown.append(item);
         });
+        if (loading) {
+          acDropdown.append(h('div', { className: 'ac-loading' }, [
+            h('span', { className: 'ac-spinner' }),
+            h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
+          ]));
+        }
       }
 
+      // Two async sources feed the dropdown: your follow list (instant from
+      // cache, else a slow first relay load) and a global Nostr search. NEVER
+      // block the UI on the follow list — the first load hits relays and can take
+      // many seconds. Paint immediately (with a spinner), then repaint as each
+      // source resolves. `paint()` renders the deduped union + loading state.
       async function updateAcDropdown() {
         const ctx = getCaretContext();
         if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
         const seq = ++acSeq;
         const q = ctx.query.toLowerCase();
-        const follows = await getFollowList();
-        if (seq !== acSeq) return; // a newer keystroke superseded this
-        const followMatches = follows.filter((c) => c.name && c.name.toLowerCase().includes(q));
-        renderAcResults(followMatches.slice(0, 8), ctx);
+        const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
 
-        // Also search all of Nostr (not just follows) so you can tag someone you
-        // don't follow. Debounced; merged below the follow matches, deduped by
-        // pubkey. Best-effort — a failure/rate-limit just leaves the follow list.
-        if (ctx.query.length >= 2) {
+        const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+        let followMatches = [];
+        let globals = [];
+        let globalPending = willSearchGlobal;
+        const paint = () => {
+          if (seq !== acSeq) return;
+          const seen = new Set(followMatches.map((c) => c.pubkey));
+          const merged = followMatches.slice();
+          for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+          renderAcResults(merged.slice(0, 8), ctx, globalPending);
+        };
+
+        // Follows: use the cache synchronously if present; otherwise load in the
+        // background and repaint when ready (no await here).
+        const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
+        if (cached) followMatches = matchFollows(cached);
+        paint(); // instant feedback: local matches (maybe none) + spinner if searching
+        if (!cached) {
+          getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
+        }
+
+        // Global search across all of Nostr so you can tag people you don't
+        // follow. Debounced; best-effort — a failure/rate-limit just clears the
+        // spinner and leaves the follow matches.
+        if (willSearchGlobal) {
           if (acSuggestTimer) clearTimeout(acSuggestTimer);
           acSuggestTimer = setTimeout(async () => {
-            const globals = await naSuggest(ctx.query);
-            if (seq !== acSeq || !globals.length) return;
-            const seen = new Set(followMatches.map((c) => c.pubkey));
-            const merged = followMatches.slice();
-            for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-            renderAcResults(merged.slice(0, 8), ctx);
+            const res = await naSuggest(ctx.query);
+            if (seq !== acSeq) return; // query changed since
+            globals = res;
+            globalPending = false;
+            paint();
           }, 250);
         }
       }

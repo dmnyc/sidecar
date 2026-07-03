@@ -1054,6 +1054,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .ac-item-av { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--velvet-1); border: 1px solid var(--border); }
 .ac-item-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ac-item-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-loading { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
+.ac-spinner { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--lav); animation: ac-spin 0.7s linear infinite; }
+@keyframes ac-spin { to { transform: rotate(360deg); } }
 .compose-preview {
   min-height: 120px; max-height: 46vh; overflow-y: auto;
   border: 1px solid var(--border); border-radius: 10px; padding: 12px;
