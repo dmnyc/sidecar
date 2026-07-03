@@ -30,7 +30,7 @@ Connect) and a composer for posting notes directly from the panel.
 - **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle.
 - **Follow-list recovery** — if a buggy client overwrites your follows with an empty or shorter list, scan your relays for an earlier kind:3 and republish a healthy version. Powered by [Mutable](https://mutable.top).
 - **Note composer** — post kind:1 notes directly from the panel with a send countdown you can review (the full note renders) and cancel. Drafts autosave per account, so you can close the composer and resume — or start fresh — later. Features include:
-  - **@mention autocomplete** — type `@` to search your follow list; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
+  - **@mention autocomplete** — type `@` to search your follows *and* all of Nostr (global search via [Nostr Archives](https://github.com/barrydeen/nostrarchives-api)), so you can tag anyone; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
   - **Nostr event embeds** — paste a `note1`, `nevent1`, or `naddr1` entity and the preview renders a fetched embed card (author, timestamp, content excerpt).
   - **Link previews** — plain URLs show an OG meta card (title, description, thumbnail) fetched through the extension with no third-party service.
   - **Media upload** — attach images and video; uploads go to your own Blossom servers (from your kind:10063 list) when available, falling back to nostr.build.
