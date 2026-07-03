@@ -53,6 +53,7 @@
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
     pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
     bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
+    qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -1666,11 +1667,23 @@
     let timer = null;
     openModal(
       (modal) => {
-        // Scannable QR for QR sign-in on mobile clients (e.g. Wisp). nsec is
+        // Scannable QR for QR sign-in on mobile clients (e.g. Wisp). A QR exposes
+        // the full key at a glance, so keep it behind an explicit reveal — an
+        // opt-in backup option, not shown unprompted. Generated only on click, so
+        // the scannable image never exists on screen unless requested. nsec is
         // case-sensitive bech32, so encode it as-is (lowercase, byte mode).
-        const canvas = document.createElement('canvas');
-        canvas.className = 'recv-qr modal-qr';
-        try { new window.QRious({ element: canvas, value: opts.nsec, size: 220, level: 'M' }); } catch (_) {}
+        const qrBox = h('div', { className: 'qr-reveal' });
+        const qrHint = h('p', { className: 'hint hidden', textContent: 'Scan to sign in on a mobile client that supports QR login.' });
+        const showQr = h('button', { className: 'secondary qr-reveal-btn' }, [icon('qr'), h('span', { textContent: 'Show QR code' })]);
+        showQr.addEventListener('click', () => {
+          const canvas = document.createElement('canvas');
+          canvas.className = 'recv-qr modal-qr';
+          try { new window.QRious({ element: canvas, value: opts.nsec, size: 220, level: 'M' }); } catch (_) {}
+          qrBox.innerHTML = '';
+          qrBox.append(canvas);
+          qrHint.classList.remove('hidden');
+        });
+        qrBox.append(showQr);
 
         const box = h('div', { className: 'secret-box', textContent: opts.nsec });
         const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
@@ -1694,10 +1707,10 @@
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
-          canvas,
-          h('p', { className: 'hint', textContent: 'Scan to sign in on a mobile client that supports QR login.' }),
           box,
           copy,
+          qrBox,
+          qrHint,
           h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
           countdown,
           h('div', { className: 'actions' }, [done])
@@ -4587,6 +4600,30 @@
   const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
+  // Lightning address for receiving. Some NWC connection strings embed a `lud16`
+  // (the wallet's own address) — prefer that, then fall back to the account's
+  // profile lud16. Returns null when neither is present.
+  function parseNwcLud16(connection) {
+    try {
+      const q = connection.split('?')[1];
+      if (!q) return null;
+      const v = new URLSearchParams(q).get('lud16');
+      return v && v.includes('@') ? v.trim() : null;
+    } catch (_) { return null; }
+  }
+  async function getLightningAddress() {
+    try {
+      const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
+      const fromNwc = connection && parseNwcLud16(connection);
+      if (fromNwc) return fromNwc;
+    } catch (_) {}
+    try {
+      const { content } = await fetchActiveProfile();
+      if (content && content.lud16) return content.lud16;
+    } catch (_) {}
+    return null;
+  }
+
   // Shared sats cap + a numeric-only, capped amount input used by send/receive/zap.
   const MAX_SATS = 100000000; // 100M
   function satsInput(placeholder) {
@@ -4749,6 +4786,45 @@
     recvBtn.addEventListener('click', () => receiveModal());
     actions.append(sendBtn, recvBtn);
     view.append(actions);
+
+    // Lightning address card (only if one is available). Shows the copyable
+    // address with a QR icon that toggles a scannable QR inline.
+    const addrCard = h('div', { className: 'setting address-card hidden' });
+    view.append(addrCard);
+    getLightningAddress().then((lud16) => {
+      if (!lud16) return;
+      const row = h('div', { className: 'address-row' });
+      const addr = h('button', { className: 'address-value', title: 'Copy address' }, [
+        boltIcon(), h('span', { textContent: lud16 }),
+      ]);
+      addr.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(lud16);
+          const s = addr.querySelector('span');
+          const prev = s.textContent;
+          s.textContent = 'Copied ✓';
+          setTimeout(() => (s.textContent = prev), 1200);
+        } catch (_) {}
+      });
+      const qrToggle = h('button', { className: 'address-qr-toggle', title: 'Show QR code' });
+      qrToggle.appendChild(icon('qr'));
+      const qrBox = h('div', { className: 'address-qr hidden' });
+      let built = false;
+      qrToggle.addEventListener('click', () => {
+        if (!built) {
+          built = true;
+          const canvas = document.createElement('canvas');
+          canvas.className = 'recv-qr';
+          try { new window.QRious({ element: canvas, value: 'lightning:' + lud16, size: 200, level: 'M' }); } catch (_) {}
+          qrBox.append(canvas);
+        }
+        const showing = qrBox.classList.toggle('hidden');
+        qrToggle.classList.toggle('active', !showing);
+      });
+      row.append(addr, qrToggle);
+      addrCard.append(h('h3', { textContent: 'Lightning address' }), row, qrBox);
+      addrCard.classList.remove('hidden');
+    });
 
     // Transactions
     const txWrap = h('div', { className: 'setting' });
@@ -5384,9 +5460,9 @@
       });
       showInvoiceMode();
 
-      // If the active account advertises a lightning address, add an Address tab.
-      fetchActiveProfile().then(({ content }) => {
-        const lud16 = content && content.lud16;
+      // If a lightning address is available (NWC string or profile), add an
+      // Address tab so the user can toggle between an invoice and their address.
+      getLightningAddress().then((lud16) => {
         if (!lud16) return;
         const tabAddress = h('button', { className: 'compose-tab', textContent: 'Address' });
         tabAddress.addEventListener('click', () => {
