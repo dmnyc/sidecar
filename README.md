@@ -20,8 +20,8 @@ Connect) and a composer for posting notes directly from the panel.
 
 ## Features
 
-- **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
-- **PIN-protected** — every private key is encrypted at rest (PBKDF2 → AES-GCM, WebCrypto). Nothing is stored in plaintext, and the keystore re-locks automatically. A paste guard blocks dropping an nsec anywhere except the import field.
+- **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Generating a new key runs a quick guided setup (name, photo, bio). Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
+- **PIN-protected** — every private key is encrypted at rest (PBKDF2 → AES-GCM, WebCrypto) under a PIN of at least 8 characters, with a live strength and match check when you set it. Nothing is stored in plaintext, and the keystore re-locks automatically. A paste guard blocks dropping an nsec anywhere except the import field.
 - **In-extension signing** — implements the full NIP-07 surface: `getPublicKey`, `signEvent`, `nip04`/`nip44` encrypt & decrypt, and `getRelays`.
 - **Per-site permissions** — approve or reject each site, per method, with a clear prompt that previews what you're signing. Relay auth (NIP-42) signs automatically so clients stay connected.
 - **Per-site account binding** — each site stays pinned to the account it logged in with (no NIP-07 desync). Switch a site to another account from **Connected Sites**.
