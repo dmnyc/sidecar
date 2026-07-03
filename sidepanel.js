@@ -2255,8 +2255,9 @@
   // Render note text into `container`: inline images/videos, links, and
   // resolved nostr:npub/nprofile mentions — like renderNotePreview, but compact
   // for a quoted-note card (no OG link cards, no recursion into nested note
-  // embeds). Long text is truncated to `maxLen` visible chars, but trailing
-  // media still renders so an image at the end of a long note isn't lost.
+  // embeds). Once the visible-text budget (`maxLen`) is hit, the preview stops
+  // cleanly at the "…" — nothing after the cut renders, so a mention or image
+  // further down the note can't leak past the ellipsis.
   function renderNoteText(container, text, maxLen) {
     const mentions = [];
     let last = 0;
@@ -2276,6 +2277,9 @@
     };
     while ((m = PREVIEW_RE.exec(text)) !== null) {
       if (m.index > last) pushText(text.slice(last, m.index));
+      // Text before this token filled the budget → stop; don't render the token
+      // (mention/link/media) that sits past the truncation point.
+      if (truncated) break;
       if (m[1]) {
         const url = m[1];
         if (IMG_EXT.test(url)) {
