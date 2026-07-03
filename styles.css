@@ -948,6 +948,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 
+/* first-run profile setup wizard */
+.setup-progress { font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.modal .setup-actions { flex-direction: row; margin-top: 18px; }
+.modal .setup-actions .ghost { flex: 0 0 auto; }
+.modal .setup-actions .primary { flex: 1; }
+.setup-skip { display: block; width: 100%; margin-top: 10px; background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; padding: 6px; }
+.setup-skip:hover { color: var(--lav); }
+
 /* ===== compose note (FAB) ===== */
 .fab {
   position: absolute; bottom: 18px; right: 16px; z-index: 50;
