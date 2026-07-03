@@ -1,6 +1,6 @@
 # Sidecar Privacy Policy
 
-_Last updated: 2026-06-22_
+_Last updated: 2026-07-03_
 
 Sidecar is a browser extension that acts as a Nostr signer (NIP-07) and a
 Lightning wallet client (Nostr Wallet Connect / NIP-47). It is designed so that
@@ -50,6 +50,11 @@ Sidecar only talks to services **you choose**:
 - **Web pages you use** — when you sign in to a Nostr web app, Sidecar provides a
   signature or a public key to that page, with your approval. Pages receive
   signatures and your public key — **never your private key**.
+- **Link previews** — when a note you compose or view contains a URL, Sidecar
+  fetches that page through the extension to read its preview (title,
+  description, image) tags. This contacts the linked site directly; no
+  third-party preview service is involved, and requests to private or local
+  network addresses are blocked.
 
 Sidecar does not send any of this data to the developer or to any third party
 beyond the relays and wallet you configure.
