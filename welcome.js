@@ -36,11 +36,11 @@ const APPS = [
     desc: 'Power-user toolkit: communities, streams, wikis, badges — nearly every NIP in one place.',
   },
   {
-    name: 'Habla',
-    url: 'https://habla.news',
-    domain: 'habla.news',
-    cat: 'longform',
-    desc: 'Write and publish long-form articles on Nostr with a clean editor and monetization built in.',
+    name: 'Geyser',
+    url: 'https://geyser.fund',
+    domain: 'geyser.fund',
+    cat: 'tools',
+    desc: 'Crowdfunding for Bitcoin and Nostr projects — launch a fundraiser and receive Lightning contributions.',
   },
   {
     name: 'YakiHonne',
