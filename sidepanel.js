@@ -73,6 +73,81 @@
     return wrap.firstElementChild;
   }
 
+  // ---- PIN / passphrase strength + confirmation UI ----
+  // The keystore is encrypted at rest under a key derived from this secret, so its
+  // length is the practical floor on that protection. Require a non-trivial minimum
+  // and give live feedback: a green check appears in the first box once it's long
+  // enough, and a second green check (or a red x on mismatch) as the confirmation
+  // is typed. The proceed button stays disabled until both are satisfied.
+  const MIN_PIN_LEN = 8;
+  const MAX_PIN_LEN = 32;
+
+  function pinMeetsLength(v) {
+    return v.length >= MIN_PIN_LEN && v.length <= MAX_PIN_LEN;
+  }
+
+  function setPinIndicator(ind, state) {
+    ind.classList.remove('ok', 'bad');
+    ind.textContent = '';
+    if (state === 'ok') { ind.classList.add('ok'); ind.appendChild(icon('check')); }
+    else if (state === 'bad') { ind.classList.add('bad'); ind.appendChild(icon('x')); }
+  }
+
+  // Wrap a password <input> so a check/x indicator can sit at its right edge.
+  // Works whether the input is already in the DOM or still detached (in which case
+  // the caller appends the returned wrapper). Returns the indicator element.
+  function addPinIndicator(input) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pin-field';
+    if (input.parentNode) input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const ind = document.createElement('span');
+    ind.className = 'pin-indicator';
+    ind.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(ind);
+    return ind;
+  }
+
+  // Live-validate a create/confirm PIN pair and gate a submit button. Call after
+  // both inputs are in the DOM. Returns validate(), which also reports validity.
+  // The green check on the confirm box shows the instant it matches; the red x is
+  // held back until the user pauses typing (MISMATCH_DELAY), so it doesn't flash
+  // red while a matching value is still being entered.
+  const PIN_MISMATCH_DELAY = 700; // ms of idle before flagging a mismatch
+  function attachPinValidation(pinInput, confirmInput, submitBtn) {
+    const pinInd = addPinIndicator(pinInput);
+    const confInd = confirmInput ? addPinIndicator(confirmInput) : null;
+    let mismatchTimer = null;
+    const clearMismatchTimer = () => { if (mismatchTimer) { clearTimeout(mismatchTimer); mismatchTimer = null; } };
+    function validate() {
+      const pinOk = pinMeetsLength(pinInput.value);
+      setPinIndicator(pinInd, pinOk ? 'ok' : null);
+      let ready = pinOk;
+      if (confInd) {
+        const cv = confirmInput.value;
+        clearMismatchTimer();
+        if (!cv) {
+          setPinIndicator(confInd, null);            // nothing typed yet
+        } else if (cv === pinInput.value) {
+          setPinIndicator(confInd, pinOk ? 'ok' : null); // contents match; green once the PIN is long enough
+        } else {
+          // Genuine mismatch — defer the red so it doesn't appear mid-keystroke.
+          setPinIndicator(confInd, null);
+          mismatchTimer = setTimeout(() => {
+            if (confirmInput.value && confirmInput.value !== pinInput.value) setPinIndicator(confInd, 'bad');
+          }, PIN_MISMATCH_DELAY);
+        }
+        ready = pinOk && cv.length > 0 && cv === pinInput.value;
+      }
+      if (submitBtn) submitBtn.disabled = !ready;
+      return ready;
+    }
+    pinInput.addEventListener('input', validate);
+    if (confirmInput) confirmInput.addEventListener('input', validate);
+    validate();
+    return validate;
+  }
+
   // ---- toast notifications ----
   function toast(message, type) {
     const t = document.createElement('div');
@@ -224,14 +299,15 @@
 
 
   // ---- onboarding ----
+  attachPinValidation($('ob-pin'), $('ob-pin2'), $('ob-submit'));
   $('onboarding-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('ob-error');
     err.textContent = '';
     const pin = $('ob-pin').value;
     const pin2 = $('ob-pin2').value;
-    if (pin.length < 4) return (err.textContent = 'Use at least 4 characters.');
-    if (pin.length > 32) return (err.textContent = 'Use at most 32 characters.');
+    if (pin.length < MIN_PIN_LEN) return (err.textContent = `Use at least ${MIN_PIN_LEN} characters.`);
+    if (pin.length > MAX_PIN_LEN) return (err.textContent = `Use at most ${MAX_PIN_LEN} characters.`);
     if (pin !== pin2) return (err.textContent = 'PINs do not match.');
     try {
       await call({ type: 'SIDECAR_INIT', pin });
@@ -5155,15 +5231,15 @@
 
   $('change-pin-btn').addEventListener('click', () => {
     openModal((modal) => {
-      const oldP = h('input', { type: 'password', placeholder: 'Current PIN', maxLength: 32 });
-      const newP = h('input', { type: 'password', placeholder: 'New PIN', maxLength: 32 });
-      const newP2 = h('input', { type: 'password', placeholder: 'Confirm new PIN', maxLength: 32 });
+      const oldP = h('input', { type: 'password', placeholder: 'Current PIN', maxLength: MAX_PIN_LEN });
+      const newP = h('input', { type: 'password', placeholder: 'New PIN', maxLength: MAX_PIN_LEN });
+      const newP2 = h('input', { type: 'password', placeholder: 'Confirm new PIN', maxLength: MAX_PIN_LEN });
       const err = h('div', { className: 'error' });
       const save = h('button', { className: 'primary', textContent: 'Change PIN' });
       save.addEventListener('click', async () => {
         err.textContent = '';
-        if (newP.value.length < 4) return (err.textContent = 'New PIN too short.');
-        if (newP.value.length > 32) return (err.textContent = 'Max 32 characters.');
+        if (newP.value.length < MIN_PIN_LEN) return (err.textContent = `New PIN must be at least ${MIN_PIN_LEN} characters.`);
+        if (newP.value.length > MAX_PIN_LEN) return (err.textContent = `Max ${MAX_PIN_LEN} characters.`);
         if (newP.value !== newP2.value) return (err.textContent = 'New PINs do not match.');
         try {
           await call({ type: 'SIDECAR_CHANGE_PIN', oldPin: oldP.value, newPin: newP.value });
@@ -5184,6 +5260,8 @@
         err,
         h('div', { className: 'actions' }, [save, cancel])
       );
+      // Live strength/match feedback on the new-PIN pair; gates the Change button.
+      attachPinValidation(newP, newP2, save);
     });
   });
 
