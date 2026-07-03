@@ -39,7 +39,7 @@ const APPS = [
     name: 'Geyser',
     url: 'https://geyser.fund',
     domain: 'geyser.fund',
-    cat: 'tools',
+    cat: 'commerce',
     desc: 'Crowdfunding for Bitcoin and Nostr projects — launch a fundraiser and receive Lightning contributions.',
   },
   {
@@ -147,6 +147,34 @@ const APPS = [
     cat: 'tools',
     desc: 'An open app store where apps are published by developers and curated by communities.',
   },
+  {
+    name: 'Plebeian Market',
+    url: 'https://plebeian.market',
+    domain: 'plebeian.market',
+    cat: 'commerce',
+    desc: 'A peer-to-peer marketplace on Nostr — buy and sell goods and services for Bitcoin, no middleman.',
+  },
+  {
+    name: 'Formstr',
+    url: 'https://formstr.app',
+    domain: 'formstr.app',
+    cat: 'tools',
+    desc: 'Create forms and surveys on Nostr — collect responses privately, with no central server.',
+  },
+  {
+    name: 'HiveTalk',
+    url: 'https://hivetalk.org',
+    domain: 'hivetalk.org',
+    cat: 'live',
+    desc: 'Free browser-based video meetings and rooms with Nostr sign-in and Lightning tipping.',
+  },
+  {
+    name: 'Nostr Archives',
+    url: 'https://nostrarchives.com',
+    domain: 'nostrarchives.com',
+    cat: 'tools',
+    desc: 'Full-text search across Nostr’s history — find profiles and notes going back years.',
+  },
 ];
 
 const CAT_LABELS = {
@@ -158,6 +186,7 @@ const CAT_LABELS = {
   books:    'Books',
   gaming:   'Gaming',
   images:   'Images',
+  commerce: 'Commerce',
   tools:    'Tools',
 };
 
