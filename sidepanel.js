@@ -2999,10 +2999,16 @@
         const node = range.startContainer;
         if (node.nodeType !== Node.TEXT_NODE) return;
         const offset = range.startOffset;
-        const atStart = Math.max(0, offset - (query.length + 1));
-        // Auto-insert a leading space when @ immediately follows a non-whitespace char.
-        const charBeforeAt = atStart > 0 ? node.textContent[atStart - 1] : '';
-        const needsLeadingSpace = charBeforeAt && !/\s/.test(charBeforeAt);
+        // Text before the '@'. Trim any trailing whitespace and re-add exactly one
+        // space, so the mention is always preceded by a single space (or nothing
+        // at line start). Trimming the whole run both collapses a stray double
+        // space and sidesteps the old single-code-unit check, which mis-read an
+        // emoji's surrogate half (e.g. 🤝) as a non-space char and inserted an
+        // extra space.
+        const beforeAt = node.textContent.slice(0, Math.max(0, offset - (query.length + 1)));
+        const trimmed = beforeAt.replace(/\s+$/, '');
+        const atStart = trimmed.length;
+        const needsLeadingSpace = trimmed.length > 0;
         range.setStart(node, atStart);
         range.setEnd(node, offset);
         range.deleteContents();
@@ -3179,6 +3185,9 @@
         draft.media.forEach((m, i) => {
           const cell = h('div', { className: 'compose-thumb' });
           const el = m.isVideo ? document.createElement('video') : document.createElement('img');
+          // Match the rest of the app: many media hosts (e.g. Blossom) reject the
+          // chrome-extension:// referrer and 403, which renders as a broken thumb.
+          el.referrerPolicy = 'no-referrer';
           el.src = m.url;
           if (m.isVideo) el.muted = true;
           cell.append(el);
@@ -3206,6 +3215,18 @@
       }
       renderThumbs();
 
+      // Append a media URL on its own line. Decides the separator from the
+      // SERIALIZED text (what gets posted), and breaks on a newline rather than
+      // any trailing whitespace — so an image pasted right after a mention/tag
+      // can never glue to it (a bech32 or #hashtag followed by a URL corrupts
+      // both when the note is parsed). No-ops the break for an empty editor or
+      // one already ending in a newline.
+      function appendMediaUrl(url) {
+        const existing = serializeEditor(editor);
+        const sep = existing && !/\n$/.test(existing) ? '\n' : '';
+        editor.append(document.createTextNode(sep + url));
+      }
+
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = 'image/*,video/*';
@@ -3224,9 +3245,7 @@
         try {
           const url = await uploadMedia(file);
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
-          const t = editor.textContent;
-          const urlNode = document.createTextNode((t.length && !/\s$/.test(t) ? '\n' : '') + url);
-          editor.append(urlNode);
+          appendMediaUrl(url);
           draft.text = serializeEditor(editor);
           syncEmptyClass();
           renderThumbs();
@@ -3261,9 +3280,7 @@
           for (const file of imageFiles) {
             const url = await uploadMedia(file);
             draft.media.push({ url, isVideo: false });
-            const t = editor.textContent;
-            const urlNode = document.createTextNode((t.length && !/\s$/.test(t) ? '\n' : '') + url);
-            editor.append(urlNode);
+            appendMediaUrl(url);
           }
           draft.text = serializeEditor(editor);
           syncEmptyClass();
