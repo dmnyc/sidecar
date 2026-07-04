@@ -6340,15 +6340,16 @@
   connectApprovalPort();
 
   // ---- dev build indicator ----
-  // Local/unpacked builds only (see isDevBuild). Off by default even in dev, so it
-  // only appears when explicitly toggled on for screenshots/testing — never on the
-  // Chrome Web Store build, regardless of a stored setting.
+  // Local/unpacked builds only (see isDevBuild). On by default in dev so it's
+  // immediately obvious which build is loaded; the toggle lets it be hidden for
+  // clean screenshots. Never appears on the Chrome Web Store build, regardless of
+  // a stored setting.
   async function initDevBadge() {
     if (!isDevBuild()) return;
     show($('dev-settings-section'));
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    $('dev-indicator-toggle').checked = settings.devIndicator === true;
-    applyDevBadge(settings.devIndicator === true);
+    $('dev-indicator-toggle').checked = settings.devIndicator !== false;
+    applyDevBadge(settings.devIndicator !== false);
     $('dev-indicator-toggle').addEventListener('change', async (e) => {
       await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devIndicator: e.target.checked } });
       applyDevBadge(e.target.checked);
