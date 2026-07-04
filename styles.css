@@ -288,6 +288,22 @@ input:focus, select:focus, textarea:focus {
 
 .error { color: var(--red); font-size: 13px; min-height: 18px; margin: 4px 0; }
 .error:empty { display: none; }
+/* urgent unlock warning as failed attempts near the auto-erase threshold */
+.error.unlock-danger { font-weight: 700; }
+.unlock-forgot { align-self: center; margin-top: 16px; font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; }
+.unlock-forgot:hover { color: var(--lav); text-decoration: underline; }
+/* unlock cooldown: a small countdown ring (same style as the composer's, scaled down) */
+.unlock-cooldown { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 16px; }
+.unlock-cooldown .countdown-wrap { width: 56px; height: 56px; margin: 0; }
+.unlock-cooldown .countdown-ring { width: 56px; height: 56px; }
+.unlock-cooldown .countdown-num { font-size: 18px; }
+/* refined attempts-remaining notice (used with and without the cooldown ring) */
+.unlock-note { text-align: center; }
+.unlock-note-title { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--text-2); }
+.unlock-note-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.unlock-note-count { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--gold); }
+.unlock-note.unlock-danger .unlock-note-title { color: var(--red); }
+.unlock-note.unlock-danger .unlock-note-count { color: var(--red); }
 
 /* ===== buttons ===== */
 button { cursor: pointer; }
