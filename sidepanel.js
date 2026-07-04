@@ -325,11 +325,26 @@
   // enforce the same cooldown the background does (defense in depth is server-side;
   // this is just feedback). The <8-attempt window turns the warning urgent.
   let unlockCooldownTimer = null;
+  // A refined "attempts remaining" notice — the count set in the display face with
+  // a gold accent that turns red as the auto-erase threshold nears.
+  function unlockNotice(remaining) {
+    const low = remaining != null && remaining <= 5;
+    const note = h('div', { className: 'unlock-note' + (low ? ' unlock-danger' : '') });
+    note.append(h('div', { className: 'unlock-note-title', textContent: 'Incorrect PIN' }));
+    if (remaining != null) {
+      note.append(h('div', { className: 'unlock-note-sub' }, [
+        h('span', { className: 'unlock-note-count', textContent: String(remaining) }),
+        document.createTextNode((remaining === 1 ? ' attempt' : ' attempts') + ' left before this device erases'),
+      ]));
+    }
+    return note;
+  }
   function showUnlockRemaining(remaining) {
-    const err = $('unlock-error');
-    err.classList.toggle('unlock-danger', remaining <= 5);
-    err.textContent = 'Incorrect PIN — ' + remaining + ' attempt' + (remaining === 1 ? '' : 's') +
-      ' left before all data on this device is erased.';
+    const box = $('unlock-cooldown');
+    $('unlock-error').textContent = '';
+    box.innerHTML = '';
+    box.append(unlockNotice(remaining));
+    box.classList.remove('hidden');
   }
   function clearUnlockCooldown() {
     if (unlockCooldownTimer) { clearInterval(unlockCooldownTimer); unlockCooldownTimer = null; }
@@ -360,12 +375,9 @@
       '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
     const num = h('div', { className: 'countdown-num', textContent: String(left) });
     const wrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
-    const cap = h('div', { className: 'unlock-cooldown-cap' });
-    const low = remaining != null && remaining <= 5;
-    cap.classList.toggle('unlock-danger', low);
-    cap.textContent = keepRemaining && remaining != null
-      ? 'Too many attempts — ' + remaining + ' left before erase'
-      : 'Too many attempts';
+    const cap = remaining != null
+      ? unlockNotice(remaining)
+      : h('div', { className: 'unlock-note' }, [h('div', { className: 'unlock-note-title', textContent: 'Too many attempts' })]);
     box.innerHTML = '';
     box.append(wrap, cap);
     box.classList.remove('hidden');

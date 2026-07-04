@@ -297,8 +297,13 @@ input:focus, select:focus, textarea:focus {
 .unlock-cooldown .countdown-wrap { width: 56px; height: 56px; margin: 0; }
 .unlock-cooldown .countdown-ring { width: 56px; height: 56px; }
 .unlock-cooldown .countdown-num { font-size: 18px; }
-.unlock-cooldown-cap { font-size: 12.5px; color: var(--muted); text-align: center; }
-.unlock-cooldown-cap.unlock-danger { color: var(--red); font-weight: 700; }
+/* refined attempts-remaining notice (used with and without the cooldown ring) */
+.unlock-note { text-align: center; }
+.unlock-note-title { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--text-2); }
+.unlock-note-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.unlock-note-count { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--gold); }
+.unlock-note.unlock-danger .unlock-note-title { color: var(--red); }
+.unlock-note.unlock-danger .unlock-note-count { color: var(--red); }
 
 /* ===== buttons ===== */
 button { cursor: pointer; }
