@@ -1733,12 +1733,38 @@
     }
   }
 
+  // Decrypt a NIP-49 ncryptsec string to an nsec, so the rest of the import path
+  // (SIDECAR_ADD_ACCOUNT, decodeSecret) never has to know ncryptsec exists. Throws
+  // a friendly message on a bad password or malformed string.
+  function decryptNcryptsec(ncryptsec, password) {
+    let sk;
+    try {
+      sk = window.SidecarNip49.decrypt(ncryptsec, password);
+    } catch (_) {
+      throw new Error('Incorrect password, or not a valid ncryptsec key.');
+    }
+    return NT.nip19.nsecEncode(sk);
+  }
+
   function importAccountModal() {
     openModal((modal) => {
       modal.append(h('h3', { textContent: 'Import account' }));
       const err = h('div', { className: 'error' });
-      const secretInput = h('input', { type: 'password', className: 'nsec-field', placeholder: 'nsec1… or 64-char hex' });
+      const secretInput = h('input', {
+        type: 'password',
+        className: 'nsec-field',
+        placeholder: 'nsec1…, ncryptsec1…, or 64-char hex',
+      });
       modal.append(h('label', { textContent: 'Private key' }), secretInput);
+
+      // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
+      // to decrypt — shown only once the pasted value looks like one.
+      const cryptPass = h('input', { type: 'password', placeholder: 'Decryption password' });
+      const cryptRow = h('div', { className: 'stack hidden' }, [
+        h('label', { textContent: 'Password' }),
+        cryptPass,
+      ]);
+      modal.append(cryptRow);
 
       // Live preview: once the pasted key is valid, show whose account it is
       // (npub + kind 0 name/picture) so the user can confirm before importing.
@@ -1754,7 +1780,24 @@
       let previewSeq = 0;
       let previewTimer = null;
       async function updatePreview() {
-        const pubkey = pubkeyFromSecret(secretInput.value.trim());
+        err.textContent = '';
+        const raw = secretInput.value.trim();
+        const isNcryptsec = /^ncryptsec1/i.test(raw);
+        cryptRow.classList.toggle('hidden', !isNcryptsec);
+
+        let pubkey = '';
+        if (isNcryptsec) {
+          if (!cryptPass.value) return preview.classList.add('hidden');
+          try {
+            pubkey = pubkeyFromSecret(decryptNcryptsec(raw, cryptPass.value));
+          } catch (_) {
+            preview.classList.add('hidden');
+            return;
+          }
+        } else {
+          pubkey = pubkeyFromSecret(raw);
+        }
+
         const seq = ++previewSeq;
         if (!pubkey) return preview.classList.add('hidden');
         const npub = NT.nip19.npubEncode(pubkey);
@@ -1775,6 +1818,10 @@
         clearTimeout(previewTimer);
         previewTimer = setTimeout(updatePreview, 350);
       });
+      cryptPass.addEventListener('input', () => {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(updatePreview, 350);
+      });
 
       modal.append(
         h('p', {
@@ -1789,8 +1836,9 @@
       save.addEventListener('click', async () => {
         err.textContent = '';
         try {
-          const secret = secretInput.value.trim();
-          if (!secret) throw new Error('Enter an nsec or hex private key.');
+          const raw = secretInput.value.trim();
+          if (!raw) throw new Error('Enter an nsec, ncryptsec, or hex private key.');
+          const secret = /^ncryptsec1/i.test(raw) ? decryptNcryptsec(raw, cryptPass.value) : raw;
           await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
           closeModal();
           await refresh();
@@ -1823,6 +1871,7 @@
           closeModal();
         }),
         menuItem('Back up private key', 'key', () => revealNsecModal(a)),
+        menuItem('Export ncryptsec', 'lock', () => exportNcryptsecModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
       ]);
@@ -1836,22 +1885,30 @@
     });
   }
 
-  // Show an nsec with copy + warning (used after generate, and from reveal).
-  // The key auto-hides after 30s so it can't be left exposed on screen; viewing
-  // it again goes back through the PIN-gated reveal.
+  // Show a secret string (nsec or ncryptsec) with copy + warning (used after
+  // generate, from reveal, and from ncryptsec export). The key auto-hides after
+  // 30s so it can't be left exposed on screen; viewing it again goes back through
+  // the PIN-gated reveal. opts.secret is the value shown; opts.noun labels the
+  // copy button/toast ('nsec' by default).
   const NSEC_REVEAL_TIMEOUT_S = 30;
   function nsecModal(opts) {
+    const secret = opts.secret || opts.nsec;
+    const noun = opts.noun || 'nsec';
     let remaining = NSEC_REVEAL_TIMEOUT_S;
     let timer = null;
     openModal(
       (modal) => {
-        // Scannable QR for QR sign-in on mobile clients (e.g. Wisp). A QR exposes
-        // the full key at a glance, so keep it behind an explicit reveal — an
-        // opt-in backup option, not shown unprompted. Generated only on click, so
-        // the scannable image never exists on screen unless requested. nsec is
-        // case-sensitive bech32, so encode it as-is (lowercase, byte mode).
+        // Scannable QR for QR sign-in on mobile clients (e.g. Wisp), or to move an
+        // ncryptsec export to another NIP-49-aware app. A QR exposes the full
+        // secret at a glance, so keep it behind an explicit reveal — an opt-in
+        // backup option, not shown unprompted. Generated only on click, so the
+        // scannable image never exists on screen unless requested. Case-sensitive
+        // bech32, so encode as-is (lowercase, byte mode).
         const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' }); // holds the canvas once revealed
-        const qrHint = h('p', { className: 'hint hidden', textContent: 'Scan to sign in on a mobile client that supports QR login.' });
+        const qrHint = h('p', {
+          className: 'hint hidden',
+          textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.',
+        });
         const showQr = h('button', { className: 'secondary qr-reveal-btn' });
         let qrShown = false, qrCanvas = null;
         const setQrLabel = () => {
@@ -1864,7 +1921,7 @@
           if (qrShown && !qrCanvas) {
             qrCanvas = document.createElement('canvas');
             qrCanvas.className = 'recv-qr modal-qr';
-            try { new window.QRious({ element: qrCanvas, value: opts.nsec, size: 220, level: 'M' }); } catch (_) {}
+            try { new window.QRious({ element: qrCanvas, value: secret, size: 220, level: 'M' }); } catch (_) {}
             qrCanvasWrap.append(qrCanvas);
           }
           qrCanvasWrap.classList.toggle('hidden', !qrShown);
@@ -1872,12 +1929,12 @@
           setQrLabel();
         });
 
-        const box = h('div', { className: 'secret-box', textContent: opts.nsec });
-        const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
+        const box = h('div', { className: 'secret-box', textContent: secret });
+        const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
         copy.addEventListener('click', async () => {
           try {
-            await navigator.clipboard.writeText(opts.nsec);
-            toast('nsec copied', 'success');
+            await navigator.clipboard.writeText(secret);
+            toast(noun + ' copied', 'success');
           } catch (_) {}
         });
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
@@ -1899,7 +1956,10 @@
           showQr,
           qrCanvasWrap,
           qrHint,
-          h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
+          h('p', {
+            className: 'hint warn',
+            textContent: opts.warnText || 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
+          }),
           countdown,
           h('div', { className: 'actions' }, [done])
         );
@@ -1943,6 +2003,95 @@
         h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the nsec for ' + displayName(a) + '.' }),
         h('label', { textContent: 'PIN' }),
         pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  // Export an account as a NIP-49 ncryptsec — a password-encrypted key that's
+  // portable to any NIP-49-aware app without ever sharing the raw nsec. Step 1:
+  // PIN-gated reveal of the nsec (same step-up as backup). Step 2: choose an
+  // export password to encrypt it with.
+  function exportNcryptsecModal(a) {
+    openModal((modal) => {
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Continue' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        go.disabled = true;
+        go.textContent = 'Verifying…';
+        try {
+          const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
+          closeModal();
+          setTimeout(() => encryptNcryptsecModal(a, r.nsec), 0);
+        } catch (e) {
+          err.textContent = e.message;
+          go.disabled = false;
+          go.textContent = 'Continue';
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Export ncryptsec' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to export an encrypted key for ' + displayName(a) + '.' }),
+        h('label', { textContent: 'PIN' }),
+        pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  function encryptNcryptsecModal(a, nsec) {
+    openModal((modal) => {
+      const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
+      const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
+      go.addEventListener('click', () => {
+        err.textContent = '';
+        if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
+        if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+        let ncryptsec;
+        try {
+          const sk = NT.nip19.decode(nsec).data;
+          ncryptsec = window.SidecarNip49.encrypt(sk, pass.value);
+        } catch (e) {
+          err.textContent = 'Could not encrypt the key.';
+          return;
+        }
+        closeModal();
+        setTimeout(
+          () =>
+            nsecModal({
+              secret: ncryptsec,
+              noun: 'ncryptsec',
+              title: 'Encrypted private key',
+              intro: 'A password-protected key (NIP-49) you can import into Sidecar or another NIP-49-compatible app. You will need this exact password to unlock it.',
+              qrHint: 'Scan to import into another NIP-49-compatible app.',
+              warnText: 'Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.',
+            }),
+          0
+        );
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Set an export password' }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            "Choose a password to encrypt this key. Use something other than your Sidecar PIN — you'll need to give this exact password to wherever you import it.",
+        }),
+        h('label', { textContent: 'Password' }),
+        pass,
+        h('label', { textContent: 'Confirm password' }),
+        pass2,
         err,
         h('div', { className: 'actions' }, [go, cancel])
       );
