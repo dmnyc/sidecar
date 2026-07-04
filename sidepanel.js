@@ -368,6 +368,7 @@
     err.classList.remove('unlock-danger');
     let r;
     try {
+      // SIDECAR_UNLOCK contract (see background.js): branch on result.status.
       r = await call({ type: 'SIDECAR_UNLOCK', pin: pin.value });
     } catch (ex) {
       err.textContent = ex.message;
@@ -6143,6 +6144,7 @@
         err.textContent = 'Enter your PIN.';
         return;
       }
+      // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
       const resp = await bg({ type: 'SIDECAR_UNLOCK', pin });
       const st = resp && resp.ok && resp.result;
       if (!st || st.status !== 'ok') {

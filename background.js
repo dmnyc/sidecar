@@ -809,9 +809,19 @@ async function handleControl(message, sendResponse) {
         bumpAutoLock();
         break;
       case 'SIDECAR_UNLOCK': {
-        // Structured result (never throws for PIN/throttle/wipe) so the panel can
-        // show remaining attempts and a cooldown. Throttle + auto-wipe enforced
-        // here in the trusted context, not the UI.
+        // CONTRACT: resolves { ok:true, result:{ status } } — it does NOT throw
+        // ok:false for a wrong PIN. `status` is one of:
+        //   'ok'        → unlocked; result.state is the keystore state
+        //   'bad'       → wrong PIN; result.remaining, result.nextWaitMs
+        //   'throttled' → in cooldown; result.waitMs, result.remaining
+        //   'wiped'     → 21st strike, all data erased
+        //   'error'     → unexpected (e.g. keystore not initialized); result.error
+        // Every caller must branch on result.status — NOT on the outer `ok`
+        // envelope (which is now always true). Callers:
+        //   • sidepanel.js  unlock-form submit handler
+        //   • sidepanel.js  approval submit (in-panel signing/pay prompt)
+        //   • prompt.js     approval popup submit
+        // Throttle + auto-wipe are enforced here (trusted context), not the UI.
         const guard = await loadUnlockGuard();
         const waitMs = unlockDelayMs(guard.fails) - (Date.now() - guard.lastAt);
         if (waitMs > 0) {

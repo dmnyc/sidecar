@@ -175,6 +175,7 @@
         els.error.textContent = 'Enter your PIN.';
         return;
       }
+      // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
       const unlocked = await send({ type: 'SIDECAR_UNLOCK', pin });
       const st = unlocked && unlocked.ok && unlocked.result;
       if (!st || st.status !== 'ok') {
