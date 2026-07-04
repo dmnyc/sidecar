@@ -1428,6 +1428,27 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .menu-item.danger { color: var(--red); }
 .menu-item.danger svg { color: var(--red); }
 
+/* ===== dev build indicator ===== */
+.dev-badge {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: rgba(234, 119, 47, 0.16);
+  color: var(--orange);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 150;
+  padding: 0;
+}
+.dev-badge svg { width: 16px; height: 16px; }
+.dev-badge:hover { background: rgba(234, 119, 47, 0.28); }
+
 /* ===== toasts ===== */
 .toasts {
   position: fixed;
