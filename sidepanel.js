@@ -2008,6 +2008,7 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
     $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
+    $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('autozap-toggle').checked = settings.autoZap === true;
@@ -2917,14 +2918,17 @@
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
   }
 
-  // Open a client URL, reusing a tab already on that client's host when one is
-  // open (so a stream of notification taps navigates one tab instead of piling
-  // up new ones), and focusing its window. Falls back to a new tab. Reading tab
-  // URLs is covered by the existing host_permissions (https://*/*).
-  function openInClient(url) {
+  // Open a client URL. When the "reuse open client tab" setting is on (default),
+  // navigate a tab already on that client's host and focus its window instead of
+  // piling up new tabs; otherwise always open a new tab. Reading tab URLs is
+  // covered by the existing host_permissions (https://*/*).
+  async function openInClient(url) {
     let host = null;
     try { host = new URL(url).host; } catch (_) {}
-    if (!host || !(chrome.tabs && chrome.tabs.query)) { window.open(url, '_blank', 'noopener'); return; }
+    let reuse = true;
+    try { const s = await call({ type: 'SIDECAR_GET_SETTINGS' }); reuse = s.reuseClientTab !== false; } catch (_) {}
+    if (!(chrome.tabs && chrome.tabs.query)) { window.open(url, '_blank', 'noopener'); return; }
+    if (!reuse || !host) { chrome.tabs.create({ url }); return; }
     chrome.tabs.query({}, (tabs) => {
       const match = (tabs || []).find((t) => {
         try { return t.url && new URL(t.url).host === host; } catch (_) { return false; }
@@ -5984,6 +5988,10 @@
 
   $('client-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
+  });
+
+  $('reuse-tab-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reuseClientTab: e.target.checked } });
   });
 
   $('paybutton-toggle').addEventListener('change', async (e) => {
