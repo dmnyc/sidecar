@@ -54,6 +54,7 @@
     pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
     bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
+    share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -1597,6 +1598,34 @@
     e.preventDefault();
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
   });
+
+  // Share Sidecar via the OS's native share sheet when available (Messages, Mail,
+  // AirDrop, …); fall back to copying the store link when Web Share isn't offered
+  // (e.g. desktop Linux). Wired to the Accounts footer link + the Settings button.
+  const SIDECAR_STORE_URL = 'https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln';
+  async function shareSidecar() {
+    // Fold the link INTO the text (no separate `url` field): with both set, most
+    // share targets use only the url and drop the message — embedding it keeps
+    // the blurb + link together everywhere.
+    const message = 'Sidecar — a classy Nostr signer right in your browser side panel.\n' + SIDECAR_STORE_URL;
+    const shareData = { text: message };
+    if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+      try { await navigator.share(shareData); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; } // dismissed → done; else fall through to copy
+    }
+    try {
+      await navigator.clipboard.writeText(message);
+      toast('Message copied — share it with a friend', 'success');
+    } catch (_) {
+      toast('Could not share', 'error');
+    }
+  }
+  const shareLink = $('share-sidecar-link');
+  shareLink.prepend(icon('share'));
+  shareLink.addEventListener('click', (e) => { e.preventDefault(); shareSidecar(); });
+  const shareBtn = $('share-sidecar-btn');
+  shareBtn.prepend(icon('share'));
+  shareBtn.addEventListener('click', () => shareSidecar());
 
   // ---- first-post tip balloon (once per imported nsec) ----
   (function initFirstPostBalloon() {

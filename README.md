@@ -107,6 +107,7 @@ is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
 - Inspired by Nostr Build Shack by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
 - Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf) and the [Alby](https://github.com/getAlby/lightning-browser-extension) browser extension — the OG reliable browser signers most of Nostr grew up with
+- And [Amber](https://github.com/greenart7c3/Amber) by [greenart7c3](https://github.com/greenart7c3) — for showing how good a dedicated Nostr signer can feel on mobile
 - Global @-mention search is powered by the [nostrarchives-api](https://github.com/barrydeen/nostrarchives-api) by [barrydeen](https://github.com/barrydeen)
 
 ## Author
@@ -118,3 +119,7 @@ is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
 MIT. Bundled fonts are licensed under the SIL Open Font License (see `fonts/`).
 The `qrious` QR library is bundled for the wallet's receive flow.
+
+---
+
+> “If it’s a class war, you should be a classy warrior.” — Mos Def
