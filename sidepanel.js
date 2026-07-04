@@ -174,6 +174,7 @@
       t.classList.remove('show');
       setTimeout(() => t.remove(), 250);
     }, 3200);
+    return t;
   }
 
   // ---- nsec paste guard ----
@@ -6359,8 +6360,10 @@
     if (!isDevBuild()) return; // belt-and-suspenders: never show on a store build
     $('dev-badge').classList.toggle('hidden', !on);
   }
+  let devBadgeToast = null;
   $('dev-badge').addEventListener('click', () => {
-    toast('Debug panel coming soon.', 'success');
+    if (devBadgeToast && devBadgeToast.isConnected) devBadgeToast.remove();
+    devBadgeToast = toast('Debug panel coming soon.', 'success');
   });
   $('dev-badge').appendChild(icon('bug'));
 
