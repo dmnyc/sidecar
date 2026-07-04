@@ -1604,19 +1604,18 @@
   // (e.g. desktop Linux). Wired to the Accounts footer link + the Settings button.
   const SIDECAR_STORE_URL = 'https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln';
   async function shareSidecar() {
-    const shareData = {
-      title: 'Sidecar — A Classy Nostr Signer',
-      text: 'A classy Nostr signer with a built-in Lightning wallet, right in your browser side panel.',
-      url: SIDECAR_STORE_URL,
-    };
+    // Fold the link INTO the text (no separate `url` field): with both set, most
+    // share targets use only the url and drop the message — embedding it keeps
+    // the blurb + link together everywhere.
+    const message = 'Sidecar — a classy Nostr signer with a built-in Lightning wallet, right in your browser side panel.\n' + SIDECAR_STORE_URL;
+    const shareData = { title: 'Sidecar — A Classy Nostr Signer', text: message };
     if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
       try { await navigator.share(shareData); return; }
       catch (e) { if (e && e.name === 'AbortError') return; } // dismissed → done; else fall through to copy
     }
     try {
-      // Copy the blurb + link so a pasted share carries the same default message.
-      await navigator.clipboard.writeText(shareData.text + '\n' + SIDECAR_STORE_URL);
-      toast('Link copied — share it with a friend', 'success');
+      await navigator.clipboard.writeText(message);
+      toast('Message copied — share it with a friend', 'success');
     } catch (_) {
       toast('Could not share', 'error');
     }
