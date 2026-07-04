@@ -290,7 +290,7 @@ input:focus, select:focus, textarea:focus {
 .error:empty { display: none; }
 /* urgent unlock warning as failed attempts near the auto-erase threshold */
 .error.unlock-danger { font-weight: 700; }
-.unlock-forgot { display: inline-block; margin-top: 16px; font-size: 13px; color: var(--muted); text-decoration: none; }
+.unlock-forgot { align-self: center; margin-top: 16px; font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; }
 .unlock-forgot:hover { color: var(--lav); text-decoration: underline; }
 /* unlock cooldown: a small countdown ring (same style as the composer's, scaled down) */
 .unlock-cooldown { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 16px; }

@@ -766,8 +766,8 @@ chrome.contextMenus &&
 // by accident and offline brute force stays infeasible. Reset on any success.
 const MAX_UNLOCK_FAILS = 21;
 function unlockDelayMs(fails) {
-  if (fails < 5) return 0;                    // first 5 tries: no wait (fat-finger grace)
-  return Math.min(60000, (fails - 4) * 5000); // then 5s, 10s, … capped at 60s
+  if (fails < 10) return 0;                    // first 10 tries: no wait (generous typo grace)
+  return Math.min(60000, (fails - 9) * 5000);  // then 5s, 10s, … capped at 60s
 }
 async function loadUnlockGuard() {
   const g = (await sget('sidecar_unlock_guard')).sidecar_unlock_guard;
