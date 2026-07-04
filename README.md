@@ -2,8 +2,6 @@
 
 **A Classy Nostr Signer.**
 
-> “If it’s a class war, you should be a classy warrior.” — Mos Def
-
 A NIP-07 Nostr signing extension that lives in your browser's side panel. Sidecar
 holds your keys locally — encrypted behind a PIN — and provides `window.nostr` to the
 web apps you use, so you can sign in and sign events across Nostr clients without
@@ -121,3 +119,7 @@ is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
 MIT. Bundled fonts are licensed under the SIL Open Font License (see `fonts/`).
 The `qrious` QR library is bundled for the wallet's receive flow.
+
+---
+
+> “If it’s a class war, you should be a classy warrior.” — Mos Def
