@@ -771,6 +771,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .explore-link-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; padding: 0 4px; }
 .explore-link { font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; display: block; }
 .explore-link:hover { color: var(--lav); }
+.explore-link.share-link { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.share-link svg { width: 14px; height: 14px; }
+#share-sidecar-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+#share-sidecar-btn svg { width: 16px; height: 16px; }
 .first-post-balloon {
   position: absolute; bottom: 90px; right: 12px; z-index: 49;
   background: var(--amber); color: #1a0e08;
