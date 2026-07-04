@@ -6144,8 +6144,13 @@
         return;
       }
       const resp = await bg({ type: 'SIDECAR_UNLOCK', pin });
-      if (!resp || !resp.ok) {
-        err.textContent = (resp && resp.error) || 'Incorrect PIN';
+      const st = resp && resp.ok && resp.result;
+      if (!st || st.status !== 'ok') {
+        err.textContent =
+          st && st.status === 'throttled' ? 'Too many attempts. Try again in ' + Math.ceil(st.waitMs / 1000) + 's.'
+          : st && st.status === 'bad' ? 'Incorrect PIN — ' + st.remaining + ' attempt' + (st.remaining === 1 ? '' : 's') + ' left before all data is erased.'
+          : st && st.status === 'wiped' ? 'Too many attempts — all data on this device was erased.'
+          : (resp && resp.error) || 'Incorrect PIN';
         $('approval-pin').value = '';
         $('approval-pin').focus();
         return;
