@@ -1240,6 +1240,16 @@
           })
         : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
 
+      // Reuse an existing client tab on a plain left-click; leave modified clicks
+      // (cmd/ctrl/shift) to the anchor's default new-tab behavior.
+      if (linkTarget) {
+        item.addEventListener('click', (e) => {
+          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          openInClient(linkTarget);
+        });
+      }
+
       // Top row: glyph · name (truncated) · time · arrow
       const right = h('div', { className: 'notif-top-right' }, [
         h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) }),
@@ -1998,6 +2008,7 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
     $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
+    $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('autozap-toggle').checked = settings.autoZap === true;
@@ -2905,6 +2916,30 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  // Open a client URL. When the "reuse open client tab" setting is on (default),
+  // navigate a tab already on that client's host and focus its window instead of
+  // piling up new tabs; otherwise always open a new tab. Reading tab URLs is
+  // covered by the existing host_permissions (https://*/*).
+  async function openInClient(url) {
+    let host = null;
+    try { host = new URL(url).host; } catch (_) {}
+    let reuse = true;
+    try { const s = await call({ type: 'SIDECAR_GET_SETTINGS' }); reuse = s.reuseClientTab !== false; } catch (_) {}
+    if (!(chrome.tabs && chrome.tabs.query)) { window.open(url, '_blank', 'noopener'); return; }
+    if (!reuse || !host) { chrome.tabs.create({ url }); return; }
+    chrome.tabs.query({}, (tabs) => {
+      const match = (tabs || []).find((t) => {
+        try { return t.url && new URL(t.url).host === host; } catch (_) { return false; }
+      });
+      if (match) {
+        chrome.tabs.update(match.id, { active: true, url });
+        if (match.windowId != null) chrome.windows.update(match.windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url });
+      }
+    });
   }
 
   // Resolve a kind:0 display name for an npub (best-effort, for the About credit).
@@ -5953,6 +5988,10 @@
 
   $('client-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
+  });
+
+  $('reuse-tab-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reuseClientTab: e.target.checked } });
   });
 
   $('paybutton-toggle').addEventListener('change', async (e) => {
