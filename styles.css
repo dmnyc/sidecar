@@ -288,6 +288,10 @@ input:focus, select:focus, textarea:focus {
 
 .error { color: var(--red); font-size: 13px; min-height: 18px; margin: 4px 0; }
 .error:empty { display: none; }
+/* urgent unlock warning as failed attempts near the auto-erase threshold */
+.error.unlock-danger { font-weight: 700; }
+.unlock-forgot { display: inline-block; margin-top: 16px; font-size: 13px; color: var(--muted); text-decoration: none; }
+.unlock-forgot:hover { color: var(--lav); text-decoration: underline; }
 
 /* ===== buttons ===== */
 button { cursor: pointer; }

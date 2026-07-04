@@ -321,20 +321,110 @@
   });
 
   // ---- unlock ----
+  // Unlock guard UI: show remaining attempts before the keystore self-erases and
+  // enforce the same cooldown the background does (defense in depth is server-side;
+  // this is just feedback). The <8-attempt window turns the warning urgent.
+  let unlockCooldownTimer = null;
+  function showUnlockRemaining(remaining) {
+    const err = $('unlock-error');
+    err.classList.toggle('unlock-danger', remaining <= 5);
+    err.textContent = 'Incorrect PIN — ' + remaining + ' attempt' + (remaining === 1 ? '' : 's') +
+      ' left before all data on this device is erased.';
+  }
+  function startUnlockCooldown(ms, remaining, keepRemaining) {
+    const err = $('unlock-error');
+    const btn = $('unlock-form').querySelector('button[type=submit]');
+    const pin = $('unlock-pin');
+    if (unlockCooldownTimer) clearInterval(unlockCooldownTimer);
+    let left = Math.ceil(ms / 1000);
+    btn.disabled = true;
+    pin.disabled = true;
+    err.classList.toggle('unlock-danger', remaining != null && remaining <= 5);
+    const render = () => {
+      const lead = keepRemaining && remaining != null
+        ? 'Incorrect PIN — ' + remaining + ' left. '
+        : 'Too many attempts. ';
+      err.textContent = lead + 'Try again in ' + left + 's.';
+    };
+    render();
+    unlockCooldownTimer = setInterval(() => {
+      left -= 1;
+      if (left > 0) return render();
+      clearInterval(unlockCooldownTimer);
+      unlockCooldownTimer = null;
+      btn.disabled = false;
+      pin.disabled = false;
+      if (keepRemaining && remaining != null) showUnlockRemaining(remaining);
+      else { err.textContent = ''; err.classList.remove('unlock-danger'); }
+      pin.focus();
+    }, 1000);
+  }
+
   $('unlock-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('unlock-error');
+    const pin = $('unlock-pin');
     err.textContent = '';
+    err.classList.remove('unlock-danger');
+    let r;
     try {
-      await call({ type: 'SIDECAR_UNLOCK', pin: $('unlock-pin').value });
-      $('unlock-pin').value = '';
-      await refresh();
-      toast('Unlocked', 'success');
-    } catch (e) {
-      err.textContent = e.message;
-      $('unlock-pin').value = '';
-      toast(e.message, 'error');
+      r = await call({ type: 'SIDECAR_UNLOCK', pin: pin.value });
+    } catch (ex) {
+      err.textContent = ex.message;
+      return;
     }
+    pin.value = '';
+    if (r.status === 'ok') { await refresh(); toast('Unlocked', 'success'); return; }
+    if (r.status === 'wiped') { await refresh(); toast('Too many attempts — all data erased', 'error'); return; }
+    if (r.status === 'throttled') { startUnlockCooldown(r.waitMs, r.remaining, false); return; }
+    if (r.status === 'bad') {
+      showUnlockRemaining(r.remaining);
+      if (r.nextWaitMs > 0) startUnlockCooldown(r.nextWaitMs, r.remaining, true);
+      return;
+    }
+    err.textContent = r.error || 'Could not unlock';
+  });
+
+  // Locked out (forgot PIN): let the user erase everything and start over, with a
+  // type-to-confirm so it can't happen by accident.
+  $('unlock-forgot').addEventListener('click', (e) => {
+    e.preventDefault();
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const warn = h('p', {
+        className: 'hint',
+        textContent:
+          "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh — all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered.",
+      });
+      const confirmInput = h('input', { type: 'text', placeholder: 'Type ERASE to confirm' });
+      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      del.disabled = true;
+      const matches = () => confirmInput.value.trim().toUpperCase() === 'ERASE';
+      confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
+      del.addEventListener('click', async () => {
+        if (!matches()) return;
+        try {
+          await call({ type: 'SIDECAR_RESET_ALL' });
+          closeModal();
+          await refresh(); // no keystore now → onboarding
+          toast('Sidecar erased', 'success');
+        } catch (ex) {
+          err.textContent = ex.message;
+          toast(ex.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Forgot your PIN?' }),
+        warn,
+        h('label', { textContent: 'Confirm' }),
+        confirmInput,
+        err,
+        h('div', { className: 'actions' }, [del, cancel])
+      );
+      setTimeout(() => confirmInput.focus(), 50);
+    });
   });
 
   // ---- lock ----

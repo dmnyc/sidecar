@@ -757,6 +757,25 @@ chrome.contextMenus &&
 // ============================================================================
 // Keystore control messages (from side panel and prompt)
 // ============================================================================
+
+// ---- unlock throttle + auto-wipe guard ----
+// Persisted (survives service-worker death / browser restart), so an attacker
+// can't reset the counter by killing the worker. After MAX_UNLOCK_FAILS
+// consecutive bad PINs the keystore self-erases (Passport-style), with an
+// escalating delay between tries so a genuine user can't blow through the budget
+// by accident and offline brute force stays infeasible. Reset on any success.
+const MAX_UNLOCK_FAILS = 21;
+function unlockDelayMs(fails) {
+  if (fails < 5) return 0;                    // first 5 tries: no wait (fat-finger grace)
+  return Math.min(60000, (fails - 4) * 5000); // then 5s, 10s, … capped at 60s
+}
+async function loadUnlockGuard() {
+  const g = (await sget('sidecar_unlock_guard')).sidecar_unlock_guard;
+  return g && typeof g.fails === 'number' ? g : { fails: 0, lastAt: 0 };
+}
+const saveUnlockGuard = (g) => sset({ sidecar_unlock_guard: g });
+const clearUnlockGuard = () => new Promise((res) => chrome.storage.local.remove('sidecar_unlock_guard', res));
+
 async function lockKeystore() {
   await KS.lock();
   SIGNER.clearCache();
@@ -789,10 +808,36 @@ async function handleControl(message, sendResponse) {
         result = await KS.initialize(message.pin);
         bumpAutoLock();
         break;
-      case 'SIDECAR_UNLOCK':
-        result = await KS.unlock(message.pin);
-        bumpAutoLock();
+      case 'SIDECAR_UNLOCK': {
+        // Structured result (never throws for PIN/throttle/wipe) so the panel can
+        // show remaining attempts and a cooldown. Throttle + auto-wipe enforced
+        // here in the trusted context, not the UI.
+        const guard = await loadUnlockGuard();
+        const waitMs = unlockDelayMs(guard.fails) - (Date.now() - guard.lastAt);
+        if (waitMs > 0) {
+          result = { status: 'throttled', waitMs, remaining: MAX_UNLOCK_FAILS - guard.fails };
+          break;
+        }
+        try {
+          const state = await KS.unlock(message.pin);
+          await clearUnlockGuard();
+          bumpAutoLock();
+          result = { status: 'ok', state };
+        } catch (e) {
+          if (/not initialized/i.test(e.message || '')) { result = { status: 'error', error: e.message }; break; }
+          const fails = guard.fails + 1;
+          if (fails >= MAX_UNLOCK_FAILS) {
+            // Final strike: erase everything (in-memory + all persisted data).
+            await lockKeystore();
+            await new Promise((res) => chrome.storage.local.clear(() => res()));
+            result = { status: 'wiped' };
+          } else {
+            await saveUnlockGuard({ fails, lastAt: Date.now() });
+            result = { status: 'bad', remaining: MAX_UNLOCK_FAILS - fails, nextWaitMs: unlockDelayMs(fails) };
+          }
+        }
         break;
+      }
       case 'SIDECAR_LOCK':
         await lockKeystore();
         result = await KS.getState();
