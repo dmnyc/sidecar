@@ -1598,6 +1598,30 @@
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
   });
 
+  // Share Sidecar via the OS's native share sheet when available (Messages, Mail,
+  // AirDrop, …); fall back to copying the store link when Web Share isn't offered
+  // (e.g. desktop Linux). Wired to the Accounts footer link + the Settings button.
+  const SIDECAR_STORE_URL = 'https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln';
+  async function shareSidecar() {
+    const shareData = {
+      title: 'Sidecar — A Classy Nostr Signer',
+      text: 'A classy Nostr signer with a built-in Lightning wallet, right in your browser side panel.',
+      url: SIDECAR_STORE_URL,
+    };
+    if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+      try { await navigator.share(shareData); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; } // dismissed → done; else fall through to copy
+    }
+    try {
+      await navigator.clipboard.writeText(SIDECAR_STORE_URL);
+      toast('Link copied — share it with a friend', 'success');
+    } catch (_) {
+      toast('Could not share', 'error');
+    }
+  }
+  $('share-sidecar-link').addEventListener('click', (e) => { e.preventDefault(); shareSidecar(); });
+  $('share-sidecar-btn').addEventListener('click', () => shareSidecar());
+
   // ---- first-post tip balloon (once per imported nsec) ----
   (function initFirstPostBalloon() {
     const balloon = $('first-post-balloon');
