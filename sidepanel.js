@@ -331,32 +331,58 @@
     err.textContent = 'Incorrect PIN — ' + remaining + ' attempt' + (remaining === 1 ? '' : 's') +
       ' left before all data on this device is erased.';
   }
+  function clearUnlockCooldown() {
+    if (unlockCooldownTimer) { clearInterval(unlockCooldownTimer); unlockCooldownTimer = null; }
+    const box = $('unlock-cooldown');
+    box.classList.add('hidden');
+    box.innerHTML = '';
+  }
+  // A small, classy countdown ring (mirrors the composer's, scaled down) while the
+  // unlock is in cooldown — replaces the raw "try again in Ns" text.
   function startUnlockCooldown(ms, remaining, keepRemaining) {
     const err = $('unlock-error');
     const btn = $('unlock-form').querySelector('button[type=submit]');
     const pin = $('unlock-pin');
+    const box = $('unlock-cooldown');
     if (unlockCooldownTimer) clearInterval(unlockCooldownTimer);
-    let left = Math.ceil(ms / 1000);
+    err.textContent = '';
     btn.disabled = true;
     pin.disabled = true;
-    err.classList.toggle('unlock-danger', remaining != null && remaining <= 5);
-    const render = () => {
-      const lead = keepRemaining && remaining != null
-        ? 'Incorrect PIN — ' + remaining + ' left. '
-        : 'Too many attempts. ';
-      err.textContent = lead + 'Try again in ' + left + 's.';
-    };
-    render();
+
+    const total = Math.max(1, Math.ceil(ms / 1000));
+    let left = total;
+    const R = 30, C = 2 * Math.PI * R;
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ring.setAttribute('viewBox', '0 0 72 72');
+    ring.setAttribute('class', 'countdown-ring');
+    ring.innerHTML =
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
+    const num = h('div', { className: 'countdown-num', textContent: String(left) });
+    const wrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
+    const cap = h('div', { className: 'unlock-cooldown-cap' });
+    const low = remaining != null && remaining <= 5;
+    cap.classList.toggle('unlock-danger', low);
+    cap.textContent = keepRemaining && remaining != null
+      ? 'Too many attempts — ' + remaining + ' left before erase'
+      : 'Too many attempts';
+    box.innerHTML = '';
+    box.append(wrap, cap);
+    box.classList.remove('hidden');
+    const fill = ring.querySelector('.ring-fill');
+
     unlockCooldownTimer = setInterval(() => {
       left -= 1;
-      if (left > 0) return render();
-      clearInterval(unlockCooldownTimer);
-      unlockCooldownTimer = null;
-      btn.disabled = false;
-      pin.disabled = false;
-      if (keepRemaining && remaining != null) showUnlockRemaining(remaining);
-      else { err.textContent = ''; err.classList.remove('unlock-danger'); }
-      pin.focus();
+      if (left <= 0) {
+        clearUnlockCooldown();
+        btn.disabled = false;
+        pin.disabled = false;
+        if (keepRemaining && remaining != null) showUnlockRemaining(remaining);
+        pin.focus();
+        return;
+      }
+      num.textContent = String(left);
+      fill.setAttribute('stroke-dashoffset', String(C * (1 - left / total)));
     }, 1000);
   }
 
@@ -375,8 +401,8 @@
       return;
     }
     pin.value = '';
-    if (r.status === 'ok') { await refresh(); toast('Unlocked', 'success'); return; }
-    if (r.status === 'wiped') { await refresh(); toast('Too many attempts — all data erased', 'error'); return; }
+    if (r.status === 'ok') { clearUnlockCooldown(); await refresh(); toast('Unlocked', 'success'); return; }
+    if (r.status === 'wiped') { clearUnlockCooldown(); await refresh(); toast('Too many attempts — all data erased', 'error'); return; }
     if (r.status === 'throttled') { startUnlockCooldown(r.waitMs, r.remaining, false); return; }
     if (r.status === 'bad') {
       showUnlockRemaining(r.remaining);
