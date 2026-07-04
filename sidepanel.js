@@ -1846,6 +1846,13 @@
     $('autozap-max').value = String(settings.autoZapMaxSats || AUTOZAP_DEFAULT_MAX);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
 
+    const cdOn = settings.noteCountdown !== false; // default on
+    const cdSecs = NOTE_COUNTDOWN_PRESETS.includes(settings.noteCountdownSecs) ? settings.noteCountdownSecs : NOTE_COUNTDOWN_DEFAULT;
+    $('countdown-toggle').checked = cdOn;
+    $('countdown-presets').classList.toggle('hidden', !cdOn);
+    $('countdown-presets').querySelectorAll('.preset-chip').forEach((c) =>
+      c.classList.toggle('active', Number(c.dataset.secs) === cdSecs));
+
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
     const rlist = $('relay-list');
@@ -2707,7 +2714,10 @@
   }
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
-  const NOTE_COUNTDOWN_SECS = 15;
+  // The review countdown is user-configurable (Settings): a toggle plus a
+  // duration preset. Off → post immediately with no countdown.
+  const NOTE_COUNTDOWN_PRESETS = [5, 10, 15, 25, 30];
+  const NOTE_COUNTDOWN_DEFAULT = 15;
   // NIP-89 client tag. Positions 3–4 are meant to be a kind:31990 handler
   // coordinate + relay hint; we don't publish a handler, so a bare name is the
   // correct minimal form and avoids adding dead bytes to every note.
@@ -2726,6 +2736,9 @@
     coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
     nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
     yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
+    snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },
+    iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
+    zapcooking: { label: 'zap.cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
     njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
   };
   const DEFAULT_CLIENT = 'jumble';
@@ -3403,9 +3416,18 @@
       const err = h('div', { className: 'error' });
       const post = h('button', { className: 'primary', textContent: 'Post' });
       function updatePostState() { post.disabled = !draft.text.trim() && !draft.media.length; }
-      post.addEventListener('click', () => {
+      post.addEventListener('click', async () => {
         if (post.disabled) return;
-        showCountdown();
+        const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+        const on = s.noteCountdown !== false; // default on
+        const secs = NOTE_COUNTDOWN_PRESETS.includes(s.noteCountdownSecs) ? s.noteCountdownSecs : NOTE_COUNTDOWN_DEFAULT;
+        if (on) {
+          showCountdown(secs);
+        } else {
+          post.disabled = true;
+          post.textContent = 'Posting…';
+          finishPublish();
+        }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
@@ -3437,9 +3459,25 @@
       editor.focus();
     }
 
-    function showCountdown() {
+    // Publish the note and finish (clear draft, close, banner) — shared by the
+    // countdown's auto/now fire and the immediate (countdown-off) post path.
+    async function finishPublish() {
+      try {
+        const signed = await doPublish();
+        published = true;
+        clearComposeDraft(pubkey);
+        closeModal();
+        toast('Note published', 'success');
+        showPostBanner(signed);
+      } catch (e) {
+        toast(e.message, 'error');
+        showEditor(); // keep the draft so they can retry
+      }
+    }
+
+    function showCountdown(secs) {
       modal.innerHTML = '';
-      let remaining = NOTE_COUNTDOWN_SECS;
+      let remaining = secs;
 
       // Full-size countdown ring, centered below the note preview.
       const R = 30;
@@ -3481,17 +3519,7 @@
         if (timer) { clearInterval(timer); timer = null; }
         now.disabled = true;
         now.textContent = 'Posting…';
-        try {
-          const signed = await doPublish();
-          published = true;
-          clearComposeDraft(pubkey);
-          closeModal();
-          toast('Note published', 'success');
-          showPostBanner(signed);
-        } catch (e) {
-          toast(e.message, 'error');
-          showEditor(); // keep the draft so they can retry
-        }
+        await finishPublish();
       }
       now.addEventListener('click', fire);
       cancel.addEventListener('click', () => { showEditor(); });
@@ -3509,7 +3537,7 @@
       timer = setInterval(() => {
         remaining -= 1;
         num.textContent = String(Math.max(remaining, 0));
-        fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / NOTE_COUNTDOWN_SECS)));
+        fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
         if (remaining <= 0) fire();
       }, 1000);
     }
@@ -5775,6 +5803,20 @@
 
   $('clienttag-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showClientTag: e.target.checked } });
+  });
+
+  $('countdown-toggle').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    $('countdown-presets').classList.toggle('hidden', !on);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { noteCountdown: on } });
+  });
+
+  $('countdown-presets').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.preset-chip');
+    if (!btn) return;
+    const secs = Number(btn.dataset.secs);
+    $('countdown-presets').querySelectorAll('.preset-chip').forEach((c) => c.classList.toggle('active', c === btn));
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { noteCountdownSecs: secs } });
   });
 
   $('autozap-toggle').addEventListener('change', async (e) => {

@@ -163,26 +163,22 @@
       </div>
 
       <div class="setting">
-        <h3>Pay button on web pages</h3>
-        <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
-        <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
+        <h3>Post countdown</h3>
+        <p class="hint">Show a review countdown before a note publishes, so you can read it — or cancel — first. Off posts immediately.</p>
+        <label class="toggle-row"><input type="checkbox" id="countdown-toggle" /> <span>Review countdown before posting</span></label>
+        <div class="amount-presets hidden" id="countdown-presets">
+          <button type="button" class="preset-chip" data-secs="5">5s</button>
+          <button type="button" class="preset-chip" data-secs="10">10s</button>
+          <button type="button" class="preset-chip" data-secs="15">15s</button>
+          <button type="button" class="preset-chip" data-secs="25">25s</button>
+          <button type="button" class="preset-chip" data-secs="30">30s</button>
+        </div>
       </div>
 
       <div class="setting">
         <h3>Client tag</h3>
         <p class="hint">Add a “client” tag to notes you post, attributing them to Sidecar. Turn off to post without it.</p>
         <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span>Tag notes as posted with Sidecar</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Automatic zaps</h3>
-        <p class="hint">Pay zaps without a prompt, up to a limit per zap. Larger zaps and all other payments still ask.</p>
-        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>
-        <label class="toggle-row hidden" id="autozap-max-row">
-          <span>Max per zap</span>
-          <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
-          <span>sats</span>
-        </label>
       </div>
 
       <div class="setting">
@@ -194,8 +190,28 @@
           <option value="coracle">Coracle</option>
           <option value="nostrudel">noStrudel</option>
           <option value="yakihonne">YakiHonne</option>
+          <option value="snort">Snort</option>
+          <option value="iris">Iris</option>
+          <option value="zapcooking">zap.cooking</option>
           <option value="njump">njump</option>
         </select>
+      </div>
+
+      <div class="setting">
+        <h3>Pay button on web pages</h3>
+        <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
+        <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
+      </div>
+
+      <div class="setting">
+        <h3>Automatic zaps</h3>
+        <p class="hint">Pay zaps without a prompt, up to a limit per zap. Larger zaps and all other payments still ask.</p>
+        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>
+        <label class="toggle-row hidden" id="autozap-max-row">
+          <span>Max per zap</span>
+          <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
+          <span>sats</span>
+        </label>
       </div>
 
       <div class="setting">
