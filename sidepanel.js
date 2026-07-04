@@ -55,6 +55,7 @@
     bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
+    bug: '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -63,6 +64,14 @@
       (ICONS[name] || '') +
       '</svg>';
     return wrap.firstElementChild;
+  }
+
+  // Chrome only adds `update_url` to the manifest object for extensions installed
+  // from the Web Store (or with a configured update URL) — never for an unpacked
+  // load. That makes it a reliable, permission-free way to tell a local dev build
+  // apart from the shipped one, so dev-only UI never leaks into production.
+  function isDevBuild() {
+    try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
   }
 
   // Filled lightning bolt (from wordswithzaps' bolt-yellow.svg). Inherits color
@@ -165,6 +174,7 @@
       t.classList.remove('show');
       setTimeout(() => t.remove(), 250);
     }, 3200);
+    return t;
   }
 
   // ---- nsec paste guard ----
@@ -6330,7 +6340,35 @@
   }
   connectApprovalPort();
 
+  // ---- dev build indicator ----
+  // Local/unpacked builds only (see isDevBuild). On by default in dev so it's
+  // immediately obvious which build is loaded; the toggle lets it be hidden for
+  // clean screenshots. Never appears on the Chrome Web Store build, regardless of
+  // a stored setting.
+  async function initDevBadge() {
+    if (!isDevBuild()) return;
+    show($('dev-settings-section'));
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    $('dev-indicator-toggle').checked = settings.devIndicator !== false;
+    applyDevBadge(settings.devIndicator !== false);
+    $('dev-indicator-toggle').addEventListener('change', async (e) => {
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devIndicator: e.target.checked } });
+      applyDevBadge(e.target.checked);
+    });
+  }
+  function applyDevBadge(on) {
+    if (!isDevBuild()) return; // belt-and-suspenders: never show on a store build
+    $('dev-badge').classList.toggle('hidden', !on);
+  }
+  let devBadgeToast = null;
+  $('dev-badge').addEventListener('click', () => {
+    if (devBadgeToast && devBadgeToast.isConnected) devBadgeToast.remove();
+    devBadgeToast = toast('Debug panel coming soon.', 'success');
+  });
+  $('dev-badge').appendChild(icon('bug'));
+
   // ---- boot ----
   document.addEventListener('DOMContentLoaded', refresh);
   if (document.readyState !== 'loading') refresh();
+  initDevBadge();
 })();

@@ -241,6 +241,12 @@
         <p class="hint" id="check-update-status"></p>
       </div>
 
+      <div class="setting hidden" id="dev-settings-section">
+        <h3>Developer</h3>
+        <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
+        <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
+      </div>
+
       <div class="setting">
         <h3>Change PIN</h3>
         <button class="secondary" id="change-pin-btn">Change PIN…</button>
@@ -299,6 +305,9 @@
 
   <!-- ===== Toast host ===== -->
   <div id="toasts" class="toasts"></div>
+
+  <!-- ===== Dev build indicator (local/unpacked builds only, opt-in via Settings) ===== -->
+  <button id="dev-badge" class="dev-badge hidden" title="Sidecar dev build"></button>
 
   <script src="nostr-tools.js"></script>
   <script src="qrious.min.js"></script>
