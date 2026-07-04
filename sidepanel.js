@@ -1240,6 +1240,16 @@
           })
         : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
 
+      // Reuse an existing client tab on a plain left-click; leave modified clicks
+      // (cmd/ctrl/shift) to the anchor's default new-tab behavior.
+      if (linkTarget) {
+        item.addEventListener('click', (e) => {
+          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          openInClient(linkTarget);
+        });
+      }
+
       // Top row: glyph · name (truncated) · time · arrow
       const right = h('div', { className: 'notif-top-right' }, [
         h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) }),
@@ -2905,6 +2915,27 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  // Open a client URL, reusing a tab already on that client's host when one is
+  // open (so a stream of notification taps navigates one tab instead of piling
+  // up new ones), and focusing its window. Falls back to a new tab. Reading tab
+  // URLs is covered by the existing host_permissions (https://*/*).
+  function openInClient(url) {
+    let host = null;
+    try { host = new URL(url).host; } catch (_) {}
+    if (!host || !(chrome.tabs && chrome.tabs.query)) { window.open(url, '_blank', 'noopener'); return; }
+    chrome.tabs.query({}, (tabs) => {
+      const match = (tabs || []).find((t) => {
+        try { return t.url && new URL(t.url).host === host; } catch (_) { return false; }
+      });
+      if (match) {
+        chrome.tabs.update(match.id, { active: true, url });
+        if (match.windowId != null) chrome.windows.update(match.windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url });
+      }
+    });
   }
 
   // Resolve a kind:0 display name for an npub (best-effort, for the About credit).
