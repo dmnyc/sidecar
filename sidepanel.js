@@ -1607,7 +1607,7 @@
     // Fold the link INTO the text (no separate `url` field): with both set, most
     // share targets use only the url and drop the message — embedding it keeps
     // the blurb + link together everywhere.
-    const message = 'Sidecar — a classy Nostr signer with a built-in Lightning wallet, right in your browser side panel.\n' + SIDECAR_STORE_URL;
+    const message = 'Sidecar — a classy Nostr signer right in your browser side panel.\n' + SIDECAR_STORE_URL;
     const shareData = { title: 'Sidecar — A Classy Nostr Signer', text: message };
     if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
       try { await navigator.share(shareData); return; }
