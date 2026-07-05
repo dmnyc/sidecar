@@ -2374,61 +2374,106 @@
   }
 
   async function renderActivity() {
-    const [perms, bindings] = await Promise.all([
+    const [perms, bindings, log] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
       call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
+      call({ type: 'SIDECAR_GET_ACTIVITY' }),
     ]);
     const sites = $('sites-list');
-    sites.innerHTML = '';
+    const sitesFilter = $('sites-filter');
+    const sitesMore = $('sites-more');
     // Union of the active account's permissioned hosts and every bound host, so
     // a site pinned to a different account still shows up (and can be switched).
-    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort();
-    sites.classList.toggle('empty', !hosts.length);
-    const sitesMore = $('sites-more');
+    // Ordered by most-recently-used first (per the activity log, which is already
+    // newest-first) so an active site isn't buried pages deep behind stale ones;
+    // sites with no logged activity yet sort after, alphabetically among themselves.
+    const lastUsed = new Map();
+    for (const e of log) if (e.host && !lastUsed.has(e.host)) lastUsed.set(e.host, e.ts);
+    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort((a, b) => {
+      const ta = lastUsed.get(a), tb = lastUsed.get(b);
+      if (ta != null && tb != null) return tb - ta;
+      if (ta != null) return -1;
+      if (tb != null) return 1;
+      return a.localeCompare(b);
+    });
+
     if (!hosts.length) {
+      sites.innerHTML = '';
+      sites.classList.add('empty');
       listState(sites, 'No sites have connected yet.');
       hide(sitesMore);
+      hide(sitesFilter);
     } else {
-      // The list can get long — show a handful, then paginate (like the log below).
-      const SITES_PAGE = 6;
-      let shownSites = 0;
-      const renderSitesPage = () => {
-        hosts.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
-          sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
-        );
-        shownSites = Math.min(shownSites + SITES_PAGE, hosts.length);
-        if (shownSites >= hosts.length) hide(sitesMore);
-        else {
-          show(sitesMore);
-          sitesMore.textContent = 'Show more (' + (hosts.length - shownSites) + ')';
+      show(sitesFilter);
+      sitesFilter.value = '';
+      const renderSites = () => {
+        sites.innerHTML = '';
+        const q = sitesFilter.value.trim().toLowerCase();
+        const filtered = q ? hosts.filter((host) => host.toLowerCase().includes(q)) : hosts;
+        sites.classList.toggle('empty', !filtered.length);
+        if (!filtered.length) {
+          listState(sites, 'No sites match "' + sitesFilter.value.trim() + '".');
+          hide(sitesMore);
+          return;
         }
+        // The list can get long — show a handful, then paginate (like the log below).
+        const SITES_PAGE = 6;
+        let shownSites = 0;
+        const renderSitesPage = () => {
+          filtered.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
+            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
+          );
+          shownSites = Math.min(shownSites + SITES_PAGE, filtered.length);
+          if (shownSites >= filtered.length) hide(sitesMore);
+          else {
+            show(sitesMore);
+            sitesMore.textContent = 'Show more (' + (filtered.length - shownSites) + ')';
+          }
+        };
+        sitesMore.onclick = renderSitesPage;
+        renderSitesPage();
       };
-      sitesMore.onclick = renderSitesPage;
-      renderSitesPage();
+      sitesFilter.oninput = renderSites;
+      renderSites();
     }
 
-    const log = await call({ type: 'SIDECAR_GET_ACTIVITY' });
     const list = $('activity-list');
-    list.innerHTML = '';
+    const activityFilter = $('activity-filter');
+    const more = $('activity-more');
     if (!log.length) {
+      list.innerHTML = '';
       listState(list, 'No signing activity yet.');
-      hide($('activity-more'));
+      hide(more);
+      hide(activityFilter);
       return;
     }
-    const PAGE = 30;
-    let shown = 0;
-    const more = $('activity-more');
-    function renderPage() {
-      log.slice(shown, shown + PAGE).forEach((e) => list.append(activityRow(e)));
-      shown = Math.min(shown + PAGE, log.length);
-      if (shown >= log.length) hide(more);
-      else {
-        show(more);
-        more.textContent = 'Show more (' + (log.length - shown) + ')';
+    show(activityFilter);
+    activityFilter.value = '';
+    const renderActivityLog = () => {
+      list.innerHTML = '';
+      const q = activityFilter.value.trim().toLowerCase();
+      const filtered = q ? log.filter((e) => (e.host || '').toLowerCase().includes(q)) : log;
+      if (!filtered.length) {
+        listState(list, 'No activity matches "' + activityFilter.value.trim() + '".');
+        hide(more);
+        return;
       }
-    }
-    more.onclick = renderPage;
-    renderPage();
+      const PAGE = 30;
+      let shown = 0;
+      function renderPage() {
+        filtered.slice(shown, shown + PAGE).forEach((e) => list.append(activityRow(e)));
+        shown = Math.min(shown + PAGE, filtered.length);
+        if (shown >= filtered.length) hide(more);
+        else {
+          show(more);
+          more.textContent = 'Show more (' + (filtered.length - shown) + ')';
+        }
+      }
+      more.onclick = renderPage;
+      renderPage();
+    };
+    activityFilter.oninput = renderActivityLog;
+    renderActivityLog();
   }
 
   $('activity-clear').addEventListener('click', async () => {
