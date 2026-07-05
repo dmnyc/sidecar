@@ -2421,6 +2421,30 @@
     return sk;
   }
 
+  // Verify a NIP-05 identifier resolves, at its domain's /.well-known/nostr.json,
+  // to this account's own pubkey. The endpoint is required by NIP-05 to allow CORS,
+  // so this is a plain fetch — no extension permission beyond the existing
+  // host_permissions. Returns false (not an error) for anything that doesn't
+  // confirm a match, since a stale or unreachable NIP-05 is common and not
+  // necessarily malicious.
+  async function verifyNip05(nip05, pubkey) {
+    try {
+      const at = nip05.indexOf('@');
+      const name = at === -1 ? '_' : nip05.slice(0, at);
+      const domain = at === -1 ? nip05 : nip05.slice(at + 1);
+      if (!domain || !name) return false;
+      const res = await fetch('https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name));
+      if (!res.ok) return false;
+      const data = await res.json();
+      const names = data && data.names;
+      if (!names || typeof names !== 'object') return false;
+      const key = Object.keys(names).find((k) => k.toLowerCase() === name.toLowerCase());
+      return key ? names[key] === pubkey : false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function renderProfile() {
     const view = $('profile-view');
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
@@ -2456,7 +2480,20 @@
         textContent: content.display_name || content.name || active.name || shortNpub(active.npub),
       })
     );
-    if (content.nip05) body.append(h('div', { className: 'profile-meta', textContent: content.nip05 }));
+    if (content.nip05) {
+      const nip05Badge = h('span', { className: 'nip05-badge' });
+      const nip05Row = h('div', { className: 'profile-meta nip05-row' }, [
+        h('span', { textContent: content.nip05 }),
+        nip05Badge,
+      ]);
+      body.append(nip05Row);
+      verifyNip05(content.nip05, active.pubkey).then((ok) => {
+        nip05Badge.innerHTML = '';
+        nip05Badge.classList.add(ok ? 'nip05-ok' : 'nip05-bad');
+        nip05Badge.title = ok ? 'Verified' : "Couldn't verify this NIP-05 against your account";
+        nip05Badge.append(icon(ok ? 'check' : 'alert'));
+      });
+    }
     body.append(npubChip(active.npub));
 
     // Following count (fetched from the account's kind:3). Followers are out of

@@ -219,6 +219,11 @@ input:focus, select:focus, textarea:focus {
 .profile-npub svg { width: 13px; height: 13px; flex-shrink: 0; }
 .profile-meta { font-size: 13px; color: var(--lav); margin: 2px 0; overflow-wrap: anywhere; }
 .profile-meta a { color: var(--lav); }
+.nip05-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
+.nip05-badge { display: inline-flex; }
+.nip05-badge svg { width: 13px; height: 13px; }
+.nip05-badge.nip05-ok { color: #6fe3a5; }
+.nip05-badge.nip05-bad { color: #ffb38a; }
 .profile-stats { margin: 8px 0 2px; font-size: 13px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
 .profile-stat strong { color: var(--text); font-weight: 700; }
 .profile-backup-jump {
