@@ -252,6 +252,14 @@
         <button class="secondary" id="change-pin-btn">Change PIN…</button>
       </div>
 
+      <div class="setting">
+        <h3>Vault backup</h3>
+        <p class="hint">Export every account's private key (and connected wallet, if any) into one encrypted file, or restore from one. This is separate from a single account's nsec/ncryptsec backup in its account menu.</p>
+        <button class="secondary" id="export-vault-btn">Export encrypted vault…</button>
+        <button class="secondary" id="import-vault-btn">Import vault…</button>
+        <input type="file" id="import-vault-file" accept="application/json" class="hidden" />
+      </div>
+
       <div class="setting danger-zone">
         <h3>Danger zone</h3>
         <p class="hint">Erase all accounts, keys, wallets, and settings on this device. This can't be undone. Back up your nsecs first.</p>
@@ -311,6 +319,7 @@
 
   <script src="nostr-tools.js"></script>
   <script src="nip49.js"></script>
+  <script src="crypto.js"></script>
   <script src="qrious.min.js"></script>
   <script src="nwc-client.js"></script>
   <script src="version.js"></script>
