@@ -1427,6 +1427,12 @@
     $('acct-btn').disabled = !hasAccounts;
     $('accounts-heading').classList.toggle('hidden', !hasAccounts);
 
+    // Once an account exists, the two full-size Generate/Import buttons are no
+    // longer the primary action on this tab — collapse them into a small link
+    // that opens the same two choices in a compact menu.
+    document.querySelector('#tab-accounts .add-actions').classList.toggle('hidden', hasAccounts);
+    $('add-account-link').classList.toggle('hidden', !hasAccounts);
+
     // "Pinned and open" tip sits below the add buttons (where it won't get lost),
     // shown only while onboarding.
     let tip = $('welcome-tip');
@@ -1614,6 +1620,7 @@
   labelButton('add-import', 'download', 'Import nsec');
   $('add-generate').addEventListener('click', () => generateAccount());
   $('add-import').addEventListener('click', () => importAccountModal());
+  $('add-account-link').addEventListener('click', () => addAccountModal());
   $('explore-apps-link').addEventListener('click', (e) => {
     e.preventDefault();
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
@@ -1880,6 +1887,35 @@
       modal.append(
         h('h3', { textContent: displayName(a) }),
         list,
+        h('div', { className: 'actions' }, [cancel])
+      );
+    });
+  }
+
+  // Compact "+ Add account" menu — once an account already exists, the two
+  // full-size Generate/Import buttons collapse into this link, which opens the
+  // same two choices without needing a full button each.
+  function addAccountModal() {
+    openModal((modal) => {
+      const optionButton = (label, name, onClick) => {
+        const b = h('button', { className: 'secondary' });
+        b.append(icon(name), h('span', { textContent: label }));
+        b.addEventListener('click', onClick);
+        return b;
+      };
+      const generate = optionButton('Generate new', 'user-plus', () => {
+        closeModal();
+        generateAccount();
+      });
+      const importBtn = optionButton('Import nsec', 'download', () => {
+        closeModal();
+        importAccountModal();
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Add account' }),
+        h('div', { className: 'add-actions modal-add-actions' }, [generate, importBtn]),
         h('div', { className: 'actions' }, [cancel])
       );
     });
