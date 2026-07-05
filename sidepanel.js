@@ -4538,6 +4538,168 @@
     });
   }
 
+  // ---- vault export/import: every account's key + wallet connection, in one
+  // password-encrypted file. Distinct from a single account's nsec/ncryptsec
+  // export — this covers the whole device. Uses SidecarCrypto (PBKDF2 -> AES-GCM,
+  // same primitive the keystore itself uses at rest) with a password the user
+  // chooses fresh here, independent of their Sidecar PIN.
+  function exportVaultModal() {
+    openModal((modal) => {
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Continue' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        go.disabled = true;
+        go.textContent = 'Verifying…';
+        try {
+          const { valid } = await call({ type: 'SIDECAR_VERIFY_PIN', pin: pin.value });
+          if (!valid) throw new Error('Incorrect PIN');
+          closeModal();
+          setTimeout(() => encryptVaultModal(pin.value), 0);
+        } catch (e) {
+          err.textContent = e.message;
+          go.disabled = false;
+          go.textContent = 'Continue';
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Export vault' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to export every account on this device.' }),
+        h('label', { textContent: 'PIN' }),
+        pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  function encryptVaultModal(pin) {
+    openModal((modal) => {
+      const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
+      const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Export' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
+        if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+        go.disabled = true;
+        go.textContent = 'Exporting…';
+        try {
+          const accounts = [];
+          for (const a of state.accounts) {
+            const { nsec } = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin });
+            let nwc = null;
+            const { has } = await call({ type: 'SIDECAR_HAS_NWC', pubkey: a.pubkey });
+            if (has) {
+              const r = await call({ type: 'SIDECAR_REVEAL_NWC', pubkey: a.pubkey, pin });
+              nwc = r.connection || null;
+            }
+            accounts.push({ pubkey: a.pubkey, npub: a.npub, name: a.name, nsec, nwc });
+          }
+          const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), accounts });
+          const kdf = window.SidecarCrypto.newKdf();
+          const key = await window.SidecarCrypto.deriveKey(pass.value, kdf);
+          const { iv, ct } = await window.SidecarCrypto.encryptString(key, payload);
+          const file = { version: 1, exportedAt: new Date().toISOString(), kdf, iv, ct };
+          const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+          const a2 = document.createElement('a');
+          a2.href = url;
+          a2.download = 'sidecar-vault-' + new Date().toISOString().slice(0, 10) + '.json';
+          a2.click();
+          URL.revokeObjectURL(url);
+          closeModal();
+          toast('Exported ' + accounts.length + ' account(s)', 'success');
+        } catch (e) {
+          err.textContent = e.message || 'Could not export the vault.';
+          go.disabled = false;
+          go.textContent = 'Export';
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Set an export password' }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            "Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it.",
+        }),
+        h('label', { textContent: 'Password' }),
+        pass,
+        h('label', { textContent: 'Confirm password' }),
+        pass2,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  // Restore from a vault file: decrypt, then add any account not already present.
+  // Never overwrites an existing account — a pubkey already on this device is
+  // counted as "already have it" and simply skipped.
+  function importVaultModal(file) {
+    openModal((modal) => {
+      const pass = h('input', { type: 'password', placeholder: 'Vault export password' });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Restore' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pass.value) return (err.textContent = 'Enter the export password.');
+        go.disabled = true;
+        go.textContent = 'Restoring…';
+        try {
+          if (!file || !file.kdf || !file.iv || !file.ct) throw new Error('Not a valid Sidecar vault file.');
+          const key = await window.SidecarCrypto.deriveKey(pass.value, file.kdf);
+          let payload;
+          try {
+            payload = await window.SidecarCrypto.decryptString(key, { iv: file.iv, ct: file.ct });
+          } catch (_) {
+            throw new Error('Incorrect password, or a corrupted file.');
+          }
+          const bundle = JSON.parse(payload);
+          const accounts = Array.isArray(bundle.accounts) ? bundle.accounts : [];
+          if (!accounts.length) throw new Error('That vault has no accounts to restore.');
+          let imported = 0, skipped = 0;
+          for (const a of accounts) {
+            try {
+              const added = await call({ type: 'SIDECAR_ADD_ACCOUNT', secret: a.nsec, name: a.name || '' });
+              imported++;
+              // The pubkey is derived from the secret, so a successful add always
+              // lands under added.pubkey — safe to attach the wallet connection now.
+              if (a.nwc) await call({ type: 'SIDECAR_SET_NWC', pubkey: added.pubkey, connection: a.nwc });
+            } catch (_) {
+              skipped++; // already exists on this device
+            }
+          }
+          closeModal();
+          await refresh();
+          toast('Imported ' + imported + ' account(s)' + (skipped ? ', ' + skipped + ' already present' : ''), 'success');
+        } catch (e) {
+          err.textContent = e.message || 'Could not restore the vault.';
+          go.disabled = false;
+          go.textContent = 'Restore';
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Restore vault' }),
+        h('p', { className: 'hint', textContent: 'Enter the password this vault was exported with. Accounts already on this device are left untouched.' }),
+        h('label', { textContent: 'Password' }),
+        pass,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+      setTimeout(() => pass.focus(), 50);
+    });
+  }
+
   function restoreModal(t) {
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
@@ -6240,6 +6402,20 @@
 
   $('check-update-btn').addEventListener('click', () => {
     checkForUpdates($('check-update-btn'), $('check-update-status'));
+  });
+
+  $('export-vault-btn').addEventListener('click', () => exportVaultModal());
+  $('import-vault-btn').addEventListener('click', () => $('import-vault-file').click());
+  $('import-vault-file').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const file = JSON.parse(await f.text());
+      importVaultModal(file);
+    } catch (_) {
+      toast('That file is not valid JSON.', 'error');
+    }
   });
 
   // Danger zone: wipe all Sidecar data. Type-to-confirm, since it's irreversible
