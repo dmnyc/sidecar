@@ -1015,9 +1015,9 @@
   }
 
   function prefetchNotifProfile(pubkey, relays) {
-    if (_notifProfiles.has(pubkey)) return;
+    if (_notifProfiles.has(pubkey)) return Promise.resolve();
     _notifProfiles.set(pubkey, ''); // mark as loading
-    poolGet(relays, { kinds: [0], authors: [pubkey] }).then((ev) => {
+    return poolGet(relays, { kinds: [0], authors: [pubkey] }).then((ev) => {
       if (!ev) return;
       const m = JSON.parse(ev.content) || {};
       _notifProfiles.set(pubkey, m.display_name || m.displayName || m.name || '');
@@ -1211,34 +1211,14 @@
     const client = await preferredClient();
     const relays = await relayUrls(false);
 
-    // Final guard: force a fresh mute list (not the possibly hours-stale cached
-    // one — see loadMuteList) so a mute added since the panel opened takes
-    // effect the moment the bell is opened, then filter the view.
-    await Promise.race([loadMuteList(a.pubkey, relays, true), new Promise((r) => setTimeout(r, 3000))]);
+    // Open with whatever's already cached — instant, no relay round-trip — using
+    // the mute list from the last load/refresh. A fresh mute check and any
+    // missing sender names are resolved in the background after the modal is
+    // already open and interactive (see below), instead of blocking the modal
+    // from appearing at all.
     const muted = _muteLists.get(a.pubkey);
     const events = muted && muted.size ? cache.events.filter((e) => !muted.has(e.pubkey)) : cache.events;
     const PAGE = 25;
-
-    // Resolve display names for the senders AND any @-mentions inside note
-    // content, so tagged usernames render as names instead of raw npubs.
-    const need = new Set();
-    events.forEach((e) => {
-      need.add(zapSender(e)); // the zapper for zaps, the author otherwise
-      if (e.kind === 1 && e.content) {
-        const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
-        let mm;
-        while ((mm = re.exec(e.content)) !== null) {
-          try {
-            const d = NT.nip19.decode(mm[1]);
-            const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
-            if (pk) need.add(pk);
-          } catch (_) {}
-        }
-      }
-    });
-    const uncached = [...need].filter((pk) => !_notifProfiles.get(pk));
-    uncached.forEach((pk) => prefetchNotifProfile(pk, relays));
-    if (uncached.length) await new Promise((r) => setTimeout(r, 700));
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
@@ -1258,6 +1238,9 @@
             title: 'Open in ' + client.label,
           })
         : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
+      // Lets the background mute re-check (see showNotifModal) remove this row
+      // in place if the author turns out to be freshly muted.
+      item.dataset.pubkey = ev.pubkey;
 
       // Reuse an existing client tab on a plain left-click; leave modified clicks
       // (cmd/ctrl/shift) to the anchor's default new-tab behavior.
@@ -1278,9 +1261,17 @@
         arrow.appendChild(icon('arrow-up-right'));
         right.appendChild(arrow);
       }
+      // Renders with whatever name is cached now (often a short npub on first
+      // sight of a sender); patched to the real name in place once the
+      // background profile fetch below resolves.
+      const authorEl = h('span', {
+        className: 'notif-author',
+        textContent: notifAuthorName(zapSender(ev)),
+      });
+      authorEl.dataset.senderPubkey = zapSender(ev);
       const topRow = h('div', { className: 'notif-top' }, [
         h('span', { className: 'notif-glyph', textContent: glyph }),
-        h('span', { className: 'notif-author', textContent: notifAuthorName(zapSender(ev)) }),
+        authorEl,
         right,
       ]);
       item.appendChild(topRow);
@@ -1389,6 +1380,49 @@
       }
 
       loadMore();
+
+      // Background reconciliation — runs after the modal is already open and
+      // interactive, so neither of these ever blocks it from appearing:
+      // 1. A fresh (force) mute-list fetch, in case a mute landed after the
+      //    cached list above was last loaded — see loadMuteList.
+      // 2. Resolving real names for senders/mentions still showing a short
+      //    npub (whatever wasn't already cached).
+      (async () => {
+        const need = new Set();
+        events.forEach((e) => {
+          need.add(zapSender(e)); // the zapper for zaps, the author otherwise
+          if (e.kind === 1 && e.content) {
+            const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+            let mm;
+            while ((mm = re.exec(e.content)) !== null) {
+              try {
+                const d = NT.nip19.decode(mm[1]);
+                const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
+                if (pk) need.add(pk);
+              } catch (_) {}
+            }
+          }
+        });
+        const uncached = [...need].filter((pk) => !_notifProfiles.get(pk));
+
+        await Promise.all([
+          Promise.race([loadMuteList(a.pubkey, relays, true), new Promise((r) => setTimeout(r, 3000))]),
+          Promise.all(uncached.map((pk) => prefetchNotifProfile(pk, relays))),
+        ]);
+
+        // Drop any row whose author turned out to be freshly muted.
+        const freshMuted = _muteLists.get(a.pubkey);
+        if (freshMuted && freshMuted.size) {
+          modal.querySelectorAll('.notif-item[data-pubkey]').forEach((el) => {
+            if (freshMuted.has(el.dataset.pubkey)) el.remove();
+          });
+        }
+        // Patch in any names that resolved after the row was first drawn.
+        modal.querySelectorAll('.notif-author[data-sender-pubkey]').forEach((el) => {
+          const name = _notifProfiles.get(el.dataset.senderPubkey);
+          if (name) el.textContent = name;
+        });
+      })();
     });
   }
 
