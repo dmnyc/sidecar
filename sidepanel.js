@@ -211,6 +211,11 @@
   const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
+  // Set while the notification modal is open, so a live event arriving in the
+  // background (addEvent, below) can append it to the visible list in place
+  // instead of only updating the bell badge — otherwise the open modal only
+  // ever reflected notifications as of the moment it was opened.
+  let _openNotifBell = null; // { pubkey, list, buildItem, clearEmptyMessage } | null
   let _postBannerTimer = null; // auto-dismiss for #post-banner
 
   // Privacy masking is done in CSS (-webkit-text-security on `.balances-hidden`),
@@ -1169,6 +1174,13 @@
         if (cache.events.length > 100) cache.events.length = 100;
         prefetchNotifProfile(ev.pubkey, relays);
         if (a.pubkey === state?.activePubkey) refreshBell();
+        // The notif modal for this account is open right now — append the new
+        // event to the visible list instead of leaving it to only show up the
+        // next time the modal is reopened.
+        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) {
+          _openNotifBell.clearEmptyMessage();
+          _openNotifBell.list.prepend(_openNotifBell.buildItem(ev));
+        }
       };
 
       // Mentions/replies/reactions/zaps tagging the account, plus reposts
@@ -1329,15 +1341,18 @@
       );
       modal.appendChild(heading);
 
-      if (!events.length) {
-        modal.appendChild(h('p', { className: 'hint', textContent: 'No recent notifications found.' }));
-        return;
-      }
-
       const scroll = h('div', { className: 'notif-scroll' });
       const list = h('div', { className: 'notif-list' });
       scroll.appendChild(list);
       modal.appendChild(scroll);
+
+      // Shown only until the first real item arrives — either from the initial
+      // page below, or live via addEvent while this modal stays open.
+      let emptyMsg = events.length ? null : h('p', { className: 'hint', textContent: 'No recent notifications found.' });
+      if (emptyMsg) scroll.appendChild(emptyMsg);
+      function clearEmptyMessage() {
+        if (emptyMsg) { emptyMsg.remove(); emptyMsg = null; }
+      }
 
       let shown = 0;
       let moreBtn = null;
@@ -1379,7 +1394,11 @@
         }
       }
 
-      loadMore();
+      if (events.length) loadMore();
+
+      // Let a live event arriving while this modal is open (see addEvent in
+      // initNotifSubs) prepend straight into the visible list.
+      _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage };
 
       // Background reconciliation — runs after the modal is already open and
       // interactive, so neither of these ever blocks it from appearing:
@@ -1423,6 +1442,8 @@
           if (name) el.textContent = name;
         });
       })();
+    }, () => {
+      if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) _openNotifBell = null;
     });
   }
 
