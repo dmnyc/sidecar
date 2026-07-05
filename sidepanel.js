@@ -6554,6 +6554,45 @@
 
   const isPaymentApproval = (data) => data.scope === 'webln' && data.method === 'sendPayment';
 
+  // Human-readable labels for the event kinds sites most commonly ask Sidecar to
+  // sign (not exhaustive — see https://nips.nostr.com for the full registry).
+  // Prefixed APPROVAL_ to avoid colliding with the small KIND_LABELS map used by
+  // the backup/restore UI (kind:0/3/10000/10002 only).
+  const APPROVAL_KIND_LABELS = {
+    0: 'Profile metadata', 1: 'Note', 3: 'Follow list', 4: 'Encrypted DM (legacy)',
+    5: 'Delete request', 6: 'Repost', 7: 'Reaction', 8: 'Badge award', 9: 'Chat message',
+    11: 'Thread', 13: 'Seal', 14: 'Direct message', 15: 'File message', 16: 'Generic repost',
+    17: 'Reaction (website)', 20: 'Picture', 21: 'Video', 22: 'Short video',
+    1063: 'File metadata', 1111: 'Comment', 1311: 'Live chat message', 1984: 'Report',
+    9734: 'Zap request', 9735: 'Zap receipt', 9802: 'Highlight',
+    10000: 'Mute list', 10001: 'Pin list', 10002: 'Relay list', 10003: 'Bookmark list',
+    10063: 'Blossom server list',
+    13194: 'Wallet info', 22242: 'Relay auth', 23194: 'Wallet request', 23195: 'Wallet response',
+    24133: 'Remote signing handshake', 27235: 'HTTP auth',
+    30000: 'Follow set', 30002: 'Relay set', 30003: 'Bookmark set', 30008: 'Badge set',
+    30009: 'Badge definition', 30017: 'Marketplace stall', 30018: 'Marketplace product',
+    30023: 'Long-form article', 30024: 'Article draft', 30078: 'App data',
+    30311: 'Live event', 30402: 'Classified listing',
+    31922: 'Calendar event (date)', 31923: 'Calendar event (time)', 31924: 'Calendar',
+    31989: 'Handler recommendation', 31990: 'Handler info',
+  };
+  // Kinds worth a second look before signing: they either move/delete other
+  // events, or normally belong to a wallet's own key rather than a NIP-07 site.
+  const APPROVAL_KIND_WARNINGS = {
+    5: 'Deletes other events — make sure you intended this.',
+    23194: "Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+    23195: "Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+    24133: 'This is a remote-signing handshake — approving it could hand control of your account to another app or device.',
+  };
+  function approvalKindLabel(kind) {
+    if (kind == null) return '—';
+    return APPROVAL_KIND_LABELS[kind] ? kind + ' — ' + APPROVAL_KIND_LABELS[kind] : kind + ' (unrecognized kind)';
+  }
+  function approvalKindWarning(kind) {
+    if (kind == null) return null;
+    return APPROVAL_KIND_WARNINGS[kind] || (!APPROVAL_KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
+  }
+
   function renderApprovalPreview(data) {
     const box = $('approval-preview');
     box.innerHTML = '';
@@ -6564,8 +6603,10 @@
       if (data.memo) box.append(row('Memo', String(data.memo)));
     } else if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
-      box.append(row('Kind', String(ev.kind ?? '—')));
+      box.append(row('Kind', approvalKindLabel(ev.kind)));
       if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
+      const warning = approvalKindWarning(ev.kind);
+      if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
       if (ev.content) box.append(h('pre', { textContent: String(ev.content) }));
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(row('From', (data.params && data.params.pubkey) || '—'));
