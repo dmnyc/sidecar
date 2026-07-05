@@ -200,7 +200,7 @@ const APPS = [
     domain: 'noornote.app',
     cat: 'social',
     icon: 'https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://noornote.app/&size=256',
-    desc: 'Feature-rich client with guided onboarding, marketplace, Zap Streams, follow packs, and dozens of built-in addons.',
+    desc: 'Feature-rich client with guided onboarding and dozens of built-in addons.',
   },
   {
     name: 'Ghostr',
