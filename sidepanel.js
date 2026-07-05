@@ -2374,16 +2374,28 @@
   }
 
   async function renderActivity() {
-    const [perms, bindings] = await Promise.all([
+    const [perms, bindings, log] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
       call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
+      call({ type: 'SIDECAR_GET_ACTIVITY' }),
     ]);
     const sites = $('sites-list');
     const sitesFilter = $('sites-filter');
     const sitesMore = $('sites-more');
     // Union of the active account's permissioned hosts and every bound host, so
     // a site pinned to a different account still shows up (and can be switched).
-    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort();
+    // Ordered by most-recently-used first (per the activity log, which is already
+    // newest-first) so an active site isn't buried pages deep behind stale ones;
+    // sites with no logged activity yet sort after, alphabetically among themselves.
+    const lastUsed = new Map();
+    for (const e of log) if (e.host && !lastUsed.has(e.host)) lastUsed.set(e.host, e.ts);
+    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort((a, b) => {
+      const ta = lastUsed.get(a), tb = lastUsed.get(b);
+      if (ta != null && tb != null) return tb - ta;
+      if (ta != null) return -1;
+      if (tb != null) return 1;
+      return a.localeCompare(b);
+    });
 
     if (!hosts.length) {
       sites.innerHTML = '';
@@ -2425,7 +2437,6 @@
       renderSites();
     }
 
-    const log = await call({ type: 'SIDECAR_GET_ACTIVITY' });
     const list = $('activity-list');
     const activityFilter = $('activity-filter');
     const more = $('activity-more');
