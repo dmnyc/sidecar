@@ -1409,6 +1409,38 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .post-banner-x:hover { color: var(--text); }
 .post-banner-x svg { width: 14px; height: 14px; }
 
+/* nsec/ncryptsec tabs (key backup modal) */
+.modal-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 14px; }
+.modal-tab {
+  flex: 1;
+  position: relative;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 9px 2px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.modal-tab:hover { color: var(--text); }
+.modal-tab.active { color: var(--lav); }
+.modal-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--orange), var(--gold));
+}
+/* Buttons/text appended directly to .modal stretch full-width because .modal
+   itself is a flex column (see below); this wrapper needs the same layout so
+   its contents (box, copy/QR buttons, warning, form fields) match that. */
+.key-backup-body { display: flex; flex-direction: column; gap: 9px; min-height: 0; }
+
 /* revealed secret (nsec) box */
 .secret-box {
   font-family: var(--font-mono);
