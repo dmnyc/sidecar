@@ -615,6 +615,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .avatar-ph img { width: 64%; height: 64%; margin: 18%; object-fit: contain; opacity: 0.72; }
 
 /* lists */
+.filter-input { margin-bottom: 10px; font-size: 13.5px; padding: 9px 12px; }
 .list { display: flex; flex-direction: column; gap: 9px; margin-bottom: 14px; }
 .item {
   display: flex;
