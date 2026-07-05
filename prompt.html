@@ -69,6 +69,29 @@
       max-height: 160px; overflow: auto; color: var(--text);
     }
     .account { margin-bottom: 18px; }
+    .switch-toggle {
+      display: block; width: 100%; background: none; border: none; cursor: pointer;
+      color: var(--lav); font-size: 12.5px; text-align: center; margin: -10px 0 14px; padding: 4px;
+    }
+    .switch-toggle:hover { color: var(--text); }
+    .switch-menu {
+      text-align: left;
+      background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+      border: 1px solid var(--border-strong); border-radius: 14px;
+      padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
+    }
+    .switch-row {
+      display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      background: transparent; border: none; cursor: pointer; color: var(--text);
+      padding: 9px 10px; border-radius: 10px; font-family: inherit; font-weight: 400;
+    }
+    .switch-row:hover { background: rgba(167, 139, 250, 0.1); }
+    .switch-row.active { background: rgba(203, 161, 78, 0.08); }
+    .switch-row-av { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #2a1257; }
+    .switch-row-info { flex: 1; min-width: 0; }
+    .switch-row-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .switch-row-npub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .switch-row-check { width: 16px; height: 16px; color: var(--gold); flex-shrink: 0; }
     .as-label { font-size: 10.5px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.22em; }
     .acct-capsule {
       display: flex; align-items: center; justify-content: center; gap: 12px;
@@ -134,6 +157,8 @@
   <div id="preview" class="card hidden"></div>
 
   <div class="account" id="account"></div>
+  <button class="switch-toggle hidden" id="switch-toggle">Not you? Switch account</button>
+  <div class="switch-menu hidden" id="switch-menu"></div>
 
   <div id="unlock" class="hidden">
     <label for="pin">Enter your PIN to unlock</label>

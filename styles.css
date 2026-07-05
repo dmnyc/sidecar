@@ -1537,6 +1537,17 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   max-height: 160px; overflow: auto; color: var(--text);
 }
 .approval-account { margin: 4px 0 18px; }
+.approval-switch-toggle {
+  display: block; width: 100%; background: none; border: none; cursor: pointer;
+  color: var(--lav); font-size: 12.5px; text-align: center; margin: -10px 0 14px; padding: 4px;
+}
+.approval-switch-toggle:hover { color: var(--text); }
+.approval-switch-menu {
+  text-align: left;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border-strong); border-radius: 14px;
+  padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
+}
 .approval-as {
   font-size: 10.5px; color: var(--muted); margin-bottom: 8px;
   text-transform: uppercase; letter-spacing: 0.22em; text-align: center;

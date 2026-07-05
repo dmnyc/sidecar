@@ -343,7 +343,8 @@ async function handleNostrRpc(method, params, host, sendResponse) {
 
     // The identity this host signs as — pinned to whatever it logged in with,
     // independent of the globally-active account (prevents NIP-07 desync).
-    const activePubkey = await resolveSiteAccount(host);
+    const boundPubkey = await getSiteAccount(host);
+    let activePubkey = await resolveSiteAccount(host);
     if (!activePubkey) throw new Error('No active Sidecar account');
 
     const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
@@ -369,10 +370,28 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     const needUnlock = needsKey && KS.isLocked();
     const needApproval = status === 'ask' && !isRelayAuth;
 
+    // A brand-new site (no binding yet) is the one safe moment to offer switching
+    // identity right in the prompt: nothing on the site has cached a pubkey yet,
+    // so there's no desync risk. Once a site is bound, its signing identity can
+    // only change via the deliberate "Use <account>" + re-login flow in the
+    // Activity tab — swapping mid-session here would silently break NIP-07 sync
+    // the same way the binding itself was built to prevent.
+    const canOfferAccountSwitch = method === 'getPublicKey' && !boundPubkey;
+
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
       const st = await KS.getState();
       const acct = st.accounts.find((a) => a.pubkey === activePubkey);
+      const otherAccounts = canOfferAccountSwitch
+        ? st.accounts
+            .filter((a) => a.pubkey !== activePubkey)
+            .map((a) => ({
+              pubkey: a.pubkey,
+              npub: self.NostrTools.nip19.npubEncode(a.pubkey),
+              name: a.name || '',
+              picture: a.picture || '',
+            }))
+        : null;
       const decision = await openPrompt({
         host,
         method,
@@ -384,8 +403,25 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         needUnlock,
         needApproval,
         level: await PERMS.getLevel(activePubkey, host),
+        otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
       });
       if (decision.action === 'reject') throw new Error('You rejected this request');
+
+      // Resolve a chosen switch-to account BEFORE block/trust, so those apply to
+      // the account actually signing, not the one the prompt originally opened with.
+      if (
+        canOfferAccountSwitch &&
+        decision.switchToPubkey &&
+        decision.switchToPubkey !== activePubkey &&
+        otherAccounts &&
+        otherAccounts.some((a) => a.pubkey === decision.switchToPubkey)
+      ) {
+        const switchedStatus = await PERMS.getPermissionStatus(decision.switchToPubkey, host, method);
+        if (switchedStatus === 'reject') throw new Error('This site is blocked in Sidecar for that account');
+        activePubkey = decision.switchToPubkey;
+        await KS.setActive(activePubkey);
+      }
+
       if (decision.action === 'block') {
         await PERMS.setLevel(activePubkey, host, 'blocked');
         throw new Error('This site is now blocked');
