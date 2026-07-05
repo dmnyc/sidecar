@@ -1941,8 +1941,7 @@
           toast('npub copied', 'success');
           closeModal();
         }),
-        menuItem('Back up private key', 'key', () => revealNsecModal(a)),
-        menuItem('Export ncryptsec', 'lock', () => exportNcryptsecModal(a)),
+        menuItem('Back up private key', 'key', () => backupKeyModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
       ]);
@@ -1985,87 +1984,109 @@
     });
   }
 
-  // Show a secret string (nsec or ncryptsec) with copy + warning (used after
-  // generate, from reveal, and from ncryptsec export). The key auto-hides after
-  // 30s so it can't be left exposed on screen; viewing it again goes back through
-  // the PIN-gated reveal. opts.secret is the value shown; opts.noun labels the
-  // copy button/toast ('nsec' by default).
+  // Renders the box/copy/QR/countdown UI for a revealed secret into `container`
+  // (cleared first) and starts a 30s auto-hide timer. Shared by nsecModal (a
+  // single-secret reveal) and keyBackupModal (a tabbed nsec/ncryptsec reveal),
+  // so both auto-hide identically. Returns a stop() to clear the timer when the
+  // container is about to be replaced or the modal is closing.
   const NSEC_REVEAL_TIMEOUT_S = 30;
-  function nsecModal(opts) {
-    const secret = opts.secret || opts.nsec;
+  function renderSecretReveal(container, opts) {
+    container.innerHTML = '';
+    const secret = opts.secret;
     const noun = opts.noun || 'nsec';
     let remaining = NSEC_REVEAL_TIMEOUT_S;
-    let timer = null;
+
+    // Scannable QR for QR sign-in on mobile clients (e.g. Wisp), or to move an
+    // ncryptsec export to another NIP-49-aware app. A QR exposes the full
+    // secret at a glance, so keep it behind an explicit reveal — an opt-in
+    // backup option, not shown unprompted. Generated only on click, so the
+    // scannable image never exists on screen unless requested. Case-sensitive
+    // bech32, so encode as-is (lowercase, byte mode).
+    const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' }); // holds the canvas once revealed
+    const qrHint = h('p', {
+      className: 'hint hidden',
+      textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.',
+    });
+    const showQr = h('button', { className: 'secondary qr-reveal-btn' });
+    let qrShown = false, qrCanvas = null;
+    const setQrLabel = () => {
+      showQr.innerHTML = '';
+      showQr.append(icon('qr'), h('span', { textContent: qrShown ? 'Hide QR code' : 'Show QR code' }));
+    };
+    setQrLabel();
+    showQr.addEventListener('click', () => {
+      qrShown = !qrShown;
+      if (qrShown && !qrCanvas) {
+        qrCanvas = document.createElement('canvas');
+        qrCanvas.className = 'recv-qr modal-qr';
+        try { new window.QRious({ element: qrCanvas, value: secret, size: 220, level: 'M' }); } catch (_) {}
+        qrCanvasWrap.append(qrCanvas);
+      }
+      qrCanvasWrap.classList.toggle('hidden', !qrShown);
+      qrHint.classList.toggle('hidden', !qrShown);
+      setQrLabel();
+    });
+
+    const box = h('div', { className: 'secret-box', textContent: secret });
+    const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(secret);
+        toast(noun + ' copied', 'success');
+      } catch (_) {}
+    });
+    const countdown = h('p', {
+      className: 'hint',
+      textContent: 'Hiding in ' + remaining + 's. Reveal again with your PIN.',
+    });
+    const timer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) { clearInterval(timer); if (opts.onExpire) opts.onExpire(); return; }
+      countdown.textContent = 'Hiding in ' + remaining + 's. Reveal again with your PIN.';
+    }, 1000);
+
+    container.append(
+      box,
+      copy,
+      showQr,
+      qrCanvasWrap,
+      qrHint,
+      h('p', {
+        className: 'hint warn',
+        textContent: opts.warnText || 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
+      }),
+      countdown
+    );
+    return () => clearInterval(timer);
+  }
+
+  // Show a single secret string (nsec) with copy/QR/countdown — used only for
+  // the post-generate "back this up now" flow (a brand-new key has no
+  // ncryptsec-export use case yet). Backing up an *existing* account's key
+  // goes through keyBackupModal instead, which offers both nsec and ncryptsec.
+  function nsecModal(opts) {
+    let stop = null;
     openModal(
       (modal) => {
-        // Scannable QR for QR sign-in on mobile clients (e.g. Wisp), or to move an
-        // ncryptsec export to another NIP-49-aware app. A QR exposes the full
-        // secret at a glance, so keep it behind an explicit reveal — an opt-in
-        // backup option, not shown unprompted. Generated only on click, so the
-        // scannable image never exists on screen unless requested. Case-sensitive
-        // bech32, so encode as-is (lowercase, byte mode).
-        const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' }); // holds the canvas once revealed
-        const qrHint = h('p', {
-          className: 'hint hidden',
-          textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.',
-        });
-        const showQr = h('button', { className: 'secondary qr-reveal-btn' });
-        let qrShown = false, qrCanvas = null;
-        const setQrLabel = () => {
-          showQr.innerHTML = '';
-          showQr.append(icon('qr'), h('span', { textContent: qrShown ? 'Hide QR code' : 'Show QR code' }));
-        };
-        setQrLabel();
-        showQr.addEventListener('click', () => {
-          qrShown = !qrShown;
-          if (qrShown && !qrCanvas) {
-            qrCanvas = document.createElement('canvas');
-            qrCanvas.className = 'recv-qr modal-qr';
-            try { new window.QRious({ element: qrCanvas, value: secret, size: 220, level: 'M' }); } catch (_) {}
-            qrCanvasWrap.append(qrCanvas);
-          }
-          qrCanvasWrap.classList.toggle('hidden', !qrShown);
-          qrHint.classList.toggle('hidden', !qrShown);
-          setQrLabel();
-        });
-
-        const box = h('div', { className: 'secret-box', textContent: secret });
-        const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
-        copy.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(secret);
-            toast(noun + ' copied', 'success');
-          } catch (_) {}
-        });
+        const body = h('div', {});
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
-        const countdown = h('p', {
-          className: 'hint',
-          textContent: 'Hiding in ' + remaining + 's. Reveal again with your PIN.',
-        });
-        timer = setInterval(() => {
-          remaining -= 1;
-          if (remaining <= 0) return closeModal(); // cleanup clears the timer
-          countdown.textContent = 'Hiding in ' + remaining + 's. Reveal again with your PIN.';
-        }, 1000);
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
-          box,
-          copy,
-          showQr,
-          qrCanvasWrap,
-          qrHint,
-          h('p', {
-            className: 'hint warn',
-            textContent: opts.warnText || 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
-          }),
-          countdown,
+          body,
           h('div', { className: 'actions' }, [done])
         );
+        stop = renderSecretReveal(body, {
+          secret: opts.secret || opts.nsec,
+          noun: opts.noun,
+          warnText: opts.warnText,
+          qrHint: opts.qrHint,
+          onExpire: closeModal,
+        });
       },
       () => {
-        if (timer) { clearInterval(timer); timer = null; }
+        if (stop) stop();
         // Runs on any close (button, X, or the 30s auto-hide). Defer to a fresh
         // tick: onDone opens the setup wizard (another modal), and this
         // closeModal still nulls modalCleanup and clears #modal right after this
@@ -2075,8 +2096,8 @@
     );
   }
 
-  // Reveal an existing account's nsec — PIN-gated step-up.
-  function revealNsecModal(a) {
+  // PIN-gated step-up, then the tabbed nsec/ncryptsec backup view below.
+  function backupKeyModal(a) {
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
@@ -2088,7 +2109,8 @@
         go.textContent = 'Revealing…';
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
-          nsecModal({ nsec: r.nsec, title: 'Private key', intro: 'Back this up somewhere safe.' });
+          closeModal();
+          setTimeout(() => keyBackupModal(a, r.nsec), 0);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
@@ -2100,7 +2122,7 @@
       cancel.addEventListener('click', closeModal);
       modal.append(
         h('h3', { textContent: 'Back up private key' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the nsec for ' + displayName(a) + '.' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the key for ' + displayName(a) + '.' }),
         h('label', { textContent: 'PIN' }),
         pin,
         err,
@@ -2109,93 +2131,113 @@
     });
   }
 
-  // Export an account as a NIP-49 ncryptsec — a password-encrypted key that's
-  // portable to any NIP-49-aware app without ever sharing the raw nsec. Step 1:
-  // PIN-gated reveal of the nsec (same step-up as backup). Step 2: choose an
-  // export password to encrypt it with.
-  function exportNcryptsecModal(a) {
-    openModal((modal) => {
-      const pin = h('input', { type: 'password', maxLength: 32 });
-      const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Continue' });
-      go.addEventListener('click', async () => {
-        err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
-        go.disabled = true;
-        go.textContent = 'Verifying…';
-        try {
-          const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
-          closeModal();
-          setTimeout(() => encryptNcryptsecModal(a, r.nsec), 0);
-        } catch (e) {
-          err.textContent = e.message;
-          go.disabled = false;
-          go.textContent = 'Continue';
-          toast(e.message, 'error');
-        }
-      });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-      cancel.addEventListener('click', closeModal);
-      modal.append(
-        h('h3', { textContent: 'Export ncryptsec' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to export an encrypted key for ' + displayName(a) + '.' }),
-        h('label', { textContent: 'PIN' }),
-        pin,
-        err,
-        h('div', { className: 'actions' }, [go, cancel])
-      );
-    });
-  }
+  // Tabbed nsec/ncryptsec backup view — one PIN-gated reveal (backupKeyModal,
+  // above) covers both, since ncryptsec is just the same key in a different,
+  // password-encrypted format (not a separate secret). Keeping them as tabs of
+  // one screen makes that relationship obvious, instead of two menu items that
+  // could read as two different exportable secrets.
+  //
+  // nsec shows immediately with the standard reveal UI. ncryptsec isn't a
+  // passive view — switching to it shows a small "set an export password" form
+  // first, then the standard reveal UI once submitted. Switching tabs stops
+  // whatever's currently revealed (its own 30s countdown) rather than trying
+  // to share one timer across both.
+  function keyBackupModal(a, nsec) {
+    let stopReveal = null;
+    function stop() {
+      if (stopReveal) { stopReveal(); stopReveal = null; }
+    }
 
-  function encryptNcryptsecModal(a, nsec) {
-    openModal((modal) => {
-      const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
-      const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
-      const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
-      go.addEventListener('click', () => {
-        err.textContent = '';
-        if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
-        if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
-        let ncryptsec;
-        try {
-          const sk = NT.nip19.decode(nsec).data;
-          ncryptsec = window.SidecarNip49.encrypt(sk, pass.value);
-        } catch (e) {
-          err.textContent = 'Could not encrypt the key.';
-          return;
+    openModal(
+      (modal) => {
+        const body = h('div', { className: 'key-backup-body' });
+
+        function showNsecTab() {
+          stop();
+          stopReveal = renderSecretReveal(body, {
+            secret: nsec,
+            noun: 'nsec',
+            warnText: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
+            qrHint: 'Scan to sign in on a mobile client that supports QR login.',
+            onExpire: closeModal,
+          });
         }
-        closeModal();
-        setTimeout(
-          () =>
-            nsecModal({
+
+        function showNcryptsecTab() {
+          stop();
+          body.innerHTML = '';
+          const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
+          const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+          const err = h('div', { className: 'error' });
+          const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
+          go.addEventListener('click', () => {
+            err.textContent = '';
+            if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
+            if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+            let ncryptsec;
+            try {
+              const sk = NT.nip19.decode(nsec).data;
+              ncryptsec = window.SidecarNip49.encrypt(sk, pass.value);
+            } catch (e) {
+              err.textContent = 'Could not encrypt the key.';
+              return;
+            }
+            stopReveal = renderSecretReveal(body, {
               secret: ncryptsec,
               noun: 'ncryptsec',
-              title: 'Encrypted private key',
-              intro: 'A password-protected key (NIP-49) you can import into Sidecar or another NIP-49-compatible app. You will need this exact password to unlock it.',
-              qrHint: 'Scan to import into another NIP-49-compatible app.',
               warnText: 'Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.',
+              qrHint: 'Scan to import into another NIP-49-compatible app.',
+              onExpire: closeModal,
+            });
+          });
+          body.append(
+            h('p', {
+              className: 'hint',
+              textContent:
+                "This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it.",
             }),
-          0
+            h('label', { textContent: 'Password' }),
+            pass,
+            h('label', { textContent: 'Confirm password' }),
+            pass2,
+            err,
+            h('div', { className: 'actions' }, [go])
+          );
+        }
+
+        const tabNsec = h('button', { className: 'modal-tab active', textContent: 'nsec' });
+        const tabNcrypt = h('button', { className: 'modal-tab', textContent: 'ncryptsec' });
+        tabNsec.addEventListener('click', () => {
+          if (tabNsec.classList.contains('active')) return;
+          tabNsec.classList.add('active');
+          tabNcrypt.classList.remove('active');
+          showNsecTab();
+        });
+        tabNcrypt.addEventListener('click', () => {
+          if (tabNcrypt.classList.contains('active')) return;
+          tabNcrypt.classList.add('active');
+          tabNsec.classList.remove('active');
+          showNcryptsecTab();
+        });
+
+        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        done.addEventListener('click', closeModal);
+
+        modal.append(
+          h('h3', { textContent: 'Back up private key' }),
+          h('p', {
+            className: 'hint',
+            textContent: 'Two formats of the same key for ' + displayName(a) + ' — nsec works with most apps; ncryptsec is password-protected, for apps that support it.',
+          }),
+          h('div', { className: 'modal-tabs' }, [tabNsec, tabNcrypt]),
+          body,
+          h('div', { className: 'actions' }, [done])
         );
-      });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-      cancel.addEventListener('click', closeModal);
-      modal.append(
-        h('h3', { textContent: 'Set an export password' }),
-        h('p', {
-          className: 'hint',
-          textContent:
-            "Choose a password to encrypt this key. Use something other than your Sidecar PIN — you'll need to give this exact password to wherever you import it.",
-        }),
-        h('label', { textContent: 'Password' }),
-        pass,
-        h('label', { textContent: 'Confirm password' }),
-        pass2,
-        err,
-        h('div', { className: 'actions' }, [go, cancel])
-      );
-    });
+
+        showNsecTab();
+      },
+      () => stop()
+    );
   }
 
   function renameModal(a) {
