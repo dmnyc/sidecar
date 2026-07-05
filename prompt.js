@@ -13,6 +13,8 @@
     ask: $('ask'),
     preview: $('preview'),
     account: $('account'),
+    switchToggle: $('switch-toggle'),
+    switchMenu: $('switch-menu'),
     unlock: $('unlock'),
     pin: $('pin'),
     error: $('error'),
@@ -43,6 +45,7 @@
 
   let data = null;
   let isPayment = false;
+  let chosenPubkey = null; // fresh-login prompts only — see canOfferAccountSwitch in background.js
 
   function fmtSats(n) {
     return Number(n).toLocaleString('en-US');
@@ -98,6 +101,7 @@
     }
     data = resp.data;
     isPayment = data.scope === 'webln' && data.method === 'sendPayment';
+    chosenPubkey = data.activePubkey;
 
     els.host.textContent = data.host;
     const verb = isPayment ? 'wants to send a Lightning payment' : 'wants to ' + (METHOD_LABELS[data.method] || data.method);
@@ -140,8 +144,24 @@
     return npub.length > 20 ? npub.slice(0, 12) + '…' + npub.slice(-6) : npub;
   }
 
+  // All accounts selectable in this prompt: the one it opened with, plus (only
+  // for a fresh-site login — see canOfferAccountSwitch in background.js) any
+  // others the user could switch to before approving.
+  function accountList() {
+    return [
+      { pubkey: data.activePubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
+      ...(data.otherAccounts || []),
+    ];
+  }
+
+  const CHECK_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="switch-row-check"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
   // Account capsule (pfp + name + npub), matching the side panel's account card.
   function buildAccountCapsule() {
+    const list = accountList();
+    const chosen = list.find((a) => a.pubkey === chosenPubkey) || list[0];
+
     els.account.innerHTML = '';
     const label = document.createElement('div');
     label.className = 'as-label';
@@ -150,13 +170,13 @@
     av.className = 'acct-av';
     av.referrerPolicy = 'no-referrer';
     av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
-    av.src = data.accountPicture || 'icons/avatar-default.svg';
+    av.src = chosen.picture || 'icons/avatar-default.svg';
     const name = document.createElement('div');
     name.className = 'acct-name';
-    name.textContent = data.accountName || shortNpub(data.npub);
+    name.textContent = chosen.name || shortNpub(chosen.npub);
     const np = document.createElement('div');
     np.className = 'acct-np';
-    np.textContent = shortNpub(data.npub);
+    np.textContent = shortNpub(chosen.npub);
     const meta = document.createElement('div');
     meta.className = 'acct-meta';
     meta.append(name, np);
@@ -164,6 +184,54 @@
     cap.className = 'acct-capsule';
     cap.append(av, meta);
     els.account.append(label, cap);
+
+    els.switchMenu.innerHTML = '';
+    els.switchMenu.classList.add('hidden');
+    const canSwitch = !isPayment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    if (!canSwitch) {
+      els.switchToggle.classList.add('hidden');
+      return;
+    }
+    els.switchToggle.classList.remove('hidden');
+    els.switchToggle.onclick = () => {
+      if (els.switchMenu.classList.contains('hidden')) {
+        buildSwitchMenu(list, chosen.pubkey);
+        els.switchMenu.classList.remove('hidden');
+      } else {
+        els.switchMenu.classList.add('hidden');
+      }
+    };
+  }
+
+  function buildSwitchMenu(list, chosenPk) {
+    els.switchMenu.innerHTML = '';
+    list.forEach((a) => {
+      const isChosen = a.pubkey === chosenPk;
+      const row = document.createElement('button');
+      row.className = 'switch-row' + (isChosen ? ' active' : '');
+      const av = document.createElement('img');
+      av.className = 'switch-row-av';
+      av.referrerPolicy = 'no-referrer';
+      av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
+      av.src = a.picture || 'icons/avatar-default.svg';
+      const info = document.createElement('div');
+      info.className = 'switch-row-info';
+      const name = document.createElement('div');
+      name.className = 'switch-row-name';
+      name.textContent = a.name || shortNpub(a.npub);
+      const np = document.createElement('div');
+      np.className = 'switch-row-npub';
+      np.textContent = shortNpub(a.npub);
+      info.append(name, np);
+      row.append(av, info);
+      if (isChosen) row.insertAdjacentHTML('beforeend', CHECK_SVG);
+      row.addEventListener('click', () => {
+        chosenPubkey = a.pubkey;
+        els.switchMenu.classList.add('hidden');
+        buildAccountCapsule();
+      });
+      els.switchMenu.append(row);
+    });
   }
 
   async function decide(action) {
@@ -200,6 +268,10 @@
       }
       action = 'budget';
       extra = { budgetSats, perPaymentSats: 0 };
+    }
+    // Picked a different account in the switcher (fresh-login prompts only).
+    if (chosenPubkey && chosenPubkey !== data.activePubkey) {
+      extra = Object.assign({}, extra, { switchToPubkey: chosenPubkey });
     }
 
     els.allow.disabled = true;

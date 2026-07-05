@@ -6542,9 +6542,91 @@
     show(box);
   }
 
+  // All accounts selectable in this prompt: the one it opened with, plus (only
+  // for a fresh-site login — see canOfferAccountSwitch in background.js) any
+  // others the user could switch to before approving.
+  function approvalAccountList(data) {
+    return [
+      { pubkey: data.activePubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
+      ...(data.otherAccounts || []),
+    ];
+  }
+
+  function renderApprovalAccountCapsule(data) {
+    const payment = isPaymentApproval(data);
+    const list = approvalAccountList(data);
+    const chosen = list.find((a) => a.pubkey === pendingApproval.chosenPubkey) || list[0];
+
+    const acct = $('approval-account');
+    acct.innerHTML = '';
+    acct.append(h('div', { className: 'approval-as', textContent: payment ? 'Paying from' : 'Signing as' }));
+    acct.append(
+      h('div', { className: 'active-account approval-capsule' }, [
+        avatarEl({ picture: chosen.picture }, 'aa-avatar'),
+        h('div', { className: 'aa-info' }, [
+          h('div', { className: 'aa-label', textContent: chosen.name || shortNpub(chosen.npub) }),
+          h('div', { className: 'aa-npub', textContent: shortNpub(chosen.npub) }),
+        ]),
+      ])
+    );
+
+    const toggle = $('approval-switch-toggle');
+    const menu = $('approval-switch-menu');
+    const canSwitch = !payment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    menu.innerHTML = '';
+    hide(menu);
+    if (!canSwitch) {
+      hide(toggle);
+      return;
+    }
+    show(toggle);
+    toggle.onclick = () => {
+      if (menu.classList.contains('hidden')) {
+        buildApprovalSwitchMenu(data, list, chosen.pubkey);
+        show(menu);
+      } else {
+        hide(menu);
+      }
+    };
+  }
+
+  function buildApprovalSwitchMenu(data, list, chosenPubkey) {
+    const menu = $('approval-switch-menu');
+    menu.innerHTML = '';
+    list.forEach((a) => {
+      const isChosen = a.pubkey === chosenPubkey;
+      const row = h('button', { className: 'acct-row' + (isChosen ? ' active' : '') });
+      const av = document.createElement('span');
+      av.className = 'acct-row-av';
+      applyAvatar(av, a);
+      row.append(
+        av,
+        h('div', { className: 'acct-row-info' }, [
+          h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
+          h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
+        ])
+      );
+      if (isChosen) {
+        const c = icon('check');
+        c.classList.add('acct-row-check');
+        row.append(c);
+      }
+      row.addEventListener('click', () => {
+        pendingApproval.chosenPubkey = a.pubkey;
+        hide(menu);
+        renderApprovalAccountCapsule(data);
+      });
+      menu.append(row);
+    });
+  }
+
   function showApproval() {
     if (!pendingApproval) return;
     const data = pendingApproval.data;
+    // Only initialize once per prompt — an incidental refresh() re-render (the
+    // panel treats a pending approval as modal and re-shows it) must not stomp
+    // a switch the user already picked.
+    if (pendingApproval.chosenPubkey == null) pendingApproval.chosenPubkey = data.activePubkey;
     closeAcctMenu();
     // Overlay on top of whatever's showing — don't hide the base view.
     show($('view-approval'));
@@ -6555,18 +6637,7 @@
       ? 'wants to send a Lightning payment'
       : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
 
-    const acct = $('approval-account');
-    acct.innerHTML = '';
-    acct.append(h('div', { className: 'approval-as', textContent: payment ? 'Paying from' : 'Signing as' }));
-    acct.append(
-      h('div', { className: 'active-account approval-capsule' }, [
-        avatarEl({ picture: data.accountPicture }, 'aa-avatar'),
-        h('div', { className: 'aa-info' }, [
-          h('div', { className: 'aa-label', textContent: data.accountName || shortNpub(data.npub) }),
-          h('div', { className: 'aa-npub', textContent: shortNpub(data.npub) }),
-        ]),
-      ])
-    );
+    renderApprovalAccountCapsule(data);
 
     renderApprovalPreview(data);
 
@@ -6647,6 +6718,10 @@
       }
       action = 'budget';
       extra = { budgetSats, perPaymentSats: 0 };
+    }
+    // Picked a different account in the switcher (fresh-login prompts only).
+    if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
+      extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
     }
     await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
     pendingApproval = null;
