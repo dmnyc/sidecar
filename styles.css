@@ -1436,7 +1436,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border-radius: 2px;
   background: linear-gradient(90deg, var(--orange), var(--gold));
 }
-.key-backup-body { min-height: 0; }
+/* Buttons/text appended directly to .modal stretch full-width because .modal
+   itself is a flex column (see below); this wrapper needs the same layout so
+   its contents (box, copy/QR buttons, warning, form fields) match that. */
+.key-backup-body { display: flex; flex-direction: column; gap: 9px; min-height: 0; }
 
 /* revealed secret (nsec) box */
 .secret-box {

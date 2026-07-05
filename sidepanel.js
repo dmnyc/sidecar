@@ -2203,6 +2203,9 @@
             err,
             h('div', { className: 'actions' }, [go])
           );
+          // Live length/match feedback (green check / red x) on the export
+          // password pair, same as PIN creation/change; gates the button.
+          attachPinValidation(pass, pass2, go);
         }
 
         const tabNsec = h('button', { className: 'modal-tab active', textContent: 'nsec' });
