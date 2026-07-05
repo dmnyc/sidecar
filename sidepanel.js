@@ -1065,8 +1065,13 @@
   // like Jumble) encrypted to self — try the format the ciphertext looks like,
   // then fall back to the other. Deduped per pubkey via a promise cache; when it
   // resolves it also drops any already-cached events from muted authors.
-  function loadMuteList(pubkey, relays) {
-    if (_muteListPromises.has(pubkey)) return _muteListPromises.get(pubkey);
+  //
+  // The promise cache never expired on its own, so a mute added elsewhere after
+  // the panel loaded (a long-lived pinned panel can run for hours) was invisible
+  // for the rest of the session — the bell kept using the pre-mute list forever.
+  // `force` (used when the bell is opened) bypasses the cache for a fresh fetch.
+  function loadMuteList(pubkey, relays, force) {
+    if (_muteListPromises.has(pubkey) && !force) return _muteListPromises.get(pubkey);
     const p = (async () => {
       const muted = new Set();
       try {
@@ -1092,7 +1097,9 @@
         }
       } catch (_) {}
       _muteLists.set(pubkey, muted);
-      // Drop any events that slipped into the cache before the list was ready.
+      // Drop any events that slipped into the cache before the list was ready
+      // (first load), or that arrived from a user muted after the fact (a
+      // later, force-triggered re-fetch when the bell is opened).
       const cache = _notifCache.get(pubkey);
       if (cache && muted.size) {
         const before = cache.events.length;
@@ -1204,8 +1211,10 @@
     const client = await preferredClient();
     const relays = await relayUrls(false);
 
-    // Final guard: ensure the mute list has resolved, then filter the view.
-    await Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 3000))]);
+    // Final guard: force a fresh mute list (not the possibly hours-stale cached
+    // one — see loadMuteList) so a mute added since the panel opened takes
+    // effect the moment the bell is opened, then filter the view.
+    await Promise.race([loadMuteList(a.pubkey, relays, true), new Promise((r) => setTimeout(r, 3000))]);
     const muted = _muteLists.get(a.pubkey);
     const events = muted && muted.size ? cache.events.filter((e) => !muted.has(e.pubkey)) : cache.events;
     const PAGE = 25;
