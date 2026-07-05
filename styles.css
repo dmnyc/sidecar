@@ -774,12 +774,17 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* full-width stacked account actions with breathing room above */
 .add-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; }
 .add-account-link {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; margin-top: 18px; padding: 6px; background: none; border: none;
   cursor: pointer; color: var(--muted); font-size: 13px; font-family: inherit;
 }
-.add-account-link svg { width: 15px; height: 15px; }
+.add-account-badge {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--purple); color: #fff;
+}
+.add-account-badge svg { width: 12px; height: 12px; }
 .add-account-link:hover { color: var(--lav); }
+.add-account-link:hover .add-account-badge { background: var(--lav); }
 .explore-link-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; padding: 0 4px; }
 .explore-link { font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; display: block; }
 .explore-link:hover { color: var(--lav); }
