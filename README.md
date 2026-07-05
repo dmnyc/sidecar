@@ -103,9 +103,41 @@ Or regenerate it manually any time:
 Decrypted private keys live only in the service worker's in-memory map. If the worker
 is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
+## Nostr protocol support
+
+Sidecar signs whatever event a connected site asks for via NIP-07, so in principle it can
+sign any kind. Beyond that, these are the NIPs (and one Blossom convention) it has
+dedicated, named support for:
+
+| NIP | Title | Used for |
+|-----|-------|----------|
+| [01](https://nips.nostr.com/1) | Basic protocol flow | Core event/profile handling (kind:0, kind:1) |
+| [02](https://nips.nostr.com/2) | Follow List | Follow count, follow-list recovery |
+| [04](https://nips.nostr.com/4) | Encrypted Direct Messages (legacy) | `nip04.encrypt`/`.decrypt` NIP-07 methods; fallback encoding for large backups and private mute lists |
+| [05](https://nips.nostr.com/5) | Mapping Nostr keys to DNS identifiers | Verifying a profile's NIP-05 against its `/.well-known/nostr.json` |
+| [07](https://nips.nostr.com/7) | `window.nostr` capability | The signer interface itself |
+| [09](https://nips.nostr.com/9) | Event Deletion Request | Recognized and flagged in the signing prompt |
+| [10](https://nips.nostr.com/10) | Text Notes and Threads | Reply/mention recognition in notifications |
+| [18](https://nips.nostr.com/18) | Reposts | Repost and quote-repost recognition |
+| [19](https://nips.nostr.com/19) | bech32-encoded entities | npub/nsec/note/nevent/naddr encode & decode throughout |
+| [21](https://nips.nostr.com/21) | `nostr:` URI scheme | Mention/embed rendering in the composer |
+| [25](https://nips.nostr.com/25) | Reactions | Reaction notifications |
+| [27](https://nips.nostr.com/27) | Text Note References | Inline `nostr:` mention rendering |
+| [42](https://nips.nostr.com/42) | Authentication of clients to relays | Relay AUTH challenges are signed automatically |
+| [44](https://nips.nostr.com/44) | Encrypted Payloads (Versioned) | `nip44.encrypt`/`.decrypt` NIP-07 methods; preferred encryption for backups and mute lists |
+| [47](https://nips.nostr.com/47) | Nostr Wallet Connect | The built-in Lightning wallet |
+| [49](https://nips.nostr.com/49) | Private Key Encryption (`ncryptsec`) | Password-encrypted key import/export |
+| [51](https://nips.nostr.com/51) | Lists | Mute list handling |
+| [57](https://nips.nostr.com/57) | Lightning Zaps | Zap notifications, automatic zaps |
+| [65](https://nips.nostr.com/65) | Relay List Metadata | Outbox relay list editor |
+| [78](https://nips.nostr.com/78) | Application-specific Data | Encrypted profile/follows/mutes/wallet backups |
+| [89](https://nips.nostr.com/89) | Recommended Application Handlers | `client` tag on posts |
+| [98](https://nips.nostr.com/98) | HTTP Auth | Upload auth for Blossom and nostr.build |
+| [Blossom](https://github.com/hzrd149/blossom) (BUD-02) | Blob upload | Media uploads to a user's own Blossom servers, from their kind:10063 list |
+
 ## Acknowledgments
 
-- Inspired by Nostr Build Shack by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
+- Inspired by [Nostr Build Shack](https://apps.apple.com/us/app/nostr-build-shack/id6752591477) by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
 - Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf), [Alby](https://github.com/getAlby/lightning-browser-extension) extension, and [Amber](https://github.com/greenart7c3/Amber) by [greenart7c3](https://github.com/greenart7c3) — the OG reliable signers most of Nostr grew up with
 - Global @-mention search is powered by the [nostrarchives-api](https://github.com/barrydeen/nostrarchives-api) by [barrydeen](https://github.com/barrydeen)
 
