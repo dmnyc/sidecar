@@ -195,6 +195,14 @@ const APPS = [
     desc: 'A focused social client — “social without the noise,” built for real human connections.',
   },
   {
+    name: 'NoorNote',
+    url: 'https://noornote.app',
+    domain: 'noornote.app',
+    cat: 'social',
+    icon: 'https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://noornote.app/&size=256',
+    desc: 'Feature-rich client with guided onboarding and dozens of built-in addons.',
+  },
+  {
     name: 'Ghostr',
     url: 'https://ghostr.org',
     domain: 'ghostr.org',

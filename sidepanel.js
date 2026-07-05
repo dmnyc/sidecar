@@ -3097,13 +3097,14 @@
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
   const VIEW_CLIENTS = {
     jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
+    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
     primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
+    iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
     coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
     nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
-    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
     snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },
-    iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
     zapcooking: { label: 'zap.cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
+    noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
     njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
   };
   const DEFAULT_CLIENT = 'jumble';
