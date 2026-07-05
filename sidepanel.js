@@ -1897,26 +1897,27 @@
   // same two choices without needing a full button each.
   function addAccountModal() {
     openModal((modal) => {
-      const menuItem = (label, name, onClick) => {
-        const b = h('button', { className: 'menu-item' });
-        b.appendChild(icon(name));
-        b.appendChild(h('span', { textContent: label }));
+      const optionButton = (label, name, onClick) => {
+        const b = h('button', { className: 'secondary' });
+        b.append(icon(name), h('span', { textContent: label }));
         b.addEventListener('click', onClick);
         return b;
       };
-      const list = h('div', { className: 'menu-list' }, [
-        menuItem('Generate new', 'user-plus', () => {
-          closeModal();
-          generateAccount();
-        }),
-        menuItem('Import nsec', 'download', () => {
-          closeModal();
-          importAccountModal();
-        }),
-      ]);
+      const generate = optionButton('Generate new', 'user-plus', () => {
+        closeModal();
+        generateAccount();
+      });
+      const importBtn = optionButton('Import nsec', 'download', () => {
+        closeModal();
+        importAccountModal();
+      });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
-      modal.append(h('h3', { textContent: 'Add account' }), list, h('div', { className: 'actions' }, [cancel]));
+      modal.append(
+        h('h3', { textContent: 'Add account' }),
+        h('div', { className: 'add-actions modal-add-actions' }, [generate, importBtn]),
+        h('div', { className: 'actions' }, [cancel])
+      );
     });
   }
 
