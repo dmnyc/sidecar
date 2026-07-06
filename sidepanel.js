@@ -6443,7 +6443,7 @@
       const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy.php', target: '_blank', rel: 'noopener noreferrer' });
       const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
       const issues = h('a', { className: 'about-link', textContent: 'Report an issue', href: GITHUB_URL + '/issues', target: '_blank', rel: 'noopener noreferrer' });
-      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Zap the creator '), boltIcon()]);
+      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Support Sidecar '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
       const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
