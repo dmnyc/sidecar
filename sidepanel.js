@@ -539,6 +539,36 @@
     show($('view-main'));
   });
 
+  // One-time tip shown on the first account switch: sites keep the identity
+  // they logged in with, so users switching to post elsewhere need to know the
+  // log-out → switch → log-in dance (and that in-client account menus can't
+  // reach Sidecar). Banner sits below the tab bar so it's visible from any tab;
+  // dismissing it persists forever.
+  function maybeShowSwitchTip() {
+    chrome.storage.local.get('switchTipDismissed', ({ switchTipDismissed }) => {
+      if (switchTipDismissed || $('switch-tip')) return;
+      const x = h('button', { className: 'switch-tip-x', title: 'Dismiss' });
+      x.append(icon('x'));
+      x.addEventListener('click', () => {
+        chrome.storage.local.set({ switchTipDismissed: true });
+        tip.remove();
+      });
+      const tip = h('div', { id: 'switch-tip', className: 'switch-tip' }, [
+        h('div', { className: 'switch-tip-title' }, [
+          icon('refresh'),
+          h('span', { textContent: 'Switching accounts?' }),
+        ]),
+        h('p', {
+          className: 'switch-tip-body',
+          textContent:
+            'Clients keep signing with the account you logged in with. To post as a different user, log out there, switch here, then log back in. Multi-account switchers in clients don’t talk to Sidecar.',
+        }),
+        x,
+      ]);
+      document.querySelector('nav.tabs').insertAdjacentElement('afterend', tip);
+    });
+  }
+
   // ---- header account switcher (dropdown) ----
   function buildAcctMenu() {
     const menu = $('acct-menu');
@@ -575,6 +605,7 @@
             await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
             await refresh();
             toast('Switched to ' + displayName(a), 'success');
+            maybeShowSwitchTip();
           } else {
             row.classList.add('acct-row-pending');
             row.querySelector('.acct-row-name').textContent = 'Switch to ' + displayName(a) + '?';
@@ -1643,6 +1674,7 @@
           await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
           await refresh();
           toast('Switched to ' + displayName(a), 'success');
+          maybeShowSwitchTip();
         } else {
           row.classList.add('item-pending');
           label.textContent = 'Set as active?';
