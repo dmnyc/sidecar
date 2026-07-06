@@ -8,7 +8,7 @@ web apps you use, so you can sign in and sign events across Nostr clients withou
 pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
 Connect) and a composer for posting notes directly from the panel.
 
-**[Website](https://sidecar.dmnyc.net)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Privacy Policy](https://sidecar.dmnyc.net/privacy.php)**
+**[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Privacy Policy](https://sidecar.top/privacy.php)**
 
 <img width="3456" height="1944" alt="Sidecar" src="https://i.nostr.build/jCcJyt3Jb5HDTUhK.jpg" />
 
