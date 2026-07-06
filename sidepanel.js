@@ -3279,7 +3279,7 @@
   const CLIENT_TAG = ['client', 'Sidecar'];
   // ---- About / zap-the-creator ----
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
-  const SIDECAR_SITE_URL = 'https://sidecar.dmnyc.net';
+  const SIDECAR_SITE_URL = 'https://sidecar.top';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
   const CREATOR_LN = 'daniel@breez.tips';
   const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
