@@ -10,7 +10,7 @@ Connect) and a composer for posting notes directly from the panel.
 
 **[Website](https://sidecar.dmnyc.net)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Privacy Policy](https://sidecar.dmnyc.net/privacy.php)**
 
-<img width="2816" height="1566" alt="Sidecar" src="https://i.nostr.build/Sr11DBpz7pVITHoS.png" />
+<img width="3456" height="1944" alt="Sidecar" src="https://i.nostr.build/jCcJyt3Jb5HDTUhK.jpg" />
 
 > "Best Nostr Extension ever! Every Nostr app should take notes on this onboarding flow. This makes me want to use Nostr."
 >
