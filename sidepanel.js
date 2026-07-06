@@ -2590,6 +2590,26 @@
     renderActivity();
   });
 
+  // Live-refresh the Activity tab when the background records new signing
+  // activity, a site binding moves (e.g. a login re-pairs a host), or a
+  // permission changes — otherwise the visible list goes stale until the user
+  // leaves and re-enters the tab. Skipped while either filter is in use, since
+  // a re-render resets filter text and pagination.
+  let activityRefreshTimer = null;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (!('sidecar_activity' in changes) && !('sidecar_site_accounts' in changes) && !('sidecar_permissions' in changes)) return;
+    if (!state || state.locked) return;
+    const activeTab = document.querySelector('.tab.active');
+    if (!activeTab || activeTab.dataset.tab !== 'activity') return;
+    const sitesFilter = $('sites-filter');
+    const actFilter = $('activity-filter');
+    const filterBusy = (el) => el && !el.classList.contains('hidden') && (el.value.trim() || document.activeElement === el);
+    if (filterBusy(sitesFilter) || filterBusy(actFilter)) return;
+    clearTimeout(activityRefreshTimer);
+    activityRefreshTimer = setTimeout(() => renderActivity(), 400);
+  });
+
   // ---- profile (active account): view + edit + publish kind 0 ----
   // Fetch the active account's latest kind:0 (used for both display and edit-merge).
   async function fetchActiveProfile() {
