@@ -3279,6 +3279,7 @@
   const CLIENT_TAG = ['client', 'Sidecar'];
   // ---- About / zap-the-creator ----
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
+  const SIDECAR_SITE_URL = 'https://sidecar.dmnyc.net';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
   const CREATOR_LN = 'daniel@breez.tips';
   const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
@@ -6438,6 +6439,8 @@
       preferredClient().then((client) => { creator.href = client.profile(CREATOR_NPUB); }).catch(() => {});
       fetchProfileName(CREATOR_NPUB).then((name) => { if (name) creator.textContent = '@' + name.replace(/^@/, ''); });
 
+      const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
+      const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy.php', target: '_blank', rel: 'noopener noreferrer' });
       const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
       const issues = h('a', { className: 'about-link', textContent: 'Report an issue', href: GITHUB_URL + '/issues', target: '_blank', rel: 'noopener noreferrer' });
       const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Zap the creator '), boltIcon()]);
@@ -6456,7 +6459,7 @@
           ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
           updateBtn,
           updateStatus,
-          h('div', { className: 'about-links' }, [repo, issues, zap]),
+          h('div', { className: 'about-links' }, [website, repo, issues, privacy, zap]),
         ])
       );
     });
