@@ -45,7 +45,7 @@
 
   let data = null;
   let isPayment = false;
-  let chosenPubkey = null; // fresh-login prompts only — see canOfferAccountSwitch in background.js
+  let chosenPubkey = null; // login (getPublicKey) prompts only — see canOfferAccountSwitch in background.js
 
   function fmtSats(n) {
     return Number(n).toLocaleString('en-US');
@@ -189,7 +189,7 @@
   }
 
   // All accounts selectable in this prompt: the one it opened with, plus (only
-  // for a fresh-site login — see canOfferAccountSwitch in background.js) any
+  // for a login prompt — see canOfferAccountSwitch in background.js) any
   // others the user could switch to before approving.
   function accountList() {
     return [
