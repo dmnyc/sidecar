@@ -76,10 +76,14 @@ function safeFetchUrl(raw) {
 }
 
 // ---- per-site account binding ----
-// A web client caches the pubkey from its first getPublicKey() and has no way to
+// A web client caches the pubkey from its last getPublicKey() and has no way to
 // learn about an account switch. So we PIN each host to the account it logged in
-// with: that host keeps signing as its bound identity regardless of which account
-// is globally active. The global active account only drives new logins + the panel UI.
+// with: session-shaped requests (signEvent, nip04/nip44, relay auth) keep signing
+// as the bound identity regardless of which account is globally active.
+// getPublicKey() is the exception: it's a login — the site is asking "who are you
+// now?" — so it follows the globally-active account and re-pairs the host to it
+// (see handleNostrRpc). Log out of a site, switch accounts in the panel, log back
+// in, and the site follows; open sessions on other sites never desync.
 const SITE_ACCTS_KEY = 'sidecar_site_accounts';
 
 async function getSiteAccount(host) {
@@ -341,10 +345,37 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     await KS.ensureLoaded(); // rehydrate unlocked session if the SW was restarted
     if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
 
-    // The identity this host signs as — pinned to whatever it logged in with,
-    // independent of the globally-active account (prevents NIP-07 desync).
-    const boundPubkey = await getSiteAccount(host);
-    let activePubkey = await resolveSiteAccount(host);
+    let signKind = null;
+    let signEvent = null;
+    if (method === 'signEvent') {
+      signEvent = params && (params.event || params);
+      signKind = signEvent && signEvent.kind;
+    }
+
+    // The identity this request signs as. getPublicKey is a login: it
+    // establishes identity, so it follows the globally-active account (and, on
+    // success, re-pairs the host to it below). Everything session-shaped —
+    // signEvent, nip04/nip44, relay auth — stays pinned to the account the host
+    // logged in with, so open sessions never desync on a panel account switch.
+    //
+    // One exception: applesauce-based clients (noStrudel and friends) stamp the
+    // intended author's pubkey on the event template. That's the client
+    // explicitly naming which identity it wants, so when it names another
+    // account we hold, honor it — the requested account's own per-site
+    // permissions still gate the signature below, so a site can never quietly
+    // reach an identity that hasn't approved it.
+    let activePubkey;
+    let authorSwitched = false;
+    if (method === 'getPublicKey') {
+      activePubkey = await KS.getActivePubkey();
+    } else {
+      activePubkey = await resolveSiteAccount(host);
+      const requestedAuthor = signEvent && typeof signEvent.pubkey === 'string' ? signEvent.pubkey : null;
+      if (requestedAuthor && requestedAuthor !== activePubkey && (await KS.hasAccount(requestedAuthor))) {
+        activePubkey = requestedAuthor;
+        authorSwitched = true;
+      }
+    }
     if (!activePubkey) throw new Error('No active Sidecar account');
 
     const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
@@ -357,26 +388,22 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // But the exemption is a silent signing oracle if abused, so we only skip the
     // prompt when the event is a *well-formed* auth event (see isNip42AuthEvent):
     // relay + challenge tags only, near-current timestamp, no arbitrary payload.
-    // Anything else falls back to the normal approval prompt.
-    let signKind = null;
-    let signEvent = null;
-    if (method === 'signEvent') {
-      signEvent = params && (params.event || params);
-      signKind = signEvent && signEvent.kind;
-    }
-    const isRelayAuth = method === 'signEvent' && isNip42AuthEvent(signEvent);
+    // Anything else falls back to the normal approval prompt. An auth event that
+    // names a DIFFERENT account than the site's binding never gets the exemption:
+    // silently relay-authing as an identity that hasn't approved this site would
+    // let a page link the user's accounts without any consent moment.
+    const isRelayAuth = method === 'signEvent' && !authorSwitched && isNip42AuthEvent(signEvent);
 
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
     const needApproval = status === 'ask' && !isRelayAuth;
 
-    // A brand-new site (no binding yet) is the one safe moment to offer switching
-    // identity right in the prompt: nothing on the site has cached a pubkey yet,
-    // so there's no desync risk. Once a site is bound, its signing identity can
-    // only change via the deliberate "Use <account>" + re-login flow in the
-    // Activity tab — swapping mid-session here would silently break NIP-07 sync
-    // the same way the binding itself was built to prevent.
-    const canOfferAccountSwitch = method === 'getPublicKey' && !boundPubkey;
+    // Every getPublicKey is a login, and a login is the safe moment to pick an
+    // identity: whatever pubkey we return is the identity the site adopts from
+    // here on, so offering the account switcher in the prompt can't desync
+    // anything. Session-shaped methods never offer it — their identity is fixed
+    // by the host's binding.
+    const canOfferAccountSwitch = method === 'getPublicKey';
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -440,8 +467,17 @@ async function handleNostrRpc(method, params, host, sendResponse) {
       result = await SIGNER.perform(method, params, privBytes, activePubkey);
     }
 
-    // Pin this host to the account it just successfully used (idempotent).
-    await setSiteAccount(host, activePubkey);
+    // Pin this host to the account it just successfully used. Only an explicit
+    // identity choice may MOVE an existing binding: a login (getPublicKey) or a
+    // template that named its author (authorSwitched). A session-shaped request
+    // that resolved against the old binding but completed after a re-login
+    // (a pending approval, an in-flight batch of DM decrypts) must not write
+    // the old account back over the new one. Following an honored author keeps
+    // the site's implicit requests (nip04/nip44) on the identity the client
+    // last exercised.
+    if (method === 'getPublicKey' || authorSwitched || !(await getSiteAccount(host))) {
+      await setSiteAccount(host, activePubkey);
+    }
 
     logActivity({ ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey });
 

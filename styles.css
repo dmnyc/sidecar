@@ -586,6 +586,33 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   color: var(--text-2); font-size: 12px; line-height: 1.45; text-wrap: pretty;
 }
 .welcome-tip svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--gold); }
+
+/* one-time "switching accounts" tip — banner below the tab bar, gold like the
+   welcome tip but dismissible and visible from any tab */
+.switch-tip {
+  position: relative;
+  text-align: left;
+  margin: 10px 14px 0; padding: 11px 30px 12px 13px;
+  border: 1px solid var(--gold-soft); border-radius: 12px;
+  background: rgba(203, 161, 78, 0.08);
+  text-wrap: pretty;
+}
+.switch-tip-title {
+  display: flex; align-items: center; gap: 7px;
+  color: var(--gold); font-weight: 700; font-size: 12.5px;
+  margin-bottom: 5px;
+}
+.switch-tip-title svg { width: 15px; height: 15px; flex-shrink: 0; }
+.switch-tip-body {
+  margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55;
+}
+.switch-tip-x {
+  position: absolute; top: 6px; right: 6px;
+  background: none; border: none; padding: 2px;
+  color: var(--faint); cursor: pointer;
+}
+.switch-tip-x svg { width: 13px; height: 13px; display: block; }
+.switch-tip-x:hover { color: var(--text); }
 .spark { position: absolute; color: var(--gold); opacity: 0; animation: spark-twinkle 3s ease-in-out infinite; }
 .spark svg { display: block; width: 100%; height: 100%; }
 @keyframes spark-twinkle {
