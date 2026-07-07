@@ -498,6 +498,32 @@ async function reconcileQueue() {
 }
 reconcileQueue();
 
+// ---- app-data burst coalescing ----
+// Clients like Primal fire a SERIES of app-data (NIP-78, kind:30078) signs on
+// load/account-switch — sync settings, home feeds, membership — each awaited, so
+// they never share the queue and can't be batched. On a shared host every one
+// forces its own confirm, which is both maddening and self-defeating (it trains
+// users to reflex-approve). After the user explicitly confirms one such sign, we
+// auto-approve further signs of the SAME low-stakes kind, SAME account, SAME host
+// for a short window. Scoped tightly: only these app-config kinds (a site
+// spamming its own kind:30078 is harmless — it's app-namespaced data, not a note
+// or DM), only the account the user just confirmed, and only briefly. A different
+// kind, account, or host still confirms; the window is short enough that a
+// realistic client account-switch can't slip inside it.
+const COALESCE_KINDS = new Set([30078]);
+const COALESCE_WINDOW_MS = 60000;
+const contentGrants = new Map(); // `host|pubkey|kind` -> expiry ms
+function grantKey(host, pubkey, kind) { return host + '|' + pubkey + '|' + kind; }
+function hasContentGrant(host, pubkey, kind) {
+  const exp = contentGrants.get(grantKey(host, pubkey, kind));
+  if (!exp) return false;
+  if (Date.now() >= exp) { contentGrants.delete(grantKey(host, pubkey, kind)); return false; }
+  return true;
+}
+function grantContent(host, pubkey, kind) {
+  contentGrants.set(grantKey(host, pubkey, kind), Date.now() + COALESCE_WINDOW_MS);
+}
+
 // ============================================================================
 // Page RPC handling (window.nostr.*)
 // ============================================================================
@@ -633,10 +659,19 @@ async function handleNostrRpc(method, params, host, sendResponse) {
       }
     }
 
+    // App-data burst coalescing: if the user just confirmed this exact
+    // (host, account, kind) app-data sign, auto-approve the rest of the serial
+    // burst without re-nagging. Only bypasses the confirm/ask — never a block
+    // (that already threw above) or an unlock.
+    const coalesced = isContentSign && signKind != null && COALESCE_KINDS.has(signKind) &&
+      hasContentGrant(host, activePubkey, signKind);
+    if (coalesced) sharedIdentity = false;
+
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
-    // A shared-identity content sign always confirms, regardless of trust tier.
-    const needApproval = (status === 'ask' && !isRelayAuth) || sharedIdentity;
+    // A shared-identity content sign always confirms, regardless of trust tier —
+    // unless it's a coalesced app-data sign the user just approved.
+    const needApproval = coalesced ? false : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
 
     // Every getPublicKey is a login, and a login is the safe moment to pick an
     // identity: whatever pubkey we return is the identity the site adopts from
@@ -727,6 +762,15 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     }
     // Record every account that acts on a host, so a second one makes it "shared".
     await addAuthorizedAccount(host, activePubkey);
+
+    // The user just explicitly confirmed a low-stakes app-data sign — coalesce the
+    // rest of the serial burst (same host/account/kind) for a short window so a
+    // client's on-load sync doesn't fire a modal per subkey. Only on an explicit
+    // confirm (needApproval), never extended by the coalesced signs themselves,
+    // so exposure stays bounded.
+    if (isContentSign && signKind != null && COALESCE_KINDS.has(signKind) && needApproval && !coalesced) {
+      grantContent(host, activePubkey, signKind);
+    }
 
     logActivity({ ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey });
 
