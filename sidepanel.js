@@ -6792,10 +6792,13 @@
   });
 
   // ---- inline signing approval ----
-  // The service worker keeps a "sidepanel" port open while this panel is visible and,
-  // when it is, pushes approval requests here (SIDECAR_PANEL_APPROVAL) instead of
-  // opening a popup window. We render them inline and reply with SIDECAR_PROMPT_RESULT.
-  let pendingApproval = null; // { id, data }
+  // The service worker owns an observable approval queue. While this panel's
+  // "sidepanel" port is open it pings SIDECAR_QUEUE_UPDATED on every change; we
+  // pull the authoritative state with SIDECAR_GET_PENDING and render the head
+  // approval inline (replying with SIDECAR_PROMPT_RESULT), plus the backlog and
+  // any interrupted tombstones. When the panel is closed the worker falls back to
+  // a popup window instead.
+  let pendingApproval = null; // { id, data, chosenPubkey }
 
   const APPROVAL_METHOD_LABELS = {
     getPublicKey: 'see your public key (npub)',
@@ -7083,14 +7086,22 @@
       extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
     }
     await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
-    pendingApproval = null;
     $('approval-pin').value = '';
-    refresh(); // back to the normal view (now unlocked, if we just unlocked)
+    // Leave pendingApproval set so refreshApproval() knows an approval was up:
+    // it shows the next queued one, or (queue empty) restores + re-syncs the base
+    // view. Nulling it here would skip that base refresh, leaving panel state stale.
+    await refreshApproval();
   }
 
   $('approval-allow').addEventListener('click', () => decideApproval('once'));
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
+  // Escape hatch: reject the whole backlog at once (this request + all waiting).
+  $('approval-reject-all').addEventListener('click', async () => {
+    pendingApproval = null;
+    await bg({ type: 'SIDECAR_REJECT_ALL_PENDING' });
+    await refreshApproval();
+  });
   // Tapping the dimmed backdrop (outside the card) rejects, like closing the popup.
   $('view-approval').addEventListener('click', (e) => {
     if (e.target === $('view-approval')) decideApproval('reject');
@@ -7105,11 +7116,67 @@
     e.target.value = v;
   });
 
-  // Keep a live port to the worker so inline approvals always reach us. MV3
-  // recycles the service worker (~30s idle; Chrome also force-drops ports after
-  // ~5 min), which silently kills the port — without reconnecting, the panel
-  // goes deaf and a page's request hangs until a refresh. So we re-establish the
-  // connection whenever it drops. (Reconnecting also wakes a sleeping worker.)
+  // The background owns the observable approval queue; the panel is a pure view
+  // of it. Pull the authoritative state and render: the head card, the "N more
+  // waiting" strip + Reject all, and any interrupted tombstones. Called on port
+  // (re)connect, on every SIDECAR_QUEUE_UPDATED ping, and after each decision —
+  // so the panel can never desync from what's actually pending.
+  async function refreshApproval() {
+    let resp;
+    try { resp = await bg({ type: 'SIDECAR_GET_PENDING' }); } catch (_) { return; }
+    const view = resp && resp.ok ? resp.result : null;
+    if (!view) return;
+    renderInterrupted(view.interrupted || []);
+    const head = view.head;
+    if (head) {
+      if (!pendingApproval || pendingApproval.id !== head.id) {
+        pendingApproval = { id: head.id, data: head.data, chosenPubkey: null };
+        closeModal();
+        showApproval();
+      }
+      renderBacklog(view.waiting || []);
+    } else {
+      const wasShowing = !!pendingApproval;
+      pendingApproval = null;
+      renderBacklog([]);
+      hide($('view-approval'));
+      // Queue emptied while an approval was up → restore the normal view.
+      if (wasShowing) refresh();
+    }
+  }
+
+  // "N more waiting" strip inside the approval card + a Reject all escape hatch.
+  function renderBacklog(waiting) {
+    const strip = $('approval-backlog');
+    if (!strip) return;
+    if (!waiting.length) { hide(strip); return; }
+    const count = $('approval-backlog-count');
+    count.textContent = waiting.length + (waiting.length === 1 ? ' more request waiting' : ' more requests waiting');
+    show(strip);
+  }
+
+  // Requests that were in flight when Sidecar's service worker restarted. Their
+  // page channels are gone (the sites already got an error/timeout), so they
+  // can't be signed — surface them honestly as dismissible tombstones.
+  function renderInterrupted(list) {
+    const banner = $('interrupted-banner');
+    if (!banner) return;
+    if (!list.length) { hide(banner); banner.innerHTML = ''; return; }
+    banner.innerHTML = '';
+    const msg = h('span', { className: 'interrupted-msg', textContent:
+      list.length + (list.length === 1 ? ' signing request was' : ' signing requests were') +
+      ' interrupted when Sidecar restarted — the site' + (list.length === 1 ? '' : 's') + ' will ask again.' });
+    const dismiss = h('button', { className: 'interrupted-dismiss', textContent: 'Dismiss' });
+    dismiss.addEventListener('click', async () => { await bg({ type: 'SIDECAR_DISMISS_INTERRUPTED' }); refreshApproval(); });
+    banner.append(msg, dismiss);
+    show(banner);
+  }
+
+  // Keep a live port to the worker: it's the SIDECAR_QUEUE_UPDATED signal channel
+  // AND a keepalive that wakes/holds the worker. MV3 recycles it (~5 min, or on
+  // SW sleep); on any drop we reconnect and re-pull. The background REVERTS (not
+  // rejects) a shown approval when this port drops, so a blip can't lose a
+  // request — it re-surfaces on reconnect.
   function connectApprovalPort() {
     let port;
     try {
@@ -7119,21 +7186,18 @@
       return;
     }
     port.onMessage.addListener((msg) => {
-      if (msg && msg.type === 'SIDECAR_PANEL_APPROVAL') {
-        closeModal();
-        pendingApproval = { id: msg.id, data: msg.data };
-        showApproval();
-      }
+      if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
     });
     port.onDisconnect.addListener(() => {
-      // The worker that owned any in-flight approval is gone, so a showing card
-      // is now stale (the page is failed via the content-script timeout). Drop it.
-      if (pendingApproval) {
-        pendingApproval = null;
-        hide($('view-approval'));
-      }
+      // Not a failure: the background keeps pending requests alive and re-surfaces
+      // them. Just hide the (now un-decidable) card and reconnect; refreshApproval
+      // on reconnect restores the true state.
+      pendingApproval = null;
+      hide($('view-approval'));
       setTimeout(connectApprovalPort, 250);
     });
+    // Pull authoritative state on (re)connect.
+    refreshApproval();
   }
   connectApprovalPort();
 

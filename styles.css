@@ -1453,6 +1453,31 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .post-banner-x:hover { color: var(--text); }
 .post-banner-x svg { width: 14px; height: 14px; }
 
+/* Interrupted-request tombstone banner (queue survived an SW restart). */
+.interrupted-banner {
+  display: flex; align-items: center; gap: 10px;
+  margin: 10px 16px 0; padding: 10px 12px; border-radius: 10px;
+  background: rgba(240, 86, 107, 0.12); border: 1px solid rgba(240, 86, 107, 0.35);
+}
+.interrupted-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); }
+.interrupted-dismiss {
+  flex-shrink: 0; margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--lav); font-size: 12.5px; font-weight: 600; padding: 4px 6px; white-space: nowrap;
+}
+.interrupted-dismiss:hover { color: var(--text); text-decoration: underline; }
+
+/* "N more waiting" backlog strip + Reject all, inside the approval card. */
+.approval-backlog {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  font-size: 12.5px; color: var(--muted);
+}
+.approval-reject-all {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--red); font-size: 12.5px; font-weight: 600; padding: 4px 6px; white-space: nowrap;
+}
+.approval-reject-all:hover { text-decoration: underline; filter: brightness(1.1); }
+
 /* nsec/ncryptsec tabs (key backup modal) */
 .modal-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 14px; }
 .modal-tab {

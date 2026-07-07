@@ -74,6 +74,8 @@
 
 
     <div id="post-banner" class="post-banner hidden"></div>
+    <!-- Requests interrupted by a service-worker restart (honest tombstones). -->
+    <div id="interrupted-banner" class="interrupted-banner hidden"></div>
 
     <main class="content">
       <!-- Accounts -->
@@ -313,6 +315,12 @@
         <button class="primary" id="approval-allow">Allow once</button>
         <button class="lav-btn" id="approval-trust">Trust this site</button>
         <button class="ghost" id="approval-reject">Reject</button>
+      </div>
+
+      <!-- Stacked-request backlog: always-visible count + one-tap escape hatch. -->
+      <div id="approval-backlog" class="approval-backlog hidden">
+        <span id="approval-backlog-count"></span>
+        <button class="approval-reject-all" id="approval-reject-all">Reject all</button>
       </div>
     </div>
   </div>
