@@ -2524,7 +2524,7 @@
     openModal((modal) => {
       modal.append(
         h('h3', { textContent: host }),
-        h('p', { className: 'hint', textContent: 'These accounts have signed in on this site. Content signs here confirm who’s posting whenever the account you switch to in Sidecar doesn’t match the last one used — since a multi-account client’s own switcher can’t tell Sidecar which one you picked.' })
+        h('p', { className: 'hint', textContent: 'These accounts have signed in on this site. Every post, reaction, or message confirms who’s posting — a multi-account client’s own switcher can’t tell Sidecar which one you picked here. Remove an account below once you’re done using it on this site to go back to signing silently.' })
       );
       const list = h('div', { className: 'stack' });
       authorizedPks.forEach((pk) => {
@@ -7033,6 +7033,12 @@
         show(trust);
       }
     }
+    // Shared-identity confirms happen on EVERY content sign to this host, not
+    // just a detected mismatch, so "Trust this site" can't skip future ones —
+    // the same signature that's fine now could be wrong next time. Hide it
+    // rather than over-promise (must run after the payment/unlock branches
+    // above, which otherwise re-show it).
+    if (data.sharedIdentity) hide(trust);
   }
 
   async function decideApproval(action) {

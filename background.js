@@ -451,10 +451,17 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // edit, but NOT relay auth — carries your identity publicly. On a host where
     // 2+ of your accounts have signed in (a multi-login client), the single
     // binding can't be trusted to match the slot the client is showing, and the
-    // client never names the account at signing time. So when the binding and
-    // your active account disagree, confirm who's posting before signing — even
-    // on a "trusted" site — defaulting to the active account (the one our
-    // guidance tells you to keep in sync with the client's switcher).
+    // client never names the account at signing time.
+    //
+    // Critically, this ALWAYS confirms on a shared host — not just when the
+    // binding and active account disagree. A binding/active AGREEMENT is not
+    // evidence of correctness: the client's own switcher can flip which slot is
+    // selected with zero signal to Sidecar, so "our two guesses match" can still
+    // both be wrong relative to what the page is showing (e.g. Jumble displaying
+    // account A while Sidecar's binding and active account both happen to be B —
+    // there is no disagreement for us to detect, yet the post would go out under
+    // the wrong identity). Only an explicit confirm from the user closes that
+    // gap, since only the user can see the client's UI.
     const isContentSign =
       (method === 'signEvent' && !isRelayAuth) ||
       method === 'nip04.encrypt' || method === 'nip44.encrypt';
@@ -463,14 +470,13 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     if (isContentSign && !authorSwitched) {
       const authorized = await getAuthorizedAccounts(host);
       if (authorized.length >= 2) {
+        sharedIdentity = true;
+        authorizedPool = authorized;
+        // Default to the active account when it's authorized here — that's the
+        // one the user just deliberately chose in Sidecar, and the one our own
+        // guidance tells them to keep in sync with the client's selected slot.
         const globalActive = await KS.getActivePubkey();
-        if (activePubkey !== globalActive) {
-          // Default the confirm to your active account when it's logged in here;
-          // otherwise to the current binding.
-          if (authorized.includes(globalActive)) activePubkey = globalActive;
-          sharedIdentity = true;
-          authorizedPool = authorized;
-        }
+        if (authorized.includes(globalActive)) activePubkey = globalActive;
       }
     }
 

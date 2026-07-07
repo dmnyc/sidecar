@@ -155,7 +155,11 @@
 
     // Shared-identity confirm: this host is signed in with more than one of your
     // accounts, so make the "who's posting" choice explicit and relabel the
-    // switcher for the signing (not login) context.
+    // switcher for the signing (not login) context. This confirms on EVERY
+    // content sign to a shared host, not just a detected mismatch — the client's
+    // own switcher can flip identities with zero signal to Sidecar, so "Trust
+    // this site" can't skip it here (the same signature that's fine now could be
+    // wrong next time), and showing it anyway would over-promise.
     if (data.sharedIdentity) {
       const note = document.createElement('div');
       note.className = 'shared-note';
@@ -163,6 +167,7 @@
         "You're signed in here with more than one account. Confirm who's posting — a client's own account switcher can't tell Sidecar which one you picked.";
       els.account.parentNode.insertBefore(note, els.account);
       els.switchToggle.textContent = 'Post as a different account';
+      els.trust.classList.add('hidden');
     }
 
     if (data.needUnlock) {
