@@ -431,7 +431,10 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     }
     if (!activePubkey) throw new Error('No active Sidecar account');
 
-    const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
+    // `let`, not `const`: the shared-identity block below can swap activePubkey to
+    // the active account, and the permission status must follow the account that
+    // will actually sign (see the recompute there).
+    let status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
     if (status === 'reject') throw new Error('This site is blocked in Sidecar');
 
     // NIP-42 relay auth (kind 22242) is an automatic, ephemeral connection-auth
@@ -476,7 +479,16 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         // one the user just deliberately chose in Sidecar, and the one our own
         // guidance tells them to keep in sync with the client's selected slot.
         const globalActive = await KS.getActivePubkey();
-        if (authorized.includes(globalActive)) activePubkey = globalActive;
+        if (authorized.includes(globalActive) && globalActive !== activePubkey) {
+          activePubkey = globalActive;
+          // `status` above was computed for the binding account; re-evaluate it
+          // for the account we just swapped to and honor a block on THIS account.
+          // Without this, a site blocked for the active account could still be
+          // signed via the default swap (the explicit-switch path already
+          // re-checks; this closes the default-path gap).
+          status = await PERMS.getPermissionStatus(activePubkey, host, method);
+          if (status === 'reject') throw new Error('This site is blocked in Sidecar');
+        }
       }
     }
 
