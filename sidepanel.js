@@ -313,6 +313,11 @@
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
     }
+    // Re-assert the approval overlay from the queue after rendering the base view,
+    // so a panel reload while a request is pending re-surfaces it deterministically
+    // (no race with the view-hiding above). Skipped implicitly by the top guard
+    // when an approval is already showing.
+    if (typeof syncApprovalOverlay === 'function') syncApprovalOverlay();
   }
 
 
@@ -7042,6 +7047,17 @@
     // rather than over-promise (must run after the payment/unlock branches
     // above, which otherwise re-show it).
     if (data.sharedIdentity) hide(trust);
+
+    // Batch: a burst of same-site/same-account/same-kind content signs (e.g.
+    // Primal's app-data sync) collapses into one "Allow all (N)" so the user
+    // isn't nagged per event. The preview still shows one representative and the
+    // kind, so it's clear what the N are. (Must run last so it wins the labels.)
+    const groupN = pendingApproval.groupIds ? pendingApproval.groupIds.length : 1;
+    if (!payment && groupN > 1) {
+      $('approval-ask').textContent = 'wants to sign ' + groupN + ' events with your key';
+      allow.textContent = 'Allow all (' + groupN + ')';
+      hide(trust);
+    }
   }
 
   async function decideApproval(action) {
@@ -7085,7 +7101,15 @@
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
     }
-    await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
+    // Batch: an "Allow all (N)" / "Reject all" on a same-kind burst applies the
+    // same decision (and account choice) to every grouped request at once. Trust
+    // and budget are never batched (they're single-item / payment concerns).
+    const groupIds = pendingApproval.groupIds || [id];
+    if (groupIds.length > 1 && (action === 'once' || action === 'reject')) {
+      await bg({ type: 'SIDECAR_PROMPT_RESULT_BATCH', ids: groupIds, action, extra });
+    } else {
+      await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
+    }
     $('approval-pin').value = '';
     // Leave pendingApproval set so refreshApproval() knows an approval was up:
     // it shows the next queued one, or (queue empty) restores + re-syncs the base
@@ -7121,28 +7145,52 @@
   // waiting" strip + Reject all, and any interrupted tombstones. Called on port
   // (re)connect, on every SIDECAR_QUEUE_UPDATED ping, and after each decision —
   // so the panel can never desync from what's actually pending.
-  async function refreshApproval() {
+  // Render the approval overlay from the queue. Returns whether a head is showing.
+  // Non-recursive (never calls refresh) so it's safe to invoke from refresh() at
+  // render time — that's what makes the overlay survive a panel reload with a
+  // pending approval (no race where refresh() hides what this just showed).
+  async function syncApprovalOverlay() {
     let resp;
-    try { resp = await bg({ type: 'SIDECAR_GET_PENDING' }); } catch (_) { return; }
+    try { resp = await bg({ type: 'SIDECAR_GET_PENDING' }); } catch (_) { return !!pendingApproval; }
     const view = resp && resp.ok ? resp.result : null;
-    if (!view) return;
+    if (!view) return !!pendingApproval;
     renderInterrupted(view.interrupted || []);
     const head = view.head;
     if (head) {
+      const group = head.groupIds && head.groupIds.length ? head.groupIds : [head.id];
       if (!pendingApproval || pendingApproval.id !== head.id) {
-        pendingApproval = { id: head.id, data: head.data, chosenPubkey: null };
+        pendingApproval = { id: head.id, data: head.data, groupIds: group, chosenPubkey: null };
         closeModal();
         showApproval();
+      } else if (!pendingApproval.groupIds || pendingApproval.groupIds.length !== group.length) {
+        // Same head, but more same-kind requests arrived (or drained) — re-render
+        // the batch count without resetting the user's account pick.
+        pendingApproval.groupIds = group;
+        showApproval();
+      } else {
+        // Same head, already built — just ensure the overlay is visible. This is
+        // what makes it robust to an intervening refresh() that hid all views
+        // (e.g. on a panel reload while a request is pending): showApproval only
+        // runs on a head change, so without this the overlay could stay hidden.
+        show($('view-approval'));
       }
       renderBacklog(view.waiting || []);
-    } else {
-      const wasShowing = !!pendingApproval;
-      pendingApproval = null;
-      renderBacklog([]);
-      hide($('view-approval'));
-      // Queue emptied while an approval was up → restore the normal view.
-      if (wasShowing) refresh();
+      return true;
     }
+    pendingApproval = null;
+    renderBacklog([]);
+    hide($('view-approval'));
+    return false;
+  }
+
+  // The background owns the observable approval queue; the panel is a pure view
+  // of it. Called on port (re)connect, on every SIDECAR_QUEUE_UPDATED ping, and
+  // after each decision. When the queue empties while an approval was up, restore
+  // the normal view.
+  async function refreshApproval() {
+    const wasShowing = !!pendingApproval;
+    const hasHead = await syncApprovalOverlay();
+    if (!hasHead && wasShowing) refresh();
   }
 
   // "N more waiting" strip inside the approval card + a Reject all escape hatch.

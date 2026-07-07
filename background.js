@@ -242,14 +242,41 @@ function broadcastQueue() {
 }
 function liveEntries() { return queue.filter((e) => e.state !== 'interrupted'); }
 
+// A content sign (note/reaction/DM/profile/app-data — not relay auth) that can be
+// batched. Apps like Primal fire a burst of these on load (e.g. several kind:30078
+// app-data syncs); confirming each separately is pure nag and trains users to
+// click through. We batch only entries that share host + signing account + KIND —
+// same-kind means a site can't slip a different event type into a batch, and the
+// card names the kind + count so the user sees exactly what they're approving.
+function isBatchableEntry(e) {
+  if (e.state === 'interrupted' || !e.data) return false;
+  const m = e.method;
+  return (m === 'signEvent' || m === 'nip04.encrypt' || m === 'nip44.encrypt') &&
+    !isNip42AuthEvent(e.data && e.data.params && (e.data.params.event || e.data.params));
+}
+function batchKeyOf(e) { return e.host + '|' + (e.data && e.data.activePubkey) + '|' + e.kind; }
+
 // What the panel renders from (metadata only, plus the head's full data).
 function pendingView() {
   const head = queue.find((e) => e.state === 'showing' && e.display === 'panel') || null;
-  const waiting = queue.filter((e) => e.state !== 'interrupted' && e !== head)
+  // Group the head with other live queued entries sharing host+account+kind.
+  let groupIds = head ? [head.id] : [];
+  if (head && isBatchableEntry(head)) {
+    const key = batchKeyOf(head);
+    for (const e of queue) {
+      if (e === head) continue;
+      if (e.state === 'queued' && isBatchableEntry(e) && batchKeyOf(e) === key) groupIds.push(e.id);
+    }
+  }
+  const inGroup = new Set(groupIds);
+  const waiting = queue.filter((e) => e.state !== 'interrupted' && e !== head && !inGroup.has(e.id))
     .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, accountName: e.data && e.data.accountName, ts: e.ts }));
   const interrupted = queue.filter((e) => e.state === 'interrupted')
     .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, ts: e.ts }));
-  return { head: head ? { id: head.id, data: head.data } : null, waiting, interrupted };
+  return {
+    head: head ? { id: head.id, data: head.data, groupIds } : null,
+    waiting, interrupted,
+  };
 }
 
 // ---- keepalive (best-effort; correctness rests on the queue + reconcile) ----
@@ -1454,6 +1481,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === 'SIDECAR_PROMPT_RESULT') {
     settlePrompt(message.id, message.action, message.extra);
+    sendResponse({ ok: true });
+    return false;
+  }
+  // Batch decision: apply the same action (+ account choice) to a group of
+  // same-site/same-account/same-kind content signs the user approved together.
+  if (message.type === 'SIDECAR_PROMPT_RESULT_BATCH') {
+    for (const id of message.ids || []) settlePrompt(id, message.action, message.extra);
     sendResponse({ ok: true });
     return false;
   }
