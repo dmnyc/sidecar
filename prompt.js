@@ -153,6 +153,18 @@
     buildAccountCapsule();
     renderPreview();
 
+    // Shared-identity confirm: this host is signed in with more than one of your
+    // accounts, so make the "who's posting" choice explicit and relabel the
+    // switcher for the signing (not login) context.
+    if (data.sharedIdentity) {
+      const note = document.createElement('div');
+      note.className = 'shared-note';
+      note.textContent =
+        "You're signed in here with more than one account. Confirm who's posting — a client's own account switcher can't tell Sidecar which one you picked.";
+      els.account.parentNode.insertBefore(note, els.account);
+      els.switchToggle.textContent = 'Post as a different account';
+    }
+
     if (data.needUnlock) {
       els.unlock.classList.remove('hidden');
       setTimeout(() => els.pin.focus(), 50);

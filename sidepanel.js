@@ -27,6 +27,7 @@
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
+    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
     trash: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
     key: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>',
@@ -2407,9 +2408,15 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  function siteRow(host, level, boundPk) {
+  function siteRow(host, level, boundPk, authorizedPks) {
     const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
     const isActiveBound = boundPk && boundPk === state.activePubkey;
+    // 2+ accounts have signed in here — a multi-login client (Jumble, YakiHonne,
+    // …) may be showing a different one than the binding reflects. Content
+    // signs on a shared site confirm who's posting (see background.js); this
+    // just surfaces that state and lets the user prune an account they no
+    // longer use here, which collapses it back to a normal single-account site.
+    const isShared = Array.isArray(authorizedPks) && authorizedPks.length >= 2;
 
     const row = h('div', { className: 'item site-item' });
     const main = h('div', { className: 'item-main' });
@@ -2419,6 +2426,15 @@
       who.append(avatarEl(boundAcct, 'site-bound-av'));
       who.append(h('span', { textContent: 'Signs in as ' + displayName(boundAcct) }));
       main.append(who);
+    }
+    if (isShared) {
+      const shared = h('div', { className: 'site-shared' });
+      shared.append(icon('users'));
+      shared.append(h('span', { textContent: authorizedPks.length + ' accounts have signed in here' }));
+      const manage = h('button', { className: 'site-shared-manage', textContent: 'Manage' });
+      manage.addEventListener('click', () => sharedSiteModal(host, authorizedPks));
+      shared.append(manage);
+      main.append(shared);
     }
     row.append(main);
 
@@ -2501,6 +2517,38 @@
     });
   }
 
+  // Lists every account that has signed in on a shared (multi-login) site, with
+  // a way to prune one the user no longer uses there. Dropping back to one
+  // account collapses the site to normal — no more shared-identity confirms.
+  function sharedSiteModal(host, authorizedPks) {
+    openModal((modal) => {
+      modal.append(
+        h('h3', { textContent: host }),
+        h('p', { className: 'hint', textContent: 'These accounts have signed in on this site. Content signs here confirm who’s posting whenever the account you switch to in Sidecar doesn’t match the last one used — since a multi-account client’s own switcher can’t tell Sidecar which one you picked.' })
+      );
+      const list = h('div', { className: 'stack' });
+      authorizedPks.forEach((pk) => {
+        const a = state.accounts.find((x) => x.pubkey === pk);
+        if (!a) return; // deleted account — pruned from the set server-side already
+        const row = h('div', { className: 'shared-acct-row' });
+        row.append(avatarEl(a, 'site-bound-av'));
+        row.append(h('span', { className: 'shared-acct-name', textContent: displayName(a) }));
+        const rm = iconButton('Remove from this site', 'trash', async () => {
+          await call({ type: 'SIDECAR_REMOVE_SITE_ACCOUNT', host, pubkey: pk });
+          closeModal();
+          renderActivity();
+          toast(displayName(a) + ' removed from ' + host, 'success');
+        });
+        row.append(rm);
+        list.append(row);
+      });
+      modal.append(list);
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      modal.append(h('div', { className: 'actions' }, [close]));
+    });
+  }
+
   function activityRow(e) {
     const meta = METHOD_META[e.method] || { icon: 'feather', label: () => e.method };
     const row = h('div', { className: 'item activity-item' });
@@ -2515,9 +2563,10 @@
   }
 
   async function renderActivity() {
-    const [perms, bindings, log] = await Promise.all([
+    const [perms, bindings, authorized, log] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
       call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
+      call({ type: 'SIDECAR_GET_SITE_AUTHORIZED' }),
       call({ type: 'SIDECAR_GET_ACTIVITY' }),
     ]);
     const sites = $('sites-list');
@@ -2562,7 +2611,7 @@
         let shownSites = 0;
         const renderSitesPage = () => {
           filtered.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
-            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
+            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null))
           );
           shownSites = Math.min(shownSites + SITES_PAGE, filtered.length);
           if (shownSites >= filtered.length) hide(sitesMore);
@@ -6924,6 +6973,24 @@
       : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
 
     renderApprovalAccountCapsule(data);
+
+    // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
+    // "who's posting" choice explicit; relabel the switcher for signing context.
+    // showApproval can re-render, so replace any prior note rather than stack it.
+    const existingNote = $('approval-shared-note');
+    if (existingNote) existingNote.remove();
+    if (data.sharedIdentity) {
+      const note = h('div', { id: 'approval-shared-note', className: 'shared-note' }, [
+        document.createTextNode(
+          "You're signed in here with more than one account. Confirm who's posting — a client's own account switcher can't tell Sidecar which one you picked."
+        ),
+      ]);
+      const acct = $('approval-account');
+      acct.parentNode.insertBefore(note, acct);
+      $('approval-switch-toggle').textContent = 'Post as a different account';
+    } else {
+      $('approval-switch-toggle').textContent = 'Sign in with a different account';
+    }
 
     renderApprovalPreview(data);
 

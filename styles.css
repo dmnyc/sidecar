@@ -959,6 +959,23 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: #1a0d33; background: var(--gold); border: 1px solid var(--gold);
 }
 .switch-site-btn:hover { filter: brightness(1.08); }
+/* multi-login safeguard: this host has signed in with 2+ accounts */
+.site-shared {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 5px; font-size: 11.5px; color: var(--gold);
+}
+.site-shared svg { width: 13px; height: 13px; flex-shrink: 0; }
+.site-shared-manage {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--lav); font-size: 11.5px; font-weight: 600; padding: 2px 4px;
+}
+.site-shared-manage:hover { color: var(--text); text-decoration: underline; }
+.shared-acct-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 2px; border-bottom: 1px solid var(--border);
+}
+.shared-acct-row:last-child { border-bottom: none; }
+.shared-acct-name { flex: 1; font-size: 13px; color: var(--text); }
 
 /* signing activity rows */
 .activity-item { gap: 11px; }
@@ -1612,6 +1629,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   margin-top: 8px; padding: 8px 10px; border-radius: 8px;
   background: rgba(255, 179, 138, 0.1); border: 1px solid rgba(255, 179, 138, 0.3);
   color: #ffb38a; font-size: 12px; text-align: left;
+}
+.shared-note {
+  margin: 2px 0 14px; padding: 9px 11px; border-radius: 9px;
+  background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft);
+  color: var(--text-2); font-size: 12px; line-height: 1.45; text-align: left;
 }
 .approval-account { margin: 4px 0 18px; }
 .approval-switch-toggle {

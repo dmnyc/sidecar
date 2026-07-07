@@ -108,6 +108,59 @@ async function clearSiteAccountsForPubkey(pubkey) {
   let changed = false;
   for (const h of Object.keys(all)) if (all[h] === pubkey) { delete all[h]; changed = true; }
   if (changed) await sset({ [SITE_ACCTS_KEY]: all });
+  await removeAuthorizedAccountEverywhere(pubkey);
+}
+
+// ---- multi-login safeguard: accounts that have signed in per host ----
+// The binding above is a single account per host. But multi-login clients
+// (Jumble, YakiHonne, Ditto, …) keep several sessions on ONE host and only tell
+// us which account they mean at getPublicKey (login) — never at signing time,
+// and their event templates carry no pubkey. So once 2+ of your accounts have
+// used a host, the single binding can silently reflect the wrong slot. We track
+// the SET of accounts that have acted on each host; a host with 2+ is "shared",
+// and content signs there confirm who's posting when the binding and your active
+// account disagree (see handleNostrRpc).
+const SITE_AUTHZ_KEY = 'sidecar_site_authorized';
+
+async function getAllAuthorized() {
+  return (await sget(SITE_AUTHZ_KEY))[SITE_AUTHZ_KEY] || {};
+}
+// Accounts on `host` that STILL EXIST (a deleted account can't make a host shared).
+async function getAuthorizedAccounts(host) {
+  const list = (await getAllAuthorized())[host] || [];
+  const existing = [];
+  for (const pk of list) if (await KS.hasAccount(pk)) existing.push(pk);
+  return existing;
+}
+async function addAuthorizedAccount(host, pubkey) {
+  const all = await getAllAuthorized();
+  const list = all[host] || [];
+  if (list.includes(pubkey)) return;
+  list.push(pubkey);
+  all[host] = list;
+  await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function removeAuthorizedAccount(host, pubkey) {
+  const all = await getAllAuthorized();
+  if (!all[host]) return;
+  all[host] = all[host].filter((pk) => pk !== pubkey);
+  if (!all[host].length) delete all[host];
+  await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function removeAuthorizedAccountEverywhere(pubkey) {
+  const all = await getAllAuthorized();
+  let changed = false;
+  for (const h of Object.keys(all)) {
+    const next = all[h].filter((pk) => pk !== pubkey);
+    if (next.length !== all[h].length) { changed = true; if (next.length) all[h] = next; else delete all[h]; }
+  }
+  if (changed) await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function clearAuthorizedForHost(host) {
+  const all = await getAllAuthorized();
+  if (!all[host]) return;
+  delete all[host];
+  await sset({ [SITE_AUTHZ_KEY]: all });
 }
 
 // Resolve which account a host signs as: its valid binding, else the active
@@ -394,16 +447,45 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // let a page link the user's accounts without any consent moment.
     const isRelayAuth = method === 'signEvent' && !authorSwitched && isNip42AuthEvent(signEvent);
 
+    // Multi-login safeguard. A "content sign" — a note, reaction, DM, or profile
+    // edit, but NOT relay auth — carries your identity publicly. On a host where
+    // 2+ of your accounts have signed in (a multi-login client), the single
+    // binding can't be trusted to match the slot the client is showing, and the
+    // client never names the account at signing time. So when the binding and
+    // your active account disagree, confirm who's posting before signing — even
+    // on a "trusted" site — defaulting to the active account (the one our
+    // guidance tells you to keep in sync with the client's switcher).
+    const isContentSign =
+      (method === 'signEvent' && !isRelayAuth) ||
+      method === 'nip04.encrypt' || method === 'nip44.encrypt';
+    let sharedIdentity = false;
+    let authorizedPool = null;
+    if (isContentSign && !authorSwitched) {
+      const authorized = await getAuthorizedAccounts(host);
+      if (authorized.length >= 2) {
+        const globalActive = await KS.getActivePubkey();
+        if (activePubkey !== globalActive) {
+          // Default the confirm to your active account when it's logged in here;
+          // otherwise to the current binding.
+          if (authorized.includes(globalActive)) activePubkey = globalActive;
+          sharedIdentity = true;
+          authorizedPool = authorized;
+        }
+      }
+    }
+
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
-    const needApproval = status === 'ask' && !isRelayAuth;
+    // A shared-identity content sign always confirms, regardless of trust tier.
+    const needApproval = (status === 'ask' && !isRelayAuth) || sharedIdentity;
 
     // Every getPublicKey is a login, and a login is the safe moment to pick an
     // identity: whatever pubkey we return is the identity the site adopts from
     // here on, so offering the account switcher in the prompt can't desync
-    // anything. Session-shaped methods never offer it — their identity is fixed
-    // by the host's binding.
-    const canOfferAccountSwitch = method === 'getPublicKey';
+    // anything. A shared-identity content sign also offers the switcher — scoped
+    // to the accounts that have actually logged into this host. Other session
+    // methods never offer it: their identity is fixed by the binding.
+    const canOfferAccountSwitch = method === 'getPublicKey' || sharedIdentity;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -412,6 +494,9 @@ async function handleNostrRpc(method, params, host, sendResponse) {
       const otherAccounts = canOfferAccountSwitch
         ? st.accounts
             .filter((a) => a.pubkey !== activePubkey)
+            // Shared-identity: you can only post as an account that's logged into
+            // this host — never silently introduce a new identity to the site.
+            .filter((a) => !sharedIdentity || authorizedPool.includes(a.pubkey))
             .map((a) => ({
               pubkey: a.pubkey,
               npub: self.NostrTools.nip19.npubEncode(a.pubkey),
@@ -429,6 +514,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         accountPicture: (acct && acct.picture) || '',
         needUnlock,
         needApproval,
+        sharedIdentity,
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
       });
@@ -475,9 +561,13 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // the old account back over the new one. Following an honored author keeps
     // the site's implicit requests (nip04/nip44) on the identity the client
     // last exercised.
-    if (method === 'getPublicKey' || authorSwitched || !(await getSiteAccount(host))) {
+    // sharedIdentity is also an explicit choice (the user just confirmed who's
+    // posting in the prompt), so it may move the binding too.
+    if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
       await setSiteAccount(host, activePubkey);
     }
+    // Record every account that acts on a host, so a second one makes it "shared".
+    await addAuthorizedAccount(host, activePubkey);
 
     logActivity({ ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey });
 
@@ -1079,9 +1169,25 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_REMOVE_HOST':
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
+        await clearAuthorizedForHost(message.host); // and the shared-identity history
         break;
       case 'SIDECAR_GET_SITE_BINDINGS':
         result = await getAllSiteAccounts();
+        break;
+      case 'SIDECAR_GET_SITE_AUTHORIZED':
+        // host -> [pubkeys that have signed in there]; a host with 2+ is "shared".
+        result = await getAllAuthorized();
+        break;
+      case 'SIDECAR_REMOVE_SITE_ACCOUNT':
+        // Drop one account from a host's authorized set (e.g. "I don't use this
+        // account here anymore"). Collapsing back to one account stops the
+        // shared-identity confirms. If it was the current binding, forget that too
+        // so the next login re-pairs cleanly.
+        await removeAuthorizedAccount(message.host, message.pubkey);
+        if ((await getSiteAccount(message.host)) === message.pubkey) {
+          await clearSiteAccount(message.host);
+        }
+        result = true;
         break;
       case 'SIDECAR_CLEAR_BINDING':
         // Detach only the account binding (leaves the bound account's
