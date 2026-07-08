@@ -49,7 +49,7 @@ const APPS = [
     name: 'YakiHonne',
     url: 'https://yakihonne.com',
     domain: 'yakihonne.com',
-    cat: 'reading',
+    cat: 'social',
     desc: 'Articles, short notes, and curated content — a versatile client popular in the Global South.',
   },
   {
@@ -74,20 +74,13 @@ const APPS = [
     desc: 'Audio rooms for chatting, debating, jamming, and micro-conferences over Nostr.',
   },
   {
-    name: 'zap.cooking',
+    name: 'Zap Cooking',
     url: 'https://zap.cooking',
     domain: 'zap.cooking',
     cat: 'food',
     icon: 'icons/apps/zapcooking.jpg',
     flush: true,
     desc: 'A recipe community built on Nostr — share, discover, and zap great cooking.',
-  },
-  {
-    name: 'Bookstr',
-    url: 'https://bookstr.xyz',
-    domain: 'bookstr.xyz',
-    cat: 'reading',
-    desc: 'Track your reading, write reviews, and share your shelves on a decentralized network.',
   },
   {
     name: 'Slidestr',
@@ -222,7 +215,6 @@ const APPS = [
 const CAT_LABELS = {
   social:   'Social',
   media:    'Media',
-  reading:  'Reading',
   gaming:   'Gaming',
   food:     'Food',
   images:   'Images',

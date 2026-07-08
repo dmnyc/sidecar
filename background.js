@@ -108,6 +108,59 @@ async function clearSiteAccountsForPubkey(pubkey) {
   let changed = false;
   for (const h of Object.keys(all)) if (all[h] === pubkey) { delete all[h]; changed = true; }
   if (changed) await sset({ [SITE_ACCTS_KEY]: all });
+  await removeAuthorizedAccountEverywhere(pubkey);
+}
+
+// ---- multi-login safeguard: accounts that have signed in per host ----
+// The binding above is a single account per host. But multi-login clients
+// (Jumble, YakiHonne, Ditto, …) keep several sessions on ONE host and only tell
+// us which account they mean at getPublicKey (login) — never at signing time,
+// and their event templates carry no pubkey. So once 2+ of your accounts have
+// used a host, the single binding can silently reflect the wrong slot. We track
+// the SET of accounts that have acted on each host; a host with 2+ is "shared",
+// and content signs there confirm who's posting when the binding and your active
+// account disagree (see handleNostrRpc).
+const SITE_AUTHZ_KEY = 'sidecar_site_authorized';
+
+async function getAllAuthorized() {
+  return (await sget(SITE_AUTHZ_KEY))[SITE_AUTHZ_KEY] || {};
+}
+// Accounts on `host` that STILL EXIST (a deleted account can't make a host shared).
+async function getAuthorizedAccounts(host) {
+  const list = (await getAllAuthorized())[host] || [];
+  const existing = [];
+  for (const pk of list) if (await KS.hasAccount(pk)) existing.push(pk);
+  return existing;
+}
+async function addAuthorizedAccount(host, pubkey) {
+  const all = await getAllAuthorized();
+  const list = all[host] || [];
+  if (list.includes(pubkey)) return;
+  list.push(pubkey);
+  all[host] = list;
+  await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function removeAuthorizedAccount(host, pubkey) {
+  const all = await getAllAuthorized();
+  if (!all[host]) return;
+  all[host] = all[host].filter((pk) => pk !== pubkey);
+  if (!all[host].length) delete all[host];
+  await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function removeAuthorizedAccountEverywhere(pubkey) {
+  const all = await getAllAuthorized();
+  let changed = false;
+  for (const h of Object.keys(all)) {
+    const next = all[h].filter((pk) => pk !== pubkey);
+    if (next.length !== all[h].length) { changed = true; if (next.length) all[h] = next; else delete all[h]; }
+  }
+  if (changed) await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function clearAuthorizedForHost(host) {
+  const all = await getAllAuthorized();
+  if (!all[host]) return;
+  delete all[host];
+  await sset({ [SITE_AUTHZ_KEY]: all });
 }
 
 // Resolve which account a host signs as: its valid binding, else the active
@@ -143,40 +196,127 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 // ============================================================================
-// Approval / unlock prompt orchestration
+// Approval / unlock prompt queue — an OBSERVABLE, no-loss request queue.
 // ============================================================================
-const pendingPrompts = new Map(); // promptId -> { resolve, windowId, data, settled }
-let promptMutex = Promise.resolve(); // serialize prompts so only one window is open
-let popupWindowId = null;  // the reusable prompt popup window
-let popupPending = 0;      // count of unsettled popup-bound prompts
+// Every request needing approval/unlock is registered synchronously (never lost
+// behind an invisible promise chain), mirrored to chrome.storage.session (which
+// survives service-worker eviction but clears on browser restart — exactly a
+// request's max lifetime), and shown one-at-a-time by an idempotent head-pointer
+// (driveDisplay) rather than a promise mutex. A never-resolving display can't
+// wedge the queue: reverting a shown entry to `queued` on a panel-port blip just
+// re-drives. The resolve callbacks (which fulfill the live page request) live in
+// memory only; an entry whose callback is gone after an SW restart becomes a
+// dismissible "interrupted" tombstone — never signable, never pretending to be.
+//
+// Entry: { id, host, method, kind, scope, data, ts, deadline,
+//          state: 'queued'|'showing'|'interrupted', display: 'none'|'panel'|'popup' }
+const queue = [];               // ordered, observable (in-memory; metadata mirrored to session)
+const callbacks = new Map();    // id -> { resolve, settled }  (in-memory only; the live page channel)
+let popupWindowId = null;       // the reusable prompt popup window
+let panelPort = null;           // the side panel's long-lived port while it's open
+let graceTimer = null;          // panel-disconnect grace before falling back to a popup
+const REQUEST_TTL = 175000;     // < content.js's 180s page timeout, so we never surface a dead request
+const TOMBSTONE_TTL = 600000;   // interrupted tombstones self-clear after 10 min
+const QUEUE_SESSION_KEY = 'sidecar_prompt_queue';
+const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
 
-// The side panel keeps a long-lived port open while it's visible. When it's open
-// we render approvals inline in the panel (it can't get lost behind a window);
-// when it's closed we fall back to the popup window below — Chrome only lets us
-// open the side panel from a user gesture, so the worker can't force it open.
-let panelPort = null;
+// ---- session mirror (metadata only — no callbacks, no signable material) ----
+function qGet() {
+  return new Promise((r) => chrome.storage.session.get(QUEUE_SESSION_KEY, (x) => r(x[QUEUE_SESSION_KEY])));
+}
+function sanitizeEntry(e) {
+  return {
+    id: e.id, host: e.host, method: e.method, kind: e.kind, scope: e.scope,
+    ts: e.ts, deadline: e.deadline, state: e.state,
+    accountName: e.data ? e.data.accountName : e.accountName,
+  };
+}
+function qPersist() {
+  chrome.storage.session.set({ [QUEUE_SESSION_KEY]: queue.map(sanitizeEntry) }, () => void chrome.runtime.lastError);
+}
+// A bare "queue changed" ping — the panel re-queries SIDECAR_GET_PENDING (pull
+// model: the background is the single source of truth, no push/pull desync).
+function broadcastQueue() {
+  if (!panelPort) return;
+  try { panelPort.postMessage({ type: 'SIDECAR_QUEUE_UPDATED' }); } catch (_) {}
+}
+function liveEntries() { return queue.filter((e) => e.state !== 'interrupted'); }
+
+// A content sign (note/reaction/DM/profile/app-data — not relay auth) that can be
+// batched. Apps like Primal fire a burst of these on load (e.g. several kind:30078
+// app-data syncs); confirming each separately is pure nag and trains users to
+// click through. We batch only entries that share host + signing account + KIND —
+// same-kind means a site can't slip a different event type into a batch, and the
+// card names the kind + count so the user sees exactly what they're approving.
+function isBatchableEntry(e) {
+  if (e.state === 'interrupted' || !e.data) return false;
+  const m = e.method;
+  return (m === 'signEvent' || m === 'nip04.encrypt' || m === 'nip44.encrypt') &&
+    !isNip42AuthEvent(e.data && e.data.params && (e.data.params.event || e.data.params));
+}
+function batchKeyOf(e) { return e.host + '|' + (e.data && e.data.activePubkey) + '|' + e.kind; }
+
+// What the panel renders from (metadata only, plus the head's full data).
+function pendingView() {
+  const head = queue.find((e) => e.state === 'showing' && e.display === 'panel') || null;
+  // Group the head with other live queued entries sharing host+account+kind.
+  let groupIds = head ? [head.id] : [];
+  if (head && isBatchableEntry(head)) {
+    const key = batchKeyOf(head);
+    for (const e of queue) {
+      if (e === head) continue;
+      if (e.state === 'queued' && isBatchableEntry(e) && batchKeyOf(e) === key) groupIds.push(e.id);
+    }
+  }
+  const inGroup = new Set(groupIds);
+  const waiting = queue.filter((e) => e.state !== 'interrupted' && e !== head && !inGroup.has(e.id))
+    .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, accountName: e.data && e.data.accountName, ts: e.ts }));
+  const interrupted = queue.filter((e) => e.state === 'interrupted')
+    .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, ts: e.ts }));
+  return {
+    head: head ? { id: head.id, data: head.data, groupIds } : null,
+    waiting, interrupted,
+  };
+}
+
+// ---- keepalive (best-effort; correctness rests on the queue + reconcile) ----
+let keepaliveOn = false;
+function ensureKeepalive() {
+  if (keepaliveOn) return;
+  keepaliveOn = true;
+  chrome.alarms.create(QUEUE_KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
+}
+function stopKeepaliveIfIdle() {
+  if (liveEntries().length) return;
+  if (!keepaliveOn) return;
+  keepaliveOn = false;
+  chrome.alarms.clear(QUEUE_KEEPALIVE_ALARM);
+}
+
+// ---- panel port lifecycle ----
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'sidepanel') return;
   panelPort = port;
+  clearTimeout(graceTimer);
+  driveDisplay(); // re-surface anything waiting for a panel
   port.onDisconnect.addListener(() => {
-    if (panelPort === port) panelPort = null;
-    // Closing the panel mid-approval would otherwise leave the page hanging;
-    // reject any inline (windowless) prompts that were awaiting a decision.
-    for (const [id, p] of pendingPrompts) {
-      if (p.windowId == null && !p.settled) {
-        p.settled = true;
-        pendingPrompts.delete(id);
-        p.resolve({ action: 'reject' });
-      }
+    if (panelPort !== port) return;
+    panelPort = null;
+    // Revert (do NOT reject) anything showing in the panel — Chrome recycles this
+    // port ~every 5 min; auto-rejecting here is the classic silent event loss.
+    // The callback stays live; a reconnect re-surfaces it, a real close falls back
+    // to a popup after a short grace.
+    for (const e of queue) {
+      if (e.display === 'panel' && e.state === 'showing') { e.state = 'queued'; e.display = 'none'; }
     }
+    qPersist();
+    clearTimeout(graceTimer);
+    graceTimer = setTimeout(() => { if (!panelPort) driveDisplay(); }, 1500);
   });
 });
 
-// A page RPC can wake a fresh worker before the open side panel has reconnected
-// its port to this instance. Without waiting, panelPort is null and we'd wrongly
-// open a popup while the panel is sitting right there. Give the panel a brief
-// moment to (re)connect; if it's genuinely closed, nothing connects and we
-// fall through to the popup.
+// A page RPC can wake a fresh worker before the open panel has reconnected its
+// port. Give it a brief window before falling back to a popup.
 function waitForPanelPort(ms) {
   if (panelPort) return Promise.resolve(panelPort);
   return new Promise((resolve) => {
@@ -189,119 +329,199 @@ function waitForPanelPort(ms) {
   });
 }
 
+// ---- T1: accept a request. Synchronous registration; never blocks. ----
 function openPrompt(data) {
-  // Chain onto the mutex: each prompt waits for the previous to finish.
-  const run = () =>
-    new Promise(async (resolve) => {
-      // Re-evaluate the lock at execution time. Prompts are serialized, so an
-      // earlier one in the queue may have already unlocked the keystore — the
-      // classic browser-restart case where several signed-in apps each fire a
-      // request at once and would otherwise each demand the PIN. Once unlocked,
-      // collapse the now-redundant unlock prompts: a pure unlock just proceeds,
-      // and an approval still shows but without asking for the PIN again.
-      if (data && data.needUnlock && !KS.isLocked()) {
-        data.needUnlock = false;
-        if (!data.needApproval) return resolve({ action: 'once' });
-      }
-
-      const promptId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-
-      // Panel open → render inline; the panel decides via SIDECAR_PROMPT_RESULT.
-      const port = await waitForPanelPort(600);
-      if (port) {
-        pendingPrompts.set(promptId, { resolve, windowId: null, data, settled: false });
-        try {
-          port.postMessage({ type: 'SIDECAR_PANEL_APPROVAL', id: promptId, data });
-          return;
-        } catch (_) {
-          // Port died between the check and post; fall through to the popup.
-          pendingPrompts.delete(promptId);
-          panelPort = null;
-        }
-      }
-
-      const promptUrl = chrome.runtime.getURL('prompt.html?id=' + promptId);
-
-      function openInNewWindow() {
-        const W = 440, H = 600;
-        chrome.windows.getCurrent((cur) => {
-          const left =
-            cur && cur.left != null && cur.width != null
-              ? Math.round(cur.left + (cur.width - W) / 2)
-              : undefined;
-          const top =
-            cur && cur.top != null && cur.height != null
-              ? Math.round(cur.top + (cur.height - H) / 3)
-              : undefined;
-          chrome.windows.create(
-            { url: promptUrl, type: 'popup', width: W, height: H, left, top, focused: true },
-            (win) => {
-              popupWindowId = win ? win.id : null;
-              popupPending++;
-              pendingPrompts.set(promptId, { resolve, windowId: popupWindowId, data, settled: false });
-            }
-          );
-        });
-      }
-
-      // Reuse the existing popup window when possible — navigate its tab to the
-      // new prompt URL instead of spawning another window.
-      if (popupWindowId != null) {
-        chrome.windows.get(popupWindowId, { populate: true }, (win) => {
-          const tab = win && win.tabs && win.tabs[0];
-          if (!chrome.runtime.lastError && tab) {
-            popupPending++;
-            pendingPrompts.set(promptId, { resolve, windowId: popupWindowId, data, settled: false });
-            chrome.tabs.update(tab.id, { url: promptUrl });
-            chrome.windows.update(popupWindowId, { focused: true });
-          } else {
-            popupWindowId = null;
-            openInNewWindow();
-          }
-        });
-      } else {
-        openInNewWindow();
-      }
+  // Fast path: the keystore may have unlocked via an earlier approval. Collapse a
+  // now-redundant pure-unlock request without queuing anything.
+  if (data && data.needUnlock && !KS.isLocked()) {
+    data.needUnlock = false;
+    if (!data.needApproval) return Promise.resolve({ action: 'once' });
+  }
+  return new Promise((resolve) => {
+    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const now = Date.now();
+    const ev = data.method === 'signEvent' ? (data.params && (data.params.event || data.params)) : null;
+    queue.push({
+      id, host: data.host, method: data.method, scope: data.scope || 'nostr',
+      kind: ev ? ev.kind : null, data, ts: now, deadline: now + REQUEST_TTL,
+      state: 'queued', display: 'none',
     });
-  const result = promptMutex.then(run, run);
-  // Keep the chain alive regardless of outcome.
-  promptMutex = result.then(
-    () => undefined,
-    () => undefined
-  );
-  return result;
+    callbacks.set(id, { resolve, settled: false });
+    ensureKeepalive();
+    qPersist();
+    broadcastQueue();
+    driveDisplay();
+  });
 }
 
-// If the user closes the popup without deciding, treat it as a cancel/reject.
+// ---- popup window helpers ----
+function closePopupWindow() {
+  if (popupWindowId == null) return;
+  const wid = popupWindowId;
+  popupWindowId = null;
+  chrome.windows.remove(wid).catch(() => {});
+}
+function createPopup(url) {
+  return new Promise((resolve) => {
+    const W = 440, H = 600;
+    chrome.windows.getCurrent((cur) => {
+      const left = cur && cur.left != null && cur.width != null ? Math.round(cur.left + (cur.width - W) / 2) : undefined;
+      const top = cur && cur.top != null && cur.height != null ? Math.round(cur.top + (cur.height - H) / 3) : undefined;
+      chrome.windows.create({ url, type: 'popup', width: W, height: H, left, top, focused: true }, (win) => {
+        popupWindowId = win ? win.id : null;
+        resolve();
+      });
+    });
+  });
+}
+function navigatePopup(url) {
+  return new Promise((resolve) => {
+    chrome.windows.get(popupWindowId, { populate: true }, (win) => {
+      const tab = win && win.tabs && win.tabs[0];
+      if (chrome.runtime.lastError || !tab) return resolve(false);
+      chrome.tabs.update(tab.id, { url });
+      chrome.windows.update(popupWindowId, { focused: true });
+      resolve(true);
+    });
+  });
+}
+
+// ---- T6: expire a request past its deadline (or drop a stale tombstone) ----
+function expireEntry(id, reason) {
+  const i = queue.findIndex((e) => e.id === id);
+  if (i >= 0) queue.splice(i, 1);
+  const cb = callbacks.get(id);
+  callbacks.delete(id);
+  if (cb && !cb.settled) { cb.settled = true; cb.resolve({ action: 'reject', reason: reason || 'expired' }); }
+}
+
+// ---- head-pointer: idempotent, re-entrant, self-healing ----
+let driving = false;
+let driveAgain = false;
+async function driveDisplay() {
+  if (driving) { driveAgain = true; return; }
+  driving = true;
+  try {
+    do { driveAgain = false; await driveOnce(); } while (driveAgain);
+  } finally { driving = false; }
+}
+async function driveOnce() {
+  const now = Date.now();
+  // Sweep expired live requests and stale tombstones.
+  for (const e of [...queue]) {
+    if (e.state === 'interrupted') { if (now - e.ts > TOMBSTONE_TTL) expireEntry(e.id); }
+    else if (now > e.deadline) expireEntry(e.id, 'timeout');
+  }
+
+  // If something's already showing on a valid surface, we're done — unless the
+  // panel came back while an entry sits in a popup (hand it off to the panel).
+  const showing = queue.find((e) => e.state === 'showing');
+  if (showing) {
+    if (showing.display === 'panel' && !panelPort) { showing.state = 'queued'; showing.display = 'none'; }
+    else if (showing.display === 'popup' && panelPort) {
+      showing.state = 'queued'; showing.display = 'none'; // revert BEFORE closing so onRemoved won't reject it
+      closePopupWindow();
+    } else { return; }
+  }
+
+  // Pick the oldest live queued entry with a still-live callback.
+  const head = queue.find((e) => e.state === 'queued' && callbacks.has(e.id) && !callbacks.get(e.id).settled);
+  if (!head) {
+    if (popupWindowId != null) closePopupWindow();
+    qPersist(); broadcastQueue(); stopKeepaliveIfIdle();
+    return;
+  }
+
+  // Re-collapse a now-redundant unlock (keystore may have unlocked while queued).
+  if (head.data.needUnlock && !KS.isLocked()) {
+    head.data.needUnlock = false;
+    if (!head.data.needApproval) { settlePrompt(head.id, 'once'); driveAgain = true; return; }
+  }
+
+  // Choose a surface. Prefer the panel; briefly wait for a reconnecting panel
+  // before falling back to a popup.
+  let port = panelPort || (await waitForPanelPort(600));
+  if (port) {
+    head.state = 'showing'; head.display = 'panel';
+    qPersist(); broadcastQueue();
+  } else {
+    head.state = 'showing'; head.display = 'popup';
+    qPersist();
+    const url = chrome.runtime.getURL('prompt.html?id=' + head.id);
+    if (popupWindowId != null) { if (!(await navigatePopup(url))) { popupWindowId = null; await createPopup(url); } }
+    else await createPopup(url);
+    broadcastQueue();
+  }
+}
+
+// ---- T5: user closed the popup without deciding = reject that one entry ----
 chrome.windows.onRemoved.addListener((windowId) => {
-  if (windowId === popupWindowId) {
-    popupWindowId = null;
-    popupPending = 0;
-  }
-  for (const [id, p] of pendingPrompts) {
-    if (p.windowId === windowId && !p.settled) {
-      p.settled = true;
-      pendingPrompts.delete(id);
-      p.resolve({ action: 'reject' });
-    }
-  }
+  if (windowId !== popupWindowId) return;
+  popupWindowId = null;
+  const e = queue.find((x) => x.display === 'popup' && x.state === 'showing');
+  if (e) settlePrompt(e.id, 'reject');
+  else driveDisplay();
 });
 
-function settlePrompt(promptId, action, extra) {
-  const p = pendingPrompts.get(promptId);
-  if (!p || p.settled) return;
-  p.settled = true;
-  pendingPrompts.delete(promptId);
-  if (p.windowId != null) {
-    popupPending--;
-    if (popupPending <= 0) {
-      popupPending = 0;
-      chrome.windows.remove(p.windowId).catch(() => {});
-      popupWindowId = null;
-    }
-    // else: leave window alive — run() for the next queued prompt will navigate it
+// ---- T3: resolve a request by explicit decision ----
+function settlePrompt(id, action, extra) {
+  const cb = callbacks.get(id);
+  if (!cb || cb.settled) return; // the `settled` guard makes any double-result a no-op → can't double-sign
+  cb.settled = true;
+  callbacks.delete(id);
+  const i = queue.findIndex((e) => e.id === id);
+  if (i >= 0) queue.splice(i, 1);
+  qPersist();
+  cb.resolve(Object.assign({ action }, extra || {}));
+  broadcastQueue();
+  stopKeepaliveIfIdle();
+  driveDisplay();
+}
+
+// ---- T7: on SW startup, rebuild the queue as interrupted tombstones ----
+// Their callbacks (and the page channels) are gone, so they can never sign — the
+// pages already failed via content.js's lastError/180s. Surface them honestly.
+async function reconcileQueue() {
+  const saved = await qGet();
+  if (!Array.isArray(saved) || !saved.length) return;
+  const now = Date.now();
+  let added = false;
+  for (const m of saved) {
+    if (callbacks.has(m.id) || queue.some((e) => e.id === m.id)) continue;
+    if (now - m.ts > TOMBSTONE_TTL) continue;
+    queue.push({ id: m.id, host: m.host, method: m.method, kind: m.kind, scope: m.scope,
+      accountName: m.accountName, data: null, ts: m.ts, deadline: m.deadline,
+      state: 'interrupted', display: 'none' });
+    added = true;
   }
-  p.resolve(Object.assign({ action }, extra || {}));
+  if (added) { qPersist(); broadcastQueue(); }
+}
+reconcileQueue();
+
+// ---- app-data burst coalescing ----
+// Clients like Primal fire a SERIES of app-data (NIP-78, kind:30078) signs on
+// load/account-switch — sync settings, home feeds, membership — each awaited, so
+// they never share the queue and can't be batched. On a shared host every one
+// forces its own confirm, which is both maddening and self-defeating (it trains
+// users to reflex-approve). After the user explicitly confirms one such sign, we
+// auto-approve further signs of the SAME low-stakes kind, SAME account, SAME host
+// for a short window. Scoped tightly: only these app-config kinds (a site
+// spamming its own kind:30078 is harmless — it's app-namespaced data, not a note
+// or DM), only the account the user just confirmed, and only briefly. A different
+// kind, account, or host still confirms; the window is short enough that a
+// realistic client account-switch can't slip inside it.
+const COALESCE_KINDS = new Set([30078]);
+const COALESCE_WINDOW_MS = 60000;
+const contentGrants = new Map(); // `host|pubkey|kind` -> expiry ms
+function grantKey(host, pubkey, kind) { return host + '|' + pubkey + '|' + kind; }
+function hasContentGrant(host, pubkey, kind) {
+  const exp = contentGrants.get(grantKey(host, pubkey, kind));
+  if (!exp) return false;
+  if (Date.now() >= exp) { contentGrants.delete(grantKey(host, pubkey, kind)); return false; }
+  return true;
+}
+function grantContent(host, pubkey, kind) {
+  contentGrants.set(grantKey(host, pubkey, kind), Date.now() + COALESCE_WINDOW_MS);
 }
 
 // ============================================================================
@@ -378,7 +598,10 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     }
     if (!activePubkey) throw new Error('No active Sidecar account');
 
-    const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
+    // `let`, not `const`: the shared-identity block below can swap activePubkey to
+    // the active account, and the permission status must follow the account that
+    // will actually sign (see the recompute there).
+    let status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
     if (status === 'reject') throw new Error('This site is blocked in Sidecar');
 
     // NIP-42 relay auth (kind 22242) is an automatic, ephemeral connection-auth
@@ -394,16 +617,69 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // let a page link the user's accounts without any consent moment.
     const isRelayAuth = method === 'signEvent' && !authorSwitched && isNip42AuthEvent(signEvent);
 
+    // Multi-login safeguard. A "content sign" — a note, reaction, DM, or profile
+    // edit, but NOT relay auth — carries your identity publicly. On a host where
+    // 2+ of your accounts have signed in (a multi-login client), the single
+    // binding can't be trusted to match the slot the client is showing, and the
+    // client never names the account at signing time.
+    //
+    // Critically, this ALWAYS confirms on a shared host — not just when the
+    // binding and active account disagree. A binding/active AGREEMENT is not
+    // evidence of correctness: the client's own switcher can flip which slot is
+    // selected with zero signal to Sidecar, so "our two guesses match" can still
+    // both be wrong relative to what the page is showing (e.g. Jumble displaying
+    // account A while Sidecar's binding and active account both happen to be B —
+    // there is no disagreement for us to detect, yet the post would go out under
+    // the wrong identity). Only an explicit confirm from the user closes that
+    // gap, since only the user can see the client's UI.
+    const isContentSign =
+      (method === 'signEvent' && !isRelayAuth) ||
+      method === 'nip04.encrypt' || method === 'nip44.encrypt';
+    let sharedIdentity = false;
+    let authorizedPool = null;
+    if (isContentSign && !authorSwitched) {
+      const authorized = await getAuthorizedAccounts(host);
+      if (authorized.length >= 2) {
+        sharedIdentity = true;
+        authorizedPool = authorized;
+        // Default to the active account when it's authorized here — that's the
+        // one the user just deliberately chose in Sidecar, and the one our own
+        // guidance tells them to keep in sync with the client's selected slot.
+        const globalActive = await KS.getActivePubkey();
+        if (authorized.includes(globalActive) && globalActive !== activePubkey) {
+          activePubkey = globalActive;
+          // `status` above was computed for the binding account; re-evaluate it
+          // for the account we just swapped to and honor a block on THIS account.
+          // Without this, a site blocked for the active account could still be
+          // signed via the default swap (the explicit-switch path already
+          // re-checks; this closes the default-path gap).
+          status = await PERMS.getPermissionStatus(activePubkey, host, method);
+          if (status === 'reject') throw new Error('This site is blocked in Sidecar');
+        }
+      }
+    }
+
+    // App-data burst coalescing: if the user just confirmed this exact
+    // (host, account, kind) app-data sign, auto-approve the rest of the serial
+    // burst without re-nagging. Only bypasses the confirm/ask — never a block
+    // (that already threw above) or an unlock.
+    const coalesced = isContentSign && signKind != null && COALESCE_KINDS.has(signKind) &&
+      hasContentGrant(host, activePubkey, signKind);
+    if (coalesced) sharedIdentity = false;
+
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
-    const needApproval = status === 'ask' && !isRelayAuth;
+    // A shared-identity content sign always confirms, regardless of trust tier —
+    // unless it's a coalesced app-data sign the user just approved.
+    const needApproval = coalesced ? false : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
 
     // Every getPublicKey is a login, and a login is the safe moment to pick an
     // identity: whatever pubkey we return is the identity the site adopts from
     // here on, so offering the account switcher in the prompt can't desync
-    // anything. Session-shaped methods never offer it — their identity is fixed
-    // by the host's binding.
-    const canOfferAccountSwitch = method === 'getPublicKey';
+    // anything. A shared-identity content sign also offers the switcher — scoped
+    // to the accounts that have actually logged into this host. Other session
+    // methods never offer it: their identity is fixed by the binding.
+    const canOfferAccountSwitch = method === 'getPublicKey' || sharedIdentity;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -412,6 +688,9 @@ async function handleNostrRpc(method, params, host, sendResponse) {
       const otherAccounts = canOfferAccountSwitch
         ? st.accounts
             .filter((a) => a.pubkey !== activePubkey)
+            // Shared-identity: you can only post as an account that's logged into
+            // this host — never silently introduce a new identity to the site.
+            .filter((a) => !sharedIdentity || authorizedPool.includes(a.pubkey))
             .map((a) => ({
               pubkey: a.pubkey,
               npub: self.NostrTools.nip19.npubEncode(a.pubkey),
@@ -429,6 +708,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         accountPicture: (acct && acct.picture) || '',
         needUnlock,
         needApproval,
+        sharedIdentity,
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
       });
@@ -475,8 +755,21 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // the old account back over the new one. Following an honored author keeps
     // the site's implicit requests (nip04/nip44) on the identity the client
     // last exercised.
-    if (method === 'getPublicKey' || authorSwitched || !(await getSiteAccount(host))) {
+    // sharedIdentity is also an explicit choice (the user just confirmed who's
+    // posting in the prompt), so it may move the binding too.
+    if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
       await setSiteAccount(host, activePubkey);
+    }
+    // Record every account that acts on a host, so a second one makes it "shared".
+    await addAuthorizedAccount(host, activePubkey);
+
+    // The user just explicitly confirmed a low-stakes app-data sign — coalesce the
+    // rest of the serial burst (same host/account/kind) for a short window so a
+    // client's on-load sync doesn't fire a modal per subkey. Only on an explicit
+    // confirm (needApproval), never extended by the coalesced signs themselves,
+    // so exposure stays bounded.
+    if (isContentSign && signKind != null && COALESCE_KINDS.has(signKind) && needApproval && !coalesced) {
+      grantContent(host, activePubkey, signKind);
     }
 
     logActivity({ ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey });
@@ -866,6 +1159,9 @@ function bumpAutoLock() {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === AUTO_LOCK_ALARM) lockKeystore();
+  // Best-effort heartbeat while the approval queue is non-empty: sweeps expired
+  // requests and re-drives the display so nothing stalls if the SW was napping.
+  else if (alarm.name === QUEUE_KEEPALIVE_ALARM) driveDisplay();
 });
 
 async function handleControl(message, sendResponse) {
@@ -1079,9 +1375,25 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_REMOVE_HOST':
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
+        await clearAuthorizedForHost(message.host); // and the shared-identity history
         break;
       case 'SIDECAR_GET_SITE_BINDINGS':
         result = await getAllSiteAccounts();
+        break;
+      case 'SIDECAR_GET_SITE_AUTHORIZED':
+        // host -> [pubkeys that have signed in there]; a host with 2+ is "shared".
+        result = await getAllAuthorized();
+        break;
+      case 'SIDECAR_REMOVE_SITE_ACCOUNT':
+        // Drop one account from a host's authorized set (e.g. "I don't use this
+        // account here anymore"). Collapsing back to one account stops the
+        // shared-identity confirms. If it was the current binding, forget that too
+        // so the next login re-pairs cleanly.
+        await removeAuthorizedAccount(message.host, message.pubkey);
+        if ((await getSiteAccount(message.host)) === message.pubkey) {
+          await clearSiteAccount(message.host);
+        }
+        result = true;
         break;
       case 'SIDECAR_CLEAR_BINDING':
         // Detach only the account binding (leaves the bound account's
@@ -1205,12 +1517,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Prompt window asking for its context, or returning a decision.
   if (message.type === 'SIDECAR_GET_PROMPT_DATA') {
-    const p = pendingPrompts.get(message.id);
-    sendResponse(p ? { ok: true, data: p.data } : { ok: false, error: 'Prompt expired' });
+    const e = queue.find((x) => x.id === message.id);
+    sendResponse(e && e.data && callbacks.has(e.id)
+      ? { ok: true, data: e.data }
+      : { ok: false, error: 'Prompt expired' });
     return false;
   }
   if (message.type === 'SIDECAR_PROMPT_RESULT') {
     settlePrompt(message.id, message.action, message.extra);
+    sendResponse({ ok: true });
+    return false;
+  }
+  // Batch decision: apply the same action (+ account choice) to a group of
+  // same-site/same-account/same-kind content signs the user approved together.
+  if (message.type === 'SIDECAR_PROMPT_RESULT_BATCH') {
+    for (const id of message.ids || []) settlePrompt(id, message.action, message.extra);
+    sendResponse({ ok: true });
+    return false;
+  }
+  // Observable-queue queries/actions (see the approval-queue section up top).
+  if (message.type === 'SIDECAR_GET_PENDING') {
+    sendResponse({ ok: true, result: pendingView() });
+    return false;
+  }
+  if (message.type === 'SIDECAR_REJECT_ALL_PENDING') {
+    for (const e of [...queue]) {
+      if (e.state === 'interrupted') continue;
+      if (callbacks.has(e.id)) settlePrompt(e.id, 'reject');
+      else { const i = queue.indexOf(e); if (i >= 0) queue.splice(i, 1); }
+    }
+    closePopupWindow();
+    qPersist(); broadcastQueue(); stopKeepaliveIfIdle();
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message.type === 'SIDECAR_DISMISS_INTERRUPTED') {
+    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].state === 'interrupted') queue.splice(i, 1);
+    qPersist(); broadcastQueue();
     sendResponse({ ok: true });
     return false;
   }

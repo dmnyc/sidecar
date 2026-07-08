@@ -27,6 +27,7 @@
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
+    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
     trash: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
     key: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>',
@@ -312,6 +313,11 @@
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
     }
+    // Re-assert the approval overlay from the queue after rendering the base view,
+    // so a panel reload while a request is pending re-surfaces it deterministically
+    // (no race with the view-hiding above). Skipped implicitly by the top guard
+    // when an approval is already showing.
+    if (typeof syncApprovalOverlay === 'function') syncApprovalOverlay();
   }
 
 
@@ -561,7 +567,7 @@
         h('p', {
           className: 'switch-tip-body',
           textContent:
-            'Clients keep signing with the account you logged in with. To post as a different user, log out there, switch here, then log back in. Multi-account switchers in clients don’t talk to Sidecar.',
+            'Clients keep signing with the account you logged in with. After switching here, reload the site to use the new account (or log out and back in there). Multi-account switchers inside clients don’t talk to Sidecar.',
         }),
         x,
       ]);
@@ -605,7 +611,7 @@
             await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
             await refresh();
             toast('Switched to ' + displayName(a), 'success');
-            maybeShowSwitchTip();
+            if (!(await offerTabReload())) maybeShowSwitchTip();
           } else {
             row.classList.add('acct-row-pending');
             row.querySelector('.acct-row-name').textContent = 'Switch to ' + displayName(a) + '?';
@@ -1674,7 +1680,7 @@
           await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
           await refresh();
           toast('Switched to ' + displayName(a), 'success');
-          maybeShowSwitchTip();
+          if (!(await offerTabReload())) maybeShowSwitchTip();
         } else {
           row.classList.add('item-pending');
           label.textContent = 'Set as active?';
@@ -2407,9 +2413,15 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  function siteRow(host, level, boundPk) {
+  function siteRow(host, level, boundPk, authorizedPks) {
     const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
     const isActiveBound = boundPk && boundPk === state.activePubkey;
+    // 2+ accounts have signed in here — a multi-login client (Jumble, YakiHonne,
+    // …) may be showing a different one than the binding reflects. Content
+    // signs on a shared site confirm who's posting (see background.js); this
+    // just surfaces that state and lets the user prune an account they no
+    // longer use here, which collapses it back to a normal single-account site.
+    const isShared = Array.isArray(authorizedPks) && authorizedPks.length >= 2;
 
     const row = h('div', { className: 'item site-item' });
     const main = h('div', { className: 'item-main' });
@@ -2419,6 +2431,15 @@
       who.append(avatarEl(boundAcct, 'site-bound-av'));
       who.append(h('span', { textContent: 'Signs in as ' + displayName(boundAcct) }));
       main.append(who);
+    }
+    if (isShared) {
+      const shared = h('div', { className: 'site-shared' });
+      shared.append(icon('users'));
+      shared.append(h('span', { textContent: authorizedPks.length + ' accounts have signed in here' }));
+      const manage = h('button', { className: 'site-shared-manage', textContent: 'Manage' });
+      manage.addEventListener('click', () => sharedSiteModal(host, authorizedPks));
+      shared.append(manage);
+      main.append(shared);
     }
     row.append(main);
 
@@ -2501,6 +2522,38 @@
     });
   }
 
+  // Lists every account that has signed in on a shared (multi-login) site, with
+  // a way to prune one the user no longer uses there. Dropping back to one
+  // account collapses the site to normal — no more shared-identity confirms.
+  function sharedSiteModal(host, authorizedPks) {
+    openModal((modal) => {
+      modal.append(
+        h('h3', { textContent: host }),
+        h('p', { className: 'hint', textContent: 'These accounts have signed in on this site. Every post, reaction, or message confirms who’s posting — a multi-account client’s own switcher can’t tell Sidecar which one you picked here. Remove an account below once you’re done using it on this site to go back to signing silently.' })
+      );
+      const list = h('div', { className: 'stack' });
+      authorizedPks.forEach((pk) => {
+        const a = state.accounts.find((x) => x.pubkey === pk);
+        if (!a) return; // deleted account — pruned from the set server-side already
+        const row = h('div', { className: 'shared-acct-row' });
+        row.append(avatarEl(a, 'site-bound-av'));
+        row.append(h('span', { className: 'shared-acct-name', textContent: displayName(a) }));
+        const rm = iconButton('Remove from this site', 'trash', async () => {
+          await call({ type: 'SIDECAR_REMOVE_SITE_ACCOUNT', host, pubkey: pk });
+          closeModal();
+          renderActivity();
+          toast(displayName(a) + ' removed from ' + host, 'success');
+        });
+        row.append(rm);
+        list.append(row);
+      });
+      modal.append(list);
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      modal.append(h('div', { className: 'actions' }, [close]));
+    });
+  }
+
   function activityRow(e) {
     const meta = METHOD_META[e.method] || { icon: 'feather', label: () => e.method };
     const row = h('div', { className: 'item activity-item' });
@@ -2515,9 +2568,10 @@
   }
 
   async function renderActivity() {
-    const [perms, bindings, log] = await Promise.all([
+    const [perms, bindings, authorized, log] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
       call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
+      call({ type: 'SIDECAR_GET_SITE_AUTHORIZED' }),
       call({ type: 'SIDECAR_GET_ACTIVITY' }),
     ]);
     const sites = $('sites-list');
@@ -2562,7 +2616,7 @@
         let shownSites = 0;
         const renderSitesPage = () => {
           filtered.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
-            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
+            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null))
           );
           shownSites = Math.min(shownSites + SITES_PAGE, filtered.length);
           if (shownSites >= filtered.length) hide(sitesMore);
@@ -3339,15 +3393,15 @@
 
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
   const VIEW_CLIENTS = {
+    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
     jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
     yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
-    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
     iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
-    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
-    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
     snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },
-    zapcooking: { label: 'zap.cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
+    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
+    zapcooking: { label: 'Zap Cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
     noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
+    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
     njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
   };
   const DEFAULT_CLIENT = 'jumble';
@@ -3436,6 +3490,48 @@
     banner.append(msg, open, close);
     show(banner);
     _postBannerTimer = setTimeout(dismissPostBanner, 60000);
+  }
+
+  let _reloadBannerTimer = null; // auto-dismiss for #reload-banner
+  function dismissReloadBanner() {
+    if (_reloadBannerTimer) { clearTimeout(_reloadBannerTimer); _reloadBannerTimer = null; }
+    const banner = $('reload-banner');
+    if (banner) hide(banner);
+  }
+  // After switching the active account, most clients keep signing as the account
+  // they were logged in with until the page re-auths (NIP-07 gives us no way to
+  // push the change). If the focused tab is a site we're connected to, offer a
+  // one-tap reload so the switch takes effect there. Returns true if it showed —
+  // callers use that to skip the educational tip when we've offered the action.
+  async function offerTabReload() {
+    if (!(chrome.tabs && chrome.tabs.query && chrome.tabs.reload)) return false;
+    let tab;
+    try {
+      const tabs = await new Promise((res) => chrome.tabs.query({ active: true, lastFocusedWindow: true }, res));
+      tab = tabs && tabs[0];
+    } catch (_) { return false; }
+    if (!tab || tab.id == null || !tab.url) return false;
+    let host;
+    try { host = new URL(tab.url).host; } catch (_) { return false; }
+    if (!host) return false;
+    // Only offer for a site we're actually connected to (has a per-host binding);
+    // a plain browsing tab or a not-yet-logged-in site has nothing to re-auth.
+    let bindings;
+    try { bindings = await call({ type: 'SIDECAR_GET_SITE_BINDINGS' }); } catch (_) { return false; }
+    if (!bindings || !bindings[host]) return false;
+    const banner = $('reload-banner');
+    if (!banner) return false;
+    if (_reloadBannerTimer) clearTimeout(_reloadBannerTimer);
+    banner.innerHTML = '';
+    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: 'Reload ' + host })]);
+    reload.addEventListener('click', () => {
+      try { chrome.tabs.reload(tab.id); } catch (_) {}
+      dismissReloadBanner();
+    });
+    banner.append(reload);
+    show(banner);
+    _reloadBannerTimer = setTimeout(dismissReloadBanner, 30000);
+    return true;
   }
 
   // Render composed note content the way a client will: text + inline media + @mentions.
@@ -6743,10 +6839,13 @@
   });
 
   // ---- inline signing approval ----
-  // The service worker keeps a "sidepanel" port open while this panel is visible and,
-  // when it is, pushes approval requests here (SIDECAR_PANEL_APPROVAL) instead of
-  // opening a popup window. We render them inline and reply with SIDECAR_PROMPT_RESULT.
-  let pendingApproval = null; // { id, data }
+  // The service worker owns an observable approval queue. While this panel's
+  // "sidepanel" port is open it pings SIDECAR_QUEUE_UPDATED on every change; we
+  // pull the authoritative state with SIDECAR_GET_PENDING and render the head
+  // approval inline (replying with SIDECAR_PROMPT_RESULT), plus the backlog and
+  // any interrupted tombstones. When the panel is closed the worker falls back to
+  // a popup window instead.
+  let pendingApproval = null; // { id, data, chosenPubkey }
 
   const APPROVAL_METHOD_LABELS = {
     getPublicKey: 'see your public key (npub)',
@@ -6838,6 +6937,49 @@
     ];
   }
 
+  // Shared-identity explainer: the first time a shared-host confirm appears, show a
+  // one-time "Heads up!" card; after the user dismisses it, every later confirm just
+  // carries a compact "Multiple accounts used" caption above the "Signing as" line.
+  let sharedHeadsUpDismissed = false;
+  chrome.storage.local.get('sharedHeadsUpDismissed', (r) => {
+    sharedHeadsUpDismissed = !!(r && r.sharedHeadsUpDismissed);
+  });
+  function renderSharedNote(data) {
+    const existing = $('approval-shared-note');
+    if (existing) existing.remove();
+    if (!data.sharedIdentity) {
+      $('approval-switch-toggle').textContent = 'Sign in with a different account';
+      return;
+    }
+    $('approval-switch-toggle').textContent = 'Sign as a different account';
+    const acct = $('approval-account');
+    if (!acct) return;
+    let note;
+    if (sharedHeadsUpDismissed) {
+      note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
+        icon('users'),
+        h('span', { textContent: 'Multiple accounts used' }),
+      ]);
+    } else {
+      note = h('div', { id: 'approval-shared-note', className: 'shared-headsup' }, [
+        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: 'Heads up!' })]),
+        h('p', {
+          className: 'shared-headsup-body',
+          textContent:
+            "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.",
+        }),
+      ]);
+      const got = h('button', { className: 'shared-headsup-btn', textContent: 'Got it' });
+      got.addEventListener('click', () => {
+        sharedHeadsUpDismissed = true;
+        chrome.storage.local.set({ sharedHeadsUpDismissed: true });
+        renderSharedNote(data); // collapse to the compact caption immediately
+      });
+      note.append(got);
+    }
+    acct.parentNode.insertBefore(note, acct);
+  }
+
   function renderApprovalAccountCapsule(data) {
     const payment = isPaymentApproval(data);
     const list = approvalAccountList(data);
@@ -6925,6 +7067,10 @@
 
     renderApprovalAccountCapsule(data);
 
+    // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
+    // "who's posting" choice explicit; relabel the switcher for signing context.
+    renderSharedNote(data);
+
     renderApprovalPreview(data);
 
     $('approval-error').textContent = '';
@@ -6965,6 +7111,23 @@
         allow.textContent = 'Allow once';
         show(trust);
       }
+    }
+    // Shared-identity confirms happen on EVERY content sign to this host, not
+    // just a detected mismatch, so "Trust this site" can't skip future ones —
+    // the same signature that's fine now could be wrong next time. Hide it
+    // rather than over-promise (must run after the payment/unlock branches
+    // above, which otherwise re-show it).
+    if (data.sharedIdentity) hide(trust);
+
+    // Batch: a burst of same-site/same-account/same-kind content signs (e.g.
+    // Primal's app-data sync) collapses into one "Allow all (N)" so the user
+    // isn't nagged per event. The preview still shows one representative and the
+    // kind, so it's clear what the N are. (Must run last so it wins the labels.)
+    const groupN = pendingApproval.groupIds ? pendingApproval.groupIds.length : 1;
+    if (!payment && groupN > 1) {
+      $('approval-ask').textContent = 'wants to sign ' + groupN + ' events with your key';
+      allow.textContent = 'Allow all (' + groupN + ')';
+      hide(trust);
     }
   }
 
@@ -7009,15 +7172,31 @@
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
     }
-    await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
-    pendingApproval = null;
+    // Batch: an "Allow all (N)" / "Reject all" on a same-kind burst applies the
+    // same decision (and account choice) to every grouped request at once. Trust
+    // and budget are never batched (they're single-item / payment concerns).
+    const groupIds = pendingApproval.groupIds || [id];
+    if (groupIds.length > 1 && (action === 'once' || action === 'reject')) {
+      await bg({ type: 'SIDECAR_PROMPT_RESULT_BATCH', ids: groupIds, action, extra });
+    } else {
+      await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
+    }
     $('approval-pin').value = '';
-    refresh(); // back to the normal view (now unlocked, if we just unlocked)
+    // Leave pendingApproval set so refreshApproval() knows an approval was up:
+    // it shows the next queued one, or (queue empty) restores + re-syncs the base
+    // view. Nulling it here would skip that base refresh, leaving panel state stale.
+    await refreshApproval();
   }
 
   $('approval-allow').addEventListener('click', () => decideApproval('once'));
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
+  // Escape hatch: reject the whole backlog at once (this request + all waiting).
+  $('approval-reject-all').addEventListener('click', async () => {
+    pendingApproval = null;
+    await bg({ type: 'SIDECAR_REJECT_ALL_PENDING' });
+    await refreshApproval();
+  });
   // Tapping the dimmed backdrop (outside the card) rejects, like closing the popup.
   $('view-approval').addEventListener('click', (e) => {
     if (e.target === $('view-approval')) decideApproval('reject');
@@ -7032,11 +7211,91 @@
     e.target.value = v;
   });
 
-  // Keep a live port to the worker so inline approvals always reach us. MV3
-  // recycles the service worker (~30s idle; Chrome also force-drops ports after
-  // ~5 min), which silently kills the port — without reconnecting, the panel
-  // goes deaf and a page's request hangs until a refresh. So we re-establish the
-  // connection whenever it drops. (Reconnecting also wakes a sleeping worker.)
+  // The background owns the observable approval queue; the panel is a pure view
+  // of it. Pull the authoritative state and render: the head card, the "N more
+  // waiting" strip + Reject all, and any interrupted tombstones. Called on port
+  // (re)connect, on every SIDECAR_QUEUE_UPDATED ping, and after each decision —
+  // so the panel can never desync from what's actually pending.
+  // Render the approval overlay from the queue. Returns whether a head is showing.
+  // Non-recursive (never calls refresh) so it's safe to invoke from refresh() at
+  // render time — that's what makes the overlay survive a panel reload with a
+  // pending approval (no race where refresh() hides what this just showed).
+  async function syncApprovalOverlay() {
+    let resp;
+    try { resp = await bg({ type: 'SIDECAR_GET_PENDING' }); } catch (_) { return !!pendingApproval; }
+    const view = resp && resp.ok ? resp.result : null;
+    if (!view) return !!pendingApproval;
+    renderInterrupted(view.interrupted || []);
+    const head = view.head;
+    if (head) {
+      const group = head.groupIds && head.groupIds.length ? head.groupIds : [head.id];
+      if (!pendingApproval || pendingApproval.id !== head.id) {
+        pendingApproval = { id: head.id, data: head.data, groupIds: group, chosenPubkey: null };
+        closeModal();
+        showApproval();
+      } else if (!pendingApproval.groupIds || pendingApproval.groupIds.length !== group.length) {
+        // Same head, but more same-kind requests arrived (or drained) — re-render
+        // the batch count without resetting the user's account pick.
+        pendingApproval.groupIds = group;
+        showApproval();
+      } else {
+        // Same head, already built — just ensure the overlay is visible. This is
+        // what makes it robust to an intervening refresh() that hid all views
+        // (e.g. on a panel reload while a request is pending): showApproval only
+        // runs on a head change, so without this the overlay could stay hidden.
+        show($('view-approval'));
+      }
+      renderBacklog(view.waiting || []);
+      return true;
+    }
+    pendingApproval = null;
+    renderBacklog([]);
+    hide($('view-approval'));
+    return false;
+  }
+
+  // The background owns the observable approval queue; the panel is a pure view
+  // of it. Called on port (re)connect, on every SIDECAR_QUEUE_UPDATED ping, and
+  // after each decision. When the queue empties while an approval was up, restore
+  // the normal view.
+  async function refreshApproval() {
+    const wasShowing = !!pendingApproval;
+    const hasHead = await syncApprovalOverlay();
+    if (!hasHead && wasShowing) refresh();
+  }
+
+  // "N more waiting" strip inside the approval card + a Reject all escape hatch.
+  function renderBacklog(waiting) {
+    const strip = $('approval-backlog');
+    if (!strip) return;
+    if (!waiting.length) { hide(strip); return; }
+    const count = $('approval-backlog-count');
+    count.textContent = waiting.length + (waiting.length === 1 ? ' more request waiting' : ' more requests waiting');
+    show(strip);
+  }
+
+  // Requests that were in flight when Sidecar's service worker restarted. Their
+  // page channels are gone (the sites already got an error/timeout), so they
+  // can't be signed — surface them honestly as dismissible tombstones.
+  function renderInterrupted(list) {
+    const banner = $('interrupted-banner');
+    if (!banner) return;
+    if (!list.length) { hide(banner); banner.innerHTML = ''; return; }
+    banner.innerHTML = '';
+    const msg = h('span', { className: 'interrupted-msg', textContent:
+      list.length + (list.length === 1 ? ' signing request was' : ' signing requests were') +
+      ' interrupted when Sidecar restarted — the site' + (list.length === 1 ? '' : 's') + ' will ask again.' });
+    const dismiss = h('button', { className: 'interrupted-dismiss', textContent: 'Dismiss' });
+    dismiss.addEventListener('click', async () => { await bg({ type: 'SIDECAR_DISMISS_INTERRUPTED' }); refreshApproval(); });
+    banner.append(msg, dismiss);
+    show(banner);
+  }
+
+  // Keep a live port to the worker: it's the SIDECAR_QUEUE_UPDATED signal channel
+  // AND a keepalive that wakes/holds the worker. MV3 recycles it (~5 min, or on
+  // SW sleep); on any drop we reconnect and re-pull. The background REVERTS (not
+  // rejects) a shown approval when this port drops, so a blip can't lose a
+  // request — it re-surfaces on reconnect.
   function connectApprovalPort() {
     let port;
     try {
@@ -7046,21 +7305,18 @@
       return;
     }
     port.onMessage.addListener((msg) => {
-      if (msg && msg.type === 'SIDECAR_PANEL_APPROVAL') {
-        closeModal();
-        pendingApproval = { id: msg.id, data: msg.data };
-        showApproval();
-      }
+      if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
     });
     port.onDisconnect.addListener(() => {
-      // The worker that owned any in-flight approval is gone, so a showing card
-      // is now stale (the page is failed via the content-script timeout). Drop it.
-      if (pendingApproval) {
-        pendingApproval = null;
-        hide($('view-approval'));
-      }
+      // Not a failure: the background keeps pending requests alive and re-surfaces
+      // them. Just hide the (now un-decidable) card and reconnect; refreshApproval
+      // on reconnect restores the true state.
+      pendingApproval = null;
+      hide($('view-approval'));
       setTimeout(connectApprovalPort, 250);
     });
+    // Pull authoritative state on (re)connect.
+    refreshApproval();
   }
   connectApprovalPort();
 

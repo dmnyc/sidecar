@@ -74,6 +74,10 @@
 
 
     <div id="post-banner" class="post-banner hidden"></div>
+    <!-- Offer to reload the open Nostr site so an account switch takes effect there. -->
+    <div id="reload-banner" class="reload-banner hidden"></div>
+    <!-- Requests interrupted by a service-worker restart (honest tombstones). -->
+    <div id="interrupted-banner" class="interrupted-banner hidden"></div>
 
     <main class="content">
       <!-- Accounts -->
@@ -196,15 +200,15 @@
         <h3>Open notes in</h3>
         <p class="hint">Which web client to open your published notes in.</p>
         <select id="client-select">
+          <option value="primal">Primal</option>
           <option value="jumble">Jumble</option>
           <option value="yakihonne">YakiHonne</option>
-          <option value="primal">Primal</option>
           <option value="iris">Iris</option>
-          <option value="coracle">Coracle</option>
-          <option value="nostrudel">noStrudel</option>
           <option value="snort">Snort</option>
-          <option value="zapcooking">zap.cooking</option>
+          <option value="nostrudel">noStrudel</option>
+          <option value="zapcooking">Zap Cooking</option>
           <option value="noornote">NoorNote</option>
+          <option value="coracle">Coracle</option>
           <option value="njump">njump</option>
         </select>
         <label class="toggle-row"><input type="checkbox" id="reuse-tab-toggle" /> <span>Reuse an open client tab</span></label>
@@ -313,6 +317,12 @@
         <button class="primary" id="approval-allow">Allow once</button>
         <button class="lav-btn" id="approval-trust">Trust this site</button>
         <button class="ghost" id="approval-reject">Reject</button>
+      </div>
+
+      <!-- Stacked-request backlog: always-visible count + one-tap escape hatch. -->
+      <div id="approval-backlog" class="approval-backlog hidden">
+        <span id="approval-backlog-count"></span>
+        <button class="approval-reject-all" id="approval-reject-all">Reject all</button>
       </div>
     </div>
   </div>
