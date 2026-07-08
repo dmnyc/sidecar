@@ -374,3 +374,66 @@ body {
 @media (max-width: 400px) {
   .grid { grid-template-columns: 1fr; }
 }
+
+/* ===== Standalone-page top nav (shared by help, welcome, wallets) ===== */
+
+.helpnav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 24px;
+  background: rgba(10, 1, 24, 0.88);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.helpnav-brand { display: flex; align-items: center; flex-shrink: 0; }
+.helpnav-brand img { height: 22px; width: auto; }
+
+.helpnav-links {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.helpnav-links a,
+.helpnav-pages a {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.helpnav-links a:hover,
+.helpnav-pages a:hover { color: var(--text-2); }
+
+.helpnav-links a.active {
+  background: rgba(167, 139, 250, 0.14);
+  color: var(--lav);
+}
+
+.helpnav-pages {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.helpnav-pages a { color: var(--gold); }
+.helpnav-pages a:hover { color: var(--amber); }
+
+@media (max-width: 780px) {
+  .helpnav { padding: 10px 14px; gap: 10px; }
+  .helpnav-links { display: none; } /* section anchors only; cross-page links stay */
+}

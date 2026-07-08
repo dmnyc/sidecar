@@ -534,6 +534,11 @@
     if (a) showNotifModal(a);
   });
 
+  // ---- help & guides (opens as a full page in the main browser window) ----
+  $('help-btn').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+  });
+
   // ---- settings (gear icon ↔ overlay view) ----
   $('settings-btn').addEventListener('click', () => {
     hide($('view-main'));
@@ -559,6 +564,15 @@
         chrome.storage.local.set({ switchTipDismissed: true });
         tip.remove();
       });
+      const guideLink = h('a', {
+        className: 'switch-tip-link',
+        href: '#',
+        textContent: 'Read the guide →',
+      });
+      guideLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#switching' });
+      });
       const tip = h('div', { id: 'switch-tip', className: 'switch-tip' }, [
         h('div', { className: 'switch-tip-title' }, [
           icon('refresh'),
@@ -569,6 +583,7 @@
           textContent:
             'Clients keep signing with the account you logged in with. After switching here, reload the site to use the new account (or log out and back in there). Multi-account switchers inside clients don’t talk to Sidecar.',
         }),
+        guideLink,
         x,
       ]);
       document.querySelector('nav.tabs').insertAdjacentElement('afterend', tip);

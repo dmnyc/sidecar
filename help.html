@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sidecar Help &amp; Guides</title>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="welcome.css">
+  <link rel="stylesheet" href="help.css">
+</head>
+<body>
+
+  <nav class="helpnav" id="helpnav">
+    <a class="helpnav-brand" href="#top" title="Back to top">
+      <img src="icons/sidecar-logo.svg" alt="Sidecar">
+    </a>
+    <div class="helpnav-links" id="helpnav-links">
+      <a href="#basics">The basics</a>
+      <a href="#accounts">Accounts</a>
+      <a href="#pairing">How sites pair</a>
+      <a href="#switching">Switching</a>
+      <a href="#clients">Clients compared</a>
+      <a href="#wallet">Wallet</a>
+    </div>
+    <div class="helpnav-pages">
+      <a href="welcome.html">Nostr apps <span class="ext-mark">&#8599;</span></a>
+      <a href="wallets.html">Wallets <span class="ext-mark">&#8599;</span></a>
+    </div>
+  </nav>
+
+  <div class="page" id="top">
+
+    <header class="header">
+      <h1>How Sidecar works.</h1>
+      <p>A short guide to signing in, keeping several accounts, and understanding why
+      different Nostr apps handle account switching differently.</p>
+    </header>
+
+    <!-- ===== The basics ===== -->
+    <section class="guide-section" id="basics">
+      <h2>The basics</h2>
+      <p>Sidecar is a signer. It keeps your Nostr keys safe in the browser's side panel
+      and signs things on your behalf. When a website wants you to log in, publish a
+      note, or decrypt a message, it doesn't get your key. It asks Sidecar, Sidecar asks
+      you, and if you approve, Sidecar hands back a signature. Your keys never leave the
+      extension.</p>
+      <p>Everything is protected by the PIN you chose when you set up Sidecar, and the
+      panel locks itself after a period of inactivity you can adjust in Settings.</p>
+
+      <!-- screenshot: the approval prompt, a site asking to sign an event -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <span class="shot-glyph">&#9998;</span>
+          <span class="shot-label">Screenshot: the approval prompt when a site asks to sign</span>
+        </div>
+        <figcaption>A site asking for a signature. You decide, every time, unless you choose to trust the site.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===== Accounts ===== -->
+    <section class="guide-section" id="accounts">
+      <h2>Your accounts</h2>
+      <p>Sidecar happily holds as many accounts as you like. Generate a fresh one or
+      import an existing nsec from the Accounts tab. One account is always the
+      <strong>active</strong> account, and it's shown in the chip at the top left of the
+      panel. Tap that chip to switch.</p>
+      <p>The active account is the one Sidecar offers when you sign in somewhere new,
+      and the one used when you post from Sidecar's own composer. Think of it as the
+      account currently "at the wheel."</p>
+
+      <!-- screenshot: the account switcher dropdown, open, with two or three accounts -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <span class="shot-glyph">&#9673;</span>
+          <span class="shot-label">Screenshot: the account switcher, open</span>
+        </div>
+        <figcaption>The switcher in the top left. The checkmark marks the active account.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===== Per-site pairing ===== -->
+    <section class="guide-section" id="pairing">
+      <h2>How sites remember who you are</h2>
+      <p>Here's the part worth reading twice. When you sign in on a site, that site
+      <strong>pairs</strong> with the account you signed in as. From then on, the site
+      keeps signing with that account, even if you switch the active account in
+      Sidecar's panel.</p>
+      <p>That's deliberate. If you're signed in to a site in one tab and switch accounts
+      in Sidecar to do something else, you would not want that open session to quietly
+      start posting as someone else. Pairing keeps every session honest: each site stays
+      the identity it logged in with until <em>you</em> log it out.</p>
+      <p>You can see every pairing in the <strong>Activity</strong> tab, under Connected
+      sites. Each site shows the account it's pinned to, along with its permission level
+      and recent signing history.</p>
+
+      <!-- screenshot: the Activity tab showing connected sites, each with its pinned account -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <span class="shot-glyph">&#9741;</span>
+          <span class="shot-label">Screenshot: the Activity tab with connected sites</span>
+        </div>
+        <figcaption>Connected sites in the Activity tab. Each one stays pinned to the account it signed in with.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===== Switching ===== -->
+    <section class="guide-section" id="switching">
+      <h2>Switching accounts, step by step</h2>
+      <p>Because sites stay paired with the account they logged in with, moving a site
+      to a different account is a three step dance:</p>
+      <ol class="steps">
+        <li><strong>Log out on the site.</strong> Use the site's own sign out button.</li>
+        <li><strong>Switch in Sidecar.</strong> Tap the account chip and pick the account you want.</li>
+        <li><strong>Log back in.</strong> A fresh login always follows Sidecar's active account, and the site re-pairs with it.</li>
+      </ol>
+      <p><strong>A shortcut.</strong> The moment you switch, if a paired site is open in
+      your current tab, Sidecar offers a one-tap <strong>Reload [site]</strong> button.
+      For apps that re-check the extension when the page loads, that reload is often all
+      it takes, so you can skip the manual log out. (It won't move the built-in-switcher
+      apps below, which keep their own selection, so there it simply reloads the page.)</p>
+      <p>That recipe works everywhere. Some apps make it even easier, and some make it
+      slightly different, which brings us to the next section.</p>
+
+      <div class="rule-card">
+        <p class="rule-title">A rule of thumb</p>
+        <p>The site decides who is signed in. Sidecar decides who signs in <em>next</em>.</p>
+      </div>
+    </section>
+
+    <!-- ===== Clients compared ===== -->
+    <section class="guide-section" id="clients">
+      <h2>Not every client behaves the same</h2>
+      <p>Nostr apps fall into two families, and knowing which one you're in explains
+      almost every "why am I still posting as the wrong account?" moment.</p>
+
+      <div class="client-grid">
+        <div class="client-card">
+          <h3>One user at a time</h3>
+          <p class="client-examples">Primal, Iris, Snort, zap.cooking, and most others</p>
+          <p>These apps have a single signed-in user: whoever the extension provided at
+          login. There's no account menu inside the app, so the identity changes only
+          when the login changes.</p>
+          <p>To switch, switch accounts in Sidecar and use the <strong>Reload [site]</strong>
+          button Sidecar offers right after. These apps ask the extension again when the
+          page loads, so that reload re-pairs them with your newly active account. If a
+          reload doesn't do it, the full log out and log back in routine always will.</p>
+
+          <!-- screenshot: a single-user client (e.g. Primal) at its login screen -->
+          <figure class="shot shot-sm">
+            <div class="shot-frame">
+              <span class="shot-glyph">&#9678;</span>
+              <span class="shot-label">Screenshot: a single-user client's login</span>
+            </div>
+          </figure>
+        </div>
+
+        <div class="client-card">
+          <h3>Built-in account switchers</h3>
+          <p class="client-examples">Jumble, YakiHonne, noStrudel, Coracle</p>
+          <p>These clients keep their own list of accounts with a switcher inside the
+          app. Each entry in that list is bound to the Sidecar account that was active
+          when you added it. The client's switcher and Sidecar's switcher are two
+          separate things: flipping one does not flip the other, and
+          <strong>refreshing the page won't change the user</strong>, because the
+          client remembers its own selection.</p>
+          <p>To get a second identity into the client's list: switch accounts in
+          Sidecar first, then use the client's "add account" option and choose the
+          browser extension method. Once each account is added and approved, you can
+          hop between them using the client's own switcher.</p>
+          <p><strong>A safety net.</strong> Because these clients can show one account
+          while signing as another, Sidecar watches for the mismatch: once a site has
+          signed in with more than one of your accounts, every post asks you to confirm
+          who's signing, with a <em>Multiple accounts used</em> note on the prompt. So
+          even when the client's switcher and Sidecar disagree, you catch it before
+          anything publishes as the wrong you.</p>
+
+          <!-- screenshot: a multi-account client's switcher (e.g. Jumble or noStrudel) -->
+          <figure class="shot shot-sm">
+            <div class="shot-frame">
+              <span class="shot-glyph">&#9682;</span>
+              <span class="shot-label">Screenshot: a client's built-in account switcher</span>
+            </div>
+          </figure>
+        </div>
+      </div>
+
+      <p class="fine-note">A pleasant detail: some clients, noStrudel among them, tell
+      Sidecar exactly which account they expect on every signature. When Sidecar holds
+      that account and it has approved the site, Sidecar signs with it automatically. In
+      those clients, switching inside the app works seamlessly once each account has
+      been added.</p>
+    </section>
+
+    <!-- ===== Wallet ===== -->
+    <section class="guide-section" id="wallet">
+      <h2>The wallet, briefly</h2>
+      <p>Sidecar's Wallet tab connects to a Lightning wallet you already have, using
+      Nostr Wallet Connect. Sidecar never holds your funds; it just gives you balance,
+      payments, and zaps right in the panel. Each account can have its own wallet
+      connection.</p>
+      <p>If you don't have a wallet that speaks NWC yet, the wallet directory below has
+      good options for every taste, custodial to self-custodial.</p>
+    </section>
+
+    <!-- ===== More resources ===== -->
+    <section class="guide-section" id="more">
+      <h2>Keep exploring</h2>
+      <div class="grid resources-grid">
+        <a class="card" href="welcome.html">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">&#10022;</span></div>
+            <div>
+              <div class="card-name">Explore Nostr apps</div>
+              <div class="card-url">The welcome page</div>
+            </div>
+          </div>
+          <p class="card-desc">A directory of apps that work with Sidecar. Social, media, reading, commerce, and more.</p>
+          <span class="card-cta">OPEN THE DIRECTORY &rarr;</span>
+        </a>
+        <a class="card" href="wallets.html">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">&#9889;</span></div>
+            <div>
+              <div class="card-name">Find a Lightning wallet</div>
+              <div class="card-url">The wallets page</div>
+            </div>
+          </div>
+          <p class="card-desc">Wallets that support Nostr Wallet Connect, ready to pair with Sidecar's Wallet tab.</p>
+          <span class="card-cta">BROWSE WALLETS &rarr;</span>
+        </a>
+        <a class="card" href="https://nostr.how" target="_blank" rel="noopener">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">?</span></div>
+            <div>
+              <div class="card-name">New to Nostr?</div>
+              <div class="card-url">nostr.how</div>
+            </div>
+          </div>
+          <p class="card-desc">A friendly introduction to the protocol itself: keys, relays, zaps, and the rest.</p>
+          <span class="card-cta">START HERE &rarr;</span>
+        </a>
+        <a class="card" href="https://github.com/dmnyc/sidecar/issues" target="_blank" rel="noopener">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">&#9998;</span></div>
+            <div>
+              <div class="card-name">Questions or ideas?</div>
+              <div class="card-url">github.com/dmnyc/sidecar</div>
+            </div>
+          </div>
+          <p class="card-desc">Found something confusing, or something this guide should cover? Tell us on GitHub.</p>
+          <span class="card-cta">OPEN AN ISSUE &rarr;</span>
+        </a>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-divider"></div>
+      <p class="footer-tip">Sidecar keeps your keys on this device, always. Read the <a href="https://github.com/dmnyc/sidecar/blob/main/PRIVACY.md" target="_blank" rel="noopener">privacy policy</a>.</p>
+    </footer>
+
+  </div>
+
+  <script src="help.js"></script>
+</body>
+</html>
