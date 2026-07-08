@@ -363,7 +363,7 @@ function closePopupWindow() {
 }
 function createPopup(url) {
   return new Promise((resolve) => {
-    const W = 440, H = 600;
+    const W = 440, H = 660;
     chrome.windows.getCurrent((cur) => {
       const left = cur && cur.left != null && cur.width != null ? Math.round(cur.left + (cur.width - W) / 2) : undefined;
       const top = cur && cur.top != null && cur.height != null ? Math.round(cur.top + (cur.height - H) / 3) : undefined;
