@@ -30,6 +30,13 @@
     return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
   }
 
+  // Whether the one-time multi-account "Heads up!" explainer has been dismissed
+  // (shared with the panel via chrome.storage.local).
+  let sharedHeadsUpDismissed = false;
+  chrome.storage.local.get('sharedHeadsUpDismissed', (r) => {
+    sharedHeadsUpDismissed = !!(r && r.sharedHeadsUpDismissed);
+  });
+
   const METHOD_LABELS = {
     getPublicKey: 'see your public key (npub)',
     signEvent: 'sign an event with your key',
@@ -160,15 +167,7 @@
     // own switcher can flip identities with zero signal to Sidecar, so "Trust
     // this site" can't skip it here (the same signature that's fine now could be
     // wrong next time), and showing it anyway would over-promise.
-    if (data.sharedIdentity) {
-      const note = document.createElement('div');
-      note.className = 'shared-note';
-      note.textContent =
-        "You're signed in here with more than one account. Confirm who's posting — a client's own account switcher can't tell Sidecar which one you picked.";
-      els.account.parentNode.insertBefore(note, els.account);
-      els.switchToggle.textContent = 'Post as a different account';
-      els.trust.classList.add('hidden');
-    }
+    renderSharedNote(data);
 
     if (data.needUnlock) {
       els.unlock.classList.remove('hidden');
@@ -198,6 +197,49 @@
       els.allow.textContent = 'Unlock & continue';
       els.trust.classList.add('hidden');
     }
+  }
+
+  // Shared-identity confirm: this host is signed in with more than one of your
+  // accounts, so make the "who's posting" choice explicit and relabel the switcher
+  // for the signing (not login) context. "Trust this site" is hidden — this
+  // confirms on EVERY content sign to a shared host (the client's own switcher can
+  // flip identities with zero signal to Sidecar), so trust can't skip it. The first
+  // such confirm shows a one-time "Heads up!" explainer; later ones show a compact
+  // "Multiple accounts used" caption.
+  function renderSharedNote(d) {
+    const prev = $('shared-note-box');
+    if (prev) prev.remove();
+    if (!d.sharedIdentity) return;
+    els.switchToggle.textContent = 'Sign as a different account';
+    els.trust.classList.add('hidden');
+    let note;
+    if (sharedHeadsUpDismissed) {
+      note = document.createElement('div');
+      note.id = 'shared-note-box';
+      note.className = 'shared-caption';
+      note.textContent = 'Multiple accounts used';
+    } else {
+      note = document.createElement('div');
+      note.id = 'shared-note-box';
+      note.className = 'shared-headsup';
+      const title = document.createElement('div');
+      title.className = 'shared-headsup-title';
+      title.textContent = 'Heads up!';
+      const body = document.createElement('p');
+      body.className = 'shared-headsup-body';
+      body.textContent =
+        "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.";
+      const got = document.createElement('button');
+      got.className = 'shared-headsup-btn';
+      got.textContent = 'Got it';
+      got.addEventListener('click', () => {
+        sharedHeadsUpDismissed = true;
+        chrome.storage.local.set({ sharedHeadsUpDismissed: true });
+        renderSharedNote(d);
+      });
+      note.append(title, body, got);
+    }
+    els.account.parentNode.insertBefore(note, els.account);
   }
 
   function shortNpub(npub) {

@@ -286,10 +286,18 @@ input:focus, select:focus, textarea:focus {
 .upload-caption:hover .upload-cap-label { color: var(--text); }
 .upload-cap-hint { font-size: 11.5px; color: var(--faint); }
 .advanced { margin: 16px 0 4px; }
-.advanced summary { color: var(--muted); font-size: 13px; cursor: pointer; padding: 6px 0; list-style: none; }
+.advanced summary {
+  display: flex; align-items: center; gap: 9px;
+  color: var(--muted); font-size: 13px; cursor: pointer; padding: 6px 0; list-style: none;
+}
 .advanced summary::-webkit-details-marker { display: none; }
-.advanced summary::before { content: '▸ '; color: var(--faint); }
-.advanced[open] summary::before { content: '▾ '; }
+.advanced summary::before {
+  content: '›'; color: var(--lav); font-size: 20px; line-height: 1; width: 12px; text-align: center;
+  transform: rotate(0deg); transition: transform 0.15s;
+}
+.advanced[open] summary::before { transform: rotate(90deg); }
+/* separate the Publish button from the PIN field above it */
+#view-profile-edit .actions { margin-top: 18px; }
 
 .error { color: var(--red); font-size: 13px; min-height: 18px; margin: 4px 0; }
 .error:empty { display: none; }
@@ -1452,6 +1460,20 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .post-banner-x:hover { color: var(--text); }
 .post-banner-x svg { width: 14px; height: 14px; }
+/* reload-offer — a full-width action button after an account switch */
+.reload-banner { display: flex; margin: 10px 16px 0; }
+.reload-banner-btn {
+  flex: 1; justify-content: center;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer;
+  background: linear-gradient(180deg, #e2b968, var(--gold) 60%, #b7863a);
+  color: #1c1206; font-weight: 600; font-size: 13px; white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 12px rgba(203, 161, 78, 0.22);
+  transition: filter 0.15s, transform 0.12s;
+}
+.reload-banner-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.reload-banner-btn:active { transform: translateY(0); }
+.reload-banner-btn svg { width: 14px; height: 14px; }
 
 /* Interrupted-request tombstone banner (queue survived an SW restart). */
 .interrupted-banner {
@@ -1660,6 +1682,29 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft);
   color: var(--text-2); font-size: 12px; line-height: 1.45; text-align: left;
 }
+/* one-time explainer for multi-account (shared-identity) signing */
+.shared-headsup {
+  margin: 2px 0 14px; padding: 11px 12px; border-radius: 10px;
+  background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft); text-align: left;
+}
+.shared-headsup-title {
+  display: flex; align-items: center; gap: 7px;
+  color: var(--gold); font-weight: 700; font-size: 13px; margin-bottom: 6px;
+}
+.shared-headsup-title svg { width: 15px; height: 15px; }
+.shared-headsup-body { margin: 0 0 10px; color: var(--text-2); font-size: 12px; line-height: 1.45; }
+.shared-headsup-btn {
+  display: block; width: 100%; padding: 8px; border-radius: 8px; cursor: pointer;
+  background: rgba(203, 161, 78, 0.16); border: 1px solid var(--gold-soft);
+  color: var(--gold); font-weight: 600; font-size: 12.5px;
+}
+.shared-headsup-btn:hover { filter: brightness(1.12); }
+/* compact reminder once the explainer has been dismissed */
+.shared-caption {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 2px 0 8px; color: var(--muted); font-size: 11.5px; letter-spacing: 0.02em;
+}
+.shared-caption svg { width: 13px; height: 13px; opacity: 0.85; }
 .approval-account { margin: 4px 0 18px; }
 .approval-switch-toggle {
   display: block; width: 100%; background: none; border: none; cursor: pointer;

@@ -567,7 +567,7 @@
         h('p', {
           className: 'switch-tip-body',
           textContent:
-            'Clients keep signing with the account you logged in with. To post as a different user, log out there, switch here, then log back in. Multi-account switchers in clients don’t talk to Sidecar.',
+            'Clients keep signing with the account you logged in with. After switching here, reload the site to use the new account (or log out and back in there). Multi-account switchers inside clients don’t talk to Sidecar.',
         }),
         x,
       ]);
@@ -611,7 +611,7 @@
             await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
             await refresh();
             toast('Switched to ' + displayName(a), 'success');
-            maybeShowSwitchTip();
+            if (!(await offerTabReload())) maybeShowSwitchTip();
           } else {
             row.classList.add('acct-row-pending');
             row.querySelector('.acct-row-name').textContent = 'Switch to ' + displayName(a) + '?';
@@ -1680,7 +1680,7 @@
           await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
           await refresh();
           toast('Switched to ' + displayName(a), 'success');
-          maybeShowSwitchTip();
+          if (!(await offerTabReload())) maybeShowSwitchTip();
         } else {
           row.classList.add('item-pending');
           label.textContent = 'Set as active?';
@@ -3490,6 +3490,48 @@
     banner.append(msg, open, close);
     show(banner);
     _postBannerTimer = setTimeout(dismissPostBanner, 60000);
+  }
+
+  let _reloadBannerTimer = null; // auto-dismiss for #reload-banner
+  function dismissReloadBanner() {
+    if (_reloadBannerTimer) { clearTimeout(_reloadBannerTimer); _reloadBannerTimer = null; }
+    const banner = $('reload-banner');
+    if (banner) hide(banner);
+  }
+  // After switching the active account, most clients keep signing as the account
+  // they were logged in with until the page re-auths (NIP-07 gives us no way to
+  // push the change). If the focused tab is a site we're connected to, offer a
+  // one-tap reload so the switch takes effect there. Returns true if it showed —
+  // callers use that to skip the educational tip when we've offered the action.
+  async function offerTabReload() {
+    if (!(chrome.tabs && chrome.tabs.query && chrome.tabs.reload)) return false;
+    let tab;
+    try {
+      const tabs = await new Promise((res) => chrome.tabs.query({ active: true, lastFocusedWindow: true }, res));
+      tab = tabs && tabs[0];
+    } catch (_) { return false; }
+    if (!tab || tab.id == null || !tab.url) return false;
+    let host;
+    try { host = new URL(tab.url).host; } catch (_) { return false; }
+    if (!host) return false;
+    // Only offer for a site we're actually connected to (has a per-host binding);
+    // a plain browsing tab or a not-yet-logged-in site has nothing to re-auth.
+    let bindings;
+    try { bindings = await call({ type: 'SIDECAR_GET_SITE_BINDINGS' }); } catch (_) { return false; }
+    if (!bindings || !bindings[host]) return false;
+    const banner = $('reload-banner');
+    if (!banner) return false;
+    if (_reloadBannerTimer) clearTimeout(_reloadBannerTimer);
+    banner.innerHTML = '';
+    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: 'Reload ' + host })]);
+    reload.addEventListener('click', () => {
+      try { chrome.tabs.reload(tab.id); } catch (_) {}
+      dismissReloadBanner();
+    });
+    banner.append(reload);
+    show(banner);
+    _reloadBannerTimer = setTimeout(dismissReloadBanner, 30000);
+    return true;
   }
 
   // Render composed note content the way a client will: text + inline media + @mentions.
@@ -6895,6 +6937,49 @@
     ];
   }
 
+  // Shared-identity explainer: the first time a shared-host confirm appears, show a
+  // one-time "Heads up!" card; after the user dismisses it, every later confirm just
+  // carries a compact "Multiple accounts used" caption above the "Signing as" line.
+  let sharedHeadsUpDismissed = false;
+  chrome.storage.local.get('sharedHeadsUpDismissed', (r) => {
+    sharedHeadsUpDismissed = !!(r && r.sharedHeadsUpDismissed);
+  });
+  function renderSharedNote(data) {
+    const existing = $('approval-shared-note');
+    if (existing) existing.remove();
+    if (!data.sharedIdentity) {
+      $('approval-switch-toggle').textContent = 'Sign in with a different account';
+      return;
+    }
+    $('approval-switch-toggle').textContent = 'Sign as a different account';
+    const acct = $('approval-account');
+    if (!acct) return;
+    let note;
+    if (sharedHeadsUpDismissed) {
+      note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
+        icon('users'),
+        h('span', { textContent: 'Multiple accounts used' }),
+      ]);
+    } else {
+      note = h('div', { id: 'approval-shared-note', className: 'shared-headsup' }, [
+        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: 'Heads up!' })]),
+        h('p', {
+          className: 'shared-headsup-body',
+          textContent:
+            "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.",
+        }),
+      ]);
+      const got = h('button', { className: 'shared-headsup-btn', textContent: 'Got it' });
+      got.addEventListener('click', () => {
+        sharedHeadsUpDismissed = true;
+        chrome.storage.local.set({ sharedHeadsUpDismissed: true });
+        renderSharedNote(data); // collapse to the compact caption immediately
+      });
+      note.append(got);
+    }
+    acct.parentNode.insertBefore(note, acct);
+  }
+
   function renderApprovalAccountCapsule(data) {
     const payment = isPaymentApproval(data);
     const list = approvalAccountList(data);
@@ -6984,21 +7069,7 @@
 
     // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
     // "who's posting" choice explicit; relabel the switcher for signing context.
-    // showApproval can re-render, so replace any prior note rather than stack it.
-    const existingNote = $('approval-shared-note');
-    if (existingNote) existingNote.remove();
-    if (data.sharedIdentity) {
-      const note = h('div', { id: 'approval-shared-note', className: 'shared-note' }, [
-        document.createTextNode(
-          "You're signed in here with more than one account. Confirm who's posting — a client's own account switcher can't tell Sidecar which one you picked."
-        ),
-      ]);
-      const acct = $('approval-account');
-      acct.parentNode.insertBefore(note, acct);
-      $('approval-switch-toggle').textContent = 'Post as a different account';
-    } else {
-      $('approval-switch-toggle').textContent = 'Sign in with a different account';
-    }
+    renderSharedNote(data);
 
     renderApprovalPreview(data);
 
