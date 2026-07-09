@@ -1347,7 +1347,13 @@
         const cleaned = cleanSnippet(ev.content);
         if (cleaned) {
           const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
-          item.appendChild(h('p', { className: 'notif-content', textContent: snippet }));
+          const contentEl = h('p', { className: 'notif-content', textContent: snippet });
+          // data-note-id lets the background mention-name patch below (see
+          // showNotifModal) find and re-render this snippet once a mentioned
+          // profile resolves — it's rendered here with whatever names are
+          // cached at build time, often just a truncated bech32.
+          contentEl.dataset.noteId = ev.id;
+          item.appendChild(contentEl);
         }
 
         const { images, av } = extractMedia(ev.content);
@@ -1492,6 +1498,16 @@
         modal.querySelectorAll('.notif-author[data-sender-pubkey]').forEach((el) => {
           const name = _notifProfiles.get(el.dataset.senderPubkey);
           if (name) el.textContent = name;
+        });
+        // Re-clean note snippets too — cleanSnippet falls back to a truncated
+        // bech32 for @mentions whose profile wasn't cached yet at build time,
+        // and that first pass never gets revisited otherwise.
+        const eventsById = new Map(events.map((e) => [e.id, e]));
+        modal.querySelectorAll('.notif-content[data-note-id]').forEach((el) => {
+          const e = eventsById.get(el.dataset.noteId);
+          if (!e) return;
+          const cleaned = cleanSnippet(e.content);
+          el.textContent = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
         });
       })();
     }, () => {
@@ -2368,6 +2384,7 @@
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
+    $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     $('autozap-toggle').checked = settings.autoZap === true;
     $('autozap-max').value = String(settings.autoZapMaxSats || AUTOZAP_DEFAULT_MAX);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
@@ -2406,8 +2423,9 @@
   ];
   const KIND_NAMES = {
     0: 'profile', 1: 'note', 3: 'contacts', 4: 'direct message', 5: 'deletion',
-    6: 'repost', 7: 'reaction', 1059: 'gift wrap', 9734: 'zap request',
-    10002: 'relay list', 22242: 'relay auth', 24133: 'connect', 27235: 'HTTP auth', 30023: 'article',
+    6: 'repost', 7: 'reaction', 1059: 'gift wrap', 4454: 'DM device key', 4455: 'DM key transfer',
+    9734: 'zap request', 10002: 'relay list', 10044: 'DM encryption key', 10050: 'DM relay list',
+    22242: 'relay auth', 24133: 'connect', 27235: 'HTTP auth', 30023: 'article',
   };
   const METHOD_META = {
     getPublicKey: { icon: 'key', label: () => 'Shared public key' },
@@ -6605,8 +6623,8 @@
       const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
       const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy.php', target: '_blank', rel: 'noopener noreferrer' });
       const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const issues = h('a', { className: 'about-link', textContent: 'Report an issue', href: GITHUB_URL + '/issues', target: '_blank', rel: 'noopener noreferrer' });
-      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Support Sidecar '), boltIcon()]);
+      const support = h('a', { className: 'about-link', textContent: 'Support', href: SIDECAR_SITE_URL + '/support.php', target: '_blank', rel: 'noopener noreferrer' });
+      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Donate '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
       const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
@@ -6622,7 +6640,7 @@
           ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
           updateBtn,
           updateStatus,
-          h('div', { className: 'about-links' }, [website, repo, issues, privacy, zap]),
+          h('div', { className: 'about-links' }, [website, repo, support, privacy, zap]),
         ])
       );
     });
@@ -6715,6 +6733,10 @@
 
   $('clienttag-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showClientTag: e.target.checked } });
+  });
+
+  $('datasync-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { confirmDataSync: e.target.checked } });
   });
 
   $('countdown-toggle').addEventListener('change', async (e) => {

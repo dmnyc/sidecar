@@ -635,11 +635,36 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     const isContentSign =
       (method === 'signEvent' && !isRelayAuth) ||
       method === 'nip04.encrypt' || method === 'nip44.encrypt';
+
+    // App-data sync (NIP-78, kind:30078 &c. — the COALESCE_KINDS set) is
+    // replaceable, app-namespaced state, NOT an attributable social post: no
+    // client renders it in a feed as "you said X", and a wrong-account write is
+    // low-value and self-healing (the next sync overwrites it). The shared-
+    // identity confirm below exists to stop a note/reaction/DM going out under
+    // the wrong identity — a risk app-data doesn't carry — so we exempt it: it
+    // never triggers that confirm, and on a shared host (where "Trust this site"
+    // is hidden, so it can't be elevated out of the ask tier any other way) it
+    // auto-allows outright. A block still applies, the account still resolves to
+    // the site's binding, and every sign is still logged to Activity. Users who
+    // want to see each one can turn the exemption off with the "Confirm
+    // background app-data syncs" setting. This is kind-based, not client-based,
+    // so it needs no upkeep as clients change or new ones appear.
+    const isAppDataSync =
+      method === 'signEvent' && !isRelayAuth && signKind != null && COALESCE_KINDS.has(signKind);
+    const appDataExempt =
+      isAppDataSync &&
+      ((await sget('sidecar_settings')).sidecar_settings || {}).confirmDataSync !== true;
+
     let sharedIdentity = false;
     let authorizedPool = null;
-    if (isContentSign && !authorSwitched) {
+    // Whether 2+ of your accounts have logged into this host (a multi-login
+    // client). Drives both the shared-identity confirm and the app-data
+    // auto-allow, so we resolve it once for either content sign or exempt sync.
+    let sharedHost = false;
+    if ((isContentSign || appDataExempt) && !authorSwitched) {
       const authorized = await getAuthorizedAccounts(host);
-      if (authorized.length >= 2) {
+      sharedHost = authorized.length >= 2;
+      if (sharedHost && isContentSign && !appDataExempt) {
         sharedIdentity = true;
         authorizedPool = authorized;
         // Default to the active account when it's authorized here — that's the
@@ -662,16 +687,24 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // App-data burst coalescing: if the user just confirmed this exact
     // (host, account, kind) app-data sign, auto-approve the rest of the serial
     // burst without re-nagging. Only bypasses the confirm/ask — never a block
-    // (that already threw above) or an unlock.
+    // (that already threw above) or an unlock. (When the sync exemption above is
+    // active this rarely fires — an exempt sync isn't confirmed to begin with —
+    // but it still covers the non-shared "ask" host, where a deliberate ask tier
+    // is honored and the exemption's auto-allow doesn't apply.)
     const coalesced = isContentSign && signKind != null && COALESCE_KINDS.has(signKind) &&
       hasContentGrant(host, activePubkey, signKind);
     if (coalesced) sharedIdentity = false;
 
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
+    // An exempt app-data sync auto-allows on a shared host — the only place it
+    // otherwise couldn't escape the ask tier. On a non-shared host it stays on
+    // the normal ask tier + coalescing, so a deliberate "ask" is still honored.
+    const appDataAutoAllow = appDataExempt && sharedHost;
     // A shared-identity content sign always confirms, regardless of trust tier —
     // unless it's a coalesced app-data sign the user just approved.
-    const needApproval = coalesced ? false : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
+    const needApproval =
+      coalesced || appDataAutoAllow ? false : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
 
     // Every getPublicKey is a login, and a login is the safe moment to pick an
     // identity: whatever pubkey we return is the identity the site adopts from

@@ -13,8 +13,6 @@ html { scroll-behavior: smooth; }
 /* Standalone-page top nav (.helpnav*) now lives in welcome.css, shared by
    help, welcome, and wallets so all three carry the same bar. */
 
-.ext-mark { font-size: 11px; opacity: 0.7; }
-
 /* ===== Guide sections ===== */
 
 .guide-section {
@@ -44,42 +42,6 @@ html { scroll-behavior: smooth; }
 .guide-section p a { color: var(--lav); text-decoration: underline; text-decoration-color: rgba(189, 161, 255, 0.35); }
 .guide-section p a:hover { text-decoration-color: var(--lav); }
 .guide-section a.card, .guide-section a.card:hover { text-decoration: none; }
-
-/* Numbered steps */
-.steps {
-  margin: 0 0 14px;
-  padding-left: 0;
-  list-style: none;
-  counter-reset: step;
-}
-
-.steps li {
-  counter-increment: step;
-  position: relative;
-  padding: 10px 0 10px 46px;
-  font-size: 15px;
-  color: var(--text-2);
-  line-height: 1.6;
-}
-
-.steps li::before {
-  content: counter(step);
-  position: absolute;
-  left: 0;
-  top: 9px;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--gold);
-  background: rgba(203, 161, 78, 0.12);
-  border: 1px solid rgba(203, 161, 78, 0.35);
-}
 
 /* Rule-of-thumb callout */
 .rule-card {
@@ -125,11 +87,22 @@ html { scroll-behavior: smooth; }
   background: rgba(22, 10, 48, 0.45);
 }
 
+/* Once a real screenshot is in, drop the dashed placeholder chrome. */
+.shot-frame:has(img) {
+  border: none;
+  background: none;
+  min-height: 0;
+  padding: 0;
+}
+
 .shot-frame img {
-  width: 100%;
-  height: auto;
-  border-radius: 13px;
   display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 520px;
+  margin: 0 auto;
+  border-radius: 13px;
+  border: 1px solid var(--border);
 }
 
 .shot-glyph {
