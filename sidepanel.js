@@ -7341,6 +7341,16 @@
       setTimeout(connectApprovalPort, 1000);
       return;
     }
+    // Tell the worker which window this panel lives in. A side panel is
+    // per-window, so the worker uses this to keep a cross-window request's
+    // approval off this panel and on a popup over the right window instead.
+    try {
+      chrome.windows.getCurrent((w) => {
+        if (!chrome.runtime.lastError && w && w.id != null) {
+          try { port.postMessage({ type: 'panelWindow', windowId: w.id }); } catch (_) {}
+        }
+      });
+    } catch (_) {}
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
     });

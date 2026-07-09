@@ -12,6 +12,7 @@
     host: $('host'),
     ask: $('ask'),
     preview: $('preview'),
+    decryptNote: $('decrypt-note'),
     account: $('account'),
     switchToggle: $('switch-toggle'),
     switchMenu: $('switch-menu'),
@@ -160,6 +161,16 @@
     els.ask.textContent = verb;
     buildAccountCapsule();
     renderPreview();
+
+    // Decrypt-burst note: a client loading a DM inbox fires many decrypt requests
+    // at once. Allowing covers that whole burst and briefly lets this site keep
+    // decrypting, so the signer isn't hammered with one prompt per message — be
+    // upfront that "Allow" here is broader than a single message.
+    if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
+      els.decryptNote.textContent =
+        'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+      els.decryptNote.classList.remove('hidden');
+    }
 
     // Shared-identity confirm: this host is signed in with more than one of your
     // accounts, so make the "who's posting" choice explicit and relabel the

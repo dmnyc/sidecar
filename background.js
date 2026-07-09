@@ -214,6 +214,7 @@ const queue = [];               // ordered, observable (in-memory; metadata mirr
 const callbacks = new Map();    // id -> { resolve, settled }  (in-memory only; the live page channel)
 let popupWindowId = null;       // the reusable prompt popup window
 let panelPort = null;           // the side panel's long-lived port while it's open
+let panelWindowId = null;       // the browser window the open panel lives in (window-correct routing)
 let graceTimer = null;          // panel-disconnect grace before falling back to a popup
 const REQUEST_TTL = 175000;     // < content.js's 180s page timeout, so we never surface a dead request
 const TOMBSTONE_TTL = 600000;   // interrupted tombstones self-clear after 10 min
@@ -297,11 +298,24 @@ function stopKeepaliveIfIdle() {
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'sidepanel') return;
   panelPort = port;
+  // Which window this panel lives in — a side panel is per-window, so a request
+  // from a DIFFERENT window must not surface its approval here (see driveOnce).
+  // The panel reports its window id right after connecting; seed it from the
+  // port sender when Chrome provides one, else leave it unknown until the report.
+  panelWindowId = (port.sender && port.sender.tab && port.sender.tab.windowId != null)
+    ? port.sender.tab.windowId : null;
   clearTimeout(graceTimer);
   driveDisplay(); // re-surface anything waiting for a panel
+  port.onMessage.addListener((msg) => {
+    if (msg && msg.type === 'panelWindow' && typeof msg.windowId === 'number') {
+      panelWindowId = msg.windowId;
+      driveDisplay(); // window now known — re-evaluate a possibly wrong-window surface
+    }
+  });
   port.onDisconnect.addListener(() => {
     if (panelPort !== port) return;
     panelPort = null;
+    panelWindowId = null;
     // Revert (do NOT reject) anything showing in the panel — Chrome recycles this
     // port ~every 5 min; auto-rejecting here is the classic silent event loss.
     // The callback stays live; a reconnect re-surfaces it, a real close falls back
@@ -330,7 +344,7 @@ function waitForPanelPort(ms) {
 }
 
 // ---- T1: accept a request. Synchronous registration; never blocks. ----
-function openPrompt(data) {
+function openPrompt(data, originWindowId) {
   // Fast path: the keystore may have unlocked via an earlier approval. Collapse a
   // now-redundant pure-unlock request without queuing anything.
   if (data && data.needUnlock && !KS.isLocked()) {
@@ -345,6 +359,9 @@ function openPrompt(data) {
       id, host: data.host, method: data.method, scope: data.scope || 'nostr',
       kind: ev ? ev.kind : null, data, ts: now, deadline: now + REQUEST_TTL,
       state: 'queued', display: 'none',
+      // The window the requesting page lives in, so the approval surfaces on the
+      // window the user is actually looking at (see driveOnce). undefined ⇒ unknown.
+      originWindowId: originWindowId != null ? originWindowId : undefined,
     });
     callbacks.set(id, { resolve, settled: false });
     ensureKeepalive();
@@ -355,35 +372,73 @@ function openPrompt(data) {
 }
 
 // ---- popup window helpers ----
+const POPUP_W = 440, POPUP_H = 660;
 function closePopupWindow() {
   if (popupWindowId == null) return;
   const wid = popupWindowId;
   popupWindowId = null;
   chrome.windows.remove(wid).catch(() => {});
 }
-function createPopup(url) {
+// Where to center the prompt popup: over the window the requesting page lives in
+// (originWindowId), so it never opens on a window/monitor the user isn't looking
+// at. Falls back to the last-focused window when the origin is unknown, and to
+// Chrome's default placement when even that has no usable bounds.
+function popupPlacement(originWindowId) {
   return new Promise((resolve) => {
-    const W = 440, H = 660;
-    chrome.windows.getCurrent((cur) => {
-      const left = cur && cur.left != null && cur.width != null ? Math.round(cur.left + (cur.width - W) / 2) : undefined;
-      const top = cur && cur.top != null && cur.height != null ? Math.round(cur.top + (cur.height - H) / 3) : undefined;
-      chrome.windows.create({ url, type: 'popup', width: W, height: H, left, top, focused: true }, (win) => {
+    const place = (win) => {
+      if (chrome.runtime.lastError || !win || win.left == null || win.width == null) return resolve({});
+      resolve({
+        left: Math.round(win.left + (win.width - POPUP_W) / 2),
+        top: win.top != null && win.height != null ? Math.round(win.top + (win.height - POPUP_H) / 3) : undefined,
+      });
+    };
+    if (originWindowId != null) {
+      // Resolve against the origin window; if it's gone, fall back to current.
+      chrome.windows.get(originWindowId, (win) => {
+        if (chrome.runtime.lastError || !win) chrome.windows.getCurrent(place);
+        else place(win);
+      });
+    } else {
+      chrome.windows.getCurrent(place);
+    }
+  });
+}
+function createPopup(url, originWindowId) {
+  return new Promise((resolve) => {
+    popupPlacement(originWindowId).then(({ left, top }) => {
+      chrome.windows.create({ url, type: 'popup', width: POPUP_W, height: POPUP_H, left, top, focused: true }, (win) => {
         popupWindowId = win ? win.id : null;
         resolve();
       });
     });
   });
 }
-function navigatePopup(url) {
+function navigatePopup(url, originWindowId) {
   return new Promise((resolve) => {
     chrome.windows.get(popupWindowId, { populate: true }, (win) => {
       const tab = win && win.tabs && win.tabs[0];
       if (chrome.runtime.lastError || !tab) return resolve(false);
       chrome.tabs.update(tab.id, { url });
-      chrome.windows.update(popupWindowId, { focused: true });
-      resolve(true);
+      // Reposition over the origin window too — the reused popup may have been
+      // created over a different window than this request came from.
+      popupPlacement(originWindowId).then(({ left, top }) => {
+        const upd = { focused: true };
+        if (left != null) upd.left = left;
+        if (top != null) upd.top = top;
+        chrome.windows.update(popupWindowId, upd);
+        resolve(true);
+      });
     });
   });
+}
+// Use the panel only when we're NOT confident it's in a different window than
+// the request came from. Unknowns default to "yes" so the panel-first behavior
+// is preserved for the common single-window case; we divert to a popup only on a
+// definite window mismatch.
+function panelServesWindow(originWindowId) {
+  if (!panelPort) return false;
+  if (originWindowId == null || panelWindowId == null) return true;
+  return panelWindowId === originWindowId;
 }
 
 // ---- T6: expire a request past its deadline (or drop a stale tombstone) ----
@@ -414,11 +469,15 @@ async function driveOnce() {
   }
 
   // If something's already showing on a valid surface, we're done — unless the
-  // panel came back while an entry sits in a popup (hand it off to the panel).
+  // surface no longer fits: the panel closed (or turned out to be in a different
+  // window than the request), or a popup can now hand off to a same-window panel.
   const showing = queue.find((e) => e.state === 'showing');
   if (showing) {
-    if (showing.display === 'panel' && !panelPort) { showing.state = 'queued'; showing.display = 'none'; }
-    else if (showing.display === 'popup' && panelPort) {
+    if (showing.display === 'panel' && !panelServesWindow(showing.originWindowId)) {
+      // Panel gone, or we've since learned it's in the wrong window — pull it
+      // back and let the popup path (below) take over on the right window.
+      showing.state = 'queued'; showing.display = 'none';
+    } else if (showing.display === 'popup' && panelServesWindow(showing.originWindowId)) {
       showing.state = 'queued'; showing.display = 'none'; // revert BEFORE closing so onRemoved won't reject it
       closePopupWindow();
     } else { return; }
@@ -438,18 +497,20 @@ async function driveOnce() {
     if (!head.data.needApproval) { settlePrompt(head.id, 'once'); driveAgain = true; return; }
   }
 
-  // Choose a surface. Prefer the panel; briefly wait for a reconnecting panel
-  // before falling back to a popup.
-  let port = panelPort || (await waitForPanelPort(600));
-  if (port) {
+  // Choose a surface. Prefer the panel — but only when it isn't in a different
+  // window than the page that made the request; briefly wait for a reconnecting
+  // panel before falling back to a popup positioned over the origin window.
+  const origin = head.originWindowId;
+  if (!panelPort) await waitForPanelPort(600);
+  if (panelServesWindow(origin)) {
     head.state = 'showing'; head.display = 'panel';
     qPersist(); broadcastQueue();
   } else {
     head.state = 'showing'; head.display = 'popup';
     qPersist();
     const url = chrome.runtime.getURL('prompt.html?id=' + head.id);
-    if (popupWindowId != null) { if (!(await navigatePopup(url))) { popupWindowId = null; await createPopup(url); } }
-    else await createPopup(url);
+    if (popupWindowId != null) { if (!(await navigatePopup(url, origin))) { popupWindowId = null; await createPopup(url, origin); } }
+    else await createPopup(url, origin);
     broadcastQueue();
   }
 }
@@ -467,12 +528,29 @@ chrome.windows.onRemoved.addListener((windowId) => {
 function settlePrompt(id, action, extra) {
   const cb = callbacks.get(id);
   if (!cb || cb.settled) return; // the `settled` guard makes any double-result a no-op → can't double-sign
+  const entry = queue.find((e) => e.id === id); // capture before splicing, for decrypt coalescing
   cb.settled = true;
   callbacks.delete(id);
   const i = queue.findIndex((e) => e.id === id);
   if (i >= 0) queue.splice(i, 1);
   qPersist();
   cb.resolve(Object.assign({ action }, extra || {}));
+
+  // Decrypt-burst coalescing: one decision on the first decrypt covers the whole
+  // same-host, same-account burst (see grantDecrypt). Skip when this settle is
+  // itself a coalesced sibling, so the window isn't extended by its own flush.
+  if (entry && entry.data && DECRYPT_METHODS.has(entry.method) && !(extra && extra.coalesced)) {
+    const { host, activePubkey } = entry.data;
+    if (host && activePubkey) {
+      if (action === 'reject') {
+        flushDecryptSiblings(host, activePubkey, 'reject');
+      } else if (action === 'once' || action === 'trust') {
+        grantDecrypt(host, activePubkey);
+        flushDecryptSiblings(host, activePubkey, 'once');
+      }
+    }
+  }
+
   broadcastQueue();
   stopKeepaliveIfIdle();
   driveDisplay();
@@ -524,6 +602,45 @@ function grantContent(host, pubkey, kind) {
   contentGrants.set(grantKey(host, pubkey, kind), Date.now() + COALESCE_WINDOW_MS);
 }
 
+// ---- decrypt-burst coalescing ----
+// A client loading a DM inbox can fire dozens of nip04/nip44.decrypt calls at
+// once — one per event it's trying to read (and a sloppy one, like gamestr.io,
+// sprays them at every event, most of which aren't even addressed to you). At
+// the default "ask" tier that's one prompt per message: a signer flood. So the
+// user's decision on the FIRST decrypt covers the whole same-host, same-account
+// burst: allow flushes the already-queued siblings through and opens a short
+// window so late arrivals skip the prompt too; reject drops the burst. Scoped
+// tightly — only decrypt methods, only that host+account, only briefly, and the
+// window is set solely by the explicit approval (never extended by the
+// auto-approved siblings), so the decryption-oracle exposure stays bounded. This
+// still requires a real first approval, so it never silently decrypts for a site
+// you haven't OK'd — much narrower than "Trust this site".
+const DECRYPT_METHODS = new Set(['nip04.decrypt', 'nip44.decrypt']);
+const DECRYPT_WINDOW_MS = 60000;
+const decryptGrants = new Map(); // `host|pubkey` -> expiry ms
+function decryptGrantKey(host, pubkey) { return host + '|' + pubkey; }
+function hasDecryptGrant(host, pubkey) {
+  const exp = decryptGrants.get(decryptGrantKey(host, pubkey));
+  if (!exp) return false;
+  if (Date.now() >= exp) { decryptGrants.delete(decryptGrantKey(host, pubkey)); return false; }
+  return true;
+}
+function grantDecrypt(host, pubkey) {
+  decryptGrants.set(decryptGrantKey(host, pubkey), Date.now() + DECRYPT_WINDOW_MS);
+}
+// Propagate one decrypt decision to the rest of the same-host, same-account burst
+// already sitting in the queue. `coalesced: true` on the resolution marks these
+// as auto-approved so they don't re-trigger the grant/flush (bounded window).
+function flushDecryptSiblings(host, pubkey, action) {
+  for (const e of [...queue]) {
+    if (e.state === 'interrupted' || !e.data) continue;
+    if (!DECRYPT_METHODS.has(e.method)) continue;
+    if (e.data.host !== host || e.data.activePubkey !== pubkey) continue;
+    const cb = callbacks.get(e.id);
+    if (cb && !cb.settled) settlePrompt(e.id, action, { coalesced: true });
+  }
+}
+
 // ============================================================================
 // Page RPC handling (window.nostr.*)
 // ============================================================================
@@ -559,7 +676,7 @@ function isNip42AuthEvent(ev) {
   return true;
 }
 
-async function handleNostrRpc(method, params, host, sendResponse) {
+async function handleNostrRpc(method, params, host, sendResponse, originWindowId) {
   try {
     if (!host) throw new Error('Missing host');
     await KS.ensureLoaded(); // rehydrate unlocked session if the SW was restarted
@@ -701,10 +818,17 @@ async function handleNostrRpc(method, params, host, sendResponse) {
     // otherwise couldn't escape the ask tier. On a non-shared host it stays on
     // the normal ask tier + coalescing, so a deliberate "ask" is still honored.
     const appDataAutoAllow = appDataExempt && sharedHost;
+    // Decrypt-burst coalescing: within the short window opened by an explicit
+    // decrypt approval (see grantDecrypt), further decrypts from the same host +
+    // account skip the prompt. Never bypasses a block (that already threw above)
+    // or an unlock.
+    const decryptCoalesced = DECRYPT_METHODS.has(method) && hasDecryptGrant(host, activePubkey);
     // A shared-identity content sign always confirms, regardless of trust tier —
     // unless it's a coalesced app-data sign the user just approved.
     const needApproval =
-      coalesced || appDataAutoAllow ? false : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
+      coalesced || appDataAutoAllow || decryptCoalesced
+        ? false
+        : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
 
     // Every getPublicKey is a login, and a login is the safe moment to pick an
     // identity: whatever pubkey we return is the identity the site adopts from
@@ -744,7 +868,7 @@ async function handleNostrRpc(method, params, host, sendResponse) {
         sharedIdentity,
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
-      });
+      }, originWindowId);
       if (decision.action === 'reject') throw new Error('You rejected this request');
 
       // Resolve a chosen switch-to account BEFORE block/trust, so those apply to
@@ -848,7 +972,7 @@ function invoiceSats(bolt11) {
 }
 
 // Open an unlock-only popup for low-risk wallet reads when the keystore is locked.
-async function weblnUnlockGate(host, method, pubkey) {
+async function weblnUnlockGate(host, method, pubkey, originWindowId) {
   if (!KS.isLocked()) return;
   const st = await KS.getState();
   const acct = st.accounts.find((a) => a.pubkey === pubkey);
@@ -861,12 +985,12 @@ async function weblnUnlockGate(host, method, pubkey) {
         accountPicture: (acct && acct.picture) || '',
     needUnlock: true,
     needApproval: false,
-  });
+  }, originWindowId);
   if (decision.action === 'reject') throw new Error('You rejected this request');
   if (KS.isLocked()) throw new Error('Keystore is locked');
 }
 
-async function handleWeblnRpc(method, params, host, sendResponse) {
+async function handleWeblnRpc(method, params, host, sendResponse, originWindowId) {
   try {
     if (!host) throw new Error('Missing host');
     await KS.ensureLoaded();
@@ -894,7 +1018,7 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
 
     let result;
     if (method === 'getInfo') {
-      await weblnUnlockGate(host, method, pubkey);
+      await weblnUnlockGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const info = (await c.getInfo()) || {};
       result = {
@@ -903,12 +1027,12 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
         supports: ['lightning'],
       };
     } else if (method === 'getBalance') {
-      await weblnUnlockGate(host, method, pubkey);
+      await weblnUnlockGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const b = await c.getBalance();
       result = { balance: msatToSat(b && b.balance), currency: 'sats' };
     } else if (method === 'makeInvoice') {
-      await weblnUnlockGate(host, method, pubkey);
+      await weblnUnlockGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const sats = parseInt(params && params.amount, 10);
       if (!sats || sats < 1) throw new Error('A positive amount is required to make an invoice');
@@ -917,7 +1041,7 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
       if (!invoice) throw new Error('Wallet returned no invoice');
       result = { paymentRequest: invoice };
     } else if (method === 'sendPayment') {
-      result = await weblnSendPayment(params, host, pubkey);
+      result = await weblnSendPayment(params, host, pubkey, originWindowId);
     } else {
       throw new Error('Sidecar does not support webln.' + method);
     }
@@ -929,9 +1053,9 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
   }
 }
 
-async function weblnSendPayment(params, host, pubkey) {
+async function weblnSendPayment(params, host, pubkey, originWindowId) {
   const invoice = (params && (params.paymentRequest || params.invoice)) || '';
-  return payInvoiceCore(invoice, host, pubkey, params && params.memo);
+  return payInvoiceCore(invoice, host, pubkey, params && params.memo, originWindowId);
 }
 
 // Decode just the BOLT11 description ('d', tag 13) — bech32, no deps. A zap
@@ -987,7 +1111,7 @@ function isZapInvoice(invoice) {
 // budget, log, and notify the panel. Used by window.webln.sendPayment AND the
 // "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
 // checked the account/site is usable.
-async function payInvoiceCore(invoiceRaw, host, pubkey, memo) {
+async function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
   const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
   if (!invoice) throw new Error('No invoice provided');
   if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
@@ -1016,7 +1140,7 @@ async function payInvoiceCore(invoiceRaw, host, pubkey, memo) {
       memo: memo || '',
       needUnlock: KS.isLocked(),
       needApproval: true,
-    });
+    }, originWindowId);
     if (decision.action === 'reject') throw new Error('You rejected this payment');
     if (KS.isLocked()) throw new Error('Keystore is locked');
     // 'budget' → remember an allowance for this site before paying.
@@ -1080,14 +1204,14 @@ function notifyTabPayFailed(tabId, invoice, error) {
 }
 
 // Resolve the account/wallet for the page, then pay via the shared core.
-async function payFromPage(invoiceRaw, host) {
+async function payFromPage(invoiceRaw, host, originWindowId) {
   await KS.ensureLoaded();
   if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
   const pubkey = await resolveSiteAccount(host);
   if (!pubkey) throw new Error('No active Sidecar account');
   if ((await PERMS.getLevel(pubkey, host)) === 'blocked') throw new Error('This site is blocked in Sidecar');
   if (!(await KS.hasNwc(pubkey))) throw new Error('No wallet connected in Sidecar');
-  return payInvoiceCore(invoiceRaw, host, pubkey);
+  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId);
 }
 
 // First BOLT11 invoice inside a blob of text (selection, link, decoded QR).
@@ -1134,9 +1258,10 @@ chrome.contextMenus &&
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     let host = '';
     try { host = new URL(info.pageUrl || (tab && tab.url) || '').host; } catch (_) {}
+    const originWindowId = tab && tab.windowId != null ? tab.windowId : undefined;
     const pay = (getInvoice) =>
       Promise.resolve(getInvoice)
-        .then((inv) => payFromPage(inv, host).then((r) => ({ r, inv })))
+        .then((inv) => payFromPage(inv, host, originWindowId).then((r) => ({ r, inv })))
         .then(({ r, inv }) => {
           notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
           notifyTabPaid(tab && tab.id, inv);
@@ -1501,13 +1626,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // The window the requesting page lives in — used to surface the approval on
+  // the window the user is actually looking at (see driveOnce), not wherever a
+  // pinned panel or the last-focused window happens to be.
+  const originWindowId = sender && sender.tab && sender.tab.windowId != null ? sender.tab.windowId : undefined;
+
   // Page RPC from content script.
   if (message.type === 'SIDECAR_NOSTR_RPC') {
-    handleNostrRpc(message.method, message.params, message.host, sendResponse);
+    handleNostrRpc(message.method, message.params, message.host, sendResponse, originWindowId);
     return true;
   }
   if (message.type === 'SIDECAR_WEBLN_RPC') {
-    handleWeblnRpc(message.method, message.params, message.host, sendResponse);
+    handleWeblnRpc(message.method, message.params, message.host, sendResponse, originWindowId);
     return true;
   }
   // "Pay with Sidecar" pill clicked on a page.
@@ -1534,7 +1664,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = sender && sender.tab && sender.tab.id;
     let host = '';
     try { host = new URL((sender && sender.url) || '').host; } catch (_) {}
-    payFromPage(message.invoice, host)
+    payFromPage(message.invoice, host, originWindowId)
       .then((r) => {
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
         notifyTabPaid(tabId, message.invoice);
