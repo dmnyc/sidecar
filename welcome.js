@@ -80,7 +80,7 @@ const APPS = [
     cat: 'social',
     icon: 'icons/apps/zapcooking.jpg',
     flush: true,
-    desc: 'A recipe community built on Nostr — share, discover, and zap great cooking.',
+    desc: 'A food culture community and recipe sharing app built on Nostr — share, discover, and zap great #nostrichefs.',
   },
   {
     name: 'Slidestr',
@@ -203,19 +203,18 @@ const APPS = [
     desc: 'A nostalgic, MySpace-style take on Nostr — build a customizable profile page with your own themes and layout.',
   },
   {
-    name: 'Imwald',
-    url: 'https://jumble.imwald.eu/',
-    domain: 'jumble.imwald.eu',
-    cat: 'other',
-    icon: 'https://jumble.imwald.eu/favicon-96x96.png',
-    desc: 'A community-hosted, user-friendly Nostr client focused on relay feed browsing, publications, and relay discovery.',
-  },
-  {
     name: 'YakBak',
     url: 'https://yakbak.app',
     domain: 'yakbak.app',
     cat: 'media',
     desc: 'Share short voice notes on Nostr — record, post, and listen to audio from the people you follow.',
+  },
+  {
+    name: 'nostr.build',
+    url: 'https://nostr.build',
+    domain: 'nostr.build',
+    cat: 'media',
+    desc: 'Privacy-focused media hosting for Nostr — upload images and video straight from your client, with metadata stripped automatically.',
   },
   {
     name: 'Club Orange',

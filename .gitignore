@@ -34,3 +34,6 @@ font-preview.html
 
 # Local store-listing history / working docs (not part of the extension)
 store/
+
+# Local-only backups of removed content (e.g. site entries pending a URL change)
+local-backups/
