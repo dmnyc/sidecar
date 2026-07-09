@@ -218,7 +218,7 @@ const APPS = [
   },
   {
     name: 'Club Orange',
-    url: 'https://cluborange.org',
+    url: 'https://signup.cluborange.org/co/thedaniel',
     domain: 'cluborange.org',
     cat: 'other',
     desc: 'A location-based social network for Bitcoiners — find nearby members, meetups, and merchants, with a built-in Lightning wallet.',
