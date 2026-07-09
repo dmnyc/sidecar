@@ -1730,6 +1730,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* center the capsule's avatar + text as a group */
 .approval-capsule { margin-bottom: 0; justify-content: center; }
 .approval-capsule .aa-info { text-align: center; }
+/* Breathing room so the PIN field doesn't crowd the Unlock/Allow buttons. */
+#approval-unlock { margin-bottom: 14px; }
 .approval-actions { display: flex; flex-direction: column; gap: 8px; }
 .approval-actions button { width: 100%; }
 
