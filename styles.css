@@ -1538,6 +1538,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    its contents (box, copy/QR buttons, warning, form fields) match that. */
 .key-backup-body { display: flex; flex-direction: column; gap: 9px; min-height: 0; }
 
+/* revealed secret (nsec / ncryptsec / NWC) reveal: full-width, evenly-stacked
+   action buttons so Copy and Show-QR align instead of sizing to their labels. */
+.secret-reveal .secondary { display: block; width: 100%; box-sizing: border-box; margin: 0 0 8px; }
+.secret-reveal .qr-reveal-btn { display: flex; }
+
 /* revealed secret (nsec) box */
 .secret-box {
   font-family: var(--font-mono);

@@ -2059,42 +2059,92 @@
   // so both auto-hide identically. Returns a stop() to clear the timer when the
   // container is about to be replaced or the modal is closing.
   const NSEC_REVEAL_TIMEOUT_S = 30;
+  const QR_REVEAL_TIMEOUT_S = 30;
   function renderSecretReveal(container, opts) {
     container.innerHTML = '';
+    container.classList.add('secret-reveal'); // full-width, evenly-stacked action buttons
     const secret = opts.secret;
     const noun = opts.noun || 'nsec';
-    let remaining = NSEC_REVEAL_TIMEOUT_S;
+    const qrLevel = opts.qrLevel || 'M';
+    // For long secrets (NWC connection strings), the QR and the text box are an
+    // either/or view — showing the QR hides the string + its copy button and back
+    // — so the two don't stack into an overlong panel.
+    const qrExclusive = !!opts.qrExclusive;
+    const hideMsg = (s) => 'Hiding in ' + s + 's. Reveal again with your PIN.';
 
-    // Scannable QR for QR sign-in on mobile clients (e.g. Wisp), or to move an
-    // ncryptsec export to another NIP-49-aware app. A QR exposes the full
-    // secret at a glance, so keep it behind an explicit reveal — an opt-in
-    // backup option, not shown unprompted. Generated only on click, so the
-    // scannable image never exists on screen unless requested. Case-sensitive
-    // bech32, so encode as-is (lowercase, byte mode).
-    const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' }); // holds the canvas once revealed
-    const qrHint = h('p', {
-      className: 'hint hidden',
-      textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.',
-    });
+    // ---- text-secret auto-hide ----
+    // The copyable string auto-hides after a short window; its countdown sits at
+    // the bottom. Paused while the QR is open (see below) so the modal can't
+    // close out from under a scan in progress.
+    let remaining = NSEC_REVEAL_TIMEOUT_S;
+    let mainTimer = null;
+    const countdown = h('p', { className: 'hint', textContent: hideMsg(remaining) });
+    function stopMain() { if (mainTimer) { clearInterval(mainTimer); mainTimer = null; } }
+    function startMain() {
+      stopMain();
+      countdown.classList.remove('hidden');
+      countdown.textContent = hideMsg(remaining);
+      mainTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) { stopMain(); if (opts.onExpire) opts.onExpire(); return; }
+        countdown.textContent = hideMsg(remaining);
+      }, 1000);
+    }
+
+    // ---- scannable QR (opt-in, with its own timer) ----
+    // For QR sign-in on mobile clients (e.g. Wisp), moving an ncryptsec to a
+    // NIP-49-aware app, or importing an NWC wallet. A QR exposes the whole secret
+    // at a glance and takes time to scan, so it's behind an explicit reveal,
+    // generated only on click, and carries its OWN visible countdown that hides
+    // just the QR when it lapses — while it's open the text auto-hide is paused.
+    // Case-sensitive bech32/URI, so encode as-is (byte mode).
+    const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' });
+    const qrHint = h('p', { className: 'hint hidden', textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.' });
+    const qrCountdown = h('p', { className: 'hint hidden' });
     const showQr = h('button', { className: 'secondary qr-reveal-btn' });
-    let qrShown = false, qrCanvas = null;
+    let qrShown = false, qrCanvas = null, qrRemaining = QR_REVEAL_TIMEOUT_S, qrTimer = null;
+    const qrMsg = (s) => 'QR code hiding in ' + s + 's.';
     const setQrLabel = () => {
       showQr.innerHTML = '';
       showQr.append(icon('qr'), h('span', { textContent: qrShown ? 'Hide QR code' : 'Show QR code' }));
     };
-    setQrLabel();
-    showQr.addEventListener('click', () => {
-      qrShown = !qrShown;
-      if (qrShown && !qrCanvas) {
+    function stopQr() { if (qrTimer) { clearInterval(qrTimer); qrTimer = null; } }
+    function hideQr() {
+      qrShown = false;
+      stopQr();
+      qrCanvasWrap.classList.add('hidden');
+      qrHint.classList.add('hidden');
+      qrCountdown.classList.add('hidden');
+      if (qrExclusive) { box.classList.remove('hidden'); copy.classList.remove('hidden'); }
+      setQrLabel();
+      startMain(); // resume the text-secret auto-hide
+    }
+    function openQr() {
+      qrShown = true;
+      if (!qrCanvas) {
         qrCanvas = document.createElement('canvas');
         qrCanvas.className = 'recv-qr modal-qr';
-        try { new window.QRious({ element: qrCanvas, value: secret, size: 220, level: 'M' }); } catch (_) {}
+        try { new window.QRious({ element: qrCanvas, value: secret, size: 220, level: qrLevel }); } catch (_) {}
         qrCanvasWrap.append(qrCanvas);
       }
-      qrCanvasWrap.classList.toggle('hidden', !qrShown);
-      qrHint.classList.toggle('hidden', !qrShown);
+      if (qrExclusive) { box.classList.add('hidden'); copy.classList.add('hidden'); }
+      qrCanvasWrap.classList.remove('hidden');
+      qrHint.classList.remove('hidden');
+      stopMain();
+      countdown.classList.add('hidden'); // the paused text countdown would be a frozen distraction
+      qrRemaining = QR_REVEAL_TIMEOUT_S;
+      qrCountdown.textContent = qrMsg(qrRemaining);
+      qrCountdown.classList.remove('hidden');
+      stopQr();
+      qrTimer = setInterval(() => {
+        qrRemaining -= 1;
+        if (qrRemaining <= 0) { hideQr(); return; }
+        qrCountdown.textContent = qrMsg(qrRemaining);
+      }, 1000);
       setQrLabel();
-    });
+    }
+    setQrLabel();
+    showQr.addEventListener('click', () => { if (qrShown) hideQr(); else openQr(); });
 
     const box = h('div', { className: 'secret-box', textContent: secret });
     const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
@@ -2104,15 +2154,6 @@
         toast(noun + ' copied', 'success');
       } catch (_) {}
     });
-    const countdown = h('p', {
-      className: 'hint',
-      textContent: 'Hiding in ' + remaining + 's. Reveal again with your PIN.',
-    });
-    const timer = setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) { clearInterval(timer); if (opts.onExpire) opts.onExpire(); return; }
-      countdown.textContent = 'Hiding in ' + remaining + 's. Reveal again with your PIN.';
-    }, 1000);
 
     container.append(
       box,
@@ -2120,13 +2161,15 @@
       showQr,
       qrCanvasWrap,
       qrHint,
+      qrCountdown, // sits with the QR so its timer is always in view while scanning
       h('p', {
         className: 'hint warn',
         textContent: opts.warnText || 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
       }),
       countdown
     );
-    return () => clearInterval(timer);
+    startMain();
+    return () => { stopMain(); stopQr(); };
   }
 
   // Show a single secret string (nsec) with copy/QR/countdown — used only for
@@ -6097,47 +6140,32 @@
   }
 
   function nwcRevealModal(connection) {
-    let remaining = NSEC_REVEAL_TIMEOUT_S;
-    let timer = null;
+    let stop = null;
     openModal(
       (modal) => {
-        // Scannable QR — NWC URIs are case-sensitive, so don't uppercase, and use
-        // level 'L' for the extra capacity these longer strings need.
-        const canvas = document.createElement('canvas');
-        canvas.className = 'recv-qr modal-qr';
-        try { new window.QRious({ element: canvas, value: connection, size: 220, level: 'L' }); } catch (_) {}
-
-        const box = h('div', { className: 'secret-box', textContent: connection });
-        const copy = h('button', { className: 'secondary', textContent: 'Copy connection string' });
-        copy.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(connection);
-            toast('Connection string copied', 'success');
-          } catch (_) {}
-        });
+        const body = h('div', {});
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
-        const countdown = h('p', {
-          className: 'hint',
-          textContent: 'Hiding in ' + remaining + 's. Reveal again with your PIN.',
-        });
-        timer = setInterval(() => {
-          remaining -= 1;
-          if (remaining <= 0) return closeModal();
-          countdown.textContent = 'Hiding in ' + remaining + 's. Reveal again with your PIN.';
-        }, 1000);
         modal.append(
           h('h3', { textContent: 'Wallet connection string' }),
-          h('p', { className: 'hint', textContent: 'Scan in an NWC-compatible app, or copy the string below to connect the same wallet.' }),
-          canvas,
-          box,
-          copy,
-          h('p', { className: 'hint warn', textContent: 'This string can spend from your wallet up to its limits. Store it safely and never share it.' }),
-          countdown,
+          h('p', { className: 'hint', textContent: 'Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.' }),
+          body,
           h('div', { className: 'actions' }, [done])
         );
+        // Same reveal UX as the nsec/ncryptsec backup: copyable string with an
+        // auto-hide, and an opt-in QR that carries its own timer. NWC URIs are
+        // longer, so the QR uses level 'L' for the extra capacity.
+        stop = renderSecretReveal(body, {
+          secret: connection,
+          noun: 'connection string',
+          qrLevel: 'L',
+          qrExclusive: true, // the URI is long — show the string OR the QR, not both
+          qrHint: 'Scan in an NWC-compatible app to connect the same wallet.',
+          warnText: 'This string can spend from your wallet up to its limits. Store it safely and never share it.',
+          onExpire: closeModal,
+        });
       },
-      () => { if (timer) { clearInterval(timer); timer = null; } }
+      () => { if (stop) stop(); }
     );
   }
 
