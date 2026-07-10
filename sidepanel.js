@@ -680,6 +680,21 @@
     });
   });
 
+  // ---- activity sub-tabs: Connected sites | Recent activity ----
+  // Both panes are populated by renderActivity regardless of which is showing;
+  // this just toggles which one is visible so they're one tap apart instead of a
+  // scroll. Selection persists across re-renders (renderActivity leaves the pane
+  // containers' visibility alone).
+  document.querySelectorAll('#activity-subtabs .modal-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#activity-subtabs .modal-tab').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sub = btn.dataset.subtab;
+      $('activity-pane-sites').classList.toggle('hidden', sub !== 'sites');
+      $('activity-pane-log').classList.toggle('hidden', sub !== 'log');
+    });
+  });
+
   // ---- main / accounts ----
   function shortNpub(npub) {
     return npub && npub.length > 20 ? npub.slice(0, 14) + '…' + npub.slice(-6) : npub || '';
@@ -2489,7 +2504,7 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  function siteRow(host, level, boundPk, authorizedPks) {
+  function siteRow(host, level, boundPk, authorizedPks, onForget) {
     const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
     const isActiveBound = boundPk && boundPk === state.activePubkey;
     // 2+ accounts have signed in here — a multi-login client (Jumble, YakiHonne,
@@ -2537,30 +2552,39 @@
       return row;
     }
 
-    // Bound to the active account (or unbound): tier selector + forget.
-    const sel = document.createElement('select');
-    sel.className = 'level-select';
-    LEVELS.forEach(([v, l]) => {
-      const o = h('option', { value: v, textContent: l });
-      if (v === level) o.selected = true;
-      sel.append(o);
-    });
-    sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
-    // Forget needs a deliberate step — first tap swaps the controls for an inline
-    // "Forget this site?" confirm so a stray click can't wipe a site's trust.
-    const rm = iconButton('Forget site', 'trash', () => {
+    // Bound to the active account (or unbound): tier selector + forget. Both the
+    // forget confirm and its cancel act on THIS row in place (rather than
+    // re-rendering the whole Activity view), so revoking a site deep in an
+    // expanded list doesn't collapse it back to page one — you can act on the
+    // neighbors right away.
+    function buildControls() {
       controls.innerHTML = '';
-      const msg = h('span', { className: 'confirm-msg', textContent: 'Forget this site?' });
-      const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
-      const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
-      no.addEventListener('click', () => renderActivity());
-      yes.addEventListener('click', async () => {
-        await call({ type: 'SIDECAR_REMOVE_HOST', host });
-        renderActivity();
+      const sel = document.createElement('select');
+      sel.className = 'level-select';
+      LEVELS.forEach(([v, l]) => {
+        const o = h('option', { value: v, textContent: l });
+        if (v === level) o.selected = true;
+        sel.append(o);
       });
-      controls.append(msg, yes, no);
-    });
-    controls.append(sel, rm);
+      sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
+      // Forget needs a deliberate step — first tap swaps the controls for an inline
+      // "Forget this site?" confirm so a stray click can't wipe a site's trust.
+      const rm = iconButton('Forget site', 'trash', () => {
+        controls.innerHTML = '';
+        const msg = h('span', { className: 'confirm-msg', textContent: 'Forget this site?' });
+        const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
+        const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+        no.addEventListener('click', buildControls); // restore controls in place
+        yes.addEventListener('click', async () => {
+          await call({ type: 'SIDECAR_REMOVE_HOST', host });
+          row.remove();
+          if (onForget) onForget();
+        });
+        controls.append(msg, yes, no);
+      });
+      controls.append(sel, rm);
+    }
+    buildControls();
     return row;
   }
 
@@ -2677,6 +2701,15 @@
     } else {
       show(sitesFilter);
       sitesFilter.value = '';
+      // A row forgotten in place removes just itself (see siteRow); if that was
+      // the last one, drop to the empty state without a full re-render.
+      const onSiteForgotten = () => {
+        if (sites.querySelector('.site-item')) return;
+        sites.classList.add('empty');
+        listState(sites, 'No sites have connected yet.');
+        hide(sitesMore);
+        hide(sitesFilter);
+      };
       const renderSites = () => {
         sites.innerHTML = '';
         const q = sitesFilter.value.trim().toLowerCase();
@@ -2692,7 +2725,7 @@
         let shownSites = 0;
         const renderSitesPage = () => {
           filtered.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
-            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null))
+            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null, onSiteForgotten))
           );
           shownSites = Math.min(shownSites + SITES_PAGE, filtered.length);
           if (shownSites >= filtered.length) hide(sitesMore);
