@@ -1,6 +1,6 @@
 # Sidecar Privacy Policy
 
-_Last updated: 2026-07-03_
+_Last updated: 2026-07-09_
 
 Sidecar is a browser extension that acts as a Nostr signer (NIP-07) and a
 Lightning wallet client (Nostr Wallet Connect / NIP-47). It is designed so that
@@ -14,9 +14,11 @@ what it sends, and what it does not do.
 - Your **private keys (nsecs) never leave your device**. They are encrypted at
   rest and used only locally to produce signatures.
 - Sidecar collects **no analytics, no telemetry, and no tracking** of any kind.
-- The only network connections Sidecar makes are to the **Nostr relays you
-  configure** and to **your own Lightning wallet** (via the Nostr Wallet Connect
-  string you provide).
+- The only servers Sidecar contacts are ones tied to an action you take: the
+  **Nostr relays you configure**, **your own Lightning wallet** (via the Nostr
+  Wallet Connect string you provide), and a few services described below (link
+  previews, media uploads, and @-mention search). Nothing is sent to the
+  developer.
 
 ## What is stored, and where
 
@@ -55,9 +57,20 @@ Sidecar only talks to services **you choose**:
   description, image) tags. This contacts the linked site directly; no
   third-party preview service is involved, and requests to private or local
   network addresses are blocked.
+- **Media uploads** — when you attach an image or video to a note, it is
+  uploaded so it can be included. Uploads go to your own Blossom media
+  server(s) (from your kind:10063 list) when you have them configured, and
+  otherwise fall back to **nostr.build**. Only the media you choose to attach is
+  sent.
+- **@-mention search** — when you type `@` in the composer to mention someone,
+  Sidecar searches your follows locally and also queries the **Nostr Archives**
+  search API so you can find any Nostr user by name. Only the text you type in
+  the mention search is sent.
 
-Sidecar does not send any of this data to the developer or to any third party
-beyond the relays and wallet you configure.
+Sidecar does not send any of this data to the developer. The services above are
+the only ones it contacts — those you configure (relays, wallet) or invoke by a
+specific action (a link preview, a media upload, an @-mention search) — and there
+is no analytics or tracking of any kind.
 
 ## Permissions
 

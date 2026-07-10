@@ -9,6 +9,7 @@
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
   // a stored value is missing or invalid.
   const AUTOZAP_DEFAULT_MAX = 100;
+  const AUTOZAP_DAILY_MULT = 5; // default daily cap = 5× the per-zap cap
 
   // ---- messaging ----
   function bg(message) {
@@ -2444,8 +2445,11 @@
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     $('autozap-toggle').checked = settings.autoZap === true;
-    $('autozap-max').value = String(settings.autoZapMaxSats || AUTOZAP_DEFAULT_MAX);
+    const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
+    $('autozap-max').value = String(azMax);
+    $('autozap-daily-max').value = String(Number(settings.autoZapDailyMaxSats) || azMax * AUTOZAP_DAILY_MULT);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
+    $('autozap-daily-row').classList.toggle('hidden', !$('autozap-toggle').checked);
 
     const cdOn = settings.noteCountdown !== false; // default on
     const cdSecs = NOTE_COUNTDOWN_PRESETS.includes(settings.noteCountdownSecs) ? settings.noteCountdownSecs : NOTE_COUNTDOWN_DEFAULT;
@@ -6836,15 +6840,28 @@
   $('autozap-toggle').addEventListener('change', async (e) => {
     const on = e.target.checked;
     $('autozap-max-row').classList.toggle('hidden', !on);
+    $('autozap-daily-row').classList.toggle('hidden', !on);
     const max = Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX);
     $('autozap-max').value = String(max);
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max } });
+    const daily = Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT);
+    $('autozap-daily-max').value = String(daily);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
   });
 
   $('autozap-max').addEventListener('change', async (e) => {
     const max = Math.max(1, parseInt(e.target.value, 10) || AUTOZAP_DEFAULT_MAX);
     e.target.value = String(max);
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapMaxSats: max } });
+    // Keep the daily total at or above the per-zap cap.
+    const daily = Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT);
+    $('autozap-daily-max').value = String(daily);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
+  });
+
+  $('autozap-daily-max').addEventListener('change', async (e) => {
+    const perZap = Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX);
+    const daily = Math.max(perZap, parseInt(e.target.value, 10) || perZap * AUTOZAP_DAILY_MULT);
+    e.target.value = String(daily);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapDailyMaxSats: daily } });
   });
 
   $('relay-add').addEventListener('click', async () => {
