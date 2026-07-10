@@ -233,11 +233,16 @@
 
       <div class="setting">
         <h3>Automatic zaps</h3>
-        <p class="hint">Pay zaps without a prompt, up to a limit per zap. Larger zaps and all other payments still ask.</p>
+        <p class="hint">Pay zaps without a prompt, up to a limit per zap and a daily total across all sites. Larger zaps, anything over the daily total, and all other payments still ask.</p>
         <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>
         <label class="toggle-row hidden" id="autozap-max-row">
           <span>Max per zap</span>
           <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
+          <span>sats</span>
+        </label>
+        <label class="toggle-row hidden" id="autozap-daily-row">
+          <span>Max per day</span>
+          <input type="text" inputmode="numeric" id="autozap-daily-max" class="autozap-max-input" />
           <span>sats</span>
         </label>
       </div>

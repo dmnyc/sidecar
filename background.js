@@ -1107,11 +1107,42 @@ function isZapInvoice(invoice) {
   }
 }
 
+// ---- payment serialization + auto-zap aggregate cap ----
+// Payments run one-at-a-time per account: without this, a burst of concurrent
+// webln.sendPayment calls could each pass the budget / auto-zap check before any
+// of them records a debit (a check-then-pay-then-record race that lets a site
+// overspend its limit). Auto-zaps additionally count against a rolling daily
+// total, so a signed-in site can't drain the wallet by firing many zaps that are
+// each under the per-zap cap — the per-zap limit alone bounds nothing in aggregate.
+const PAY_DAY_MS = 24 * 60 * 60 * 1000;
+const AUTOZAP_DAILY_MULTIPLE = 5; // default daily cap = 5× the per-zap cap when unset
+const AUTOZAP_WINDOW_KEY = 'sidecar_autozap_window';
+const payLocks = new Map(); // pubkey -> tail of the serialized payment chain
+function withPayLock(pubkey, fn) {
+  const prev = payLocks.get(pubkey) || Promise.resolve();
+  const run = prev.then(fn, fn); // run whether or not the previous payment threw
+  payLocks.set(pubkey, run.then(() => {}, () => {})); // keep the chain alive; swallow on the tail
+  return run;
+}
+async function autoZapWindow() {
+  const w = (await sget(AUTOZAP_WINDOW_KEY))[AUTOZAP_WINDOW_KEY];
+  const now = Date.now();
+  if (!w || !w.resetAt || now >= w.resetAt) return { spent: 0, resetAt: now + PAY_DAY_MS };
+  return { spent: Number(w.spent) || 0, resetAt: w.resetAt };
+}
+async function recordAutoZap(sats) {
+  const { spent, resetAt } = await autoZapWindow();
+  await sset({ [AUTOZAP_WINDOW_KEY]: { spent: spent + Math.max(0, Math.floor(sats || 0)), resetAt } });
+}
+
 // Shared payment core: budget-gate (prompt if needed), pay via NWC, decrement
 // budget, log, and notify the panel. Used by window.webln.sendPayment AND the
 // "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
-// checked the account/site is usable.
-async function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
+// checked the account/site is usable. Serialized per account (see withPayLock).
+function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
+  return withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId));
+}
+async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) {
   const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
   if (!invoice) throw new Error('No invoice provided');
   if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
@@ -1123,7 +1154,18 @@ async function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
   const unlocked = !KS.isLocked() && sats != null;
   const budgetOk = unlocked && (await BUDGETS.covers(pubkey, host, sats));
   const zapMax = settings.autoZap === true ? Number(settings.autoZapMaxSats) || 0 : 0;
-  const zapOk = unlocked && zapMax > 0 && sats <= zapMax && isZapInvoice(invoice);
+  // Auto-zap is gated by BOTH a per-zap cap and a rolling daily aggregate cap.
+  // The daily cap defaults to a multiple of the per-zap cap when unset, so
+  // existing auto-zap users are bounded without having to reconfigure.
+  const dailyMaxSet = Number(settings.autoZapDailyMaxSats);
+  const zapDailyMax = settings.autoZap === true
+    ? (dailyMaxSet > 0 ? dailyMaxSet : zapMax * AUTOZAP_DAILY_MULTIPLE)
+    : 0;
+  let zapOk = false;
+  if (unlocked && zapMax > 0 && sats <= zapMax && isZapInvoice(invoice)) {
+    const { spent } = await autoZapWindow();
+    zapOk = zapDailyMax > 0 && spent + sats <= zapDailyMax;
+  }
   const autoOk = budgetOk || zapOk;
 
   if (!autoOk) {
@@ -1160,6 +1202,9 @@ async function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
 
   // Decrement the budget by the paid amount (known amount only).
   if (sats != null) await BUDGETS.consume(pubkey, host, sats);
+  // Count an auto-zap (one authorized solely by the zap allowance) against the
+  // rolling daily total, so the aggregate cap is enforced across the window.
+  if (zapOk && !budgetOk && sats != null) await recordAutoZap(sats);
 
   await setSiteAccount(host, pubkey);
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
@@ -1630,6 +1675,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // the window the user is actually looking at (see driveOnce), not wherever a
   // pinned panel or the last-focused window happens to be.
   const originWindowId = sender && sender.tab && sender.tab.windowId != null ? sender.tab.windowId : undefined;
+
+  // ---- sender gate (defense in depth) ----
+  // A web page can't reach chrome.runtime messaging at all (no
+  // externally_connectable), and our content script only ever forwards the types
+  // in CONTENT_OK. But the keystore/wallet/owner-crypto/prompt handlers below are
+  // the crown jewels, so we ALSO hard-require an extension-page origin for
+  // everything a content script doesn't legitimately need — the identity check is
+  // the sender's ORIGIN (our pages are chrome-extension://<id>/…; a content
+  // script carries the web page's origin), NOT sender.tab (prompt.html and
+  // welcome.html are extension pages that DO have a tab). This way no future
+  // content-script bug can pivot a hostile page into signing, key reveal,
+  // decryption, unlock, or settling an approval.
+  const EXT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
+  const fromExtPage = !!sender && (
+    sender.origin === EXT_ORIGIN ||
+    (typeof sender.url === 'string' && sender.url.startsWith(EXT_ORIGIN + '/'))
+  );
+  const CONTENT_OK = new Set([
+    'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',
+    'SIDECAR_IS_CONNECTED', 'SIDECAR_GET_SETTINGS', 'SIDECAR_SET_SETTINGS',
+  ]);
+  if (!fromExtPage && !CONTENT_OK.has(message.type)) {
+    sendResponse({ ok: false, error: 'Not allowed from this context' });
+    return false;
+  }
+  if (!fromExtPage && message.type === 'SIDECAR_SET_SETTINGS') {
+    // Clamp a web-origin settings write to the pay-card toggle only — never
+    // autozap, budgets, autolock, or any other setting.
+    const s = message.settings || {};
+    message = { type: 'SIDECAR_SET_SETTINGS', settings: 'showPayButton' in s ? { showPayButton: !!s.showPayButton } : {} };
+  }
 
   // Page RPC from content script.
   if (message.type === 'SIDECAR_NOSTR_RPC') {
