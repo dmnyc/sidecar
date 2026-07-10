@@ -674,7 +674,7 @@
       const name = tab.dataset.tab;
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-' + name));
-      if (name === 'activity') renderActivity();
+      if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
     });
@@ -2667,6 +2667,12 @@
     return row;
   }
 
+  // How far each paginated Activity list is expanded, kept across re-renders so a
+  // live refresh (a permission edit writes storage → the listener re-renders) or
+  // a forget doesn't collapse a long list back to page one mid-edit. 0 = default
+  // first page. Reset when the Activity tab is opened fresh (see the tab handler).
+  let sitesShownN = 0;
+  let logShownN = 0;
   async function renderActivity() {
     const [perms, bindings, authorized, log] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
@@ -2720,21 +2726,25 @@
           hide(sitesMore);
           return;
         }
-        // The list can get long — show a handful, then paginate (like the log below).
+        // The list can get long — show a handful, then paginate (like the log
+        // below). Re-render restores however far it was expanded (sitesShownN) so
+        // a live refresh or forget mid-edit doesn't collapse it to page one.
         const SITES_PAGE = 6;
         let shownSites = 0;
         const renderSitesPage = () => {
-          filtered.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
+          const target = Math.min(Math.max(SITES_PAGE, sitesShownN), filtered.length);
+          filtered.slice(shownSites, target).forEach((host) =>
             sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null, onSiteForgotten))
           );
-          shownSites = Math.min(shownSites + SITES_PAGE, filtered.length);
+          shownSites = target;
+          sitesShownN = target;
           if (shownSites >= filtered.length) hide(sitesMore);
           else {
             show(sitesMore);
             sitesMore.textContent = 'Show more (' + (filtered.length - shownSites) + ')';
           }
         };
-        sitesMore.onclick = renderSitesPage;
+        sitesMore.onclick = () => { sitesShownN = Math.min(shownSites + SITES_PAGE, filtered.length); renderSitesPage(); };
         renderSitesPage();
       };
       sitesFilter.oninput = renderSites;
@@ -2765,15 +2775,17 @@
       const PAGE = 30;
       let shown = 0;
       function renderPage() {
-        filtered.slice(shown, shown + PAGE).forEach((e) => list.append(activityRow(e)));
-        shown = Math.min(shown + PAGE, filtered.length);
+        const target = Math.min(Math.max(PAGE, logShownN), filtered.length);
+        filtered.slice(shown, target).forEach((e) => list.append(activityRow(e)));
+        shown = target;
+        logShownN = target;
         if (shown >= filtered.length) hide(more);
         else {
           show(more);
           more.textContent = 'Show more (' + (filtered.length - shown) + ')';
         }
       }
-      more.onclick = renderPage;
+      more.onclick = () => { logShownN = Math.min(shown + PAGE, filtered.length); renderPage(); };
       renderPage();
     };
     activityFilter.oninput = renderActivityLog;
@@ -2802,7 +2814,14 @@
     const filterBusy = (el) => el && !el.classList.contains('hidden') && (el.value.trim() || document.activeElement === el);
     if (filterBusy(sitesFilter) || filterBusy(actFilter)) return;
     clearTimeout(activityRefreshTimer);
-    activityRefreshTimer = setTimeout(() => renderActivity(), 400);
+    activityRefreshTimer = setTimeout(async () => {
+      // Keep the scroll position across a live re-render (a permission edit lands
+      // here via storage) so editing a site deep in the list doesn't jump to top.
+      const scroller = $('tab-activity').closest('.content');
+      const top = scroller ? scroller.scrollTop : 0;
+      await renderActivity();
+      if (scroller) scroller.scrollTop = top;
+    }, 400);
   });
 
   // ---- profile (active account): view + edit + publish kind 0 ----
