@@ -28,9 +28,12 @@
       --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
-      padding: 22px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
       font-family: var(--font-ui);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
@@ -44,6 +47,22 @@
       background-attachment: fixed;
     }
     body { text-align: center; }
+    /* Scrollable content + a footer that keeps Allow/Reject in view no matter how
+       tall the body grows (heads-up card, preview, switch menu, unlock field). */
+    /* The scrollable content fades out at its bottom edge, so text visibly
+       dissolves above the buttons — an unmistakable "there's more to scroll". */
+    .prompt-scroll {
+      flex: 1 1 auto; overflow-y: auto; padding: 22px 22px 6px;
+      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+    }
+    .prompt-footer {
+      flex-shrink: 0;
+      padding: 10px 22px 18px;
+      background: rgba(12, 3, 26, 0.55);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
     .brand { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
     .brand img { height: 26px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
     .host {
@@ -93,6 +112,11 @@
       margin-top: 8px; padding: 8px 10px; border-radius: 8px;
       background: rgba(255, 179, 138, 0.1); border: 1px solid rgba(255, 179, 138, 0.3);
       color: #ffb38a; font-size: 12px; text-align: left;
+    }
+    .info-note {
+      margin-bottom: 16px; padding: 9px 11px; border-radius: 8px;
+      background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.22);
+      color: var(--muted); font-size: 11.5px; line-height: 1.45; text-align: left;
     }
     .account { margin-bottom: 18px; }
     .switch-toggle {
@@ -176,35 +200,40 @@
   </style>
 </head>
 <body>
-  <div class="brand"><img src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
-  <div class="host" id="host">…</div>
-  <div class="ask" id="ask">wants to…</div>
+  <div class="prompt-scroll">
+    <div class="brand"><img src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+    <div class="host" id="host">…</div>
+    <div class="ask" id="ask">wants to…</div>
 
-  <div id="preview" class="card hidden"></div>
+    <div id="preview" class="card hidden"></div>
 
-  <div class="account" id="account"></div>
-  <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
-  <div class="switch-menu hidden" id="switch-menu"></div>
+    <div id="decrypt-note" class="info-note hidden"></div>
 
-  <div id="unlock" class="hidden">
-    <label for="pin">Enter your PIN to unlock</label>
-    <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
-  </div>
+    <div class="account" id="account"></div>
+    <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
+    <div class="switch-menu hidden" id="switch-menu"></div>
 
-  <div id="remember" class="remember hidden">
-    <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
-    <div class="budget-row">
-      <input type="number" id="budget-amount" min="1" placeholder="sats" />
-      <span class="budget-unit">sats / day without asking</span>
+    <div id="unlock" class="hidden">
+      <label for="pin">Enter your PIN to unlock</label>
+      <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
+    </div>
+
+    <div id="remember" class="remember hidden">
+      <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
+      <div class="budget-row">
+        <input type="number" id="budget-amount" min="1" placeholder="sats" />
+        <span class="budget-unit">sats / day without asking</span>
+      </div>
     </div>
   </div>
 
-  <div class="error" id="error"></div>
-
-  <div class="actions">
-    <button class="primary" id="allow">Allow once</button>
-    <button class="lav-btn" id="trust">Trust this site</button>
-    <button class="ghost" id="reject">Reject</button>
+  <div class="prompt-footer">
+    <div class="error" id="error"></div>
+    <div class="actions">
+      <button class="primary" id="allow">Allow once</button>
+      <button class="lav-btn" id="trust">Trust this site</button>
+      <button class="ghost" id="reject">Reject</button>
+    </div>
   </div>
 
   <script src="prompt.js"></script>

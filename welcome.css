@@ -63,15 +63,6 @@ body {
   margin-bottom: 52px;
 }
 
-.wordmark {
-  height: 40px;
-  width: auto;
-  margin-bottom: 20px;
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 .header h1 {
   font-family: var(--font-display);
   font-size: 44px;
@@ -249,12 +240,10 @@ body {
 /* Category badge palette */
 .cat-social   { background: rgba(167, 139, 250, 0.14); color: var(--lav); }
 .cat-media    { background: rgba(234, 119, 47,  0.14); color: var(--orange); }
-.cat-reading  { background: rgba(203, 161, 78,  0.14); color: var(--gold); }
 .cat-gaming   { background: rgba(52,  211, 153, 0.14); color: #34d399; }
-.cat-food     { background: rgba(74,  222, 128, 0.14); color: #4ade80; }
-.cat-images   { background: rgba(248, 113, 113, 0.14); color: #f87171; }
 .cat-commerce { background: rgba(232, 121, 249, 0.14); color: #e879f9; }
 .cat-tools    { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+.cat-other    { background: rgba(203, 161, 78,  0.14); color: var(--gold); }
 
 /* ===== Footer ===== */
 
@@ -373,4 +362,116 @@ body {
 
 @media (max-width: 400px) {
   .grid { grid-template-columns: 1fr; }
+}
+
+/* ===== Standalone-page top nav (shared by help, welcome, wallets) ===== */
+
+.helpnav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 24px;
+  background: rgba(10, 1, 24, 0.88);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.helpnav-brand { display: flex; align-items: center; flex-shrink: 0; }
+.helpnav-brand img { height: 22px; width: auto; }
+
+/* Menu wrapper: inline on desktop, a dropdown behind the burger on mobile.
+   Toggling is CSS-only (a visually-hidden checkbox the burger label flips). */
+.helpnav-menu { display: flex; align-items: center; gap: 18px; flex: 1; min-width: 0; }
+.helpnav-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.helpnav-burger { display: none; }
+
+.helpnav-links {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.helpnav-links a,
+.helpnav-pages a {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.helpnav-links a:hover,
+.helpnav-pages a:hover { color: var(--text-2); }
+
+.helpnav-links a.active,
+.helpnav-pages a.active {
+  background: rgba(167, 139, 250, 0.14);
+  color: var(--lav);
+}
+
+/* "Guide" back-link: sits on the left next to the logo, before the divider */
+.helpnav-guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gold);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+.helpnav-guide:hover { color: var(--amber); }
+.helpnav-guide .helpnav-back { font-size: 17px; line-height: 1; }
+
+.helpnav-pages {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.helpnav-pages a { color: var(--gold); }
+.helpnav-pages a:hover { color: var(--amber); }
+
+@media (max-width: 780px) {
+  .helpnav { padding: 10px 14px; gap: 10px; }
+  .helpnav-burger {
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: auto; flex-shrink: 0;
+    width: 38px; height: 38px; padding: 0;
+    color: var(--muted); background: none; border: none; border-radius: 9px; cursor: pointer;
+  }
+  .helpnav-burger:hover { color: var(--text-2); background: rgba(167, 139, 250, 0.10); }
+  .helpnav-burger svg { width: 22px; height: 22px; }
+  .helpnav-menu {
+    display: none;
+    position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; align-items: stretch;
+    flex: none; gap: 2px; padding: 6px 10px 12px;
+    background: rgba(10, 1, 24, 0.97);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+  }
+  .helpnav-toggle:checked ~ .helpnav-menu { display: flex; }
+  .helpnav-links,
+  .helpnav-pages {
+    display: flex; flex-direction: column; align-items: stretch;
+    flex: none; gap: 2px; margin: 0; padding: 0; border: none;
+  }
+  .helpnav-links a,
+  .helpnav-pages a,
+  .helpnav-guide { padding: 11px 12px; font-size: 15px; border-radius: 10px; }
 }

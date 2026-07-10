@@ -12,6 +12,7 @@
     host: $('host'),
     ask: $('ask'),
     preview: $('preview'),
+    decryptNote: $('decrypt-note'),
     account: $('account'),
     switchToggle: $('switch-toggle'),
     switchMenu: $('switch-menu'),
@@ -66,9 +67,10 @@
     11: 'Thread', 13: 'Seal', 14: 'Direct message', 15: 'File message', 16: 'Generic repost',
     17: 'Reaction (website)', 20: 'Picture', 21: 'Video', 22: 'Short video',
     1063: 'File metadata', 1111: 'Comment', 1311: 'Live chat message', 1984: 'Report',
+    4454: 'DM device key', 4455: 'DM key transfer',
     9734: 'Zap request', 9735: 'Zap receipt', 9802: 'Highlight',
     10000: 'Mute list', 10001: 'Pin list', 10002: 'Relay list', 10003: 'Bookmark list',
-    10063: 'Blossom server list',
+    10044: 'DM encryption key', 10050: 'DM relay list', 10063: 'Blossom server list',
     13194: 'Wallet info', 22242: 'Relay auth', 23194: 'Wallet request', 23195: 'Wallet response',
     24133: 'Remote signing handshake', 27235: 'HTTP auth',
     30000: 'Follow set', 30002: 'Relay set', 30003: 'Bookmark set', 30008: 'Badge set',
@@ -159,6 +161,16 @@
     els.ask.textContent = verb;
     buildAccountCapsule();
     renderPreview();
+
+    // Decrypt-burst note: a client loading a DM inbox fires many decrypt requests
+    // at once. Allowing covers that whole burst and briefly lets this site keep
+    // decrypting, so the signer isn't hammered with one prompt per message — be
+    // upfront that "Allow" here is broader than a single message.
+    if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
+      els.decryptNote.textContent =
+        'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+      els.decryptNote.classList.remove('hidden');
+    }
 
     // Shared-identity confirm: this host is signed in with more than one of your
     // accounts, so make the "who's posting" choice explicit and relabel the

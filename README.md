@@ -97,7 +97,7 @@ Or regenerate it manually any time:
 | Crypto & keystore | `crypto.js`, `keystore.js`, `permissions.js`, `signer.js` |
 | Approval prompt | `prompt.html`, `prompt.js` |
 | Side panel UI | `sidepanel.html`, `sidepanel.js`, `styles.css`, `fonts.css` |
-| Standalone pages | `welcome.html`/`welcome.js` (Nostr app directory, first-run), `wallets.html`/`wallets.js`/`wallets.css` (NWC wallet suggestions) |
+| Standalone pages | `welcome.html`/`welcome.js` (Nostr app directory, first-run), `wallets.html`/`wallets.js`/`wallets.css` (NWC wallet suggestions), `help.html`/`help.js`/`help.css` (help & guides) |
 | Lightning (NWC / NIP-47) | `nwc-client.js`, `wallet-budgets.js` |
 | Vendored | `nostr-tools.js`, `qrious.min.js` (receive QR), `jsqr.js` (scan QR to pay), `fonts/` (Playfair Display + Manrope, SIL OFL) |
 | Generated | `version.js` (build stamp), `scripts/stamp-version.sh` |

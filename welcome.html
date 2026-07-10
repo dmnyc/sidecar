@@ -8,10 +8,26 @@
   <link rel="stylesheet" href="welcome.css">
 </head>
 <body>
+  <nav class="helpnav">
+    <a class="helpnav-brand" href="help.html" title="Back to the guide">
+      <img src="icons/sidecar-logo.svg" alt="Sidecar">
+    </a>
+    <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
+    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </label>
+    <div class="helpnav-menu">
+      <a class="helpnav-guide" href="help.html"><span class="helpnav-back" aria-hidden="true">&lsaquo;</span> Guide</a>
+      <div class="helpnav-pages">
+        <a href="welcome.html" class="active" aria-current="page">Nostr apps</a>
+        <a href="wallets.html">Wallets</a>
+      </div>
+    </div>
+  </nav>
+
   <div class="page">
 
     <header class="header">
-      <img class="wordmark" src="icons/sidecar-logo.svg" alt="Sidecar">
       <h1>Your Nostr signer is ready.</h1>
       <p>Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.</p>
     </header>
@@ -21,10 +37,9 @@
       <button class="filter-btn" data-cat="social">Social</button>
       <button class="filter-btn" data-cat="media">Media</button>
       <button class="filter-btn" data-cat="gaming">Gaming</button>
-      <button class="filter-btn" data-cat="food">Food</button>
-      <button class="filter-btn" data-cat="images">Images</button>
       <button class="filter-btn" data-cat="commerce">Commerce</button>
       <button class="filter-btn" data-cat="tools">Tools</button>
+      <button class="filter-btn" data-cat="other">Other Stuff</button>
     </div>
 
     <div class="grid" id="grid"></div>

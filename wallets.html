@@ -9,10 +9,26 @@
   <link rel="stylesheet" href="wallets.css">
 </head>
 <body>
+  <nav class="helpnav">
+    <a class="helpnav-brand" href="help.html" title="Back to the guide">
+      <img src="icons/sidecar-logo.svg" alt="Sidecar">
+    </a>
+    <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
+    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </label>
+    <div class="helpnav-menu">
+      <a class="helpnav-guide" href="help.html"><span class="helpnav-back" aria-hidden="true">&lsaquo;</span> Guide</a>
+      <div class="helpnav-pages">
+        <a href="welcome.html">Nostr apps</a>
+        <a href="wallets.html" class="active" aria-current="page">Wallets</a>
+      </div>
+    </div>
+  </nav>
+
   <div class="page">
 
     <header class="header">
-      <img class="wordmark" src="icons/sidecar-logo.svg" alt="Sidecar">
       <h1>Pick a Lightning wallet.</h1>
       <p>Sidecar connects to any wallet that supports Nostr Wallet Connect (NWC). Choose one below, create a connection string in it, then paste that into Sidecar's Wallet tab. Sidecar never holds your funds.</p>
     </header>
