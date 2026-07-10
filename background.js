@@ -7,8 +7,16 @@
 //
 // Decrypted private keys live only in the keystore's in-memory map here. If this worker
 // is killed (MV3 ~30s idle), that map is gone and the keystore re-locks — a feature.
+//
+// Chrome runs this file as a service worker and pulls its deps in via importScripts;
+// Firefox has no MV3 service workers and runs it as an event page (a window, where
+// importScripts doesn't exist) with the same files already loaded, in the same order,
+// via manifest background.scripts. Both suspend after ~30s idle, so the
+// survive-restart machinery below applies equally to both.
 
-importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js');
+if (typeof importScripts === 'function') {
+  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js');
+}
 
 const KS = self.SidecarKeystore;
 const PERMS = self.SidecarPermissions;
@@ -193,7 +201,7 @@ async function logActivity(entry) {
 
 // ---- side panel open on toolbar click ----
 chrome.runtime.onInstalled.addListener((details) => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  if (chrome.sidePanel) chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   createPayMenu();
   if (details.reason === 'install') {
     chrome.storage.local.remove('firstPostTipDismissed');
@@ -201,7 +209,13 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 chrome.action.onClicked.addListener((tab) => {
-  chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+  if (chrome.sidePanel) {
+    chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+  } else if (typeof browser !== 'undefined' && browser.sidebarAction) {
+    // Firefox sidebar. toggle() only works when called synchronously from the
+    // user-input handler — no awaits before this line.
+    browser.sidebarAction.toggle();
+  }
 });
 
 // ============================================================================
@@ -1286,7 +1300,12 @@ function extractInvoice(text) {
 // run jsQR. jsQR is heavy (~250KB) so it's imported lazily, only on first QR pay.
 let jsqrReady = false;
 function ensureJsQR() {
-  if (!jsqrReady) { importScripts('jsqr.js'); jsqrReady = true; }
+  // Firefox (event page) has no importScripts — jsqr.js is loaded up front via
+  // manifest background.scripts there, so it's already on self.
+  if (!jsqrReady) {
+    if (typeof importScripts === 'function') importScripts('jsqr.js');
+    jsqrReady = true;
+  }
   return self.jsQR;
 }
 async function invoiceFromQrImage(srcUrl) {
