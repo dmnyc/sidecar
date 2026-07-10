@@ -93,6 +93,21 @@ Sidecar has **no build step** — it's plain JavaScript loaded directly. To run 
 
 7. **Use it on a Nostr site.** Open any NIP-07 client (e.g. [Jumble](https://jumble.social), [Coracle](https://coracle.social), [noStrudel](https://nostrudel.ninja)) and choose "log in with extension" — Sidecar will prompt you to approve.
 
+#### Firefox (experimental, temporary add-on)
+
+The Firefox port is in progress (see [FIREFOX_PORT.md](FIREFOX_PORT.md)). To try the
+current state on Firefox **128 or later**:
+
+1. Visit `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on…** and select `manifest.json` in the `sidecar` folder.
+3. Click the Sidecar toolbar icon to toggle the sidebar, set a PIN, and add an account.
+
+Temporary add-ons are removed when Firefox quits — reload after each restart. If
+`window.nostr` doesn't appear on web pages, grant site access under
+`about:addons` → Sidecar → **Permissions** → *Access your data for all websites*.
+Signing on live clients is still being ported, so expect rough edges beyond the
+account flow.
+
 **Updating:** Chrome Web Store installs update automatically — you can trigger a check any time from **Settings → Updates** or the About dialog. For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
 
 ### Build version stamp (optional)

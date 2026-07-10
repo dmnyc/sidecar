@@ -6935,6 +6935,8 @@
       const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Donate '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
+      // Firefox has no requestUpdateCheck — the browser updates add-ons itself.
+      const canCheckUpdates = typeof chrome.runtime.requestUpdateCheck === 'function';
       const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
       const updateStatus = h('p', { className: 'hint about-update-status' });
       updateBtn.addEventListener('click', () => checkForUpdates(updateBtn, updateStatus));
@@ -6946,8 +6948,8 @@
           h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
           h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
           ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
-          updateBtn,
-          updateStatus,
+          canCheckUpdates ? updateBtn : document.createTextNode(''),
+          canCheckUpdates ? updateStatus : document.createTextNode(''),
           h('div', { className: 'about-links' }, [website, repo, support, privacy, zap]),
         ])
       );
@@ -7100,9 +7102,15 @@
     renderSettings();
   });
 
-  $('check-update-btn').addEventListener('click', () => {
-    checkForUpdates($('check-update-btn'), $('check-update-status'));
-  });
+  if (typeof chrome.runtime.requestUpdateCheck === 'function') {
+    $('check-update-btn').addEventListener('click', () => {
+      checkForUpdates($('check-update-btn'), $('check-update-status'));
+    });
+  } else {
+    // Firefox has no on-demand update check — the browser updates add-ons itself.
+    $('check-update-btn').hidden = true;
+    $('check-update-status').textContent = 'Updates install automatically through your browser.';
+  }
 
   $('export-vault-btn').addEventListener('click', () => exportVaultModal());
   $('import-vault-btn').addEventListener('click', () => $('import-vault-file').click());

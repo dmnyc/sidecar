@@ -140,10 +140,11 @@ one place parity requires *new* surface:
    `contains` simply always returns true — the code can be unconditional, which
    keeps one code path).
 
-For development, the manifest flag `"granted_host_permissions": true` auto-grants
-hosts on temporary loads via `about:debugging` (it has no effect on installed
-builds) — worth adding so the dev workflow isn't gated on manual grants, and worth
-a line in the README dev-install section.
+For development: temporary loads via `about:debugging` grant install-time
+permission requests silently on current Firefox (the `granted_host_permissions`
+manifest key is privileged-only and ignored for ordinary add-ons — don't ship it).
+If a dev build still lacks site access, it can be toggled at
+`about:addons` → Permissions; the README dev-install section documents this.
 
 ### W5 — Sidebar wiring
 
