@@ -1740,6 +1740,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .approval-actions { display: flex; flex-direction: column; gap: 8px; }
 .approval-actions button { width: 100%; }
 
+/* Vault backup: full-width, evenly-stacked export/import buttons. */
+.vault-actions { display: flex; flex-direction: column; gap: 8px; }
+.vault-actions .secondary { width: 100%; }
+
 /* "allow this site to spend up to N/day" budget toggle (inline approval + popup) */
 .remember { margin-bottom: 14px; }
 .remember .check { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text); font-size: 13px; margin-bottom: 8px; cursor: pointer; }

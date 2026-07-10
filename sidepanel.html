@@ -279,8 +279,10 @@
       <div class="setting">
         <h3>Vault backup</h3>
         <p class="hint">Export every account's private key (and connected wallet, if any) into one encrypted file, or restore from one. This is separate from a single account's nsec/ncryptsec backup in its account menu.</p>
-        <button class="secondary" id="export-vault-btn">Export encrypted vault…</button>
-        <button class="secondary" id="import-vault-btn">Import vault…</button>
+        <div class="vault-actions">
+          <button class="secondary" id="export-vault-btn">Export encrypted vault…</button>
+          <button class="secondary" id="import-vault-btn">Import vault…</button>
+        </div>
         <input type="file" id="import-vault-file" accept="application/json" class="hidden" />
       </div>
 
