@@ -1683,6 +1683,35 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-size: 12px; white-space: pre-wrap; word-break: break-word;
   max-height: 160px; overflow: auto; color: var(--text);
 }
+/* Event-content preview: short by default (keeps the account card in view),
+   expandable, with a Formatted/Raw toggle for note-like kinds. The formatted view
+   reuses the composer's note renderer, so its media/mention/embed children are
+   styled by the existing .note-media / .mention / .note-embed rules. */
+.evpreview {
+  background: rgba(8, 2, 20, 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
+  font-size: 12.5px; line-height: 1.5; color: var(--text);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.evpreview.mono { font-family: var(--font-mono); font-size: 12px; }
+.evpreview.clamped {
+  max-height: 120px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+.evpreview:not(.clamped) { max-height: 320px; overflow-y: auto; }
+.evpreview-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 7px; }
+.evpreview-modes { display: flex; gap: 12px; }
+.evpreview-mode {
+  background: none; border: none; padding: 2px 0; cursor: pointer;
+  color: var(--muted); font-size: 12px; font-family: inherit;
+}
+.evpreview-mode:hover { color: var(--text); }
+.evpreview-mode.active { color: var(--lav); font-weight: 600; }
+.evpreview-toggle {
+  background: none; border: none; padding: 2px 0; cursor: pointer;
+  color: var(--lav); font-size: 12px; font-family: inherit;
+}
+.evpreview-toggle:hover { color: var(--text); }
 .kind-warn {
   margin-top: 8px; padding: 8px 10px; border-radius: 8px;
   background: rgba(255, 179, 138, 0.1); border: 1px solid rgba(255, 179, 138, 0.3);

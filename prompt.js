@@ -97,6 +97,127 @@
     return KIND_WARNINGS[kind] || (!KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
   }
 
+  // The renderable note text for an event: kind:1 → its content; kind 6/16 reposts →
+  // the embedded original event's content (a repost's content field is that event's
+  // JSON). Falls back to the raw content if it isn't a parseable embedded event.
+  function noteTextForEvent(ev) {
+    if (ev.kind === 6 || ev.kind === 16) {
+      try { const inner = JSON.parse(ev.content); if (inner && typeof inner.content === 'string') return inner.content; } catch (_) {}
+    }
+    return String(ev.content == null ? '' : ev.content);
+  }
+
+  // Popup-local, NO-NETWORK "formatted" render. The side panel uses the composer's
+  // real renderer (resolving @names + fetching embeds from relays); the popup has no
+  // relay/profile access, so here we only do what's free: inline media, linkify URLs,
+  // preserve line breaks, and show mentions/embeds as compact tokens (names and embed
+  // cards are NOT resolved — that would mean the signing prompt hitting relays).
+  const LN_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})/gi;
+  const LN_IMG = /\.(?:jpg|jpeg|png|gif|webp|avif)(?:\?\S*)?$/i;
+  const LN_VID = /\.(?:mp4|mov|webm|m3u8)(?:\?\S*)?$/i;
+  function renderLightNote(container, text) {
+    let last = 0, m;
+    LN_RE.lastIndex = 0;
+    const flush = (s) => { if (s) container.appendChild(document.createTextNode(s)); };
+    while ((m = LN_RE.exec(text)) !== null) {
+      if (m.index > last) flush(text.slice(last, m.index));
+      if (m[1]) {
+        const url = m[1];
+        if (LN_IMG.test(url)) {
+          const im = document.createElement('img');
+          im.className = 'ev-media'; im.referrerPolicy = 'no-referrer'; im.loading = 'lazy'; im.src = url;
+          im.onerror = () => im.replaceWith(document.createTextNode(url));
+          container.appendChild(im);
+        } else if (LN_VID.test(url)) {
+          const v = document.createElement('video');
+          v.className = 'ev-media'; v.controls = true; v.src = url;
+          container.appendChild(v);
+        } else {
+          const a = document.createElement('a');
+          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener'; a.textContent = url;
+          container.appendChild(a);
+        }
+      } else if (m[2]) {
+        const bech = m[2];
+        const span = document.createElement('span');
+        if (/^n(?:pub|profile)1/.test(bech)) {
+          span.className = 'ev-mention';
+          span.textContent = '@' + bech.slice(0, 10) + '…';
+        } else {
+          span.className = 'ev-ref';
+          span.textContent = bech.startsWith('naddr1') ? '[article]' : '[note]';
+        }
+        container.appendChild(span);
+      }
+      last = LN_RE.lastIndex;
+    }
+    flush(text.slice(last));
+  }
+
+  // Event-content preview: short by default (keeps the "Signing as" account card in
+  // view), expandable, with a Formatted/Raw toggle for note-like kinds (1, and 6/16
+  // reposts). "Formatted" is the lightweight render above; "Raw" is the exact signed
+  // content. Other kinds show Raw only.
+  function appendEventContent(container, ev) {
+    const raw = String(ev.content == null ? '' : ev.content);
+    const noteLike = ev.kind === 1 || ev.kind === 6 || ev.kind === 16;
+    // Views: Formatted (lightweight render, note-like only), Raw (the content string),
+    // JSON (the whole event pretty-printed — exactly what's being signed).
+    const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
+    const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const LABEL = { formatted: 'Formatted', raw: 'Raw', json: 'JSON' };
+    let mode = modes[0];
+    let expanded = false;
+
+    const view = document.createElement('div');
+    const paintView = () => {
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono');
+      view.innerHTML = '';
+      if (mode === 'formatted') renderLightNote(view, noteTextForEvent(ev));
+      else if (mode === 'json') view.textContent = eventJson();
+      else view.textContent = raw;
+    };
+    paintView();
+    container.appendChild(view);
+
+    const controls = document.createElement('div');
+    controls.className = 'evpreview-controls';
+
+    // Mode buttons (Formatted / Raw / JSON) — the active one is highlighted.
+    const modeRow = document.createElement('div');
+    modeRow.className = 'evpreview-modes';
+    const btns = {};
+    const syncModes = () => { for (const md of modes) btns[md].classList.toggle('active', md === mode); };
+    for (const md of modes) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'evpreview-mode';
+      b.textContent = LABEL[md];
+      b.addEventListener('click', () => {
+        if (mode === md) return;
+        mode = md; paintView(); syncModes();
+      });
+      btns[md] = b;
+      modeRow.appendChild(b);
+    }
+    syncModes();
+    controls.appendChild(modeRow);
+
+    // Show more/less — always available on every mode; toggles the clamp so the
+    // preview stays compact (keeping the account card in view) but can expand.
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'evpreview-toggle';
+    more.textContent = 'Show more';
+    more.addEventListener('click', () => {
+      expanded = !expanded;
+      view.classList.toggle('clamped', !expanded);
+      more.textContent = expanded ? 'Show less' : 'Show more';
+    });
+    controls.appendChild(more);
+    container.appendChild(controls);
+  }
+
   function renderPreview() {
     if (isPayment) {
       const rows = [];
@@ -119,11 +240,7 @@
         warn.textContent = warning;
         els.preview.appendChild(warn);
       }
-      if (ev.content) {
-        const pre = document.createElement('pre');
-        pre.textContent = String(ev.content);
-        els.preview.appendChild(pre);
-      }
+      if (ev.content) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       els.preview.innerHTML = row('From', (data.params && data.params.pubkey) || '—');
