@@ -7143,11 +7143,25 @@
       let npub = '';
       try { npub = pubkey ? NT.nip19.npubEncode(pubkey) : ''; } catch (_) {}
       const cached = pubkey ? cachedProfile(pubkey) : null;
-      const val = h('span', {
-        textContent: (cached && cached.name) ? '@' + cached.name : (npub ? shortNpub(npub) : (pubkey || '—')),
-      });
+      const idText = npub ? shortNpub(npub) : (pubkey || '—');
+      // Full npub + raw hex on hover, so the exact key is always verifiable.
+      const idTitle = [npub && ('npub: ' + npub), pubkey && ('hex: ' + pubkey)].filter(Boolean).join('\n');
+      const val = h('span', { className: 'peer-val' });
+      // Show the resolved @name when we have one, but ALWAYS keep the npub visible
+      // beneath it as a verifiable key — a display name on its own is spoofable.
+      // With no name, the npub is the only line.
+      const paint = (name) => {
+        val.innerHTML = '';
+        if (name) {
+          val.append(h('span', { className: 'peer-name', textContent: '@' + name }));
+          val.append(h('span', { className: 'peer-npub', textContent: idText, title: idTitle }));
+        } else {
+          val.append(h('span', { textContent: idText, title: idTitle }));
+        }
+      };
+      paint(cached && cached.name);
       if (pubkey && !(cached && cached.name)) {
-        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) val.textContent = '@' + p.name; });
+        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) paint(p.name); });
       }
       return h('div', { className: 'row' }, [h('span', { textContent: label }), val]);
     };

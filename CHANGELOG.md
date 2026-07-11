@@ -11,7 +11,7 @@ and [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - The standalone popup and the in-panel approval now share the same event-kind labels, so kinds — including the NIP-17 DM setup events — are recognized consistently in both places.
-- **Readable identities** — approval prompts show the encrypt/decrypt counterparty as an @name (resolved in the panel) or an npub instead of a raw hex public key; other pubkey fallbacks now use npubs, not hex.
+- **Readable identities** — approval prompts show the encrypt/decrypt counterparty by name with its npub kept beneath as a verifiable key (a display name alone is spoofable; the full npub and hex are shown on hover), instead of a raw hex public key. Other pubkey fallbacks now use npubs, not hex.
 
 ## [1.3.0] — 2026-07-09
 

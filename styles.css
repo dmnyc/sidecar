@@ -1677,6 +1677,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .card .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
 .card .row span:first-child { color: var(--muted); }
 .card .row span:last-child { word-break: break-all; text-align: right; font-family: var(--font-mono); font-size: 12px; }
+/* Encrypt/decrypt counterparty: @name on top, npub beneath as a verifiable key. */
+.card .row .peer-val { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.card .row .peer-val .peer-name { font-family: var(--font-ui); font-weight: 600; }
+.card .row .peer-val .peer-npub { font-size: 11px; color: var(--muted); cursor: help; }
 .card pre {
   background: rgba(8, 2, 20, 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
   font-family: var(--font-mono);
