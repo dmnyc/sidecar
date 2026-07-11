@@ -1808,15 +1808,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // in CONTENT_OK. But the keystore/wallet/owner-crypto/prompt handlers below are
   // the crown jewels, so we ALSO hard-require an extension-page origin for
   // everything a content script doesn't legitimately need — the identity check is
-  // the sender's ORIGIN (our pages are chrome-extension://<id>/…; a content
-  // script carries the web page's origin), NOT sender.tab (prompt.html and
-  // welcome.html are extension pages that DO have a tab). This way no future
-  // content-script bug can pivot a hostile page into signing, key reveal,
-  // decryption, unlock, or settling an approval.
-  const EXT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
+  // whether the sender's URL is under OUR extension origin, taken from
+  // runtime.getURL (chrome-extension://<id>/ on Chrome, moz-extension://<uuid>/ on
+  // Firefox — so this is correct on both). A content script carries the web page's
+  // URL instead. NOT sender.tab (prompt.html and welcome.html are extension pages
+  // that DO have a tab). This way no future content-script bug can pivot a hostile
+  // page into signing, key reveal, decryption, unlock, or settling an approval.
+  const EXT_URL_PREFIX = chrome.runtime.getURL('/');
   const fromExtPage = !!sender && (
-    sender.origin === EXT_ORIGIN ||
-    (typeof sender.url === 'string' && sender.url.startsWith(EXT_ORIGIN + '/'))
+    (typeof sender.url === 'string' && sender.url.startsWith(EXT_URL_PREFIX)) ||
+    (typeof sender.origin === 'string' && sender.origin + '/' === EXT_URL_PREFIX)
   );
   const CONTENT_OK = new Set([
     'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',
