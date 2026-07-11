@@ -1084,7 +1084,7 @@
   function notifAuthorName(pubkey) {
     const cached = _notifProfiles.get(pubkey);
     if (typeof cached === 'string' && cached) return cached;
-    try { return NT.nip19.npubEncode(pubkey).slice(0, 12) + '…'; } catch (_) { return pubkey.slice(0, 8) + '…'; }
+    try { return shortNpub(NT.nip19.npubEncode(pubkey)); } catch (_) { return '—'; }
   }
 
   function prefetchNotifProfile(pubkey, relays) {
@@ -7137,6 +7137,20 @@
     box.innerHTML = '';
     const row = (k, v) =>
       h('div', { className: 'row' }, [h('span', { textContent: k }), h('span', { textContent: v })]);
+    // Counterparty for encrypt/decrypt — never raw hex. Show an @name when we can
+    // resolve one (cached now, or fetched to upgrade in place), otherwise an npub.
+    const peerRow = (label, pubkey) => {
+      let npub = '';
+      try { npub = pubkey ? NT.nip19.npubEncode(pubkey) : ''; } catch (_) {}
+      const cached = pubkey ? cachedProfile(pubkey) : null;
+      const val = h('span', {
+        textContent: (cached && cached.name) ? '@' + cached.name : (npub ? shortNpub(npub) : (pubkey || '—')),
+      });
+      if (pubkey && !(cached && cached.name)) {
+        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) val.textContent = '@' + p.name; });
+      }
+      return h('div', { className: 'row' }, [h('span', { textContent: label }), val]);
+    };
     if (isPaymentApproval(data)) {
       box.append(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
       if (data.memo) box.append(row('Memo', String(data.memo)));
@@ -7148,9 +7162,9 @@
       if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
       if (ev.content) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      box.append(row('From', (data.params && data.params.pubkey) || '—'));
+      box.append(peerRow('From', data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
-      box.append(row('To', (data.params && data.params.pubkey) || '—'));
+      box.append(peerRow('To', data.params && data.params.pubkey));
     } else {
       hide(box);
       return;

@@ -855,10 +855,18 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
               picture: a.picture || '',
             }))
         : null;
+      // For encrypt/decrypt, translate the counterparty's hex pubkey to an npub so
+      // the prompt can show a recognizable identity instead of raw hex. Pure offline
+      // encoding — no relay lookup. Falls back to the raw hex if it isn't valid.
+      let peerNpub = null;
+      if (params && params.pubkey && /\.(encrypt|decrypt)$/.test(method)) {
+        try { peerNpub = self.NostrTools.nip19.npubEncode(params.pubkey); } catch (_) {}
+      }
       const decision = await openPrompt({
         host,
         method,
         params,
+        peerNpub,
         activePubkey,
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
         accountName: (acct && acct.name) || '',
