@@ -49,6 +49,26 @@ Connect) and a composer for posting notes directly from the panel.
 
 The easiest way is the **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** — open the link and click **Add to Chrome**. Works in Chrome, Brave, and Edge.
 
+### Advanced: install from this release zip
+
+For advanced users who'd rather not use the Chrome Web Store: every tagged version is published as a **[GitHub Release](https://github.com/dmnyc/sidecar/releases)** with a ready-to-load zip attached — the exact same build submitted to the Chrome Web Store, so you can inspect it before installing.
+
+1. **Download the zip.** Grab `sidecar-X.Y.Z.zip` from the **[latest release](https://github.com/dmnyc/sidecar/releases/latest)**, then unzip it — you'll get a folder containing `manifest.json`.
+
+2. **Open the extensions page** in a Chromium browser:
+   - Chrome / Brave: visit `chrome://extensions`
+   - Edge: visit `edge://extensions`
+
+3. **Enable Developer mode** (toggle in the top-right on Chrome/Brave, left sidebar on Edge).
+
+4. **Click "Load unpacked"** and select the unzipped folder (the one containing `manifest.json`).
+
+5. **Pin it (optional).** Click the puzzle-piece toolbar icon and pin Sidecar so its icon is always visible.
+
+6. **Open the side panel.** Click the Sidecar toolbar icon. On first run you'll set a PIN, then add an account (generate a new key or import an existing `nsec`).
+
+**Updating:** release zips don't auto-update — watch the **[releases page](https://github.com/dmnyc/sidecar/releases)** for a new version, download it, and repeat steps 1 and 4 (removing the old unpacked folder first, or pointing "Load unpacked" at the new one, is fine either way). If you'd rather updates happen automatically, use the Chrome Web Store install instead.
+
 ### From source (unpacked / developer build)
 
 Sidecar has **no build step** — it's plain JavaScript loaded directly. To run it from source:
