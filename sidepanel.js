@@ -7035,6 +7035,81 @@
     return APPROVAL_KIND_WARNINGS[kind] || (!APPROVAL_KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
   }
 
+  // The renderable note text for an event: kind:1 → its content; kind 6/16 reposts →
+  // the embedded original event's content (a repost's content field is that event's
+  // JSON). Falls back to the raw content if it isn't a parseable embedded event.
+  function noteTextForEvent(ev) {
+    if (ev.kind === 6 || ev.kind === 16) {
+      try { const inner = JSON.parse(ev.content); if (inner && typeof inner.content === 'string') return inner.content; } catch (_) {}
+    }
+    return String(ev.content == null ? '' : ev.content);
+  }
+
+  // Event-content preview: short by default (keeps the "Signing as" account card in
+  // view), expandable, with a Formatted/Raw toggle for note-like kinds (1, and 6/16
+  // reposts). "Formatted" reuses the composer's renderNotePreview so @mentions, media,
+  // and note/nevent/naddr embeds render as a client would show them; "Raw" is the
+  // exact signed content. Other kinds show Raw only.
+  function appendEventContent(container, ev) {
+    const raw = String(ev.content == null ? '' : ev.content);
+    const noteLike = ev.kind === 1 || ev.kind === 6 || ev.kind === 16;
+    // Views: Formatted (composer render, note-like only), Raw (the content string),
+    // JSON (the whole event pretty-printed — exactly what's being signed).
+    const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
+    const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const LABEL = { formatted: 'Formatted', raw: 'Raw', json: 'JSON' };
+    let mode = modes[0];
+    let expanded = false;
+
+    const view = document.createElement('div');
+    const paintView = () => {
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono');
+      view.innerHTML = '';
+      if (mode === 'formatted') renderNotePreview(view, noteTextForEvent(ev));
+      else if (mode === 'json') view.textContent = eventJson();
+      else view.textContent = raw;
+    };
+    paintView();
+    container.appendChild(view);
+
+    const controls = document.createElement('div');
+    controls.className = 'evpreview-controls';
+
+    // Mode buttons (Formatted / Raw / JSON) — the active one is highlighted.
+    const modeRow = document.createElement('div');
+    modeRow.className = 'evpreview-modes';
+    const btns = {};
+    const syncModes = () => { for (const md of modes) btns[md].classList.toggle('active', md === mode); };
+    for (const md of modes) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'evpreview-mode';
+      b.textContent = LABEL[md];
+      b.addEventListener('click', () => {
+        if (mode === md) return;
+        mode = md; paintView(); syncModes();
+      });
+      btns[md] = b;
+      modeRow.appendChild(b);
+    }
+    syncModes();
+    controls.appendChild(modeRow);
+
+    // Show more/less — always available on every mode; toggles the clamp so the
+    // preview stays compact (keeping the account card in view) but can expand.
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'evpreview-toggle';
+    more.textContent = 'Show more';
+    more.addEventListener('click', () => {
+      expanded = !expanded;
+      view.classList.toggle('clamped', !expanded);
+      more.textContent = expanded ? 'Show less' : 'Show more';
+    });
+    controls.appendChild(more);
+    container.appendChild(controls);
+  }
+
   function renderApprovalPreview(data) {
     const box = $('approval-preview');
     box.innerHTML = '';
@@ -7049,7 +7124,7 @@
       if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
       const warning = approvalKindWarning(ev.kind);
       if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
-      if (ev.content) box.append(h('pre', { textContent: String(ev.content) }));
+      if (ev.content) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(row('From', (data.params && data.params.pubkey) || '—'));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
