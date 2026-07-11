@@ -257,14 +257,20 @@
       if (ev.content) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      els.preview.innerHTML = row('From', (data.params && data.params.pubkey) || '—');
+      els.preview.innerHTML = row('From', peerLabel());
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
-      els.preview.innerHTML = row('To', (data.params && data.params.pubkey) || '—');
+      els.preview.innerHTML = row('To', peerLabel());
       els.preview.classList.remove('hidden');
     }
   }
 
+  // The encrypt/decrypt counterparty as a recognizable npub (translated by the
+  // background), truncated like the account capsule; falls back to the raw hex.
+  function peerLabel() {
+    if (data.peerNpub) return shortNpub(data.peerNpub);
+    return (data.params && data.params.pubkey) || '—';
+  }
   function row(k, v) {
     return `<div class="row"><span>${k}</span><span>${escapeHtml(v)}</span></div>`;
   }
