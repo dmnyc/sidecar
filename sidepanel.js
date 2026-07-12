@@ -7143,11 +7143,40 @@
       let npub = '';
       try { npub = pubkey ? NT.nip19.npubEncode(pubkey) : ''; } catch (_) {}
       const cached = pubkey ? cachedProfile(pubkey) : null;
-      const val = h('span', {
-        textContent: (cached && cached.name) ? '@' + cached.name : (npub ? shortNpub(npub) : (pubkey || '—')),
-      });
+      const idFull = npub || pubkey || '';
+      const idShort = npub ? shortNpub(npub) : (pubkey || '—');
+      // Raw hex on hover; click the npub to reveal (and select) the full key.
+      const idTitle = [npub && ('npub: ' + npub), pubkey && ('hex: ' + pubkey)].filter(Boolean).join('\n');
+      // Truncated by default; click toggles to the full, untruncated key and back.
+      const idSpan = (cls) => {
+        const s = h('span', { className: cls, textContent: idShort, title: idTitle });
+        if (idFull && idFull !== idShort) {
+          let full = false;
+          s.classList.add('peer-npub-toggle');
+          s.addEventListener('click', () => {
+            full = !full;
+            s.textContent = full ? idFull : idShort;
+            s.classList.toggle('full', full);
+          });
+        }
+        return s;
+      };
+      const val = h('span', { className: 'peer-val' });
+      // Show the resolved @name when we have one, but ALWAYS keep the npub visible
+      // beneath it as a verifiable key — a display name on its own is spoofable.
+      // With no name, the npub is the only line.
+      const paint = (name) => {
+        val.innerHTML = '';
+        if (name) {
+          val.append(h('span', { className: 'peer-name', textContent: '@' + name }));
+          val.append(idSpan('peer-npub'));
+        } else {
+          val.append(idSpan('peer-id'));
+        }
+      };
+      paint(cached && cached.name);
       if (pubkey && !(cached && cached.name)) {
-        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) val.textContent = '@' + p.name; });
+        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) paint(p.name); });
       }
       return h('div', { className: 'row' }, [h('span', { textContent: label }), val]);
     };
