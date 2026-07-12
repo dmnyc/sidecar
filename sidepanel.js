@@ -7143,9 +7143,24 @@
       let npub = '';
       try { npub = pubkey ? NT.nip19.npubEncode(pubkey) : ''; } catch (_) {}
       const cached = pubkey ? cachedProfile(pubkey) : null;
-      const idText = npub ? shortNpub(npub) : (pubkey || '—');
-      // Full npub + raw hex on hover, so the exact key is always verifiable.
+      const idFull = npub || pubkey || '';
+      const idShort = npub ? shortNpub(npub) : (pubkey || '—');
+      // Raw hex on hover; click the npub to reveal (and select) the full key.
       const idTitle = [npub && ('npub: ' + npub), pubkey && ('hex: ' + pubkey)].filter(Boolean).join('\n');
+      // Truncated by default; click toggles to the full, untruncated key and back.
+      const idSpan = (cls) => {
+        const s = h('span', { className: cls, textContent: idShort, title: idTitle });
+        if (idFull && idFull !== idShort) {
+          let full = false;
+          s.classList.add('peer-npub-toggle');
+          s.addEventListener('click', () => {
+            full = !full;
+            s.textContent = full ? idFull : idShort;
+            s.classList.toggle('full', full);
+          });
+        }
+        return s;
+      };
       const val = h('span', { className: 'peer-val' });
       // Show the resolved @name when we have one, but ALWAYS keep the npub visible
       // beneath it as a verifiable key — a display name on its own is spoofable.
@@ -7154,9 +7169,9 @@
         val.innerHTML = '';
         if (name) {
           val.append(h('span', { className: 'peer-name', textContent: '@' + name }));
-          val.append(h('span', { className: 'peer-npub', textContent: idText, title: idTitle }));
+          val.append(idSpan('peer-npub'));
         } else {
-          val.append(h('span', { textContent: idText, title: idTitle }));
+          val.append(idSpan('peer-id'));
         }
       };
       paint(cached && cached.name);
