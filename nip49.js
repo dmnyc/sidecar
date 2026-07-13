@@ -3,7 +3,6 @@ var SidecarNip49 = (() => {
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __export = (target, all) => {
     for (var name in all)
       __defProp(target, name, { get: all[name], enumerable: true });
@@ -17,11 +16,10 @@ var SidecarNip49 = (() => {
     return to;
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // .nt-entry.mjs
-  var nt_entry_exports = {};
-  __export(nt_entry_exports, {
+  // entry.js
+  var entry_exports = {};
+  __export(entry_exports, {
     decrypt: () => decrypt,
     encrypt: () => encrypt
   });
@@ -405,13 +403,13 @@ var SidecarNip49 = (() => {
 
   // node_modules/@noble/hashes/hmac.js
   var _HMAC = class {
+    oHash;
+    iHash;
+    blockLen;
+    outputLen;
+    finished = false;
+    destroyed = false;
     constructor(hash, key) {
-      __publicField(this, "oHash");
-      __publicField(this, "iHash");
-      __publicField(this, "blockLen");
-      __publicField(this, "outputLen");
-      __publicField(this, "finished", false);
-      __publicField(this, "destroyed", false);
       ahash(hash);
       abytes(key, void 0, "key");
       this.iHash = hash.create();
@@ -451,7 +449,7 @@ var SidecarNip49 = (() => {
       return out;
     }
     _cloneInto(to) {
-      to || (to = Object.create(Object.getPrototypeOf(this), {}));
+      to ||= Object.create(Object.getPrototypeOf(this), {});
       const { oHash, iHash, finished, destroyed, blockLen, outputLen } = this;
       to = to;
       to.finished = finished;
@@ -527,18 +525,18 @@ var SidecarNip49 = (() => {
     return a & b ^ a & c ^ b & c;
   }
   var HashMD = class {
+    blockLen;
+    outputLen;
+    padOffset;
+    isLE;
+    // For partial updates less than block size
+    buffer;
+    view;
+    finished = false;
+    length = 0;
+    pos = 0;
+    destroyed = false;
     constructor(blockLen, outputLen, padOffset, isLE3) {
-      __publicField(this, "blockLen");
-      __publicField(this, "outputLen");
-      __publicField(this, "padOffset");
-      __publicField(this, "isLE");
-      // For partial updates less than block size
-      __publicField(this, "buffer");
-      __publicField(this, "view");
-      __publicField(this, "finished", false);
-      __publicField(this, "length", 0);
-      __publicField(this, "pos", 0);
-      __publicField(this, "destroyed", false);
       this.blockLen = blockLen;
       this.outputLen = outputLen;
       this.padOffset = padOffset;
@@ -606,7 +604,7 @@ var SidecarNip49 = (() => {
       return res;
     }
     _cloneInto(to) {
-      to || (to = new this.constructor());
+      to ||= new this.constructor();
       to.set(...this.get());
       const { blockLen, buffer, length, finished, destroyed, pos } = this;
       to.destroyed = destroyed;
@@ -763,18 +761,18 @@ var SidecarNip49 = (() => {
     }
   };
   var _SHA256 = class extends SHA2_32B {
+    // We cannot use array here since array allows indexing by variable
+    // which means optimizer/compiler cannot use registers.
+    A = SHA256_IV[0] | 0;
+    B = SHA256_IV[1] | 0;
+    C = SHA256_IV[2] | 0;
+    D = SHA256_IV[3] | 0;
+    E = SHA256_IV[4] | 0;
+    F = SHA256_IV[5] | 0;
+    G = SHA256_IV[6] | 0;
+    H = SHA256_IV[7] | 0;
     constructor() {
       super(32);
-      // We cannot use array here since array allows indexing by variable
-      // which means optimizer/compiler cannot use registers.
-      __publicField(this, "A", SHA256_IV[0] | 0);
-      __publicField(this, "B", SHA256_IV[1] | 0);
-      __publicField(this, "C", SHA256_IV[2] | 0);
-      __publicField(this, "D", SHA256_IV[3] | 0);
-      __publicField(this, "E", SHA256_IV[4] | 0);
-      __publicField(this, "F", SHA256_IV[5] | 0);
-      __publicField(this, "G", SHA256_IV[6] | 0);
-      __publicField(this, "H", SHA256_IV[7] | 0);
     }
   };
   var sha256 = /* @__PURE__ */ createHasher(
@@ -1175,17 +1173,17 @@ var SidecarNip49 = (() => {
     return a[i++] & 255 | (a[i++] & 255) << 8;
   }
   var Poly1305 = class {
+    blockLen = 16;
+    outputLen = 16;
+    buffer = new Uint8Array(16);
+    r = new Uint16Array(10);
+    // Allocating 1 array with .subarray() here is slower than 3
+    h = new Uint16Array(10);
+    pad = new Uint16Array(8);
+    pos = 0;
+    finished = false;
     // Can be speed-up using BigUint64Array, at the cost of complexity
     constructor(key) {
-      __publicField(this, "blockLen", 16);
-      __publicField(this, "outputLen", 16);
-      __publicField(this, "buffer", new Uint8Array(16));
-      __publicField(this, "r", new Uint16Array(10));
-      // Allocating 1 array with .subarray() here is slower than 3
-      __publicField(this, "h", new Uint16Array(10));
-      __publicField(this, "pad", new Uint16Array(8));
-      __publicField(this, "pos", 0);
-      __publicField(this, "finished", false);
       key = copyBytes(abytes2(key, 32, "key"));
       const t0 = u8to16(key, 0);
       const t1 = u8to16(key, 2);
@@ -1700,5 +1698,16 @@ var SidecarNip49 = (() => {
     let sec = xc2p1.decrypt(ciphertext);
     return sec;
   }
-  return __toCommonJS(nt_entry_exports);
+  return __toCommonJS(entry_exports);
 })();
+/*! Bundled license information:
+
+@scure/base/index.js:
+  (*! scure-base - MIT License (c) 2022 Paul Miller (paulmillr.com) *)
+
+@noble/hashes/utils.js:
+  (*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) *)
+
+@noble/ciphers/utils.js:
+  (*! noble-ciphers - MIT License (c) 2023 Paul Miller (paulmillr.com) *)
+*/

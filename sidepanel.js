@@ -1282,15 +1282,18 @@
       }
 
       const liveSince = Math.floor(Date.now() / 1000);
+      // nostr-tools ≥2.20 subscriptions take a single filter object, not an array —
+      // open one subscription per filter (the pool shares the relay sockets).
       try {
-        getPool().subscribeManyEose(relays, buildFilters(since, 50), { onevent: addEvent });
+        for (const f of buildFilters(since, 50)) {
+          getPool().subscribeManyEose(relays, f, { onevent: addEvent });
+        }
       } catch (_) {}
       try {
-        cache.liveSub = getPool().subscribeMany(
-          relays,
-          buildFilters(liveSince),
-          { onevent: addEvent }
+        const subs = buildFilters(liveSince).map((f) =>
+          getPool().subscribeMany(relays, f, { onevent: addEvent })
         );
+        cache.liveSub = { close: () => subs.forEach((s) => { try { s.close(); } catch (_) {} }) };
       } catch (_) {}
     }
   }
@@ -2154,7 +2157,7 @@
       if (!qrCanvas) {
         qrCanvas = document.createElement('canvas');
         qrCanvas.className = 'recv-qr modal-qr';
-        try { new window.QRious({ element: qrCanvas, value: secret, size: 220, level: qrLevel }); } catch (_) {}
+        try { window.SidecarQR.draw(qrCanvas, secret, 220, qrLevel); } catch (_) {}
         qrCanvasWrap.append(qrCanvas);
       }
       if (qrExclusive) { box.classList.add('hidden'); copy.classList.add('hidden'); }
@@ -6075,7 +6078,7 @@
           built = true;
           const canvas = document.createElement('canvas');
           canvas.className = 'recv-qr';
-          try { new window.QRious({ element: canvas, value: 'lightning:' + lud16, size: 200, level: 'M' }); } catch (_) {}
+          try { window.SidecarQR.draw(canvas, 'lightning:' + lud16, 200, 'M'); } catch (_) {}
           qrBox.append(canvas);
         }
         const showing = qrBox.classList.toggle('hidden');
@@ -6685,7 +6688,7 @@
         const out = h('div', { className: 'recv-out' });
         const canvas = document.createElement('canvas');
         canvas.className = 'recv-qr';
-        try { new window.QRious({ element: canvas, value: 'lightning:' + lud16, size: 220, level: 'M' }); } catch (_) {}
+        try { window.SidecarQR.draw(canvas, 'lightning:' + lud16, 220, 'M'); } catch (_) {}
         // Truncate to one line if it overflows — the full address is still copied.
         const copy = h('button', { className: 'secondary recv-addr', title: 'Copy address' });
         const addrText = h('span', { textContent: lud16 });
@@ -6744,7 +6747,7 @@
     const canvas = document.createElement('canvas');
     canvas.className = 'recv-qr';
     try {
-      new window.QRious({ element: canvas, value: invoice.toUpperCase(), size: 220, level: 'M' });
+      window.SidecarQR.draw(canvas, invoice.toUpperCase(), 220, 'M');
     } catch (_) {}
     // Show a short middle-ellipsis of the invoice; the full string is on Copy.
     const short = invoice.length > 36 ? invoice.slice(0, 22) + '…' + invoice.slice(-10) : invoice;
@@ -6885,7 +6888,7 @@
       const qr = h('div', { className: 'recv-out' });
       const canvas = document.createElement('canvas');
       canvas.className = 'recv-qr';
-      try { new window.QRious({ element: canvas, value: 'lightning:' + CREATOR_LN, size: 200, level: 'M' }); } catch (_) {}
+      try { window.SidecarQR.draw(canvas, 'lightning:' + CREATOR_LN, 200, 'M'); } catch (_) {}
       const copy = h('button', { className: 'secondary', textContent: CREATOR_LN });
       copy.addEventListener('click', async () => {
         try {
