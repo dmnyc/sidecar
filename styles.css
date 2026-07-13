@@ -1610,6 +1610,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .debug-log-error .item-label { color: var(--red); }
 .debug-log-warn .item-label { color: var(--gold); }
 
+/* Settings → Updates: link to the help guide's "What's new" release notes. */
+.whats-new-link { display: inline-block; margin-bottom: 10px; font-size: 13px; color: var(--lav); text-decoration: none; }
+.whats-new-link:hover { text-decoration: underline; }
+
 /* ===== toasts ===== */
 .toasts {
   position: fixed;

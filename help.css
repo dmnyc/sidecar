@@ -176,6 +176,12 @@ html { scroll-behavior: smooth; }
   border-radius: 0 10px 10px 0;
 }
 
+/* ===== What's new (release-notes list; mirrors the CHANGELOG.md highlights) ===== */
+
+.guide-section .whatsnew-version { color: var(--gold); font-size: 15px; margin-bottom: 4px; }
+.whatsnew-list { margin: 0 0 14px; padding-left: 22px; }
+.whatsnew-list li { font-size: 15px; color: var(--text-2); line-height: 1.7; margin: 8px 0; }
+
 /* ===== Resources grid (reuses welcome.css .card) ===== */
 
 .resources-grid { grid-template-columns: 1fr 1fr; }

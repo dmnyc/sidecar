@@ -4,6 +4,17 @@
 (() => {
   'use strict';
 
+  // Pin the "full history" link to this exact build's tag, not main — main can
+  // legitimately be ahead of what's installed (PRs merge well before a release
+  // is tagged/shipped), and a hotfix branched from an older tag must link to its
+  // own snapshot, not whatever's newest on main. Falls back to the static main
+  // link in the markup if the build stamp is ever missing.
+  const changelogLink = document.getElementById('changelog-link');
+  const build = window.SIDECAR_BUILD;
+  if (changelogLink && build && build.version) {
+    changelogLink.href = 'https://github.com/dmnyc/sidecar/blob/v' + build.version + '/CHANGELOG.md';
+  }
+
   const links = Array.from(document.querySelectorAll('#helpnav-links a'));
   if (!links.length) return;
 
