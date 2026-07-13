@@ -5865,12 +5865,32 @@
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
     const err = h('div', { className: 'error' });
+    // Primal's string isn't a mistake — it's well-formed, just fundamentally
+    // incompatible — so it gets its own calm, non-error styling rather than the
+    // red validation-error tone above, plus a way straight to a working wallet.
+    const primalNotice = h('p', { className: 'hint wallet-notice hidden' });
+    primalNotice.append(
+      h('strong', { textContent: "Primal's NWC connection only works inside Primal's own apps " }),
+      document.createTextNode("— it doesn't support external apps like Sidecar."),
+      document.createElement('br')
+    );
+    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'Need a wallet? See suggestions →' });
+    primalLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+    });
+    primalNotice.append(primalLink);
     const connect = h('button', { className: 'primary wallet-connect-btn', textContent: 'Connect wallet' });
     connect.addEventListener('click', async () => {
       const conn = input.value.trim();
+      primalNotice.classList.add('hidden');
       if (!conn) return (err.textContent = 'Paste a connection string.');
       if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = "That doesn't look like an NWC string.");
-      if (isPrimalNwc(conn)) return (err.textContent = "Primal's wallet only works inside Primal's own apps — it doesn't support external Nostr Wallet Connect. Connect a different NWC wallet, like Alby Hub, Coinos, or YakiHonne.");
+      if (isPrimalNwc(conn)) {
+        err.textContent = '';
+        primalNotice.classList.remove('hidden');
+        return;
+      }
       err.textContent = '';
       connect.disabled = true;
       connect.textContent = 'Connecting…';
@@ -5889,7 +5909,7 @@
         connect.textContent = 'Connect wallet';
       }
     });
-    view.append(input, err, connect);
+    view.append(input, err, primalNotice, connect);
 
     // Restore a previously backed-up connection from the user's relays. Kept in
     // its own block (with its own status line) so its messages don't land in the
@@ -5897,7 +5917,7 @@
     const restoreBlock = h('div', { className: 'wallet-restore-block' });
     restoreBlock.append(h('div', { className: 'wallet-or', textContent: 'or' }));
     const restore = h('button', { className: 'secondary', textContent: 'Restore from Nostr' });
-    const restoreNote = h('p', { className: 'hint compact', textContent: 'Bring back a wallet you backed up to your relays.' });
+    const restoreNote = h('p', { className: 'hint compact', textContent: 'Restore a wallet you backed up to your relays.' });
     restore.addEventListener('click', async () => {
       restore.disabled = true;
       restore.textContent = 'Checking relays…';
