@@ -5916,7 +5916,7 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Rizful, YakiHonne, or any NWC-capable wallet. Sidecar never holds your funds.',
+          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.',
       })
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
