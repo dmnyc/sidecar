@@ -5734,6 +5734,21 @@
       return v && v.includes('@') ? v.trim() : null;
     } catch (_) { return null; }
   }
+  // Primal's wallet is Spark-based and only works inside Primal's own apps, over their
+  // own nostrconnect session — the NWC string it hands out (routed through a primal.net
+  // relay) can't be driven as a standalone NWC wallet, so a getInfo round-trip just
+  // hangs. Detect it from the relay host and reject up front with a clear reason.
+  function isPrimalNwc(connection) {
+    try {
+      const q = connection.split('?')[1];
+      if (!q) return false;
+      return new URLSearchParams(q).getAll('relay').some((r) => {
+        let host;
+        try { host = new URL(r).hostname; } catch (_) { host = String(r); }
+        return /(^|\.)primal\.net$/i.test(host);
+      });
+    } catch (_) { return false; }
+  }
   async function getLightningAddress() {
     try {
       const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
@@ -5810,6 +5825,7 @@
       const conn = input.value.trim();
       if (!conn) return (err.textContent = 'Paste a connection string.');
       if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = "That doesn't look like an NWC string.");
+      if (isPrimalNwc(conn)) return (err.textContent = "Primal's wallet only works inside Primal's own apps — it doesn't support external Nostr Wallet Connect. Connect a different NWC wallet, like Alby Hub, Coinos, or YakiHonne.");
       err.textContent = '';
       connect.disabled = true;
       connect.textContent = 'Connecting…';

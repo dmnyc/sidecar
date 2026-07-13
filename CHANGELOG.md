@@ -12,6 +12,7 @@ and [Semantic Versioning](https://semver.org/).
 ### Changed
 - The standalone popup and the in-panel approval now share the same event-kind labels, so kinds — including the NIP-17 DM setup events — are recognized consistently in both places.
 - **Readable identities** — approval prompts show the encrypt/decrypt counterparty by name with its npub kept beneath as a verifiable key (a display name alone is spoofable). Click the npub to reveal the full, untruncated key; the raw hex is on hover. Other pubkey fallbacks now use npubs, not hex.
+- **Reject Primal's NWC string** — Primal's wallet is Spark-based and only works inside Primal's own apps, so its Nostr Wallet Connect string can't drive an external wallet. Sidecar now detects it and explains why, instead of hanging on connect.
 
 ## [1.3.0] — 2026-07-09
 
