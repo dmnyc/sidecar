@@ -303,6 +303,9 @@ input:focus, select:focus, textarea:focus {
 .error:empty { display: none; }
 /* urgent unlock warning as failed attempts near the auto-erase threshold */
 .error.unlock-danger { font-weight: 700; }
+/* A wallet notice isn't a mistake to correct, just an explanation — gold, not red. */
+.wallet-notice { color: var(--gold); margin-bottom: 16px; }
+.wallet-notice .explore-link { display: inline; color: inherit; text-decoration: underline; }
 .unlock-forgot { align-self: center; margin-top: 16px; font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; }
 .unlock-forgot:hover { color: var(--lav); text-decoration: underline; }
 /* unlock cooldown: a small countdown ring (same style as the composer's, scaled down) */
