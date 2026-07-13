@@ -335,8 +335,11 @@
     if (pin !== pin2) return (err.textContent = 'PINs do not match.');
     try {
       await call({ type: 'SIDECAR_INIT', pin });
-      await refresh();
-      toast('Keystore created', 'success');
+      // Hold the welcome/empty-state view behind this reminder until it's dismissed.
+      pinReminderModal(async () => {
+        await refresh();
+        toast('Keystore created', 'success');
+      });
     } catch (e) {
       err.textContent = e.message;
       toast(e.message, 'error');
@@ -2221,6 +2224,29 @@
         // callback returns — running it inline would tear the wizard back down.
         if (opts.onDone) setTimeout(opts.onDone, 0);
       }
+    );
+  }
+
+  // Shown once, right after the PIN is created — before the empty-state welcome
+  // hero appears. There is no reset flow for this PIN (that's the point of local
+  // encryption), so this is the one moment to make sure it actually got captured
+  // somewhere durable, not just typed and forgotten.
+  function pinReminderModal(onDone) {
+    openModal(
+      (modal) => {
+        const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+        ok.addEventListener('click', closeModal);
+        modal.append(
+          h('h3', { textContent: 'Save your PIN somewhere safe' }),
+          h('p', { className: 'hint', textContent: "Write it down or store it in a password manager now, while it's fresh." }),
+          h('div', {
+            className: 'kind-warn',
+            textContent: "There is no way to recover this PIN. If you forget it, every account and wallet connection on this device stays locked for good — unless you've backed up your keys separately.",
+          }),
+          h('div', { className: 'actions' }, [ok])
+        );
+      },
+      () => { if (onDone) setTimeout(onDone, 0); }
     );
   }
 
