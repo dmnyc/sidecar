@@ -13,6 +13,9 @@ and [Semantic Versioning](https://semver.org/).
 - The standalone popup and the in-panel approval now share the same event-kind labels, so kinds — including the NIP-17 DM setup events — are recognized consistently in both places.
 - **Readable identities** — approval prompts show the encrypt/decrypt counterparty by name with its npub kept beneath as a verifiable key (a display name alone is spoofable). Click the npub to reveal the full, untruncated key; the raw hex is on hover. Other pubkey fallbacks now use npubs, not hex.
 
+### Fixed
+- The PIN/confirm fields on the "create a keystore" screen no longer show a stale green checkmark next to an empty box after a reset (erase-everything, or the 21-failed-unlock auto-wipe) — the validity indicators now recompute when the fields are cleared, instead of only on typing.
+
 ## [1.3.0] — 2026-07-09
 
 ### Added
