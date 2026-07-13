@@ -547,6 +547,12 @@
   $('help-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
   });
+  // Release notes live in the help guide's "What's new" section — the guide is
+  // updated as part of every release (see the RELEASE PRACTICE note in help.html).
+  $('whats-new-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#whats-new' });
+  });
 
   // ---- settings (gear icon ↔ overlay view) ----
   $('settings-btn').addEventListener('click', () => {

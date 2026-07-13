@@ -3,6 +3,10 @@
 All notable changes to Sidecar. This project follows [Keep a Changelog](https://keepachangelog.com/)
 and [Semantic Versioning](https://semver.org/).
 
+Release practice: the latest release's highlights are also summarized in-app, in the help
+guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
+Update that section alongside this file as part of every release.
+
 ## [1.4.0] — 2026-07-11
 
 ### Added
