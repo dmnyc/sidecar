@@ -25,6 +25,15 @@ const DEFAULT_RELAYS = {
 };
 
 const AUTO_LOCK_ALARM = 'sidecar-auto-lock';
+// Idle auto-lock, in minutes. Applied only when the user has never touched the
+// Settings dropdown — an explicit choice (including "Never", stored as 0) is
+// always respected once saved. Keys shouldn't stay decrypted indefinitely in a
+// browser that's left open; this only fires on true inactivity (bumpAutoLock is
+// called on every sign/pay/unlock), so normal active use never hits it.
+const DEFAULT_AUTO_LOCK_MINUTES = 15;
+function resolveSettings(sidecar_settings) {
+  return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
+}
 
 // ---- storage helpers ----
 function sget(keys) {
@@ -1361,7 +1370,7 @@ async function lockKeystore() {
 
 function bumpAutoLock() {
   sget('sidecar_settings').then(({ sidecar_settings }) => {
-    const minutes = (sidecar_settings && sidecar_settings.autoLockMinutes) || 0;
+    const minutes = resolveSettings(sidecar_settings).autoLockMinutes;
     if (minutes > 0 && !KS.isLocked()) {
       chrome.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: minutes });
     }
@@ -1554,7 +1563,7 @@ async function handleControl(message, sendResponse) {
         result = message.relays;
         break;
       case 'SIDECAR_GET_SETTINGS':
-        result = (await sget('sidecar_settings')).sidecar_settings || { autoLockMinutes: 0 };
+        result = resolveSettings((await sget('sidecar_settings')).sidecar_settings);
         break;
       case 'SIDECAR_SET_SETTINGS': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
