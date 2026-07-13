@@ -14,6 +14,9 @@ and [Semantic Versioning](https://semver.org/).
 - **Readable identities** — approval prompts show the encrypt/decrypt counterparty by name with its npub kept beneath as a verifiable key (a display name alone is spoofable). Click the npub to reveal the full, untruncated key; the raw hex is on hover. Other pubkey fallbacks now use npubs, not hex.
 - **Reject Primal's NWC string** — Primal's wallet is Spark-based and only works inside Primal's own apps, so its Nostr Wallet Connect string can't drive an external wallet. Sidecar now detects it and explains why, instead of hanging on connect.
 
+### Security
+- **Auto-lock now defaults to 15 minutes of inactivity**, instead of never. It only counts down when nothing has been signed, paid, or unlocked in that window, so active use is unaffected — this only shrinks the window a decrypted keystore is left exposed on an unattended browser. Still adjustable (including back to Never) in Settings, and anyone who's already chosen a value there keeps it.
+
 ## [1.3.0] — 2026-07-09
 
 ### Added
