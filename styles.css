@@ -1726,7 +1726,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* PIN-save reminder: a gently swaying antique key stands in for a boxed warning. */
 .pin-reminder-icon { display: flex; justify-content: center; margin-bottom: 4px; }
-.pin-reminder-key { width: 32px; height: 48px; color: var(--gold); animation: pin-key-sway 2.6s ease-in-out infinite; }
+.pin-reminder-key { width: 48px; height: 32px; color: var(--gold); animation: pin-key-sway 2.6s ease-in-out infinite; }
 @keyframes pin-key-sway {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-6px) rotate(-4deg); }
