@@ -2251,8 +2251,8 @@
         const body = h('p', { className: 'hint pin-reminder-body' });
         body.append(
           document.createTextNode('Write it down, or save it in a password manager, before you go any further. '),
-          h('strong', { className: 'pin-reminder-warn', textContent: "There's no way to recover this PIN" }),
-          document.createTextNode(" unless you've backed up your keys separately.")
+          h('strong', { className: 'pin-reminder-warn', textContent: "This PIN can't be recovered" }),
+          document.createTextNode(' — only a separate backup of your keys can get your accounts back.')
         );
         modal.append(
           keyWrap,
