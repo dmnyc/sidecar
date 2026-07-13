@@ -44,9 +44,10 @@
           );
           let settled = false;
           let timer = null;
+          // nostr-tools ≥2.20 subscriptions take a single filter object, not an array.
           const sub = pool().subscribeMany(
             [relay],
-            [{ kinds: [23195], authors: [walletPubkey], '#e': [reqEvent.id] }],
+            { kinds: [23195], authors: [walletPubkey], '#e': [reqEvent.id] },
             {
               onevent: async (ev) => {
                 if (settled) return;

@@ -1,9 +1,11 @@
 {
   "name": "sidecar-nostr-signer",
-  "version": "2.0.0",
+  "version": "1.4.0",
   "description": "A multi-account NIP-07 nostr signer with a built-in Lightning wallet, in your browser sidebar",
   "scripts": {
-    "dev": "echo 'Load this folder as an unpacked extension at chrome://extensions'"
+    "dev": "echo 'Load this folder as an unpacked extension at chrome://extensions'",
+    "update-vendor": "scripts/update-vendor.sh",
+    "verify-vendor": "sha256sum -c scripts/vendor-hashes.sha256"
   },
   "keywords": [
     "nostr",
@@ -14,12 +16,5 @@
     "lightning",
     "nwc"
   ],
-  "license": "MIT",
-  "devDependencies": {
-    "nostr-tools": "^2.1.0"
-  },
-  "manifest": {
-    "version": "2.0.0",
-    "chrome_minimum_version": "114"
-  }
+  "license": "MIT"
 }
