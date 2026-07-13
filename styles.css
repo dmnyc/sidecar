@@ -1601,6 +1601,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .dev-badge svg { width: 16px; height: 16px; }
 .dev-badge:hover { background: rgba(234, 119, 47, 0.28); }
 
+/* ===== debug log panel ===== */
+.debug-log-row .item-sub { font-family: var(--font-mono); font-size: 11px; }
+.debug-log-error .item-label { color: var(--red); }
+.debug-log-warn .item-label { color: var(--gold); }
+
 /* ===== toasts ===== */
 .toasts {
   position: fixed;

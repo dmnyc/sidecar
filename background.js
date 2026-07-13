@@ -182,6 +182,23 @@ async function logActivity(entry) {
   await sset({ [ACTIVITY_KEY]: cur });
 }
 
+// ---- debug log (dev builds only) ----
+// An in-memory ring buffer for the dev bug button's debug panel — separate
+// from the user-facing Activity log above (which tracks signed events/
+// payments per account). This is internal diagnostics: message dispatch,
+// timings, and uncaught errors. In-memory only, so it resets on a service
+// worker restart (~30s idle) — same tradeoff as the keystore re-locking.
+const IS_DEV_BUILD = (() => {
+  try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
+})();
+const DEBUG_LOG_MAX = 300;
+const debugLog = [];
+function dlog(level, tag, msg, data) {
+  if (!IS_DEV_BUILD) return;
+  debugLog.push({ ts: Date.now(), level, tag, msg, data });
+  if (debugLog.length > DEBUG_LOG_MAX) debugLog.shift();
+  if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_LOG_UPDATED' }); } catch (_) {} }
+}
 // ---- side panel open on toolbar click ----
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -220,6 +237,18 @@ const REQUEST_TTL = 175000;     // < content.js's 180s page timeout, so we never
 const TOMBSTONE_TTL = 600000;   // interrupted tombstones self-clear after 10 min
 const QUEUE_SESSION_KEY = 'sidecar_prompt_queue';
 const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
+
+// dlog() reads panelPort (declared above) to ping the panel on a new entry, so
+// this must run after that declaration — the log call below is synchronous.
+if (IS_DEV_BUILD) {
+  dlog('info', 'sw', 'Service worker started', { version: chrome.runtime.getManifest().version });
+  self.addEventListener('error', (e) => {
+    dlog('error', 'sw', 'Uncaught error', { message: e.message, filename: e.filename, lineno: e.lineno });
+  });
+  self.addEventListener('unhandledrejection', (e) => {
+    dlog('error', 'sw', 'Unhandled rejection', { reason: String((e.reason && e.reason.message) || e.reason) });
+  });
+}
 
 // ---- session mirror (metadata only — no callbacks, no signable material) ----
 function qGet() {
@@ -1679,6 +1708,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // ---- debug log: trace every dispatched message + its outcome/timing ----
+  // Central instrumentation point — covers page RPCs, control messages, and
+  // prompt/queue traffic alike. Deliberately logs only type/method/host/timing/
+  // error-message, never message bodies or response payloads, so PINs, nsecs,
+  // NWC strings, and signed event content never land in the log.
+  if (IS_DEV_BUILD && message.type !== 'SIDECAR_GET_DEBUG_LOG' && message.type !== 'SIDECAR_CLEAR_DEBUG_LOG') {
+    const t0 = Date.now();
+    const rawSendResponse = sendResponse;
+    sendResponse = (resp) => {
+      try {
+        dlog(resp && resp.ok === false ? 'error' : 'info', 'msg', message.type, {
+          method: message.method, host: message.host,
+          ms: Date.now() - t0,
+          error: resp && resp.ok === false ? resp.error : undefined,
+        });
+      } catch (_) {}
+      return rawSendResponse(resp);
+    };
+  }
+
   // The window the requesting page lives in — used to surface the approval on
   // the window the user is actually looking at (see driveOnce), not wherever a
   // pinned panel or the last-focused window happens to be.
@@ -1802,6 +1851,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     for (let i = queue.length - 1; i >= 0; i--) if (queue[i].state === 'interrupted') queue.splice(i, 1);
     qPersist(); broadcastQueue();
     sendResponse({ ok: true });
+    return false;
+  }
+  // Dev bug button's debug panel — reads the in-memory trace log. Gated to
+  // extension pages only (not in CONTENT_OK above), and IS_DEV_BUILD means
+  // debugLog is always empty on a Web Store install anyway.
+  if (message.type === 'SIDECAR_GET_DEBUG_LOG') {
+    sendResponse({ ok: true, result: debugLog });
+    return false;
+  }
+  if (message.type === 'SIDECAR_CLEAR_DEBUG_LOG') {
+    debugLog.length = 0;
+    sendResponse({ ok: true, result: [] });
     return false;
   }
 
