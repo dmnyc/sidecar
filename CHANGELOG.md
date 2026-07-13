@@ -8,6 +8,7 @@ and [Semantic Versioning](https://semver.org/).
 ### Added
 - **Expandable signing preview** — the approval prompt now shows event content in a compact, expandable pane with **Formatted / Raw / JSON** views and a Show more / less toggle in every view. "Formatted" renders a note the way a client would (mentions as @-names, media, and note/nevent/naddr embeds), so long content — like a repost whose content is an embedded event — no longer pushes the "Signing as" account card off-screen.
 - **Wider event-kind recognition** — the signing prompt now labels roughly 40 more event kinds (Blossom upload authorization, polls, user status, zap goals, labels, communities, wiki articles, starter packs, voice messages, and many NIP-51 lists and sets), so routine actions no longer show the "unrecognized kind" caution. A **request to vanish** (kind 62) now carries a delete-style heads-up.
+- **"Save your PIN" reminder** — right after creating a PIN, a one-time modal prompts you to write it down or store it in a password manager before moving on. There's no recovery if it's forgotten, so this is the one moment to make sure it's actually captured somewhere durable.
 
 ### Changed
 - The standalone popup and the in-panel approval now share the same event-kind labels, so kinds — including the NIP-17 DM setup events — are recognized consistently in both places.

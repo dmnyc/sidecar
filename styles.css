@@ -640,6 +640,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .spark.s5 { top: 80px; left: 35%; width: 8px;  height: 8px;  animation-delay: 2.1s; }
 @media (prefers-reduced-motion: reduce) {
   .spark { animation: none; opacity: 0.55; }
+  .pin-reminder-key { animation: none; }
 }
 
 /* avatars (account picture from kind:0, or the anon placeholder) */
@@ -1723,6 +1724,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: rgba(255, 179, 138, 0.1); border: 1px solid rgba(255, 179, 138, 0.3);
   color: #ffb38a; font-size: 12px; text-align: left;
 }
+/* PIN-save reminder: a gently swaying antique key stands in for a boxed warning. */
+.pin-reminder-icon { display: flex; justify-content: center; margin-bottom: 4px; }
+.pin-reminder-key { width: 48px; height: 32px; color: var(--gold); animation: pin-key-sway 2.6s ease-in-out infinite; }
+@keyframes pin-key-sway {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(-4deg); }
+}
+.pin-reminder-title { text-align: center; }
+.pin-reminder-body { text-align: center; }
+.pin-reminder-warn { color: var(--gold); font-weight: 600; }
 .shared-note {
   margin: 2px 0 14px; padding: 9px 11px; border-radius: 9px;
   background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft);

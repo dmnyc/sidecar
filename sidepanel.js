@@ -339,8 +339,11 @@
     if (pin !== pin2) return (err.textContent = 'PINs do not match.');
     try {
       await call({ type: 'SIDECAR_INIT', pin });
-      await refresh();
-      toast('Keystore created', 'success');
+      // Hold the welcome/empty-state view behind this reminder until it's dismissed.
+      pinReminderModal(async () => {
+        await refresh();
+        toast('Keystore created', 'success');
+      });
     } catch (e) {
       err.textContent = e.message;
       toast(e.message, 'error');
@@ -2225,6 +2228,44 @@
         // callback returns — running it inline would tear the wizard back down.
         if (opts.onDone) setTimeout(opts.onDone, 0);
       }
+    );
+  }
+
+  // Shown once, right after the PIN is created — before the empty-state welcome
+  // hero appears. There is no reset flow for this PIN (that's the point of local
+  // encryption), so this is the one moment to make sure it actually got captured
+  // somewhere durable, not just typed and forgotten. A gently swaying antique key
+  // (distinct from the small modern 'key' glyph used elsewhere) draws the eye.
+  function pinReminderModal(onDone) {
+    openModal(
+      (modal) => {
+        const keyWrap = h('div', { className: 'pin-reminder-icon' });
+        keyWrap.innerHTML =
+          '<svg class="pin-reminder-key" viewBox="0 0 36 24" fill="none" stroke="currentColor" ' +
+          'stroke-linecap="round" stroke-linejoin="round">' +
+          '<circle cx="8" cy="12" r="6" stroke-width="2.25"></circle>' +
+          '<line x1="8" y1="9.5" x2="8" y2="14.5" stroke-width="1.4"></line>' +
+          '<line x1="5.5" y1="12" x2="10.5" y2="12" stroke-width="1.4"></line>' +
+          '<line x1="14" y1="12" x2="30" y2="12" stroke-width="2.25"></line>' +
+          '<line x1="24" y1="12" x2="24" y2="17" stroke-width="2.25"></line>' +
+          '<line x1="29" y1="12" x2="29" y2="16" stroke-width="2.25"></line>' +
+          '</svg>';
+        const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+        ok.addEventListener('click', closeModal);
+        const body = h('p', { className: 'hint pin-reminder-body' });
+        body.append(
+          document.createTextNode('Write it down, or save it in a password manager, before you go any further. '),
+          h('strong', { className: 'pin-reminder-warn', textContent: "This PIN can't be recovered" }),
+          document.createTextNode(' — only a separate backup of your keys can get your accounts back.')
+        );
+        modal.append(
+          keyWrap,
+          h('h3', { className: 'pin-reminder-title', textContent: 'Save your PIN somewhere safe' }),
+          body,
+          h('div', { className: 'actions' }, [ok])
+        );
+      },
+      () => { if (onDone) setTimeout(onDone, 0); }
     );
   }
 
