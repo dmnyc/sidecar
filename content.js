@@ -520,7 +520,11 @@
   try {
     chrome.runtime.sendMessage({ type: 'SIDECAR_GET_SETTINGS' }, (s) => {
       if (chrome.runtime.lastError) return; // keep the default (on)
-      showCard = !(s && s.showPayButton === false);
+      // Control replies are { ok, result } envelopes — the setting is inside
+      // result. (Reading it off the top level meant a saved "off" never applied
+      // on page load, only via the live settings push.)
+      const settings = (s && s.result) || {};
+      showCard = settings.showPayButton !== false;
       scanForInvoice();
     });
   } catch (_) {}

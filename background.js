@@ -1407,7 +1407,13 @@ function bumpAutoLock() {
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === AUTO_LOCK_ALARM) lockKeystore();
+  if (alarm.name === AUTO_LOCK_ALARM) {
+    // Re-check the live setting at fire time: an alarm armed under an older
+    // choice (before the user switched to Never) must not lock.
+    sget('sidecar_settings').then(({ sidecar_settings }) => {
+      if (resolveSettings(sidecar_settings).autoLockMinutes > 0) lockKeystore();
+    });
+  }
   // Best-effort heartbeat while the approval queue is non-empty: sweeps expired
   // requests and re-drives the display so nothing stalls if the SW was napping.
   else if (alarm.name === QUEUE_KEEPALIVE_ALARM) driveDisplay();
@@ -1421,10 +1427,18 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_GET_STATE':
         result = await KS.getState();
         break;
-      case 'SIDECAR_INIT':
+      case 'SIDECAR_INIT': {
         result = await KS.initialize(message.pin);
+        // A new keystore adopts the current auto-lock default as an explicit
+        // setting (and needs no migration notice) — the "no stored value" state
+        // is reserved for keystores that predate the 15-minute default.
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        await sset({
+          sidecar_settings: { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, autoLockNoticeShown: true, ...prev },
+        });
         bumpAutoLock();
         break;
+      }
       case 'SIDECAR_UNLOCK': {
         // CONTRACT: resolves { ok:true, result:{ status } } — it does NOT throw
         // ok:false for a wrong PIN. `status` is one of:
@@ -1591,13 +1605,26 @@ async function handleControl(message, sendResponse) {
         await sset({ sidecar_relays: message.relays });
         result = message.relays;
         break;
-      case 'SIDECAR_GET_SETTINGS':
-        result = resolveSettings((await sget('sidecar_settings')).sidecar_settings);
+      case 'SIDECAR_GET_SETTINGS': {
+        const raw = (await sget('sidecar_settings')).sidecar_settings || {};
+        // autoLockDefaulted: the user has never chosen an auto-lock value, so the
+        // resolved 15 minutes is the migration default. The panel uses this to
+        // show existing users a one-time notice that auto-lock is now on.
+        result = { ...resolveSettings(raw), autoLockDefaulted: !('autoLockMinutes' in raw) };
         break;
+      }
       case 'SIDECAR_SET_SETTINGS': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const merged = { ...prev, ...message.settings };
         await sset({ sidecar_settings: merged });
+        // Apply an auto-lock change immediately: drop any alarm armed under the
+        // old value, then re-arm from the new one (no-op when Never or locked).
+        // Without this the change only took effect on the next sign/pay/unlock —
+        // enabling auto-lock and walking away would never actually lock.
+        if (message.settings && 'autoLockMinutes' in message.settings) {
+          await chrome.alarms.clear(AUTO_LOCK_ALARM);
+          bumpAutoLock();
+        }
         // Push the pay-pill setting to content scripts so it toggles live.
         if (chrome.tabs) {
           chrome.tabs.query({}, (tabs) => {
@@ -1771,6 +1798,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // autozap, budgets, autolock, or any other setting.
     const s = message.settings || {};
     message = { type: 'SIDECAR_SET_SETTINGS', settings: 'showPayButton' in s ? { showPayButton: !!s.showPayButton } : {} };
+  }
+  if (!fromExtPage && message.type === 'SIDECAR_GET_SETTINGS') {
+    // Clamp the read side the same way: a visited page gets the pay-card toggle
+    // and nothing else. The full object would tell it the auto-lock timing (how
+    // long an unattended unlocked keystore stays warm) plus budget/autozap
+    // config it has no business fingerprinting.
+    sget('sidecar_settings').then(({ sidecar_settings }) => {
+      sendResponse({ ok: true, result: { showPayButton: (sidecar_settings || {}).showPayButton } });
+    });
+    return true;
   }
 
   // Page RPC from content script.

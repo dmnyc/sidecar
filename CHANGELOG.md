@@ -16,10 +16,13 @@ and [Semantic Versioning](https://semver.org/).
 - **Reject Primal's NWC string** — Primal's wallet is Spark-based and only works inside Primal's own apps, so its Nostr Wallet Connect string can't drive an external wallet. Sidecar now detects it and explains why, instead of hanging on connect.
 
 ### Security
-- **Auto-lock now defaults to 15 minutes of inactivity**, instead of never. It only counts down when nothing has been signed, paid, or unlocked in that window, so active use is unaffected — this only shrinks the window a decrypted keystore is left exposed on an unattended browser. Still adjustable (including back to Never) in Settings, and anyone who's already chosen a value there keeps it.
+- **Auto-lock now defaults to 15 minutes of inactivity**, instead of never. It only counts down when nothing has been signed, paid, or unlocked in that window, so active use is unaffected — this only shrinks the window a decrypted keystore is left exposed on an unattended browser. Still adjustable (including back to Never) in Settings, and anyone who's already chosen a value there keeps it. Existing users who'd never chosen a value get a one-time notice that auto-lock is now on — with a reminder that the unlock PIN is unrecoverable — the first time the panel opens unlocked.
+- **Auto-lock changes apply immediately.** Changing the timer in Settings now re-arms (or clears) the countdown on the spot; previously the new value only took effect after the next sign, payment, or unlock — so enabling auto-lock and walking away would never actually lock.
+- **Web pages can no longer read Sidecar's full settings.** The settings read available to visited pages is now clamped to the pay-card toggle, matching the existing clamp on writes — a page could previously see the auto-lock timing, budget, and auto-zap configuration.
 
 ### Fixed
 - The PIN/confirm fields on the "create a keystore" screen no longer show a stale green checkmark next to an empty box after a reset (erase-everything, or the 21-failed-unlock auto-wipe) — the validity indicators now recompute when the fields are cleared, instead of only on typing.
+- Turning the on-page "Pay with Sidecar" card off now sticks across page loads — the content script was reading the saved setting from the wrong spot in the reply, so only the live toggle push ever applied.
 
 ## [1.3.0] — 2026-07-09
 
