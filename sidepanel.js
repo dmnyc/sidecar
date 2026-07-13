@@ -7651,6 +7651,7 @@
     } catch (_) {}
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
+      if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {
       // Not a failure: the background keeps pending requests alive and re-surfaces
@@ -7685,11 +7686,99 @@
     if (!isDevBuild()) return; // belt-and-suspenders: never show on a store build
     $('dev-badge').classList.toggle('hidden', !on);
   }
-  let devBadgeToast = null;
-  $('dev-badge').addEventListener('click', () => {
-    if (devBadgeToast && devBadgeToast.isConnected) devBadgeToast.remove();
-    devBadgeToast = toast('Debug panel coming soon.', 'success');
-  });
+
+  // ---- debug panel ----
+  // Reads the in-memory trace log the background keeps (message dispatch,
+  // timings, uncaught SW errors — see background.js). Dev builds only, same
+  // gate as the badge itself.
+  let debugPanelRefresh = null; // set while the panel is open; re-pulls on SIDECAR_LOG_UPDATED
+
+  function debugLogRow(e) {
+    const row = h('div', { className: 'item debug-log-row debug-log-' + e.level });
+    const parts = [];
+    if (e.data) {
+      if (e.data.method) parts.push(e.data.method);
+      if (e.data.host) parts.push(e.data.host);
+      if (e.data.ms != null) parts.push(e.data.ms + 'ms');
+      if (e.data.version) parts.push('v' + e.data.version);
+      if (e.data.error) parts.push(e.data.error);
+      if (e.data.message) parts.push(e.data.message);
+      if (e.data.reason) parts.push(e.data.reason);
+      if (e.data.filename) parts.push(e.data.filename + (e.data.lineno != null ? ':' + e.data.lineno : ''));
+    }
+    row.append(h('div', { className: 'item-main' }, [
+      h('div', { className: 'item-label', textContent: '[' + e.tag + '] ' + e.msg }),
+      h('div', { className: 'item-sub', textContent: [new Date(e.ts).toLocaleTimeString(), ...parts].join(' · ') }),
+    ]));
+    return row;
+  }
+
+  function debugLogText(entries) {
+    return entries.map((e) => {
+      const meta = e.data ? ' ' + JSON.stringify(e.data) : '';
+      return '[' + new Date(e.ts).toISOString() + '] ' + e.level.toUpperCase() + ' ' + e.tag + ': ' + e.msg + meta;
+    }).join('\n');
+  }
+
+  async function openDebugPanel() {
+    let entries = [];
+    try { entries = await call({ type: 'SIDECAR_GET_DEBUG_LOG' }); } catch (_) {}
+
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      modal.appendChild(xBtn);
+
+      const build = window.SIDECAR_BUILD || {};
+      const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+      const verText = ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '');
+      modal.append(
+        h('div', {}, [
+          h('div', { className: 'notif-modal-title', textContent: 'Debug log' }),
+          h('div', { className: 'hint', textContent: 'Sidecar ' + verText + ' · dev build' }),
+        ])
+      );
+
+      const scroll = h('div', { className: 'notif-scroll' });
+      const list = h('div', { className: 'list' });
+      scroll.appendChild(list);
+      modal.appendChild(scroll);
+
+      function render() {
+        if (!entries.length) {
+          listState(list, 'No log entries yet — use the app and they’ll appear here.');
+          return;
+        }
+        list.innerHTML = '';
+        entries.slice().reverse().forEach((e) => list.append(debugLogRow(e)));
+      }
+      render();
+      debugPanelRefresh = async () => {
+        try { entries = await call({ type: 'SIDECAR_GET_DEBUG_LOG' }); } catch (_) { return; }
+        render();
+      };
+
+      const copyBtn = h('button', { className: 'secondary', textContent: 'Copy' });
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(debugLogText(entries) || '(empty)');
+          copyBtn.textContent = 'Copied ✓';
+          setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
+        } catch (_) {}
+      });
+      const clearBtn = h('button', { className: 'ghost', textContent: 'Clear' });
+      clearBtn.addEventListener('click', async () => {
+        try { entries = await call({ type: 'SIDECAR_CLEAR_DEBUG_LOG' }); } catch (_) { return; }
+        render();
+      });
+      modal.append(h('div', { className: 'actions' }, [clearBtn, copyBtn]));
+    }, () => { debugPanelRefresh = null; });
+  }
+
+  $('dev-badge').addEventListener('click', openDebugPanel);
   $('dev-badge').appendChild(icon('bug'));
 
   // ---- boot ----
