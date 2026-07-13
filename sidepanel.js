@@ -2230,19 +2230,34 @@
   // Shown once, right after the PIN is created — before the empty-state welcome
   // hero appears. There is no reset flow for this PIN (that's the point of local
   // encryption), so this is the one moment to make sure it actually got captured
-  // somewhere durable, not just typed and forgotten.
+  // somewhere durable, not just typed and forgotten. A gently swaying antique key
+  // (distinct from the small modern 'key' glyph used elsewhere) draws the eye.
   function pinReminderModal(onDone) {
     openModal(
       (modal) => {
+        const keyWrap = h('div', { className: 'pin-reminder-icon' });
+        keyWrap.innerHTML =
+          '<svg class="pin-reminder-key" viewBox="0 0 24 36" fill="none" stroke="currentColor" ' +
+          'stroke-linecap="round" stroke-linejoin="round">' +
+          '<circle cx="12" cy="7" r="6" stroke-width="2.25"></circle>' +
+          '<line x1="12" y1="4.5" x2="12" y2="9.5" stroke-width="1.4"></line>' +
+          '<line x1="9.5" y1="7" x2="14.5" y2="7" stroke-width="1.4"></line>' +
+          '<line x1="12" y1="13" x2="12" y2="29" stroke-width="2.25"></line>' +
+          '<line x1="12" y1="23" x2="17" y2="23" stroke-width="2.25"></line>' +
+          '<line x1="12" y1="28" x2="16" y2="28" stroke-width="2.25"></line>' +
+          '</svg>';
         const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
         ok.addEventListener('click', closeModal);
+        const body = h('p', { className: 'hint pin-reminder-body' });
+        body.append(
+          document.createTextNode('Write it down, or save it in a password manager, before you go any further. '),
+          h('strong', { className: 'pin-reminder-warn', textContent: "There's no way to recover this PIN" }),
+          document.createTextNode(" — forget it, and every account and wallet connection on this device stays locked for good, unless you've backed up your keys separately.")
+        );
         modal.append(
-          h('h3', { textContent: 'Save your PIN somewhere safe' }),
-          h('p', { className: 'hint', textContent: "Write it down or store it in a password manager now, while it's fresh." }),
-          h('div', {
-            className: 'kind-warn',
-            textContent: "There is no way to recover this PIN. If you forget it, every account and wallet connection on this device stays locked for good — unless you've backed up your keys separately.",
-          }),
+          keyWrap,
+          h('h3', { className: 'pin-reminder-title', textContent: 'Save your PIN somewhere safe' }),
+          body,
           h('div', { className: 'actions' }, [ok])
         );
       },
