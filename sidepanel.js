@@ -311,6 +311,7 @@
       dismissPostBanner(); // a note link is account-specific; clear on any state change
       renderMain();
       initNotifSubs();
+      maybeShowAutoLockNotice(settings);
       // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
       const activeTab = document.querySelector('.tab.active');
       const name = activeTab && activeTab.dataset.tab;
@@ -545,6 +546,12 @@
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+  });
+  // Release notes live in the help guide's "What's new" section — the guide is
+  // updated as part of every release (see the RELEASE PRACTICE note in help.html).
+  $('whats-new-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#whats-new' });
   });
 
   // ---- settings (gear icon ↔ overlay view) ----
@@ -2270,6 +2277,55 @@
       },
       () => { if (onDone) setTimeout(onDone, 0); }
     );
+  }
+
+  // One-time notice for keystores that predate the 15-minute auto-lock default:
+  // their Settings were never touched, so 1.4 turned auto-lock on for them
+  // silently. Tell them — and remind them the unlock PIN is unrecoverable, since
+  // they also predate the save-your-PIN reminder above. New keystores never see
+  // this (SIDECAR_INIT stores the default explicitly). Writing the resolved value
+  // back as their explicit setting also means a future default change can't
+  // silently move it again.
+  let autoLockNoticePending = false;
+  async function maybeShowAutoLockNotice(settings) {
+    if (autoLockNoticePending) return;
+    if (!settings || !settings.autoLockDefaulted || settings.autoLockNoticeShown) return;
+    autoLockNoticePending = true;
+    try {
+      await call({
+        type: 'SIDECAR_SET_SETTINGS',
+        settings: { autoLockMinutes: settings.autoLockMinutes, autoLockNoticeShown: true },
+      });
+    } catch (_) {
+      autoLockNoticePending = false; // couldn't persist; try again next refresh
+      return;
+    }
+    autoLockNoticeModal(settings.autoLockMinutes);
+  }
+
+  function autoLockNoticeModal(minutes) {
+    openModal((modal) => {
+      const body = h('p', { className: 'hint pin-reminder-body' });
+      body.append(
+        document.createTextNode('Sidecar now locks itself after ' + minutes + ' minutes of inactivity. Unlocking uses the PIN you chose when you set up Sidecar — '),
+        h('strong', { className: 'pin-reminder-warn', textContent: "it can't be recovered" }),
+        document.createTextNode(", so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.")
+      );
+      const settingsBtn = h('button', { className: 'ghost', textContent: 'Auto-lock settings' });
+      settingsBtn.addEventListener('click', () => {
+        closeModal();
+        hide($('view-main'));
+        show($('view-settings'));
+        renderSettings();
+      });
+      const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+      ok.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { className: 'pin-reminder-title', textContent: 'Sidecar now locks automatically' }),
+        body,
+        h('div', { className: 'actions' }, [settingsBtn, ok])
+      );
+    });
   }
 
   // PIN-gated step-up, then the tabbed nsec/ncryptsec backup view below.
@@ -5863,7 +5919,7 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Rizful, YakiHonne, or any NWC-capable wallet. Sidecar never holds your funds.',
+          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.',
       })
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });

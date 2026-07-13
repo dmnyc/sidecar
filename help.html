@@ -26,6 +26,7 @@
         <a href="#switching">Switching</a>
         <a href="#clients">Clients compared</a>
         <a href="#wallet">Wallet</a>
+        <a href="#whats-new">What's new</a>
       </div>
       <div class="helpnav-pages">
         <a href="welcome.html">Nostr apps</a>
@@ -220,6 +221,26 @@
       good options for every taste, custodial to self-custodial.</p>
     </section>
 
+    <!-- ===== What's new ===== -->
+    <!-- RELEASE PRACTICE: update this section as part of every release. Replace the
+         version line and highlights with the new release's user-facing notes
+         (mirroring the CHANGELOG.md entry) — keep only the latest release here;
+         the full history stays in CHANGELOG.md, linked below. -->
+    <section class="guide-section" id="whats-new">
+      <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.4.0</p>
+      <ul class="whatsnew-list">
+        <li><strong>A clearer signing prompt.</strong> Event content shows in a compact, expandable preview with Formatted, Raw, and JSON views, and roughly 40 more event kinds are recognized by name — so routine actions no longer show the "unrecognized kind" caution.</li>
+        <li><strong>Readable identities.</strong> Encrypt and decrypt prompts show the other party by name, with their npub kept beneath it as a verifiable key — click the npub to reveal the full key.</li>
+        <li><strong>Auto-lock is on by default.</strong> Sidecar now locks after 15 minutes of inactivity — adjustable in Settings, including back to Never, and changes apply immediately. If you'd never chosen a value, a one-time notice tells you the first time you unlock.</li>
+        <li><strong>Save-your-PIN reminder.</strong> Right after you create a PIN, a one-time reminder prompts you to write it down or store it in a password manager — there's no recovery if it's forgotten.</li>
+        <li><strong>Tighter settings privacy.</strong> Websites can no longer read Sidecar's settings; pages see only the on-page pay-card toggle.</li>
+        <li><strong>Primal wallet strings detected.</strong> Primal's wallet connection only works inside Primal's own apps — Sidecar now explains that up front instead of hanging on connect.</li>
+      </ul>
+      <p>The full history, including earlier releases, is in the
+      <a href="https://github.com/dmnyc/sidecar/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer noopener" id="changelog-link">changelog on GitHub</a>.</p>
+    </section>
+
     <!-- ===== More resources ===== -->
     <section class="guide-section" id="more">
       <h2>Keep exploring</h2>
@@ -278,6 +299,7 @@
 
   </div>
 
+  <script src="version.js"></script>
   <script src="help.js"></script>
 </body>
 </html>

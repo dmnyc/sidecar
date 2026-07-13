@@ -13,11 +13,15 @@ skips Firefox (or vice versa).
 | Background        | MV3 `background.service_worker`       | event page: `background.scripts`                     |
 | Side UI           | `side_panel` (`chrome.sidePanel`)     | `sidebar_action`                                     |
 | Store metadata    | —                                     | requires `browser_specific_settings.gecko`           |
-| Lives on          | `main`                                | `feat/firefox-port` (+ `fix/message-origin-cross-browser`) |
+| Lives on          | `main`                                | `feat/firefox-port` (+ `fix/firefox-message-origin`) |
 
 The Firefox port is kept on its own branch(es) until it's ready for AMO. Merging a
 release to `main` updates the Chrome build; the Firefox branch must be brought up to
 the same version separately (see the checklist).
+
+**Current status:** paused as of 1.4.0 — Chrome is the active priority. Resume by
+rebasing `feat/firefox-port` onto `main`, folding in `fix/firefox-message-origin`, and
+running the checklist below.
 
 ## Shared vs. browser-specific
 
@@ -33,7 +37,7 @@ the same version separately (see the checklist).
 - **Extension origin** — never hardcode a scheme. Use `chrome.runtime.getURL('/')`,
   which yields `chrome-extension://<id>/` on Chrome and `moz-extension://<uuid>/` on
   Firefox. Hardcoding `chrome-extension://` in the message-origin gate is exactly what
-  blanked the Firefox panel — see `fix/message-origin-cross-browser`.
+  blanked the Firefox panel — see `fix/firefox-message-origin`.
 - Any `chrome.*` call that has no Firefox equivalent.
 
 ## Release checklist — run for every version bump
@@ -54,7 +58,7 @@ the same version separately (see the checklist).
 ## Known cross-browser gotchas
 
 - **Origin gate** (`background.js`) — use `runtime.getURL('/')`, not a hardcoded scheme.
-  Fixed on `fix/message-origin-cross-browser`; fold that into the Firefox branch.
+  Fixed on `fix/firefox-message-origin`; fold that into the Firefox branch.
 - **Side UI** — `chrome.sidePanel` (Chrome) vs `sidebar_action` (Firefox); the manifest
   key and the open/close behavior both differ.
 - **Background** — MV3 service worker (Chrome) vs event page `background.scripts` (Firefox).
