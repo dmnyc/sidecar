@@ -291,10 +291,14 @@
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
     if (!state.initialized) {
       // Clear any stale PIN left in the inputs (e.g. after a reset) — the panel is
-      // an SPA, so values would otherwise persist across the view switch.
+      // an SPA, so values would otherwise persist across the view switch. Setting
+      // .value doesn't fire an 'input' event, so the validity checkmarks won't
+      // recompute on their own — re-validate explicitly or they'd keep showing
+      // green next to now-empty fields.
       $('ob-pin').value = '';
       $('ob-pin2').value = '';
       $('ob-error').textContent = '';
+      validateOnboardingPin();
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
     } else if (state.locked) {
@@ -323,7 +327,7 @@
 
 
   // ---- onboarding ----
-  attachPinValidation($('ob-pin'), $('ob-pin2'), $('ob-submit'));
+  const validateOnboardingPin = attachPinValidation($('ob-pin'), $('ob-pin2'), $('ob-submit'));
   $('onboarding-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('ob-error');
