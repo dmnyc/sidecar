@@ -13,6 +13,7 @@ Update that section alongside this file as part of every release.
 - **Expandable signing preview** — the approval prompt now shows event content in a compact, expandable pane with **Formatted / Raw / JSON** views and a Show more / less toggle in every view. "Formatted" renders a note the way a client would (mentions as @-names, media, and note/nevent/naddr embeds), so long content — like a repost whose content is an embedded event — no longer pushes the "Signing as" account card off-screen.
 - **Wider event-kind recognition** — the signing prompt now labels roughly 40 more event kinds (Blossom upload authorization, polls, user status, zap goals, labels, communities, wiki articles, starter packs, voice messages, and many NIP-51 lists and sets), so routine actions no longer show the "unrecognized kind" caution. A **request to vanish** (kind 62) now carries a delete-style heads-up.
 - **"Save your PIN" reminder** — right after creating a PIN, a one-time modal prompts you to write it down or store it in a password manager before moving on. There's no recovery if it's forgotten, so this is the one moment to make sure it's actually captured somewhere durable.
+- **In-app release notes** — the help guide's new "What's new" section summarizes each release's highlights, linked from the help nav and from a new "What's new in this version" link in Settings → Updates.
 
 ### Changed
 - **nostr-tools updated to 2.23.11** (from 2.16.2) — roughly a year of upstream fixes; the vendored bundle remains the byte-exact official npm artifact, and the app's relay-subscription call sites were adapted to the newer single-filter API. Cross-version interop (NIP-04/NIP-44 ciphertexts, event signatures) verified.
@@ -30,6 +31,7 @@ Update that section alongside this file as part of every release.
 ### Fixed
 - The PIN/confirm fields on the "create a keystore" screen no longer show a stale green checkmark next to an empty box after a reset (erase-everything, or the 21-failed-unlock auto-wipe) — the validity indicators now recompute when the fields are cleared, instead of only on typing.
 - Turning the on-page "Pay with Sidecar" card off now sticks across page loads — the content script was reading the saved setting from the wrong spot in the reply, so only the live toggle push ever applied.
+- Resuming a saved composer draft that contains a mention now correctly re-renders it as the resolved @name — the Write tab and the "Resume your draft?" preview previously showed the raw `nostr:npub…` string instead.
 
 ## [1.3.0] — 2026-07-09
 
