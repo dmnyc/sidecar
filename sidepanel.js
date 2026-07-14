@@ -272,7 +272,23 @@
       const active = document.querySelector('.tab.active');
       if (active && active.dataset.tab === 'wallet') renderWallet();
     }
+    // Auto-lock (or a lock from elsewhere) fired in the background — drop to the
+    // unlock screen now. refresh() closes any open modal and routes to view-lock.
+    // Only an idle-timeout lock (auto) toasts — the user didn't trigger it, so
+    // explain the sudden jump; manual lock / reset already show their own message.
+    if (msg.event === 'locked') { refresh(); if (msg.auto) toast('Locked due to inactivity'); }
   });
+
+  // Reset the background idle auto-lock timer on active panel use (composing),
+  // throttled so a burst of keystrokes doesn't spam the service worker — auto-lock
+  // is minutes, so one ping every ~20s keeps it alive while you're actively typing.
+  let lastActivityPing = 0;
+  function noteActivity() {
+    const now = Date.now();
+    if (now - lastActivityPing < 20000) return;
+    lastActivityPing = now;
+    chrome.runtime.sendMessage({ type: 'SIDECAR_ACTIVITY' }).catch(() => {});
+  }
 
   // ---- top-level routing ----
   async function refresh() {
@@ -302,6 +318,10 @@
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
     } else if (state.locked) {
+      // Lock is a security boundary and always wins: tear down any open modal
+      // (composer, wallet, key backup, …) so nothing sensitive sits over the lock
+      // screen. The composer draft is autosaved, so it's offered again on unlock.
+      closeModal();
       if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
       balanceCache = { pubkey: null, sats: null };
       show($('view-lock'));
@@ -4280,6 +4300,7 @@
         updatePostState();
         updateAcDropdown();
         scheduleSave();
+        noteActivity(); // composing counts as activity — keep auto-lock at bay
       });
 
       editor.addEventListener('keydown', (e) => {
