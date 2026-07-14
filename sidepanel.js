@@ -3964,6 +3964,55 @@
     return out;
   }
 
+  // Inverse of serializeEditor: rebuild the editor's rich DOM (mention pills,
+  // line breaks) from a raw saved string — used when resuming a draft, since
+  // just setting .textContent leaves 'nostr:npub1…' as visible plain text
+  // instead of a resolved @name pill. A pill's name resolves instantly from the
+  // profile cache when available, else shows a short npub that upgrades in
+  // place once the profile loads (same pattern as embed cards elsewhere).
+  function hydrateEditorFromText(editor, text) {
+    editor.innerHTML = '';
+    const appendText = (s) => {
+      const lines = s.split('\n');
+      lines.forEach((line, i) => {
+        if (line) editor.appendChild(document.createTextNode(line));
+        if (i < lines.length - 1) editor.appendChild(document.createElement('br'));
+      });
+    };
+    const mentionRe = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+    let last = 0, m;
+    while ((m = mentionRe.exec(text)) !== null) {
+      if (m.index > last) appendText(text.slice(last, m.index));
+      const bech32 = m[0];
+      let pubkey = null, fallback = bech32;
+      try {
+        const decoded = NT.nip19.decode(m[1]);
+        pubkey = decoded.type === 'npub' ? decoded.data : decoded.data.pubkey;
+        fallback = shortNpub(NT.nip19.npubEncode(pubkey));
+      } catch (_) {}
+      const pill = document.createElement('span');
+      pill.className = 'mention-pill';
+      pill.contentEditable = 'false';
+      pill.dataset.bech32 = bech32;
+      const cached = pubkey ? cachedProfile(pubkey) : null;
+      pill.textContent = '@' + (cached && cached.name ? cached.name : fallback);
+      editor.appendChild(pill);
+      last = mentionRe.lastIndex;
+      // A plain space right after the mention is the pill's trailing separator —
+      // render it as NBSP (matching live insertion via the @-autocomplete) so it
+      // isn't visually collapsed; serializeEditor turns it back into a space.
+      if (text[last] === ' ') {
+        editor.appendChild(document.createTextNode(' '));
+        last += 1;
+        mentionRe.lastIndex = last;
+      }
+      if (pubkey && !(cached && cached.name)) {
+        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) pill.textContent = '@' + p.name; });
+      }
+    }
+    if (last < text.length) appendText(text.slice(last));
+  }
+
   // ---- composer draft autosave (per account, in chrome.storage.local) ----
   function loadComposeDraft(pubkey) {
     return new Promise((res) => {
@@ -4050,7 +4099,7 @@
 
       const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
       editor.dataset.placeholder = "What’s on your mind?";
-      if (draft.text) { editor.textContent = draft.text; editor.classList.remove('is-empty'); }
+      if (draft.text) { hydrateEditorFromText(editor, draft.text); editor.classList.remove('is-empty'); }
 
       const editorWrap = h('div', { className: 'compose-editor-wrap' });
       editorWrap.append(editor);
@@ -4521,8 +4570,11 @@
       // real newlines — this preview renders with white-space: pre-wrap, and
       // "Resume draft" loads the exact saved text, so the preview should look
       // like what's about to be restored instead of flattening it to one line.
-      const snippet = (saved.text || '').trim().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
-      const preview = snippet.length > 160 ? snippet.slice(0, 160) + '…' : snippet;
+      // No length-based truncation here: a fixed character cutoff could slice
+      // through the middle of a nostr:npub1… mention, breaking it — the box
+      // already clips visually (max-height + overflow:hidden), matching how
+      // the Preview tab and the final review screen handle the same text.
+      const preview = (saved.text || '').trim().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
       const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
         ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
@@ -4544,7 +4596,11 @@
         h('h3', { textContent: 'Resume your draft?' }),
         h('p', { className: 'hint', textContent: 'You have an unsaved draft' + when + '.' }),
       ];
-      if (preview) parts.push(h('div', { className: 'draft-preview', textContent: preview }));
+      if (preview) {
+        const previewBox = h('div', { className: 'draft-preview' });
+        renderNotePreview(previewBox, preview);
+        parts.push(previewBox);
+      }
       if (mediaNote) parts.push(h('p', { className: 'draft-preview-meta', textContent: mediaNote }));
       parts.push(h('div', { className: 'actions' }, [resume, fresh]));
       modal.append(...parts);
