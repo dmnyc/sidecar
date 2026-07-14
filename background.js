@@ -1390,11 +1390,17 @@ async function loadUnlockGuard() {
 const saveUnlockGuard = (g) => sset({ sidecar_unlock_guard: g });
 const clearUnlockGuard = () => new Promise((res) => chrome.storage.local.remove('sidecar_unlock_guard', res));
 
-async function lockKeystore() {
+async function lockKeystore(auto = false) {
   await KS.lock();
   SIGNER.clearCache();
   closeSwNwc();
   chrome.alarms.clear(AUTO_LOCK_ALARM);
+  // Tell any open panel/popup to drop to the unlock screen immediately — otherwise
+  // it keeps showing whatever was open (e.g. the composer) and only discovers the
+  // lock on its next action, which then fails with a "locked" error. `auto` marks an
+  // idle-timeout lock (vs. manual lock / wipe / reset, which show their own message)
+  // so the panel can toast why it suddenly jumped to the unlock screen.
+  chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'locked', auto }).catch(() => {});
 }
 
 function bumpAutoLock() {
@@ -1411,7 +1417,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     // Re-check the live setting at fire time: an alarm armed under an older
     // choice (before the user switched to Never) must not lock.
     sget('sidecar_settings').then(({ sidecar_settings }) => {
-      if (resolveSettings(sidecar_settings).autoLockMinutes > 0) lockKeystore();
+      if (resolveSettings(sidecar_settings).autoLockMinutes > 0) lockKeystore(true);
     });
   }
   // Best-effort heartbeat while the approval queue is non-empty: sweeps expired
@@ -1426,6 +1432,14 @@ async function handleControl(message, sendResponse) {
     switch (message.type) {
       case 'SIDECAR_GET_STATE':
         result = await KS.getState();
+        break;
+      case 'SIDECAR_ACTIVITY':
+        // Panel-side activity (e.g. actively composing a note) counts as use, so
+        // re-arm the idle auto-lock timer — otherwise it can fire mid-compose,
+        // since typing never round-trips to the background. No-ops when locked or
+        // when auto-lock is off/Never (bumpAutoLock guards both).
+        bumpAutoLock();
+        result = { ok: true };
         break;
       case 'SIDECAR_INIT': {
         result = await KS.initialize(message.pin);
