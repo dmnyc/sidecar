@@ -1425,6 +1425,60 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   else if (alarm.name === QUEUE_KEEPALIVE_ALARM) driveDisplay();
 });
 
+// ---- step-up PIN gate (reveal nsec/NWC, PIN-confirmed owner ops, change PIN) ----
+// The PIN is the keystore's ONE credential, so two rules follow:
+//   1. A correct PIN is never refused just because auto-lock fired while a modal
+//      was open (the panel can be a beat behind the background's lock state).
+//      If the keystore is locked, a verified PIN unlocks it and the operation
+//      proceeds — exactly as if it had been typed on the unlock screen. The old
+//      behavior ("Keystore is locked" thrown at a correct PIN) forced a manual
+//      lock/unlock round trip.
+//   2. A wrong PIN here costs the same as a wrong PIN on the unlock screen.
+//      Step-up attempts share the persisted unlock guard (escalating delays,
+//      self-wipe on the 21st strike) — otherwise VERIFY_PIN / reveal / change-PIN
+//      would be unthrottled oracles for brute-forcing the very PIN that guard
+//      protects.
+// guardPinAttempt wraps any PIN-checking `attempt` (which must throw
+// /incorrect .*pin/i on a bad PIN) in that shared accounting. Throws
+// human-readable errors — the step-up modals display e.message as-is.
+async function guardPinAttempt(attempt) {
+  const guard = await loadUnlockGuard();
+  const waitMs = unlockDelayMs(guard.fails) - (Date.now() - guard.lastAt);
+  if (waitMs > 0) throw new Error('Too many attempts — try again in ' + Math.ceil(waitMs / 1000) + 's');
+  let result;
+  try {
+    result = await attempt();
+  } catch (e) {
+    if (!/incorrect (current )?pin/i.test(e.message || '')) throw e; // not a PIN verdict (e.g. not initialized)
+    const fails = guard.fails + 1;
+    if (fails >= MAX_UNLOCK_FAILS) {
+      // Final strike: same erase as the unlock screen (in-memory + all persisted data).
+      await lockKeystore();
+      await new Promise((res) => chrome.storage.local.clear(() => res()));
+      throw new Error('Too many failed attempts — Sidecar has been erased');
+    }
+    await saveUnlockGuard({ fails, lastAt: Date.now() });
+    const remaining = MAX_UNLOCK_FAILS - fails;
+    if (remaining <= 5) {
+      throw new Error(e.message + ' — ' + remaining + (remaining === 1 ? ' attempt' : ' attempts') + ' left before Sidecar erases itself');
+    }
+    throw e;
+  }
+  await clearUnlockGuard();
+  return result;
+}
+async function stepUpPin(pin) {
+  if (typeof pin !== 'string' || !pin) throw new Error('PIN required');
+  await guardPinAttempt(async () => {
+    if (KS.isLocked()) {
+      await KS.unlock(pin); // throws 'Incorrect PIN' on a bad one
+      bumpAutoLock();
+    } else if (!(await KS.verifyPin(pin))) {
+      throw new Error('Incorrect PIN');
+    }
+  });
+}
+
 async function handleControl(message, sendResponse) {
   try {
     await KS.ensureLoaded(); // reflect a session unlock that survived SW restart
@@ -1572,16 +1626,27 @@ async function handleControl(message, sendResponse) {
         result = await KS.setActive(message.pubkey);
         break;
       case 'SIDECAR_CHANGE_PIN':
-        result = await KS.changePin(message.oldPin, message.newPin);
+        // changePin verifies the old PIN itself (and works from either lock
+        // state); guardPinAttempt adds the shared throttle/wipe accounting.
+        result = await guardPinAttempt(() => KS.changePin(message.oldPin, message.newPin));
         break;
       case 'SIDECAR_VERIFY_PIN':
         // Step-up re-auth for sensitive ops (reveal nsec/NWC, publish profile).
-        result = { valid: await KS.verifyPin(message.pin) };
+        // A plain wrong PIN keeps the { valid:false } contract; throttle/wipe/
+        // near-wipe warnings throw so the modal shows why (callers render e.message).
+        try {
+          await stepUpPin(message.pin);
+          result = { valid: true };
+        } catch (e) {
+          if ((e.message || '') === 'Incorrect PIN') result = { valid: false };
+          else throw e;
+        }
         break;
       case 'SIDECAR_REVEAL_NSEC': {
-        // Extract private data — always step-up PIN, even while unlocked.
-        if (KS.isLocked()) throw new Error('Keystore is locked');
-        if (!(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        // Extract private data — always step-up PIN, even while unlocked. If
+        // auto-lock won a race with the modal, the verified PIN unlocks instead
+        // of the old illogical "correct PIN, but locked" rejection.
+        await stepUpPin(message.pin);
         const bytes = await KS.getPrivkey(message.pubkey);
         result = { nsec: self.NostrTools.nip19.nsecEncode(bytes) };
         break;
@@ -1590,8 +1655,8 @@ async function handleControl(message, sendResponse) {
       // ---- owner actions: sign/encrypt with the ACTIVE account's key ----
       // The panel builds events; signing happens here so the key never leaves the SW.
       case 'SIDECAR_OWNER_SIGN': {
-        if (KS.isLocked()) throw new Error('Keystore is locked');
-        if (message.pin != null && !(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        if (message.pin != null) await stepUpPin(message.pin); // unlocks if auto-lock raced the modal
+        else if (KS.isLocked()) throw new Error('Keystore is locked');
         const pk = await KS.getActivePubkey();
         result = self.NostrTools.finalizeEvent(message.event, await KS.getPrivkey(pk));
         break;
@@ -1714,9 +1779,9 @@ async function handleControl(message, sendResponse) {
         result = { connection: await KS.getNwc(message.pubkey) };
         break;
       case 'SIDECAR_REVEAL_NWC': {
-        // Export the raw connection string — always step-up PIN, even while unlocked.
-        if (KS.isLocked()) throw new Error('Keystore is locked');
-        if (!(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        // Export the raw connection string — always step-up PIN, even while
+        // unlocked. Locked + verified PIN unlocks (see stepUpPin).
+        await stepUpPin(message.pin);
         result = { connection: await KS.getNwc(message.pubkey) };
         break;
       }
