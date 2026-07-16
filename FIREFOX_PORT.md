@@ -1,11 +1,47 @@
 # Firefox Port Plan
 
 Plan for porting Sidecar to Firefox at **1:1 feature parity** with the Chrome build,
-from a full audit of the codebase (v1.3.0). The good news up front: Sidecar's
-architecture (plain JS, no build step, `chrome.*` callback style, `storage.session`
-for lock state, a persisted request queue that already assumes the background can die
-at any moment) is unusually Firefox-friendly. The port is a handful of surgical
-changes plus one genuinely new piece of UX (host-permission granting), not a rewrite.
+from a full audit of the codebase (v1.3.0, refreshed against v1.4.0 — see Status).
+The good news up front: Sidecar's architecture (plain JS, no build step, `chrome.*`
+callback style, `storage.session` for lock state, a persisted request queue that
+already assumes the background can die at any moment) is unusually Firefox-friendly.
+The port is a handful of surgical changes plus one genuinely new piece of UX
+(host-permission granting), not a rewrite.
+
+## Status — resumed post-1.4.0
+
+The port paused while 1.4.0 shipped to Chrome. The branch has since been rebased
+onto 1.4.0 (plus the auto-lock UI follow-up), the cross-browser origin-gate fix is
+folded in, and implementation is complete through W6:
+
+| Workstream | State |
+|---|---|
+| W1 manifest (one file, both browsers) | ✅ done |
+| W2 background event page | ✅ done (lifetime tests remain — see W2 item 4) |
+| W3 MAIN-world provider injection | ✅ done — Chrome benefits too (CSP-proof, race-free) |
+| W4 host-permission recovery UX | ✅ done — panel banner, welcome-page gate, live grant/revoke listeners |
+| W5 sidebar wiring | ✅ done |
+| W6 shims | ✅ done in code (update check, scrollbars, pay-menu fallback); popup sizing + clipboard are QA items |
+| W7 docs | README + help notes done; PRIVACY.md line deferred to AMO submission |
+| W8 AMO listing | not started — holds until the parity benchmark passes |
+
+**1.4.0 audit deltas** — features added since the original v1.3.0 audit, all
+Firefox-clean: the debug panel (#103), auto-lock hardening + settings UI +
+composer-typing activity (#105/#110), the What's-new help section pinned to the
+build's tag, draft @-mention rehydration (#108), and the supply-chain refresh
+(#107: nostr-tools 2.23.11, MIT QR encoder — panel-side only). None add
+Chrome-only API surface, and the background's `importScripts` list — and therefore
+the manifest `background.scripts` list — is unchanged.
+
+One real parity bug was found and fixed during the refresh: **dev-build detection**
+keyed off a missing manifest `update_url`, which Chrome's Web Store injects at
+packaging time but AMO never does — so every production Firefox install would have
+been treated as a dev build (bug button, debug-log buffering). Detection now asks
+`management.getSelf()` for `installType === 'development'` on Firefox and fails
+closed while that async answer is pending.
+
+**Next:** run the parity benchmark below on Firefox 128 ESR + current release,
+then W8.
 
 ## Target baseline
 
@@ -43,9 +79,10 @@ polyfill needed):
 | `chrome.runtime.onInstalled/onStartup` | `background.js` | ✅ Works as-is |
 | **`background.service_worker` + `importScripts`** | `manifest.json`, `background.js:11`, `background.js:1272` | ❌ Firefox MV3 has no SW background — event page instead |
 | **`chrome.sidePanel.*`** (`setPanelBehavior`, `open`) | `background.js:187,195` | ❌ Firefox uses `sidebar_action` / `sidebarAction` |
-| **`chrome.runtime.requestUpdateCheck`** | `sidepanel.js:6669` | ❌ Not on Firefox (AMO auto-updates) — feature-detect and hide |
-| **`<script src>` provider injection** | `content.js:10–15` | ⚠️ Page CSP can block it on Firefox (unlike Chrome) — root-cause fix in W3 |
-| **`host_permissions: ["https://*/*"]` granted at install** | `manifest.json` | ⚠️ On Firefox MV3 the user can decline/revoke — needs a grant-recovery UX (W4) |
+| **`chrome.runtime.requestUpdateCheck`** | `sidepanel.js` (About + Settings) | ✅ Feature-detected and hidden on Firefox (done; AMO auto-updates) |
+| **`<script src>` provider injection** | was `content.js` | ✅ Replaced by a `world: "MAIN"` content script (W3, done — Chrome too) |
+| **`host_permissions: ["https://*/*"]` granted at install** | `manifest.json` | ✅ Grant-recovery UX shipped (W4, done): panel banner + welcome gate |
+| **`update_url` absent ⇒ dev build** heuristic | `background.js`, `sidepanel.js` | ✅ Fixed — AMO never injects `update_url`; Firefox now uses `management.getSelf().installType` |
 | `navigator.clipboard.writeText` (copy npub/invoice/etc.) | `sidepanel.js` (8 call sites) | ✅ Works in user-gesture handlers; QA item |
 | `::-webkit-scrollbar*`, `::-webkit-details-marker` | `styles.css` | ⚠️ Cosmetic — add Firefox equivalents (W6) |
 
@@ -232,6 +269,11 @@ same wallet, and must behave identically. The matrix lives as a checklist
 | 22 | Auto-approve zaps: under-limit silent, over-limit/daily-cap/non-zap/locked all prompt | identical thresholds |
 | 23 | Help & welcome pages, About dialog | correct browser-specific copy (allowed variance) |
 | 24 | Reset Sidecar (type-to-confirm wipe) | storage fully cleared |
+| 25 | *(1.4.0)* Auto-lock settings UI: timer change applies immediately, migration notice, composer typing counts as activity | identical behavior + wording |
+| 26 | *(1.4.0)* Debug panel & dev badge: appear on a temporary/unpacked load, NEVER on a store install (Chrome: `update_url`; Firefox: `management.getSelf`) | AMO-signed build shows no bug button |
+| 27 | *(1.4.0)* Settings → What's new opens `help.html#whats-new` pinned to this build's tag | correct tag on both |
+| 28 | *(1.4.0)* Composer draft resume rehydrates @-mention pills | identical |
+| 29 | *(1.4.0)* Pay-with-Sidecar toggle persists and applies on page load (settings envelope fix) | saved "off" respected after reload |
 
 ### Firefox-specific adversarial tests
 
@@ -246,7 +288,7 @@ same wallet, and must behave identically. The matrix lives as a checklist
 
 ### Exit criteria
 
-- 24/24 matrix rows pass on Firefox 128 ESR and current Firefox release.
+- 29/29 matrix rows pass on Firefox 128 ESR and current Firefox release.
 - The only permitted deltas are the four **declared platform variances**:
   (1) sidebar is per-window not per-tab; (2) update-check button hidden (AMO
   auto-updates); (3) install-time host-permission prompt + recovery banner exists;
@@ -258,14 +300,15 @@ same wallet, and must behave identically. The matrix lives as a checklist
 
 | Phase | Work | Estimate |
 |---|---|---|
-| 1 | W1 + W2 (manifest, background loading, first boot in Firefox) | 1–2 days |
-| 2 | W3 + W5 (MAIN-world injection, sidebar wiring) — signer usable end-to-end | 1–2 days |
-| 3 | W4 + W6 (permission UX, shims, CSS) | 2–3 days |
-| 4 | Full parity benchmark on both browsers + fixes it shakes out | 3–5 days |
-| 5 | W7 + W8 (docs, site, AMO listing + review) | 1 day work + review wait |
+| 1 | W1 + W2 (manifest, background loading, first boot in Firefox) | ✅ done |
+| 2 | W3 + W5 (MAIN-world injection, sidebar wiring) — signer usable end-to-end | ✅ done |
+| 3 | W4 + W6 (permission UX, shims, CSS) | ✅ done |
+| 4 | Full parity benchmark on both browsers + fixes it shakes out | 3–5 days — **next** |
+| 5 | W7 + W8 (docs, site, AMO listing + review) | docs mostly done; AMO = 1 day work + review wait |
 
-Roughly **8–13 working days** plus AMO review latency. Phases 1–2 produce a
-temporarily-loadable Firefox build worth putting in testers' hands early.
+Phases 1–3 are implemented; what remains is testing latency, not build work. The
+current branch is a temporarily-loadable Firefox build worth putting in testers'
+hands now.
 
 ## Risks
 

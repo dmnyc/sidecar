@@ -436,3 +436,31 @@ document.getElementById('filters').addEventListener('click', e => {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   });
 })();
+
+// ---- host-permission gate (Firefox can decline site access at install) ----
+// Firefox MV3 shows https://*/* as an install-prompt checkbox; a user who
+// unchecks it lands here with a signer no site can see. Surface that and offer
+// the one-click grant. On Chrome host_permissions are granted at install, so
+// contains() is true and the gate never appears.
+(function () {
+  'use strict';
+  const gate = document.getElementById('perm-gate');
+  const btn = document.getElementById('perm-grant-btn');
+  if (!gate || !btn) return;
+  // browser.* is promise-based on Firefox; chrome.* is promise-capable on Chrome MV3.
+  const API = (typeof browser !== 'undefined' && browser.permissions)
+    ? browser.permissions
+    : (typeof chrome !== 'undefined' ? chrome.permissions : null);
+  if (!API || !API.contains) return; // fail open: gate stays hidden
+  const ORIGINS = { origins: ['https://*/*'] };
+  const sync = () => {
+    API.contains(ORIGINS).then((ok) => { gate.hidden = !!ok; }).catch(() => {});
+  };
+  btn.addEventListener('click', () => {
+    // request() must run inside the click gesture — no awaits before it.
+    API.request(ORIGINS).then(sync).catch(() => {});
+  });
+  if (API.onAdded) API.onAdded.addListener(sync);
+  if (API.onRemoved) API.onRemoved.addListener(sync);
+  sync();
+})();

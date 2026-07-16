@@ -1498,6 +1498,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .interrupted-dismiss:hover { color: var(--text); text-decoration: underline; }
 
+/* Host-permission recovery banner (Firefox can decline/revoke site access —
+   without it there's no window.nostr, no paste guard, no pay card). */
+.host-perm-banner {
+  display: flex; align-items: center; gap: 10px;
+  margin: 10px 16px 0; padding: 10px 12px; border-radius: 10px;
+  background: rgba(240, 86, 107, 0.12); border: 1px solid rgba(240, 86, 107, 0.35);
+}
+.host-perm-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); }
+.host-perm-msg strong { color: var(--text); }
+.host-perm-grant-btn {
+  flex-shrink: 0; margin-left: auto; cursor: pointer; white-space: nowrap;
+  padding: 6px 12px; border-radius: 8px; border: none;
+  background: linear-gradient(180deg, #e2b968, var(--gold) 60%, #b7863a);
+  color: #1c1206; font-weight: 600; font-size: 12.5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: filter 0.15s;
+}
+.host-perm-grant-btn:hover { filter: brightness(1.06); }
+
 /* "N more waiting" backlog strip + Reject all, inside the approval card. */
 .approval-backlog {
   display: flex; align-items: center; gap: 10px;
@@ -1654,6 +1673,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #3a2470, #251147); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: #4a2f8a; background-clip: padding-box; }
+/* Firefox has no ::-webkit-scrollbar — the standard properties are its whole
+   scrollbar API (flat thumb color instead of the gradient; same intent). Scoped
+   to Firefox because Chrome 121+ also honors scrollbar-color and would then
+   IGNORE the ::-webkit-* styling above. */
+@supports (-moz-appearance: none) {
+  * { scrollbar-width: thin; scrollbar-color: #2f1b5c transparent; }
+}
 
 /* ===== inline signing approval ===== */
 /* Top-aligned + scrollable so a long event preview never pushes the buttons

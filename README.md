@@ -104,9 +104,12 @@ current state on Firefox **128 or later**:
 
 Temporary add-ons are removed when Firefox quits — reload after each restart. If
 `window.nostr` doesn't appear on web pages, grant site access under
-`about:addons` → Sidecar → **Permissions** → *Access your data for all websites*.
-Signing on live clients is still being ported, so expect rough edges beyond the
-account flow.
+`about:addons` → Sidecar → **Permissions** → *Access your data for all websites*
+(the panel also shows a one-click **Grant access** banner whenever that permission
+is missing). The full feature set — signing, wallet, pay cards, context-menu pays —
+is wired up for Firefox at parity with the Chrome build; it's "experimental" only
+until the cross-browser test pass in [FIREFOX_PORT.md](FIREFOX_PORT.md) is complete
+and the add-on ships on AMO.
 
 **Updating:** Chrome Web Store installs update automatically — you can trigger a check any time from **Settings → Updates** or the About dialog. For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
 

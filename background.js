@@ -205,7 +205,13 @@ async function logActivity(entry) {
 // payments per account). This is internal diagnostics: message dispatch,
 // timings, and uncaught errors. In-memory only, so it resets on a service
 // worker restart (~30s idle) — same tradeoff as the keystore re-locking.
-const IS_DEV_BUILD = (() => {
+// Chrome: the Web Store injects `update_url` when it packages a release, so its
+// absence reliably means an unpacked dev load. Firefox/AMO never injects one, so
+// that heuristic would flag every production install as dev — there, start closed
+// and let management.getSelf() (async; getSelf is exempt from the "management"
+// permission) flip it on for temporary about:debugging loads only.
+let IS_DEV_BUILD = (() => {
+  if (typeof browser !== 'undefined') return false; // Firefox: resolved async below
   try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
 })();
 const DEBUG_LOG_MAX = 300;
@@ -262,15 +268,28 @@ const QUEUE_SESSION_KEY = 'sidecar_prompt_queue';
 const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
 
 // dlog() reads panelPort (declared above) to ping the panel on a new entry, so
-// this must run after that declaration — the log call below is synchronous.
-if (IS_DEV_BUILD) {
-  dlog('info', 'sw', 'Service worker started', { version: chrome.runtime.getManifest().version });
+// this must run after that declaration — the Chrome-path log call is synchronous.
+function startDebugLog() {
+  dlog('info', 'bg', 'Background started', { version: chrome.runtime.getManifest().version });
   self.addEventListener('error', (e) => {
-    dlog('error', 'sw', 'Uncaught error', { message: e.message, filename: e.filename, lineno: e.lineno });
+    dlog('error', 'bg', 'Uncaught error', { message: e.message, filename: e.filename, lineno: e.lineno });
   });
   self.addEventListener('unhandledrejection', (e) => {
-    dlog('error', 'sw', 'Unhandled rejection', { reason: String((e.reason && e.reason.message) || e.reason) });
+    dlog('error', 'bg', 'Unhandled rejection', { reason: String((e.reason && e.reason.message) || e.reason) });
   });
+}
+if (IS_DEV_BUILD) {
+  startDebugLog();
+} else if (typeof browser !== 'undefined') {
+  // Firefox: the answer arrives async, so the first moments of logs are dropped —
+  // failing closed beats showing dev UI to every AMO install.
+  try {
+    browser.management.getSelf().then((info) => {
+      if (info.installType !== 'development') return;
+      IS_DEV_BUILD = true;
+      startDebugLog();
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 // ---- session mirror (metadata only — no callbacks, no signable material) ----
@@ -1354,12 +1373,28 @@ async function invoiceFromQrImage(srcUrl) {
 
 function createPayMenu() {
   if (!chrome.contextMenus) return;
+  // Failures surface synchronously (throw, Firefox) or via lastError in the
+  // callback (Chrome) — cover both so one bad item can't take out the menu.
+  const create = (props, onFail) => {
+    try {
+      chrome.contextMenus.create(props, () => {
+        if (chrome.runtime.lastError && onFail) onFail();
+      });
+    } catch (_) { if (onFail) onFail(); }
+  };
   chrome.contextMenus.removeAll(() => {
     // Only on lightning: links (not every link), on any text selection, and on
     // QR images. (Canvas/SVG QRs have no image context — a later pass.)
-    chrome.contextMenus.create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] });
-    chrome.contextMenus.create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
-    chrome.contextMenus.create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
+    // Both browsers document targetUrlPatterns as accepting any URL scheme, but
+    // if a build ever rejects the lightning: pattern, fall back to a pattern-less
+    // link item — the click handler's extractInvoice already fails safe on
+    // non-lightning links with a "no invoice found" notice.
+    create(
+      { id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] },
+      () => create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'] })
+    );
+    create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
+    create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
   });
 }
 chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(createPayMenu);
