@@ -228,16 +228,13 @@
          the full history stays in CHANGELOG.md, linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
-      <p class="whatsnew-version">Version 1.4.0</p>
+      <p class="whatsnew-version">Version 1.4.1</p>
       <ul class="whatsnew-list">
-        <li><strong>A clearer signing prompt.</strong> Event content shows in a compact, expandable preview with Formatted, Raw, and JSON views, and roughly 40 more event kinds are recognized by name — so routine actions no longer show the "unrecognized kind" caution.</li>
-        <li><strong>Readable identities.</strong> Encrypt and decrypt prompts show the other party by name, with their npub kept beneath it as a verifiable key — click the npub to reveal the full key.</li>
-        <li><strong>Auto-lock is on by default.</strong> Sidecar now locks after 15 minutes of inactivity — adjustable in Settings, including back to Never, and changes apply immediately. If you'd never chosen a value, a one-time notice tells you the first time you unlock.</li>
-        <li><strong>Save-your-PIN reminder.</strong> Right after you create a PIN, a one-time reminder prompts you to write it down or store it in a password manager — there's no recovery if it's forgotten.</li>
-        <li><strong>Tighter settings privacy.</strong> Websites can no longer read Sidecar's settings; pages see only the on-page pay-card toggle.</li>
-        <li><strong>Primal wallet strings detected.</strong> Primal's wallet connection only works inside Primal's own apps — Sidecar now explains that up front instead of hanging on connect.</li>
-        <li><strong>Security audit addressed.</strong> A community trust audit's recommendations are now in place: refreshed core libraries, tamper-detection for every bundled file, and a licensing fix so the whole project stays cleanly open source.</li>
-        <li><strong>Draft mentions fixed.</strong> Resuming a saved draft now shows the mentioned person's name, instead of their raw key.</li>
+        <li><strong>Auto-lock you can see.</strong> When the idle timer fires, the panel now drops straight to the unlock screen with a "Locked due to inactivity" notice, instead of staying on whatever was open and only failing on your next action. Typing in the composer counts as activity, so it can't lock mid-draft.</li>
+        <li><strong>Your correct PIN always works.</strong> Revealing or exporting a key with the right PIN now succeeds even if auto-lock beat you to it — it unlocks and proceeds, instead of rejecting the PIN and making you lock and unlock by hand.</li>
+        <li><strong>Every PIN prompt is brute-force-guarded.</strong> Reveals, exports, and PIN changes now share the unlock screen's protection — escalating delays between wrong tries and the self-erase on the final strike.</li>
+        <li><strong>More apps to explore.</strong> Eight new apps in the directory — Flotilla, Tunestr, Wavlake, WaveFunc Radio, Boost Me Bitch, Cordn, Imwald, and ContextVM — now also browsable on the web at sidecar.top/apps.</li>
+        <li><strong>A lighter quoted-note icon</strong> in notifications, easier to see on the dark panel.</li>
       </ul>
       <p>The full history, including earlier releases, is in the
       <a href="https://github.com/dmnyc/sidecar/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer noopener" id="changelog-link">changelog on GitHub</a>.</p>

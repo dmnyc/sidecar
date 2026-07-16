@@ -7,6 +7,22 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.4.1] — 2026-07-16
+
+### Added
+- **Eight new apps in the welcome directory** — Flotilla, Tunestr, Wavlake, WaveFunc Radio, Boost Me Bitch, Cordn, Imwald, and ContextVM — and every app description got a copy pass for a consistent, scannable length. The same directory (and the wallet guide) is now published on the web at [sidecar.top/apps](https://sidecar.top/apps) and [sidecar.top/wallets](https://sidecar.top/wallets), generated from the extension's own list so the two never drift.
+
+### Changed
+- **Auto-lock now shows itself.** When the idle timer fires, the panel drops straight to the unlock screen with a "Locked due to inactivity" notice, instead of staying on whatever was open (a composer, a modal) and only failing on the next action. Typing in the composer now counts as activity, so auto-lock can't fire mid-draft.
+- Quoted-note notifications use a lighter ornamental quote mark; the previous speech-bubble emoji rendered nearly black on the dark panel.
+- The About screen's Privacy Policy and Support links use the site's extensionless URLs.
+
+### Fixed
+- **Revealing or exporting a key with the correct PIN now works even if auto-lock fired while the prompt was open.** The step-up prompt used to reject the correct PIN with "keystore is locked," forcing a manual lock/unlock; now it unlocks with that PIN and proceeds, exactly as the unlock screen would.
+
+### Security
+- **Every PIN prompt now shares the unlock screen's brute-force protection.** Step-up checks (verify PIN, reveal nsec/NWC, change PIN) previously had no throttle or wipe accounting, leaving an unthrottled path to guess the PIN around the 21-strike guard. They now use the same persisted guard: escalating delays between wrong attempts, the self-erase on the final strike, and a warning as it nears.
+
 ## [1.4.0] — 2026-07-11
 
 ### Added
