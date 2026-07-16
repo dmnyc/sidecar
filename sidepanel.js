@@ -1038,7 +1038,10 @@
     }
     // kind 1
     const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
-    if (hasQ) return { glyph: '🗨️', text: 'quoted your note' };
+    // Ornamental quote mark (U+275D) — a text glyph like the '@' below, so it
+    // inherits the light text color. The speech-bubble emoji (🗨️) rendered
+    // near-black on the panel background.
+    if (hasQ) return { glyph: '❝', text: 'quoted your note' };
     const hasE = ev.tags.some((t) => t[0] === 'e');
     return hasE
       ? { glyph: '💬', text: 'replied to your note' }
@@ -6929,9 +6932,9 @@
       fetchProfileName(CREATOR_NPUB).then((name) => { if (name) creator.textContent = '@' + name.replace(/^@/, ''); });
 
       const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy.php', target: '_blank', rel: 'noopener noreferrer' });
+      const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });
       const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const support = h('a', { className: 'about-link', textContent: 'Support', href: SIDECAR_SITE_URL + '/support.php', target: '_blank', rel: 'noopener noreferrer' });
+      const support = h('a', { className: 'about-link', textContent: 'Support', href: SIDECAR_SITE_URL + '/support', target: '_blank', rel: 'noopener noreferrer' });
       const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Donate '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
