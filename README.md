@@ -20,6 +20,10 @@ Connect) and a composer for posting notes directly from the panel.
 >
 > — [77elements](https://github.com/77elements), creator of [NoorNote](https://github.com/77elements/noornote)
 
+> "I think Sidecar is the best full-fledged Nostr signer/wallet (browser extension) I've used so far! It covers all my needs [...] If you need a Nostr signer that's a browser extension, I highly recommend Sidecar."
+>
+> — [Hollywood stuntman & make-up artist](https://jumble.social/notes/nevent1qvzqqqqqqypzpqh68q0mpzgpvuv6aphzvdndvcshrgk9tgpcerhn0c5zshl7ptshqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzp7uu04hygk8uk0at69k3wm89hdeecgethaxkfhfa74n9gnuz260xtatdyk), on Nostr
+
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Generating a new key runs a quick guided setup (name, photo, bio). Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
