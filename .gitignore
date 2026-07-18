@@ -26,6 +26,8 @@ npm-debug.log*
 *.tmp
 *.temp
 *.log
+# Local release packages (built by scripts/package.sh into dist/)
+/dist/
 # Generated build stamp
 version.js
 
