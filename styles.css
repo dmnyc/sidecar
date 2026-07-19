@@ -1634,7 +1634,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* ===== toasts ===== */
 .toasts {
   position: fixed;
-  top: 14px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1655,7 +1655,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-weight: 600;
   border: 1px solid var(--border);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
-  transform: translateY(-12px);
+  transform: translateY(12px);
   opacity: 0;
   transition: transform 0.22s ease, opacity 0.22s ease;
   pointer-events: auto;
