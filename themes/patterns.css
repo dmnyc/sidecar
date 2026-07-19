@@ -1,0 +1,37 @@
+/* ============================================================
+   Sidecar — Background Patterns
+   Unique SVG patterns for each theme.
+   ============================================================ */
+
+/* Speakeasy — Purple velvet glow + diamond lattice with gold dots */
+body {
+  background-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='38'%20height='38'%3E%3Cpath%20d='M0%2019%2019%200%2038%2019%2019%2038Z'%20fill='none'%20stroke='%23a78bfa'%20stroke-opacity='0.05'/%3E%3Ccircle%20cx='19'%20cy='19'%20r='1'%20fill='%23cba14e'%20fill-opacity='0.08'/%3E%3C/svg%3E"),
+    radial-gradient(1100px 480px at 50% -12%, rgba(167, 139, 250, 0.14), transparent 60%),
+    radial-gradient(820px 560px at 115% 112%, rgba(234, 119, 47, 0.12), transparent 55%),
+    linear-gradient(165deg, #170630 0%, var(--bg) 62%);
+}
+
+/* Film Noir — Black-on-black velvet Victorian filigree. A public-domain seamless
+   ornament tile (victorian-noir.png, 498x635), recolored to a near-black shade
+   (#141414) so the filigree reads as a subtle velvet texture over the field.
+   background-size sets how small/closely the medallions repeat; the top light is
+   faint so it complements the pattern instead of washing it out. */
+[data-theme="film-noir"] body {
+  background-image:
+    url(victorian-noir.png),
+    radial-gradient(900px 380px at 50% -10%, rgba(140, 140, 140, 0.045), transparent 60%),
+    linear-gradient(180deg, #0c0c0c 0%, var(--bg) 45%);
+  background-size: 80px, auto, auto;
+  background-position: center, 0% 0%, 0% 0%;
+}
+
+/* Art Deco — Geometric sunburst/fan */
+[data-theme="art-deco"] body {
+  background-image:
+    url(deco-pattern.svg),
+    radial-gradient(1000px 500px at 50% -10%, rgba(212, 175, 55, 0.18), transparent 60%),
+    radial-gradient(700px 450px at 120% 110%, rgba(197, 160, 89, 0.12), transparent 50%),
+    linear-gradient(160deg, #E8E0D0 0%, var(--bg) 65%);
+  background-size: 360px, auto, auto, auto;
+}

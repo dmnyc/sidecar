@@ -6,6 +6,10 @@
   <title>Sidecar</title>
   <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+  <link rel="stylesheet" href="themes/film-noir.css" />
+  <link rel="stylesheet" href="themes/art-deco.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
 </head>
 <body>
   <!-- ===== Onboarding: create a PIN (no keystore yet) ===== -->
@@ -180,6 +184,22 @@
           <option value="15">After 15 minutes</option>
           <option value="60">After 1 hour</option>
         </select>
+      </div>
+
+      <div class="setting">
+        <h3>Theme</h3>
+        <p class="hint">Choose your preferred color scheme and aesthetic.</p>
+        <div class="theme-selector">
+          <button type="button" class="theme-card" data-theme="speakeasy">
+            <span class="theme-name">Speakeasy</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="film-noir">
+            <span class="theme-name">Film Noir</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="art-deco">
+            <span class="theme-name">Art Deco</span>
+          </button>
+        </div>
       </div>
 
       <div class="setting">

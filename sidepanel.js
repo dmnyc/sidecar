@@ -106,6 +106,39 @@
     else if (state === 'bad') { ind.classList.add('bad'); ind.appendChild(icon('x')); }
   }
 
+  // Path to the full Sidecar logo for a given theme. Art Deco uses a variant
+  // whose wordmark is dark purple (#5a4a8a) for legibility on the light
+  // eggshell background; the cocktail-glass mark is identical in both files
+  // (official colors), so only the wordmark changes.
+  function logoSrcFor(themeName) {
+    return themeName === 'art-deco'
+      ? 'icons/sidecar-logo-deco.svg'
+      : 'icons/sidecar-logo.svg';
+  }
+
+  // Swap every full-logo <img> in the panel to the variant for the active theme.
+  function swapLogos(themeName) {
+    const src = logoSrcFor(themeName);
+    document.querySelectorAll('.brand-logo, .brand-logo-sm, .brand-foot img, .about-logo')
+      .forEach(img => { img.src = src; });
+  }
+
+  // Apply theme by setting data-theme attribute on HTML element
+  function applyTheme(themeName) {
+    const validThemes = ['speakeasy', 'film-noir', 'art-deco'];
+    if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
+
+    document.documentElement.setAttribute('data-theme', themeName);
+    swapLogos(themeName);
+
+    // Update active state in theme selector
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.theme === themeName);
+    });
+
+    return themeName;
+  }
+
   // Wrap a password <input> so a check/x indicator can sit at its right edge.
   // Works whether the input is already in the DOM or still detached (in which case
   // the caller appends the returned wrapper). Returns the indicator element.
@@ -302,6 +335,7 @@
     state = await call({ type: 'SIDECAR_GET_STATE' });
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     hideBalances = !!(settings && settings.hideBalances);
+    applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
@@ -1389,8 +1423,13 @@
         textContent: notifAuthorName(zapSender(ev)),
       });
       authorEl.dataset.senderPubkey = zapSender(ev);
+      // Zap notifications use the crisp filled bolt (boltIcon, themed via
+      // currentColor) instead of the ⚡ emoji, which washes out on light themes.
+      const glyphEl = h('span', { className: 'notif-glyph' });
+      if (glyph === '⚡') glyphEl.appendChild(boltIcon());
+      else glyphEl.textContent = glyph;
       const topRow = h('div', { className: 'notif-top' }, [
-        h('span', { className: 'notif-glyph', textContent: glyph }),
+        glyphEl,
         authorEl,
         right,
       ]);
@@ -2584,6 +2623,10 @@
     $('countdown-presets').classList.toggle('hidden', !cdOn);
     $('countdown-presets').querySelectorAll('.preset-chip').forEach((c) =>
       c.classList.toggle('active', Number(c.dataset.secs) === cdSecs));
+
+    // theme
+    const theme = settings.theme || 'speakeasy'; // default to speakeasy
+    applyTheme(theme);
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -6921,7 +6964,7 @@
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
 
-      const logo = h('img', { className: 'about-logo', src: 'icons/sidecar-logo.svg', alt: 'Sidecar' });
+      const logo = h('img', { className: 'about-logo', src: logoSrcFor(document.documentElement.dataset.theme), alt: 'Sidecar' });
       const creator = h('a', {
         className: 'about-creator-link', textContent: shortNpub(CREATOR_NPUB),
         href: '#', target: '_blank', rel: 'noopener noreferrer',
@@ -7062,6 +7105,15 @@
     const secs = Number(btn.dataset.secs);
     $('countdown-presets').querySelectorAll('.preset-chip').forEach((c) => c.classList.toggle('active', c === btn));
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { noteCountdownSecs: secs } });
+  });
+
+  // Theme selector
+  document.querySelectorAll('.theme-card').forEach(card => {
+    card.addEventListener('click', async (e) => {
+      const selectedTheme = card.dataset.theme;
+      applyTheme(selectedTheme);
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+    });
   });
 
   $('autozap-toggle').addEventListener('change', async (e) => {

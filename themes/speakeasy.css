@@ -1,0 +1,44 @@
+/* ============================================================
+   Sidecar — Speakeasy Theme
+   "After-hours cocktail lounge" design system.
+   Deep velvet, low light, a glint of brass. Playfair + Manrope.
+   ============================================================ */
+
+[data-theme="speakeasy"] {
+  color-scheme: dark;
+
+  /* surfaces */
+  --bg: #0a0118;
+  --bg-2: #140428;
+  --velvet-1: #23114a;
+  --velvet-2: #160a30;
+  --velvet-1-rgb: 35, 17, 74;
+  --av-from: #2a1257;
+  --av-to: #160a30;
+  --banner-accent: #3a2470;
+  --border: rgba(167, 139, 250, 0.16);
+  --border-strong: rgba(167, 139, 250, 0.28);
+
+  /* brand */
+  --orange: #ea772f;
+  --amber: #f4a64b;
+  --gold: #cba14e;
+  --gold-soft: rgba(203, 161, 78, 0.5);
+  --purple: #a78bfa;
+  --lav: #bda1ff;
+
+  /* ink */
+  --text: #f1e8f8;
+  --text-2: #e8d5f0;
+  --muted: #9a86c4;
+  --faint: #6f5fa0;
+  --red: #f0566b;
+
+  /* shadows */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  /* pattern */
+  --pattern-opacity: 1;
+}
