@@ -1,10 +1,16 @@
 /* ============================================================
    Sidecar — Welcome page
-   Same design tokens as the sidepanel. Standalone so we
-   re-declare the vars rather than import styles.css.
+   Theme variables loaded from themes/*.css
+   Same design tokens as the sidepanel.
    ============================================================ */
 
 :root {
+  /* Theme-specific color variables are loaded from:
+     - themes/speakeasy.css (default)
+     - themes/film-noir.css
+     - themes/art-deco.css */
+
+  /* Default fallback colors (will be overridden by theme files) */
   --bg: #0a0118;
   --bg-2: #140428;
   --velvet-1: #23114a;
@@ -24,6 +30,7 @@
   --red: #f0566b;
   --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
+  --pattern-opacity: 1;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -38,12 +45,8 @@ html, body {
   text-rendering: optimizeLegibility;
 }
 
+/* Background patterns loaded from themes/patterns.css */
 body {
-  background-image:
-    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='38'%20height='38'%3E%3Cpath%20d='M0%2019%2019%200%2038%2019%2019%2038Z'%20fill='none'%20stroke='%23a78bfa'%20stroke-opacity='0.05'/%3E%3Ccircle%20cx='19'%20cy='19'%20r='1'%20fill='%23cba14e'%20fill-opacity='0.08'/%3E%3C/svg%3E"),
-    radial-gradient(1100px 480px at 50% -12%, rgba(167, 139, 250, 0.14), transparent 60%),
-    radial-gradient(820px 560px at 115% 112%, rgba(234, 119, 47, 0.12), transparent 55%),
-    linear-gradient(165deg, #170630 0%, var(--bg) 62%);
   background-repeat: repeat, no-repeat, no-repeat, no-repeat;
   background-attachment: fixed;
 }

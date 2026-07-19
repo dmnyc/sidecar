@@ -299,25 +299,25 @@
     'background:rgba(6,2,16,0.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);' +
     'font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;opacity:0;transition:opacity .18s ease;}' +
     '.ov.in{opacity:1;}' +
-    '.card{box-sizing:border-box;width:100%;max-width:340px;text-align:center;color:#f1e8f8;padding:26px 24px 18px;' +
-    'border-radius:20px;border:1px solid rgba(203,161,78,0.45);' +
-    'background:radial-gradient(120% 90% at 50% 0%,rgba(203,161,78,0.16),transparent 58%),linear-gradient(165deg,#23114a,#160a30);' +
+    '.card{box-sizing:border-box;width:100%;max-width:340px;text-align:center;{CARD_COLOR};padding:26px 24px 18px;' +
+    'border-radius:20px;border:1px solid {CARD_BORDER};' +
+    'background:{CARD_BACKGROUND};' +
     'box-shadow:0 24px 70px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.05);' +
     'transform:translateY(10px) scale(.985);transition:transform .2s cubic-bezier(.2,.8,.2,1);}' +
     '.ov.in .card{transform:none;}' +
     '.brand{display:flex;justify-content:center;}' +
     '.brand-logo{height:26px;width:auto;display:block;}' +
-    '.eyebrow{margin-top:16px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9a86c4;}' +
+    '.eyebrow{margin-top:16px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;{CARD_MUTED};}' +
     '.amt{margin:7px 0 0;display:flex;align-items:baseline;justify-content:center;gap:6px;}' +
-    '.amt .num{font-size:42px;font-weight:800;line-height:1;color:#cba14e;letter-spacing:-.01em;}' +
-    '.amt .unit{font-size:15px;font-weight:600;color:#9a86c4;}' +
-    '.memo{margin:14px auto 0;max-width:282px;font-size:13.5px;line-height:1.5;color:#e8d5f0;overflow-wrap:anywhere;' +
+    '.amt .num{font-size:42px;font-weight:800;line-height:1;{CARD_GOLD};letter-spacing:-.01em;}' +
+    '.amt .unit{font-size:15px;font-weight:600;{CARD_MUTED};}' +
+    '.memo{margin:14px auto 0;max-width:282px;font-size:13.5px;line-height:1.5;{CARD_TEXT_2};overflow-wrap:anywhere;' +
     'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}' +
-    '.site{margin-top:10px;font-size:12px;color:#9a86c4;overflow-wrap:anywhere;text-wrap:balance;}' +
-    '.site b{color:#bda1ff;font-weight:600;}' +
+    '.site{margin-top:10px;font-size:12px;{CARD_MUTED};overflow-wrap:anywhere;text-wrap:balance;}' +
+    '.site b{color:{CARD_LAV};font-weight:600;}' +
     '.pay{margin-top:20px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;' +
-    'border:none;border-radius:13px;padding:14px;font-size:15px;font-weight:700;color:#1c0c00;' +
-    'background:linear-gradient(180deg,#f6a85a,#ed8a3c 52%,#dd6f23);' +
+    'border:none;border-radius:13px;padding:14px;font-size:15px;font-weight:700;{CARD_PAY_TEXT};' +
+    'background:{CARD_PAY_BG};' +
     'box-shadow:0 8px 22px rgba(221,111,35,0.36),inset 0 1px 0 rgba(255,255,255,0.45);transition:filter .12s ease,transform .12s ease;}' +
     '.pay:hover{filter:brightness(1.05);}' +
     '.pay:active{transform:translateY(1px);}' +
@@ -330,21 +330,108 @@
     '.pay-spin{display:none;width:16px;height:16px;border-radius:50%;border:2px solid rgba(28,12,0,0.3);border-top-color:#1c0c00;animation:sc-spin .7s linear infinite;}' +
     '.pay.pending .pay-spin{display:block;}' +
     '@keyframes sc-spin{to{transform:rotate(360deg);}}' +
-    '.pay-status{margin-top:11px;font-size:12px;line-height:1.45;color:#9a86c4;text-wrap:balance;}' +
+    '.pay-status{margin-top:11px;font-size:12px;line-height:1.45;{CARD_MUTED};text-wrap:balance;}' +
     '.pay-status.err{color:#ffb38a;}' +
-    '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;color:#9a86c4;font-size:13px;padding:9px;border-radius:10px;}' +
-    '.cancel:hover{color:#f1e8f8;background:rgba(167,139,250,0.10);}' +
+    '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
+    '.cancel:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
     '.card.busy .cancel{display:none;}' +
     '.card.busy .tg{opacity:.4;pointer-events:none;}' +
     '.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:14px;' +
-    'border-top:1px solid rgba(167,139,250,0.16);cursor:pointer;}' +
-    '.tg-label{font-size:12px;color:#9a86c4;}' +
+    'border-top:1px solid {CARD_BORDER_FAINT};cursor:pointer;}' +
+    '.tg-label{font-size:12px;{CARD_MUTED};}' +
     '.tg-input{position:absolute;opacity:0;width:0;height:0;}' +
-    '.tg-track{position:relative;flex-shrink:0;width:38px;height:22px;border-radius:11px;background:#cba14e;transition:background .15s ease;}' +
+    '.tg-track{position:relative;flex-shrink:0;width:38px;height:22px;border-radius:11px;background:{CARD_TRACK};transition:background .15s ease;}' +
     '.tg-thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#1c0c00;transition:transform .15s ease;}' +
     '.tg-input:checked~.tg-track .tg-thumb{transform:translateX(16px);}' +
-    '.tg-input:not(:checked)~.tg-track{background:rgba(167,139,250,0.25);}' +
-    '.tg-input:not(:checked)~.tg-track .tg-thumb{background:#9a86c4;}';
+    '.tg-input:not(:checked)~.tg-track{background:{CARD_TOGGLE_OFF};}' +
+    '.tg-input:not(:checked)~.tg-track .tg-thumb{background:{CARD_THUMB_OFF};}';
+
+  // Current theme for the payment card. Read from storage at load and kept in
+  // sync via storage.onChanged so a theme change in the panel also reaches pages
+  // that are already open. The card can auto-render the moment an invoice is
+  // detected (before this async read resolves), so if a card is on screen when
+  // the theme resolves, it's re-rendered in the correct scheme. Defaults to
+  // speakeasy. (Background intentionally exposes only showPayButton to content
+  // scripts, so the theme is read directly from storage, not via messaging.)
+  let cardTheme = 'speakeasy';
+  function setCardTheme(t) {
+    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'art-deco') return;
+    if (t === cardTheme) return;
+    cardTheme = t;
+    if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
+  }
+  try {
+    chrome.storage.local.get('sidecar_settings', (data) => {
+      setCardTheme(data && data.sidecar_settings && data.sidecar_settings.theme);
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.sidecar_settings && changes.sidecar_settings.newValue) {
+        setCardTheme(changes.sidecar_settings.newValue.theme);
+      }
+    });
+  } catch (_) { /* storage unavailable — keep speakeasy default */ }
+
+  // Get theme colors for payment card theming
+  function getThemeColors() {
+    // Default to speakeasy theme if not set
+    const themeColors = {
+      speakeasy: {
+        CARD_COLOR: 'color:#f1e8f8',
+        CARD_BORDER: 'rgba(203,161,78,0.45)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(203,161,78,0.16),transparent 58%),linear-gradient(165deg,#23114a,#160a30)',
+        CARD_MUTED: 'color:#9a86c4',
+        CARD_GOLD: 'color:#cba14e',
+        CARD_TEXT_2: 'color:#e8d5f0',
+        CARD_LAV: '#bda1ff',
+        CARD_PAY_TEXT: 'color:#1c0c00',
+        CARD_PAY_BG: 'linear-gradient(180deg,#f6a85a,#ed8a3c 52%,#dd6f23)',
+        CARD_CANCEL_BG: 'rgba(167,139,250,0.10)',
+        CARD_TEXT: '#f1e8f8',
+        CARD_BORDER_FAINT: 'rgba(167,139,250,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(167,139,250,0.25)',
+        CARD_TRACK: '#cba14e',
+        CARD_THUMB_OFF: '#9a86c4'
+      },
+      'film-noir': {
+        CARD_COLOR: 'color:#e0e0e0',
+        CARD_BORDER: 'rgba(192,192,192,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(192,192,192,0.12),transparent 58%),linear-gradient(165deg,#1a1a1a,#0a0a0a)',
+        CARD_MUTED: 'color:#909090',
+        CARD_GOLD: 'color:#c0c0c0',
+        CARD_TEXT_2: 'color:#c0c0c0',
+        CARD_LAV: '#e0e0e0',
+        CARD_PAY_TEXT: 'color:#1a1a1a',
+        CARD_PAY_BG: 'linear-gradient(180deg,#b8b8b8,#a0a0a0 52%,#808080)',
+        CARD_CANCEL_BG: 'rgba(192,192,192,0.10)',
+        CARD_TEXT: '#e0e0e0',
+        CARD_BORDER_FAINT: 'rgba(192,192,192,0.12)',
+        CARD_TOGGLE_OFF: 'rgba(192,192,192,0.20)',
+        CARD_TRACK: '#c0c0c0',
+        CARD_THUMB_OFF: '#909090'
+      },
+      'art-deco': {
+        CARD_COLOR: 'color:#2a2a2a',
+        CARD_BORDER: 'rgba(197,160,89,0.40)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(212,175,55,0.15),transparent 58%),linear-gradient(165deg,#E6DCC8,#F0EAD6)',
+        CARD_MUTED: 'color:#6a6a6a',
+        CARD_GOLD: 'color:#D4AF37',
+        CARD_TEXT_2: 'color:#4a4a4a',
+        CARD_LAV: '#8B7355',
+        CARD_PAY_TEXT: 'color:#1a1a1a',
+        CARD_PAY_BG: 'linear-gradient(180deg,#C5A059,#B8860B 52%,#8B7355)',
+        CARD_CANCEL_BG: 'rgba(197,160,89,0.15)',
+        CARD_TEXT: '#2a2a2a',
+        CARD_BORDER_FAINT: 'rgba(139,115,85,0.20)',
+        CARD_TOGGLE_OFF: 'rgba(139,115,85,0.25)',
+        CARD_TRACK: '#D4AF37',
+        CARD_THUMB_OFF: '#6a6a6a'
+      }
+    };
+
+    // The theme is read once at load into `cardTheme` (chrome.storage.get is
+    // async and can't return a value synchronously here); fall back to speakeasy.
+    return themeColors[cardTheme] || themeColors.speakeasy;
+  }
 
   function removeCard() {
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
@@ -375,8 +462,11 @@
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
     const s = cardHost.attachShadow({ mode: 'open' });
+    const colors = getThemeColors();
+    const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
+      Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
     s.innerHTML =
-      '<style>' + CARD_CSS + '</style>' +
+      '<style>' + cardCss + '</style>' +
       '<div class="ov">' +
       '<div class="card" role="dialog" aria-label="Pay with Sidecar">' +
       '<div class="brand">' + LOGO_SVG + '</div>' +

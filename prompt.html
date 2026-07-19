@@ -5,12 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sidecar</title>
   <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+  <link rel="stylesheet" href="themes/film-noir.css" />
+  <link rel="stylesheet" href="themes/art-deco.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
   <style>
     :root {
+      /* Theme-specific color variables are loaded from themes/*.css */
       color-scheme: dark; /* dark-only UI — keep native controls dark in Light Mode */
       --font-display: 'Playfair Display', Georgia, serif;
       --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
       --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+      /* Default fallback colors (will be overridden by theme files) */
       --bg: #0a0118;
       --velvet-1: #23114a;
       --velvet-2: #160a30;
@@ -26,6 +33,7 @@
       --faint: #6f5fa0;
       --red: #f0566b;
       --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      --pattern-opacity: 1;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
@@ -38,11 +46,6 @@
       color: var(--text);
       -webkit-font-smoothing: antialiased;
       background-color: var(--bg);
-      background-image:
-        url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='38'%20height='38'%3E%3Cpath%20d='M0%2019%2019%200%2038%2019%2019%2038Z'%20fill='none'%20stroke='%23a78bfa'%20stroke-opacity='0.05'/%3E%3Ccircle%20cx='19'%20cy='19'%20r='1'%20fill='%23cba14e'%20fill-opacity='0.08'/%3E%3C/svg%3E"),
-        radial-gradient(900px 420px at 50% -14%, rgba(167, 139, 250, 0.16), transparent 60%),
-        radial-gradient(700px 480px at 118% 116%, rgba(234, 119, 47, 0.12), transparent 55%),
-        linear-gradient(165deg, #170630 0%, var(--bg) 64%);
       background-repeat: repeat, no-repeat, no-repeat, no-repeat;
       background-attachment: fixed;
     }
