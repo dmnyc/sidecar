@@ -72,9 +72,24 @@
   // from the Web Store (or with a configured update URL) — never for an unpacked
   // load. That makes it a reliable, permission-free way to tell a local dev build
   // apart from the shipped one, so dev-only UI never leaks into production.
-  function isDevBuild() {
+  // Firefox/AMO never injects update_url, so there the same absence proves
+  // nothing — ask management.getSelf() (async; getSelf is exempt from the
+  // "management" permission) and fail closed until it answers: only a temporary
+  // about:debugging load counts as dev. initDevBadge awaits devBuildReady so the
+  // one-shot panel-boot render can't race the answer.
+  let devBuild = (() => {
+    if (typeof browser !== 'undefined') return false; // Firefox: resolved async below
     try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
-  }
+  })();
+  const devBuildReady = (() => {
+    if (typeof browser === 'undefined') return Promise.resolve();
+    try {
+      return browser.management.getSelf()
+        .then((info) => { devBuild = info.installType === 'development'; })
+        .catch(() => {});
+    } catch (_) { return Promise.resolve(); }
+  })();
+  function isDevBuild() { return devBuild; }
 
   // Filled lightning bolt (from wordswithzaps' bolt-yellow.svg). Inherits color
   // via currentColor; sized inline with text by the .bolt-ico class.
@@ -6981,6 +6996,8 @@
       const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Donate '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
+      // Firefox has no requestUpdateCheck — the browser updates add-ons itself.
+      const canCheckUpdates = typeof chrome.runtime.requestUpdateCheck === 'function';
       const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
       const updateStatus = h('p', { className: 'hint about-update-status' });
       updateBtn.addEventListener('click', () => checkForUpdates(updateBtn, updateStatus));
@@ -6992,8 +7009,8 @@
           h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
           h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
           ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
-          updateBtn,
-          updateStatus,
+          canCheckUpdates ? updateBtn : document.createTextNode(''),
+          canCheckUpdates ? updateStatus : document.createTextNode(''),
           h('div', { className: 'about-links' }, [website, repo, support, privacy, zap]),
         ])
       );
@@ -7155,9 +7172,15 @@
     renderSettings();
   });
 
-  $('check-update-btn').addEventListener('click', () => {
-    checkForUpdates($('check-update-btn'), $('check-update-status'));
-  });
+  if (typeof chrome.runtime.requestUpdateCheck === 'function') {
+    $('check-update-btn').addEventListener('click', () => {
+      checkForUpdates($('check-update-btn'), $('check-update-status'));
+    });
+  } else {
+    // Firefox has no on-demand update check — the browser updates add-ons itself.
+    $('check-update-btn').hidden = true;
+    $('check-update-status').textContent = 'Updates install automatically through your browser.';
+  }
 
   $('export-vault-btn').addEventListener('click', () => exportVaultModal());
   $('import-vault-btn').addEventListener('click', () => $('import-vault-file').click());
@@ -7883,6 +7906,7 @@
   // clean screenshots. Never appears on the Chrome Web Store build, regardless of
   // a stored setting.
   async function initDevBadge() {
+    await devBuildReady; // Firefox: don't decide before management.getSelf answers
     if (!isDevBuild()) return;
     show($('dev-settings-section'));
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
@@ -7992,8 +8016,40 @@
   $('dev-badge').addEventListener('click', openDebugPanel);
   $('dev-badge').appendChild(icon('bug'));
 
+  // ---- host (site) permission guard ----
+  // Firefox MV3 shows https://*/* as a checkbox in the install prompt and lets
+  // the user revoke it later from about:addons. Without the grant there is no
+  // content script — no window.nostr, no paste guard, no pay card — and
+  // background fetches lose their CORS exemption, so the signer just looks dead.
+  // Detect it, explain it, and offer the one-click re-grant. Chrome grants
+  // host_permissions at install, so contains() is normally true there and the
+  // banner never renders (unless the user manually restricted site access — in
+  // which case this same recovery path is exactly what they need).
+  const HOST_ORIGINS = { origins: ['https://*/*'] };
+  // browser.* is promise-based on Firefox; chrome.* is promise-capable on Chrome MV3.
+  const PERMS_API = (typeof browser !== 'undefined' && browser.permissions) ? browser.permissions : chrome.permissions;
+  async function syncHostPermBanner() {
+    let granted = true;
+    try { granted = await PERMS_API.contains(HOST_ORIGINS); } catch (_) {}
+    $('host-perm-banner').classList.toggle('hidden', granted);
+  }
+  function initHostPermGuard() {
+    if (!PERMS_API || !PERMS_API.contains) return; // fail open: banner stays hidden
+    $('host-perm-grant-btn').addEventListener('click', () => {
+      // request() must run inside the click gesture — no awaits before it.
+      PERMS_API.request(HOST_ORIGINS).then(syncHostPermBanner).catch(() => {});
+    });
+    // Flip live if the user grants/revokes from about:addons mid-session.
+    try {
+      if (PERMS_API.onAdded) PERMS_API.onAdded.addListener(syncHostPermBanner);
+      if (PERMS_API.onRemoved) PERMS_API.onRemoved.addListener(syncHostPermBanner);
+    } catch (_) {}
+    syncHostPermBanner();
+  }
+
   // ---- boot ----
   document.addEventListener('DOMContentLoaded', refresh);
   if (document.readyState !== 'loading') refresh();
   initDevBadge();
+  initHostPermGuard();
 })();

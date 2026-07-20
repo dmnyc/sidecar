@@ -1,18 +1,13 @@
 // Sidecar content script — bridges the page's window.nostr (nostr-provider.js) to the
-// extension service worker. Injects the provider at document_start, then relays each
-// request to the background, attaching the TRUSTED host (taken from location here, never
-// from the page), and posts the response back to the page.
+// extension service worker. The provider itself is injected by the browser as a
+// MAIN-world content script (see manifest.json) — guaranteed to run before any page
+// script, and immune to page CSP, which could block the old <script src> injection
+// on strict sites. This file relays each request to the background, attaching the
+// TRUSTED host (taken from location here, never from the page), and posts the
+// response back to the page.
 
 (function () {
   'use strict';
-
-  // Inject the page-context provider as early as possible.
-  const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('nostr-provider.js');
-  script.onload = function () {
-    this.remove();
-  };
-  (document.head || document.documentElement).appendChild(script);
 
   const host = location.host; // trusted origin identity (includes port, e.g. localhost:3000)
 
