@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sidecar Help &amp; Guides</title>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="welcome.css">
+  <link rel="stylesheet" href="help.css">
+</head>
+<body>
+
+  <nav class="helpnav" id="helpnav">
+    <a class="helpnav-brand" href="#top" title="Back to top">
+      <img src="icons/sidecar-logo.svg" alt="Sidecar">
+    </a>
+    <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
+    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </label>
+    <div class="helpnav-menu">
+      <div class="helpnav-links" id="helpnav-links">
+        <a href="#basics">The basics</a>
+        <a href="#accounts">Accounts</a>
+        <a href="#pairing">How sites pair</a>
+        <a href="#switching">Switching</a>
+        <a href="#clients">Clients compared</a>
+        <a href="#wallet">Wallet</a>
+        <a href="#whats-new">What's new</a>
+      </div>
+      <div class="helpnav-pages">
+        <a href="welcome.html">Nostr apps</a>
+        <a href="wallets.html">Wallets</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page" id="top">
+
+    <header class="header">
+      <h1>How Sidecar works.</h1>
+      <p>A short guide to signing in, keeping several accounts, and understanding why
+      different Nostr apps handle account switching differently.</p>
+    </header>
+
+    <!-- ===== The basics ===== -->
+    <section class="guide-section" id="basics">
+      <h2>The basics</h2>
+      <p>Sidecar is a signer. It keeps your Nostr keys safe in the browser's side panel
+      and signs things on your behalf. When a website wants you to log in, publish a
+      note, or decrypt a message, it doesn't get your key. It asks Sidecar, Sidecar asks
+      you, and if you approve, Sidecar hands back a signature. Your keys never leave the
+      extension.</p>
+      <p>Everything is protected by the PIN you chose when you set up Sidecar, and the
+      panel locks itself after a period of inactivity you can adjust in Settings.</p>
+
+      <!-- screenshot: the approval prompt, a site asking to sign an event -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/approval-prompt.png" alt="Sidecar's approval prompt: primal.net asking to see your public key, showing which account will sign, with Allow once, Trust this site, and Reject buttons">
+        </div>
+        <figcaption>A site asking for a signature. You decide, every time, unless you choose to trust the site.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===== Accounts ===== -->
+    <section class="guide-section" id="accounts">
+      <h2>Your accounts</h2>
+      <p>Sidecar happily holds as many accounts as you like. Generate a fresh one or
+      import an existing nsec from the Accounts tab. One account is always the
+      <strong>active</strong> account, marked with a checkmark on the Accounts tab.
+      Click another to switch.</p>
+      <p>The active account is the one Sidecar offers when you sign in somewhere new,
+      and the one used when you post from Sidecar's own composer. Think of it as the
+      account currently "at the wheel."</p>
+
+      <!-- screenshot: the Accounts tab listing accounts, the active one checkmarked -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/account-switcher.png" alt="The Accounts tab listing two accounts, Gatsby (active, with a checkmark) and Amelia, plus an Add account button">
+        </div>
+        <figcaption>Your accounts on the Accounts tab. The checkmark marks the active one; click another to switch, or add more.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===== Per-site pairing ===== -->
+    <section class="guide-section" id="pairing">
+      <h2>How sites remember who you are</h2>
+      <p>Here's the part worth reading twice. When you sign in on a site, that site
+      <strong>pairs</strong> with the account you signed in as. From then on, the site
+      keeps signing with that account, even if you switch the active account in
+      Sidecar's panel.</p>
+      <p>That's deliberate. If you're signed in to a site in one tab and switch accounts
+      in Sidecar to do something else, you would not want that open session to quietly
+      start posting as someone else. Pairing keeps every session honest: each site stays
+      the identity it logged in with until <em>you</em> log it out.</p>
+      <p>You can see every pairing in the <strong>Activity</strong> tab, under Connected
+      sites. Each site shows the account it's pinned to, along with its permission level
+      and recent signing history.</p>
+
+      <!-- screenshot: the Activity tab's Connected sites, each with its pinned account -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/connected-sites.png" alt="The Activity tab's Connected sites: jumble.social pinned to Amelia (shared by two accounts, Trusted), and primal.net pinned to Gatsby with a Use Amelia button to move it">
+        </div>
+        <figcaption>Connected sites in the Activity tab. Each stays pinned to the account it signed in with; click <strong>Use</strong> to move one to your active account.</figcaption>
+      </figure>
+
+      <!-- screenshot: the Recent activity signing log below Connected sites -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/recent-activity.png" alt="The Recent activity list: a signed kind 30078 event and a shared public key, each tagged with the site and how long ago">
+        </div>
+        <figcaption>Below it, the signing log — every request Sidecar has approved, newest first.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===== Switching ===== -->
+    <section class="guide-section" id="switching">
+      <h2>Switching accounts</h2>
+      <p>A site stays paired with the account it logged in with, so how you switch it
+      to a different account depends on how that app handles users — and apps differ:</p>
+      <p><strong>Some update the signed-in user when you reload.</strong> Switch
+      accounts in Sidecar, refresh the page, and the app follows along.</p>
+      <p><strong>Others keep their own multi-user switcher.</strong> You add each
+      account to the app once, then flip between them inside the app — a refresh won't
+      change who's signed in.</p>
+      <p>So logging out isn't always necessary. What matters is recognizing which kind
+      of app you're in — the <a href="#clients">next section</a> breaks down the two
+      families. When a switch does call for a fresh login, the routine is the same
+      everywhere: log out on the site, switch accounts in Sidecar, then log back in.</p>
+      <p><strong>The shortcut.</strong> Whenever you switch the active account and a
+      paired site is open in the current tab, Sidecar offers a <strong>Reload [site]</strong>
+      button. For apps that re-check the extension on load, that single click usually
+      does it.</p>
+
+      <div class="rule-card">
+        <p class="rule-title">A rule of thumb</p>
+        <p>The site decides who is signed in. Sidecar decides who signs in <em>next</em>.</p>
+      </div>
+    </section>
+
+    <!-- ===== Clients compared ===== -->
+    <section class="guide-section" id="clients">
+      <h2>Not every client behaves the same</h2>
+      <p>Nostr apps fall into two families, and knowing which one you're in explains
+      almost every "why am I still posting as the wrong account?" moment.</p>
+
+      <div class="client-grid">
+        <div class="client-card">
+          <h3>One user at a time</h3>
+          <p class="client-examples">Primal, Iris, Snort, Zap Cooking, and most others</p>
+          <p>These apps have a single signed-in user: whoever the extension provided at
+          login. There's no account menu inside the app, so the identity changes only
+          when the login changes.</p>
+          <p>To switch, switch accounts in Sidecar and use the <strong>Reload [site]</strong>
+          button Sidecar offers right after. These apps ask the extension again when the
+          page loads, so that reload re-pairs them with your newly active account. If a
+          reload doesn't do it, the full log out and log back in routine always will.</p>
+
+          <!-- screenshot: Sidecar's Reload [site] offer after switching, for a single-user client -->
+          <figure class="shot shot-sm">
+            <div class="shot-frame">
+              <img src="screenshots/single-user-switch.png" alt="After switching to Gatsby in Sidecar, a one-click Reload primal.net button appears to re-pair the open single-user client">
+            </div>
+            <figcaption>Switch in Sidecar, then click <strong>Reload [site]</strong> to re-pair the open app.</figcaption>
+          </figure>
+        </div>
+
+        <div class="client-card">
+          <h3>Built-in account switchers</h3>
+          <p class="client-examples">Jumble, YakiHonne, noStrudel, Coracle</p>
+          <p>These clients keep their own list of accounts with a switcher inside the
+          app. Each entry in that list is bound to the Sidecar account that was active
+          when you added it. The client's switcher and Sidecar's switcher are two
+          separate things: flipping one does not flip the other, and
+          <strong>refreshing the page won't change the user</strong>, because the
+          client remembers its own selection.</p>
+          <p>To get a second identity into the client's list: switch accounts in
+          Sidecar first, then use the client's "add account" option and choose the
+          browser extension method. Once each account is added and approved, you can
+          hop between them using the client's own switcher.</p>
+          <p><strong>A safety net.</strong> Because these clients can show one account
+          while signing as another, Sidecar watches for the mismatch: once a site has
+          signed in with more than one of your accounts, every post asks you to confirm
+          who's signing, with a <em>Multiple accounts used</em> note on the prompt. So
+          even when the client's switcher and Sidecar disagree, you catch it before
+          anything publishes as the wrong you.</p>
+          <p><strong>Background syncs are the exception.</strong> As you browse, clients
+          quietly save app settings — read status, feed preferences, and the like. These
+          aren't posts: nobody sees them in a feed, and they're harmless to write under
+          either account. So Sidecar handles them for you rather than interrupting every
+          few seconds to ask who's syncing. If you'd rather confirm each one, turn on
+          <em>Confirm background app-data syncs</em> in Settings.</p>
+
+          <!-- screenshot: a multi-account client's switcher (e.g. Jumble or noStrudel) -->
+          <figure class="shot shot-sm">
+            <div class="shot-frame">
+              <img src="screenshots/multi-user-switch.png" alt="A client's built-in account switcher listing Gatsby and Amelia, both signed in via the browser extension, with Amelia selected">
+            </div>
+            <figcaption>A client's own switcher — each account bound to the Sidecar key that added it.</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <p class="fine-note">A pleasant detail: some clients, noStrudel among them, tell
+      Sidecar exactly which account they expect on every signature. When Sidecar holds
+      that account and it has approved the site, Sidecar signs with it automatically. In
+      those clients, switching inside the app works seamlessly once each account has
+      been added.</p>
+    </section>
+
+    <!-- ===== Wallet ===== -->
+    <section class="guide-section" id="wallet">
+      <h2>The wallet, briefly</h2>
+      <p>Sidecar's Wallet tab connects to a Lightning wallet you already have, using
+      Nostr Wallet Connect. Sidecar never holds your funds; it just gives you balance,
+      payments, and zaps right in the panel. Each account can have its own wallet
+      connection.</p>
+      <p>If you don't have a wallet that speaks NWC yet, the wallet directory below has
+      good options for every taste, custodial to self-custodial.</p>
+    </section>
+
+    <!-- ===== What's new ===== -->
+    <!-- RELEASE PRACTICE: update this section as part of every release. Add the new
+         release's user-facing notes (mirroring the CHANGELOG.md entry) at the top,
+         and keep the most recent release(s) below it — usually just the latest, but
+         if a release went out without a public announcement, keep it too until the
+         next one lands so nobody misses it. The full history stays in CHANGELOG.md,
+         linked below. -->
+    <section class="guide-section" id="whats-new">
+      <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.4.1</p>
+      <ul class="whatsnew-list">
+        <li><strong>Auto-lock, smoothed out.</strong> When the idle timer fires, the panel drops straight to the unlock screen with a "Locked due to inactivity" notice, instead of only surfacing the lock on your next action. Composing counts as activity so it won't lock mid-draft — and unlocking straight from a key reveal or export now flows through in one step.</li>
+        <li><strong>Stronger PIN protection.</strong> The unlock screen's brute-force guard — escalating delays between wrong tries and the final-strike wipe — now covers every PIN prompt, including key reveals and exports.</li>
+        <li><strong>More apps to explore.</strong> Eight new apps in the directory — Flotilla, Tunestr, Wavlake, WaveFunc Radio, Boost Me Bitch, Cordn, Imwald, and ContextVM — now also browsable on the web at sidecar.top/apps.</li>
+        <li><strong>A lighter quoted-note icon</strong> in notifications, easier to see on the dark panel.</li>
+      </ul>
+      <p class="whatsnew-version">Version 1.4.0</p>
+      <ul class="whatsnew-list">
+        <li><strong>A clearer signing prompt.</strong> Event content shows in a compact, expandable preview with Formatted, Raw, and JSON views, and roughly 40 more event kinds are recognized by name — so routine actions no longer show the "unrecognized kind" caution.</li>
+        <li><strong>Readable identities.</strong> Encrypt and decrypt prompts show the other party by name, with their npub kept beneath it as a verifiable key — click the npub to reveal the full key.</li>
+        <li><strong>Auto-lock is on by default.</strong> Sidecar now locks after 15 minutes of inactivity — adjustable in Settings, including back to Never, and changes apply immediately.</li>
+        <li><strong>Save-your-PIN reminder.</strong> Right after you create a PIN, a one-time reminder prompts you to write it down or store it in a password manager — there's no recovery if it's forgotten.</li>
+        <li><strong>Tighter settings privacy.</strong> Websites can no longer read Sidecar's settings; pages see only the on-page pay-card toggle.</li>
+        <li><strong>Security audit addressed.</strong> Refreshed core libraries, tamper-detection for every bundled file, and a licensing fix so the whole project stays cleanly open source.</li>
+      </ul>
+      <p>The full history, including earlier releases, is in the
+      <a href="https://github.com/dmnyc/sidecar/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer noopener" id="changelog-link">changelog on GitHub</a>.</p>
+    </section>
+
+    <!-- ===== More resources ===== -->
+    <section class="guide-section" id="more">
+      <h2>Keep exploring</h2>
+      <div class="grid resources-grid">
+        <a class="card" href="welcome.html">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">&#10022;</span></div>
+            <div>
+              <div class="card-name">Explore Nostr apps</div>
+              <div class="card-url">The welcome page</div>
+            </div>
+          </div>
+          <p class="card-desc">A directory of apps that work with Sidecar. Social, media, reading, commerce, and more.</p>
+          <span class="card-cta">OPEN THE DIRECTORY &rarr;</span>
+        </a>
+        <a class="card" href="wallets.html">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">&#9889;</span></div>
+            <div>
+              <div class="card-name">Find a Lightning wallet</div>
+              <div class="card-url">The wallets page</div>
+            </div>
+          </div>
+          <p class="card-desc">Wallets that support Nostr Wallet Connect, ready to pair with Sidecar's Wallet tab.</p>
+          <span class="card-cta">BROWSE WALLETS &rarr;</span>
+        </a>
+        <a class="card" href="https://nostr.how" target="_blank" rel="noopener">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">?</span></div>
+            <div>
+              <div class="card-name">New to Nostr?</div>
+              <div class="card-url">nostr.how</div>
+            </div>
+          </div>
+          <p class="card-desc">A friendly introduction to the protocol itself: keys, relays, zaps, and the rest.</p>
+          <span class="card-cta">START HERE &rarr;</span>
+        </a>
+        <a class="card" href="https://github.com/dmnyc/sidecar/issues" target="_blank" rel="noopener">
+          <div class="card-top">
+            <div class="favicon-wrap"><span class="favicon-fallback">&#9998;</span></div>
+            <div>
+              <div class="card-name">Questions or ideas?</div>
+              <div class="card-url">github.com/dmnyc/sidecar</div>
+            </div>
+          </div>
+          <p class="card-desc">Found something confusing, or something this guide should cover? Tell us on GitHub.</p>
+          <span class="card-cta">OPEN AN ISSUE &rarr;</span>
+        </a>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-divider"></div>
+      <p class="footer-tip">Sidecar keeps your keys on this device, always. Read the <a href="https://github.com/dmnyc/sidecar/blob/main/PRIVACY.md" target="_blank" rel="noopener">privacy policy</a>.</p>
+    </footer>
+
+  </div>
+
+  <script src="version.js"></script>
+  <script src="help.js"></script>
+</body>
+</html>

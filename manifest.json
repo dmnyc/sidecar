@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "Sidecar | A Classy Nostr Signer",
   "version": "1.5.0",
-  "description": "A multi-account NIP-07 nostr signer with a built-in Lightning wallet, in your browser sidebar.",
+  "minimum_chrome_version": "114",
+  "description": "A multi-account NIP-07 Nostr signer with a built-in Lightning wallet, in your browser sidebar.",
   "permissions": [
     "storage",
     "sidePanel",
@@ -11,8 +12,7 @@
     "notifications"
   ],
   "host_permissions": [
-    "https://*/*",
-    "wss://*/*"
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"

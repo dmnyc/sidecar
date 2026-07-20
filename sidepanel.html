@@ -6,6 +6,10 @@
   <title>Sidecar</title>
   <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+  <link rel="stylesheet" href="themes/film-noir.css" />
+  <link rel="stylesheet" href="themes/art-deco.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
 </head>
 <body>
   <!-- ===== Onboarding: create a PIN (no keystore yet) ===== -->
@@ -20,9 +24,9 @@
       <input type="password" id="ob-pin" autocomplete="new-password" maxlength="32" />
       <label for="ob-pin2">Confirm</label>
       <input type="password" id="ob-pin2" autocomplete="new-password" maxlength="32" />
-      <p class="hint">A longer alphanumeric passphrase is stronger than a short numeric PIN. There is no recovery if you forget it.</p>
+      <p class="hint">Use at least 8 characters. A longer alphanumeric passphrase is stronger than a short numeric PIN. There is no recovery if you forget it.</p>
       <div class="error" id="ob-error"></div>
-      <button type="submit" class="primary">Create keystore</button>
+      <button type="submit" class="primary" id="ob-submit">Create keystore</button>
     </form>
   </section>
 
@@ -38,6 +42,8 @@
       <div class="error" id="unlock-error"></div>
       <button type="submit" class="primary">Unlock</button>
     </form>
+    <div id="unlock-cooldown" class="unlock-cooldown hidden"></div>
+    <a href="#" id="unlock-forgot" class="unlock-forgot">Forgot your PIN?</a>
   </section>
 
   <!-- ===== Main app (unlocked) ===== -->
@@ -49,6 +55,13 @@
         <svg class="chip-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
       <div class="topbar-actions">
+        <button id="notif-bell-btn" class="icon-btn notif-bell" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          <span class="notif-badge hidden"></span>
+        </button>
+        <button id="help-btn" class="icon-btn" title="Help &amp; guides">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line><line x1="9.17" y1="14.83" x2="4.93" y2="19.07"></line></svg>
+        </button>
         <button id="settings-btn" class="icon-btn" title="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         </button>
@@ -68,6 +81,10 @@
 
 
     <div id="post-banner" class="post-banner hidden"></div>
+    <!-- Offer to reload the open Nostr site so an account switch takes effect there. -->
+    <div id="reload-banner" class="reload-banner hidden"></div>
+    <!-- Requests interrupted by a service-worker restart (honest tombstones). -->
+    <div id="interrupted-banner" class="interrupted-banner hidden"></div>
 
     <main class="content">
       <!-- Accounts -->
@@ -79,22 +96,33 @@
           <button class="secondary" id="add-generate">Generate new</button>
           <button class="secondary" id="add-import">Import nsec</button>
         </div>
-        <div class="brand-foot">
-          <img src="icons/sidecar-logo.svg" alt="Sidecar" />
+        <button class="add-account-link hidden" id="add-account-link">
+          <span class="add-account-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </span>
+          <span>Add account</span>
+        </button>
+        <div class="explore-link-wrap">
+          <a class="explore-link" id="explore-apps-link" href="#">Explore Nostr apps →</a>
+          <a class="explore-link share-link" id="share-sidecar-link" href="#"><span>Share Sidecar with a friend</span></a>
         </div>
       </div>
 
       <!-- Activity: signing history + per-site permission tiers -->
       <div class="tabview hidden" id="tab-activity">
         <h2>Activity</h2>
-        <div class="setting">
-          <h3>Connected sites</h3>
+        <div class="modal-tabs" id="activity-subtabs">
+          <button class="modal-tab active" data-subtab="sites">Connected sites</button>
+          <button class="modal-tab" data-subtab="log">Recent activity</button>
+        </div>
+        <div class="setting activity-pane" id="activity-pane-sites">
           <p class="hint">Each site stays pinned to the account it signed in with. To move a site to your active account, tap <b>Use</b> on it, then sign out and back in on that site.</p>
+          <input type="text" class="filter-input hidden" id="sites-filter" placeholder="Filter by site…" />
           <div id="sites-list" class="list flat"></div>
           <button class="ghost show-more-btn hidden" id="sites-more">Show more</button>
         </div>
-        <div class="setting">
-          <h3>Recent activity</h3>
+        <div class="setting activity-pane hidden" id="activity-pane-log">
+          <input type="text" class="filter-input hidden" id="activity-filter" placeholder="Filter by site…" />
           <div id="activity-list" class="list flat"></div>
           <button class="ghost show-more-btn hidden" id="activity-more">Show more</button>
           <button class="ghost" id="activity-clear">Clear history</button>
@@ -111,8 +139,12 @@
         <div id="wallet-view"></div>
       </div>
 
+      <div class="brand-foot">
+        <img src="icons/sidecar-logo.svg" alt="Sidecar" />
+      </div>
     </main>
 
+    <div id="first-post-balloon" class="first-post-balloon hidden">Try the composer →</div>
     <button id="compose-fab" class="fab" title="Post a note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15" x2="9" y2="15"></line></svg>
     </button>
@@ -155,22 +187,84 @@
       </div>
 
       <div class="setting">
-        <h3>Pay button on web pages</h3>
-        <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
-        <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
+        <h3>Theme</h3>
+        <p class="hint">Choose your preferred color scheme and aesthetic.</p>
+        <div class="theme-selector">
+          <button type="button" class="theme-card" data-theme="speakeasy">
+            <span class="theme-name">Speakeasy</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="film-noir">
+            <span class="theme-name">Film Noir</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="art-deco">
+            <span class="theme-name">Art Deco</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="setting">
+        <h3>Post countdown</h3>
+        <p class="hint">Show a review countdown before a note publishes, so you can read it — or cancel — first. Off posts immediately.</p>
+        <label class="toggle-row"><input type="checkbox" id="countdown-toggle" /> <span>Review countdown before posting</span></label>
+        <div class="amount-presets hidden" id="countdown-presets">
+          <button type="button" class="preset-chip" data-secs="5">5s</button>
+          <button type="button" class="preset-chip" data-secs="10">10s</button>
+          <button type="button" class="preset-chip" data-secs="15">15s</button>
+          <button type="button" class="preset-chip" data-secs="25">25s</button>
+          <button type="button" class="preset-chip" data-secs="30">30s</button>
+        </div>
+      </div>
+
+      <div class="setting">
+        <h3>Client tag</h3>
+        <p class="hint">Add a “client” tag to notes you post, attributing them to Sidecar. Turn off to post without it.</p>
+        <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span>Tag notes as posted with Sidecar</span></label>
+      </div>
+
+      <div class="setting">
+        <h3>Background app syncs</h3>
+        <p class="hint">Clients quietly sync app settings (read status, preferences) as you browse. These aren’t posts, so Sidecar handles them without interrupting you when a site uses more than one of your accounts. Turn on to confirm each one instead.</p>
+        <label class="toggle-row"><input type="checkbox" id="datasync-toggle" /> <span>Confirm background app-data syncs</span></label>
       </div>
 
       <div class="setting">
         <h3>Open notes in</h3>
         <p class="hint">Which web client to open your published notes in.</p>
         <select id="client-select">
-          <option value="jumble">Jumble</option>
           <option value="primal">Primal</option>
-          <option value="coracle">Coracle</option>
-          <option value="nostrudel">noStrudel</option>
+          <option value="jumble">Jumble</option>
           <option value="yakihonne">YakiHonne</option>
+          <option value="iris">Iris</option>
+          <option value="snort">Snort</option>
+          <option value="nostrudel">noStrudel</option>
+          <option value="zapcooking">Zap Cooking</option>
+          <option value="noornote">NoorNote</option>
+          <option value="coracle">Coracle</option>
           <option value="njump">njump</option>
         </select>
+        <label class="toggle-row"><input type="checkbox" id="reuse-tab-toggle" /> <span>Reuse an open client tab</span></label>
+      </div>
+
+      <div class="setting">
+        <h3>Pay button on web pages</h3>
+        <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
+        <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
+      </div>
+
+      <div class="setting">
+        <h3>Automatic zaps</h3>
+        <p class="hint">Pay zaps without a prompt, up to a limit per zap and a daily total across all sites. Larger zaps, anything over the daily total, and all other payments still ask.</p>
+        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>
+        <label class="toggle-row hidden" id="autozap-max-row">
+          <span>Max per zap</span>
+          <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
+          <span>sats</span>
+        </label>
+        <label class="toggle-row hidden" id="autozap-daily-row">
+          <span>Max per day</span>
+          <input type="text" inputmode="numeric" id="autozap-daily-max" class="autozap-max-input" />
+          <span>sats</span>
+        </label>
       </div>
 
       <div class="setting">
@@ -184,8 +278,48 @@
       </div>
 
       <div class="setting">
+        <h3>Share Sidecar</h3>
+        <p class="hint">Know someone who'd like a classy Nostr signer? Send them the link.</p>
+        <button class="secondary" id="share-sidecar-btn"><span>Share with a friend</span></button>
+      </div>
+
+      <div class="setting">
+        <h3>Updates</h3>
+        <p class="hint" id="settings-version"></p>
+        <a href="#" id="whats-new-link" class="whats-new-link">What&#8217;s new in this version &rarr;</a>
+        <button class="secondary" id="check-update-btn">Check for updates</button>
+        <p class="hint" id="check-update-status"></p>
+      </div>
+
+      <div class="setting hidden" id="dev-settings-section">
+        <h3>Developer</h3>
+        <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
+        <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
+      </div>
+
+      <div class="setting">
         <h3>Change PIN</h3>
         <button class="secondary" id="change-pin-btn">Change PIN…</button>
+      </div>
+
+      <div class="setting">
+        <h3>Vault backup</h3>
+        <p class="hint">Export every account's private key (and connected wallet, if any) into one encrypted file, or restore from one. This is separate from a single account's nsec/ncryptsec backup in its account menu.</p>
+        <div class="vault-actions">
+          <button class="secondary" id="export-vault-btn">Export encrypted vault…</button>
+          <button class="secondary" id="import-vault-btn">Import vault…</button>
+        </div>
+        <input type="file" id="import-vault-file" accept="application/json" class="hidden" />
+      </div>
+
+      <div class="setting danger-zone">
+        <h3>Danger zone</h3>
+        <p class="hint">Erase all accounts, keys, wallets, and settings on this device. This can't be undone. Back up your nsecs first.</p>
+        <button class="danger" id="reset-all-btn">Reset Sidecar</button>
+      </div>
+
+      <div class="brand-foot">
+        <img src="icons/sidecar-logo.svg" alt="Sidecar" />
       </div>
     </main>
   </section>
@@ -200,6 +334,8 @@
       <div id="approval-preview" class="card hidden"></div>
 
       <div class="approval-account" id="approval-account"></div>
+      <button class="approval-switch-toggle hidden" id="approval-switch-toggle">Sign in with a different account</button>
+      <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
 
       <div id="approval-unlock" class="hidden stack">
         <label for="approval-pin">Enter your PIN to unlock</label>
@@ -221,6 +357,12 @@
         <button class="lav-btn" id="approval-trust">Trust this site</button>
         <button class="ghost" id="approval-reject">Reject</button>
       </div>
+
+      <!-- Stacked-request backlog: always-visible count + one-tap escape hatch. -->
+      <div id="approval-backlog" class="approval-backlog hidden">
+        <span id="approval-backlog-count"></span>
+        <button class="approval-reject-all" id="approval-reject-all">Reject all</button>
+      </div>
     </div>
   </div>
 
@@ -232,8 +374,14 @@
   <!-- ===== Toast host ===== -->
   <div id="toasts" class="toasts"></div>
 
+  <!-- ===== Dev build indicator (local/unpacked builds only, opt-in via Settings) ===== -->
+  <button id="dev-badge" class="dev-badge hidden" title="Sidecar dev build"></button>
+
   <script src="nostr-tools.js"></script>
-  <script src="qrious.min.js"></script>
+  <script src="nip49.js"></script>
+  <script src="crypto.js"></script>
+  <script src="qrcode-generator.js"></script>
+  <script src="qr.js"></script>
   <script src="nwc-client.js"></script>
   <script src="version.js"></script>
   <script src="sidepanel.js"></script>

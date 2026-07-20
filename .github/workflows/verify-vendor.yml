@@ -1,0 +1,19 @@
+name: Verify vendored bundles
+
+# The four vendored JS bundles must always match the SHA-256 hashes recorded in
+# scripts/vendor-hashes.sha256 (provenance documented in VENDOR.md). This makes
+# any tampering with vendored code mechanically visible on every PR: changing a
+# bundle without updating the hash file fails, and a hash-file change shows up
+# in review as an explicit, auditable diff.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify vendored bundle hashes
+        run: sha256sum -c scripts/vendor-hashes.sha256

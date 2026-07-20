@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Find a wallet for Sidecar</title>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="welcome.css">
+  <link rel="stylesheet" href="wallets.css">
+</head>
+<body>
+  <nav class="helpnav">
+    <a class="helpnav-brand" href="help.html" title="Back to the guide">
+      <img src="icons/sidecar-logo.svg" alt="Sidecar">
+    </a>
+    <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
+    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </label>
+    <div class="helpnav-menu">
+      <a class="helpnav-guide" href="help.html"><span class="helpnav-back" aria-hidden="true">&lsaquo;</span> Guide</a>
+      <div class="helpnav-pages">
+        <a href="welcome.html">Nostr apps</a>
+        <a href="wallets.html" class="active" aria-current="page">Wallets</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+
+    <header class="header">
+      <h1>Pick a Lightning wallet.</h1>
+      <p>Sidecar connects to any wallet that supports Nostr Wallet Connect (NWC). Choose one below, create a connection string in it, then paste that into Sidecar's Wallet tab. Sidecar never holds your funds.</p>
+    </header>
+
+    <div class="filters" id="filters">
+      <button class="filter-btn active" data-cat="all">All</button>
+      <button class="filter-btn" data-cat="custodial">Custodial</button>
+      <button class="filter-btn" data-cat="selfcustodial">Self-custodial</button>
+      <button class="filter-btn" data-cat="ecash">Ecash</button>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <footer class="footer">
+      <div class="footer-divider"></div>
+      <p class="footer-tip"><strong>Custodial</strong> wallets hold your funds for you (easiest to start). <strong>Self-custodial</strong> means you hold your own keys. <strong>Ecash</strong> wallets use Cashu bearer tokens.</p>
+      <p class="footer-tip">New to Lightning? Any wallet here gets you started — you can always switch later.</p>
+      <p class="footer-tip"><a href="https://github.com/dmnyc/sidecar/issues" target="_blank" rel="noopener">Suggest a wallet to add →</a></p>
+    </footer>
+
+  </div>
+
+  <script src="wallets.js"></script>
+</body>
+</html>

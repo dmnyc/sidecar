@@ -1,0 +1,94 @@
+/* ============================================================
+   Sidecar — Art Deco Theme
+   Golden/bronze/eggshell palette for daylight.
+   Inspired by 1920s Art Deco elegance and geometric patterns.
+   ============================================================ */
+
+[data-theme="art-deco"] {
+  color-scheme: light;
+
+  /* surfaces */
+  --bg: #F0EAD6;
+  --bg-2: #E8E0D0;
+  --velvet-1: #E6DCC8;
+  --velvet-2: #DED4C0;
+  --velvet-1-rgb: 230, 220, 200;
+  --av-from: #E6DCC8;
+  --av-to: #DED4C0;
+  --banner-accent: #DED4C0;
+  --border: rgba(139, 115, 85, 0.20);
+  --border-strong: rgba(139, 115, 85, 0.35);
+  --border-rgb: 139, 115, 85;
+  --well-rgb: 232, 224, 208;
+  --warn: #a8521f;
+  --warn-rgb: 168, 82, 31;
+  --success: #2f7d52;
+  --success-rgb: 47, 125, 82;
+
+  /* brand - bronze/gold */
+  --orange: #B8860B;
+  --amber: #D4AF37;
+  --gold: #C5A059;
+  --gold-soft: rgba(197, 160, 89, 0.5);
+  --purple: #5a4a8a; /* darker purple for logo in light mode */
+  --lav: #6a5a9a;
+  --hover-soft: rgba(197, 160, 89, 0.08);
+  --hover-medium: rgba(197, 160, 89, 0.12);
+  --hover-faint: rgba(197, 160, 89, 0.06);
+  --mention-bg: rgba(197, 160, 89, 0.18);
+  --scroll-thumb: linear-gradient(180deg, #DED4C0, #E6DCC8);
+  --scroll-thumb-hover: #C8BDA0;
+
+  /* button override - soft champagne gold (clean gold, not mustard yellow) */
+  --btn-primary-top: #E6CE8A;
+  --btn-primary-mid: #C9AA56;
+  --btn-primary-bot: #A5853A;
+  --btn-shadow: rgba(201, 170, 86, 0.35);
+
+  /* ink */
+  --text: #2a2a2a;
+  --text-2: #4a4a4a;
+  --muted: #6a6a6a;
+  --faint: #8a8a8a;
+  --red: #c06060;
+
+  /* shadows */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.12);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+
+  /* pattern */
+  --pattern-opacity: 1;
+}
+
+/* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
+   pixel-identical to the original); re-theme them for art deco. */
+[data-theme="art-deco"] .lav-btn {
+  background: linear-gradient(180deg, #FBF8F0, #F2ECDC);
+  color: #2a2a2a;
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 4px 14px rgba(139, 115, 85, 0.18);
+}
+[data-theme="art-deco"] .sk {
+  background-image: linear-gradient(100deg, var(--velvet-1) 30%, rgba(197, 160, 89, 0.18) 50%, var(--velvet-1) 70%);
+}
+[data-theme="art-deco"] input,
+[data-theme="art-deco"] select,
+[data-theme="art-deco"] textarea {
+  background: var(--bg-2);
+}
+/* the "+" badge text is speakeasy's dark #2a1257; on deco's dark-purple badge it
+   needs the light page color to stay legible */
+[data-theme="art-deco"] .add-account-badge {
+  color: var(--bg);
+}
+/* The wallet balance and "sent" tx icon use --gold/#f4a64b, both tuned for a dark
+   backdrop — on deco's light eggshell field they read as washed out. Swap in
+   --orange (already a darker bronze-gold in this theme) for enough contrast. */
+[data-theme="art-deco"] .wallet-balance {
+  color: var(--orange);
+}
+[data-theme="art-deco"] .tx-icon.out {
+  color: var(--orange);
+  background: rgba(184, 134, 11, 0.12);
+}

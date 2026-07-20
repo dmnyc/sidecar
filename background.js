@@ -17,12 +17,23 @@ const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 
 const DEFAULT_RELAYS = {
-  'wss://relay.damus.io': { read: true, write: true },
   'wss://nos.lol': { read: true, write: true },
-  'wss://relay.primal.net': { read: true, write: true },
+  'wss://relay.snort.social': { read: true, write: true },
+  'wss://nostr.mom': { read: true, write: true },
+  'wss://offchain.pub': { read: true, write: true },
+  'wss://relay.primal.net': { read: true, write: false },
 };
 
 const AUTO_LOCK_ALARM = 'sidecar-auto-lock';
+// Idle auto-lock, in minutes. Applied only when the user has never touched the
+// Settings dropdown — an explicit choice (including "Never", stored as 0) is
+// always respected once saved. Keys shouldn't stay decrypted indefinitely in a
+// browser that's left open; this only fires on true inactivity (bumpAutoLock is
+// called on every sign/pay/unlock), so normal active use never hits it.
+const DEFAULT_AUTO_LOCK_MINUTES = 15;
+function resolveSettings(sidecar_settings) {
+  return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
+}
 
 // ---- storage helpers ----
 function sget(keys) {
@@ -36,11 +47,52 @@ async function getConfiguredRelays() {
   return (await sget('sidecar_relays')).sidecar_relays || DEFAULT_RELAYS;
 }
 
+// ---- SSRF guard for server-side fetches (link previews) ----
+// The service worker fetch bypasses CORS and can reach the user's private
+// network, so refuse hostnames that resolve to loopback / private / link-local
+// space (incl. cloud metadata at 169.254.169.254) and non-http(s) schemes.
+function isPrivateHostname(host) {
+  const h = (host || '').toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (v4) {
+    const a = +v4[1], b = +v4[2];
+    if ([a, b, +v4[3], +v4[4]].some((n) => n > 255)) return true;
+    if (a === 0 || a === 10 || a === 127) return true;         // this-host, private, loopback
+    if (a === 169 && b === 254) return true;                    // link-local + metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;           // private
+    if (a === 192 && b === 168) return true;                    // private
+    if (a === 100 && b >= 64 && b <= 127) return true;          // CGNAT
+    if (a >= 224) return true;                                  // multicast / reserved
+    return false;
+  }
+  // IPv6 literals (URL.hostname strips the brackets).
+  if (h === '::1' || h === '::') return true;
+  if (h.startsWith('fe80') || h.startsWith('fc') || h.startsWith('fd')) return true; // link-local / ULA
+  if (h.startsWith('::ffff:')) return true; // IPv4-mapped
+  return false;
+}
+
+// Validate a URL intended for a server-side fetch. Returns the parsed URL or null.
+function safeFetchUrl(raw) {
+  let u;
+  try { u = new URL(raw); } catch (_) { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.username || u.password) return null; // no embedded credentials
+  if (isPrivateHostname(u.hostname)) return null;
+  return u;
+}
+
 // ---- per-site account binding ----
-// A web client caches the pubkey from its first getPublicKey() and has no way to
+// A web client caches the pubkey from its last getPublicKey() and has no way to
 // learn about an account switch. So we PIN each host to the account it logged in
-// with: that host keeps signing as its bound identity regardless of which account
-// is globally active. The global active account only drives new logins + the panel UI.
+// with: session-shaped requests (signEvent, nip04/nip44, relay auth) keep signing
+// as the bound identity regardless of which account is globally active.
+// getPublicKey() is the exception: it's a login — the site is asking "who are you
+// now?" — so it follows the globally-active account and re-pairs the host to it
+// (see handleNostrRpc). Log out of a site, switch accounts in the panel, log back
+// in, and the site follows; open sessions on other sites never desync.
 const SITE_ACCTS_KEY = 'sidecar_site_accounts';
 
 async function getSiteAccount(host) {
@@ -65,6 +117,59 @@ async function clearSiteAccountsForPubkey(pubkey) {
   let changed = false;
   for (const h of Object.keys(all)) if (all[h] === pubkey) { delete all[h]; changed = true; }
   if (changed) await sset({ [SITE_ACCTS_KEY]: all });
+  await removeAuthorizedAccountEverywhere(pubkey);
+}
+
+// ---- multi-login safeguard: accounts that have signed in per host ----
+// The binding above is a single account per host. But multi-login clients
+// (Jumble, YakiHonne, Ditto, …) keep several sessions on ONE host and only tell
+// us which account they mean at getPublicKey (login) — never at signing time,
+// and their event templates carry no pubkey. So once 2+ of your accounts have
+// used a host, the single binding can silently reflect the wrong slot. We track
+// the SET of accounts that have acted on each host; a host with 2+ is "shared",
+// and content signs there confirm who's posting when the binding and your active
+// account disagree (see handleNostrRpc).
+const SITE_AUTHZ_KEY = 'sidecar_site_authorized';
+
+async function getAllAuthorized() {
+  return (await sget(SITE_AUTHZ_KEY))[SITE_AUTHZ_KEY] || {};
+}
+// Accounts on `host` that STILL EXIST (a deleted account can't make a host shared).
+async function getAuthorizedAccounts(host) {
+  const list = (await getAllAuthorized())[host] || [];
+  const existing = [];
+  for (const pk of list) if (await KS.hasAccount(pk)) existing.push(pk);
+  return existing;
+}
+async function addAuthorizedAccount(host, pubkey) {
+  const all = await getAllAuthorized();
+  const list = all[host] || [];
+  if (list.includes(pubkey)) return;
+  list.push(pubkey);
+  all[host] = list;
+  await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function removeAuthorizedAccount(host, pubkey) {
+  const all = await getAllAuthorized();
+  if (!all[host]) return;
+  all[host] = all[host].filter((pk) => pk !== pubkey);
+  if (!all[host].length) delete all[host];
+  await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function removeAuthorizedAccountEverywhere(pubkey) {
+  const all = await getAllAuthorized();
+  let changed = false;
+  for (const h of Object.keys(all)) {
+    const next = all[h].filter((pk) => pk !== pubkey);
+    if (next.length !== all[h].length) { changed = true; if (next.length) all[h] = next; else delete all[h]; }
+  }
+  if (changed) await sset({ [SITE_AUTHZ_KEY]: all });
+}
+async function clearAuthorizedForHost(host) {
+  const all = await getAllAuthorized();
+  if (!all[host]) return;
+  delete all[host];
+  await sset({ [SITE_AUTHZ_KEY]: all });
 }
 
 // Resolve which account a host signs as: its valid binding, else the active
@@ -86,48 +191,184 @@ async function logActivity(entry) {
   await sset({ [ACTIVITY_KEY]: cur });
 }
 
+// ---- debug log (dev builds only) ----
+// An in-memory ring buffer for the dev bug button's debug panel — separate
+// from the user-facing Activity log above (which tracks signed events/
+// payments per account). This is internal diagnostics: message dispatch,
+// timings, and uncaught errors. In-memory only, so it resets on a service
+// worker restart (~30s idle) — same tradeoff as the keystore re-locking.
+const IS_DEV_BUILD = (() => {
+  try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
+})();
+const DEBUG_LOG_MAX = 300;
+const debugLog = [];
+function dlog(level, tag, msg, data) {
+  if (!IS_DEV_BUILD) return;
+  debugLog.push({ ts: Date.now(), level, tag, msg, data });
+  if (debugLog.length > DEBUG_LOG_MAX) debugLog.shift();
+  if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_LOG_UPDATED' }); } catch (_) {} }
+}
 // ---- side panel open on toolbar click ----
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   createPayMenu();
+  if (details.reason === 'install') {
+    chrome.storage.local.remove('firstPostTipDismissed');
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  }
 });
 chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
 });
 
 // ============================================================================
-// Approval / unlock prompt orchestration
+// Approval / unlock prompt queue — an OBSERVABLE, no-loss request queue.
 // ============================================================================
-const pendingPrompts = new Map(); // promptId -> { resolve, windowId, data, settled }
-let promptMutex = Promise.resolve(); // serialize prompts so only one window is open
+// Every request needing approval/unlock is registered synchronously (never lost
+// behind an invisible promise chain), mirrored to chrome.storage.session (which
+// survives service-worker eviction but clears on browser restart — exactly a
+// request's max lifetime), and shown one-at-a-time by an idempotent head-pointer
+// (driveDisplay) rather than a promise mutex. A never-resolving display can't
+// wedge the queue: reverting a shown entry to `queued` on a panel-port blip just
+// re-drives. The resolve callbacks (which fulfill the live page request) live in
+// memory only; an entry whose callback is gone after an SW restart becomes a
+// dismissible "interrupted" tombstone — never signable, never pretending to be.
+//
+// Entry: { id, host, method, kind, scope, data, ts, deadline,
+//          state: 'queued'|'showing'|'interrupted', display: 'none'|'panel'|'popup' }
+const queue = [];               // ordered, observable (in-memory; metadata mirrored to session)
+const callbacks = new Map();    // id -> { resolve, settled }  (in-memory only; the live page channel)
+let popupWindowId = null;       // the reusable prompt popup window
+let panelPort = null;           // the side panel's long-lived port while it's open
+let panelWindowId = null;       // the browser window the open panel lives in (window-correct routing)
+let graceTimer = null;          // panel-disconnect grace before falling back to a popup
+const REQUEST_TTL = 175000;     // < content.js's 180s page timeout, so we never surface a dead request
+const TOMBSTONE_TTL = 600000;   // interrupted tombstones self-clear after 10 min
+const QUEUE_SESSION_KEY = 'sidecar_prompt_queue';
+const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
 
-// The side panel keeps a long-lived port open while it's visible. When it's open
-// we render approvals inline in the panel (it can't get lost behind a window);
-// when it's closed we fall back to the popup window below — Chrome only lets us
-// open the side panel from a user gesture, so the worker can't force it open.
-let panelPort = null;
+// dlog() reads panelPort (declared above) to ping the panel on a new entry, so
+// this must run after that declaration — the log call below is synchronous.
+if (IS_DEV_BUILD) {
+  dlog('info', 'sw', 'Service worker started', { version: chrome.runtime.getManifest().version });
+  self.addEventListener('error', (e) => {
+    dlog('error', 'sw', 'Uncaught error', { message: e.message, filename: e.filename, lineno: e.lineno });
+  });
+  self.addEventListener('unhandledrejection', (e) => {
+    dlog('error', 'sw', 'Unhandled rejection', { reason: String((e.reason && e.reason.message) || e.reason) });
+  });
+}
+
+// ---- session mirror (metadata only — no callbacks, no signable material) ----
+function qGet() {
+  return new Promise((r) => chrome.storage.session.get(QUEUE_SESSION_KEY, (x) => r(x[QUEUE_SESSION_KEY])));
+}
+function sanitizeEntry(e) {
+  return {
+    id: e.id, host: e.host, method: e.method, kind: e.kind, scope: e.scope,
+    ts: e.ts, deadline: e.deadline, state: e.state,
+    accountName: e.data ? e.data.accountName : e.accountName,
+  };
+}
+function qPersist() {
+  chrome.storage.session.set({ [QUEUE_SESSION_KEY]: queue.map(sanitizeEntry) }, () => void chrome.runtime.lastError);
+}
+// A bare "queue changed" ping — the panel re-queries SIDECAR_GET_PENDING (pull
+// model: the background is the single source of truth, no push/pull desync).
+function broadcastQueue() {
+  if (!panelPort) return;
+  try { panelPort.postMessage({ type: 'SIDECAR_QUEUE_UPDATED' }); } catch (_) {}
+}
+function liveEntries() { return queue.filter((e) => e.state !== 'interrupted'); }
+
+// A content sign (note/reaction/DM/profile/app-data — not relay auth) that can be
+// batched. Apps like Primal fire a burst of these on load (e.g. several kind:30078
+// app-data syncs); confirming each separately is pure nag and trains users to
+// click through. We batch only entries that share host + signing account + KIND —
+// same-kind means a site can't slip a different event type into a batch, and the
+// card names the kind + count so the user sees exactly what they're approving.
+function isBatchableEntry(e) {
+  if (e.state === 'interrupted' || !e.data) return false;
+  const m = e.method;
+  return (m === 'signEvent' || m === 'nip04.encrypt' || m === 'nip44.encrypt') &&
+    !isNip42AuthEvent(e.data && e.data.params && (e.data.params.event || e.data.params));
+}
+function batchKeyOf(e) { return e.host + '|' + (e.data && e.data.activePubkey) + '|' + e.kind; }
+
+// What the panel renders from (metadata only, plus the head's full data).
+function pendingView() {
+  const head = queue.find((e) => e.state === 'showing' && e.display === 'panel') || null;
+  // Group the head with other live queued entries sharing host+account+kind.
+  let groupIds = head ? [head.id] : [];
+  if (head && isBatchableEntry(head)) {
+    const key = batchKeyOf(head);
+    for (const e of queue) {
+      if (e === head) continue;
+      if (e.state === 'queued' && isBatchableEntry(e) && batchKeyOf(e) === key) groupIds.push(e.id);
+    }
+  }
+  const inGroup = new Set(groupIds);
+  const waiting = queue.filter((e) => e.state !== 'interrupted' && e !== head && !inGroup.has(e.id))
+    .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, accountName: e.data && e.data.accountName, ts: e.ts }));
+  const interrupted = queue.filter((e) => e.state === 'interrupted')
+    .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, ts: e.ts }));
+  return {
+    head: head ? { id: head.id, data: head.data, groupIds } : null,
+    waiting, interrupted,
+  };
+}
+
+// ---- keepalive (best-effort; correctness rests on the queue + reconcile) ----
+let keepaliveOn = false;
+function ensureKeepalive() {
+  if (keepaliveOn) return;
+  keepaliveOn = true;
+  chrome.alarms.create(QUEUE_KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
+}
+function stopKeepaliveIfIdle() {
+  if (liveEntries().length) return;
+  if (!keepaliveOn) return;
+  keepaliveOn = false;
+  chrome.alarms.clear(QUEUE_KEEPALIVE_ALARM);
+}
+
+// ---- panel port lifecycle ----
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'sidepanel') return;
   panelPort = port;
-  port.onDisconnect.addListener(() => {
-    if (panelPort === port) panelPort = null;
-    // Closing the panel mid-approval would otherwise leave the page hanging;
-    // reject any inline (windowless) prompts that were awaiting a decision.
-    for (const [id, p] of pendingPrompts) {
-      if (p.windowId == null && !p.settled) {
-        p.settled = true;
-        pendingPrompts.delete(id);
-        p.resolve({ action: 'reject' });
-      }
+  // Which window this panel lives in — a side panel is per-window, so a request
+  // from a DIFFERENT window must not surface its approval here (see driveOnce).
+  // The panel reports its window id right after connecting; seed it from the
+  // port sender when Chrome provides one, else leave it unknown until the report.
+  panelWindowId = (port.sender && port.sender.tab && port.sender.tab.windowId != null)
+    ? port.sender.tab.windowId : null;
+  clearTimeout(graceTimer);
+  driveDisplay(); // re-surface anything waiting for a panel
+  port.onMessage.addListener((msg) => {
+    if (msg && msg.type === 'panelWindow' && typeof msg.windowId === 'number') {
+      panelWindowId = msg.windowId;
+      driveDisplay(); // window now known — re-evaluate a possibly wrong-window surface
     }
+  });
+  port.onDisconnect.addListener(() => {
+    if (panelPort !== port) return;
+    panelPort = null;
+    panelWindowId = null;
+    // Revert (do NOT reject) anything showing in the panel — Chrome recycles this
+    // port ~every 5 min; auto-rejecting here is the classic silent event loss.
+    // The callback stays live; a reconnect re-surfaces it, a real close falls back
+    // to a popup after a short grace.
+    for (const e of queue) {
+      if (e.display === 'panel' && e.state === 'showing') { e.state = 'queued'; e.display = 'none'; }
+    }
+    qPersist();
+    clearTimeout(graceTimer);
+    graceTimer = setTimeout(() => { if (!panelPort) driveDisplay(); }, 1500);
   });
 });
 
-// A page RPC can wake a fresh worker before the open side panel has reconnected
-// its port to this instance. Without waiting, panelPort is null and we'd wrongly
-// open a popup while the panel is sitting right there. Give the panel a brief
-// moment to (re)connect; if it's genuinely closed, nothing connects and we
-// fall through to the popup.
+// A page RPC can wake a fresh worker before the open panel has reconnected its
+// port. Give it a brief window before falling back to a popup.
 function waitForPanelPort(ms) {
   if (panelPort) return Promise.resolve(panelPort);
   return new Promise((resolve) => {
@@ -140,142 +381,557 @@ function waitForPanelPort(ms) {
   });
 }
 
-function openPrompt(data) {
-  // Chain onto the mutex: each prompt waits for the previous to finish.
-  const run = () =>
-    new Promise(async (resolve) => {
-      // Re-evaluate the lock at execution time. Prompts are serialized, so an
-      // earlier one in the queue may have already unlocked the keystore — the
-      // classic browser-restart case where several signed-in apps each fire a
-      // request at once and would otherwise each demand the PIN. Once unlocked,
-      // collapse the now-redundant unlock prompts: a pure unlock just proceeds,
-      // and an approval still shows but without asking for the PIN again.
-      if (data && data.needUnlock && !KS.isLocked()) {
-        data.needUnlock = false;
-        if (!data.needApproval) return resolve({ action: 'once' });
-      }
-
-      const promptId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-
-      // Panel open → render inline; the panel decides via SIDECAR_PROMPT_RESULT.
-      const port = await waitForPanelPort(600);
-      if (port) {
-        pendingPrompts.set(promptId, { resolve, windowId: null, data, settled: false });
-        try {
-          port.postMessage({ type: 'SIDECAR_PANEL_APPROVAL', id: promptId, data });
-          return;
-        } catch (_) {
-          // Port died between the check and post; fall through to the popup.
-          pendingPrompts.delete(promptId);
-          panelPort = null;
-        }
-      }
-
-      const W = 440;
-      const H = 600;
-      chrome.windows.getCurrent((cur) => {
-        const left =
-          cur && cur.left != null && cur.width != null
-            ? Math.round(cur.left + (cur.width - W) / 2)
-            : undefined;
-        const top =
-          cur && cur.top != null && cur.height != null
-            ? Math.round(cur.top + (cur.height - H) / 3)
-            : undefined;
-        chrome.windows.create(
-          {
-            url: chrome.runtime.getURL('prompt.html?id=' + promptId),
-            type: 'popup',
-            width: W,
-            height: H,
-            left,
-            top,
-            focused: true,
-          },
-          (win) => {
-            pendingPrompts.set(promptId, { resolve, windowId: win && win.id, data, settled: false });
-          }
-        );
-      });
+// ---- T1: accept a request. Synchronous registration; never blocks. ----
+function openPrompt(data, originWindowId) {
+  // Fast path: the keystore may have unlocked via an earlier approval. Collapse a
+  // now-redundant pure-unlock request without queuing anything.
+  if (data && data.needUnlock && !KS.isLocked()) {
+    data.needUnlock = false;
+    if (!data.needApproval) return Promise.resolve({ action: 'once' });
+  }
+  return new Promise((resolve) => {
+    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const now = Date.now();
+    const ev = data.method === 'signEvent' ? (data.params && (data.params.event || data.params)) : null;
+    queue.push({
+      id, host: data.host, method: data.method, scope: data.scope || 'nostr',
+      kind: ev ? ev.kind : null, data, ts: now, deadline: now + REQUEST_TTL,
+      state: 'queued', display: 'none',
+      // The window the requesting page lives in, so the approval surfaces on the
+      // window the user is actually looking at (see driveOnce). undefined ⇒ unknown.
+      originWindowId: originWindowId != null ? originWindowId : undefined,
     });
-  const result = promptMutex.then(run, run);
-  // Keep the chain alive regardless of outcome.
-  promptMutex = result.then(
-    () => undefined,
-    () => undefined
-  );
-  return result;
+    callbacks.set(id, { resolve, settled: false });
+    ensureKeepalive();
+    qPersist();
+    broadcastQueue();
+    driveDisplay();
+  });
 }
 
-// If the user closes the popup without deciding, treat it as a cancel/reject.
-chrome.windows.onRemoved.addListener((windowId) => {
-  for (const [id, p] of pendingPrompts) {
-    if (p.windowId === windowId && !p.settled) {
-      p.settled = true;
-      pendingPrompts.delete(id);
-      p.resolve({ action: 'reject' });
+// ---- popup window helpers ----
+const POPUP_W = 440, POPUP_H = 660;
+function closePopupWindow() {
+  if (popupWindowId == null) return;
+  const wid = popupWindowId;
+  popupWindowId = null;
+  chrome.windows.remove(wid).catch(() => {});
+}
+// Where to center the prompt popup: over the window the requesting page lives in
+// (originWindowId), so it never opens on a window/monitor the user isn't looking
+// at. Falls back to the last-focused window when the origin is unknown, and to
+// Chrome's default placement when even that has no usable bounds.
+function popupPlacement(originWindowId) {
+  return new Promise((resolve) => {
+    const place = (win) => {
+      if (chrome.runtime.lastError || !win || win.left == null || win.width == null) return resolve({});
+      resolve({
+        left: Math.round(win.left + (win.width - POPUP_W) / 2),
+        top: win.top != null && win.height != null ? Math.round(win.top + (win.height - POPUP_H) / 3) : undefined,
+      });
+    };
+    if (originWindowId != null) {
+      // Resolve against the origin window; if it's gone, fall back to current.
+      chrome.windows.get(originWindowId, (win) => {
+        if (chrome.runtime.lastError || !win) chrome.windows.getCurrent(place);
+        else place(win);
+      });
+    } else {
+      chrome.windows.getCurrent(place);
     }
+  });
+}
+function createPopup(url, originWindowId) {
+  return new Promise((resolve) => {
+    popupPlacement(originWindowId).then(({ left, top }) => {
+      chrome.windows.create({ url, type: 'popup', width: POPUP_W, height: POPUP_H, left, top, focused: true }, (win) => {
+        popupWindowId = win ? win.id : null;
+        resolve();
+      });
+    });
+  });
+}
+function navigatePopup(url, originWindowId) {
+  return new Promise((resolve) => {
+    chrome.windows.get(popupWindowId, { populate: true }, (win) => {
+      const tab = win && win.tabs && win.tabs[0];
+      if (chrome.runtime.lastError || !tab) return resolve(false);
+      chrome.tabs.update(tab.id, { url });
+      // Reposition over the origin window too — the reused popup may have been
+      // created over a different window than this request came from.
+      popupPlacement(originWindowId).then(({ left, top }) => {
+        const upd = { focused: true };
+        if (left != null) upd.left = left;
+        if (top != null) upd.top = top;
+        chrome.windows.update(popupWindowId, upd);
+        resolve(true);
+      });
+    });
+  });
+}
+// Use the panel only when we're NOT confident it's in a different window than
+// the request came from. Unknowns default to "yes" so the panel-first behavior
+// is preserved for the common single-window case; we divert to a popup only on a
+// definite window mismatch.
+function panelServesWindow(originWindowId) {
+  if (!panelPort) return false;
+  if (originWindowId == null || panelWindowId == null) return true;
+  return panelWindowId === originWindowId;
+}
+
+// ---- T6: expire a request past its deadline (or drop a stale tombstone) ----
+function expireEntry(id, reason) {
+  const i = queue.findIndex((e) => e.id === id);
+  if (i >= 0) queue.splice(i, 1);
+  const cb = callbacks.get(id);
+  callbacks.delete(id);
+  if (cb && !cb.settled) { cb.settled = true; cb.resolve({ action: 'reject', reason: reason || 'expired' }); }
+}
+
+// ---- head-pointer: idempotent, re-entrant, self-healing ----
+let driving = false;
+let driveAgain = false;
+async function driveDisplay() {
+  if (driving) { driveAgain = true; return; }
+  driving = true;
+  try {
+    do { driveAgain = false; await driveOnce(); } while (driveAgain);
+  } finally { driving = false; }
+}
+async function driveOnce() {
+  const now = Date.now();
+  // Sweep expired live requests and stale tombstones.
+  for (const e of [...queue]) {
+    if (e.state === 'interrupted') { if (now - e.ts > TOMBSTONE_TTL) expireEntry(e.id); }
+    else if (now > e.deadline) expireEntry(e.id, 'timeout');
   }
+
+  // If something's already showing on a valid surface, we're done — unless the
+  // surface no longer fits: the panel closed (or turned out to be in a different
+  // window than the request), or a popup can now hand off to a same-window panel.
+  const showing = queue.find((e) => e.state === 'showing');
+  if (showing) {
+    if (showing.display === 'panel' && !panelServesWindow(showing.originWindowId)) {
+      // Panel gone, or we've since learned it's in the wrong window — pull it
+      // back and let the popup path (below) take over on the right window.
+      showing.state = 'queued'; showing.display = 'none';
+    } else if (showing.display === 'popup' && panelServesWindow(showing.originWindowId)) {
+      showing.state = 'queued'; showing.display = 'none'; // revert BEFORE closing so onRemoved won't reject it
+      closePopupWindow();
+    } else { return; }
+  }
+
+  // Pick the oldest live queued entry with a still-live callback.
+  const head = queue.find((e) => e.state === 'queued' && callbacks.has(e.id) && !callbacks.get(e.id).settled);
+  if (!head) {
+    if (popupWindowId != null) closePopupWindow();
+    qPersist(); broadcastQueue(); stopKeepaliveIfIdle();
+    return;
+  }
+
+  // Re-collapse a now-redundant unlock (keystore may have unlocked while queued).
+  if (head.data.needUnlock && !KS.isLocked()) {
+    head.data.needUnlock = false;
+    if (!head.data.needApproval) { settlePrompt(head.id, 'once'); driveAgain = true; return; }
+  }
+
+  // Choose a surface. Prefer the panel — but only when it isn't in a different
+  // window than the page that made the request; briefly wait for a reconnecting
+  // panel before falling back to a popup positioned over the origin window.
+  const origin = head.originWindowId;
+  if (!panelPort) await waitForPanelPort(600);
+  if (panelServesWindow(origin)) {
+    head.state = 'showing'; head.display = 'panel';
+    qPersist(); broadcastQueue();
+  } else {
+    head.state = 'showing'; head.display = 'popup';
+    qPersist();
+    const url = chrome.runtime.getURL('prompt.html?id=' + head.id);
+    if (popupWindowId != null) { if (!(await navigatePopup(url, origin))) { popupWindowId = null; await createPopup(url, origin); } }
+    else await createPopup(url, origin);
+    broadcastQueue();
+  }
+}
+
+// ---- T5: user closed the popup without deciding = reject that one entry ----
+chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId !== popupWindowId) return;
+  popupWindowId = null;
+  const e = queue.find((x) => x.display === 'popup' && x.state === 'showing');
+  if (e) settlePrompt(e.id, 'reject');
+  else driveDisplay();
 });
 
-function settlePrompt(promptId, action, extra) {
-  const p = pendingPrompts.get(promptId);
-  if (!p || p.settled) return;
-  p.settled = true;
-  pendingPrompts.delete(promptId);
-  if (p.windowId != null) chrome.windows.remove(p.windowId).catch(() => {});
-  p.resolve(Object.assign({ action }, extra || {}));
+// ---- T3: resolve a request by explicit decision ----
+function settlePrompt(id, action, extra) {
+  const cb = callbacks.get(id);
+  if (!cb || cb.settled) return; // the `settled` guard makes any double-result a no-op → can't double-sign
+  const entry = queue.find((e) => e.id === id); // capture before splicing, for decrypt coalescing
+  cb.settled = true;
+  callbacks.delete(id);
+  const i = queue.findIndex((e) => e.id === id);
+  if (i >= 0) queue.splice(i, 1);
+  qPersist();
+  cb.resolve(Object.assign({ action }, extra || {}));
+
+  // Decrypt-burst coalescing: one decision on the first decrypt covers the whole
+  // same-host, same-account burst (see grantDecrypt). Skip when this settle is
+  // itself a coalesced sibling, so the window isn't extended by its own flush.
+  if (entry && entry.data && DECRYPT_METHODS.has(entry.method) && !(extra && extra.coalesced)) {
+    const { host, activePubkey } = entry.data;
+    if (host && activePubkey) {
+      if (action === 'reject') {
+        flushDecryptSiblings(host, activePubkey, 'reject');
+      } else if (action === 'once' || action === 'trust') {
+        grantDecrypt(host, activePubkey);
+        flushDecryptSiblings(host, activePubkey, 'once');
+      }
+    }
+  }
+
+  broadcastQueue();
+  stopKeepaliveIfIdle();
+  driveDisplay();
+}
+
+// ---- T7: on SW startup, rebuild the queue as interrupted tombstones ----
+// Their callbacks (and the page channels) are gone, so they can never sign — the
+// pages already failed via content.js's lastError/180s. Surface them honestly.
+async function reconcileQueue() {
+  const saved = await qGet();
+  if (!Array.isArray(saved) || !saved.length) return;
+  const now = Date.now();
+  let added = false;
+  for (const m of saved) {
+    if (callbacks.has(m.id) || queue.some((e) => e.id === m.id)) continue;
+    if (now - m.ts > TOMBSTONE_TTL) continue;
+    queue.push({ id: m.id, host: m.host, method: m.method, kind: m.kind, scope: m.scope,
+      accountName: m.accountName, data: null, ts: m.ts, deadline: m.deadline,
+      state: 'interrupted', display: 'none' });
+    added = true;
+  }
+  if (added) { qPersist(); broadcastQueue(); }
+}
+reconcileQueue();
+
+// ---- app-data burst coalescing ----
+// Clients like Primal fire a SERIES of app-data (NIP-78, kind:30078) signs on
+// load/account-switch — sync settings, home feeds, membership — each awaited, so
+// they never share the queue and can't be batched. On a shared host every one
+// forces its own confirm, which is both maddening and self-defeating (it trains
+// users to reflex-approve). After the user explicitly confirms one such sign, we
+// auto-approve further signs of the SAME low-stakes kind, SAME account, SAME host
+// for a short window. Scoped tightly: only these app-config kinds (a site
+// spamming its own kind:30078 is harmless — it's app-namespaced data, not a note
+// or DM), only the account the user just confirmed, and only briefly. A different
+// kind, account, or host still confirms; the window is short enough that a
+// realistic client account-switch can't slip inside it.
+const COALESCE_KINDS = new Set([30078]);
+const COALESCE_WINDOW_MS = 60000;
+const contentGrants = new Map(); // `host|pubkey|kind` -> expiry ms
+function grantKey(host, pubkey, kind) { return host + '|' + pubkey + '|' + kind; }
+function hasContentGrant(host, pubkey, kind) {
+  const exp = contentGrants.get(grantKey(host, pubkey, kind));
+  if (!exp) return false;
+  if (Date.now() >= exp) { contentGrants.delete(grantKey(host, pubkey, kind)); return false; }
+  return true;
+}
+function grantContent(host, pubkey, kind) {
+  contentGrants.set(grantKey(host, pubkey, kind), Date.now() + COALESCE_WINDOW_MS);
+}
+
+// ---- decrypt-burst coalescing ----
+// A client loading a DM inbox can fire dozens of nip04/nip44.decrypt calls at
+// once — one per event it's trying to read (and a sloppy one, like gamestr.io,
+// sprays them at every event, most of which aren't even addressed to you). At
+// the default "ask" tier that's one prompt per message: a signer flood. So the
+// user's decision on the FIRST decrypt covers the whole same-host, same-account
+// burst: allow flushes the already-queued siblings through and opens a short
+// window so late arrivals skip the prompt too; reject drops the burst. Scoped
+// tightly — only decrypt methods, only that host+account, only briefly, and the
+// window is set solely by the explicit approval (never extended by the
+// auto-approved siblings), so the decryption-oracle exposure stays bounded. This
+// still requires a real first approval, so it never silently decrypts for a site
+// you haven't OK'd — much narrower than "Trust this site".
+const DECRYPT_METHODS = new Set(['nip04.decrypt', 'nip44.decrypt']);
+const DECRYPT_WINDOW_MS = 60000;
+const decryptGrants = new Map(); // `host|pubkey` -> expiry ms
+function decryptGrantKey(host, pubkey) { return host + '|' + pubkey; }
+function hasDecryptGrant(host, pubkey) {
+  const exp = decryptGrants.get(decryptGrantKey(host, pubkey));
+  if (!exp) return false;
+  if (Date.now() >= exp) { decryptGrants.delete(decryptGrantKey(host, pubkey)); return false; }
+  return true;
+}
+function grantDecrypt(host, pubkey) {
+  decryptGrants.set(decryptGrantKey(host, pubkey), Date.now() + DECRYPT_WINDOW_MS);
+}
+// Propagate one decrypt decision to the rest of the same-host, same-account burst
+// already sitting in the queue. `coalesced: true` on the resolution marks these
+// as auto-approved so they don't re-trigger the grant/flush (bounded window).
+function flushDecryptSiblings(host, pubkey, action) {
+  for (const e of [...queue]) {
+    if (e.state === 'interrupted' || !e.data) continue;
+    if (!DECRYPT_METHODS.has(e.method)) continue;
+    if (e.data.host !== host || e.data.activePubkey !== pubkey) continue;
+    const cb = callbacks.get(e.id);
+    if (cb && !cb.settled) settlePrompt(e.id, action, { coalesced: true });
+  }
 }
 
 // ============================================================================
 // Page RPC handling (window.nostr.*)
 // ============================================================================
-async function handleNostrRpc(method, params, host, sendResponse) {
+
+// A genuine NIP-42 AUTH event (kind 22242): its only tags are `relay` and
+// `challenge`, its content is empty (per spec), and its timestamp is close to
+// now. We auto-approve only these — a kind-22242 event carrying arbitrary tags,
+// content, or a skewed created_at is treated as a normal signing request that
+// needs the user's approval, so the exemption can't be used as a silent oracle.
+const NIP42_MAX_CLOCK_SKEW = 600; // seconds
+function isNip42AuthEvent(ev) {
+  if (!ev || ev.kind !== 22242 || !Array.isArray(ev.tags)) return false;
+  let hasRelay = false;
+  let hasChallenge = false;
+  for (const t of ev.tags) {
+    if (!Array.isArray(t) || typeof t[0] !== 'string') return false;
+    if (t[0] === 'relay') {
+      if (typeof t[1] !== 'string' || !t[1]) return false;
+      hasRelay = true;
+    } else if (t[0] === 'challenge') {
+      if (typeof t[1] !== 'string' || !t[1]) return false;
+      hasChallenge = true;
+    } else {
+      return false; // any other tag ⇒ not a plain auth event
+    }
+  }
+  if (!hasRelay || !hasChallenge) return false;
+  if (ev.content != null && ev.content !== '') return false;
+  if (ev.created_at != null) {
+    const skew = Math.abs(Math.floor(Date.now() / 1000) - Number(ev.created_at));
+    if (!Number.isFinite(skew) || skew > NIP42_MAX_CLOCK_SKEW) return false;
+  }
+  return true;
+}
+
+async function handleNostrRpc(method, params, host, sendResponse, originWindowId) {
   try {
     if (!host) throw new Error('Missing host');
     await KS.ensureLoaded(); // rehydrate unlocked session if the SW was restarted
     if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
 
-    // The identity this host signs as — pinned to whatever it logged in with,
-    // independent of the globally-active account (prevents NIP-07 desync).
-    const activePubkey = await resolveSiteAccount(host);
+    let signKind = null;
+    let signEvent = null;
+    if (method === 'signEvent') {
+      signEvent = params && (params.event || params);
+      signKind = signEvent && signEvent.kind;
+    }
+
+    // The identity this request signs as. getPublicKey is a login: it
+    // establishes identity, so it follows the globally-active account (and, on
+    // success, re-pairs the host to it below). Everything session-shaped —
+    // signEvent, nip04/nip44, relay auth — stays pinned to the account the host
+    // logged in with, so open sessions never desync on a panel account switch.
+    //
+    // One exception: applesauce-based clients (noStrudel and friends) stamp the
+    // intended author's pubkey on the event template. That's the client
+    // explicitly naming which identity it wants, so when it names another
+    // account we hold, honor it — the requested account's own per-site
+    // permissions still gate the signature below, so a site can never quietly
+    // reach an identity that hasn't approved it.
+    let activePubkey;
+    let authorSwitched = false;
+    if (method === 'getPublicKey') {
+      activePubkey = await KS.getActivePubkey();
+    } else {
+      activePubkey = await resolveSiteAccount(host);
+      const requestedAuthor = signEvent && typeof signEvent.pubkey === 'string' ? signEvent.pubkey : null;
+      if (requestedAuthor && requestedAuthor !== activePubkey && (await KS.hasAccount(requestedAuthor))) {
+        activePubkey = requestedAuthor;
+        authorSwitched = true;
+      }
+    }
     if (!activePubkey) throw new Error('No active Sidecar account');
 
-    const status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
+    // `let`, not `const`: the shared-identity block below can swap activePubkey to
+    // the active account, and the permission status must follow the account that
+    // will actually sign (see the recompute there).
+    let status = await PERMS.getPermissionStatus(activePubkey, host, method); // allow | reject | ask
     if (status === 'reject') throw new Error('This site is blocked in Sidecar');
 
     // NIP-42 relay auth (kind 22242) is an automatic, ephemeral connection-auth
     // event that relays request frequently; an interactive prompt for it
     // guarantees client-side timeouts ("Signer did not respond in time"). Treat
     // it as pre-approved for any non-blocked site — only an unlock can gate it.
-    let signKind = null;
-    if (method === 'signEvent') {
-      const ev = params && (params.event || params);
-      signKind = ev && ev.kind;
+    // But the exemption is a silent signing oracle if abused, so we only skip the
+    // prompt when the event is a *well-formed* auth event (see isNip42AuthEvent):
+    // relay + challenge tags only, near-current timestamp, no arbitrary payload.
+    // Anything else falls back to the normal approval prompt. An auth event that
+    // names a DIFFERENT account than the site's binding never gets the exemption:
+    // silently relay-authing as an identity that hasn't approved this site would
+    // let a page link the user's accounts without any consent moment.
+    const isRelayAuth = method === 'signEvent' && !authorSwitched && isNip42AuthEvent(signEvent);
+
+    // Multi-login safeguard. A "content sign" — a note, reaction, DM, or profile
+    // edit, but NOT relay auth — carries your identity publicly. On a host where
+    // 2+ of your accounts have signed in (a multi-login client), the single
+    // binding can't be trusted to match the slot the client is showing, and the
+    // client never names the account at signing time.
+    //
+    // Critically, this ALWAYS confirms on a shared host — not just when the
+    // binding and active account disagree. A binding/active AGREEMENT is not
+    // evidence of correctness: the client's own switcher can flip which slot is
+    // selected with zero signal to Sidecar, so "our two guesses match" can still
+    // both be wrong relative to what the page is showing (e.g. Jumble displaying
+    // account A while Sidecar's binding and active account both happen to be B —
+    // there is no disagreement for us to detect, yet the post would go out under
+    // the wrong identity). Only an explicit confirm from the user closes that
+    // gap, since only the user can see the client's UI.
+    const isContentSign =
+      (method === 'signEvent' && !isRelayAuth) ||
+      method === 'nip04.encrypt' || method === 'nip44.encrypt';
+
+    // App-data sync (NIP-78, kind:30078 &c. — the COALESCE_KINDS set) is
+    // replaceable, app-namespaced state, NOT an attributable social post: no
+    // client renders it in a feed as "you said X", and a wrong-account write is
+    // low-value and self-healing (the next sync overwrites it). The shared-
+    // identity confirm below exists to stop a note/reaction/DM going out under
+    // the wrong identity — a risk app-data doesn't carry — so we exempt it: it
+    // never triggers that confirm, and on a shared host (where "Trust this site"
+    // is hidden, so it can't be elevated out of the ask tier any other way) it
+    // auto-allows outright. A block still applies, the account still resolves to
+    // the site's binding, and every sign is still logged to Activity. Users who
+    // want to see each one can turn the exemption off with the "Confirm
+    // background app-data syncs" setting. This is kind-based, not client-based,
+    // so it needs no upkeep as clients change or new ones appear.
+    const isAppDataSync =
+      method === 'signEvent' && !isRelayAuth && signKind != null && COALESCE_KINDS.has(signKind);
+    const appDataExempt =
+      isAppDataSync &&
+      ((await sget('sidecar_settings')).sidecar_settings || {}).confirmDataSync !== true;
+
+    let sharedIdentity = false;
+    let authorizedPool = null;
+    // Whether 2+ of your accounts have logged into this host (a multi-login
+    // client). Drives both the shared-identity confirm and the app-data
+    // auto-allow, so we resolve it once for either content sign or exempt sync.
+    let sharedHost = false;
+    if ((isContentSign || appDataExempt) && !authorSwitched) {
+      const authorized = await getAuthorizedAccounts(host);
+      sharedHost = authorized.length >= 2;
+      if (sharedHost && isContentSign && !appDataExempt) {
+        sharedIdentity = true;
+        authorizedPool = authorized;
+        // Default to the active account when it's authorized here — that's the
+        // one the user just deliberately chose in Sidecar, and the one our own
+        // guidance tells them to keep in sync with the client's selected slot.
+        const globalActive = await KS.getActivePubkey();
+        if (authorized.includes(globalActive) && globalActive !== activePubkey) {
+          activePubkey = globalActive;
+          // `status` above was computed for the binding account; re-evaluate it
+          // for the account we just swapped to and honor a block on THIS account.
+          // Without this, a site blocked for the active account could still be
+          // signed via the default swap (the explicit-switch path already
+          // re-checks; this closes the default-path gap).
+          status = await PERMS.getPermissionStatus(activePubkey, host, method);
+          if (status === 'reject') throw new Error('This site is blocked in Sidecar');
+        }
+      }
     }
-    const isRelayAuth = method === 'signEvent' && signKind === 22242;
+
+    // App-data burst coalescing: if the user just confirmed this exact
+    // (host, account, kind) app-data sign, auto-approve the rest of the serial
+    // burst without re-nagging. Only bypasses the confirm/ask — never a block
+    // (that already threw above) or an unlock. (When the sync exemption above is
+    // active this rarely fires — an exempt sync isn't confirmed to begin with —
+    // but it still covers the non-shared "ask" host, where a deliberate ask tier
+    // is honored and the exemption's auto-allow doesn't apply.)
+    const coalesced = isContentSign && signKind != null && COALESCE_KINDS.has(signKind) &&
+      hasContentGrant(host, activePubkey, signKind);
+    if (coalesced) sharedIdentity = false;
 
     const needsKey = SIGNER.needsPrivateKey(method);
     const needUnlock = needsKey && KS.isLocked();
-    const needApproval = status === 'ask' && !isRelayAuth;
+    // An exempt app-data sync auto-allows on a shared host — the only place it
+    // otherwise couldn't escape the ask tier. On a non-shared host it stays on
+    // the normal ask tier + coalescing, so a deliberate "ask" is still honored.
+    const appDataAutoAllow = appDataExempt && sharedHost;
+    // Decrypt-burst coalescing: within the short window opened by an explicit
+    // decrypt approval (see grantDecrypt), further decrypts from the same host +
+    // account skip the prompt. Never bypasses a block (that already threw above)
+    // or an unlock.
+    const decryptCoalesced = DECRYPT_METHODS.has(method) && hasDecryptGrant(host, activePubkey);
+    // A shared-identity content sign always confirms, regardless of trust tier —
+    // unless it's a coalesced app-data sign the user just approved.
+    const needApproval =
+      coalesced || appDataAutoAllow || decryptCoalesced
+        ? false
+        : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
+
+    // Every getPublicKey is a login, and a login is the safe moment to pick an
+    // identity: whatever pubkey we return is the identity the site adopts from
+    // here on, so offering the account switcher in the prompt can't desync
+    // anything. A shared-identity content sign also offers the switcher — scoped
+    // to the accounts that have actually logged into this host. Other session
+    // methods never offer it: their identity is fixed by the binding.
+    const canOfferAccountSwitch = method === 'getPublicKey' || sharedIdentity;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
       const st = await KS.getState();
       const acct = st.accounts.find((a) => a.pubkey === activePubkey);
+      const otherAccounts = canOfferAccountSwitch
+        ? st.accounts
+            .filter((a) => a.pubkey !== activePubkey)
+            // Shared-identity: you can only post as an account that's logged into
+            // this host — never silently introduce a new identity to the site.
+            .filter((a) => !sharedIdentity || authorizedPool.includes(a.pubkey))
+            .map((a) => ({
+              pubkey: a.pubkey,
+              npub: self.NostrTools.nip19.npubEncode(a.pubkey),
+              name: a.name || '',
+              picture: a.picture || '',
+            }))
+        : null;
+      // For encrypt/decrypt, translate the counterparty's hex pubkey to an npub so
+      // the prompt can show a recognizable identity instead of raw hex. Pure offline
+      // encoding — no relay lookup. Falls back to the raw hex if it isn't valid.
+      let peerNpub = null;
+      if (params && params.pubkey && /\.(encrypt|decrypt)$/.test(method)) {
+        try { peerNpub = self.NostrTools.nip19.npubEncode(params.pubkey); } catch (_) {}
+      }
       const decision = await openPrompt({
         host,
         method,
         params,
+        peerNpub,
         activePubkey,
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
         accountName: (acct && acct.name) || '',
         accountPicture: (acct && acct.picture) || '',
         needUnlock,
         needApproval,
+        sharedIdentity,
         level: await PERMS.getLevel(activePubkey, host),
-      });
+        otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
+      }, originWindowId);
       if (decision.action === 'reject') throw new Error('You rejected this request');
+
+      // Resolve a chosen switch-to account BEFORE block/trust, so those apply to
+      // the account actually signing, not the one the prompt originally opened with.
+      if (
+        canOfferAccountSwitch &&
+        decision.switchToPubkey &&
+        decision.switchToPubkey !== activePubkey &&
+        otherAccounts &&
+        otherAccounts.some((a) => a.pubkey === decision.switchToPubkey)
+      ) {
+        const switchedStatus = await PERMS.getPermissionStatus(decision.switchToPubkey, host, method);
+        if (switchedStatus === 'reject') throw new Error('This site is blocked in Sidecar for that account');
+        activePubkey = decision.switchToPubkey;
+        await KS.setActive(activePubkey);
+      }
+
       if (decision.action === 'block') {
         await PERMS.setLevel(activePubkey, host, 'blocked');
         throw new Error('This site is now blocked');
@@ -294,8 +950,30 @@ async function handleNostrRpc(method, params, host, sendResponse) {
       result = await SIGNER.perform(method, params, privBytes, activePubkey);
     }
 
-    // Pin this host to the account it just successfully used (idempotent).
-    await setSiteAccount(host, activePubkey);
+    // Pin this host to the account it just successfully used. Only an explicit
+    // identity choice may MOVE an existing binding: a login (getPublicKey) or a
+    // template that named its author (authorSwitched). A session-shaped request
+    // that resolved against the old binding but completed after a re-login
+    // (a pending approval, an in-flight batch of DM decrypts) must not write
+    // the old account back over the new one. Following an honored author keeps
+    // the site's implicit requests (nip04/nip44) on the identity the client
+    // last exercised.
+    // sharedIdentity is also an explicit choice (the user just confirmed who's
+    // posting in the prompt), so it may move the binding too.
+    if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
+      await setSiteAccount(host, activePubkey);
+    }
+    // Record every account that acts on a host, so a second one makes it "shared".
+    await addAuthorizedAccount(host, activePubkey);
+
+    // The user just explicitly confirmed a low-stakes app-data sign — coalesce the
+    // rest of the serial burst (same host/account/kind) for a short window so a
+    // client's on-load sync doesn't fire a modal per subkey. Only on an explicit
+    // confirm (needApproval), never extended by the coalesced signs themselves,
+    // so exposure stays bounded.
+    if (isContentSign && signKind != null && COALESCE_KINDS.has(signKind) && needApproval && !coalesced) {
+      grantContent(host, activePubkey, signKind);
+    }
 
     logActivity({ ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey });
 
@@ -340,7 +1018,7 @@ function invoiceSats(bolt11) {
 }
 
 // Open an unlock-only popup for low-risk wallet reads when the keystore is locked.
-async function weblnUnlockGate(host, method, pubkey) {
+async function weblnUnlockGate(host, method, pubkey, originWindowId) {
   if (!KS.isLocked()) return;
   const st = await KS.getState();
   const acct = st.accounts.find((a) => a.pubkey === pubkey);
@@ -353,12 +1031,12 @@ async function weblnUnlockGate(host, method, pubkey) {
         accountPicture: (acct && acct.picture) || '',
     needUnlock: true,
     needApproval: false,
-  });
+  }, originWindowId);
   if (decision.action === 'reject') throw new Error('You rejected this request');
   if (KS.isLocked()) throw new Error('Keystore is locked');
 }
 
-async function handleWeblnRpc(method, params, host, sendResponse) {
+async function handleWeblnRpc(method, params, host, sendResponse, originWindowId) {
   try {
     if (!host) throw new Error('Missing host');
     await KS.ensureLoaded();
@@ -386,7 +1064,7 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
 
     let result;
     if (method === 'getInfo') {
-      await weblnUnlockGate(host, method, pubkey);
+      await weblnUnlockGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const info = (await c.getInfo()) || {};
       result = {
@@ -395,12 +1073,12 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
         supports: ['lightning'],
       };
     } else if (method === 'getBalance') {
-      await weblnUnlockGate(host, method, pubkey);
+      await weblnUnlockGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const b = await c.getBalance();
       result = { balance: msatToSat(b && b.balance), currency: 'sats' };
     } else if (method === 'makeInvoice') {
-      await weblnUnlockGate(host, method, pubkey);
+      await weblnUnlockGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const sats = parseInt(params && params.amount, 10);
       if (!sats || sats < 1) throw new Error('A positive amount is required to make an invoice');
@@ -409,7 +1087,7 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
       if (!invoice) throw new Error('Wallet returned no invoice');
       result = { paymentRequest: invoice };
     } else if (method === 'sendPayment') {
-      result = await weblnSendPayment(params, host, pubkey);
+      result = await weblnSendPayment(params, host, pubkey, originWindowId);
     } else {
       throw new Error('Sidecar does not support webln.' + method);
     }
@@ -421,23 +1099,120 @@ async function handleWeblnRpc(method, params, host, sendResponse) {
   }
 }
 
-async function weblnSendPayment(params, host, pubkey) {
+async function weblnSendPayment(params, host, pubkey, originWindowId) {
   const invoice = (params && (params.paymentRequest || params.invoice)) || '';
-  return payInvoiceCore(invoice, host, pubkey, params && params.memo);
+  return payInvoiceCore(invoice, host, pubkey, params && params.memo, originWindowId);
+}
+
+// Decode just the BOLT11 description ('d', tag 13) — bech32, no deps. A zap
+// invoice carries the NIP-57 zap request (kind 9734) JSON there, which is how we
+// tell a genuine zap apart from any other payment for the auto-approve setting.
+const BECH32_CHARS = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+function bolt11Description(invoice) {
+  try {
+    const s = String(invoice).toLowerCase();
+    const sep = s.lastIndexOf('1');
+    if (sep < 1) return '';
+    const words = [];
+    for (const c of s.slice(sep + 1)) {
+      const v = BECH32_CHARS.indexOf(c);
+      if (v < 0) return '';
+      words.push(v);
+    }
+    const body = words.slice(0, words.length - 6); // drop checksum
+    const end = body.length - 104; // signature occupies the final 104 words
+    let i = 7; // skip the 35-bit timestamp
+    while (i + 3 <= end) {
+      const tag = body[i];
+      const len = body[i + 1] * 32 + body[i + 2];
+      const start = i + 3;
+      if (start + len > end) break;
+      if (tag === 13) {
+        let acc = 0, bits = 0;
+        const bytes = [];
+        for (let k = start; k < start + len; k++) {
+          acc = (acc << 5) | body[k];
+          bits += 5;
+          if (bits >= 8) { bits -= 8; bytes.push((acc >> bits) & 0xff); }
+        }
+        return new TextDecoder().decode(new Uint8Array(bytes));
+      }
+      i = start + len;
+    }
+  } catch (_) {}
+  return '';
+}
+function isZapInvoice(invoice) {
+  const desc = bolt11Description(invoice);
+  if (!desc || desc[0] !== '{') return false;
+  try {
+    const ev = JSON.parse(desc);
+    return !!ev && ev.kind === 9734;
+  } catch (_) {
+    return false;
+  }
+}
+
+// ---- payment serialization + auto-zap aggregate cap ----
+// Payments run one-at-a-time per account: without this, a burst of concurrent
+// webln.sendPayment calls could each pass the budget / auto-zap check before any
+// of them records a debit (a check-then-pay-then-record race that lets a site
+// overspend its limit). Auto-zaps additionally count against a rolling daily
+// total, so a signed-in site can't drain the wallet by firing many zaps that are
+// each under the per-zap cap — the per-zap limit alone bounds nothing in aggregate.
+const PAY_DAY_MS = 24 * 60 * 60 * 1000;
+const AUTOZAP_DAILY_MULTIPLE = 5; // default daily cap = 5× the per-zap cap when unset
+const AUTOZAP_WINDOW_KEY = 'sidecar_autozap_window';
+const payLocks = new Map(); // pubkey -> tail of the serialized payment chain
+function withPayLock(pubkey, fn) {
+  const prev = payLocks.get(pubkey) || Promise.resolve();
+  const run = prev.then(fn, fn); // run whether or not the previous payment threw
+  payLocks.set(pubkey, run.then(() => {}, () => {})); // keep the chain alive; swallow on the tail
+  return run;
+}
+async function autoZapWindow() {
+  const w = (await sget(AUTOZAP_WINDOW_KEY))[AUTOZAP_WINDOW_KEY];
+  const now = Date.now();
+  if (!w || !w.resetAt || now >= w.resetAt) return { spent: 0, resetAt: now + PAY_DAY_MS };
+  return { spent: Number(w.spent) || 0, resetAt: w.resetAt };
+}
+async function recordAutoZap(sats) {
+  const { spent, resetAt } = await autoZapWindow();
+  await sset({ [AUTOZAP_WINDOW_KEY]: { spent: spent + Math.max(0, Math.floor(sats || 0)), resetAt } });
 }
 
 // Shared payment core: budget-gate (prompt if needed), pay via NWC, decrement
 // budget, log, and notify the panel. Used by window.webln.sendPayment AND the
 // "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
-// checked the account/site is usable.
-async function payInvoiceCore(invoiceRaw, host, pubkey, memo) {
+// checked the account/site is usable. Serialized per account (see withPayLock).
+function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
+  return withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId));
+}
+async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) {
   const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
   if (!invoice) throw new Error('No invoice provided');
   if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
   const sats = invoiceSats(invoice);
 
-  // Pay without a prompt only when unlocked AND the site's budget covers a known amount.
-  const autoOk = !KS.isLocked() && sats != null && (await BUDGETS.covers(pubkey, host, sats));
+  // Pay without a prompt when unlocked and either the site's budget covers a known
+  // amount, or "auto-approve zaps" is on and this is a genuine zap within the limit.
+  const settings = (await sget('sidecar_settings')).sidecar_settings || {};
+  const unlocked = !KS.isLocked() && sats != null;
+  const budgetOk = unlocked && (await BUDGETS.covers(pubkey, host, sats));
+  const zapMax = settings.autoZap === true ? Number(settings.autoZapMaxSats) || 0 : 0;
+  // Auto-zap is gated by BOTH a per-zap cap and a rolling daily aggregate cap.
+  // The daily cap defaults to a multiple of the per-zap cap when unset, so
+  // existing auto-zap users are bounded without having to reconfigure.
+  const dailyMaxSet = Number(settings.autoZapDailyMaxSats);
+  const zapDailyMax = settings.autoZap === true
+    ? (dailyMaxSet > 0 ? dailyMaxSet : zapMax * AUTOZAP_DAILY_MULTIPLE)
+    : 0;
+  let zapOk = false;
+  if (unlocked && zapMax > 0 && sats <= zapMax && isZapInvoice(invoice)) {
+    const { spent } = await autoZapWindow();
+    zapOk = zapDailyMax > 0 && spent + sats <= zapDailyMax;
+  }
+  const autoOk = budgetOk || zapOk;
 
   if (!autoOk) {
     const st = await KS.getState();
@@ -453,7 +1228,7 @@ async function payInvoiceCore(invoiceRaw, host, pubkey, memo) {
       memo: memo || '',
       needUnlock: KS.isLocked(),
       needApproval: true,
-    });
+    }, originWindowId);
     if (decision.action === 'reject') throw new Error('You rejected this payment');
     if (KS.isLocked()) throw new Error('Keystore is locked');
     // 'budget' → remember an allowance for this site before paying.
@@ -473,6 +1248,9 @@ async function payInvoiceCore(invoiceRaw, host, pubkey, memo) {
 
   // Decrement the budget by the paid amount (known amount only).
   if (sats != null) await BUDGETS.consume(pubkey, host, sats);
+  // Count an auto-zap (one authorized solely by the zap allowance) against the
+  // rolling daily total, so the aggregate cap is enforced across the window.
+  if (zapOk && !budgetOk && sats != null) await recordAutoZap(sats);
 
   await setSiteAccount(host, pubkey);
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
@@ -517,14 +1295,14 @@ function notifyTabPayFailed(tabId, invoice, error) {
 }
 
 // Resolve the account/wallet for the page, then pay via the shared core.
-async function payFromPage(invoiceRaw, host) {
+async function payFromPage(invoiceRaw, host, originWindowId) {
   await KS.ensureLoaded();
   if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
   const pubkey = await resolveSiteAccount(host);
   if (!pubkey) throw new Error('No active Sidecar account');
   if ((await PERMS.getLevel(pubkey, host)) === 'blocked') throw new Error('This site is blocked in Sidecar');
   if (!(await KS.hasNwc(pubkey))) throw new Error('No wallet connected in Sidecar');
-  return payInvoiceCore(invoiceRaw, host, pubkey);
+  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId);
 }
 
 // First BOLT11 invoice inside a blob of text (selection, link, decoded QR).
@@ -570,10 +1348,11 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(createPayMenu);
 chrome.contextMenus &&
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     let host = '';
-    try { host = new URL(info.pageUrl || (tab && tab.url) || '').hostname; } catch (_) {}
+    try { host = new URL(info.pageUrl || (tab && tab.url) || '').host; } catch (_) {}
+    const originWindowId = tab && tab.windowId != null ? tab.windowId : undefined;
     const pay = (getInvoice) =>
       Promise.resolve(getInvoice)
-        .then((inv) => payFromPage(inv, host).then((r) => ({ r, inv })))
+        .then((inv) => payFromPage(inv, host, originWindowId).then((r) => ({ r, inv })))
         .then(({ r, inv }) => {
           notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
           notifyTabPaid(tab && tab.id, inv);
@@ -592,16 +1371,41 @@ chrome.contextMenus &&
 // ============================================================================
 // Keystore control messages (from side panel and prompt)
 // ============================================================================
-async function lockKeystore() {
+
+// ---- unlock throttle + auto-wipe guard ----
+// Persisted (survives service-worker death / browser restart), so an attacker
+// can't reset the counter by killing the worker. After MAX_UNLOCK_FAILS
+// consecutive bad PINs the keystore self-erases (Passport-style), with an
+// escalating delay between tries so a genuine user can't blow through the budget
+// by accident and offline brute force stays infeasible. Reset on any success.
+const MAX_UNLOCK_FAILS = 21;
+function unlockDelayMs(fails) {
+  if (fails < 10) return 0;                    // first 10 tries: no wait (generous typo grace)
+  return Math.min(60000, (fails - 9) * 5000);  // then 5s, 10s, … capped at 60s
+}
+async function loadUnlockGuard() {
+  const g = (await sget('sidecar_unlock_guard')).sidecar_unlock_guard;
+  return g && typeof g.fails === 'number' ? g : { fails: 0, lastAt: 0 };
+}
+const saveUnlockGuard = (g) => sset({ sidecar_unlock_guard: g });
+const clearUnlockGuard = () => new Promise((res) => chrome.storage.local.remove('sidecar_unlock_guard', res));
+
+async function lockKeystore(auto = false) {
   await KS.lock();
   SIGNER.clearCache();
   closeSwNwc();
   chrome.alarms.clear(AUTO_LOCK_ALARM);
+  // Tell any open panel/popup to drop to the unlock screen immediately — otherwise
+  // it keeps showing whatever was open (e.g. the composer) and only discovers the
+  // lock on its next action, which then fails with a "locked" error. `auto` marks an
+  // idle-timeout lock (vs. manual lock / wipe / reset, which show their own message)
+  // so the panel can toast why it suddenly jumped to the unlock screen.
+  chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'locked', auto }).catch(() => {});
 }
 
 function bumpAutoLock() {
   sget('sidecar_settings').then(({ sidecar_settings }) => {
-    const minutes = (sidecar_settings && sidecar_settings.autoLockMinutes) || 0;
+    const minutes = resolveSettings(sidecar_settings).autoLockMinutes;
     if (minutes > 0 && !KS.isLocked()) {
       chrome.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: minutes });
     }
@@ -609,8 +1413,71 @@ function bumpAutoLock() {
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === AUTO_LOCK_ALARM) lockKeystore();
+  if (alarm.name === AUTO_LOCK_ALARM) {
+    // Re-check the live setting at fire time: an alarm armed under an older
+    // choice (before the user switched to Never) must not lock.
+    sget('sidecar_settings').then(({ sidecar_settings }) => {
+      if (resolveSettings(sidecar_settings).autoLockMinutes > 0) lockKeystore(true);
+    });
+  }
+  // Best-effort heartbeat while the approval queue is non-empty: sweeps expired
+  // requests and re-drives the display so nothing stalls if the SW was napping.
+  else if (alarm.name === QUEUE_KEEPALIVE_ALARM) driveDisplay();
 });
+
+// ---- step-up PIN gate (reveal nsec/NWC, PIN-confirmed owner ops, change PIN) ----
+// The PIN is the keystore's ONE credential, so two rules follow:
+//   1. A correct PIN is never refused just because auto-lock fired while a modal
+//      was open (the panel can be a beat behind the background's lock state).
+//      If the keystore is locked, a verified PIN unlocks it and the operation
+//      proceeds — exactly as if it had been typed on the unlock screen. The old
+//      behavior ("Keystore is locked" thrown at a correct PIN) forced a manual
+//      lock/unlock round trip.
+//   2. A wrong PIN here costs the same as a wrong PIN on the unlock screen.
+//      Step-up attempts share the persisted unlock guard (escalating delays,
+//      self-wipe on the 21st strike) — otherwise VERIFY_PIN / reveal / change-PIN
+//      would be unthrottled oracles for brute-forcing the very PIN that guard
+//      protects.
+// guardPinAttempt wraps any PIN-checking `attempt` (which must throw
+// /incorrect .*pin/i on a bad PIN) in that shared accounting. Throws
+// human-readable errors — the step-up modals display e.message as-is.
+async function guardPinAttempt(attempt) {
+  const guard = await loadUnlockGuard();
+  const waitMs = unlockDelayMs(guard.fails) - (Date.now() - guard.lastAt);
+  if (waitMs > 0) throw new Error('Too many attempts — try again in ' + Math.ceil(waitMs / 1000) + 's');
+  let result;
+  try {
+    result = await attempt();
+  } catch (e) {
+    if (!/incorrect (current )?pin/i.test(e.message || '')) throw e; // not a PIN verdict (e.g. not initialized)
+    const fails = guard.fails + 1;
+    if (fails >= MAX_UNLOCK_FAILS) {
+      // Final strike: same erase as the unlock screen (in-memory + all persisted data).
+      await lockKeystore();
+      await new Promise((res) => chrome.storage.local.clear(() => res()));
+      throw new Error('Too many failed attempts — Sidecar has been erased');
+    }
+    await saveUnlockGuard({ fails, lastAt: Date.now() });
+    const remaining = MAX_UNLOCK_FAILS - fails;
+    if (remaining <= 5) {
+      throw new Error(e.message + ' — ' + remaining + (remaining === 1 ? ' attempt' : ' attempts') + ' left before Sidecar erases itself');
+    }
+    throw e;
+  }
+  await clearUnlockGuard();
+  return result;
+}
+async function stepUpPin(pin) {
+  if (typeof pin !== 'string' || !pin) throw new Error('PIN required');
+  await guardPinAttempt(async () => {
+    if (KS.isLocked()) {
+      await KS.unlock(pin); // throws 'Incorrect PIN' on a bad one
+      bumpAutoLock();
+    } else if (!(await KS.verifyPin(pin))) {
+      throw new Error('Incorrect PIN');
+    }
+  });
+}
 
 async function handleControl(message, sendResponse) {
   try {
@@ -620,17 +1487,118 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_GET_STATE':
         result = await KS.getState();
         break;
-      case 'SIDECAR_INIT':
+      case 'SIDECAR_ACTIVITY':
+        // Panel-side activity (e.g. actively composing a note) counts as use, so
+        // re-arm the idle auto-lock timer — otherwise it can fire mid-compose,
+        // since typing never round-trips to the background. No-ops when locked or
+        // when auto-lock is off/Never (bumpAutoLock guards both).
+        bumpAutoLock();
+        result = { ok: true };
+        break;
+      case 'SIDECAR_INIT': {
         result = await KS.initialize(message.pin);
+        // A new keystore adopts the current auto-lock default as an explicit
+        // setting (and needs no migration notice) — the "no stored value" state
+        // is reserved for keystores that predate the 15-minute default.
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        await sset({
+          sidecar_settings: { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, autoLockNoticeShown: true, ...prev },
+        });
         bumpAutoLock();
         break;
-      case 'SIDECAR_UNLOCK':
-        result = await KS.unlock(message.pin);
-        bumpAutoLock();
+      }
+      case 'SIDECAR_UNLOCK': {
+        // CONTRACT: resolves { ok:true, result:{ status } } — it does NOT throw
+        // ok:false for a wrong PIN. `status` is one of:
+        //   'ok'        → unlocked; result.state is the keystore state
+        //   'bad'       → wrong PIN; result.remaining, result.nextWaitMs
+        //   'throttled' → in cooldown; result.waitMs, result.remaining
+        //   'wiped'     → 21st strike, all data erased
+        //   'error'     → unexpected (e.g. keystore not initialized); result.error
+        // Every caller must branch on result.status — NOT on the outer `ok`
+        // envelope (which is now always true). Callers:
+        //   • sidepanel.js  unlock-form submit handler
+        //   • sidepanel.js  approval submit (in-panel signing/pay prompt)
+        //   • prompt.js     approval popup submit
+        // Throttle + auto-wipe are enforced here (trusted context), not the UI.
+        const guard = await loadUnlockGuard();
+        const waitMs = unlockDelayMs(guard.fails) - (Date.now() - guard.lastAt);
+        if (waitMs > 0) {
+          result = { status: 'throttled', waitMs, remaining: MAX_UNLOCK_FAILS - guard.fails };
+          break;
+        }
+        try {
+          const state = await KS.unlock(message.pin);
+          await clearUnlockGuard();
+          bumpAutoLock();
+          result = { status: 'ok', state };
+        } catch (e) {
+          if (/not initialized/i.test(e.message || '')) { result = { status: 'error', error: e.message }; break; }
+          const fails = guard.fails + 1;
+          if (fails >= MAX_UNLOCK_FAILS) {
+            // Final strike: erase everything (in-memory + all persisted data).
+            await lockKeystore();
+            await new Promise((res) => chrome.storage.local.clear(() => res()));
+            result = { status: 'wiped' };
+          } else {
+            await saveUnlockGuard({ fails, lastAt: Date.now() });
+            result = { status: 'bad', remaining: MAX_UNLOCK_FAILS - fails, nextWaitMs: unlockDelayMs(fails) };
+          }
+        }
         break;
+      }
       case 'SIDECAR_LOCK':
         await lockKeystore();
         result = await KS.getState();
+        break;
+      case 'SIDECAR_FETCH_OG': {
+        // Fetch a URL from the SW (no CORS restriction) and parse OG/meta tags.
+        // Returns { title, description, image, site } or null on failure.
+        const ogTarget = safeFetchUrl(message.url);
+        if (!ogTarget) { result = null; break; }
+        const ogUrl = ogTarget.href;
+        try {
+          const resp = await fetch(ogUrl, { signal: AbortSignal.timeout(8000), redirect: 'follow' });
+          if (!resp.ok) { result = null; break; }
+          // A redirect can bounce a public URL onto the private network; reject if
+          // the final response landed on a blocked host.
+          const finalUrl = safeFetchUrl(resp.url || ogUrl);
+          if (!finalUrl) { result = null; break; }
+          const ct = resp.headers.get('content-type') || '';
+          if (!ct.includes('text/html')) { result = null; break; }
+          const html = await resp.text();
+          const pick = (html, ...patterns) => {
+            for (const p of patterns) { const m = html.match(p); if (m) return m[1].trim(); }
+            return null;
+          };
+          result = {
+            title: pick(html,
+              /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:title["']/i,
+              /<title[^>]*>([^<]{1,200})<\/title>/i),
+            description: pick(html,
+              /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:description["']/i,
+              /<meta[^>]+name=["']description["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+name=["']description["']/i),
+            image: pick(html,
+              /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:image["']/i),
+            site: pick(html,
+              /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"'<>]+)["']/i,
+              /<meta[^>]+content=["']([^"'<>]+)["'][^>]+property=["']og:site_name["']/i),
+          };
+          if (!result.title && !result.description) result = null;
+        } catch (_) { result = null; }
+        break;
+      }
+      case 'SIDECAR_RESET_ALL':
+        // Wipe everything: in-memory keys/session/wallet (lockKeystore) plus all
+        // persisted data (keystore, accounts, permissions, relays, settings, site
+        // bindings, activity, NWC connections, budgets). Unrecoverable.
+        await lockKeystore();
+        await new Promise((res) => chrome.storage.local.clear(() => res()));
+        result = true;
         break;
       case 'SIDECAR_ADD_ACCOUNT':
         if (message.generate) result = await KS.generateAccount(message.name);
@@ -658,16 +1626,27 @@ async function handleControl(message, sendResponse) {
         result = await KS.setActive(message.pubkey);
         break;
       case 'SIDECAR_CHANGE_PIN':
-        result = await KS.changePin(message.oldPin, message.newPin);
+        // changePin verifies the old PIN itself (and works from either lock
+        // state); guardPinAttempt adds the shared throttle/wipe accounting.
+        result = await guardPinAttempt(() => KS.changePin(message.oldPin, message.newPin));
         break;
       case 'SIDECAR_VERIFY_PIN':
         // Step-up re-auth for sensitive ops (reveal nsec/NWC, publish profile).
-        result = { valid: await KS.verifyPin(message.pin) };
+        // A plain wrong PIN keeps the { valid:false } contract; throttle/wipe/
+        // near-wipe warnings throw so the modal shows why (callers render e.message).
+        try {
+          await stepUpPin(message.pin);
+          result = { valid: true };
+        } catch (e) {
+          if ((e.message || '') === 'Incorrect PIN') result = { valid: false };
+          else throw e;
+        }
         break;
       case 'SIDECAR_REVEAL_NSEC': {
-        // Extract private data — always step-up PIN, even while unlocked.
-        if (KS.isLocked()) throw new Error('Keystore is locked');
-        if (!(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        // Extract private data — always step-up PIN, even while unlocked. If
+        // auto-lock won a race with the modal, the verified PIN unlocks instead
+        // of the old illogical "correct PIN, but locked" rejection.
+        await stepUpPin(message.pin);
         const bytes = await KS.getPrivkey(message.pubkey);
         result = { nsec: self.NostrTools.nip19.nsecEncode(bytes) };
         break;
@@ -676,8 +1655,8 @@ async function handleControl(message, sendResponse) {
       // ---- owner actions: sign/encrypt with the ACTIVE account's key ----
       // The panel builds events; signing happens here so the key never leaves the SW.
       case 'SIDECAR_OWNER_SIGN': {
-        if (KS.isLocked()) throw new Error('Keystore is locked');
-        if (message.pin != null && !(await KS.verifyPin(message.pin))) throw new Error('Incorrect PIN');
+        if (message.pin != null) await stepUpPin(message.pin); // unlocks if auto-lock raced the modal
+        else if (KS.isLocked()) throw new Error('Keystore is locked');
         const pk = await KS.getActivePubkey();
         result = self.NostrTools.finalizeEvent(message.event, await KS.getPrivkey(pk));
         break;
@@ -705,13 +1684,26 @@ async function handleControl(message, sendResponse) {
         await sset({ sidecar_relays: message.relays });
         result = message.relays;
         break;
-      case 'SIDECAR_GET_SETTINGS':
-        result = (await sget('sidecar_settings')).sidecar_settings || { autoLockMinutes: 0 };
+      case 'SIDECAR_GET_SETTINGS': {
+        const raw = (await sget('sidecar_settings')).sidecar_settings || {};
+        // autoLockDefaulted: the user has never chosen an auto-lock value, so the
+        // resolved 15 minutes is the migration default. The panel uses this to
+        // show existing users a one-time notice that auto-lock is now on.
+        result = { ...resolveSettings(raw), autoLockDefaulted: !('autoLockMinutes' in raw) };
         break;
+      }
       case 'SIDECAR_SET_SETTINGS': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const merged = { ...prev, ...message.settings };
         await sset({ sidecar_settings: merged });
+        // Apply an auto-lock change immediately: drop any alarm armed under the
+        // old value, then re-arm from the new one (no-op when Never or locked).
+        // Without this the change only took effect on the next sign/pay/unlock —
+        // enabling auto-lock and walking away would never actually lock.
+        if (message.settings && 'autoLockMinutes' in message.settings) {
+          await chrome.alarms.clear(AUTO_LOCK_ALARM);
+          bumpAutoLock();
+        }
         // Push the pay-pill setting to content scripts so it toggles live.
         if (chrome.tabs) {
           chrome.tabs.query({}, (tabs) => {
@@ -738,9 +1730,25 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_REMOVE_HOST':
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
+        await clearAuthorizedForHost(message.host); // and the shared-identity history
         break;
       case 'SIDECAR_GET_SITE_BINDINGS':
         result = await getAllSiteAccounts();
+        break;
+      case 'SIDECAR_GET_SITE_AUTHORIZED':
+        // host -> [pubkeys that have signed in there]; a host with 2+ is "shared".
+        result = await getAllAuthorized();
+        break;
+      case 'SIDECAR_REMOVE_SITE_ACCOUNT':
+        // Drop one account from a host's authorized set (e.g. "I don't use this
+        // account here anymore"). Collapsing back to one account stops the
+        // shared-identity confirms. If it was the current binding, forget that too
+        // so the next login re-pairs cleanly.
+        await removeAuthorizedAccount(message.host, message.pubkey);
+        if ((await getSiteAccount(message.host)) === message.pubkey) {
+          await clearSiteAccount(message.host);
+        }
+        result = true;
         break;
       case 'SIDECAR_CLEAR_BINDING':
         // Detach only the account binding (leaves the bound account's
@@ -770,6 +1778,13 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_GET_NWC':
         result = { connection: await KS.getNwc(message.pubkey) };
         break;
+      case 'SIDECAR_REVEAL_NWC': {
+        // Export the raw connection string — always step-up PIN, even while
+        // unlocked. Locked + verified PIN unlocks (see stepUpPin).
+        await stepUpPin(message.pin);
+        result = { connection: await KS.getNwc(message.pubkey) };
+        break;
+      }
       case 'SIDECAR_HAS_NWC':
         result = { has: await KS.hasNwc(message.pubkey) };
         break;
@@ -808,13 +1823,79 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // ---- debug log: trace every dispatched message + its outcome/timing ----
+  // Central instrumentation point — covers page RPCs, control messages, and
+  // prompt/queue traffic alike. Deliberately logs only type/method/host/timing/
+  // error-message, never message bodies or response payloads, so PINs, nsecs,
+  // NWC strings, and signed event content never land in the log.
+  if (IS_DEV_BUILD && message.type !== 'SIDECAR_GET_DEBUG_LOG' && message.type !== 'SIDECAR_CLEAR_DEBUG_LOG') {
+    const t0 = Date.now();
+    const rawSendResponse = sendResponse;
+    sendResponse = (resp) => {
+      try {
+        dlog(resp && resp.ok === false ? 'error' : 'info', 'msg', message.type, {
+          method: message.method, host: message.host,
+          ms: Date.now() - t0,
+          error: resp && resp.ok === false ? resp.error : undefined,
+        });
+      } catch (_) {}
+      return rawSendResponse(resp);
+    };
+  }
+
+  // The window the requesting page lives in — used to surface the approval on
+  // the window the user is actually looking at (see driveOnce), not wherever a
+  // pinned panel or the last-focused window happens to be.
+  const originWindowId = sender && sender.tab && sender.tab.windowId != null ? sender.tab.windowId : undefined;
+
+  // ---- sender gate (defense in depth) ----
+  // A web page can't reach chrome.runtime messaging at all (no
+  // externally_connectable), and our content script only ever forwards the types
+  // in CONTENT_OK. But the keystore/wallet/owner-crypto/prompt handlers below are
+  // the crown jewels, so we ALSO hard-require an extension-page origin for
+  // everything a content script doesn't legitimately need — the identity check is
+  // the sender's ORIGIN (our pages are chrome-extension://<id>/…; a content
+  // script carries the web page's origin), NOT sender.tab (prompt.html and
+  // welcome.html are extension pages that DO have a tab). This way no future
+  // content-script bug can pivot a hostile page into signing, key reveal,
+  // decryption, unlock, or settling an approval.
+  const EXT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
+  const fromExtPage = !!sender && (
+    sender.origin === EXT_ORIGIN ||
+    (typeof sender.url === 'string' && sender.url.startsWith(EXT_ORIGIN + '/'))
+  );
+  const CONTENT_OK = new Set([
+    'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',
+    'SIDECAR_IS_CONNECTED', 'SIDECAR_GET_SETTINGS', 'SIDECAR_SET_SETTINGS',
+  ]);
+  if (!fromExtPage && !CONTENT_OK.has(message.type)) {
+    sendResponse({ ok: false, error: 'Not allowed from this context' });
+    return false;
+  }
+  if (!fromExtPage && message.type === 'SIDECAR_SET_SETTINGS') {
+    // Clamp a web-origin settings write to the pay-card toggle only — never
+    // autozap, budgets, autolock, or any other setting.
+    const s = message.settings || {};
+    message = { type: 'SIDECAR_SET_SETTINGS', settings: 'showPayButton' in s ? { showPayButton: !!s.showPayButton } : {} };
+  }
+  if (!fromExtPage && message.type === 'SIDECAR_GET_SETTINGS') {
+    // Clamp the read side the same way: a visited page gets the pay-card toggle
+    // and nothing else. The full object would tell it the auto-lock timing (how
+    // long an unattended unlocked keystore stays warm) plus budget/autozap
+    // config it has no business fingerprinting.
+    sget('sidecar_settings').then(({ sidecar_settings }) => {
+      sendResponse({ ok: true, result: { showPayButton: (sidecar_settings || {}).showPayButton } });
+    });
+    return true;
+  }
+
   // Page RPC from content script.
   if (message.type === 'SIDECAR_NOSTR_RPC') {
-    handleNostrRpc(message.method, message.params, message.host, sendResponse);
+    handleNostrRpc(message.method, message.params, message.host, sendResponse, originWindowId);
     return true;
   }
   if (message.type === 'SIDECAR_WEBLN_RPC') {
-    handleWeblnRpc(message.method, message.params, message.host, sendResponse);
+    handleWeblnRpc(message.method, message.params, message.host, sendResponse, originWindowId);
     return true;
   }
   // "Pay with Sidecar" pill clicked on a page.
@@ -823,18 +1904,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // user is actually signed into — a live invoice elsewhere is almost always noise.
   if (message.type === 'SIDECAR_IS_CONNECTED') {
     let h = '';
-    try { h = new URL((sender && sender.url) || '').hostname; } catch (_) {}
+    try { h = new URL((sender && sender.url) || '').host; } catch (_) {}
     getSiteAccount(h)
       .then((pk) => sendResponse({ ok: true, connected: !!pk }))
       .catch(() => sendResponse({ ok: true, connected: false }));
     return true; // async response
   }
 
+  // Is a side panel currently connected? The welcome page uses this to decide
+  // whether to nudge the user to open/pin Sidecar from the toolbar.
+  if (message.type === 'SIDECAR_PANEL_OPEN') {
+    waitForPanelPort(300).then((port) => sendResponse({ ok: true, open: !!port }));
+    return true; // async response
+  }
+
   if (message.type === 'SIDECAR_PAY_PAGE_INVOICE') {
     const tabId = sender && sender.tab && sender.tab.id;
     let host = '';
-    try { host = new URL((sender && sender.url) || '').hostname; } catch (_) {}
-    payFromPage(message.invoice, host)
+    try { host = new URL((sender && sender.url) || '').host; } catch (_) {}
+    payFromPage(message.invoice, host, originWindowId)
       .then((r) => {
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
         notifyTabPaid(tabId, message.invoice);
@@ -850,13 +1938,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Prompt window asking for its context, or returning a decision.
   if (message.type === 'SIDECAR_GET_PROMPT_DATA') {
-    const p = pendingPrompts.get(message.id);
-    sendResponse(p ? { ok: true, data: p.data } : { ok: false, error: 'Prompt expired' });
+    const e = queue.find((x) => x.id === message.id);
+    sendResponse(e && e.data && callbacks.has(e.id)
+      ? { ok: true, data: e.data }
+      : { ok: false, error: 'Prompt expired' });
     return false;
   }
   if (message.type === 'SIDECAR_PROMPT_RESULT') {
     settlePrompt(message.id, message.action, message.extra);
     sendResponse({ ok: true });
+    return false;
+  }
+  // Batch decision: apply the same action (+ account choice) to a group of
+  // same-site/same-account/same-kind content signs the user approved together.
+  if (message.type === 'SIDECAR_PROMPT_RESULT_BATCH') {
+    for (const id of message.ids || []) settlePrompt(id, message.action, message.extra);
+    sendResponse({ ok: true });
+    return false;
+  }
+  // Observable-queue queries/actions (see the approval-queue section up top).
+  if (message.type === 'SIDECAR_GET_PENDING') {
+    sendResponse({ ok: true, result: pendingView() });
+    return false;
+  }
+  if (message.type === 'SIDECAR_REJECT_ALL_PENDING') {
+    for (const e of [...queue]) {
+      if (e.state === 'interrupted') continue;
+      if (callbacks.has(e.id)) settlePrompt(e.id, 'reject');
+      else { const i = queue.indexOf(e); if (i >= 0) queue.splice(i, 1); }
+    }
+    closePopupWindow();
+    qPersist(); broadcastQueue(); stopKeepaliveIfIdle();
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message.type === 'SIDECAR_DISMISS_INTERRUPTED') {
+    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].state === 'interrupted') queue.splice(i, 1);
+    qPersist(); broadcastQueue();
+    sendResponse({ ok: true });
+    return false;
+  }
+  // Dev bug button's debug panel — reads the in-memory trace log. Gated to
+  // extension pages only (not in CONTENT_OK above), and IS_DEV_BUILD means
+  // debugLog is always empty on a Web Store install anyway.
+  if (message.type === 'SIDECAR_GET_DEBUG_LOG') {
+    sendResponse({ ok: true, result: debugLog });
+    return false;
+  }
+  if (message.type === 'SIDECAR_CLEAR_DEBUG_LOG') {
+    debugLog.length = 0;
+    sendResponse({ ok: true, result: [] });
     return false;
   }
 

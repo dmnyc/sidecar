@@ -14,7 +14,7 @@
   };
   (document.head || document.documentElement).appendChild(script);
 
-  const host = location.hostname; // trusted origin identity, set by the content script
+  const host = location.host; // trusted origin identity (includes port, e.g. localhost:3000)
 
   // Whether this page is signed into Sidecar's signer. Seeded from the persistent
   // site binding on startup, then flipped live the moment the page successfully
@@ -145,34 +145,125 @@
   }
 
   const INVOICE_RE = /ln(?:bc|tb)[0-9][a-z0-9]{20,}/i;
-  // Returns the first BOLT11 invoice found on the page (lowercased), or ''.
+  const INVOICE_TEXT_RE = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i;
+  // Elements that signal an active pay/zap prompt rather than an incidental
+  // invoice in page content. A QR alongside the invoice is the strongest tell.
+  const QR_SEL = 'canvas, img[alt*="qr" i], img[src*="qr" i], [class*="qr" i], [data-testid*="qr" i]';
+
+  // Skip invoices that have already expired — a lingering or used invoice
+  // shouldn't interrupt the user with a pay prompt. Decodes the BOLT11 timestamp
+  // and `x` (expiry) field from its bech32 data (reuses BECH32 above). Defensive:
+  // any parse doubt returns false (not expired) so a valid invoice is never
+  // wrongly suppressed.
+  function invoiceExpired(bolt11) {
+    try {
+      const s = bolt11.toLowerCase();
+      const sep = s.lastIndexOf('1'); // bech32 data charset excludes '1'
+      if (sep < 1) return false;
+      const data = s.slice(sep + 1);
+      if (data.length < 7 + 104 + 6) return false; // timestamp + sig + checksum
+      const val = (c) => BECH32.indexOf(c);
+      let ts = 0;
+      for (let i = 0; i < 7; i++) { const v = val(data[i]); if (v < 0) return false; ts = ts * 32 + v; }
+      let expiry = 3600; // BOLT11 default
+      const taggedEnd = data.length - 110; // 104-symbol signature + 6-symbol checksum
+      let i = 7;
+      while (i + 3 <= taggedEnd) {
+        const l1 = val(data[i + 1]); const l2 = val(data[i + 2]);
+        if (l1 < 0 || l2 < 0) break;
+        const len = l1 * 32 + l2;
+        const start = i + 3;
+        if (start + len > taggedEnd) break;
+        if (data[i] === 'x') {
+          let v = 0; let ok = true;
+          for (let j = 0; j < len; j++) { const d = val(data[start + j]); if (d < 0) { ok = false; break; } v = v * 32 + d; }
+          if (ok) expiry = v;
+        }
+        i = start + len;
+      }
+      if (!ts) return false;
+      return Math.floor(Date.now() / 1000) > ts + (expiry || 3600) + 30; // 30s grace
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Is this node inside a deliberate pay/zap surface — a modal dialog, a payment
+  // web component (Bitcoin Connect / WalletConnect), or next to a QR — rather
+  // than an invoice incidentally rendered in page content?
+  function hasPayIntent(el) {
+    let node = el, hops = 0;
+    while (node && hops < 24) {
+      if (node.nodeType === 1) {
+        const tag = (node.tagName || '').toLowerCase();
+        if (/^(bc-|bci-|wcm-|w3m-)/.test(tag)) return true;
+        if (node.getAttribute) {
+          const role = node.getAttribute('role');
+          if (role === 'dialog' || role === 'alertdialog' || node.getAttribute('aria-modal') === 'true') return true;
+        }
+        if (hops <= 8 && node.querySelector) {
+          try { if (node.querySelector(QR_SEL)) return true; } catch (_) {}
+        }
+      }
+      node = node.parentNode || node.host || null;
+      hops++;
+    }
+    return false;
+  }
+
+  // Returns a *payable* BOLT11 invoice on the page (lowercased) — one shown with
+  // clear intent (a lightning: link, or an invoice inside a pay/zap modal or
+  // beside a QR) and not expired. A bare invoice sitting in page text/content is
+  // ignored so it can't interrupt the user. Returns '' when there's nothing to act on.
   function findPageInvoice() {
-    // Pierce shadow DOM — web-component modals (e.g. Bitcoin Connect) render the
-    // link inside a shadow root. Scan lightning: links, then input/textarea values
-    // (satellite.earth puts a bare lnbc... in a readonly input), then page text.
+    // Pierce shadow DOM — web-component modals (e.g. Bitcoin Connect) render
+    // inside a shadow root. Collect candidates across all roots, then qualify.
     const roots = [document];
+    const fields = [];
+    const qrEls = [];
     for (let i = 0; i < roots.length && i < 2000; i++) {
-      let links, fields, all;
+      let links, inputs, qrs, all;
       try {
         links = roots[i].querySelectorAll('a[href^="lightning:" i]');
-        fields = roots[i].querySelectorAll('input, textarea');
+        inputs = roots[i].querySelectorAll('input, textarea');
+        qrs = roots[i].querySelectorAll(QR_SEL);
         all = roots[i].querySelectorAll('*');
       } catch (_) {
         continue;
       }
+      // 1) lightning: links — an explicit, user-clickable pay intent.
       for (const a of links) {
         const m = INVOICE_RE.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
-        if (m) return m[0].toLowerCase();
+        if (m) { const inv = m[0].toLowerCase(); if (!invoiceExpired(inv)) return inv; }
       }
-      for (const f of fields) {
-        const m = INVOICE_RE.exec(f.value || f.getAttribute('value') || '');
-        if (m) return m[0].toLowerCase();
-      }
+      for (const f of inputs) fields.push(f);
+      for (const q of qrs) qrEls.push(q);
       for (const el of all) if (el.shadowRoot) roots.push(el.shadowRoot);
     }
-    // Fallback: a BOLT11 in the page's visible text (a copyable invoice field).
-    const m2 = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i.exec(document.body ? document.body.innerText : '');
-    return m2 ? m2[0].toLowerCase() : '';
+    // 2) invoice in an input/textarea, but only when shown in a pay/zap context.
+    for (const f of fields) {
+      const m = INVOICE_RE.exec(f.value || f.getAttribute('value') || '');
+      if (!m) continue;
+      const inv = m[0].toLowerCase();
+      if (!invoiceExpired(inv) && hasPayIntent(f)) return inv;
+    }
+    // 3) invoice rendered as text right beside a QR (the common zap-modal shape).
+    for (const q of qrEls) {
+      let node = q, hops = 0;
+      while (node && hops < 6) {
+        let text = '';
+        try { text = node.innerText || node.textContent || ''; } catch (_) {}
+        const m = INVOICE_TEXT_RE.exec(text);
+        if (m) {
+          const inv = m[0].toLowerCase();
+          if (!invoiceExpired(inv)) return inv;
+          break; // expired — move on to the next QR
+        }
+        node = node.parentNode || node.host || null;
+        hops++;
+      }
+    }
+    return '';
   }
 
   function escapeHtml(s) {
@@ -208,30 +299,30 @@
     'background:rgba(6,2,16,0.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);' +
     'font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;opacity:0;transition:opacity .18s ease;}' +
     '.ov.in{opacity:1;}' +
-    '.card{box-sizing:border-box;width:100%;max-width:340px;text-align:center;color:#f1e8f8;padding:26px 24px 18px;' +
-    'border-radius:20px;border:1px solid rgba(203,161,78,0.45);' +
-    'background:radial-gradient(120% 90% at 50% 0%,rgba(203,161,78,0.16),transparent 58%),linear-gradient(165deg,#23114a,#160a30);' +
+    '.card{box-sizing:border-box;width:100%;max-width:340px;text-align:center;{CARD_COLOR};padding:26px 24px 18px;' +
+    'border-radius:20px;border:1px solid {CARD_BORDER};' +
+    'background:{CARD_BACKGROUND};' +
     'box-shadow:0 24px 70px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.05);' +
     'transform:translateY(10px) scale(.985);transition:transform .2s cubic-bezier(.2,.8,.2,1);}' +
     '.ov.in .card{transform:none;}' +
     '.brand{display:flex;justify-content:center;}' +
     '.brand-logo{height:26px;width:auto;display:block;}' +
-    '.eyebrow{margin-top:16px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9a86c4;}' +
+    '.eyebrow{margin-top:16px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;{CARD_MUTED};}' +
     '.amt{margin:7px 0 0;display:flex;align-items:baseline;justify-content:center;gap:6px;}' +
-    '.amt .num{font-size:42px;font-weight:800;line-height:1;color:#cba14e;letter-spacing:-.01em;}' +
-    '.amt .unit{font-size:15px;font-weight:600;color:#9a86c4;}' +
-    '.memo{margin:14px auto 0;max-width:282px;font-size:13.5px;line-height:1.5;color:#e8d5f0;overflow-wrap:anywhere;' +
+    '.amt .num{font-size:42px;font-weight:800;line-height:1;{CARD_GOLD};letter-spacing:-.01em;}' +
+    '.amt .unit{font-size:15px;font-weight:600;{CARD_MUTED};}' +
+    '.memo{margin:14px auto 0;max-width:282px;font-size:13.5px;line-height:1.5;{CARD_TEXT_2};overflow-wrap:anywhere;' +
     'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}' +
-    '.site{margin-top:10px;font-size:12px;color:#9a86c4;overflow-wrap:anywhere;text-wrap:balance;}' +
-    '.site b{color:#bda1ff;font-weight:600;}' +
+    '.site{margin-top:10px;font-size:12px;{CARD_MUTED};overflow-wrap:anywhere;text-wrap:balance;}' +
+    '.site b{color:{CARD_LAV};font-weight:600;}' +
     '.pay{margin-top:20px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;' +
-    'border:none;border-radius:13px;padding:14px;font-size:15px;font-weight:700;color:#1c0c00;' +
-    'background:linear-gradient(180deg,#f6a85a,#ed8a3c 52%,#dd6f23);' +
-    'box-shadow:0 8px 22px rgba(221,111,35,0.36),inset 0 1px 0 rgba(255,255,255,0.45);transition:filter .12s ease,transform .12s ease;}' +
+    'border:none;border-radius:13px;padding:14px;font-size:15px;font-weight:700;{CARD_PAY_TEXT};' +
+    'background:{CARD_PAY_BG};' +
+    'box-shadow:0 8px 22px {CARD_PAY_SHADOW},inset 0 1px 0 rgba(255,255,255,0.45);transition:filter .12s ease,transform .12s ease;}' +
     '.pay:hover{filter:brightness(1.05);}' +
     '.pay:active{transform:translateY(1px);}' +
     '.pay.pending{cursor:default;opacity:.94;}' +
-    '.pay.done{cursor:default;background:none;box-shadow:none;color:#6ee7a8;}' +
+    '.pay.done{cursor:default;background:none;box-shadow:none;{CARD_SUCCESS};}' +
     '.pay-bolt{height:16px;width:auto;display:block;}' +
     '.pay.pending .pay-bolt,.pay.done .pay-bolt{display:none;}' +
     '.pay-check{display:none;width:18px;height:18px;}' +
@@ -239,21 +330,117 @@
     '.pay-spin{display:none;width:16px;height:16px;border-radius:50%;border:2px solid rgba(28,12,0,0.3);border-top-color:#1c0c00;animation:sc-spin .7s linear infinite;}' +
     '.pay.pending .pay-spin{display:block;}' +
     '@keyframes sc-spin{to{transform:rotate(360deg);}}' +
-    '.pay-status{margin-top:11px;font-size:12px;line-height:1.45;color:#9a86c4;text-wrap:balance;}' +
-    '.pay-status.err{color:#ffb38a;}' +
-    '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;color:#9a86c4;font-size:13px;padding:9px;border-radius:10px;}' +
-    '.cancel:hover{color:#f1e8f8;background:rgba(167,139,250,0.10);}' +
+    '.pay-status{margin-top:11px;font-size:12px;line-height:1.45;{CARD_MUTED};text-wrap:balance;}' +
+    '.pay-status.err{{CARD_WARN};}' +
+    '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
+    '.cancel:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
     '.card.busy .cancel{display:none;}' +
     '.card.busy .tg{opacity:.4;pointer-events:none;}' +
     '.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:14px;' +
-    'border-top:1px solid rgba(167,139,250,0.16);cursor:pointer;}' +
-    '.tg-label{font-size:12px;color:#9a86c4;}' +
+    'border-top:1px solid {CARD_BORDER_FAINT};cursor:pointer;}' +
+    '.tg-label{font-size:12px;{CARD_MUTED};}' +
     '.tg-input{position:absolute;opacity:0;width:0;height:0;}' +
-    '.tg-track{position:relative;flex-shrink:0;width:38px;height:22px;border-radius:11px;background:#cba14e;transition:background .15s ease;}' +
+    '.tg-track{position:relative;flex-shrink:0;width:38px;height:22px;border-radius:11px;background:{CARD_TRACK};transition:background .15s ease;}' +
     '.tg-thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#1c0c00;transition:transform .15s ease;}' +
     '.tg-input:checked~.tg-track .tg-thumb{transform:translateX(16px);}' +
-    '.tg-input:not(:checked)~.tg-track{background:rgba(167,139,250,0.25);}' +
-    '.tg-input:not(:checked)~.tg-track .tg-thumb{background:#9a86c4;}';
+    '.tg-input:not(:checked)~.tg-track{background:{CARD_TOGGLE_OFF};}' +
+    '.tg-input:not(:checked)~.tg-track .tg-thumb{background:{CARD_THUMB_OFF};}';
+
+  // Current theme for the payment card. Read from storage at load and kept in
+  // sync via storage.onChanged so a theme change in the panel also reaches pages
+  // that are already open. The card can auto-render the moment an invoice is
+  // detected (before this async read resolves), so if a card is on screen when
+  // the theme resolves, it's re-rendered in the correct scheme. Defaults to
+  // speakeasy. (Background intentionally exposes only showPayButton to content
+  // scripts, so the theme is read directly from storage, not via messaging.)
+  let cardTheme = 'speakeasy';
+  function setCardTheme(t) {
+    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'art-deco') return;
+    if (t === cardTheme) return;
+    cardTheme = t;
+    if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
+  }
+  try {
+    chrome.storage.local.get('sidecar_settings', (data) => {
+      setCardTheme(data && data.sidecar_settings && data.sidecar_settings.theme);
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.sidecar_settings && changes.sidecar_settings.newValue) {
+        setCardTheme(changes.sidecar_settings.newValue.theme);
+      }
+    });
+  } catch (_) { /* storage unavailable — keep speakeasy default */ }
+
+  // Get theme colors for payment card theming
+  function getThemeColors() {
+    // Default to speakeasy theme if not set
+    const themeColors = {
+      speakeasy: {
+        CARD_COLOR: 'color:#f1e8f8',
+        CARD_BORDER: 'rgba(203,161,78,0.45)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(203,161,78,0.16),transparent 58%),linear-gradient(165deg,#23114a,#160a30)',
+        CARD_MUTED: 'color:#9a86c4',
+        CARD_GOLD: 'color:#cba14e',
+        CARD_TEXT_2: 'color:#e8d5f0',
+        CARD_LAV: '#bda1ff',
+        CARD_PAY_TEXT: 'color:#1c0c00',
+        CARD_PAY_BG: 'linear-gradient(180deg,#f6a85a,#ed8a3c 52%,#dd6f23)',
+        CARD_CANCEL_BG: 'rgba(167,139,250,0.10)',
+        CARD_TEXT: '#f1e8f8',
+        CARD_BORDER_FAINT: 'rgba(167,139,250,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(167,139,250,0.25)',
+        CARD_TRACK: '#cba14e',
+        CARD_THUMB_OFF: '#9a86c4',
+        CARD_WARN: 'color:#ffb38a',
+        CARD_SUCCESS: 'color:#6ee7a8',
+        CARD_PAY_SHADOW: 'rgba(221,111,35,0.36)'
+      },
+      'film-noir': {
+        CARD_COLOR: 'color:#e0e0e0',
+        CARD_BORDER: 'rgba(192,192,192,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(192,192,192,0.12),transparent 58%),linear-gradient(165deg,#1a1a1a,#0a0a0a)',
+        CARD_MUTED: 'color:#909090',
+        CARD_GOLD: 'color:#c0c0c0',
+        CARD_TEXT_2: 'color:#c0c0c0',
+        CARD_LAV: '#e0e0e0',
+        CARD_PAY_TEXT: 'color:#1a1a1a',
+        CARD_PAY_BG: 'linear-gradient(180deg,#b8b8b8,#a0a0a0 52%,#808080)',
+        CARD_CANCEL_BG: 'rgba(192,192,192,0.10)',
+        CARD_TEXT: '#e0e0e0',
+        CARD_BORDER_FAINT: 'rgba(192,192,192,0.12)',
+        CARD_TOGGLE_OFF: 'rgba(192,192,192,0.20)',
+        CARD_TRACK: '#c0c0c0',
+        CARD_THUMB_OFF: '#909090',
+        CARD_WARN: 'color:#ffb38a',
+        CARD_SUCCESS: 'color:#6ee7a8',
+        CARD_PAY_SHADOW: 'rgba(160,160,160,0.36)'
+      },
+      'art-deco': {
+        CARD_COLOR: 'color:#2a2a2a',
+        CARD_BORDER: 'rgba(197,160,89,0.40)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(212,175,55,0.15),transparent 58%),linear-gradient(165deg,#E6DCC8,#F0EAD6)',
+        CARD_MUTED: 'color:#6a6a6a',
+        CARD_GOLD: 'color:#D4AF37',
+        CARD_TEXT_2: 'color:#4a4a4a',
+        CARD_LAV: '#8B7355',
+        CARD_PAY_TEXT: 'color:#1a1a1a',
+        CARD_PAY_BG: 'linear-gradient(180deg,#C5A059,#B8860B 52%,#8B7355)',
+        CARD_CANCEL_BG: 'rgba(197,160,89,0.15)',
+        CARD_TEXT: '#2a2a2a',
+        CARD_BORDER_FAINT: 'rgba(139,115,85,0.20)',
+        CARD_TOGGLE_OFF: 'rgba(139,115,85,0.25)',
+        CARD_TRACK: '#D4AF37',
+        CARD_THUMB_OFF: '#6a6a6a',
+        CARD_WARN: 'color:#a8521f',
+        CARD_SUCCESS: 'color:#2f7d52',
+        CARD_PAY_SHADOW: 'rgba(184,134,11,0.36)'
+      }
+    };
+
+    // The theme is read once at load into `cardTheme` (chrome.storage.get is
+    // async and can't return a value synchronously here); fall back to speakeasy.
+    return themeColors[cardTheme] || themeColors.speakeasy;
+  }
 
   function removeCard() {
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
@@ -271,7 +458,7 @@
     shownInvoice = invoice;
     const sats = invoiceSats(invoice);
     const memo = invoiceMemo(invoice);
-    const site = location.hostname.replace(/^www\./, '');
+    const site = location.host.replace(/^www\./, '');
 
     const eyebrow = sats != null ? "You're paying" : 'Pay with Sidecar';
     const amountBlock =
@@ -284,11 +471,18 @@
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
     const s = cardHost.attachShadow({ mode: 'open' });
+    const colors = getThemeColors();
+    const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
+      Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
+    // The wordmark's lettering is baked in as speakeasy's lavender (#BDA1FF), fine
+    // on speakeasy/noir's dark cards but illegible on deco's light one — recolor
+    // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
+    const logoSvg = cardTheme === 'art-deco' ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
-      '<style>' + CARD_CSS + '</style>' +
+      '<style>' + cardCss + '</style>' +
       '<div class="ov">' +
       '<div class="card" role="dialog" aria-label="Pay with Sidecar">' +
-      '<div class="brand">' + LOGO_SVG + '</div>' +
+      '<div class="brand">' + logoSvg + '</div>' +
       '<div class="eyebrow">' + eyebrow + '</div>' +
       amountBlock +
       memoBlock +
@@ -429,7 +623,11 @@
   try {
     chrome.runtime.sendMessage({ type: 'SIDECAR_GET_SETTINGS' }, (s) => {
       if (chrome.runtime.lastError) return; // keep the default (on)
-      showCard = !(s && s.showPayButton === false);
+      // Control replies are { ok, result } envelopes — the setting is inside
+      // result. (Reading it off the top level meant a saved "off" never applied
+      // on page load, only via the live settings push.)
+      const settings = (s && s.result) || {};
+      showCard = settings.showPayButton !== false;
       scanForInvoice();
     });
   } catch (_) {}

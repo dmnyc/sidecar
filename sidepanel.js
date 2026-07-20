@@ -6,6 +6,11 @@
 
   const NT = window.NostrTools;
 
+  // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
+  // a stored value is missing or invalid.
+  const AUTOZAP_DEFAULT_MAX = 100;
+  const AUTOZAP_DAILY_MULT = 5; // default daily cap = 5× the per-zap cap
+
   // ---- messaging ----
   function bg(message) {
     return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
@@ -23,6 +28,7 @@
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
+    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
     trash: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
     key: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>',
@@ -48,6 +54,10 @@
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
     pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
+    bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
+    qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
+    share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
+    bug: '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -58,6 +68,14 @@
     return wrap.firstElementChild;
   }
 
+  // Chrome only adds `update_url` to the manifest object for extensions installed
+  // from the Web Store (or with a configured update URL) — never for an unpacked
+  // load. That makes it a reliable, permission-free way to tell a local dev build
+  // apart from the shipped one, so dev-only UI never leaks into production.
+  function isDevBuild() {
+    try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
+  }
+
   // Filled lightning bolt (from wordswithzaps' bolt-yellow.svg). Inherits color
   // via currentColor; sized inline with text by the .bolt-ico class.
   function boltIcon(cls) {
@@ -66,6 +84,114 @@
       '<svg class="bolt-ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 55 94" fill="currentColor">' +
       '<path d="M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z"></path></svg>';
     return wrap.firstElementChild;
+  }
+
+  // ---- PIN / passphrase strength + confirmation UI ----
+  // The keystore is encrypted at rest under a key derived from this secret, so its
+  // length is the practical floor on that protection. Require a non-trivial minimum
+  // and give live feedback: a green check appears in the first box once it's long
+  // enough, and a second green check (or a red x on mismatch) as the confirmation
+  // is typed. The proceed button stays disabled until both are satisfied.
+  const MIN_PIN_LEN = 8;
+  const MAX_PIN_LEN = 32;
+
+  function pinMeetsLength(v) {
+    return v.length >= MIN_PIN_LEN && v.length <= MAX_PIN_LEN;
+  }
+
+  function setPinIndicator(ind, state) {
+    ind.classList.remove('ok', 'bad');
+    ind.textContent = '';
+    if (state === 'ok') { ind.classList.add('ok'); ind.appendChild(icon('check')); }
+    else if (state === 'bad') { ind.classList.add('bad'); ind.appendChild(icon('x')); }
+  }
+
+  // Path to the full Sidecar logo for a given theme. Art Deco uses a variant
+  // whose wordmark is dark purple (#5a4a8a) for legibility on the light
+  // eggshell background; the cocktail-glass mark is identical in both files
+  // (official colors), so only the wordmark changes.
+  function logoSrcFor(themeName) {
+    return themeName === 'art-deco'
+      ? 'icons/sidecar-logo-deco.svg'
+      : 'icons/sidecar-logo.svg';
+  }
+
+  // Swap every full-logo <img> in the panel to the variant for the active theme.
+  function swapLogos(themeName) {
+    const src = logoSrcFor(themeName);
+    document.querySelectorAll('.brand-logo, .brand-logo-sm, .brand-foot img, .about-logo')
+      .forEach(img => { img.src = src; });
+  }
+
+  // Apply theme by setting data-theme attribute on HTML element
+  function applyTheme(themeName) {
+    const validThemes = ['speakeasy', 'film-noir', 'art-deco'];
+    if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
+
+    document.documentElement.setAttribute('data-theme', themeName);
+    swapLogos(themeName);
+
+    // Update active state in theme selector
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.theme === themeName);
+    });
+
+    return themeName;
+  }
+
+  // Wrap a password <input> so a check/x indicator can sit at its right edge.
+  // Works whether the input is already in the DOM or still detached (in which case
+  // the caller appends the returned wrapper). Returns the indicator element.
+  function addPinIndicator(input) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pin-field';
+    if (input.parentNode) input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const ind = document.createElement('span');
+    ind.className = 'pin-indicator';
+    ind.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(ind);
+    return ind;
+  }
+
+  // Live-validate a create/confirm PIN pair and gate a submit button. Call after
+  // both inputs are in the DOM. Returns validate(), which also reports validity.
+  // The green check on the confirm box shows the instant it matches; the red x is
+  // held back until the user pauses typing (MISMATCH_DELAY), so it doesn't flash
+  // red while a matching value is still being entered.
+  const PIN_MISMATCH_DELAY = 700; // ms of idle before flagging a mismatch
+  function attachPinValidation(pinInput, confirmInput, submitBtn) {
+    const pinInd = addPinIndicator(pinInput);
+    const confInd = confirmInput ? addPinIndicator(confirmInput) : null;
+    let mismatchTimer = null;
+    const clearMismatchTimer = () => { if (mismatchTimer) { clearTimeout(mismatchTimer); mismatchTimer = null; } };
+    function validate() {
+      const pinOk = pinMeetsLength(pinInput.value);
+      setPinIndicator(pinInd, pinOk ? 'ok' : null);
+      let ready = pinOk;
+      if (confInd) {
+        const cv = confirmInput.value;
+        clearMismatchTimer();
+        if (!cv) {
+          setPinIndicator(confInd, null);            // nothing typed yet
+        } else if (cv === pinInput.value) {
+          setPinIndicator(confInd, pinOk ? 'ok' : null); // contents match; green once the PIN is long enough
+        } else {
+          // Genuine mismatch — defer the red so it doesn't appear mid-keystroke.
+          setPinIndicator(confInd, null);
+          mismatchTimer = setTimeout(() => {
+            if (confirmInput.value && confirmInput.value !== pinInput.value) setPinIndicator(confInd, 'bad');
+          }, PIN_MISMATCH_DELAY);
+        }
+        ready = pinOk && cv.length > 0 && cv === pinInput.value;
+      }
+      if (submitBtn) submitBtn.disabled = !ready;
+      return ready;
+    }
+    pinInput.addEventListener('input', validate);
+    if (confirmInput) confirmInput.addEventListener('input', validate);
+    validate();
+    return validate;
   }
 
   // ---- toast notifications ----
@@ -83,6 +209,7 @@
       t.classList.remove('show');
       setTimeout(() => t.remove(), 250);
     }, 3200);
+    return t;
   }
 
   // ---- nsec paste guard ----
@@ -108,8 +235,23 @@
   );
 
   let state = null;
-  let hideBalances = false; // privacy toggle (persisted in settings)
+  let hideBalances = false;
+  let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
+  const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
+  const _notifProfiles = new Map(); // sender pubkey → display name string
+  const _muteLists = new Map(); // pubkey → Set<pubkey> (resolved mute set)
+  const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  const _ownNoteIds = new Map(); // pubkey → Set<eventId> (this account's own recent kind:1 ids)
+  const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
+  let _notifSeenLoaded = false;
+  // Set while the notification modal is open, so a live event arriving in the
+  // background (addEvent, below) can append it to the visible list in place
+  // instead of only updating the bell badge — otherwise the open modal only
+  // ever reflected notifications as of the moment it was opened.
+  let _openNotifBell = null; // { pubkey, list, buildItem, clearEmptyMessage } | null
+  let _postBannerTimer = null; // auto-dismiss for #post-banner
 
   // Privacy masking is done in CSS (-webkit-text-security on `.balances-hidden`),
   // which masks each glyph at its real width so toggling never reflows. We always
@@ -126,15 +268,33 @@
   // back into itself and flip the state every frame. The sentinel sits above the
   // card, so the card's resize never moves it — no feedback loop, no flicker.
   let walletCardObserver = null;
-  function observeWalletCard(card, sentinel) {
+  function observeWalletCard(card, sentinel, spacer) {
     if (walletCardObserver) { walletCardObserver.disconnect(); walletCardObserver = null; }
     const root = document.querySelector('.content');
     if (!root || !('IntersectionObserver' in window)) return;
-    walletCardObserver = new IntersectionObserver(
-      (entries) => card.classList.toggle('compact', !entries[0].isIntersecting),
-      { root, rootMargin: '48px 0px 0px 0px', threshold: 0 }
-    );
-    walletCardObserver.observe(sentinel);
+    // Defer until the card has laid out so we can measure its collapse delta.
+    requestAnimationFrame(() => {
+      // How much height the card loses when collapsed. A bottom spacer grows by
+      // exactly this amount while compact, so collapsing never changes the total
+      // scroll height. Without it, collapsing shrinks the document, the scroll
+      // clamps at the bottom, the sentinel re-enters view, and it flickers —
+      // worst on a short page like a wallet with no transactions.
+      card.classList.remove('compact');
+      const expandedH = card.offsetHeight;
+      card.classList.add('compact');
+      const compactH = card.offsetHeight;
+      card.classList.remove('compact');
+      const delta = Math.max(0, expandedH - compactH);
+      walletCardObserver = new IntersectionObserver(
+        (entries) => {
+          const compact = !entries[0].isIntersecting;
+          card.classList.toggle('compact', compact);
+          if (spacer) spacer.style.height = compact ? delta + 'px' : '0px';
+        },
+        { root, rootMargin: '48px 0px 0px 0px', threshold: 0 }
+      );
+      walletCardObserver.observe(sentinel);
+    });
   }
 
   // Background broadcasts (e.g. a WebLN payment paid via the service worker
@@ -145,35 +305,67 @@
       const active = document.querySelector('.tab.active');
       if (active && active.dataset.tab === 'wallet') renderWallet();
     }
+    // Auto-lock (or a lock from elsewhere) fired in the background — drop to the
+    // unlock screen now. refresh() closes any open modal and routes to view-lock.
+    // Only an idle-timeout lock (auto) toasts — the user didn't trigger it, so
+    // explain the sudden jump; manual lock / reset already show their own message.
+    if (msg.event === 'locked') { refresh(); if (msg.auto) toast('Locked due to inactivity'); }
   });
+
+  // Reset the background idle auto-lock timer on active panel use (composing),
+  // throttled so a burst of keystrokes doesn't spam the service worker — auto-lock
+  // is minutes, so one ping every ~20s keeps it alive while you're actively typing.
+  let lastActivityPing = 0;
+  function noteActivity() {
+    const now = Date.now();
+    if (now - lastActivityPing < 20000) return;
+    lastActivityPing = now;
+    chrome.runtime.sendMessage({ type: 'SIDECAR_ACTIVITY' }).catch(() => {});
+  }
 
   // ---- top-level routing ----
   async function refresh() {
     // A pending signing approval is modal — it stays put until the user decides,
     // so don't let an incidental refresh navigate away from it.
     if (pendingApproval) {
+      closeModal();
       showApproval();
       return;
     }
     state = await call({ type: 'SIDECAR_GET_STATE' });
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     hideBalances = !!(settings && settings.hideBalances);
+    applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
     if (!state.initialized) {
+      // Clear any stale PIN left in the inputs (e.g. after a reset) — the panel is
+      // an SPA, so values would otherwise persist across the view switch. Setting
+      // .value doesn't fire an 'input' event, so the validity checkmarks won't
+      // recompute on their own — re-validate explicitly or they'd keep showing
+      // green next to now-empty fields.
+      $('ob-pin').value = '';
+      $('ob-pin2').value = '';
+      $('ob-error').textContent = '';
+      validateOnboardingPin();
       show($('view-onboarding'));
       setTimeout(() => $('ob-pin').focus(), 50);
     } else if (state.locked) {
+      // Lock is a security boundary and always wins: tear down any open modal
+      // (composer, wallet, key backup, …) so nothing sensitive sits over the lock
+      // screen. The composer draft is autosaved, so it's offered again on unlock.
+      closeModal();
       if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
       balanceCache = { pubkey: null, sats: null };
       show($('view-lock'));
       setTimeout(() => $('unlock-pin').focus(), 50);
     } else {
       show($('view-main'));
-      const banner = $('post-banner');
-      if (banner) hide(banner); // a note link is account-specific; clear on any state change
+      dismissPostBanner(); // a note link is account-specific; clear on any state change
       renderMain();
+      initNotifSubs();
+      maybeShowAutoLockNotice(settings);
       // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
       const activeTab = document.querySelector('.tab.active');
       const name = activeTab && activeTab.dataset.tab;
@@ -181,23 +373,32 @@
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
     }
+    // Re-assert the approval overlay from the queue after rendering the base view,
+    // so a panel reload while a request is pending re-surfaces it deterministically
+    // (no race with the view-hiding above). Skipped implicitly by the top guard
+    // when an approval is already showing.
+    if (typeof syncApprovalOverlay === 'function') syncApprovalOverlay();
   }
 
 
   // ---- onboarding ----
+  const validateOnboardingPin = attachPinValidation($('ob-pin'), $('ob-pin2'), $('ob-submit'));
   $('onboarding-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('ob-error');
     err.textContent = '';
     const pin = $('ob-pin').value;
     const pin2 = $('ob-pin2').value;
-    if (pin.length < 4) return (err.textContent = 'Use at least 4 characters.');
-    if (pin.length > 32) return (err.textContent = 'Use at most 32 characters.');
+    if (pin.length < MIN_PIN_LEN) return (err.textContent = `Use at least ${MIN_PIN_LEN} characters.`);
+    if (pin.length > MAX_PIN_LEN) return (err.textContent = `Use at most ${MAX_PIN_LEN} characters.`);
     if (pin !== pin2) return (err.textContent = 'PINs do not match.');
     try {
       await call({ type: 'SIDECAR_INIT', pin });
-      await refresh();
-      toast('Keystore created', 'success');
+      // Hold the welcome/empty-state view behind this reminder until it's dismissed.
+      pinReminderModal(async () => {
+        await refresh();
+        toast('Keystore created', 'success');
+      });
     } catch (e) {
       err.textContent = e.message;
       toast(e.message, 'error');
@@ -205,20 +406,149 @@
   });
 
   // ---- unlock ----
+  // Unlock guard UI: show remaining attempts before the keystore self-erases and
+  // enforce the same cooldown the background does (defense in depth is server-side;
+  // this is just feedback). The <8-attempt window turns the warning urgent.
+  let unlockCooldownTimer = null;
+  // A refined "attempts remaining" notice — the count set in the display face with
+  // a gold accent that turns red as the auto-erase threshold nears.
+  function unlockNotice(remaining) {
+    const low = remaining != null && remaining <= 5;
+    const note = h('div', { className: 'unlock-note' + (low ? ' unlock-danger' : '') });
+    note.append(h('div', { className: 'unlock-note-title', textContent: 'Incorrect PIN' }));
+    if (remaining != null) {
+      note.append(h('div', { className: 'unlock-note-sub' }, [
+        h('span', { className: 'unlock-note-count', textContent: String(remaining) }),
+        document.createTextNode((remaining === 1 ? ' attempt' : ' attempts') + ' left before this device erases'),
+      ]));
+    }
+    return note;
+  }
+  function showUnlockRemaining(remaining) {
+    const box = $('unlock-cooldown');
+    $('unlock-error').textContent = '';
+    box.innerHTML = '';
+    box.append(unlockNotice(remaining));
+    box.classList.remove('hidden');
+  }
+  function clearUnlockCooldown() {
+    if (unlockCooldownTimer) { clearInterval(unlockCooldownTimer); unlockCooldownTimer = null; }
+    const box = $('unlock-cooldown');
+    box.classList.add('hidden');
+    box.innerHTML = '';
+  }
+  // A small, classy countdown ring (mirrors the composer's, scaled down) while the
+  // unlock is in cooldown — replaces the raw "try again in Ns" text.
+  function startUnlockCooldown(ms, remaining, keepRemaining) {
+    const err = $('unlock-error');
+    const btn = $('unlock-form').querySelector('button[type=submit]');
+    const pin = $('unlock-pin');
+    const box = $('unlock-cooldown');
+    if (unlockCooldownTimer) clearInterval(unlockCooldownTimer);
+    err.textContent = '';
+    btn.disabled = true;
+    pin.disabled = true;
+
+    const total = Math.max(1, Math.ceil(ms / 1000));
+    let left = total;
+    const R = 30, C = 2 * Math.PI * R;
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ring.setAttribute('viewBox', '0 0 72 72');
+    ring.setAttribute('class', 'countdown-ring');
+    ring.innerHTML =
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
+    const num = h('div', { className: 'countdown-num', textContent: String(left) });
+    const wrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
+    const cap = remaining != null
+      ? unlockNotice(remaining)
+      : h('div', { className: 'unlock-note' }, [h('div', { className: 'unlock-note-title', textContent: 'Too many attempts' })]);
+    box.innerHTML = '';
+    box.append(wrap, cap);
+    box.classList.remove('hidden');
+    const fill = ring.querySelector('.ring-fill');
+
+    unlockCooldownTimer = setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        clearUnlockCooldown();
+        btn.disabled = false;
+        pin.disabled = false;
+        if (keepRemaining && remaining != null) showUnlockRemaining(remaining);
+        pin.focus();
+        return;
+      }
+      num.textContent = String(left);
+      fill.setAttribute('stroke-dashoffset', String(C * (1 - left / total)));
+    }, 1000);
+  }
+
   $('unlock-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('unlock-error');
+    const pin = $('unlock-pin');
     err.textContent = '';
+    err.classList.remove('unlock-danger');
+    let r;
     try {
-      await call({ type: 'SIDECAR_UNLOCK', pin: $('unlock-pin').value });
-      $('unlock-pin').value = '';
-      await refresh();
-      toast('Unlocked', 'success');
-    } catch (e) {
-      err.textContent = e.message;
-      $('unlock-pin').value = '';
-      toast(e.message, 'error');
+      // SIDECAR_UNLOCK contract (see background.js): branch on result.status.
+      r = await call({ type: 'SIDECAR_UNLOCK', pin: pin.value });
+    } catch (ex) {
+      err.textContent = ex.message;
+      return;
     }
+    pin.value = '';
+    if (r.status === 'ok') { clearUnlockCooldown(); await refresh(); toast('Unlocked', 'success'); return; }
+    if (r.status === 'wiped') { clearUnlockCooldown(); await refresh(); toast('Too many attempts — all data erased', 'error'); return; }
+    if (r.status === 'throttled') { startUnlockCooldown(r.waitMs, r.remaining, false); return; }
+    if (r.status === 'bad') {
+      showUnlockRemaining(r.remaining);
+      if (r.nextWaitMs > 0) startUnlockCooldown(r.nextWaitMs, r.remaining, true);
+      return;
+    }
+    err.textContent = r.error || 'Could not unlock';
+  });
+
+  // Locked out (forgot PIN): let the user erase everything and start over, with a
+  // type-to-confirm so it can't happen by accident.
+  $('unlock-forgot').addEventListener('click', (e) => {
+    e.preventDefault();
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const warn = h('p', {
+        className: 'hint',
+        textContent:
+          "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh — all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered.",
+      });
+      const confirmInput = h('input', { type: 'text', placeholder: 'Type ERASE to confirm' });
+      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      del.disabled = true;
+      const matches = () => confirmInput.value.trim().toUpperCase() === 'ERASE';
+      confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
+      del.addEventListener('click', async () => {
+        if (!matches()) return;
+        try {
+          await call({ type: 'SIDECAR_RESET_ALL' });
+          closeModal();
+          await refresh(); // no keystore now → onboarding
+          toast('Sidecar erased', 'success');
+        } catch (ex) {
+          err.textContent = ex.message;
+          toast(ex.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Forgot your PIN?' }),
+        warn,
+        h('label', { textContent: 'Confirm' }),
+        confirmInput,
+        err,
+        h('div', { className: 'actions' }, [del, cancel])
+      );
+      setTimeout(() => confirmInput.focus(), 50);
+    });
   });
 
   // ---- lock ----
@@ -228,7 +558,19 @@
     toast('Locked', 'success');
   });
 
-  $('compose-fab').addEventListener('click', () => openComposer());
+  $('compose-fab').addEventListener('click', () => {
+    const balloon = $('first-post-balloon');
+    const isFirstTime = balloon && !balloon.classList.contains('hidden') && state?.activePubkey;
+    if (isFirstTime) {
+      _firstPostSeenPubkeys = _firstPostSeenPubkeys || new Set();
+      _firstPostSeenPubkeys.add(state.activePubkey);
+      chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
+      balloon.classList.add('hidden');
+      openComposer('Just setting up my #Sidecar 🍸');
+    } else {
+      openComposer();
+    }
+  });
 
   // Dim the FAB while the content is actively scrolling so it doesn't distract;
   // snap back ~160ms after scrolling stops (mirrors zap.cooking's create FAB).
@@ -248,6 +590,24 @@
     );
   })();
 
+  // ---- notification bell (topbar) ----
+  $('notif-bell-btn').addEventListener('click', () => {
+    if (!state?.activePubkey) return;
+    const a = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
+    if (a) showNotifModal(a);
+  });
+
+  // ---- help & guides (opens as a full page in the main browser window) ----
+  $('help-btn').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+  });
+  // Release notes live in the help guide's "What's new" section — the guide is
+  // updated as part of every release (see the RELEASE PRACTICE note in help.html).
+  $('whats-new-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#whats-new' });
+  });
+
   // ---- settings (gear icon ↔ overlay view) ----
   $('settings-btn').addEventListener('click', () => {
     hide($('view-main'));
@@ -258,6 +618,46 @@
     hide($('view-settings'));
     show($('view-main'));
   });
+
+  // One-time tip shown on the first account switch: sites keep the identity
+  // they logged in with, so users switching to post elsewhere need to know the
+  // log-out → switch → log-in dance (and that in-client account menus can't
+  // reach Sidecar). Banner sits below the tab bar so it's visible from any tab;
+  // dismissing it persists forever.
+  function maybeShowSwitchTip() {
+    chrome.storage.local.get('switchTipDismissed', ({ switchTipDismissed }) => {
+      if (switchTipDismissed || $('switch-tip')) return;
+      const x = h('button', { className: 'switch-tip-x', title: 'Dismiss' });
+      x.append(icon('x'));
+      x.addEventListener('click', () => {
+        chrome.storage.local.set({ switchTipDismissed: true });
+        tip.remove();
+      });
+      const guideLink = h('a', {
+        className: 'switch-tip-link',
+        href: '#',
+        textContent: 'Read the guide →',
+      });
+      guideLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#switching' });
+      });
+      const tip = h('div', { id: 'switch-tip', className: 'switch-tip' }, [
+        h('div', { className: 'switch-tip-title' }, [
+          icon('refresh'),
+          h('span', { textContent: 'Switching accounts?' }),
+        ]),
+        h('p', {
+          className: 'switch-tip-body',
+          textContent:
+            'Clients keep signing with the account you logged in with. After switching here, reload the site to use the new account (or log out and back in there). Multi-account switchers inside clients don’t talk to Sidecar.',
+        }),
+        guideLink,
+        x,
+      ]);
+      document.querySelector('nav.tabs').insertAdjacentElement('afterend', tip);
+    });
+  }
 
   // ---- header account switcher (dropdown) ----
   function buildAcctMenu() {
@@ -295,6 +695,7 @@
             await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
             await refresh();
             toast('Switched to ' + displayName(a), 'success');
+            if (!(await offerTabReload())) maybeShowSwitchTip();
           } else {
             row.classList.add('acct-row-pending');
             row.querySelector('.acct-row-name').textContent = 'Switch to ' + displayName(a) + '?';
@@ -342,9 +743,24 @@
       const name = tab.dataset.tab;
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-' + name));
-      if (name === 'activity') renderActivity();
+      if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
+    });
+  });
+
+  // ---- activity sub-tabs: Connected sites | Recent activity ----
+  // Both panes are populated by renderActivity regardless of which is showing;
+  // this just toggles which one is visible so they're one tap apart instead of a
+  // scroll. Selection persists across re-renders (renderActivity leaves the pane
+  // containers' visibility alone).
+  document.querySelectorAll('#activity-subtabs .modal-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#activity-subtabs .modal-tab').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sub = btn.dataset.subtab;
+      $('activity-pane-sites').classList.toggle('hidden', sub !== 'sites');
+      $('activity-pane-log').classList.toggle('hidden', sub !== 'log');
     });
   });
 
@@ -399,6 +815,86 @@
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
+  // Derive the public key (hex) from a pasted nsec/hex secret, locally, so the
+  // import modal can preview which account it belongs to before saving. The raw
+  // secret is already in the panel's input; this only computes the public half.
+  // Returns '' for anything that isn't a valid secret yet.
+  function pubkeyFromSecret(secret) {
+    try {
+      let sk = null;
+      if (/^nsec1/i.test(secret)) {
+        const d = NT.nip19.decode(secret);
+        if (d.type !== 'nsec') return '';
+        sk = d.data; // Uint8Array
+      } else if (/^[0-9a-f]{64}$/i.test(secret)) {
+        sk = new Uint8Array(32);
+        for (let i = 0; i < 32; i++) sk[i] = parseInt(secret.substr(i * 2, 2), 16);
+      } else {
+        return '';
+      }
+      return NT.getPublicKey(sk) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // Fetch just name + picture from kind 0 for a preview (without storing it).
+  // ---- shared kind:0 profile cache ----
+  // Many paths need a profile (active profile, import/mention previews, @-mention
+  // name resolution). Without sharing, each re-fetches the same kind:0 from every
+  // relay. This caches by pubkey with a short TTL (profiles change rarely) and
+  // dedupes concurrent fetches, cutting repeat network reads. Invalidated on
+  // self-edit so a freshly published profile shows immediately.
+  const PROFILE_TTL = 5 * 60 * 1000;
+  const _profileCache = new Map();    // pubkey -> { content, name, picture, expiresAt }
+  const _profileInflight = new Map(); // pubkey -> Promise
+  function cacheProfile(pubkey, content) {
+    const c = content || {};
+    const rec = {
+      content: c,
+      name: c.display_name || c.displayName || c.name || '',
+      picture: c.picture || '',
+      expiresAt: Date.now() + PROFILE_TTL,
+    };
+    _profileCache.set(pubkey, rec);
+    return rec;
+  }
+  function cachedProfile(pubkey) {
+    const hit = _profileCache.get(pubkey);
+    return hit && hit.expiresAt > Date.now() ? hit : null;
+  }
+  async function getProfile(pubkey) {
+    if (!pubkey) return null;
+    const hit = cachedProfile(pubkey);
+    if (hit) return hit;
+    if (_profileInflight.has(pubkey)) return _profileInflight.get(pubkey);
+    const p = (async () => {
+      try {
+        const relays = await relayUrls(false);
+        if (!relays.length) return null;
+        const ev = await Promise.race([
+          poolGet(relays, { kinds: [0], authors: [pubkey] }),
+          new Promise((r) => setTimeout(() => r(null), 6000)),
+        ]);
+        let content = {};
+        if (ev) { try { content = JSON.parse(ev.content) || {}; } catch (_) {} }
+        return cacheProfile(pubkey, content); // cache even an absent profile briefly
+      } catch (_) {
+        return null;
+      } finally {
+        _profileInflight.delete(pubkey);
+      }
+    })();
+    _profileInflight.set(pubkey, p);
+    return p;
+  }
+
+  async function fetchPreviewProfile(pubkey) {
+    const rec = await getProfile(pubkey);
+    if (!rec) return null;
+    return { name: rec.name, picture: rec.picture };
+  }
+
   // ---- NIP-65 (kind 10002) relay list, cached per account ----
   const nip65Cache = new Map(); // pubkey -> { read:[], write:[] } | null
 
@@ -435,13 +931,45 @@
     return relayUrls(true);
   }
 
-  // Publish an already-signed event to the account's write relays (NIP-65 → configured).
-  async function publishSigned(signed) {
-    const relays = await postRelays();
+  async function publishToRelays(relays, signed) {
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     const results = await Promise.allSettled(getPool().publish(relays, signed));
     const ok = results.filter((r) => r.status === 'fulfilled').length;
-    if (!ok) throw new Error('Could not publish to any relay');
+    if (!ok) {
+      const detail = results.map((r, i) => `${relays[i]}: ${r.reason?.message || r.reason || 'rejected'}`).join(' | ');
+      throw new Error(`Could not publish to any relay — ${detail}`);
+    }
+    return ok;
+  }
+
+  // Publish an already-signed event to the account's write relays (NIP-65 → configured).
+  async function publishSigned(signed) {
+    return publishToRelays(await postRelays(), signed);
+  }
+
+  // Build and publish a NIP-65 (kind:10002) relay list from the editor's model:
+  // [{ url, read, write }]. A relay with both markers gets a plain ['r', url]
+  // tag (per spec, no marker = both); otherwise the single applicable marker.
+  // Relays with neither checked are dropped instead of leaking a stray marker.
+  async function publishNip65(pubkey, relayList) {
+    const active = relayList.filter((r) => r.read || r.write);
+    const tags = active.map((r) => {
+      if (r.read && r.write) return ['r', r.url];
+      return r.write ? ['r', r.url, 'write'] : ['r', r.url, 'read'];
+    });
+    const event = { kind: 10002, created_at: Math.floor(Date.now() / 1000), tags, content: '' };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+
+    // Publish to the union of: relays that already carry the account's prior
+    // list (so anyone relying on it still sees the update), the relays now
+    // marked write in the NEW list (so it lands where the account claims to
+    // write), and the app's configured relays as a safety net.
+    const prior = nip65Cache.get(pubkey);
+    const newWrite = active.filter((r) => r.write).map((r) => r.url);
+    const fallback = await relayUrls(true);
+    const targets = [...new Set([...(prior ? prior.write : []), ...newWrite, ...fallback])];
+    const ok = await publishToRelays(targets, signed);
+    nip65Cache.delete(pubkey); // invalidate so getNip65()/postRelays() refetch fresh
     return ok;
   }
 
@@ -474,6 +1002,612 @@
     if (profileFetchAttempted.has(pubkey)) return;
     profileFetchAttempted.add(pubkey);
     fetchAndStoreProfile(pubkey);
+  }
+
+  // ---- notification bell ----
+
+  async function loadNotifSeen() {
+    if (_notifSeenLoaded) return;
+    _notifSeenLoaded = true;
+    try {
+      const r = await new Promise((res) => chrome.storage.local.get('sidecar_notif_seen', res));
+      _notifSeenAt = (r && r.sidecar_notif_seen) || {};
+    } catch (_) {}
+  }
+
+  async function saveNotifSeen(pubkey, ts) {
+    _notifSeenAt[pubkey] = ts;
+    try {
+      await new Promise((res) =>
+        chrome.storage.local.set({ sidecar_notif_seen: _notifSeenAt }, res)
+      );
+    } catch (_) {}
+  }
+
+  function notifUnseenCount(pubkey) {
+    const cache = _notifCache.get(pubkey);
+    if (!cache || !cache.events.length) return 0;
+    const seenAt = _notifSeenAt[pubkey] || 0;
+    return cache.events.filter((ev) => ev.created_at > seenAt).length;
+  }
+
+  function refreshBell() {
+    const btn = $('notif-bell-btn');
+    if (!btn) return;
+    const pubkey = state?.activePubkey;
+    const count = pubkey ? notifUnseenCount(pubkey) : 0;
+    const badge = btn.querySelector('.notif-badge');
+    if (!badge) return;
+    badge.textContent = count > 99 ? '99+' : count > 0 ? String(count) : '';
+    badge.classList.toggle('hidden', count === 0);
+  }
+
+  function relativeTime(ts) {
+    const diff = Math.floor(Date.now() / 1000) - ts;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 7 * 86400) return Math.floor(diff / 86400) + 'd ago';
+    return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function notifLabel(ev) {
+    if (ev.kind === 9735) {
+      let sats = '';
+      try {
+        const descTag = ev.tags.find((t) => t[0] === 'description');
+        if (descTag) {
+          const inner = JSON.parse(descTag[1]);
+          const amtTag = inner.tags && inner.tags.find((t) => t[0] === 'amount');
+          if (amtTag) sats = Math.round(parseInt(amtTag[1], 10) / 1000) + ' sats';
+        }
+      } catch (_) {}
+      return { glyph: '⚡', text: sats ? 'zapped ' + sats : 'zapped you' };
+    }
+    if (ev.kind === 6) return { glyph: '🔁', text: 'reposted your note' };
+    if (ev.kind === 7) {
+      const r = (ev.content || '').trim();
+      const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
+      return { glyph, text: 'reacted to your note' };
+    }
+    // kind 1
+    const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
+    // Ornamental quote mark (U+275D) — a text glyph like the '@' below, so it
+    // inherits the light text color. The speech-bubble emoji (🗨️) rendered
+    // near-black on the panel background.
+    if (hasQ) return { glyph: '❝', text: 'quoted your note' };
+    const hasE = ev.tags.some((t) => t[0] === 'e');
+    return hasE
+      ? { glyph: '💬', text: 'replied to your note' }
+      : { glyph: '@', text: 'mentioned you' };
+  }
+
+  // The actual zapper for a kind:9735 receipt — the receipt's own pubkey is the
+  // LNURL zap service, not the person. Prefer the `P` tag, then the embedded zap
+  // request's pubkey; fall back to the receipt pubkey. For non-zaps, just the author.
+  function zapSender(ev) {
+    if (ev.kind !== 9735) return ev.pubkey;
+    const P = ev.tags.find((t) => t[0] === 'P' && t[1]);
+    if (P) return P[1];
+    const desc = ev.tags.find((t) => t[0] === 'description');
+    if (desc) {
+      try { const r = JSON.parse(desc[1]); if (r && r.pubkey) return r.pubkey; } catch (_) {}
+    }
+    return ev.pubkey;
+  }
+
+  // Resolve where a notification should open, as a full client URL — always
+  // something the client can actually render. A reply/mention opens the note
+  // itself; a reaction/repost/zap opens the note (or article) it refers to.
+  // Crucially, a *profile* zap (no e/a tag — zapping a person, not a note) opens
+  // a PROFILE rather than the kind:9735 receipt, which clients like Jumble show
+  // as "note not found". For zaps we also read the embedded zap request, since
+  // the e/a/p tags and the zapper live there. Returns '' when there's no sensible
+  // target (card just isn't clickable then).
+  function notifLink(ev, client, acctPubkey) {
+    try {
+      // kind 1 (reply/mention) → the note itself.
+      if (ev.kind === 1) {
+        return client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] }));
+      }
+
+      let tags = ev.tags;
+      let zapper = '';
+      if (ev.kind === 9735) {
+        zapper = zapSender(ev);
+        const descTag = ev.tags.find((t) => t[0] === 'description');
+        if (descTag) {
+          try {
+            const req = JSON.parse(descTag[1]);
+            if (req && Array.isArray(req.tags)) tags = ev.tags.concat(req.tags);
+          } catch (_) {}
+        }
+      }
+
+      // A referenced note (reacted/reposted/zapped note, or reply target).
+      const eTag = tags.filter((t) => t[0] === 'e' && t[1]).pop();
+      if (eTag) {
+        const pTag = tags.find((t) => t[0] === 'p' && t[1]); // note author = recipient
+        return client.url(NT.nip19.neventEncode({ id: eTag[1], author: pTag ? pTag[1] : acctPubkey, relays: [] }));
+      }
+
+      // A referenced addressable event (e.g. a long-form article).
+      const aTag = tags.filter((t) => t[0] === 'a' && t[1]).pop();
+      if (aTag) {
+        const parts = aTag[1].split(':');
+        const kind = parseInt(parts[0], 10);
+        if (parts[1] && !Number.isNaN(kind)) {
+          return client.url(NT.nip19.naddrEncode({ kind, pubkey: parts[1], identifier: parts[2] || '', relays: [] }));
+        }
+      }
+
+      // No note/article — a profile zap. Open a profile (renders everywhere):
+      // the zapper if we know them, else the recipient.
+      if (ev.kind === 9735) {
+        const recipient = (tags.find((t) => t[0] === 'p' && t[1]) || [])[1];
+        const who = zapper || recipient || acctPubkey;
+        if (who) return client.profile(NT.nip19.npubEncode(who));
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  function notifAuthorName(pubkey) {
+    const cached = _notifProfiles.get(pubkey);
+    if (typeof cached === 'string' && cached) return cached;
+    try { return shortNpub(NT.nip19.npubEncode(pubkey)); } catch (_) { return '—'; }
+  }
+
+  function prefetchNotifProfile(pubkey, relays) {
+    if (_notifProfiles.has(pubkey)) return Promise.resolve();
+    _notifProfiles.set(pubkey, ''); // mark as loading
+    return poolGet(relays, { kinds: [0], authors: [pubkey] }).then((ev) => {
+      if (!ev) return;
+      const m = JSON.parse(ev.content) || {};
+      _notifProfiles.set(pubkey, m.display_name || m.displayName || m.name || '');
+    }).catch(() => {});
+  }
+
+  const IMG_RE = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif)(?:\?\S*)?/gi;
+  const AV_RE = /https?:\/\/\S+\.(?:mp4|mov|webm|m3u8|mp3|wav|m4a|ogg)(?:\?\S*)?/gi;
+
+  // Pull media URLs out of note content so they can render as previews instead
+  // of as raw links in the text snippet.
+  function extractMedia(content) {
+    const images = content.match(IMG_RE) || [];
+    const av = content.match(AV_RE) || [];
+    return { images, av };
+  }
+
+  function cleanSnippet(content) {
+    return content
+      .replace(/nostr:(npub1\S+|nprofile1\S+)/g, (_, entity) => {
+        try {
+          const decoded = NT.nip19.decode(entity);
+          const pk = decoded.type === 'npub' ? decoded.data : decoded.data && decoded.data.pubkey;
+          if (pk) {
+            const name = _notifProfiles.get(pk);
+            if (name) return '@' + name;
+            return '@' + entity.slice(0, 12) + '…';
+          }
+        } catch (_) {}
+        return '@…';
+      })
+      .replace(/nostr:note1\S+/g, '[note]')
+      .replace(/nostr:nevent1\S+/g, '[note]')
+      .replace(/nostr:naddr1\S+/g, '[article]')
+      .replace(IMG_RE, '') // shown as thumbnails
+      .replace(AV_RE, '') // shown as a media chip
+      .replace(/https?:\/\/([^\s/]+)\S*/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Load an account's mute list (kind 10000) — newest replaceable event across
+  // relays, including both public p-tag mutes and private mutes encrypted in the
+  // content. Private mutes may be NIP-04 (legacy NIP-51) or NIP-44 (newer clients
+  // like Jumble) encrypted to self — try the format the ciphertext looks like,
+  // then fall back to the other. Deduped per pubkey via a promise cache; when it
+  // resolves it also drops any already-cached events from muted authors.
+  //
+  // The promise cache never expired on its own, so a mute added elsewhere after
+  // the panel loaded (a long-lived pinned panel can run for hours) was invisible
+  // for the rest of the session — the bell kept using the pre-mute list forever.
+  // `force` (used when the bell is opened) bypasses the cache for a fresh fetch.
+  function loadMuteList(pubkey, relays, force) {
+    if (_muteListPromises.has(pubkey) && !force) return _muteListPromises.get(pubkey);
+    const p = (async () => {
+      const muted = new Set();
+      try {
+        const evs = await getPool().querySync(relays, { kinds: [10000], authors: [pubkey] });
+        const ev = (evs || []).sort((x, y) => y.created_at - x.created_at)[0];
+        if (ev) {
+          ev.tags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+          if (ev.content) {
+            // NIP-04 ciphertext is "<base64>?iv=<base64>"; NIP-44 is a single
+            // base64 blob. Try the matching scheme first, then the other.
+            const order = ev.content.includes('?iv=') ? [4, 44] : [44, 4];
+            for (const nip of order) {
+              try {
+                const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
+                const privateTags = JSON.parse(plain);
+                if (Array.isArray(privateTags)) {
+                  privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+                  break;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+      _muteLists.set(pubkey, muted);
+      // Drop any events that slipped into the cache before the list was ready
+      // (first load), or that arrived from a user muted after the fact (a
+      // later, force-triggered re-fetch when the bell is opened).
+      const cache = _notifCache.get(pubkey);
+      if (cache && muted.size) {
+        const before = cache.events.length;
+        cache.events = cache.events.filter((e) => !muted.has(e.pubkey));
+        if (cache.events.length !== before && pubkey === state?.activePubkey) refreshBell();
+      }
+      return muted;
+    })();
+    _muteListPromises.set(pubkey, p);
+    return p;
+  }
+
+  // The account's most recent kind:1 note ids (not bounded by the notification
+  // backfill window — a repost/quote happening now can reference a much older
+  // note). Reposts (kind:6) and NIP-18 quote reposts (kind:1 with a `q` tag)
+  // reference the original note by id via an `e`/`q` tag — a `p` tag naming the
+  // author is only a convention, not required, so some clients omit it. Knowing
+  // our own note ids lets the subscription match on the `e`/`q` tag directly and
+  // catch those reposts/quotes even when the author isn't tagged.
+  function loadOwnNoteIds(pubkey, relays) {
+    if (_ownNoteIdsPromises.has(pubkey)) return _ownNoteIdsPromises.get(pubkey);
+    const p = (async () => {
+      const ids = new Set();
+      try {
+        const evs = await getPool().querySync(relays, { kinds: [1], authors: [pubkey], limit: 150 });
+        (evs || [])
+          .sort((x, y) => y.created_at - x.created_at)
+          .slice(0, 150)
+          .forEach((e) => ids.add(e.id));
+      } catch (_) {}
+      _ownNoteIds.set(pubkey, ids);
+      return ids;
+    })();
+    _ownNoteIdsPromises.set(pubkey, p);
+    return p;
+  }
+
+  async function initNotifSubs() {
+    if (!state || !state.accounts || state.accounts.length === 0) return;
+    await loadNotifSeen();
+    const relays = await relayUrls(false);
+    if (!relays.length) return;
+    const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // notification backfill window
+
+    for (const a of state.accounts) {
+      if (_notifCache.has(a.pubkey)) continue;
+
+      // Load mutes and own note ids BEFORE subscribing so addEvent filters from
+      // the first event and the repost/quote filters below are ready. Cap the
+      // wait so a slow relay can't stall notifications — the fetches keep
+      // running and mutes prune the cache once it lands.
+      const [, ownIds] = await Promise.all([
+        Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
+        Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
+      ]);
+
+      const cache = { events: [], liveSub: null };
+      _notifCache.set(a.pubkey, cache);
+
+      const addEvent = (ev) => {
+        if (ev.pubkey === a.pubkey) return;
+        const muted = _muteLists.get(a.pubkey);
+        if (muted && muted.has(ev.pubkey)) return;
+        if (cache.events.some((e) => e.id === ev.id)) return;
+        cache.events.push(ev);
+        cache.events.sort((x, y) => y.created_at - x.created_at);
+        if (cache.events.length > 100) cache.events.length = 100;
+        prefetchNotifProfile(ev.pubkey, relays);
+        if (a.pubkey === state?.activePubkey) refreshBell();
+        // The notif modal for this account is open right now — append the new
+        // event to the visible list instead of leaving it to only show up the
+        // next time the modal is reopened.
+        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) {
+          _openNotifBell.clearEmptyMessage();
+          _openNotifBell.list.prepend(_openNotifBell.buildItem(ev));
+        }
+      };
+
+      // Mentions/replies/reactions/zaps tagging the account, plus reposts
+      // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
+      // own notes — matched by id so they're caught even without a `p` tag.
+      const ownIdList = [...ownIds];
+      function buildFilters(sinceTs, limit) {
+        const base = { kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since: sinceTs };
+        const list = [limit ? Object.assign({ limit }, base) : base];
+        if (ownIdList.length) {
+          const repost = { kinds: [6], '#e': ownIdList, since: sinceTs };
+          const quote = { kinds: [1], '#q': ownIdList, since: sinceTs };
+          list.push(limit ? Object.assign({ limit }, repost) : repost);
+          list.push(limit ? Object.assign({ limit }, quote) : quote);
+        }
+        return list;
+      }
+
+      const liveSince = Math.floor(Date.now() / 1000);
+      // nostr-tools ≥2.20 subscriptions take a single filter object, not an array —
+      // open one subscription per filter (the pool shares the relay sockets).
+      try {
+        for (const f of buildFilters(since, 50)) {
+          getPool().subscribeManyEose(relays, f, { onevent: addEvent });
+        }
+      } catch (_) {}
+      try {
+        const subs = buildFilters(liveSince).map((f) =>
+          getPool().subscribeMany(relays, f, { onevent: addEvent })
+        );
+        cache.liveSub = { close: () => subs.forEach((s) => { try { s.close(); } catch (_) {} }) };
+      } catch (_) {}
+    }
+  }
+
+  async function showNotifModal(a) {
+    const seenAt = _notifSeenAt[a.pubkey] || 0;
+    const cache = _notifCache.get(a.pubkey) || { events: [] };
+    const now = Math.floor(Date.now() / 1000);
+    await saveNotifSeen(a.pubkey, now);
+    refreshBell();
+
+    const client = await preferredClient();
+    const relays = await relayUrls(false);
+
+    // Open with whatever's already cached — instant, no relay round-trip — using
+    // the mute list from the last load/refresh. A fresh mute check and any
+    // missing sender names are resolved in the background after the modal is
+    // already open and interactive (see below), instead of blocking the modal
+    // from appearing at all.
+    const muted = _muteLists.get(a.pubkey);
+    const events = muted && muted.size ? cache.events.filter((e) => !muted.has(e.pubkey)) : cache.events;
+    const PAGE = 25;
+
+    function buildItem(ev) {
+      const isNew = ev.created_at > seenAt;
+      const { glyph, text } = notifLabel(ev);
+
+      // Where this notification opens (a renderable note/article/profile URL), or
+      // '' when there's no sensible target.
+      const linkTarget = notifLink(ev, client, a.pubkey);
+
+      // The whole card is the click target — open it in the preferred client.
+      const item = linkTarget
+        ? h('a', {
+            className: 'notif-item notif-clickable' + (isNew ? ' notif-new' : ''),
+            href: linkTarget,
+            target: '_blank',
+            rel: 'noreferrer noopener',
+            title: 'Open in ' + client.label,
+          })
+        : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
+      // Lets the background mute re-check (see showNotifModal) remove this row
+      // in place if the author turns out to be freshly muted.
+      item.dataset.pubkey = ev.pubkey;
+
+      // Reuse an existing client tab on a plain left-click; leave modified clicks
+      // (cmd/ctrl/shift) to the anchor's default new-tab behavior.
+      if (linkTarget) {
+        item.addEventListener('click', (e) => {
+          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          openInClient(linkTarget);
+        });
+      }
+
+      // Top row: glyph · name (truncated) · time · arrow
+      const right = h('div', { className: 'notif-top-right' }, [
+        h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) }),
+      ]);
+      if (linkTarget) {
+        const arrow = h('span', { className: 'notif-link' });
+        arrow.appendChild(icon('arrow-up-right'));
+        right.appendChild(arrow);
+      }
+      // Renders with whatever name is cached now (often a short npub on first
+      // sight of a sender); patched to the real name in place once the
+      // background profile fetch below resolves.
+      const authorEl = h('span', {
+        className: 'notif-author',
+        textContent: notifAuthorName(zapSender(ev)),
+      });
+      authorEl.dataset.senderPubkey = zapSender(ev);
+      // Zap notifications use the crisp filled bolt (boltIcon, themed via
+      // currentColor) instead of the ⚡ emoji, which washes out on light themes.
+      const glyphEl = h('span', { className: 'notif-glyph' });
+      if (glyph === '⚡') glyphEl.appendChild(boltIcon());
+      else glyphEl.textContent = glyph;
+      const topRow = h('div', { className: 'notif-top' }, [
+        glyphEl,
+        authorEl,
+        right,
+      ]);
+      item.appendChild(topRow);
+
+      // Action row
+      item.appendChild(h('div', { className: 'notif-action', textContent: text }));
+
+      if (ev.kind === 1 && ev.content) {
+        const cleaned = cleanSnippet(ev.content);
+        if (cleaned) {
+          const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+          const contentEl = h('p', { className: 'notif-content', textContent: snippet });
+          // data-note-id lets the background mention-name patch below (see
+          // showNotifModal) find and re-render this snippet once a mentioned
+          // profile resolves — it's rendered here with whatever names are
+          // cached at build time, often just a truncated bech32.
+          contentEl.dataset.noteId = ev.id;
+          item.appendChild(contentEl);
+        }
+
+        const { images, av } = extractMedia(ev.content);
+        if (images.length) {
+          const media = h('div', { className: 'notif-media' });
+          images.slice(0, 3).forEach((src) => {
+            const img = document.createElement('img');
+            img.className = 'notif-thumb';
+            img.src = src;
+            img.alt = '';
+            img.loading = 'lazy';
+            img.referrerPolicy = 'no-referrer';
+            img.onerror = () => img.remove();
+            media.appendChild(img);
+          });
+          item.appendChild(media);
+        }
+        if (av.length) {
+          const isVideo = /\.(?:mp4|mov|webm|m3u8)(?:\?|$)/i.test(av[0]);
+          item.appendChild(
+            h('div', { className: 'notif-media-chip', textContent: (isVideo ? '🎬 ' : '🎵 ') + (isVideo ? 'Video' : 'Audio') })
+          );
+        }
+      }
+      return item;
+    }
+
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      modal.appendChild(xBtn);
+
+      const heading = h('div', { className: 'notif-modal-head' });
+      heading.append(
+        avatarEl(a, 'notif-modal-av'),
+        h('div', {}, [
+          h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
+          h('div', { className: 'notif-modal-sub', textContent: displayName(a) }),
+        ])
+      );
+      modal.appendChild(heading);
+
+      const scroll = h('div', { className: 'notif-scroll' });
+      const list = h('div', { className: 'notif-list' });
+      scroll.appendChild(list);
+      modal.appendChild(scroll);
+
+      // Shown only until the first real item arrives — either from the initial
+      // page below, or live via addEvent while this modal stays open.
+      let emptyMsg = events.length ? null : h('p', { className: 'hint', textContent: 'No recent notifications found.' });
+      if (emptyMsg) scroll.appendChild(emptyMsg);
+      function clearEmptyMessage() {
+        if (emptyMsg) { emptyMsg.remove(); emptyMsg = null; }
+      }
+
+      let shown = 0;
+      let moreBtn = null;
+      let endNote = null;
+
+      function loadMore() {
+        const next = events.slice(shown, shown + PAGE);
+        next.forEach((ev) => list.appendChild(buildItem(ev)));
+        shown += next.length;
+        if (shown >= events.length) {
+          if (moreBtn) { moreBtn.remove(); moreBtn = null; }
+          if (!endNote) {
+            const sub = h('p', { className: 'notif-end-sub' });
+            let profileUrl = '';
+            try { profileUrl = client.profile(NT.nip19.npubEncode(a.pubkey)); } catch (_) {}
+            sub.appendChild(document.createTextNode('Visit '));
+            if (profileUrl) {
+              const link = document.createElement('a');
+              link.className = 'notif-end-link';
+              link.href = profileUrl;
+              link.target = '_blank';
+              link.rel = 'noreferrer noopener';
+              link.textContent = client.label;
+              sub.appendChild(link);
+            } else {
+              sub.appendChild(document.createTextNode(client.label));
+            }
+            sub.appendChild(document.createTextNode(' for more history.'));
+            endNote = h('div', { className: 'notif-end' }, [
+              h('p', { className: 'notif-end-title', textContent: "You're all caught up." }),
+              sub,
+            ]);
+            scroll.appendChild(endNote);
+          }
+        } else if (!moreBtn) {
+          moreBtn = h('button', { className: 'notif-load-more', textContent: 'Load more' });
+          moreBtn.addEventListener('click', loadMore);
+          scroll.appendChild(moreBtn);
+        }
+      }
+
+      if (events.length) loadMore();
+
+      // Let a live event arriving while this modal is open (see addEvent in
+      // initNotifSubs) prepend straight into the visible list.
+      _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage };
+
+      // Background reconciliation — runs after the modal is already open and
+      // interactive, so neither of these ever blocks it from appearing:
+      // 1. A fresh (force) mute-list fetch, in case a mute landed after the
+      //    cached list above was last loaded — see loadMuteList.
+      // 2. Resolving real names for senders/mentions still showing a short
+      //    npub (whatever wasn't already cached).
+      (async () => {
+        const need = new Set();
+        events.forEach((e) => {
+          need.add(zapSender(e)); // the zapper for zaps, the author otherwise
+          if (e.kind === 1 && e.content) {
+            const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+            let mm;
+            while ((mm = re.exec(e.content)) !== null) {
+              try {
+                const d = NT.nip19.decode(mm[1]);
+                const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
+                if (pk) need.add(pk);
+              } catch (_) {}
+            }
+          }
+        });
+        const uncached = [...need].filter((pk) => !_notifProfiles.get(pk));
+
+        await Promise.all([
+          Promise.race([loadMuteList(a.pubkey, relays, true), new Promise((r) => setTimeout(r, 3000))]),
+          Promise.all(uncached.map((pk) => prefetchNotifProfile(pk, relays))),
+        ]);
+
+        // Drop any row whose author turned out to be freshly muted.
+        const freshMuted = _muteLists.get(a.pubkey);
+        if (freshMuted && freshMuted.size) {
+          modal.querySelectorAll('.notif-item[data-pubkey]').forEach((el) => {
+            if (freshMuted.has(el.dataset.pubkey)) el.remove();
+          });
+        }
+        // Patch in any names that resolved after the row was first drawn.
+        modal.querySelectorAll('.notif-author[data-sender-pubkey]').forEach((el) => {
+          const name = _notifProfiles.get(el.dataset.senderPubkey);
+          if (name) el.textContent = name;
+        });
+        // Re-clean note snippets too — cleanSnippet falls back to a truncated
+        // bech32 for @mentions whose profile wasn't cached yet at build time,
+        // and that first pass never gets revisited otherwise.
+        const eventsById = new Map(events.map((e) => [e.id, e]));
+        modal.querySelectorAll('.notif-content[data-note-id]').forEach((el) => {
+          const e = eventsById.get(el.dataset.noteId);
+          if (!e) return;
+          const cleaned = cleanSnippet(e.content);
+          el.textContent = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+        });
+      })();
+    }, () => {
+      if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) _openNotifBell = null;
+    });
   }
 
   // Sparkle hero shown in the empty (no-account) state — a classy welcome that
@@ -520,6 +1654,12 @@
     $('acct-btn').disabled = !hasAccounts;
     $('accounts-heading').classList.toggle('hidden', !hasAccounts);
 
+    // Once an account exists, the two full-size Generate/Import buttons are no
+    // longer the primary action on this tab — collapse them into a small link
+    // that opens the same two choices in a compact menu.
+    document.querySelector('#tab-accounts .add-actions').classList.toggle('hidden', hasAccounts);
+    $('add-account-link').classList.toggle('hidden', !hasAccounts);
+
     // "Pinned and open" tip sits below the add buttons (where it won't get lost),
     // shown only while onboarding.
     let tip = $('welcome-tip');
@@ -541,6 +1681,14 @@
       if (t) t.disabled = !hasAccounts;
     });
     $('compose-fab').disabled = !hasAccounts;
+    const balloon = $('first-post-balloon');
+    if (balloon) {
+      const showBalloon = hasAccounts &&
+        !!state.activePubkey &&
+        _firstPostSeenPubkeys !== null &&
+        !_firstPostSeenPubkeys.has(state.activePubkey);
+      balloon.classList.toggle('hidden', !showBalloon);
+    }
     if (!hasAccounts) {
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       const acc = document.querySelector('.tab[data-tab="accounts"]');
@@ -552,6 +1700,7 @@
     // persistent header chip (current account)
     applyAvatar($('chip-av'), active || {});
     $('chip-name').textContent = active ? displayName(active) : 'No account';
+    refreshBell();
 
     // The active account already shows in the header chip and is marked (check +
     // highlight) in the list below, so the big "booth" card was a third copy.
@@ -657,6 +1806,7 @@
           await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
           await refresh();
           toast('Switched to ' + displayName(a), 'success');
+          if (!(await offerTabReload())) maybeShowSwitchTip();
         } else {
           row.classList.add('item-pending');
           label.textContent = 'Set as active?';
@@ -668,6 +1818,7 @@
 
     const actions = document.createElement('div');
     actions.className = 'item-actions';
+
     if (isActive) {
       const check = icon('check');
       check.classList.add('active-check');
@@ -697,17 +1848,81 @@
   labelButton('add-import', 'download', 'Import nsec');
   $('add-generate').addEventListener('click', () => generateAccount());
   $('add-import').addEventListener('click', () => importAccountModal());
+  $('add-account-link').addEventListener('click', () => addAccountModal());
+  $('explore-apps-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  });
+
+  // Share Sidecar via the OS's native share sheet when available (Messages, Mail,
+  // AirDrop, …); fall back to copying the store link when Web Share isn't offered
+  // (e.g. desktop Linux). Wired to the Accounts footer link + the Settings button.
+  const SIDECAR_STORE_URL = 'https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln';
+  async function shareSidecar() {
+    // Fold the link INTO the text (no separate `url` field): with both set, most
+    // share targets use only the url and drop the message — embedding it keeps
+    // the blurb + link together everywhere.
+    const message = 'Sidecar — a classy Nostr signer right in your browser side panel.\n' + SIDECAR_STORE_URL;
+    const shareData = { text: message };
+    if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+      try { await navigator.share(shareData); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; } // dismissed → done; else fall through to copy
+    }
+    try {
+      await navigator.clipboard.writeText(message);
+      toast('Message copied — share it with a friend', 'success');
+    } catch (_) {
+      toast('Could not share', 'error');
+    }
+  }
+  const shareLink = $('share-sidecar-link');
+  shareLink.prepend(icon('share'));
+  shareLink.addEventListener('click', (e) => { e.preventDefault(); shareSidecar(); });
+  const shareBtn = $('share-sidecar-btn');
+  shareBtn.prepend(icon('share'));
+  shareBtn.addEventListener('click', () => shareSidecar());
+
+  // ---- first-post tip balloon (once per imported nsec) ----
+  (function initFirstPostBalloon() {
+    const balloon = $('first-post-balloon');
+    if (!balloon) return;
+    chrome.storage.local.get('firstPostTipSeenPubkeys', ({ firstPostTipSeenPubkeys }) => {
+      _firstPostSeenPubkeys = new Set(Array.isArray(firstPostTipSeenPubkeys) ? firstPostTipSeenPubkeys : []);
+      if (state?.accounts) renderMain();
+    });
+    balloon.addEventListener('click', () => {
+      if (state?.activePubkey) {
+        _firstPostSeenPubkeys = _firstPostSeenPubkeys || new Set();
+        _firstPostSeenPubkeys.add(state.activePubkey);
+        chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
+      }
+      balloon.classList.add('hidden');
+      openComposer('Just setting up my #Sidecar 🍸');
+    });
+  })();
 
   // ---- modals ----
   let modalCleanup = null;
   function openModal(buildContent, onClose) {
     const modal = $('modal');
     modal.innerHTML = '';
+    modal.classList.remove('modal-sheet'); // reset full-height variant; opt back in per modal
     modalCleanup = onClose || null;
     buildContent(modal);
     show($('modal-overlay'));
     document.documentElement.classList.add('modal-open');
   }
+  // These modals are built from loose inputs + buttons (not a <form>), so Enter
+  // wouldn't submit. Treat Enter in a text input as a click on the primary action.
+  // (Textareas keep Enter for newlines.)
+  $('modal').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    const primary = $('modal').querySelector('button.primary');
+    if (primary && !primary.disabled) {
+      e.preventDefault();
+      primary.click();
+    }
+  });
   function closeModal() {
     if (modalCleanup) { try { modalCleanup(); } catch (_) {} modalCleanup = null; }
     hide($('modal-overlay'));
@@ -729,6 +1944,11 @@
   async function generateAccount() {
     try {
       const gen = await call({ type: 'SIDECAR_ADD_ACCOUNT', generate: true });
+      // Make the new account active BEFORE anything can publish to it. Generate
+      // only auto-activates the very first account; without this the setup wizard
+      // would publish its kind:0 to whatever account was already active — which
+      // once overwrote an unrelated existing profile.
+      if (gen && gen.pubkey) await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: gen.pubkey });
       await refresh(); // renderMain() then pulls the profile for the new account
       toast('Account created', 'success');
       if (gen && gen.nsec) {
@@ -737,6 +1957,10 @@
           title: 'Back up your new key',
           intro:
             'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
+          // A brand-new key has no profile yet — once they've backed it up, run a
+          // short setup wizard (name → photo → bio), which publishes what they
+          // fill in and lands them on the Profile tab to complete the rest.
+          onDone: () => profileSetupWizard(gen.pubkey),
         });
       }
     } catch (e) {
@@ -744,12 +1968,96 @@
     }
   }
 
+  // Decrypt a NIP-49 ncryptsec string to an nsec, so the rest of the import path
+  // (SIDECAR_ADD_ACCOUNT, decodeSecret) never has to know ncryptsec exists. Throws
+  // a friendly message on a bad password or malformed string.
+  function decryptNcryptsec(ncryptsec, password) {
+    let sk;
+    try {
+      sk = window.SidecarNip49.decrypt(ncryptsec, password);
+    } catch (_) {
+      throw new Error('Incorrect password, or not a valid ncryptsec key.');
+    }
+    return NT.nip19.nsecEncode(sk);
+  }
+
   function importAccountModal() {
     openModal((modal) => {
       modal.append(h('h3', { textContent: 'Import account' }));
       const err = h('div', { className: 'error' });
-      const secretInput = h('input', { type: 'password', className: 'nsec-field', placeholder: 'nsec1… or 64-char hex' });
+      const secretInput = h('input', {
+        type: 'password',
+        className: 'nsec-field',
+        placeholder: 'nsec1…, ncryptsec1…, or 64-char hex',
+      });
       modal.append(h('label', { textContent: 'Private key' }), secretInput);
+
+      // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
+      // to decrypt — shown only once the pasted value looks like one.
+      const cryptPass = h('input', { type: 'password', placeholder: 'Decryption password' });
+      const cryptRow = h('div', { className: 'stack hidden' }, [
+        h('label', { textContent: 'Password' }),
+        cryptPass,
+      ]);
+      modal.append(cryptRow);
+
+      // Live preview: once the pasted key is valid, show whose account it is
+      // (npub + kind 0 name/picture) so the user can confirm before importing.
+      const pav = h('span', { className: 'ip-av' });
+      const pname = h('div', { className: 'ip-name' });
+      const pnpub = h('div', { className: 'ip-npub' });
+      const preview = h('div', { className: 'import-preview hidden' }, [
+        pav,
+        h('div', { className: 'ip-info' }, [pname, pnpub]),
+      ]);
+      modal.append(preview);
+
+      let previewSeq = 0;
+      let previewTimer = null;
+      async function updatePreview() {
+        err.textContent = '';
+        const raw = secretInput.value.trim();
+        const isNcryptsec = /^ncryptsec1/i.test(raw);
+        cryptRow.classList.toggle('hidden', !isNcryptsec);
+
+        let pubkey = '';
+        if (isNcryptsec) {
+          if (!cryptPass.value) return preview.classList.add('hidden');
+          try {
+            pubkey = pubkeyFromSecret(decryptNcryptsec(raw, cryptPass.value));
+          } catch (_) {
+            preview.classList.add('hidden');
+            return;
+          }
+        } else {
+          pubkey = pubkeyFromSecret(raw);
+        }
+
+        const seq = ++previewSeq;
+        if (!pubkey) return preview.classList.add('hidden');
+        const npub = NT.nip19.npubEncode(pubkey);
+        applyAvatar(pav, {});
+        pname.textContent = 'Fetching profile…';
+        pnpub.textContent = shortNpub(npub);
+        preview.classList.remove('hidden');
+        const prof = await fetchPreviewProfile(pubkey);
+        if (seq !== previewSeq) return; // a newer key superseded this fetch
+        if (prof && (prof.name || prof.picture)) {
+          applyAvatar(pav, { picture: prof.picture, name: prof.name });
+          pname.textContent = prof.name || shortNpub(npub);
+        } else {
+          pname.textContent = 'No profile found';
+        }
+      }
+      secretInput.addEventListener('input', () => {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(updatePreview, 350);
+      });
+      cryptPass.addEventListener('input', () => {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(updatePreview, 350);
+      });
+
       modal.append(
         h('p', {
           className: 'hint',
@@ -763,8 +2071,9 @@
       save.addEventListener('click', async () => {
         err.textContent = '';
         try {
-          const secret = secretInput.value.trim();
-          if (!secret) throw new Error('Enter an nsec or hex private key.');
+          const raw = secretInput.value.trim();
+          if (!raw) throw new Error('Enter an nsec, ncryptsec, or hex private key.');
+          const secret = /^ncryptsec1/i.test(raw) ? decryptNcryptsec(raw, cryptPass.value) : raw;
           await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
           closeModal();
           await refresh();
@@ -796,7 +2105,7 @@
           toast('npub copied', 'success');
           closeModal();
         }),
-        menuItem('Back up private key', 'key', () => revealNsecModal(a)),
+        menuItem('Back up private key', 'key', () => backupKeyModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
       ]);
@@ -810,32 +2119,279 @@
     });
   }
 
-  // Show an nsec with copy + warning (used after generate, and from reveal).
-  function nsecModal(opts) {
+  // Compact "+ Add account" menu — once an account already exists, the two
+  // full-size Generate/Import buttons collapse into this link, which opens the
+  // same two choices without needing a full button each.
+  function addAccountModal() {
     openModal((modal) => {
-      const box = h('div', { className: 'secret-box', textContent: opts.nsec });
-      const copy = h('button', { className: 'secondary', textContent: 'Copy nsec' });
-      copy.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(opts.nsec);
-          toast('nsec copied', 'success');
-        } catch (_) {}
+      const optionButton = (label, name, onClick) => {
+        const b = h('button', { className: 'secondary' });
+        b.append(icon(name), h('span', { textContent: label }));
+        b.addEventListener('click', onClick);
+        return b;
+      };
+      const generate = optionButton('Generate new', 'user-plus', () => {
+        closeModal();
+        generateAccount();
       });
-      const done = h('button', { className: 'primary', textContent: "I've saved it" });
-      done.addEventListener('click', closeModal);
+      const importBtn = optionButton('Import nsec', 'download', () => {
+        closeModal();
+        importAccountModal();
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: opts.title }),
-        opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
-        box,
-        copy,
-        h('p', { className: 'hint warn', textContent: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.' }),
-        h('div', { className: 'actions' }, [done])
+        h('h3', { textContent: 'Add account' }),
+        h('div', { className: 'add-actions modal-add-actions' }, [generate, importBtn]),
+        h('div', { className: 'actions' }, [cancel])
       );
     });
   }
 
-  // Reveal an existing account's nsec — PIN-gated step-up.
-  function revealNsecModal(a) {
+  // Renders the box/copy/QR/countdown UI for a revealed secret into `container`
+  // (cleared first) and starts a 30s auto-hide timer. Shared by nsecModal (a
+  // single-secret reveal) and keyBackupModal (a tabbed nsec/ncryptsec reveal),
+  // so both auto-hide identically. Returns a stop() to clear the timer when the
+  // container is about to be replaced or the modal is closing.
+  const NSEC_REVEAL_TIMEOUT_S = 30;
+  const QR_REVEAL_TIMEOUT_S = 30;
+  function renderSecretReveal(container, opts) {
+    container.innerHTML = '';
+    container.classList.add('secret-reveal'); // full-width, evenly-stacked action buttons
+    const secret = opts.secret;
+    const noun = opts.noun || 'nsec';
+    const qrLevel = opts.qrLevel || 'M';
+    // For long secrets (NWC connection strings), the QR and the text box are an
+    // either/or view — showing the QR hides the string + its copy button and back
+    // — so the two don't stack into an overlong panel.
+    const qrExclusive = !!opts.qrExclusive;
+    const hideMsg = (s) => 'Hiding in ' + s + 's. Reveal again with your PIN.';
+
+    // ---- text-secret auto-hide ----
+    // The copyable string auto-hides after a short window; its countdown sits at
+    // the bottom. Paused while the QR is open (see below) so the modal can't
+    // close out from under a scan in progress.
+    let remaining = NSEC_REVEAL_TIMEOUT_S;
+    let mainTimer = null;
+    const countdown = h('p', { className: 'hint', textContent: hideMsg(remaining) });
+    function stopMain() { if (mainTimer) { clearInterval(mainTimer); mainTimer = null; } }
+    function startMain() {
+      stopMain();
+      countdown.classList.remove('hidden');
+      countdown.textContent = hideMsg(remaining);
+      mainTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) { stopMain(); if (opts.onExpire) opts.onExpire(); return; }
+        countdown.textContent = hideMsg(remaining);
+      }, 1000);
+    }
+
+    // ---- scannable QR (opt-in, with its own timer) ----
+    // For QR sign-in on mobile clients (e.g. Wisp), moving an ncryptsec to a
+    // NIP-49-aware app, or importing an NWC wallet. A QR exposes the whole secret
+    // at a glance and takes time to scan, so it's behind an explicit reveal,
+    // generated only on click, and carries its OWN visible countdown that hides
+    // just the QR when it lapses — while it's open the text auto-hide is paused.
+    // Case-sensitive bech32/URI, so encode as-is (byte mode).
+    const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' });
+    const qrHint = h('p', { className: 'hint hidden', textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.' });
+    const qrCountdown = h('p', { className: 'hint hidden' });
+    const showQr = h('button', { className: 'secondary qr-reveal-btn' });
+    let qrShown = false, qrCanvas = null, qrRemaining = QR_REVEAL_TIMEOUT_S, qrTimer = null;
+    const qrMsg = (s) => 'QR code hiding in ' + s + 's.';
+    const setQrLabel = () => {
+      showQr.innerHTML = '';
+      showQr.append(icon('qr'), h('span', { textContent: qrShown ? 'Hide QR code' : 'Show QR code' }));
+    };
+    function stopQr() { if (qrTimer) { clearInterval(qrTimer); qrTimer = null; } }
+    function hideQr() {
+      qrShown = false;
+      stopQr();
+      qrCanvasWrap.classList.add('hidden');
+      qrHint.classList.add('hidden');
+      qrCountdown.classList.add('hidden');
+      if (qrExclusive) { box.classList.remove('hidden'); copy.classList.remove('hidden'); }
+      setQrLabel();
+      startMain(); // resume the text-secret auto-hide
+    }
+    function openQr() {
+      qrShown = true;
+      if (!qrCanvas) {
+        qrCanvas = document.createElement('canvas');
+        qrCanvas.className = 'recv-qr modal-qr';
+        try { window.SidecarQR.draw(qrCanvas, secret, 220, qrLevel); } catch (_) {}
+        qrCanvasWrap.append(qrCanvas);
+      }
+      if (qrExclusive) { box.classList.add('hidden'); copy.classList.add('hidden'); }
+      qrCanvasWrap.classList.remove('hidden');
+      qrHint.classList.remove('hidden');
+      stopMain();
+      countdown.classList.add('hidden'); // the paused text countdown would be a frozen distraction
+      qrRemaining = QR_REVEAL_TIMEOUT_S;
+      qrCountdown.textContent = qrMsg(qrRemaining);
+      qrCountdown.classList.remove('hidden');
+      stopQr();
+      qrTimer = setInterval(() => {
+        qrRemaining -= 1;
+        if (qrRemaining <= 0) { hideQr(); return; }
+        qrCountdown.textContent = qrMsg(qrRemaining);
+      }, 1000);
+      setQrLabel();
+    }
+    setQrLabel();
+    showQr.addEventListener('click', () => { if (qrShown) hideQr(); else openQr(); });
+
+    const box = h('div', { className: 'secret-box', textContent: secret });
+    const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(secret);
+        toast(noun + ' copied', 'success');
+      } catch (_) {}
+    });
+
+    container.append(
+      box,
+      copy,
+      showQr,
+      qrCanvasWrap,
+      qrHint,
+      qrCountdown, // sits with the QR so its timer is always in view while scanning
+      h('p', {
+        className: 'hint warn',
+        textContent: opts.warnText || 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
+      }),
+      countdown
+    );
+    startMain();
+    return () => { stopMain(); stopQr(); };
+  }
+
+  // Show a single secret string (nsec) with copy/QR/countdown — used only for
+  // the post-generate "back this up now" flow (a brand-new key has no
+  // ncryptsec-export use case yet). Backing up an *existing* account's key
+  // goes through keyBackupModal instead, which offers both nsec and ncryptsec.
+  function nsecModal(opts) {
+    let stop = null;
+    openModal(
+      (modal) => {
+        const body = h('div', {});
+        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        done.addEventListener('click', closeModal);
+        modal.append(
+          h('h3', { textContent: opts.title }),
+          opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
+          body,
+          h('div', { className: 'actions' }, [done])
+        );
+        stop = renderSecretReveal(body, {
+          secret: opts.secret || opts.nsec,
+          noun: opts.noun,
+          warnText: opts.warnText,
+          qrHint: opts.qrHint,
+          onExpire: closeModal,
+        });
+      },
+      () => {
+        if (stop) stop();
+        // Runs on any close (button, X, or the 30s auto-hide). Defer to a fresh
+        // tick: onDone opens the setup wizard (another modal), and this
+        // closeModal still nulls modalCleanup and clears #modal right after this
+        // callback returns — running it inline would tear the wizard back down.
+        if (opts.onDone) setTimeout(opts.onDone, 0);
+      }
+    );
+  }
+
+  // Shown once, right after the PIN is created — before the empty-state welcome
+  // hero appears. There is no reset flow for this PIN (that's the point of local
+  // encryption), so this is the one moment to make sure it actually got captured
+  // somewhere durable, not just typed and forgotten. A gently swaying antique key
+  // (distinct from the small modern 'key' glyph used elsewhere) draws the eye.
+  function pinReminderModal(onDone) {
+    openModal(
+      (modal) => {
+        const keyWrap = h('div', { className: 'pin-reminder-icon' });
+        keyWrap.innerHTML =
+          '<svg class="pin-reminder-key" viewBox="0 0 36 24" fill="none" stroke="currentColor" ' +
+          'stroke-linecap="round" stroke-linejoin="round">' +
+          '<circle cx="8" cy="12" r="6" stroke-width="2.25"></circle>' +
+          '<line x1="8" y1="9.5" x2="8" y2="14.5" stroke-width="1.4"></line>' +
+          '<line x1="5.5" y1="12" x2="10.5" y2="12" stroke-width="1.4"></line>' +
+          '<line x1="14" y1="12" x2="30" y2="12" stroke-width="2.25"></line>' +
+          '<line x1="24" y1="12" x2="24" y2="17" stroke-width="2.25"></line>' +
+          '<line x1="29" y1="12" x2="29" y2="16" stroke-width="2.25"></line>' +
+          '</svg>';
+        const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+        ok.addEventListener('click', closeModal);
+        const body = h('p', { className: 'hint pin-reminder-body' });
+        body.append(
+          document.createTextNode('Write it down, or save it in a password manager, before you go any further. '),
+          h('strong', { className: 'pin-reminder-warn', textContent: "This PIN can't be recovered" }),
+          document.createTextNode(' — only a separate backup of your keys can get your accounts back.')
+        );
+        modal.append(
+          keyWrap,
+          h('h3', { className: 'pin-reminder-title', textContent: 'Save your PIN somewhere safe' }),
+          body,
+          h('div', { className: 'actions' }, [ok])
+        );
+      },
+      () => { if (onDone) setTimeout(onDone, 0); }
+    );
+  }
+
+  // One-time notice for keystores that predate the 15-minute auto-lock default:
+  // their Settings were never touched, so 1.4 turned auto-lock on for them
+  // silently. Tell them — and remind them the unlock PIN is unrecoverable, since
+  // they also predate the save-your-PIN reminder above. New keystores never see
+  // this (SIDECAR_INIT stores the default explicitly). Writing the resolved value
+  // back as their explicit setting also means a future default change can't
+  // silently move it again.
+  let autoLockNoticePending = false;
+  async function maybeShowAutoLockNotice(settings) {
+    if (autoLockNoticePending) return;
+    if (!settings || !settings.autoLockDefaulted || settings.autoLockNoticeShown) return;
+    autoLockNoticePending = true;
+    try {
+      await call({
+        type: 'SIDECAR_SET_SETTINGS',
+        settings: { autoLockMinutes: settings.autoLockMinutes, autoLockNoticeShown: true },
+      });
+    } catch (_) {
+      autoLockNoticePending = false; // couldn't persist; try again next refresh
+      return;
+    }
+    autoLockNoticeModal(settings.autoLockMinutes);
+  }
+
+  function autoLockNoticeModal(minutes) {
+    openModal((modal) => {
+      const body = h('p', { className: 'hint pin-reminder-body' });
+      body.append(
+        document.createTextNode('Sidecar now locks itself after ' + minutes + ' minutes of inactivity. Unlocking uses the PIN you chose when you set up Sidecar — '),
+        h('strong', { className: 'pin-reminder-warn', textContent: "it can't be recovered" }),
+        document.createTextNode(", so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.")
+      );
+      const settingsBtn = h('button', { className: 'ghost', textContent: 'Auto-lock settings' });
+      settingsBtn.addEventListener('click', () => {
+        closeModal();
+        hide($('view-main'));
+        show($('view-settings'));
+        renderSettings();
+      });
+      const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+      ok.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { className: 'pin-reminder-title', textContent: 'Sidecar now locks automatically' }),
+        body,
+        h('div', { className: 'actions' }, [settingsBtn, ok])
+      );
+    });
+  }
+
+  // PIN-gated step-up, then the tabbed nsec/ncryptsec backup view below.
+  function backupKeyModal(a) {
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
@@ -847,7 +2403,8 @@
         go.textContent = 'Revealing…';
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
-          nsecModal({ nsec: r.nsec, title: 'Private key', intro: 'Back this up somewhere safe.' });
+          closeModal();
+          setTimeout(() => keyBackupModal(a, r.nsec), 0);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
@@ -859,13 +2416,125 @@
       cancel.addEventListener('click', closeModal);
       modal.append(
         h('h3', { textContent: 'Back up private key' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the nsec for ' + displayName(a) + '.' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the key for ' + displayName(a) + '.' }),
         h('label', { textContent: 'PIN' }),
         pin,
         err,
         h('div', { className: 'actions' }, [go, cancel])
       );
     });
+  }
+
+  // Tabbed nsec/ncryptsec backup view — one PIN-gated reveal (backupKeyModal,
+  // above) covers both, since ncryptsec is just the same key in a different,
+  // password-encrypted format (not a separate secret). Keeping them as tabs of
+  // one screen makes that relationship obvious, instead of two menu items that
+  // could read as two different exportable secrets.
+  //
+  // nsec shows immediately with the standard reveal UI. ncryptsec isn't a
+  // passive view — switching to it shows a small "set an export password" form
+  // first, then the standard reveal UI once submitted. Switching tabs stops
+  // whatever's currently revealed (its own 30s countdown) rather than trying
+  // to share one timer across both.
+  function keyBackupModal(a, nsec) {
+    let stopReveal = null;
+    function stop() {
+      if (stopReveal) { stopReveal(); stopReveal = null; }
+    }
+
+    openModal(
+      (modal) => {
+        const body = h('div', { className: 'key-backup-body' });
+
+        function showNsecTab() {
+          stop();
+          stopReveal = renderSecretReveal(body, {
+            secret: nsec,
+            noun: 'nsec',
+            warnText: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
+            qrHint: 'Scan to sign in on a mobile client that supports QR login.',
+            onExpire: closeModal,
+          });
+        }
+
+        function showNcryptsecTab() {
+          stop();
+          body.innerHTML = '';
+          const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
+          const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+          const err = h('div', { className: 'error' });
+          const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
+          go.addEventListener('click', () => {
+            err.textContent = '';
+            if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
+            if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+            let ncryptsec;
+            try {
+              const sk = NT.nip19.decode(nsec).data;
+              ncryptsec = window.SidecarNip49.encrypt(sk, pass.value);
+            } catch (e) {
+              err.textContent = 'Could not encrypt the key.';
+              return;
+            }
+            stopReveal = renderSecretReveal(body, {
+              secret: ncryptsec,
+              noun: 'ncryptsec',
+              warnText: 'Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.',
+              qrHint: 'Scan to import into another NIP-49-compatible app.',
+              onExpire: closeModal,
+            });
+          });
+          body.append(
+            h('p', {
+              className: 'hint',
+              textContent:
+                "This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it.",
+            }),
+            h('label', { textContent: 'Password' }),
+            pass,
+            h('label', { textContent: 'Confirm password' }),
+            pass2,
+            err,
+            h('div', { className: 'actions' }, [go])
+          );
+          // Live length/match feedback (green check / red x) on the export
+          // password pair, same as PIN creation/change; gates the button.
+          attachPinValidation(pass, pass2, go);
+        }
+
+        const tabNsec = h('button', { className: 'modal-tab active', textContent: 'nsec' });
+        const tabNcrypt = h('button', { className: 'modal-tab', textContent: 'ncryptsec' });
+        tabNsec.addEventListener('click', () => {
+          if (tabNsec.classList.contains('active')) return;
+          tabNsec.classList.add('active');
+          tabNcrypt.classList.remove('active');
+          showNsecTab();
+        });
+        tabNcrypt.addEventListener('click', () => {
+          if (tabNcrypt.classList.contains('active')) return;
+          tabNcrypt.classList.add('active');
+          tabNsec.classList.remove('active');
+          showNcryptsecTab();
+        });
+
+        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        done.addEventListener('click', closeModal);
+
+        modal.append(
+          h('h3', { textContent: 'Back up private key' }),
+          h('p', {
+            className: 'hint',
+            textContent: 'Two formats of the same key for ' + displayName(a) + ' — nsec works with most apps; ncryptsec is password-protected, for apps that support it.',
+          }),
+          h('div', { className: 'modal-tabs' }, [tabNsec, tabNcrypt]),
+          body,
+          h('div', { className: 'actions' }, [done])
+        );
+
+        showNsecTab();
+      },
+      () => stop()
+    );
   }
 
   function renameModal(a) {
@@ -925,11 +2594,39 @@
 
   // ---- settings ----
   async function renderSettings() {
+    // version + update check
+    const build = window.SIDECAR_BUILD || {};
+    const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+    $('settings-version').textContent = ver
+      ? 'Version ' + ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '')
+      : '';
+    $('check-update-status').textContent = '';
+
     // auto-lock
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
     $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
+    $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
+    $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
+    $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
+    $('autozap-toggle').checked = settings.autoZap === true;
+    const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
+    $('autozap-max').value = String(azMax);
+    $('autozap-daily-max').value = String(Number(settings.autoZapDailyMaxSats) || azMax * AUTOZAP_DAILY_MULT);
+    $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
+    $('autozap-daily-row').classList.toggle('hidden', !$('autozap-toggle').checked);
+
+    const cdOn = settings.noteCountdown !== false; // default on
+    const cdSecs = NOTE_COUNTDOWN_PRESETS.includes(settings.noteCountdownSecs) ? settings.noteCountdownSecs : NOTE_COUNTDOWN_DEFAULT;
+    $('countdown-toggle').checked = cdOn;
+    $('countdown-presets').classList.toggle('hidden', !cdOn);
+    $('countdown-presets').querySelectorAll('.preset-chip').forEach((c) =>
+      c.classList.toggle('active', Number(c.dataset.secs) === cdSecs));
+
+    // theme
+    const theme = settings.theme || 'speakeasy'; // default to speakeasy
+    applyTheme(theme);
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -958,8 +2655,16 @@
   ];
   const KIND_NAMES = {
     0: 'profile', 1: 'note', 3: 'contacts', 4: 'direct message', 5: 'deletion',
-    6: 'repost', 7: 'reaction', 1059: 'gift wrap', 9734: 'zap request',
-    10002: 'relay list', 22242: 'relay auth', 24133: 'connect', 27235: 'HTTP auth', 30023: 'article',
+    6: 'repost', 7: 'reaction', 8: 'badge award', 62: 'vanish request',
+    1018: 'poll response', 1059: 'gift wrap', 1068: 'poll', 1222: 'voice message',
+    1337: 'code snippet', 1985: 'label', 4454: 'DM device key', 4455: 'DM key transfer',
+    4550: 'community post', 9041: 'zap goal', 9321: 'nutzap', 9734: 'zap request',
+    9802: 'highlight', 10000: 'mute list', 10002: 'relay list', 10006: 'blocked relays',
+    10007: 'search relays', 10012: 'favorite relays', 10015: 'interests', 10030: 'emoji list',
+    10044: 'DM encryption key', 10050: 'DM relay list', 10063: 'blossom servers',
+    22242: 'relay auth', 24133: 'connect', 24242: 'blossom auth', 27235: 'HTTP auth',
+    30000: 'follow set', 30023: 'article', 30078: 'app data', 30315: 'status',
+    30818: 'wiki article', 34550: 'community', 39089: 'starter pack', 39701: 'web bookmark',
   };
   const METHOD_META = {
     getPublicKey: { icon: 'key', label: () => 'Shared public key' },
@@ -980,9 +2685,15 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  function siteRow(host, level, boundPk) {
+  function siteRow(host, level, boundPk, authorizedPks, onForget) {
     const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
     const isActiveBound = boundPk && boundPk === state.activePubkey;
+    // 2+ accounts have signed in here — a multi-login client (Jumble, YakiHonne,
+    // …) may be showing a different one than the binding reflects. Content
+    // signs on a shared site confirm who's posting (see background.js); this
+    // just surfaces that state and lets the user prune an account they no
+    // longer use here, which collapses it back to a normal single-account site.
+    const isShared = Array.isArray(authorizedPks) && authorizedPks.length >= 2;
 
     const row = h('div', { className: 'item site-item' });
     const main = h('div', { className: 'item-main' });
@@ -992,6 +2703,15 @@
       who.append(avatarEl(boundAcct, 'site-bound-av'));
       who.append(h('span', { textContent: 'Signs in as ' + displayName(boundAcct) }));
       main.append(who);
+    }
+    if (isShared) {
+      const shared = h('div', { className: 'site-shared' });
+      shared.append(icon('users'));
+      shared.append(h('span', { textContent: authorizedPks.length + ' accounts have signed in here' }));
+      const manage = h('button', { className: 'site-shared-manage', textContent: 'Manage' });
+      manage.addEventListener('click', () => sharedSiteModal(host, authorizedPks));
+      shared.append(manage);
+      main.append(shared);
     }
     row.append(main);
 
@@ -1013,30 +2733,39 @@
       return row;
     }
 
-    // Bound to the active account (or unbound): tier selector + forget.
-    const sel = document.createElement('select');
-    sel.className = 'level-select';
-    LEVELS.forEach(([v, l]) => {
-      const o = h('option', { value: v, textContent: l });
-      if (v === level) o.selected = true;
-      sel.append(o);
-    });
-    sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
-    // Forget needs a deliberate step — first tap swaps the controls for an inline
-    // "Forget this site?" confirm so a stray click can't wipe a site's trust.
-    const rm = iconButton('Forget site', 'trash', () => {
+    // Bound to the active account (or unbound): tier selector + forget. Both the
+    // forget confirm and its cancel act on THIS row in place (rather than
+    // re-rendering the whole Activity view), so revoking a site deep in an
+    // expanded list doesn't collapse it back to page one — you can act on the
+    // neighbors right away.
+    function buildControls() {
       controls.innerHTML = '';
-      const msg = h('span', { className: 'confirm-msg', textContent: 'Forget this site?' });
-      const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
-      const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
-      no.addEventListener('click', () => renderActivity());
-      yes.addEventListener('click', async () => {
-        await call({ type: 'SIDECAR_REMOVE_HOST', host });
-        renderActivity();
+      const sel = document.createElement('select');
+      sel.className = 'level-select';
+      LEVELS.forEach(([v, l]) => {
+        const o = h('option', { value: v, textContent: l });
+        if (v === level) o.selected = true;
+        sel.append(o);
       });
-      controls.append(msg, yes, no);
-    });
-    controls.append(sel, rm);
+      sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
+      // Forget needs a deliberate step — first tap swaps the controls for an inline
+      // "Forget this site?" confirm so a stray click can't wipe a site's trust.
+      const rm = iconButton('Forget site', 'trash', () => {
+        controls.innerHTML = '';
+        const msg = h('span', { className: 'confirm-msg', textContent: 'Forget this site?' });
+        const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
+        const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+        no.addEventListener('click', buildControls); // restore controls in place
+        yes.addEventListener('click', async () => {
+          await call({ type: 'SIDECAR_REMOVE_HOST', host });
+          row.remove();
+          if (onForget) onForget();
+        });
+        controls.append(msg, yes, no);
+      });
+      controls.append(sel, rm);
+    }
+    buildControls();
     return row;
   }
 
@@ -1074,6 +2803,38 @@
     });
   }
 
+  // Lists every account that has signed in on a shared (multi-login) site, with
+  // a way to prune one the user no longer uses there. Dropping back to one
+  // account collapses the site to normal — no more shared-identity confirms.
+  function sharedSiteModal(host, authorizedPks) {
+    openModal((modal) => {
+      modal.append(
+        h('h3', { textContent: host }),
+        h('p', { className: 'hint', textContent: 'These accounts have signed in on this site. Every post, reaction, or message confirms who’s posting — a multi-account client’s own switcher can’t tell Sidecar which one you picked here. Remove an account below once you’re done using it on this site to go back to signing silently.' })
+      );
+      const list = h('div', { className: 'stack' });
+      authorizedPks.forEach((pk) => {
+        const a = state.accounts.find((x) => x.pubkey === pk);
+        if (!a) return; // deleted account — pruned from the set server-side already
+        const row = h('div', { className: 'shared-acct-row' });
+        row.append(avatarEl(a, 'site-bound-av'));
+        row.append(h('span', { className: 'shared-acct-name', textContent: displayName(a) }));
+        const rm = iconButton('Remove from this site', 'trash', async () => {
+          await call({ type: 'SIDECAR_REMOVE_SITE_ACCOUNT', host, pubkey: pk });
+          closeModal();
+          renderActivity();
+          toast(displayName(a) + ' removed from ' + host, 'success');
+        });
+        row.append(rm);
+        list.append(row);
+      });
+      modal.append(list);
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      modal.append(h('div', { className: 'actions' }, [close]));
+    });
+  }
+
   function activityRow(e) {
     const meta = METHOD_META[e.method] || { icon: 'feather', label: () => e.method };
     const row = h('div', { className: 'item activity-item' });
@@ -1087,62 +2848,129 @@
     return row;
   }
 
+  // How far each paginated Activity list is expanded, kept across re-renders so a
+  // live refresh (a permission edit writes storage → the listener re-renders) or
+  // a forget doesn't collapse a long list back to page one mid-edit. 0 = default
+  // first page. Reset when the Activity tab is opened fresh (see the tab handler).
+  let sitesShownN = 0;
+  let logShownN = 0;
   async function renderActivity() {
-    const [perms, bindings] = await Promise.all([
+    const [perms, bindings, authorized, log] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
       call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
+      call({ type: 'SIDECAR_GET_SITE_AUTHORIZED' }),
+      call({ type: 'SIDECAR_GET_ACTIVITY' }),
     ]);
     const sites = $('sites-list');
-    sites.innerHTML = '';
+    const sitesFilter = $('sites-filter');
+    const sitesMore = $('sites-more');
     // Union of the active account's permissioned hosts and every bound host, so
     // a site pinned to a different account still shows up (and can be switched).
-    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort();
-    sites.classList.toggle('empty', !hosts.length);
-    const sitesMore = $('sites-more');
+    // Ordered by most-recently-used first (per the activity log, which is already
+    // newest-first) so an active site isn't buried pages deep behind stale ones;
+    // sites with no logged activity yet sort after, alphabetically among themselves.
+    const lastUsed = new Map();
+    for (const e of log) if (e.host && !lastUsed.has(e.host)) lastUsed.set(e.host, e.ts);
+    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort((a, b) => {
+      const ta = lastUsed.get(a), tb = lastUsed.get(b);
+      if (ta != null && tb != null) return tb - ta;
+      if (ta != null) return -1;
+      if (tb != null) return 1;
+      return a.localeCompare(b);
+    });
+
     if (!hosts.length) {
+      sites.innerHTML = '';
+      sites.classList.add('empty');
       listState(sites, 'No sites have connected yet.');
       hide(sitesMore);
+      hide(sitesFilter);
     } else {
-      // The list can get long — show a handful, then paginate (like the log below).
-      const SITES_PAGE = 6;
-      let shownSites = 0;
-      const renderSitesPage = () => {
-        hosts.slice(shownSites, shownSites + SITES_PAGE).forEach((host) =>
-          sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null))
-        );
-        shownSites = Math.min(shownSites + SITES_PAGE, hosts.length);
-        if (shownSites >= hosts.length) hide(sitesMore);
-        else {
-          show(sitesMore);
-          sitesMore.textContent = 'Show more (' + (hosts.length - shownSites) + ')';
-        }
+      show(sitesFilter);
+      sitesFilter.value = '';
+      // A row forgotten in place removes just itself (see siteRow); if that was
+      // the last one, drop to the empty state without a full re-render.
+      const onSiteForgotten = () => {
+        if (sites.querySelector('.site-item')) return;
+        sites.classList.add('empty');
+        listState(sites, 'No sites have connected yet.');
+        hide(sitesMore);
+        hide(sitesFilter);
       };
-      sitesMore.onclick = renderSitesPage;
-      renderSitesPage();
+      const renderSites = () => {
+        sites.innerHTML = '';
+        const q = sitesFilter.value.trim().toLowerCase();
+        const filtered = q ? hosts.filter((host) => host.toLowerCase().includes(q)) : hosts;
+        sites.classList.toggle('empty', !filtered.length);
+        if (!filtered.length) {
+          listState(sites, 'No sites match "' + sitesFilter.value.trim() + '".');
+          hide(sitesMore);
+          return;
+        }
+        // The list can get long — show a handful, then paginate (like the log
+        // below). Re-render restores however far it was expanded (sitesShownN) so
+        // a live refresh or forget mid-edit doesn't collapse it to page one.
+        const SITES_PAGE = 6;
+        let shownSites = 0;
+        const renderSitesPage = () => {
+          const target = Math.min(Math.max(SITES_PAGE, sitesShownN), filtered.length);
+          filtered.slice(shownSites, target).forEach((host) =>
+            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null, onSiteForgotten))
+          );
+          shownSites = target;
+          sitesShownN = target;
+          if (shownSites >= filtered.length) hide(sitesMore);
+          else {
+            show(sitesMore);
+            sitesMore.textContent = 'Show more (' + (filtered.length - shownSites) + ')';
+          }
+        };
+        sitesMore.onclick = () => { sitesShownN = Math.min(shownSites + SITES_PAGE, filtered.length); renderSitesPage(); };
+        renderSitesPage();
+      };
+      sitesFilter.oninput = renderSites;
+      renderSites();
     }
 
-    const log = await call({ type: 'SIDECAR_GET_ACTIVITY' });
     const list = $('activity-list');
-    list.innerHTML = '';
+    const activityFilter = $('activity-filter');
+    const more = $('activity-more');
     if (!log.length) {
+      list.innerHTML = '';
       listState(list, 'No signing activity yet.');
-      hide($('activity-more'));
+      hide(more);
+      hide(activityFilter);
       return;
     }
-    const PAGE = 30;
-    let shown = 0;
-    const more = $('activity-more');
-    function renderPage() {
-      log.slice(shown, shown + PAGE).forEach((e) => list.append(activityRow(e)));
-      shown = Math.min(shown + PAGE, log.length);
-      if (shown >= log.length) hide(more);
-      else {
-        show(more);
-        more.textContent = 'Show more (' + (log.length - shown) + ')';
+    show(activityFilter);
+    activityFilter.value = '';
+    const renderActivityLog = () => {
+      list.innerHTML = '';
+      const q = activityFilter.value.trim().toLowerCase();
+      const filtered = q ? log.filter((e) => (e.host || '').toLowerCase().includes(q)) : log;
+      if (!filtered.length) {
+        listState(list, 'No activity matches "' + activityFilter.value.trim() + '".');
+        hide(more);
+        return;
       }
-    }
-    more.onclick = renderPage;
-    renderPage();
+      const PAGE = 30;
+      let shown = 0;
+      function renderPage() {
+        const target = Math.min(Math.max(PAGE, logShownN), filtered.length);
+        filtered.slice(shown, target).forEach((e) => list.append(activityRow(e)));
+        shown = target;
+        logShownN = target;
+        if (shown >= filtered.length) hide(more);
+        else {
+          show(more);
+          more.textContent = 'Show more (' + (filtered.length - shown) + ')';
+        }
+      }
+      more.onclick = () => { logShownN = Math.min(shown + PAGE, filtered.length); renderPage(); };
+      renderPage();
+    };
+    activityFilter.oninput = renderActivityLog;
+    renderActivityLog();
   }
 
   $('activity-clear').addEventListener('click', async () => {
@@ -1150,27 +2978,40 @@
     renderActivity();
   });
 
+  // Live-refresh the Activity tab when the background records new signing
+  // activity, a site binding moves (e.g. a login re-pairs a host), or a
+  // permission changes — otherwise the visible list goes stale until the user
+  // leaves and re-enters the tab. Skipped while either filter is in use, since
+  // a re-render resets filter text and pagination.
+  let activityRefreshTimer = null;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (!('sidecar_activity' in changes) && !('sidecar_site_accounts' in changes) && !('sidecar_permissions' in changes)) return;
+    if (!state || state.locked) return;
+    const activeTab = document.querySelector('.tab.active');
+    if (!activeTab || activeTab.dataset.tab !== 'activity') return;
+    const sitesFilter = $('sites-filter');
+    const actFilter = $('activity-filter');
+    const filterBusy = (el) => el && !el.classList.contains('hidden') && (el.value.trim() || document.activeElement === el);
+    if (filterBusy(sitesFilter) || filterBusy(actFilter)) return;
+    clearTimeout(activityRefreshTimer);
+    activityRefreshTimer = setTimeout(async () => {
+      // Keep the scroll position across a live re-render (a permission edit lands
+      // here via storage) so editing a site deep in the list doesn't jump to top.
+      const scroller = $('tab-activity').closest('.content');
+      const top = scroller ? scroller.scrollTop : 0;
+      await renderActivity();
+      if (scroller) scroller.scrollTop = top;
+    }, 400);
+  });
+
   // ---- profile (active account): view + edit + publish kind 0 ----
   // Fetch the active account's latest kind:0 (used for both display and edit-merge).
   async function fetchActiveProfile() {
     const pk = state.activePubkey;
     if (!pk) return { content: {}, event: null };
-    let event = null;
-    try {
-      event = await Promise.race([
-        poolGet(await relayUrls(false), { kinds: [0], authors: [pk] }),
-        new Promise((res) => setTimeout(() => res(null), 6000)),
-      ]);
-    } catch (_) {
-      /* offline */
-    }
-    let content = {};
-    if (event) {
-      try {
-        content = JSON.parse(event.content) || {};
-      } catch (_) {}
-    }
-    return { content, event };
+    const rec = await getProfile(pk);
+    return { content: rec ? rec.content : {}, event: null };
   }
 
   // Skeleton placeholder mirroring the centered profile layout while kind:0 loads.
@@ -1183,6 +3024,30 @@
     sk.append(h('div', { className: 'sk sk-line sk-bio1' }));
     sk.append(h('div', { className: 'sk sk-line sk-bio2' }));
     return sk;
+  }
+
+  // Verify a NIP-05 identifier resolves, at its domain's /.well-known/nostr.json,
+  // to this account's own pubkey. The endpoint is required by NIP-05 to allow CORS,
+  // so this is a plain fetch — no extension permission beyond the existing
+  // host_permissions. Returns false (not an error) for anything that doesn't
+  // confirm a match, since a stale or unreachable NIP-05 is common and not
+  // necessarily malicious.
+  async function verifyNip05(nip05, pubkey) {
+    try {
+      const at = nip05.indexOf('@');
+      const name = at === -1 ? '_' : nip05.slice(0, at);
+      const domain = at === -1 ? nip05 : nip05.slice(at + 1);
+      if (!domain || !name) return false;
+      const res = await fetch('https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name));
+      if (!res.ok) return false;
+      const data = await res.json();
+      const names = data && data.names;
+      if (!names || typeof names !== 'object') return false;
+      const key = Object.keys(names).find((k) => k.toLowerCase() === name.toLowerCase());
+      return key ? names[key] === pubkey : false;
+    } catch (_) {
+      return false;
+    }
   }
 
   async function renderProfile() {
@@ -1209,12 +3074,6 @@
     } else {
       header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
     }
-    const editBtn = document.createElement('button');
-    editBtn.className = 'icon-btn profile-edit-btn';
-    editBtn.title = 'Edit profile';
-    editBtn.appendChild(icon('edit'));
-    editBtn.addEventListener('click', () => openProfileEdit(content));
-    header.append(editBtn);
     header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
     view.append(header);
 
@@ -1226,8 +3085,46 @@
         textContent: content.display_name || content.name || active.name || shortNpub(active.npub),
       })
     );
-    if (content.nip05) body.append(h('div', { className: 'profile-meta', textContent: content.nip05 }));
+    if (content.nip05) {
+      const nip05Badge = h('span', { className: 'nip05-badge' });
+      const nip05Row = h('div', { className: 'profile-meta nip05-row' }, [
+        h('span', { textContent: content.nip05 }),
+        nip05Badge,
+      ]);
+      body.append(nip05Row);
+      verifyNip05(content.nip05, active.pubkey).then((ok) => {
+        nip05Badge.innerHTML = '';
+        nip05Badge.classList.add(ok ? 'nip05-ok' : 'nip05-bad');
+        nip05Badge.title = ok ? 'Verified' : "Couldn't verify this NIP-05 against your account";
+        nip05Badge.append(icon(ok ? 'check' : 'alert'));
+      });
+    }
     body.append(npubChip(active.npub));
+
+    // Following count (fetched from the account's kind:3). Followers are out of
+    // scope for now — they require an aggregating index, not a single event.
+    const followNum = h('strong', { textContent: '…' });
+    const backupJump = h('button', { className: 'profile-backup-jump', title: 'Backup & restore' });
+    backupJump.innerHTML =
+      '<svg viewBox="0 0 22 22" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<path d="M10.9851 0C7.6057 0 4.58375 1.52106 2.56398 3.91405L0.855461 2.20784V7.70159H6.35666L4.78529 6.13235C6.22953 4.30005 8.46896 3.12232 10.9851 3.12232C15.3417 3.12232 18.8734 6.64928 18.8734 11C18.8734 15.3507 15.3417 18.8776 10.9851 18.8776C6.88814 18.8776 3.52149 15.7583 3.13471 11.7682H0C0.395343 17.4845 5.16066 22 10.9851 22C17.0685 22 22 17.0751 22 11C22 4.92486 17.0685 0 10.9851 0Z"/></svg>';
+    backupJump.addEventListener('click', () => {
+      const el = view.querySelector('.backup-setting');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    const followStat = h('div', { className: 'profile-stats' }, [
+      h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
+      backupJump,
+    ]);
+    body.append(followStat);
+    getFollowCount(active.pubkey).then((n) => {
+      followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+    });
+
+    const editBtn = h('button', { className: 'secondary profile-edit-cta' });
+    editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
+    editBtn.addEventListener('click', () => openProfileEdit(content));
+    body.append(editBtn);
 
     if (content.about) {
       const about = h('p', { className: 'profile-about' });
@@ -1247,13 +3144,235 @@
     }
     view.append(body);
 
+    // Offer to sync the profile's lightning address to the connected wallet's
+    // address (from the NWC string) when they differ — filled in async.
+    const lud16Notice = h('div', { className: 'lud16-sync hidden' });
+    view.append(lud16Notice);
+    maybeSuggestLud16(lud16Notice, active, content);
+
+    renderNip65Section(view, active);
     renderBackupSection(view, active);
+  }
+
+  // If the connected wallet advertises a lightning address (NWC lud16) that
+  // differs from — or is missing on — the profile, offer a one-tap update so the
+  // profile matches where zaps actually land. Dismissals are remembered for the
+  // session so it doesn't nag.
+  const _lud16SyncDismissed = new Set(); // `${pubkey}|${walletAddr}`
+  async function maybeSuggestLud16(container, active, content) {
+    let walletAddr = null;
+    try {
+      const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
+      walletAddr = connection ? parseNwcLud16(connection) : null;
+    } catch (_) {}
+    if (!walletAddr) return; // no wallet address to sync
+    if (state.activePubkey !== active.pubkey) return; // account switched during await
+    const profileAddr = (content.lud16 || '').trim();
+    if (profileAddr.toLowerCase() === walletAddr.toLowerCase()) return; // already matches
+    const key = active.pubkey + '|' + walletAddr;
+    if (_lud16SyncDismissed.has(key)) return;
+
+    const title = h('div', { className: 'lud16-sync-title' }, [
+      boltIcon('lud16-sync-bolt'),
+      h('span', { textContent: 'Lightning address' }),
+    ]);
+    const msg = h('p', {
+      className: 'lud16-sync-msg',
+      textContent: profileAddr
+        ? "Your profile's lightning address differs from your connected wallet's."
+        : "Add your wallet's lightning address to your profile so people can zap you.",
+    });
+    const addr = h('div', { className: 'lud16-sync-addr', textContent: walletAddr });
+    const useBtn = h('button', { className: 'primary', textContent: profileAddr ? 'Use wallet address' : 'Add to profile' });
+    const dismiss = h('button', { className: 'ghost', textContent: 'Not now' });
+    useBtn.addEventListener('click', async () => {
+      useBtn.disabled = true;
+      useBtn.textContent = 'Updating…';
+      try {
+        await publishProfile({ lud16: walletAddr }, null); // unlocked → no step-up PIN; additive
+        toast('Lightning address updated', 'success');
+        renderProfile(); // re-render: the address now matches, so the notice won't reappear
+      } catch (e) {
+        useBtn.disabled = false;
+        useBtn.textContent = profileAddr ? 'Use wallet address' : 'Add to profile';
+        toast(e.message, 'error');
+      }
+    });
+    dismiss.addEventListener('click', () => { _lud16SyncDismissed.add(key); container.remove(); });
+    container.append(title, msg, addr, h('div', { className: 'actions lud16-sync-actions' }, [useBtn, dismiss]));
+    container.classList.remove('hidden');
   }
 
   // ---- rich about text: links + npub/nprofile mentions, with show more/less ----
   const normalizeUrl = (u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
-  const mentionNameCache = new Map(); // pubkey -> name|null
   const TOKEN_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?((?:npub1|nprofile1)[0-9a-z]+)/gi;
+
+  // Follow list cache for @mention autocomplete (invalidated on account switch)
+  let followListCache = null;
+  let followListPubkey = null;
+  let followListInflight = null; // dedupe concurrent loads (rapid @-keystrokes)
+
+  // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
+  // heavy kind:0 profile batch that getFollowList() does, since the profile just
+  // needs a number. Cached per pubkey. A completed query with no follow list means
+  // they aren't following anyone yet → 0 (common for a fresh account); only a
+  // thrown error returns null, which the UI renders as "—".
+  const followCountCache = new Map(); // pubkey -> number|null
+  async function getFollowCount(pubkey) {
+    if (!pubkey) return null;
+    if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
+    let count = null;
+    try {
+      const ev = await getPool().get(await relayUrls(false), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
+      if (ev) {
+        const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
+        count = set.size;
+      } else {
+        count = 0;
+      }
+    } catch (_) {}
+    followCountCache.set(pubkey, count);
+    return count;
+  }
+
+  // ---- Nostr Archives profile API ----
+  // Global username search + bulk metadata, used to (A) find people to @mention
+  // who aren't in your follow list and (B) resolve follow-list names the relays
+  // didn't return. Best-effort: any error or rate-limit falls back to relay data.
+  // See docs/username-search-plan.md. Approved endpoints only.
+  const NA_BASE = 'https://api.nostrarchives.com';
+  const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
+  let naCooldownUntil = 0; // epoch ms; a 429 backs us off until this time
+  const naAvailable = () => Date.now() >= naCooldownUntil;
+  function naBackoff(retryAfter) {
+    const secs = Math.min(3600, Math.max(30, Number(retryAfter) || 60));
+    naCooldownUntil = Date.now() + secs * 1000;
+  }
+  const naName = (p) => p.display_name || p.preferred_name || p.name || null;
+
+  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure.
+  async function naSuggest(query) {
+    if (!query || query.length < 2 || !naAvailable()) return [];
+    try {
+      const resp = await fetch(NA_BASE + '/v1/search/suggest?q=' + encodeURIComponent(query) + '&limit=8', {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); return []; }
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      return (data.suggestions || [])
+        .filter((s) => s && isHex64(s.pubkey))
+        .map((s) => {
+          const pk = s.pubkey.toLowerCase();
+          let name = naName(s);
+          if (!name) { try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; } }
+          return { pubkey: pk, name, picture: s.picture || null };
+        });
+    } catch (_) { return []; }
+  }
+
+  // Bulk profile metadata for a set of pubkeys → Map(pubkey → {name, picture}).
+  // Chunks to the API's 500-pubkey limit; stops early on a rate-limit.
+  async function naMetadata(pubkeys) {
+    const out = new Map();
+    const ids = [...new Set((pubkeys || []).filter(isHex64).map((p) => p.toLowerCase()))];
+    if (!ids.length || !naAvailable()) return out;
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      try {
+        const resp = await fetch(NA_BASE + '/v1/profiles/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pubkeys: chunk }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); break; }
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        (data.profiles || []).forEach((p) => {
+          if (p && isHex64(p.pubkey)) out.set(p.pubkey.toLowerCase(), { name: naName(p), picture: p.picture || null });
+        });
+      } catch (_) { /* keep whatever resolved so far */ }
+    }
+    return out;
+  }
+
+  // Fire-and-forget: fill in names/pictures the relays didn't return, mutating the
+  // cached follow-list objects in place so those follows become searchable by name
+  // on the next keystroke. Never blocks the initial dropdown.
+  async function enrichFollowNames(list, missingPubkeys) {
+    if (!missingPubkeys.length) return;
+    const meta = await naMetadata(missingPubkeys);
+    if (!meta.size) return;
+    const byPk = new Map(list.map((c) => [c.pubkey, c]));
+    meta.forEach((m, pk) => {
+      const c = byPk.get(pk);
+      if (c && m.name) { c.name = m.name; if (!c.picture && m.picture) c.picture = m.picture; }
+    });
+  }
+
+  async function getFollowList() {
+    if (followListCache && followListPubkey === state.activePubkey) return followListCache;
+    if (followListInflight) return followListInflight; // a load is already running
+    if (!state.activePubkey) return [];
+    followListInflight = (async () => {
+    try {
+      const relays = await relayUrls(false);
+      // maxWait bounds each relay's own connect+EOSE wait individually (they
+      // run in parallel) instead of racing the WHOLE fetch against an external
+      // timeout — the previous approach discarded every result the moment the
+      // race lost, even if most relays had already answered, so one slow relay
+      // could wipe the entire follow list down to zero. Not cached on failure,
+      // so the next @-mention attempt retries instead of being stuck all session.
+      const ev = await getPool().get(relays, { kinds: [3], authors: [state.activePubkey] }, { maxWait: 8000 });
+      if (!ev) return [];
+      const pubkeys = (ev.tags || [])
+        .filter((t) => t[0] === 'p')
+        .map((t) => t[1])
+        .filter((pk) => pk && pk.length === 64);
+      if (!pubkeys.length) {
+        followListPubkey = state.activePubkey;
+        return (followListCache = []);
+      }
+      const profiles = await getPool().querySync(relays, { kinds: [0], authors: pubkeys }, { maxWait: 10000 });
+      const byPk = {};
+      (profiles || []).forEach((p) => {
+        if (!byPk[p.pubkey] || p.created_at > byPk[p.pubkey].created_at) byPk[p.pubkey] = p;
+      });
+      const list = pubkeys.map((pk) => {
+        let name = null, picture = null;
+        const prof = byPk[pk];
+        if (prof) {
+          try {
+            const c = JSON.parse(prof.content);
+            name = c.display_name || c.name || null;
+            picture = c.picture || null;
+            cacheProfile(pk, c); // share with profile previews + @-mention resolution
+          } catch (_) {}
+        }
+        // Keep follows with no resolvable profile (no relay had their kind:0,
+        // or the profile fetch just missed them) — fall back to a short npub
+        // so they're still selectable instead of silently vanishing from
+        // @mention results.
+        if (!name) {
+          try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; }
+        }
+        return { pubkey: pk, name, picture };
+      });
+      followListPubkey = state.activePubkey;
+      followListCache = list;
+      // Background: fill names the relays didn't return via Nostr Archives, so
+      // those follows become searchable by name. Mutates the cached objects in
+      // place; not awaited, so the first dropdown render stays instant.
+      enrichFollowNames(list, pubkeys.filter((pk) => !byPk[pk]));
+      return followListCache;
+    } catch (_) {
+      return [];
+    }
+    })();
+    try { return await followListInflight; }
+    finally { followListInflight = null; }
+  }
 
   function npubChip(npub) {
     const el = h('div', { className: 'profile-npub', title: 'Copy npub' });
@@ -1271,7 +3390,10 @@
   }
 
   async function resolveMentions(mentions) {
-    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !mentionNameCache.has(pk));
+    // Only fetch pubkeys not already in the shared profile cache; batch the rest
+    // in one query (efficient for many authors) and populate the shared cache so
+    // these results are reused by profile previews and future mentions.
+    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !cachedProfile(pk));
     if (need.length) {
       try {
         const events = await Promise.race([
@@ -1283,21 +3405,89 @@
           if (!latest[ev.pubkey] || ev.created_at > latest[ev.pubkey].created_at) latest[ev.pubkey] = ev;
         });
         need.forEach((pk) => {
-          let name = null;
-          if (latest[pk]) {
-            try {
-              const m = JSON.parse(latest[pk].content);
-              name = m.display_name || m.name || null;
-            } catch (_) {}
-          }
-          mentionNameCache.set(pk, name);
+          let content = {};
+          if (latest[pk]) { try { content = JSON.parse(latest[pk].content) || {}; } catch (_) {} }
+          cacheProfile(pk, content);
         });
       } catch (_) {}
     }
     mentions.forEach(({ el, pubkey }) => {
-      const name = mentionNameCache.get(pubkey);
-      if (name) el.textContent = '@' + name;
+      const rec = _profileCache.get(pubkey);
+      if (rec && rec.name) el.textContent = '@' + rec.name;
     });
+  }
+
+  // Render note text into `container`: inline images/videos, links, and
+  // resolved nostr:npub/nprofile mentions — like renderNotePreview, but compact
+  // for a quoted-note card (no OG link cards, no recursion into nested note
+  // embeds). Once the visible-text budget (`maxLen`) is hit, the preview stops
+  // cleanly at the "…" — nothing after the cut renders, so a mention or image
+  // further down the note can't leak past the ellipsis.
+  function renderNoteText(container, text, maxLen) {
+    const mentions = [];
+    let last = 0;
+    let used = 0;
+    let truncated = false;
+    let m;
+    PREVIEW_RE.lastIndex = 0;
+    const pushText = (s) => {
+      if (!s || truncated) return;
+      if (used + s.length > maxLen) {
+        container.append(document.createTextNode(s.slice(0, Math.max(0, maxLen - used)) + '…'));
+        truncated = true;
+      } else {
+        container.append(document.createTextNode(s));
+        used += s.length;
+      }
+    };
+    while ((m = PREVIEW_RE.exec(text)) !== null) {
+      if (m.index > last) pushText(text.slice(last, m.index));
+      // Text before this token filled the budget → stop; don't render the token
+      // (mention/link/media) that sits past the truncation point.
+      if (truncated) break;
+      if (m[1]) {
+        const url = m[1];
+        if (IMG_EXT.test(url)) {
+          const im = document.createElement('img');
+          im.className = 'note-media';
+          im.referrerPolicy = 'no-referrer';
+          im.src = url;
+          container.append(im);
+        } else if (VID_EXT.test(url)) {
+          const v = document.createElement('video');
+          v.className = 'note-media';
+          v.controls = true;
+          v.src = url;
+          container.append(v);
+        } else {
+          const a = document.createElement('a');
+          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
+          a.textContent = url;
+          container.append(a);
+        }
+      } else if (m[2]) {
+        const bech = m[2];
+        let d = null;
+        try { d = NT.nip19.decode(bech); } catch (_) {}
+        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
+          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
+          const span = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
+          if (pubkey) mentions.push({ el: span, pubkey });
+          container.append(span);
+        } else {
+          // Nested note/nevent/naddr ref — link out rather than recurse into
+          // another embed card inside this one.
+          const a = document.createElement('a');
+          a.href = 'https://njump.me/' + bech;
+          a.target = '_blank'; a.rel = 'noreferrer noopener';
+          a.textContent = 'quoted note';
+          container.append(a);
+        }
+      }
+      last = PREVIEW_RE.lastIndex;
+    }
+    if (last < text.length) pushText(text.slice(last));
+    resolveMentions(mentions);
   }
 
   function renderAbout(container, text) {
@@ -1357,10 +3547,96 @@
     });
   }
 
-  // ---- image upload (NIP-98 → nostr.build) ----
+  // ---- Blossom upload (BUD-02, kind:24242) with graceful fallback ----
+  // Mirrors zap.cooking: try the user's own Blossom servers (kind:10063) first,
+  // then fall back to the nostr.build NIP-98 flow below. No hardcoded server, so
+  // users without a Blossom list keep the existing behavior unchanged.
+  const BLOSSOM_AUTH_KIND = 24242;
+  const BLOSSOM_SERVER_LIST_KIND = 10063;
+  const BLOSSOM_CACHE_TTL = 5 * 60 * 1000;
+  const BLOSSOM_UPLOAD_TIMEOUT = 30000;
+  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }
+
+  async function sha256Hex(buffer) {
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function fetchBlossomServers(pubkey) {
+    const cached = _blossomServerCache.get(pubkey);
+    if (cached && cached.expiresAt > Date.now()) return cached.servers;
+    let servers = [];
+    try {
+      const relays = await relayUrls(false);
+      const ev = await poolGet(relays, { kinds: [BLOSSOM_SERVER_LIST_KIND], authors: [pubkey] });
+      if (ev) {
+        servers = ev.tags
+          .filter((t) => t[0] === 'server' && t[1] && t[1].startsWith('https://'))
+          .map((t) => t[1].replace(/\/$/, ''));
+      }
+    } catch (_) {}
+    _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
+    return servers;
+  }
+
+  async function uploadToBlossom(file, servers) {
+    const buffer = await file.arrayBuffer();
+    const hash = await sha256Hex(buffer);
+    const now = Math.floor(Date.now() / 1000);
+    const authEvent = {
+      kind: BLOSSOM_AUTH_KIND,
+      created_at: now,
+      tags: [['t', 'upload'], ['x', hash], ['expiration', String(now + 300)]],
+      content: 'Upload file',
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent });
+    const authorization = 'Nostr ' + btoa(JSON.stringify(signed));
+    let lastError;
+    for (const server of servers) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), BLOSSOM_UPLOAD_TIMEOUT);
+      try {
+        const resp = await fetch(server + '/upload', {
+          method: 'PUT',
+          body: file,
+          headers: { Authorization: authorization, 'Content-Type': file.type || 'application/octet-stream' },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json().catch(() => null);
+        if (data && data.url) return data.url;
+        throw new Error('No URL in Blossom response');
+      } catch (e) {
+        clearTimeout(timer);
+        console.warn('[Blossom] upload to ' + server + ' failed:', e);
+        lastError = e;
+      }
+    }
+    throw lastError || new Error('All Blossom servers failed');
+  }
+
+  // Returns a hosted URL via Blossom, or null when Blossom isn't usable (no
+  // active account, no server list, or every server failed) — caller then falls
+  // back to nostr.build.
+  async function tryBlossomFirst(file) {
+    if (!state.activePubkey) return null;
+    try {
+      const servers = await fetchBlossomServers(state.activePubkey);
+      if (!servers.length) return null;
+      return await uploadToBlossom(file, servers);
+    } catch (e) {
+      console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
+      return null;
+    }
+  }
+
+  // ---- image upload (Blossom → nostr.build via NIP-98) ----
   async function uploadImage(file, kind) {
     if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
     if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    const blossomUrl = await tryBlossomFirst(file);
+    if (blossomUrl) return blossomUrl;
     const url = 'https://nostr.build/api/v2/upload/' + (kind === 'profile' ? 'profile' : 'files');
     const authEvent = {
       kind: 27235,
@@ -1380,12 +3656,14 @@
     return u;
   }
 
-  // ---- note media upload (NIP-98 → nostr.build, images + video) ----
+  // ---- note media upload (Blossom → nostr.build via NIP-98, images + video) ----
   async function uploadMedia(file) {
     const isImg = file.type.startsWith('image/');
     const isVid = file.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error('Choose an image or video');
     if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100MB)');
+    const blossomUrl = await tryBlossomFirst(file);
+    if (blossomUrl) return blossomUrl;
     const url = 'https://nostr.build/api/v2/upload/files';
     const authEvent = {
       kind: 27235,
@@ -1406,10 +3684,17 @@
   }
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
-  const NOTE_COUNTDOWN_SECS = 15;
-  const CLIENT_TAG = ['client', 'Sidecar 🍸', 'https://github.com/dmnyc/sidecar', 'wss://relay.damus.io'];
+  // The review countdown is user-configurable (Settings): a toggle plus a
+  // duration preset. Off → post immediately with no countdown.
+  const NOTE_COUNTDOWN_PRESETS = [5, 10, 15, 25, 30];
+  const NOTE_COUNTDOWN_DEFAULT = 15;
+  // NIP-89 client tag. Positions 3–4 are meant to be a kind:31990 handler
+  // coordinate + relay hint; we don't publish a handler, so a bare name is the
+  // correct minimal form and avoids adding dead bytes to every note.
+  const CLIENT_TAG = ['client', 'Sidecar'];
   // ---- About / zap-the-creator ----
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
+  const SIDECAR_SITE_URL = 'https://sidecar.top';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
   const CREATOR_LN = 'daniel@breez.tips';
   const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
@@ -1417,11 +3702,15 @@
 
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
   const VIEW_CLIENTS = {
-    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
     primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
-    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
+    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
+    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
+    iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
+    snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },
     nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
-    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/notes/' + ne, profile: (np) => 'https://yakihonne.com/users/' + np },
+    zapcooking: { label: 'Zap Cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
+    noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
+    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
     njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
   };
   const DEFAULT_CLIENT = 'jumble';
@@ -1430,6 +3719,30 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  // Open a client URL. When the "reuse open client tab" setting is on (default),
+  // navigate a tab already on that client's host and focus its window instead of
+  // piling up new tabs; otherwise always open a new tab. Reading tab URLs is
+  // covered by the existing host_permissions (https://*/*).
+  async function openInClient(url) {
+    let host = null;
+    try { host = new URL(url).host; } catch (_) {}
+    let reuse = true;
+    try { const s = await call({ type: 'SIDECAR_GET_SETTINGS' }); reuse = s.reuseClientTab !== false; } catch (_) {}
+    if (!(chrome.tabs && chrome.tabs.query)) { window.open(url, '_blank', 'noopener'); return; }
+    if (!reuse || !host) { chrome.tabs.create({ url }); return; }
+    chrome.tabs.query({}, (tabs) => {
+      const match = (tabs || []).find((t) => {
+        try { return t.url && new URL(t.url).host === host; } catch (_) { return false; }
+      });
+      if (match) {
+        chrome.tabs.update(match.id, { active: true, url });
+        if (match.windowId != null) chrome.windows.update(match.windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url });
+      }
+    });
   }
 
   // Resolve a kind:0 display name for an npub (best-effort, for the About credit).
@@ -1455,6 +3768,12 @@
   }
 
   // Persistent "your note is live" banner with an open-in-client link.
+  function dismissPostBanner() {
+    if (_postBannerTimer) { clearTimeout(_postBannerTimer); _postBannerTimer = null; }
+    const banner = $('post-banner');
+    if (banner) hide(banner);
+  }
+
   async function showPostBanner(signed) {
     const banner = $('post-banner');
     if (!banner) return;
@@ -1463,6 +3782,8 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
     const client = VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+
+    if (_postBannerTimer) clearTimeout(_postBannerTimer); // only one note's link shown at a time
 
     banner.innerHTML = '';
     const msg = h('span', { className: 'post-banner-msg', textContent: 'Your note is live.' });
@@ -1474,19 +3795,69 @@
     open.append(h('span', { textContent: 'Open in ' + client.label }));
     const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
     close.append(icon('x'));
-    close.addEventListener('click', () => hide(banner));
+    close.addEventListener('click', dismissPostBanner);
     banner.append(msg, open, close);
     show(banner);
+    _postBannerTimer = setTimeout(dismissPostBanner, 60000);
+  }
+
+  let _reloadBannerTimer = null; // auto-dismiss for #reload-banner
+  function dismissReloadBanner() {
+    if (_reloadBannerTimer) { clearTimeout(_reloadBannerTimer); _reloadBannerTimer = null; }
+    const banner = $('reload-banner');
+    if (banner) hide(banner);
+  }
+  // After switching the active account, most clients keep signing as the account
+  // they were logged in with until the page re-auths (NIP-07 gives us no way to
+  // push the change). If the focused tab is a site we're connected to, offer a
+  // one-tap reload so the switch takes effect there. Returns true if it showed —
+  // callers use that to skip the educational tip when we've offered the action.
+  async function offerTabReload() {
+    if (!(chrome.tabs && chrome.tabs.query && chrome.tabs.reload)) return false;
+    let tab;
+    try {
+      const tabs = await new Promise((res) => chrome.tabs.query({ active: true, lastFocusedWindow: true }, res));
+      tab = tabs && tabs[0];
+    } catch (_) { return false; }
+    if (!tab || tab.id == null || !tab.url) return false;
+    let host;
+    try { host = new URL(tab.url).host; } catch (_) { return false; }
+    if (!host) return false;
+    // Only offer for a site we're actually connected to (has a per-host binding);
+    // a plain browsing tab or a not-yet-logged-in site has nothing to re-auth.
+    let bindings;
+    try { bindings = await call({ type: 'SIDECAR_GET_SITE_BINDINGS' }); } catch (_) { return false; }
+    if (!bindings || !bindings[host]) return false;
+    const banner = $('reload-banner');
+    if (!banner) return false;
+    if (_reloadBannerTimer) clearTimeout(_reloadBannerTimer);
+    banner.innerHTML = '';
+    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: 'Reload ' + host })]);
+    reload.addEventListener('click', () => {
+      try { chrome.tabs.reload(tab.id); } catch (_) {}
+      dismissReloadBanner();
+    });
+    banner.append(reload);
+    show(banner);
+    _reloadBannerTimer = setTimeout(dismissReloadBanner, 30000);
+    return true;
   }
 
   // Render composed note content the way a client will: text + inline media + @mentions.
+  // Composer preview: inline media / links, profile mentions (@name), and nostr
+  // event refs (note1/nevent/naddr) rendered as embed cards fetched from the
+  // user's own relays.
+  // npub1/note1 are always exactly 63 chars (5+58); use {58} to prevent the regex
+  // from greedily consuming adjacent lowercase words as bech32 characters.
+  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})/gi;
   function renderNotePreview(container, text) {
     const mentions = [];
+    const embeds = [];
     let last = 0;
     let m;
-    TOKEN_RE.lastIndex = 0;
+    PREVIEW_RE.lastIndex = 0;
     const flushText = (s) => { if (s) container.append(document.createTextNode(s)); };
-    while ((m = TOKEN_RE.exec(text)) !== null) {
+    while ((m = PREVIEW_RE.exec(text)) !== null) {
       if (m.index > last) flushText(text.slice(last, m.index));
       if (m[1]) {
         const url = m[1];
@@ -1507,41 +3878,273 @@
           a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
           a.textContent = url;
           container.append(a);
+          if (url.startsWith('https://')) {
+            const card = document.createElement('a');
+            card.className = 'link-card loading';
+            card.textContent = 'Loading preview…';
+            container.append(card);
+            fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
+          }
         }
       } else if (m[2]) {
         const bech = m[2];
-        let pubkey = null;
-        try {
-          const d = NT.nip19.decode(bech);
-          pubkey = d.type === 'npub' ? d.data : d.type === 'nprofile' ? d.data.pubkey : null;
-        } catch (_) {}
-        const a = document.createElement('span');
-        a.className = 'mention';
-        a.textContent = '@' + bech.slice(0, 10) + '…';
-        if (pubkey) mentions.push({ el: a, pubkey });
-        container.append(a);
+        let d = null;
+        try { d = NT.nip19.decode(bech); } catch (_) {}
+        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
+          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
+          const a = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
+          if (pubkey) mentions.push({ el: a, pubkey });
+          container.append(a);
+        } else if (d && (d.type === 'note' || d.type === 'nevent' || d.type === 'naddr')) {
+          const card = h('div', { className: 'note-embed loading', textContent: 'Loading nostr event…' });
+          embeds.push({ el: card, ref: embedRef(d) });
+          container.append(card);
+        } else {
+          flushText(bech);
+        }
       }
-      last = TOKEN_RE.lastIndex;
+      last = PREVIEW_RE.lastIndex;
     }
     flushText(text.slice(last));
     resolveMentions(mentions);
+    resolveEmbeds(embeds);
   }
 
-  function openComposer() {
+  // Decode a nostr entity into a relay filter (+ any relay hints) for fetching.
+  function embedRef(d) {
+    if (d.type === 'note') return { filter: { ids: [d.data] } };
+    if (d.type === 'nevent') return { filter: { ids: [d.data.id] }, relays: d.data.relays || [] };
+    return {
+      filter: { kinds: [d.data.kind], authors: [d.data.pubkey], '#d': [d.data.identifier] },
+      relays: d.data.relays || [],
+    };
+  }
+
+  async function resolveEmbeds(embeds) {
+    for (const { el, ref } of embeds) {
+      let ev = null;
+      try {
+        const relays = [...new Set([...(await relayUrls(false)), ...(ref.relays || [])])];
+        ev = await Promise.race([
+          poolGet(relays, ref.filter),
+          new Promise((r) => setTimeout(() => r(null), 6000)),
+        ]);
+      } catch (_) {}
+      if (!ev) {
+        el.classList.remove('loading');
+        el.classList.add('embed-missing');
+        el.textContent = 'nostr event (not found)';
+        continue;
+      }
+      renderEmbedCard(el, ev);
+    }
+  }
+
+  function renderEmbedCard(el, ev) {
+    el.classList.remove('loading');
+    el.textContent = '';
+    const av = h('span', { className: 'embed-av' });
+    applyAvatar(av, {});
+    const name = h('span', { className: 'embed-name', textContent: shortNpub(NT.nip19.npubEncode(ev.pubkey)) });
+    const head = h('div', { className: 'embed-head' }, [
+      av,
+      h('div', { className: 'embed-who' }, [
+        name,
+        h('span', { className: 'embed-time', textContent: relTime((ev.created_at || 0) * 1000) }),
+      ]),
+    ]);
+    const titleTag = (ev.tags || []).find((t) => t[0] === 'title');
+    const text = (titleTag && titleTag[1]) || ev.content || '';
+    const body = h('div', { className: 'embed-body' });
+    renderNoteText(body, text, 280);
+    el.append(head, body);
+    fetchPreviewProfile(ev.pubkey).then((p) => {
+      if (!p) return;
+      if (p.picture) applyAvatar(av, { picture: p.picture });
+      if (p.name) name.textContent = '@' + p.name;
+    });
+  }
+
+  // ---- OG / link preview cards ----
+  const ogCache = new Map(); // url → { title, description, image, site } | null
+
+  async function fetchOgMeta(url) {
+    if (ogCache.has(url)) return ogCache.get(url);
+    ogCache.set(url, null); // mark in-flight so parallel calls don't double-fetch
+    try {
+      const meta = await call({ type: 'SIDECAR_FETCH_OG', url });
+      ogCache.set(url, meta);
+      return meta;
+    } catch (_) { return null; }
+  }
+
+  function decodeHtml(s) {
+    if (!s) return s;
+    const t = document.createElement('textarea');
+    t.innerHTML = s;
+    return t.value;
+  }
+
+  function renderLinkCard(container, url, meta) {
+    container.classList.remove('loading');
+    if (!meta) { container.remove(); return; }
+    container.innerHTML = '';
+    const body = h('div', { className: 'link-card-body' });
+    if (meta.site) body.append(h('div', { className: 'link-card-site', textContent: decodeHtml(meta.site) }));
+    if (meta.title) body.append(h('div', { className: 'link-card-title', textContent: decodeHtml(meta.title) }));
+    if (meta.description) body.append(h('div', { className: 'link-card-desc', textContent: decodeHtml(meta.description) }));
+    const isHttps = (s) => typeof s === 'string' && s.startsWith('https://');
+    if (isHttps(meta.image)) {
+      const img = document.createElement('img');
+      img.className = 'link-card-img';
+      img.referrerPolicy = 'no-referrer';
+      img.src = meta.image;
+      img.onerror = () => img.remove();
+      container.append(img);
+    }
+    container.append(body);
+    container.href = url;
+    container.target = '_blank';
+    container.rel = 'noreferrer noopener';
+  }
+
+  // Serialize a contenteditable editor div to plain nostr text.
+  // Text nodes → text, BR → \n, block divs → \n prefix, pill spans → their data-bech32.
+  //   (NBSP used after pills to prevent browser whitespace collapse) → regular space.
+  function serializeEditor(el) {
+    let out = '';
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        out += node.textContent.replace(/ /g, ' ');
+      } else if (node.nodeName === 'BR') {
+        out += '\n';
+      } else if (node.dataset && node.dataset.bech32) {
+        out += node.dataset.bech32;
+      } else {
+        const isBlock = node.nodeName === 'DIV' || node.nodeName === 'P';
+        if (isBlock && out && !out.endsWith('\n')) out += '\n';
+        node.childNodes.forEach(walk);
+      }
+    };
+    el.childNodes.forEach(walk);
+    return out;
+  }
+
+  // Inverse of serializeEditor: rebuild the editor's rich DOM (mention pills,
+  // line breaks) from a raw saved string — used when resuming a draft, since
+  // just setting .textContent leaves 'nostr:npub1…' as visible plain text
+  // instead of a resolved @name pill. A pill's name resolves instantly from the
+  // profile cache when available, else shows a short npub that upgrades in
+  // place once the profile loads (same pattern as embed cards elsewhere).
+  function hydrateEditorFromText(editor, text) {
+    editor.innerHTML = '';
+    const appendText = (s) => {
+      const lines = s.split('\n');
+      lines.forEach((line, i) => {
+        if (line) editor.appendChild(document.createTextNode(line));
+        if (i < lines.length - 1) editor.appendChild(document.createElement('br'));
+      });
+    };
+    const mentionRe = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+    let last = 0, m;
+    while ((m = mentionRe.exec(text)) !== null) {
+      if (m.index > last) appendText(text.slice(last, m.index));
+      const bech32 = m[0];
+      let pubkey = null, fallback = bech32;
+      try {
+        const decoded = NT.nip19.decode(m[1]);
+        pubkey = decoded.type === 'npub' ? decoded.data : decoded.data.pubkey;
+        fallback = shortNpub(NT.nip19.npubEncode(pubkey));
+      } catch (_) {}
+      const pill = document.createElement('span');
+      pill.className = 'mention-pill';
+      pill.contentEditable = 'false';
+      pill.dataset.bech32 = bech32;
+      const cached = pubkey ? cachedProfile(pubkey) : null;
+      pill.textContent = '@' + (cached && cached.name ? cached.name : fallback);
+      editor.appendChild(pill);
+      last = mentionRe.lastIndex;
+      // A plain space right after the mention is the pill's trailing separator —
+      // render it as NBSP (matching live insertion via the @-autocomplete) so it
+      // isn't visually collapsed; serializeEditor turns it back into a space.
+      if (text[last] === ' ') {
+        editor.appendChild(document.createTextNode(' '));
+        last += 1;
+        mentionRe.lastIndex = last;
+      }
+      if (pubkey && !(cached && cached.name)) {
+        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) pill.textContent = '@' + p.name; });
+      }
+    }
+    if (last < text.length) appendText(text.slice(last));
+  }
+
+  // ---- composer draft autosave (per account, in chrome.storage.local) ----
+  function loadComposeDraft(pubkey) {
+    return new Promise((res) => {
+      chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+        const all = (r && r.sidecar_compose_drafts) || {};
+        res(all[pubkey] || null);
+      });
+    });
+  }
+  function saveComposeDraft(pubkey, draft) {
+    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+      const all = (r && r.sidecar_compose_drafts) || {};
+      if (hasContent) all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+      else delete all[pubkey];
+      chrome.storage.local.set({ sidecar_compose_drafts: all });
+    });
+  }
+  function clearComposeDraft(pubkey) {
+    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
+      const all = (r && r.sidecar_compose_drafts) || {};
+      if (!all[pubkey]) return;
+      delete all[pubkey];
+      chrome.storage.local.set({ sidecar_compose_drafts: all });
+    });
+  }
+
+  async function openComposer(initialText) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
       return;
     }
-    const draft = { text: '', media: [] };
+    const pubkey = state.activePubkey;
+    let draft = { text: initialText || '', media: [] };
     const modal = $('modal');
     let timer = null;
+    let saveTimer = null;
+    let published = false;
+    let enteredEditor = false;
+
+    function persistDraft() { saveComposeDraft(pubkey, draft); }
+    function scheduleSave() {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(persistDraft, 400);
+    }
 
     async function doPublish() {
       const content = draft.text.trim();
+      const pTags = [];
+      const seenPks = new Set();
+      const mentionRe = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+      let mm;
+      while ((mm = mentionRe.exec(content)) !== null) {
+        try {
+          const d = NT.nip19.decode(mm[1]);
+          const pk = d.type === 'npub' ? d.data : d.data.pubkey;
+          if (pk && !seenPks.has(pk)) { seenPks.add(pk); pTags.push(['p', pk]); }
+        } catch (_) {}
+      }
+      // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
+      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      const tags = settings && settings.showClientTag === false ? [...pTags] : [CLIENT_TAG.slice(), ...pTags];
       const event = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [CLIENT_TAG.slice()],
+        tags,
         content,
       };
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
@@ -1551,6 +4154,7 @@
 
     function showEditor() {
       if (timer) { clearInterval(timer); timer = null; }
+      enteredEditor = true;
       modal.innerHTML = '';
 
       // Write / Preview tab bar
@@ -1559,9 +4163,202 @@
       const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
-      const ta = h('textarea', { className: 'compose-text', placeholder: 'What’s on your mind?' });
-      ta.value = draft.text;
-      ta.addEventListener('input', () => { draft.text = ta.value; updatePostState(); });
+      const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
+      editor.dataset.placeholder = "What’s on your mind?";
+      if (draft.text) { hydrateEditorFromText(editor, draft.text); editor.classList.remove('is-empty'); }
+
+      const editorWrap = h('div', { className: 'compose-editor-wrap' });
+      editorWrap.append(editor);
+
+      // ---- @mention autocomplete ----
+      let acDropdown = null, acResults = [], acIndex = 0;
+      let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
+
+      function getCaretContext() {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return null;
+        const range = sel.getRangeAt(0);
+        if (!range.collapsed) return null;
+        const node = range.startContainer;
+        if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
+        const before = node.textContent.slice(0, range.startOffset);
+        const match = before.match(/@([^\s@]*)$/);
+        if (!match) return null;
+        return { node, query: match[1] };
+      }
+
+      function closeAcDropdown() {
+        if (acDropdown) { acDropdown.remove(); acDropdown = null; }
+        acResults = []; acIndex = 0;
+      }
+
+      function updateAcActiveItem() {
+        if (!acDropdown) return;
+        acDropdown.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acIndex));
+      }
+
+      function selectAcItem(contact, query) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        const node = range.startContainer;
+        if (node.nodeType !== Node.TEXT_NODE) return;
+        const offset = range.startOffset;
+        // Text before the '@'. Trim any trailing whitespace and re-add exactly one
+        // space, so the mention is always preceded by a single space (or nothing
+        // at line start). Trimming the whole run both collapses a stray double
+        // space and sidesteps the old single-code-unit check, which mis-read an
+        // emoji's surrogate half (e.g. 🤝) as a non-space char and inserted an
+        // extra space.
+        const beforeAt = node.textContent.slice(0, Math.max(0, offset - (query.length + 1)));
+        const trimmed = beforeAt.replace(/\s+$/, '');
+        const atStart = trimmed.length;
+        const needsLeadingSpace = trimmed.length > 0;
+        range.setStart(node, atStart);
+        range.setEnd(node, offset);
+        range.deleteContents();
+        const pill = document.createElement('span');
+        pill.className = 'mention-pill';
+        pill.contentEditable = 'false';
+        pill.dataset.bech32 = 'nostr:' + NT.nip19.npubEncode(contact.pubkey);
+        pill.textContent = '@' + contact.name;
+        if (needsLeadingSpace) range.insertNode(document.createTextNode(' '));
+        range.collapse(false);
+        range.insertNode(pill);
+        // NBSP after pill: never collapsed by the browser, normalized to space by serializer.
+        const trailingSpace = document.createTextNode(' ');
+        range.setStartAfter(pill);
+        range.insertNode(trailingSpace);
+        range.setStartAfter(trailingSpace);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        closeAcDropdown();
+        draft.text = serializeEditor(editor);
+        syncEmptyClass();
+        updatePostState();
+        scheduleSave();
+      }
+
+      // Anchor the dropdown just under the caret line rather than the bottom of
+      // the (tall) editor box. Falls back to the CSS default if no caret rect.
+      function positionAcDropdown() {
+        if (!acDropdown) return;
+        try {
+          const sel = window.getSelection();
+          if (!sel.rangeCount) return;
+          const r = sel.getRangeAt(0).getBoundingClientRect();
+          if (!r || (!r.top && !r.bottom)) return;
+          const wrap = editorWrap.getBoundingClientRect();
+          acDropdown.style.top = Math.round(r.bottom - wrap.top + 4) + 'px';
+        } catch (_) {}
+      }
+
+      // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
+      // and keeps the dropdown open even when there are no local matches yet.
+      function renderAcResults(items, ctx, loading) {
+        acResults = items;
+        if (!acResults.length && !loading) { closeAcDropdown(); return; }
+        acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
+        if (!acDropdown) {
+          acDropdown = h('div', { className: 'ac-dropdown' });
+          editorWrap.append(acDropdown);
+        }
+        positionAcDropdown();
+        acDropdown.innerHTML = '';
+        acResults.forEach((c, i) => {
+          const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
+          const av = h('span', { className: 'ac-item-av' });
+          applyAvatar(av, c.picture ? { picture: c.picture } : {});
+          item.append(av, h('span', { className: 'ac-item-name', textContent: '@' + c.name }));
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const fresh = getCaretContext();
+            selectAcItem(c, fresh ? fresh.query : ctx.query);
+          });
+          acDropdown.append(item);
+        });
+        if (loading) {
+          acDropdown.append(h('div', { className: 'ac-loading' }, [
+            h('span', { className: 'ac-spinner' }),
+            h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
+          ]));
+        }
+      }
+
+      // Two async sources feed the dropdown: your follow list (instant from
+      // cache, else a slow first relay load) and a global Nostr search. NEVER
+      // block the UI on the follow list — the first load hits relays and can take
+      // many seconds. Paint immediately (with a spinner), then repaint as each
+      // source resolves. `paint()` renders the deduped union + loading state.
+      async function updateAcDropdown() {
+        const ctx = getCaretContext();
+        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
+        const seq = ++acSeq;
+        const q = ctx.query.toLowerCase();
+        const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
+
+        const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+        let followMatches = [];
+        let globals = [];
+        let globalPending = willSearchGlobal;
+        const paint = () => {
+          if (seq !== acSeq) return;
+          const seen = new Set(followMatches.map((c) => c.pubkey));
+          const merged = followMatches.slice();
+          for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+          renderAcResults(merged.slice(0, 8), ctx, globalPending);
+        };
+
+        // Follows: use the cache synchronously if present; otherwise load in the
+        // background and repaint when ready (no await here).
+        const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
+        if (cached) followMatches = matchFollows(cached);
+        paint(); // instant feedback: local matches (maybe none) + spinner if searching
+        if (!cached) {
+          getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
+        }
+
+        // Global search across all of Nostr so you can tag people you don't
+        // follow. Debounced; best-effort — a failure/rate-limit just clears the
+        // spinner and leaves the follow matches.
+        if (willSearchGlobal) {
+          if (acSuggestTimer) clearTimeout(acSuggestTimer);
+          acSuggestTimer = setTimeout(async () => {
+            const res = await naSuggest(ctx.query);
+            if (seq !== acSeq) return; // query changed since
+            globals = res;
+            globalPending = false;
+            paint();
+          }, 250);
+        }
+      }
+
+      function syncEmptyClass() {
+        const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
+        editor.classList.toggle('is-empty', isEmpty);
+        if (isEmpty) editor.innerHTML = '';
+      }
+
+      editor.addEventListener('input', () => {
+        draft.text = serializeEditor(editor);
+        syncEmptyClass();
+        updatePostState();
+        updateAcDropdown();
+        scheduleSave();
+        noteActivity(); // composing counts as activity — keep auto-lock at bay
+      });
+
+      editor.addEventListener('keydown', (e) => {
+        if (!acDropdown) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
+        else if (e.key === 'Enter' || e.key === 'Tab') {
+          if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
+        } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
+      });
+
+      editor.addEventListener('blur', () => setTimeout(closeAcDropdown, 150));
 
       const previewPane = h('div', { className: 'compose-preview hidden' });
       function renderPreview() {
@@ -1579,11 +4376,11 @@
         preview = p;
         tabWrite.classList.toggle('active', !p);
         tabPreview.classList.toggle('active', p);
-        ta.classList.toggle('hidden', p);
+        editorWrap.classList.toggle('hidden', p);
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p);
         previewPane.classList.toggle('hidden', !p);
-        if (p) renderPreview();
+        if (p) { closeAcDropdown(); renderPreview(); }
       }
       tabWrite.addEventListener('click', () => setMode(false));
       tabPreview.addEventListener('click', () => setMode(true));
@@ -1594,23 +4391,47 @@
         draft.media.forEach((m, i) => {
           const cell = h('div', { className: 'compose-thumb' });
           const el = m.isVideo ? document.createElement('video') : document.createElement('img');
+          // Match the rest of the app: many media hosts (e.g. Blossom) reject the
+          // chrome-extension:// referrer and 403, which renders as a broken thumb.
+          el.referrerPolicy = 'no-referrer';
           el.src = m.url;
           if (m.isVideo) el.muted = true;
           cell.append(el);
           const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
-            draft.text = draft.text.replace('\n' + m.url, '').replace(m.url, '').trimEnd();
-            ta.value = draft.text;
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+            let wn;
+            while ((wn = walker.nextNode())) {
+              if (wn.textContent.includes(m.url)) {
+                wn.textContent = wn.textContent.replace('\n' + m.url, '').replace(m.url, '');
+                break;
+              }
+            }
             draft.media.splice(i, 1);
+            draft.text = serializeEditor(editor);
+            syncEmptyClass();
             renderThumbs();
             updatePostState();
+            scheduleSave();
           });
           cell.append(rm);
           thumbs.append(cell);
         });
       }
       renderThumbs();
+
+      // Append a media URL on its own line. Decides the separator from the
+      // SERIALIZED text (what gets posted), and breaks on a newline rather than
+      // any trailing whitespace — so an image pasted right after a mention/tag
+      // can never glue to it (a bech32 or #hashtag followed by a URL corrupts
+      // both when the note is parsed). No-ops the break for an empty editor or
+      // one already ending in a newline.
+      function appendMediaUrl(url) {
+        const existing = serializeEditor(editor);
+        const sep = existing && !/\n$/.test(existing) ? '\n' : '';
+        editor.append(document.createTextNode(sep + url));
+      }
 
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
@@ -1630,10 +4451,12 @@
         try {
           const url = await uploadMedia(file);
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
-          draft.text = (draft.text ? draft.text.trimEnd() + '\n' : '') + url;
-          ta.value = draft.text;
+          appendMediaUrl(url);
+          draft.text = serializeEditor(editor);
+          syncEmptyClass();
           renderThumbs();
           updatePostState();
+          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -1643,12 +4466,56 @@
         fileInput.value = '';
       });
 
+      editor.addEventListener('paste', async (e) => {
+        const imageFiles = Array.from(e.clipboardData?.items ?? [])
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+          .map((item) => item.getAsFile())
+          .filter((f) => f !== null);
+        if (imageFiles.length === 0) {
+          e.preventDefault();
+          const plain = e.clipboardData.getData('text/plain');
+          if (plain) document.execCommand('insertText', false, plain);
+          return;
+        }
+        e.preventDefault();
+        addBtn.disabled = true;
+        const lbl = addBtn.querySelector('span');
+        const prev = lbl.textContent;
+        lbl.textContent = 'Uploading…';
+        try {
+          for (const file of imageFiles) {
+            const url = await uploadMedia(file);
+            draft.media.push({ url, isVideo: false });
+            appendMediaUrl(url);
+          }
+          draft.text = serializeEditor(editor);
+          syncEmptyClass();
+          renderThumbs();
+          updatePostState();
+          scheduleSave();
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+        addBtn.disabled = false;
+        lbl.textContent = prev;
+      });
+
       const err = h('div', { className: 'error' });
       const post = h('button', { className: 'primary', textContent: 'Post' });
       function updatePostState() { post.disabled = !draft.text.trim() && !draft.media.length; }
-      post.addEventListener('click', () => {
+      post.addEventListener('click', async () => {
         if (post.disabled) return;
-        showCountdown();
+        const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+        const on = s.noteCountdown !== false; // default on
+        const secs = NOTE_COUNTDOWN_PRESETS.includes(s.noteCountdownSecs) ? s.noteCountdownSecs : NOTE_COUNTDOWN_DEFAULT;
+        if (on) {
+          showCountdown(secs);
+        } else {
+          post.disabled = true;
+          post.textContent = 'Posting…';
+          finishPublish();
+        }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
@@ -1668,7 +4535,7 @@
         h('h3', { textContent: 'New note' }),
         author,
         tabBar,
-        ta,
+        editorWrap,
         previewPane,
         thumbs,
         addBtn,
@@ -1677,12 +4544,30 @@
         h('div', { className: 'actions' }, [post, cancel])
       );
       updatePostState();
-      ta.focus();
+      editor.focus();
     }
 
-    function showCountdown() {
+    // Publish the note and finish (clear draft, close, banner) — shared by the
+    // countdown's auto/now fire and the immediate (countdown-off) post path.
+    async function finishPublish() {
+      try {
+        const signed = await doPublish();
+        published = true;
+        clearComposeDraft(pubkey);
+        closeModal();
+        toast('Note published', 'success');
+        showPostBanner(signed);
+      } catch (e) {
+        toast(e.message, 'error');
+        showEditor(); // keep the draft so they can retry
+      }
+    }
+
+    function showCountdown(secs) {
       modal.innerHTML = '';
-      let remaining = NOTE_COUNTDOWN_SECS;
+      let remaining = secs;
+
+      // Full-size countdown ring, centered below the note preview.
       const R = 30;
       const C = 2 * Math.PI * R;
       const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1695,6 +4580,26 @@
       const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
       const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
 
+      // Same identity strip as the editor — who's posting shouldn't be ambiguous
+      // right before it actually publishes.
+      const active = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
+      const author = h('div', { className: 'compose-author' });
+      author.append(avatarEl(active || {}, 'compose-author-av'));
+      author.append(
+        h('div', { className: 'compose-author-info' }, [
+          h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+          h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
+        ])
+      );
+
+      // The note exactly as it will be published, for a last review.
+      const previewScroll = h('div', { className: 'countdown-preview' });
+      const previewBody = h('div', { className: 'preview-body' });
+      const bodyText = draft.text.trim();
+      if (bodyText) renderNotePreview(previewBody, bodyText);
+      else previewBody.append(h('p', { className: 'hint', textContent: 'Empty note.' }));
+      previewScroll.append(previewBody);
+
       const now = h('button', { className: 'primary', textContent: 'Post now' });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
 
@@ -1702,22 +4607,16 @@
         if (timer) { clearInterval(timer); timer = null; }
         now.disabled = true;
         now.textContent = 'Posting…';
-        try {
-          const signed = await doPublish();
-          closeModal();
-          toast('Note published', 'success');
-          showPostBanner(signed);
-        } catch (e) {
-          toast(e.message, 'error');
-          showEditor(); // keep the draft so they can retry
-        }
+        await finishPublish();
       }
       now.addEventListener('click', fire);
       cancel.addEventListener('click', () => { showEditor(); });
 
       modal.append(
         h('h3', { textContent: 'Posting your note' }),
-        h('p', { className: 'hint', textContent: 'Sending in a moment. Post now or cancel to keep editing.' }),
+        author,
+        h('p', { className: 'hint', textContent: 'Review before it posts.' }),
+        previewScroll,
         ringWrap,
         h('div', { className: 'actions' }, [now, cancel])
       );
@@ -1726,12 +4625,67 @@
       timer = setInterval(() => {
         remaining -= 1;
         num.textContent = String(Math.max(remaining, 0));
-        fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / NOTE_COUNTDOWN_SECS)));
+        fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
         if (remaining <= 0) fire();
       }, 1000);
     }
 
-    openModal(() => showEditor(), () => { if (timer) { clearInterval(timer); timer = null; } });
+    // Offer to resume a saved draft (or start fresh) before opening the editor.
+    function showDraftChooser(saved) {
+      modal.innerHTML = '';
+      // Collapse horizontal whitespace and cap long blank-line runs, but keep
+      // real newlines — this preview renders with white-space: pre-wrap, and
+      // "Resume draft" loads the exact saved text, so the preview should look
+      // like what's about to be restored instead of flattening it to one line.
+      // No length-based truncation here: a fixed character cutoff could slice
+      // through the middle of a nostr:npub1… mention, breaking it — the box
+      // already clips visually (max-height + overflow:hidden), matching how
+      // the Preview tab and the final review screen handle the same text.
+      const preview = (saved.text || '').trim().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
+      const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
+      const mediaNote = saved.media && saved.media.length
+        ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
+        : '';
+
+      const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
+      resume.addEventListener('click', () => {
+        draft = { text: saved.text || '', media: (saved.media || []).slice() };
+        showEditor();
+      });
+      const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
+      fresh.addEventListener('click', () => {
+        clearComposeDraft(pubkey);
+        draft = { text: initialText || '', media: [] };
+        showEditor();
+      });
+
+      const parts = [
+        h('h3', { textContent: 'Resume your draft?' }),
+        h('p', { className: 'hint', textContent: 'You have an unsaved draft' + when + '.' }),
+      ];
+      if (preview) {
+        const previewBox = h('div', { className: 'draft-preview' });
+        renderNotePreview(previewBox, preview);
+        parts.push(previewBox);
+      }
+      if (mediaNote) parts.push(h('p', { className: 'draft-preview-meta', textContent: mediaNote }));
+      parts.push(h('div', { className: 'actions' }, [resume, fresh]));
+      modal.append(...parts);
+    }
+
+    const saved = await loadComposeDraft(pubkey);
+    const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+
+    openModal(
+      () => { if (hasSaved) showDraftChooser(saved); else showEditor(); },
+      () => {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        // Persist on close only once the user has actually edited — closing the
+        // chooser without choosing must not overwrite the saved draft.
+        if (!published && enteredEditor) persistDraft();
+      }
+    );
   }
 
   // ---- edit profile (full-panel overlay) ----
@@ -1881,6 +4835,176 @@
     show($('view-main'));
   });
 
+  // First-run profile setup for a freshly generated key: a short, skippable
+  // wizard (name → photo → bio). On exit it publishes whatever was filled in
+  // (kind:0) and lands on the Profile tab to finish the rest. The keystore is
+  // unlocked from account creation, so signing needs no PIN. Every exit path —
+  // Finish, "I'll do this later", the X, or the backdrop — runs `commit` once
+  // (guarded), which publishes BEFORE closing so the profile never flashes the
+  // interim auto-generated cocktail name.
+  function profileSetupWizard(newPubkey) {
+    const draft = { display_name: '', picture: '', about: '' };
+    const STEPS = 3;
+    let step = 1;
+    let committing = false;
+
+    async function commit() {
+      if (committing) return;
+      committing = true;
+      // Only send fields the user actually filled in. publishProfile deletes any
+      // empty field it's handed, so passing blanks would wipe metadata rather
+      // than leave it untouched — keep this purely additive.
+      const fields = {};
+      if (draft.display_name.trim()) fields.display_name = draft.display_name.trim();
+      if (draft.picture) fields.picture = draft.picture;
+      if (draft.about.trim()) fields.about = draft.about.trim();
+      const hasContent = Object.keys(fields).length > 0;
+      // Safety net: publishProfile signs with whatever account is active. Only
+      // publish if the active account is still the one this wizard was opened
+      // for — never risk overwriting a different account's profile.
+      const targetOk = !newPubkey || state.activePubkey === newPubkey;
+      if (hasContent && !targetOk) {
+        toast('Profile setup skipped — active account changed.', 'error');
+      } else if (hasContent) {
+        const primaryBtn = $('modal').querySelector('button.primary');
+        if (primaryBtn) { primaryBtn.disabled = true; primaryBtn.textContent = 'Saving…'; }
+        // Publish and wait for the store to update BEFORE navigating/closing, so
+        // the Profile tab renders the chosen name, not the interim cocktail name.
+        try {
+          await publishProfile(fields, null); // keystore unlocked → no step-up PIN
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      }
+      const tab = document.querySelector('.tab[data-tab="profile"]');
+      if (tab) tab.click();
+      renderMain();
+      closeModal();
+      if (hasContent && targetOk) toast('Profile saved', 'success');
+    }
+
+    openModal(
+      (modal) => {
+        const xBtn = h('button', { className: 'modal-x', title: 'Skip' });
+        xBtn.appendChild(icon('x'));
+        xBtn.addEventListener('click', commit);
+        const body = h('div', { className: 'setup-modal' });
+        modal.append(xBtn, body);
+
+        const head = (title, sub) => {
+          const parts = [
+            h('div', { className: 'setup-progress', textContent: 'Step ' + step + ' of ' + STEPS }),
+            h('h3', { textContent: title }),
+          ];
+          if (sub) parts.push(h('p', { className: 'hint', textContent: sub }));
+          return parts;
+        };
+
+        const footer = (primaryLabel, onPrimary) => {
+          const row = h('div', { className: 'actions setup-actions' });
+          if (step > 1) {
+            const back = h('button', { className: 'ghost', textContent: 'Back' });
+            back.addEventListener('click', () => { step -= 1; render(); });
+            row.append(back);
+          }
+          const primary = h('button', { className: 'primary', textContent: primaryLabel });
+          primary.addEventListener('click', onPrimary);
+          row.append(primary);
+          const later = h('button', { className: 'setup-skip', textContent: "I'll do this later" });
+          later.addEventListener('click', commit);
+          return h('div', {}, [row, later]);
+        };
+
+        function render() {
+          body.innerHTML = '';
+          if (step === 1) renderName();
+          else if (step === 2) renderPhoto();
+          else renderBio();
+        }
+
+        function renderName() {
+          const input = h('input', { type: 'text', placeholder: 'e.g. Gatsby' });
+          input.value = draft.display_name;
+          input.addEventListener('input', () => { draft.display_name = input.value; });
+          body.append(
+            ...head('What should people call you?', 'Your display name — you can change it any time.'),
+            h('label', { className: 'field-label', textContent: 'Display name' }),
+            input,
+            footer('Continue', () => { step = 2; render(); })
+          );
+          setTimeout(() => input.focus(), 30);
+        }
+
+        function renderPhoto() {
+          const prev = h('div', { className: 'upload-preview' });
+          const overlay = h('span', { className: 'upload-overlay' });
+          overlay.append(icon('camera'));
+          const fileInput = document.createElement('input');
+          fileInput.type = 'file';
+          fileInput.accept = 'image/*';
+          fileInput.style.display = 'none';
+          const capLabel = h('span', { className: 'upload-cap-label' });
+          const capHint = h('span', { className: 'upload-cap-hint', textContent: 'JPG, PNG or GIF' });
+          const setPreview = (url) => {
+            prev.innerHTML = '';
+            prev.classList.toggle('empty', !url);
+            if (url) {
+              const im = document.createElement('img');
+              im.referrerPolicy = 'no-referrer';
+              im.src = url;
+              prev.append(im);
+            }
+            prev.append(overlay);
+            capLabel.textContent = url ? 'Change photo' : 'Upload a photo';
+          };
+          setPreview(draft.picture);
+          const trigger = () => fileInput.click();
+          prev.addEventListener('click', trigger);
+          const caption = h('div', { className: 'upload-caption' }, [capLabel, capHint]);
+          caption.addEventListener('click', trigger);
+          fileInput.addEventListener('change', async () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+            prev.classList.add('uploading');
+            const before = capLabel.textContent;
+            capLabel.textContent = 'Uploading…';
+            try {
+              const u = await uploadImage(file, 'profile');
+              draft.picture = u;
+              setPreview(u);
+            } catch (e) {
+              capLabel.textContent = before;
+              toast(e.message, 'error');
+            }
+            prev.classList.remove('uploading');
+            fileInput.value = '';
+          });
+          body.append(
+            ...head('Add a photo', 'Optional — a picture helps people recognize you.'),
+            h('div', { className: 'upload-row', role: 'button' }, [prev, caption, fileInput]),
+            footer('Continue', () => { step = 3; render(); })
+          );
+        }
+
+        function renderBio() {
+          const ta = document.createElement('textarea');
+          ta.value = draft.about;
+          ta.placeholder = 'A sentence or two about you.';
+          ta.addEventListener('input', () => { draft.about = ta.value; });
+          body.append(
+            ...head('Write a short bio', 'Optional — you can flesh out your profile next.'),
+            h('label', { className: 'field-label', textContent: 'About' }),
+            ta,
+            footer('Finish', commit)
+          );
+        }
+
+        render();
+      },
+      commit
+    );
+  }
+
   // Fetch-merge-sign-publish: preserve unknown fields, overlay edits, sign (step-up PIN), publish.
   async function publishProfile(fields, pin) {
     const { content } = await fetchActiveProfile();
@@ -1893,6 +5017,9 @@
     const event = { kind: 0, created_at: Math.floor(Date.now() / 1000), tags: [], content: JSON.stringify(merged) };
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin });
     await publishSigned(signed);
+    // Refresh the shared profile cache with what we just published so the profile
+    // view / previews reflect the edit immediately instead of a stale cached copy.
+    cacheProfile(state.activePubkey, merged);
     await call({
       type: 'SIDECAR_SET_PROFILE',
       pubkey: state.activePubkey,
@@ -2117,6 +5244,168 @@
     });
   }
 
+  // ---- vault export/import: every account's key + wallet connection, in one
+  // password-encrypted file. Distinct from a single account's nsec/ncryptsec
+  // export — this covers the whole device. Uses SidecarCrypto (PBKDF2 -> AES-GCM,
+  // same primitive the keystore itself uses at rest) with a password the user
+  // chooses fresh here, independent of their Sidecar PIN.
+  function exportVaultModal() {
+    openModal((modal) => {
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Continue' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        go.disabled = true;
+        go.textContent = 'Verifying…';
+        try {
+          const { valid } = await call({ type: 'SIDECAR_VERIFY_PIN', pin: pin.value });
+          if (!valid) throw new Error('Incorrect PIN');
+          closeModal();
+          setTimeout(() => encryptVaultModal(pin.value), 0);
+        } catch (e) {
+          err.textContent = e.message;
+          go.disabled = false;
+          go.textContent = 'Continue';
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Export vault' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to export every account on this device.' }),
+        h('label', { textContent: 'PIN' }),
+        pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  function encryptVaultModal(pin) {
+    openModal((modal) => {
+      const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
+      const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Export' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
+        if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+        go.disabled = true;
+        go.textContent = 'Exporting…';
+        try {
+          const accounts = [];
+          for (const a of state.accounts) {
+            const { nsec } = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin });
+            let nwc = null;
+            const { has } = await call({ type: 'SIDECAR_HAS_NWC', pubkey: a.pubkey });
+            if (has) {
+              const r = await call({ type: 'SIDECAR_REVEAL_NWC', pubkey: a.pubkey, pin });
+              nwc = r.connection || null;
+            }
+            accounts.push({ pubkey: a.pubkey, npub: a.npub, name: a.name, nsec, nwc });
+          }
+          const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), accounts });
+          const kdf = window.SidecarCrypto.newKdf();
+          const key = await window.SidecarCrypto.deriveKey(pass.value, kdf);
+          const { iv, ct } = await window.SidecarCrypto.encryptString(key, payload);
+          const file = { version: 1, exportedAt: new Date().toISOString(), kdf, iv, ct };
+          const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+          const a2 = document.createElement('a');
+          a2.href = url;
+          a2.download = 'sidecar-vault-' + new Date().toISOString().slice(0, 10) + '.json';
+          a2.click();
+          URL.revokeObjectURL(url);
+          closeModal();
+          toast('Exported ' + accounts.length + ' account(s)', 'success');
+        } catch (e) {
+          err.textContent = e.message || 'Could not export the vault.';
+          go.disabled = false;
+          go.textContent = 'Export';
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Set an export password' }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            "Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it.",
+        }),
+        h('label', { textContent: 'Password' }),
+        pass,
+        h('label', { textContent: 'Confirm password' }),
+        pass2,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  // Restore from a vault file: decrypt, then add any account not already present.
+  // Never overwrites an existing account — a pubkey already on this device is
+  // counted as "already have it" and simply skipped.
+  function importVaultModal(file) {
+    openModal((modal) => {
+      const pass = h('input', { type: 'password', placeholder: 'Vault export password' });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Restore' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pass.value) return (err.textContent = 'Enter the export password.');
+        go.disabled = true;
+        go.textContent = 'Restoring…';
+        try {
+          if (!file || !file.kdf || !file.iv || !file.ct) throw new Error('Not a valid Sidecar vault file.');
+          const key = await window.SidecarCrypto.deriveKey(pass.value, file.kdf);
+          let payload;
+          try {
+            payload = await window.SidecarCrypto.decryptString(key, { iv: file.iv, ct: file.ct });
+          } catch (_) {
+            throw new Error('Incorrect password, or a corrupted file.');
+          }
+          const bundle = JSON.parse(payload);
+          const accounts = Array.isArray(bundle.accounts) ? bundle.accounts : [];
+          if (!accounts.length) throw new Error('That vault has no accounts to restore.');
+          let imported = 0, skipped = 0;
+          for (const a of accounts) {
+            try {
+              const added = await call({ type: 'SIDECAR_ADD_ACCOUNT', secret: a.nsec, name: a.name || '' });
+              imported++;
+              // The pubkey is derived from the secret, so a successful add always
+              // lands under added.pubkey — safe to attach the wallet connection now.
+              if (a.nwc) await call({ type: 'SIDECAR_SET_NWC', pubkey: added.pubkey, connection: a.nwc });
+            } catch (_) {
+              skipped++; // already exists on this device
+            }
+          }
+          closeModal();
+          await refresh();
+          toast('Imported ' + imported + ' account(s)' + (skipped ? ', ' + skipped + ' already present' : ''), 'success');
+        } catch (e) {
+          err.textContent = e.message || 'Could not restore the vault.';
+          go.disabled = false;
+          go.textContent = 'Restore';
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Restore vault' }),
+        h('p', { className: 'hint', textContent: 'Enter the password this vault was exported with. Accounts already on this device are left untouched.' }),
+        h('label', { textContent: 'Password' }),
+        pass,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+      setTimeout(() => pass.focus(), 50);
+    });
+  }
+
   function restoreModal(t) {
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
@@ -2152,6 +5441,414 @@
         err,
         h('div', { className: 'actions' }, [go, cancel])
       );
+    });
+  }
+
+  // ---- NIP-65 relay list editor (Profile tab) ----
+  // Loads the account's published read/write relays; if none exist yet, seeds
+  // the editor from Sidecar's own configured relays as a starting point.
+  async function loadNip65Editor(pubkey) {
+    const n = await getNip65(pubkey);
+    if (n) {
+      const urls = [...new Set([...n.read, ...n.write])];
+      return urls.map((url) => ({ url, read: n.read.includes(url), write: n.write.includes(url) }));
+    }
+    const configured = await call({ type: 'SIDECAR_GET_RELAYS' });
+    return Object.keys(configured).map((url) => ({
+      url,
+      read: configured[url].read !== false,
+      write: configured[url].write !== false,
+    }));
+  }
+
+  function renderNip65Section(view, active) {
+    const setting = h('div', { className: 'setting nip65-setting' });
+    setting.append(
+      h('h3', { textContent: 'Relays' }),
+      h('p', {
+        className: 'hint',
+        textContent:
+          'Your public relay list (NIP-65) — tells other Nostr apps where to find your notes and where to send you replies and DMs. Keep it small and reliable.',
+      })
+    );
+
+    const status = h('p', { className: 'hint compact nip65-status', textContent: 'Loading…' });
+    const list = h('div', { className: 'list flat nip65-list' });
+    const warn = h('p', { className: 'hint warn nip65-warn' });
+    const addInput = h('input', { type: 'text', placeholder: 'wss://relay.example.com' });
+    const addBtn = h('button', { className: 'secondary', textContent: 'Add' });
+    const err = h('div', { className: 'error' });
+    const publishBtn = h('button', { className: 'primary', textContent: 'Publish relay list' });
+
+    setting.append(
+      status,
+      list,
+      warn,
+      h('div', { className: 'row-actions' }, [addInput, addBtn]),
+      err,
+      h('div', { className: 'actions nip65-publish' }, [publishBtn])
+    );
+    view.append(setting);
+
+    let relayList = [];
+
+    function updateWarn() {
+      if (!relayList.some((r) => r.write)) {
+        warn.textContent = 'No write relays selected — other apps may not find your new notes.';
+      } else if (!relayList.some((r) => r.read)) {
+        warn.textContent = 'No read relays selected — you may not see replies or mentions here.';
+      } else {
+        warn.textContent = '';
+      }
+    }
+
+    function renderRows() {
+      if (!relayList.length) {
+        listState(list, 'No relays yet — add one below.');
+        updateWarn();
+        return;
+      }
+      list.innerHTML = '';
+      relayList.forEach((r, i) => {
+        const readCb = h('input', { type: 'checkbox' });
+        readCb.checked = r.read;
+        readCb.addEventListener('change', () => { r.read = readCb.checked; updateWarn(); });
+        const writeCb = h('input', { type: 'checkbox' });
+        writeCb.checked = r.write;
+        writeCb.addEventListener('change', () => { r.write = writeCb.checked; updateWarn(); });
+
+        const rm = iconButton('Remove', 'trash', () => {
+          relayList.splice(i, 1);
+          renderRows();
+        });
+        rm.classList.add('nip65-rm');
+
+        // Stacked layout: the URL wraps on its own line, then a toggles row —
+        // the sidebar is too narrow to keep the URL and Read/Write on one line.
+        const row = h('div', { className: 'item nip65-row' }, [
+          h('div', { className: 'nip65-url', textContent: r.url }),
+          h('div', { className: 'nip65-controls' }, [
+            h('label', { className: 'nip65-chip' }, [readCb, document.createTextNode('Read')]),
+            h('label', { className: 'nip65-chip' }, [writeCb, document.createTextNode('Write')]),
+            rm,
+          ]),
+        ]);
+        list.append(row);
+      });
+      updateWarn();
+    }
+
+    addBtn.addEventListener('click', () => {
+      let url = addInput.value.trim();
+      if (!url) return;
+      if (!/^wss?:\/\//i.test(url)) url = 'wss://' + url;
+      url = url.replace(/\/+$/, ''); // drop trailing slash so wss://x and wss://x/ dedupe
+      if (!/^wss?:\/\/[^/]+/i.test(url)) { err.textContent = "That doesn't look like a relay URL."; return; }
+      if (relayList.some((r) => r.url === url)) { addInput.value = ''; return; }
+      err.textContent = '';
+      relayList.push({ url, read: true, write: true });
+      addInput.value = '';
+      renderRows();
+    });
+
+    publishBtn.addEventListener('click', async () => {
+      err.textContent = '';
+      if (!relayList.length) { err.textContent = 'Add at least one relay first.'; return; }
+      if (!relayList.some((r) => r.read || r.write)) {
+        err.textContent = 'Check Read or Write on at least one relay first.';
+        return;
+      }
+      publishBtn.disabled = true;
+      publishBtn.textContent = 'Publishing…';
+      try {
+        await publishNip65(active.pubkey, relayList);
+        status.textContent = 'Published ✓';
+        status.classList.add('done');
+        toast('Relay list published', 'success');
+      } catch (e) {
+        err.textContent = e.message;
+        toast(e.message, 'error');
+      }
+      publishBtn.disabled = false;
+      publishBtn.textContent = 'Publish relay list';
+    });
+
+    loadNip65Editor(active.pubkey)
+      .then((initial) => {
+        relayList = initial;
+        status.textContent = relayList.length ? 'Loaded from your current relay list.' : 'Not published yet.';
+        renderRows();
+      })
+      .catch(() => {
+        status.textContent = 'Could not load your current relay list.';
+        renderRows();
+      });
+  }
+
+  // ---- Follow-list recovery (Powered by Mutable — ported from github.com/dmnyc/mutable) ----
+  // kind:3 is replaceable, so a buggy client publishing an empty/short list
+  // overwrites your follows everywhere. Relays don't delete old versions though —
+  // they just stop serving them as "current". Scanning a broad relay set with a
+  // limit>1 turns them up, so the user can republish a healthy earlier version.
+  // Cast a WIDE net when scanning for old versions — coverage beats reliability
+  // here (dead relays just time out). Includes the big general relays where a
+  // user likely published over the years, plus archival/cache relays that keep
+  // historical events. Queried on top of the user's own configured + NIP-65 relays.
+  const FOLLOW_SCAN_RELAYS = [
+    'wss://purplepag.es',        // aggregates kind:0/3/10002
+    'wss://relay.primal.net',
+    'wss://cache0.primal.net',   // Primal caches keep historical events
+    'wss://cache1.primal.net',
+    'wss://cache2.primal.net',
+    'wss://nos.lol',
+    'wss://relay.snort.social',
+    'wss://relay.damus.io',      // dying, but historically the biggest default → old copies live here
+    'wss://nostr.wine',
+    'wss://offchain.pub',
+    'wss://nostr.mom',
+    'wss://relay.noswhere.com',
+  ];
+  // Where a RESTORED list is republished (in addition to the account's own write
+  // relays) — writable, broad-reach relays only, so the restore actually lands.
+  const FOLLOW_PUBLISH_RELAYS = ['wss://purplepag.es', 'wss://nos.lol', 'wss://offchain.pub', 'wss://nostr.mom'];
+
+  async function scanFollowListHistory(pubkey) {
+    const configured = await relayUrls(false);
+    const n = await getNip65(pubkey);
+    const nip65 = n ? [...n.read, ...n.write] : [];
+    const relays = [...new Set([...configured, ...nip65, ...FOLLOW_SCAN_RELAYS])];
+
+    const byId = new Map();
+    const responding = new Set();
+    await Promise.all(
+      relays.map(async (relay) => {
+        try {
+          const evs = await Promise.race([
+            getPool().querySync([relay], { kinds: [3], authors: [pubkey], limit: 20 }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+          ]);
+          if (evs && evs.length) responding.add(relay);
+          (evs || []).forEach((ev) => {
+            if (ev.kind !== 3 || ev.pubkey !== pubkey) return;
+            let c = byId.get(ev.id);
+            if (!c) {
+              const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
+              c = { event: ev, eventId: ev.id, createdAt: ev.created_at, followCount: set.size, foundOnRelays: [] };
+              byId.set(ev.id, c);
+            }
+            if (!c.foundOnRelays.includes(relay)) c.foundOnRelays.push(relay);
+          });
+        } catch (_) {}
+      })
+    );
+
+    const candidates = [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
+    const current = candidates[0] || null;
+    const recommended = pickRecommendedRecovery(candidates, current);
+    return { current, candidates, recommended, respondingRelays: [...responding] };
+  }
+
+  function pickRecommendedRecovery(candidates, current) {
+    const ranked = [...candidates]
+      .sort((a, b) => b.followCount - a.followCount || b.createdAt - a.createdAt)
+      .filter((c) => c.followCount > 0);
+    const currentCount = current ? current.followCount : 0;
+    const currentId = current ? current.eventId : null;
+    for (const c of ranked) {
+      if (c.eventId === currentId) continue;
+      if (c.followCount > currentCount) return c;
+    }
+    return null;
+  }
+
+  async function recoverFollowList(candidate) {
+    const preserved = candidate.event.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64);
+    const event = {
+      kind: 3,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: preserved,
+      content: candidate.event.content || '',
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+    const targets = [...new Set([...(await postRelays()), ...FOLLOW_PUBLISH_RELAYS])];
+    return publishToRelays(targets, signed);
+  }
+
+  function mutableAttribution() {
+    const a = h('a', {
+      className: 'mutable-credit',
+      href: 'https://mutable.top',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    });
+    const logo = document.createElement('img');
+    logo.className = 'mutable-logo';
+    logo.src = 'icons/apps/mutable.svg';
+    logo.alt = '';
+    a.append(logo, h('span', { textContent: 'Powered by Mutable' }));
+    return a;
+  }
+
+  function followRecoveryModal(active) {
+    openModal((modal) => {
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      const body = h('div', { className: 'recovery-modal' });
+      modal.append(xBtn, body);
+
+      let lastRes = null;
+      const clear = () => { body.innerHTML = ''; };
+      const spinner = (text) =>
+        h('div', { className: 'recv-waiting' }, [h('span', { className: 'recv-spinner' }), h('span', { textContent: text })]);
+
+      function showIntro() {
+        clear();
+        const scan = h('button', { className: 'primary', textContent: 'Scan relays' });
+        scan.addEventListener('click', runScan);
+        body.append(
+          h('h3', { textContent: 'Restore follow list' }),
+          h('p', {
+            className: 'hint',
+            textContent:
+              'If another app wiped or shrank your follows, scan your relays for older versions of your follow list and republish a healthy one.',
+          }),
+          h('div', { className: 'actions' }, [scan]),
+          mutableAttribution()
+        );
+      }
+
+      async function runScan() {
+        clear();
+        body.append(h('h3', { textContent: 'Scanning…' }), spinner('Checking your relays for older versions…'));
+        try {
+          lastRes = await scanFollowListHistory(active.pubkey);
+          showResults();
+        } catch (e) {
+          showError(e.message);
+        }
+      }
+
+      function showResults() {
+        clear();
+        const res = lastRes;
+        // Empty (0-follow) versions are the damage, not something worth restoring — hide them.
+        const shown = res.candidates.filter((c) => c.followCount > 0);
+        if (!shown.length) {
+          const retry = h('button', { className: 'secondary', textContent: 'Scan again' });
+          retry.addEventListener('click', runScan);
+          body.append(
+            h('h3', { textContent: 'No versions found' }),
+            h('p', { className: 'hint', textContent: 'No follow-list versions with follows turned up on your relays.' }),
+            h('div', { className: 'actions' }, [retry])
+          );
+          return;
+        }
+        body.append(
+          h('h3', { textContent: 'Choose a version to restore' }),
+          h('p', {
+            className: 'hint',
+            textContent:
+              'Found ' + shown.length + ' version' + (shown.length === 1 ? '' : 's') +
+              ' across ' + res.respondingRelays.length + ' relay' + (res.respondingRelays.length === 1 ? '' : 's') + '.',
+          })
+        );
+        const list = h('div', { className: 'list flat recovery-list' });
+        shown.forEach((c) => {
+          const isCurrent = res.current && c.eventId === res.current.eventId;
+          const isRec = res.recommended && c.eventId === res.recommended.eventId;
+          const badges = [];
+          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: 'Current' }));
+          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: 'Recommended' }));
+          const meta = h('div', { className: 'recovery-meta' }, [
+            h('div', { className: 'recovery-count' }, [
+              h('strong', { textContent: c.followCount.toLocaleString('en-US') }),
+              document.createTextNode(' following'),
+            ]),
+            h('div', {
+              className: 'recovery-sub',
+              textContent: relativeTime(c.createdAt) + ' · ' + c.foundOnRelays.length + ' relay' + (c.foundOnRelays.length === 1 ? '' : 's'),
+            }),
+            badges.length ? h('div', { className: 'recovery-badges' }, badges) : document.createTextNode(''),
+          ]);
+          const row = h('div', { className: 'item recovery-row' + (isRec ? ' rec' : '') }, [meta]);
+          if (!isCurrent && c.followCount > 0) {
+            const pick = h('button', { className: 'mini', textContent: 'Restore' });
+            pick.addEventListener('click', () => showConfirm(c));
+            row.append(h('div', { className: 'item-actions' }, [pick]));
+          }
+          list.append(row);
+        });
+        body.append(list, mutableAttribution());
+      }
+
+      function showConfirm(c) {
+        clear();
+        const restore = h('button', { className: 'primary', textContent: 'Restore' });
+        restore.addEventListener('click', () => runRestore(c));
+        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        back.addEventListener('click', showResults);
+        body.append(
+          h('h3', { textContent: 'Restore this version?' }),
+          h('p', { className: 'hint warn', textContent: 'This replaces your current follow list everywhere and cannot be automatically undone.' }),
+          h('div', { className: 'recovery-confirm' }, [
+            h('div', { className: 'recovery-count-lg' }, [
+              h('strong', { textContent: c.followCount.toLocaleString('en-US') }),
+              document.createTextNode(' accounts followed'),
+            ]),
+            h('div', {
+              className: 'recovery-sub',
+              textContent: new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt),
+            }),
+          ]),
+          h('div', { className: 'actions' }, [restore, back])
+        );
+      }
+
+      async function runRestore(c) {
+        clear();
+        body.append(h('h3', { textContent: 'Restoring…' }), spinner('Publishing your follow list…'));
+        try {
+          const ok = await recoverFollowList(c);
+          // Invalidate cached follow data so the profile count + @mention list
+          // reflect the restore.
+          followCountCache.delete(active.pubkey);
+          followListCache = null;
+          followListPubkey = null;
+          showDone(ok, c);
+          toast('Follow list restored', 'success');
+        } catch (e) {
+          showError(e.message);
+        }
+      }
+
+      function showDone(ok, c) {
+        clear();
+        const done = h('button', { className: 'primary', textContent: 'Done' });
+        done.addEventListener('click', () => { closeModal(); renderProfile(); });
+        body.append(
+          h('h3', { textContent: 'Follow list restored' }),
+          h('p', {
+            className: 'hint',
+            textContent:
+              'Republished ' + c.followCount.toLocaleString('en-US') + ' follows to ' + ok + ' relay' + (ok === 1 ? '' : 's') + '.',
+          }),
+          h('div', { className: 'actions' }, [done])
+        );
+      }
+
+      function showError(msg) {
+        clear();
+        const retry = h('button', { className: 'secondary', textContent: 'Try again' });
+        retry.addEventListener('click', lastRes ? showResults : runScan);
+        body.append(
+          h('h3', { textContent: 'Something went wrong' }),
+          h('p', { className: 'error', textContent: msg || 'Please try again.' }),
+          h('div', { className: 'actions' }, [retry])
+        );
+      }
+
+      showIntro();
     });
   }
 
@@ -2230,6 +5927,20 @@
 
     exportWrap.append(exportBtn, importBtn, fileInput);
     setting.append(exportWrap);
+
+    // Follow-list recovery — scan relays for an older kind:3 and republish it.
+    const recoveryWrap = h('div', { className: 'export-block recovery-block' });
+    recoveryWrap.append(
+      h('p', {
+        className: 'hint',
+        textContent: 'Lost follows to a buggy client? Scan your relays for an older version of your follow list and restore it.',
+      })
+    );
+    const recoveryBtn = h('button', { className: 'secondary', textContent: 'Follow List Recovery' });
+    recoveryBtn.addEventListener('click', () => followRecoveryModal(active));
+    recoveryWrap.append(recoveryBtn, mutableAttribution());
+    setting.append(recoveryWrap);
+
     view.append(setting);
   }
 
@@ -2238,6 +5949,45 @@
   let nwcPubkey = null; // which account the client belongs to
   const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
+
+  // Lightning address for receiving. Some NWC connection strings embed a `lud16`
+  // (the wallet's own address) — prefer that, then fall back to the account's
+  // profile lud16. Returns null when neither is present.
+  function parseNwcLud16(connection) {
+    try {
+      const q = connection.split('?')[1];
+      if (!q) return null;
+      const v = new URLSearchParams(q).get('lud16');
+      return v && v.includes('@') ? v.trim() : null;
+    } catch (_) { return null; }
+  }
+  // Primal's wallet is Spark-based and only works inside Primal's own apps, over their
+  // own nostrconnect session — the NWC string it hands out (routed through a primal.net
+  // relay) can't be driven as a standalone NWC wallet, so a getInfo round-trip just
+  // hangs. Detect it from the relay host and reject up front with a clear reason.
+  function isPrimalNwc(connection) {
+    try {
+      const q = connection.split('?')[1];
+      if (!q) return false;
+      return new URLSearchParams(q).getAll('relay').some((r) => {
+        let host;
+        try { host = new URL(r).hostname; } catch (_) { host = String(r); }
+        return /(^|\.)primal\.net$/i.test(host);
+      });
+    } catch (_) { return false; }
+  }
+  async function getLightningAddress() {
+    try {
+      const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
+      const fromNwc = connection && parseNwcLud16(connection);
+      if (fromNwc) return fromNwc;
+    } catch (_) {}
+    try {
+      const { content } = await fetchActiveProfile();
+      if (content && content.lud16) return content.lud16;
+    } catch (_) {}
+    return null;
+  }
 
   // Shared sats cap + a numeric-only, capped amount input used by send/receive/zap.
   const MAX_SATS = 100000000; // 100M
@@ -2292,16 +6042,37 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Coinos, Primal, or any NWC-capable wallet. Sidecar never holds your funds.',
+          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.',
       })
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
     const err = h('div', { className: 'error' });
+    // Primal's string isn't a mistake — it's well-formed, just fundamentally
+    // incompatible — so it gets its own calm, non-error styling rather than the
+    // red validation-error tone above, plus a way straight to a working wallet.
+    const primalNotice = h('p', { className: 'hint wallet-notice hidden' });
+    primalNotice.append(
+      h('strong', { textContent: "Primal's NWC connection only works inside Primal's own apps " }),
+      document.createTextNode("— it doesn't support external apps like Sidecar."),
+      document.createElement('br')
+    );
+    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'Need a wallet? See suggestions →' });
+    primalLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+    });
+    primalNotice.append(primalLink);
     const connect = h('button', { className: 'primary wallet-connect-btn', textContent: 'Connect wallet' });
     connect.addEventListener('click', async () => {
       const conn = input.value.trim();
+      primalNotice.classList.add('hidden');
       if (!conn) return (err.textContent = 'Paste a connection string.');
-      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = 'That doesn’t look like an NWC string.');
+      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = "That doesn't look like an NWC string.");
+      if (isPrimalNwc(conn)) {
+        err.textContent = '';
+        primalNotice.classList.remove('hidden');
+        return;
+      }
       err.textContent = '';
       connect.disabled = true;
       connect.textContent = 'Connecting…';
@@ -2320,7 +6091,7 @@
         connect.textContent = 'Connect wallet';
       }
     });
-    view.append(input, err, connect);
+    view.append(input, err, primalNotice, connect);
 
     // Restore a previously backed-up connection from the user's relays. Kept in
     // its own block (with its own status line) so its messages don't land in the
@@ -2328,7 +6099,7 @@
     const restoreBlock = h('div', { className: 'wallet-restore-block' });
     restoreBlock.append(h('div', { className: 'wallet-or', textContent: 'or' }));
     const restore = h('button', { className: 'secondary', textContent: 'Restore from Nostr' });
-    const restoreNote = h('p', { className: 'hint compact', textContent: 'Bring back a wallet you backed up to your relays.' });
+    const restoreNote = h('p', { className: 'hint compact', textContent: 'Restore a wallet you backed up to your relays.' });
     restore.addEventListener('click', async () => {
       restore.disabled = true;
       restore.textContent = 'Checking relays…';
@@ -2344,6 +6115,18 @@
     });
     restoreBlock.append(restore, restoreNote);
     view.append(restoreBlock);
+
+    // Help users who don't have an NWC-capable wallet yet.
+    const find = h('a', {
+      className: 'explore-link wallet-find-link',
+      href: '#',
+      textContent: 'Need a wallet? See suggestions →',
+    });
+    find.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+    });
+    view.append(find);
   }
 
   async function renderWalletConnected(view) {
@@ -2380,7 +6163,6 @@
     });
     card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit);
     view.append(card);
-    observeWalletCard(card, sentinel);
 
     // Actions
     const actions = h('div', { className: 'wallet-actions' });
@@ -2390,6 +6172,45 @@
     recvBtn.addEventListener('click', () => receiveModal());
     actions.append(sendBtn, recvBtn);
     view.append(actions);
+
+    // Lightning address card (only if one is available). Shows the copyable
+    // address with a QR icon that toggles a scannable QR inline.
+    const addrCard = h('div', { className: 'setting address-card hidden' });
+    view.append(addrCard);
+    getLightningAddress().then((lud16) => {
+      if (!lud16) return;
+      const row = h('div', { className: 'address-row' });
+      const addr = h('button', { className: 'address-value', title: 'Copy address' }, [
+        boltIcon(), h('span', { textContent: lud16 }),
+      ]);
+      addr.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(lud16);
+          const s = addr.querySelector('span');
+          const prev = s.textContent;
+          s.textContent = 'Copied ✓';
+          setTimeout(() => (s.textContent = prev), 1200);
+        } catch (_) {}
+      });
+      const qrToggle = h('button', { className: 'address-qr-toggle', title: 'Show QR code' });
+      qrToggle.appendChild(icon('qr'));
+      const qrBox = h('div', { className: 'address-qr hidden' });
+      let built = false;
+      qrToggle.addEventListener('click', () => {
+        if (!built) {
+          built = true;
+          const canvas = document.createElement('canvas');
+          canvas.className = 'recv-qr';
+          try { window.SidecarQR.draw(canvas, 'lightning:' + lud16, 200, 'M'); } catch (_) {}
+          qrBox.append(canvas);
+        }
+        const showing = qrBox.classList.toggle('hidden');
+        qrToggle.classList.toggle('active', !showing);
+      });
+      row.append(addr, qrToggle);
+      addrCard.append(h('h3', { textContent: 'Lightning address' }), row, qrBox);
+      addrCard.classList.remove('hidden');
+    });
 
     // Transactions
     const txWrap = h('div', { className: 'setting' });
@@ -2409,6 +6230,22 @@
     disc.addEventListener('click', () => disconnectModal());
     view.append(disc);
 
+    // Self-custody disclaimer (bottom of the wallet screen).
+    view.append(
+      h('p', { className: 'wallet-disclaimer' }, [
+        h('strong', { textContent: 'IMPORTANT: ' }),
+        document.createTextNode(
+          'Sidecar never holds user funds. You manage your own wallet and are responsible for securing it properly.'
+        ),
+      ])
+    );
+
+    // Bottom spacer that absorbs the card's collapse delta so the page height
+    // stays constant when the balance card compacts (prevents scroll flicker).
+    // The collapse observer is attached later, once content has loaded — see below.
+    const spacer = h('div', { className: 'wallet-spacer' });
+    view.append(spacer);
+
     // Load data
     let client = null;
     try { client = await ensureNwc(); } catch (_) {}
@@ -2421,7 +6258,11 @@
       if (!cached) { bal.textContent = '—'; unit.textContent = 'balance unavailable'; }
     }
     bal.classList.remove('loading');
-    loadTransactions(txList, client);
+    // Attach the collapse observer only after the balance and transactions have
+    // loaded — while content is still resizing, an active observer would cross the
+    // collapse trigger repeatedly and flicker (worst on the loading "…" state).
+    await loadTransactions(txList, client);
+    observeWalletCard(card, sentinel, spacer);
   }
 
   // Centered placeholder for list cards (loading / empty / error) so the text
@@ -2586,6 +6427,74 @@
   }
 
   // Backup the NWC connection to relays, with detection of an existing backup.
+  // Export the raw NWC connection string — PIN-gated step-up, then a copyable
+  // reveal that auto-hides (mirrors the nsec reveal).
+  function exportNwcModal() {
+    if (!state.activePubkey) { toast('No active account', 'error'); return; }
+    openModal((modal) => {
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      const err = h('div', { className: 'error' });
+      const go = h('button', { className: 'primary', textContent: 'Reveal' });
+      go.addEventListener('click', async () => {
+        err.textContent = '';
+        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        go.disabled = true;
+        go.textContent = 'Revealing…';
+        try {
+          const r = await call({ type: 'SIDECAR_REVEAL_NWC', pubkey: state.activePubkey, pin: pin.value });
+          if (!r.connection) throw new Error('No wallet connection saved for this account');
+          nwcRevealModal(r.connection);
+        } catch (e) {
+          err.textContent = e.message;
+          go.disabled = false;
+          go.textContent = 'Reveal';
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Export wallet connection' }),
+        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the NWC connection string for this account.' }),
+        h('label', { textContent: 'PIN' }),
+        pin,
+        err,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+      setTimeout(() => pin.focus(), 50);
+    });
+  }
+
+  function nwcRevealModal(connection) {
+    let stop = null;
+    openModal(
+      (modal) => {
+        const body = h('div', {});
+        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        done.addEventListener('click', closeModal);
+        modal.append(
+          h('h3', { textContent: 'Wallet connection string' }),
+          h('p', { className: 'hint', textContent: 'Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.' }),
+          body,
+          h('div', { className: 'actions' }, [done])
+        );
+        // Same reveal UX as the nsec/ncryptsec backup: copyable string with an
+        // auto-hide, and an opt-in QR that carries its own timer. NWC URIs are
+        // longer, so the QR uses level 'L' for the extra capacity.
+        stop = renderSecretReveal(body, {
+          secret: connection,
+          noun: 'connection string',
+          qrLevel: 'L',
+          qrExclusive: true, // the URI is long — show the string OR the QR, not both
+          qrHint: 'Scan in an NWC-compatible app to connect the same wallet.',
+          warnText: 'This string can spend from your wallet up to its limits. Store it safely and never share it.',
+          onExpire: closeModal,
+        });
+      },
+      () => { if (stop) stop(); }
+    );
+  }
+
   function renderWalletBackup() {
     const wrap = h('div', { className: 'setting wallet-backup' });
     wrap.append(h('h3', { textContent: 'Backup' }));
@@ -2621,12 +6530,18 @@
         restore.textContent = 'Restore';
       }
     });
+    const exportBtn = h('button', { className: 'wallet-export-link', textContent: 'Export connection string' });
+    exportBtn.append(icon('key'));
+    exportBtn.addEventListener('click', exportNwcModal);
+    hide(exportBtn); // shown only when a connection exists for the active account
+
     const card = h('div', { className: 'wallet-backup-card' }, [
       h('div', { className: 'wallet-backup-head' }, [
         h('span', { className: 'item-label', textContent: 'Wallet connection' }),
         status,
       ]),
       h('div', { className: 'wallet-backup-actions' }, [back, restore]),
+      exportBtn,
     ]);
     wrap.append(card);
 
@@ -2638,6 +6553,10 @@
       .catch(() => {
         status.textContent = 'Not backed up';
       });
+    // Only offer export when this account actually has a connection saved.
+    call({ type: 'SIDECAR_HAS_NWC', pubkey: state.activePubkey })
+      .then((r) => { if (r && r.has) show(exportBtn); })
+      .catch(() => {});
     return wrap;
   }
 
@@ -2674,12 +6593,53 @@
       h('div', { className: 'item-label', textContent: host }),
       sub,
     ]);
+    const edit = iconButton('Edit budget', 'edit', () => editBudgetModal(host, b));
     const rm = iconButton('Revoke budget', 'trash', async () => {
       await call({ type: 'SIDECAR_REVOKE_BUDGET', host });
       renderWallet();
     });
-    row.append(main, rm);
+    row.append(main, h('div', { className: 'item-actions' }, [edit, rm]));
     return row;
+  }
+
+  function editBudgetModal(host, b) {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const input = h('input', { type: 'text', inputMode: 'numeric', value: String(b.budgetSats || 0) });
+      const save = h('button', { className: 'primary', textContent: 'Save budget' });
+      save.addEventListener('click', async () => {
+        err.textContent = '';
+        const budgetSats = parseInt(input.value, 10);
+        if (!budgetSats || budgetSats < 1) {
+          err.textContent = 'Enter a daily budget in sats.';
+          return;
+        }
+        try {
+          await call({ type: 'SIDECAR_SET_BUDGET', host, budgetSats, perPaymentSats: b.perPaymentSats || 0 });
+          closeModal();
+          renderWallet();
+          toast('Budget updated', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Edit budget' }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            'Daily amount ' + host + ' can spend without a prompt. Saving resets the remaining amount for today.',
+        }),
+        h('label', { textContent: 'Daily budget (sats)' }),
+        input,
+        err,
+        h('div', { className: 'actions' }, [save, cancel])
+      );
+      setTimeout(() => input.focus(), 50);
+    });
   }
 
   function sendModal() {
@@ -2758,7 +6718,7 @@
 
   function receiveModal() {
     let pollTimer = null;
-    const stopPoll = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+    const stopPoll = () => { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } };
 
     openModal((modal) => {
       const xClose = h('button', { className: 'modal-x', title: 'Close' });
@@ -2805,18 +6765,29 @@
             if (!invoice) throw new Error('Wallet returned no invoice');
             // Swap the whole form for the invoice + QR; the corner ✕ cancels.
             showInvoice(body, invoice);
-            // Poll for settlement so we can show a success state.
+            // Poll for settlement so we can show a success state — with a backoff
+            // and an overall cap so a receive QR left open doesn't hammer the
+            // wallet relay indefinitely (starts at 2.5s, eases to 15s, stops
+            // after 5 minutes).
             const lookupArg = res.payment_hash ? { payment_hash: res.payment_hash } : { invoice };
-            pollTimer = setInterval(async () => {
+            const POLL_MAX = 15000;
+            const pollDeadline = Date.now() + 5 * 60 * 1000;
+            let pollDelay = 2500;
+            const pollOnce = async () => {
               try {
                 const inv = await client.lookupInvoice(lookupArg);
                 if (inv && (inv.settled_at || inv.preimage || inv.state === 'settled')) {
                   stopPoll();
                   showReceiveSuccess(body, sats);
                   renderWallet();
+                  return;
                 }
               } catch (_) {}
-            }, 2500);
+              if (Date.now() >= pollDeadline) { stopPoll(); return; }
+              pollDelay = Math.min(Math.round(pollDelay * 1.5), POLL_MAX);
+              pollTimer = setTimeout(pollOnce, pollDelay);
+            };
+            pollTimer = setTimeout(pollOnce, pollDelay);
           } catch (e) {
             err.textContent = e.message;
             create.disabled = false;
@@ -2840,13 +6811,16 @@
         const out = h('div', { className: 'recv-out' });
         const canvas = document.createElement('canvas');
         canvas.className = 'recv-qr';
-        try { new window.QRious({ element: canvas, value: 'lightning:' + lud16, size: 220, level: 'M' }); } catch (_) {}
-        const copy = h('button', { className: 'secondary', textContent: lud16 });
+        try { window.SidecarQR.draw(canvas, 'lightning:' + lud16, 220, 'M'); } catch (_) {}
+        // Truncate to one line if it overflows — the full address is still copied.
+        const copy = h('button', { className: 'secondary recv-addr', title: 'Copy address' });
+        const addrText = h('span', { textContent: lud16 });
+        copy.append(addrText);
         copy.addEventListener('click', async () => {
           try {
             await navigator.clipboard.writeText(lud16);
-            copy.textContent = 'Copied ✓';
-            setTimeout(() => (copy.textContent = lud16), 1200);
+            addrText.textContent = 'Copied ✓';
+            setTimeout(() => (addrText.textContent = lud16), 1200);
           } catch (_) {}
         });
         out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Your reusable lightning address — anyone can pay it any amount.' }));
@@ -2860,9 +6834,9 @@
       });
       showInvoiceMode();
 
-      // If the active account advertises a lightning address, add an Address tab.
-      fetchActiveProfile().then(({ content }) => {
-        const lud16 = content && content.lud16;
+      // If a lightning address is available (NWC string or profile), add an
+      // Address tab so the user can toggle between an invoice and their address.
+      getLightningAddress().then((lud16) => {
         if (!lud16) return;
         const tabAddress = h('button', { className: 'compose-tab', textContent: 'Address' });
         tabAddress.addEventListener('click', () => {
@@ -2896,7 +6870,7 @@
     const canvas = document.createElement('canvas');
     canvas.className = 'recv-qr';
     try {
-      new window.QRious({ element: canvas, value: invoice.toUpperCase(), size: 220, level: 'M' });
+      window.SidecarQR.draw(canvas, invoice.toUpperCase(), 220, 'M');
     } catch (_) {}
     // Show a short middle-ellipsis of the invoice; the full string is on Copy.
     const short = invoice.length > 36 ? invoice.slice(0, 22) + '…' + invoice.slice(-10) : invoice;
@@ -2927,7 +6901,7 @@
       });
       modal.append(
         h('h3', { textContent: 'Disconnect wallet?' }),
-        h('p', { className: 'hint', textContent: 'Removes this account’s saved NWC connection from Sidecar. Your wallet and funds are unaffected.' }),
+        h('p', { className: 'hint', textContent: "Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected." }),
         h('div', { className: 'actions' }, [go, cancel])
       );
     });
@@ -2950,6 +6924,35 @@
     return res.pr;
   }
 
+  // Chrome already checks the Web Store for updates every few hours on its own;
+  // requestUpdateCheck() is the one sanctioned way to trigger that early from a
+  // user-initiated button click (not a timer). It only fetches the update —
+  // installing it still waits for the background worker/browser to restart, or
+  // an explicit chrome.runtime.reload() (which we don't call here, since that
+  // would abruptly tear down an in-progress unlock/signing/wallet flow).
+  async function checkForUpdates(btn, statusEl) {
+    const prevLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    statusEl.textContent = '';
+    try {
+      const result = await chrome.runtime.requestUpdateCheck();
+      const status = result && result.status;
+      if (status === 'update_available') {
+        const v = result.version ? ' (v' + result.version + ')' : '';
+        statusEl.textContent = 'Update found' + v + ' — it installs the next time Sidecar restarts.';
+      } else if (status === 'throttled') {
+        statusEl.textContent = 'Checked recently — try again in a few minutes.';
+      } else {
+        statusEl.textContent = "You're on the latest version.";
+      }
+    } catch (_) {
+      statusEl.textContent = 'Could not check for updates.';
+    }
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+  }
+
   // ---- About + zap the creator (opened from the Sidecar logo) ----
   function aboutModal() {
     openModal((modal) => {
@@ -2961,7 +6964,7 @@
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
 
-      const logo = h('img', { className: 'about-logo', src: 'icons/sidecar-logo.svg', alt: 'Sidecar' });
+      const logo = h('img', { className: 'about-logo', src: logoSrcFor(document.documentElement.dataset.theme), alt: 'Sidecar' });
       const creator = h('a', {
         className: 'about-creator-link', textContent: shortNpub(CREATOR_NPUB),
         href: '#', target: '_blank', rel: 'noopener noreferrer',
@@ -2971,10 +6974,16 @@
       preferredClient().then((client) => { creator.href = client.profile(CREATOR_NPUB); }).catch(() => {});
       fetchProfileName(CREATOR_NPUB).then((name) => { if (name) creator.textContent = '@' + name.replace(/^@/, ''); });
 
+      const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
+      const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });
       const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const issues = h('a', { className: 'about-link', textContent: 'Report an issue', href: GITHUB_URL + '/issues', target: '_blank', rel: 'noopener noreferrer' });
-      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Zap the creator '), boltIcon()]);
+      const support = h('a', { className: 'about-link', textContent: 'Support', href: SIDECAR_SITE_URL + '/support', target: '_blank', rel: 'noopener noreferrer' });
+      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Donate '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
+
+      const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
+      const updateStatus = h('p', { className: 'hint about-update-status' });
+      updateBtn.addEventListener('click', () => checkForUpdates(updateBtn, updateStatus));
 
       modal.append(
         xClose,
@@ -2983,7 +6992,9 @@
           h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
           h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
           ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
-          h('div', { className: 'about-links' }, [repo, issues, zap]),
+          updateBtn,
+          updateStatus,
+          h('div', { className: 'about-links' }, [website, repo, support, privacy, zap]),
         ])
       );
     });
@@ -3000,7 +7011,7 @@
       const qr = h('div', { className: 'recv-out' });
       const canvas = document.createElement('canvas');
       canvas.className = 'recv-qr';
-      try { new window.QRious({ element: canvas, value: 'lightning:' + CREATOR_LN, size: 200, level: 'M' }); } catch (_) {}
+      try { window.SidecarQR.draw(canvas, 'lightning:' + CREATOR_LN, 200, 'M'); } catch (_) {}
       const copy = h('button', { className: 'secondary', textContent: CREATOR_LN });
       copy.addEventListener('click', async () => {
         try {
@@ -3051,12 +7062,12 @@
     });
   }
 
-  const brandFoot = document.querySelector('.brand-foot');
-  if (brandFoot) {
-    brandFoot.classList.add('brand-foot-btn');
-    brandFoot.title = 'About Sidecar';
-    brandFoot.addEventListener('click', aboutModal);
-  }
+  // Footer logo on every screen (main tabs + settings) opens the About card.
+  document.querySelectorAll('.brand-foot').forEach((foot) => {
+    foot.classList.add('brand-foot-btn');
+    foot.title = 'About Sidecar';
+    foot.addEventListener('click', aboutModal);
+  });
 
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
@@ -3066,8 +7077,70 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
   });
 
+  $('reuse-tab-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reuseClientTab: e.target.checked } });
+  });
+
   $('paybutton-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: e.target.checked } });
+  });
+
+  $('clienttag-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showClientTag: e.target.checked } });
+  });
+
+  $('datasync-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { confirmDataSync: e.target.checked } });
+  });
+
+  $('countdown-toggle').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    $('countdown-presets').classList.toggle('hidden', !on);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { noteCountdown: on } });
+  });
+
+  $('countdown-presets').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.preset-chip');
+    if (!btn) return;
+    const secs = Number(btn.dataset.secs);
+    $('countdown-presets').querySelectorAll('.preset-chip').forEach((c) => c.classList.toggle('active', c === btn));
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { noteCountdownSecs: secs } });
+  });
+
+  // Theme selector
+  document.querySelectorAll('.theme-card').forEach(card => {
+    card.addEventListener('click', async (e) => {
+      const selectedTheme = card.dataset.theme;
+      applyTheme(selectedTheme);
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+    });
+  });
+
+  $('autozap-toggle').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    $('autozap-max-row').classList.toggle('hidden', !on);
+    $('autozap-daily-row').classList.toggle('hidden', !on);
+    const max = Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX);
+    $('autozap-max').value = String(max);
+    const daily = Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT);
+    $('autozap-daily-max').value = String(daily);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
+  });
+
+  $('autozap-max').addEventListener('change', async (e) => {
+    const max = Math.max(1, parseInt(e.target.value, 10) || AUTOZAP_DEFAULT_MAX);
+    e.target.value = String(max);
+    // Keep the daily total at or above the per-zap cap.
+    const daily = Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT);
+    $('autozap-daily-max').value = String(daily);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
+  });
+
+  $('autozap-daily-max').addEventListener('change', async (e) => {
+    const perZap = Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX);
+    const daily = Math.max(perZap, parseInt(e.target.value, 10) || perZap * AUTOZAP_DAILY_MULT);
+    e.target.value = String(daily);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapDailyMaxSats: daily } });
   });
 
   $('relay-add').addEventListener('click', async () => {
@@ -3082,17 +7155,77 @@
     renderSettings();
   });
 
+  $('check-update-btn').addEventListener('click', () => {
+    checkForUpdates($('check-update-btn'), $('check-update-status'));
+  });
+
+  $('export-vault-btn').addEventListener('click', () => exportVaultModal());
+  $('import-vault-btn').addEventListener('click', () => $('import-vault-file').click());
+  $('import-vault-file').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const file = JSON.parse(await f.text());
+      importVaultModal(file);
+    } catch (_) {
+      toast('That file is not valid JSON.', 'error');
+    }
+  });
+
+  // Danger zone: wipe all Sidecar data. Type-to-confirm, since it's irreversible
+  // and destroys keys. The destructive button is .danger (not .primary), so the
+  // modal's Enter-to-submit shortcut won't fire it — a deliberate click is required.
+  $('reset-all-btn').addEventListener('click', () => {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const warn = h('p', {
+        className: 'hint',
+        textContent:
+          'This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone — any account without a backed-up nsec is lost for good.',
+      });
+      const confirmInput = h('input', { type: 'text', placeholder: 'Type RESET to confirm' });
+      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      del.disabled = true;
+      const matches = () => confirmInput.value.trim().toUpperCase() === 'RESET';
+      confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
+      del.addEventListener('click', async () => {
+        if (!matches()) return;
+        try {
+          await call({ type: 'SIDECAR_RESET_ALL' });
+          closeModal();
+          await refresh(); // no keystore now → onboarding
+          toast('Sidecar reset', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+          toast(e.message, 'error');
+        }
+      });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Reset Sidecar?' }),
+        warn,
+        h('label', { textContent: 'Confirm' }),
+        confirmInput,
+        err,
+        h('div', { className: 'actions' }, [del, cancel])
+      );
+      setTimeout(() => confirmInput.focus(), 50);
+    });
+  });
+
   $('change-pin-btn').addEventListener('click', () => {
     openModal((modal) => {
-      const oldP = h('input', { type: 'password', placeholder: 'Current PIN', maxLength: 32 });
-      const newP = h('input', { type: 'password', placeholder: 'New PIN', maxLength: 32 });
-      const newP2 = h('input', { type: 'password', placeholder: 'Confirm new PIN', maxLength: 32 });
+      const oldP = h('input', { type: 'password', placeholder: 'Current PIN', maxLength: MAX_PIN_LEN });
+      const newP = h('input', { type: 'password', placeholder: 'New PIN', maxLength: MAX_PIN_LEN });
+      const newP2 = h('input', { type: 'password', placeholder: 'Confirm new PIN', maxLength: MAX_PIN_LEN });
       const err = h('div', { className: 'error' });
       const save = h('button', { className: 'primary', textContent: 'Change PIN' });
       save.addEventListener('click', async () => {
         err.textContent = '';
-        if (newP.value.length < 4) return (err.textContent = 'New PIN too short.');
-        if (newP.value.length > 32) return (err.textContent = 'Max 32 characters.');
+        if (newP.value.length < MIN_PIN_LEN) return (err.textContent = `New PIN must be at least ${MIN_PIN_LEN} characters.`);
+        if (newP.value.length > MAX_PIN_LEN) return (err.textContent = `Max ${MAX_PIN_LEN} characters.`);
         if (newP.value !== newP2.value) return (err.textContent = 'New PINs do not match.');
         try {
           await call({ type: 'SIDECAR_CHANGE_PIN', oldPin: oldP.value, newPin: newP.value });
@@ -3113,14 +7246,19 @@
         err,
         h('div', { className: 'actions' }, [save, cancel])
       );
+      // Live strength/match feedback on the new-PIN pair; gates the Change button.
+      attachPinValidation(newP, newP2, save);
     });
   });
 
   // ---- inline signing approval ----
-  // The service worker keeps a "sidepanel" port open while this panel is visible and,
-  // when it is, pushes approval requests here (SIDECAR_PANEL_APPROVAL) instead of
-  // opening a popup window. We render them inline and reply with SIDECAR_PROMPT_RESULT.
-  let pendingApproval = null; // { id, data }
+  // The service worker owns an observable approval queue. While this panel's
+  // "sidepanel" port is open it pings SIDECAR_QUEUE_UPDATED on every change; we
+  // pull the authoritative state with SIDECAR_GET_PENDING and render the head
+  // approval inline (replying with SIDECAR_PROMPT_RESULT), plus the backlog and
+  // any interrupted tombstones. When the panel is closed the worker falls back to
+  // a popup window instead.
+  let pendingApproval = null; // { id, data, chosenPubkey }
 
   const APPROVAL_METHOD_LABELS = {
     getPublicKey: 'see your public key (npub)',
@@ -3137,23 +7275,197 @@
 
   const isPaymentApproval = (data) => data.scope === 'webln' && data.method === 'sendPayment';
 
+  // Human-readable labels for the event kinds sites most commonly ask Sidecar to
+  // sign (not exhaustive — see https://nips.nostr.com for the full registry).
+  // Prefixed APPROVAL_ to avoid colliding with the small KIND_LABELS map used by
+  // the backup/restore UI (kind:0/3/10000/10002 only).
+  const APPROVAL_KIND_LABELS = {
+    0: 'Profile metadata', 1: 'Note', 3: 'Follow list', 4: 'Encrypted DM (legacy)',
+    5: 'Delete request', 6: 'Repost', 7: 'Reaction', 8: 'Badge award', 9: 'Chat message',
+    11: 'Thread', 13: 'Seal', 14: 'Direct message', 15: 'File message', 16: 'Generic repost',
+    17: 'Reaction (website)', 20: 'Picture', 21: 'Video', 22: 'Short video',
+    62: 'Request to vanish',
+    1018: 'Poll response', 1063: 'File metadata', 1068: 'Poll', 1111: 'Comment',
+    1222: 'Voice message', 1244: 'Voice message reply', 1311: 'Live chat message',
+    1337: 'Code snippet', 1984: 'Report', 1985: 'Label',
+    4454: 'DM device key', 4455: 'DM key transfer', 4550: 'Community post approval',
+    9041: 'Zap goal', 9321: 'Nutzap', 9734: 'Zap request', 9735: 'Zap receipt', 9802: 'Highlight',
+    10000: 'Mute list', 10001: 'Pin list', 10002: 'Relay list', 10003: 'Bookmark list',
+    10004: 'Communities list', 10005: 'Public chats list', 10006: 'Blocked relays list',
+    10007: 'Search relays list', 10008: 'Profile badges', 10009: 'Groups list',
+    10012: 'Favorite relays list', 10015: 'Interests list', 10020: 'Media follows',
+    10030: 'Emoji list', 10044: 'DM encryption key', 10050: 'DM relay list',
+    10063: 'Blossom server list',
+    13194: 'Wallet info', 22242: 'Relay auth', 23194: 'Wallet request', 23195: 'Wallet response',
+    24133: 'Remote signing handshake', 24242: 'Blossom authorization', 27235: 'HTTP auth',
+    30000: 'Follow set', 30002: 'Relay set', 30003: 'Bookmark set', 30004: 'Curation set',
+    30005: 'Video set', 30008: 'Badge set', 30009: 'Badge definition', 30015: 'Interest set',
+    30017: 'Marketplace stall', 30018: 'Marketplace product', 30023: 'Long-form article',
+    30024: 'Article draft', 30030: 'Emoji set', 30040: 'Publication index',
+    30041: 'Publication content', 30078: 'App data', 30311: 'Live event',
+    30312: 'Interactive room', 30313: 'Conference event', 30315: 'User status',
+    30402: 'Classified listing', 30403: 'Classified listing draft', 30818: 'Wiki article',
+    31234: 'Draft event', 31922: 'Calendar event (date)', 31923: 'Calendar event (time)',
+    31924: 'Calendar', 31925: 'Calendar RSVP', 31989: 'Handler recommendation',
+    31990: 'Handler info', 34235: 'Video (addressable)', 34236: 'Short video (addressable)',
+    34550: 'Community definition', 39089: 'Starter pack', 39092: 'Media starter pack',
+    39701: 'Web bookmark',
+  };
+  // Kinds worth a second look before signing: they either move/delete other
+  // events, or normally belong to a wallet's own key rather than a NIP-07 site.
+  const APPROVAL_KIND_WARNINGS = {
+    5: 'Deletes other events — make sure you intended this.',
+    62: 'Asks relays to delete all of your events — make sure you intended this.',
+    23194: "Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+    23195: "Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+    24133: 'This is a remote-signing handshake — approving it could hand control of your account to another app or device.',
+  };
+  function approvalKindLabel(kind) {
+    if (kind == null) return '—';
+    return APPROVAL_KIND_LABELS[kind] ? kind + ' — ' + APPROVAL_KIND_LABELS[kind] : kind + ' (unrecognized kind)';
+  }
+  function approvalKindWarning(kind) {
+    if (kind == null) return null;
+    return APPROVAL_KIND_WARNINGS[kind] || (!APPROVAL_KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
+  }
+
+  // The renderable note text for an event: kind:1 → its content; kind 6/16 reposts →
+  // the embedded original event's content (a repost's content field is that event's
+  // JSON). Falls back to the raw content if it isn't a parseable embedded event.
+  function noteTextForEvent(ev) {
+    if (ev.kind === 6 || ev.kind === 16) {
+      try { const inner = JSON.parse(ev.content); if (inner && typeof inner.content === 'string') return inner.content; } catch (_) {}
+    }
+    return String(ev.content == null ? '' : ev.content);
+  }
+
+  // Event-content preview: short by default (keeps the "Signing as" account card in
+  // view), expandable, with a Formatted/Raw toggle for note-like kinds (1, and 6/16
+  // reposts). "Formatted" reuses the composer's renderNotePreview so @mentions, media,
+  // and note/nevent/naddr embeds render as a client would show them; "Raw" is the
+  // exact signed content. Other kinds show Raw only.
+  function appendEventContent(container, ev) {
+    const raw = String(ev.content == null ? '' : ev.content);
+    const noteLike = ev.kind === 1 || ev.kind === 6 || ev.kind === 16;
+    // Views: Formatted (composer render, note-like only), Raw (the content string),
+    // JSON (the whole event pretty-printed — exactly what's being signed).
+    const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
+    const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const LABEL = { formatted: 'Formatted', raw: 'Raw', json: 'JSON' };
+    let mode = modes[0];
+    let expanded = false;
+
+    const view = document.createElement('div');
+    const paintView = () => {
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono');
+      view.innerHTML = '';
+      if (mode === 'formatted') renderNotePreview(view, noteTextForEvent(ev));
+      else if (mode === 'json') view.textContent = eventJson();
+      else view.textContent = raw;
+    };
+    paintView();
+    container.appendChild(view);
+
+    const controls = document.createElement('div');
+    controls.className = 'evpreview-controls';
+
+    // Mode buttons (Formatted / Raw / JSON) — the active one is highlighted.
+    const modeRow = document.createElement('div');
+    modeRow.className = 'evpreview-modes';
+    const btns = {};
+    const syncModes = () => { for (const md of modes) btns[md].classList.toggle('active', md === mode); };
+    for (const md of modes) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'evpreview-mode';
+      b.textContent = LABEL[md];
+      b.addEventListener('click', () => {
+        if (mode === md) return;
+        mode = md; paintView(); syncModes();
+      });
+      btns[md] = b;
+      modeRow.appendChild(b);
+    }
+    syncModes();
+    controls.appendChild(modeRow);
+
+    // Show more/less — always available on every mode; toggles the clamp so the
+    // preview stays compact (keeping the account card in view) but can expand.
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'evpreview-toggle';
+    more.textContent = 'Show more';
+    more.addEventListener('click', () => {
+      expanded = !expanded;
+      view.classList.toggle('clamped', !expanded);
+      more.textContent = expanded ? 'Show less' : 'Show more';
+    });
+    controls.appendChild(more);
+    container.appendChild(controls);
+  }
+
   function renderApprovalPreview(data) {
     const box = $('approval-preview');
     box.innerHTML = '';
     const row = (k, v) =>
       h('div', { className: 'row' }, [h('span', { textContent: k }), h('span', { textContent: v })]);
+    // Counterparty for encrypt/decrypt — never raw hex. Show an @name when we can
+    // resolve one (cached now, or fetched to upgrade in place), otherwise an npub.
+    const peerRow = (label, pubkey) => {
+      let npub = '';
+      try { npub = pubkey ? NT.nip19.npubEncode(pubkey) : ''; } catch (_) {}
+      const cached = pubkey ? cachedProfile(pubkey) : null;
+      const idFull = npub || pubkey || '';
+      const idShort = npub ? shortNpub(npub) : (pubkey || '—');
+      // Raw hex on hover; click the npub to reveal (and select) the full key.
+      const idTitle = [npub && ('npub: ' + npub), pubkey && ('hex: ' + pubkey)].filter(Boolean).join('\n');
+      // Truncated by default; click toggles to the full, untruncated key and back.
+      const idSpan = (cls) => {
+        const s = h('span', { className: cls, textContent: idShort, title: idTitle });
+        if (idFull && idFull !== idShort) {
+          let full = false;
+          s.classList.add('peer-npub-toggle');
+          s.addEventListener('click', () => {
+            full = !full;
+            s.textContent = full ? idFull : idShort;
+            s.classList.toggle('full', full);
+          });
+        }
+        return s;
+      };
+      const val = h('span', { className: 'peer-val' });
+      // Show the resolved @name when we have one, but ALWAYS keep the npub visible
+      // beneath it as a verifiable key — a display name on its own is spoofable.
+      // With no name, the npub is the only line.
+      const paint = (name) => {
+        val.innerHTML = '';
+        if (name) {
+          val.append(h('span', { className: 'peer-name', textContent: '@' + name }));
+          val.append(idSpan('peer-npub'));
+        } else {
+          val.append(idSpan('peer-id'));
+        }
+      };
+      paint(cached && cached.name);
+      if (pubkey && !(cached && cached.name)) {
+        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) paint(p.name); });
+      }
+      return h('div', { className: 'row' }, [h('span', { textContent: label }), val]);
+    };
     if (isPaymentApproval(data)) {
       box.append(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
       if (data.memo) box.append(row('Memo', String(data.memo)));
     } else if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
-      box.append(row('Kind', String(ev.kind ?? '—')));
+      box.append(row('Kind', approvalKindLabel(ev.kind)));
       if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
-      if (ev.content) box.append(h('pre', { textContent: String(ev.content) }));
+      const warning = approvalKindWarning(ev.kind);
+      if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
+      if (ev.content) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      box.append(row('From', (data.params && data.params.pubkey) || '—'));
+      box.append(peerRow('From', data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
-      box.append(row('To', (data.params && data.params.pubkey) || '—'));
+      box.append(peerRow('To', data.params && data.params.pubkey));
     } else {
       hide(box);
       return;
@@ -3161,9 +7473,134 @@
     show(box);
   }
 
+  // All accounts selectable in this prompt: the one it opened with, plus (only
+  // for a fresh-site login — see canOfferAccountSwitch in background.js) any
+  // others the user could switch to before approving.
+  function approvalAccountList(data) {
+    return [
+      { pubkey: data.activePubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
+      ...(data.otherAccounts || []),
+    ];
+  }
+
+  // Shared-identity explainer: the first time a shared-host confirm appears, show a
+  // one-time "Heads up!" card; after the user dismisses it, every later confirm just
+  // carries a compact "Multiple accounts used" caption above the "Signing as" line.
+  let sharedHeadsUpDismissed = false;
+  chrome.storage.local.get('sharedHeadsUpDismissed', (r) => {
+    sharedHeadsUpDismissed = !!(r && r.sharedHeadsUpDismissed);
+  });
+  function renderSharedNote(data) {
+    const existing = $('approval-shared-note');
+    if (existing) existing.remove();
+    if (!data.sharedIdentity) {
+      $('approval-switch-toggle').textContent = 'Sign in with a different account';
+      return;
+    }
+    $('approval-switch-toggle').textContent = 'Sign as a different account';
+    const acct = $('approval-account');
+    if (!acct) return;
+    let note;
+    if (sharedHeadsUpDismissed) {
+      note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
+        icon('users'),
+        h('span', { textContent: 'Multiple accounts used' }),
+      ]);
+    } else {
+      note = h('div', { id: 'approval-shared-note', className: 'shared-headsup' }, [
+        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: 'Heads up!' })]),
+        h('p', {
+          className: 'shared-headsup-body',
+          textContent:
+            "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.",
+        }),
+      ]);
+      const got = h('button', { className: 'shared-headsup-btn', textContent: 'Got it' });
+      got.addEventListener('click', () => {
+        sharedHeadsUpDismissed = true;
+        chrome.storage.local.set({ sharedHeadsUpDismissed: true });
+        renderSharedNote(data); // collapse to the compact caption immediately
+      });
+      note.append(got);
+    }
+    acct.parentNode.insertBefore(note, acct);
+  }
+
+  function renderApprovalAccountCapsule(data) {
+    const payment = isPaymentApproval(data);
+    const list = approvalAccountList(data);
+    const chosen = list.find((a) => a.pubkey === pendingApproval.chosenPubkey) || list[0];
+
+    const acct = $('approval-account');
+    acct.innerHTML = '';
+    acct.append(h('div', { className: 'approval-as', textContent: payment ? 'Paying from' : 'Signing as' }));
+    acct.append(
+      h('div', { className: 'active-account approval-capsule' }, [
+        avatarEl({ picture: chosen.picture }, 'aa-avatar'),
+        h('div', { className: 'aa-info' }, [
+          h('div', { className: 'aa-label', textContent: chosen.name || shortNpub(chosen.npub) }),
+          h('div', { className: 'aa-npub', textContent: shortNpub(chosen.npub) }),
+        ]),
+      ])
+    );
+
+    const toggle = $('approval-switch-toggle');
+    const menu = $('approval-switch-menu');
+    const canSwitch = !payment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    menu.innerHTML = '';
+    hide(menu);
+    if (!canSwitch) {
+      hide(toggle);
+      return;
+    }
+    show(toggle);
+    toggle.onclick = () => {
+      if (menu.classList.contains('hidden')) {
+        buildApprovalSwitchMenu(data, list, chosen.pubkey);
+        show(menu);
+      } else {
+        hide(menu);
+      }
+    };
+  }
+
+  function buildApprovalSwitchMenu(data, list, chosenPubkey) {
+    const menu = $('approval-switch-menu');
+    menu.innerHTML = '';
+    list.forEach((a) => {
+      const isChosen = a.pubkey === chosenPubkey;
+      const row = h('button', { className: 'acct-row' + (isChosen ? ' active' : '') });
+      const av = document.createElement('span');
+      av.className = 'acct-row-av';
+      applyAvatar(av, a);
+      row.append(
+        av,
+        h('div', { className: 'acct-row-info' }, [
+          h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
+          h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
+        ])
+      );
+      if (isChosen) {
+        const c = icon('check');
+        c.classList.add('acct-row-check');
+        row.append(c);
+      }
+      row.addEventListener('click', () => {
+        pendingApproval.chosenPubkey = a.pubkey;
+        hide(menu);
+        renderApprovalAccountCapsule(data);
+      });
+      menu.append(row);
+    });
+  }
+
   function showApproval() {
     if (!pendingApproval) return;
     const data = pendingApproval.data;
+    // Only initialize once per prompt — an incidental refresh() re-render (the
+    // panel treats a pending approval as modal and re-shows it) must not stomp
+    // a switch the user already picked.
+    if (pendingApproval.chosenPubkey == null) pendingApproval.chosenPubkey = data.activePubkey;
     closeAcctMenu();
     // Overlay on top of whatever's showing — don't hide the base view.
     show($('view-approval'));
@@ -3174,18 +7611,11 @@
       ? 'wants to send a Lightning payment'
       : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
 
-    const acct = $('approval-account');
-    acct.innerHTML = '';
-    acct.append(h('div', { className: 'approval-as', textContent: payment ? 'Paying from' : 'Signing as' }));
-    acct.append(
-      h('div', { className: 'active-account approval-capsule' }, [
-        avatarEl({ picture: data.accountPicture }, 'aa-avatar'),
-        h('div', { className: 'aa-info' }, [
-          h('div', { className: 'aa-label', textContent: data.accountName || shortNpub(data.npub) }),
-          h('div', { className: 'aa-npub', textContent: shortNpub(data.npub) }),
-        ]),
-      ])
-    );
+    renderApprovalAccountCapsule(data);
+
+    // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
+    // "who's posting" choice explicit; relabel the switcher for signing context.
+    renderSharedNote(data);
 
     renderApprovalPreview(data);
 
@@ -3228,6 +7658,23 @@
         show(trust);
       }
     }
+    // Shared-identity confirms happen on EVERY content sign to this host, not
+    // just a detected mismatch, so "Trust this site" can't skip future ones —
+    // the same signature that's fine now could be wrong next time. Hide it
+    // rather than over-promise (must run after the payment/unlock branches
+    // above, which otherwise re-show it).
+    if (data.sharedIdentity) hide(trust);
+
+    // Batch: a burst of same-site/same-account/same-kind content signs (e.g.
+    // Primal's app-data sync) collapses into one "Allow all (N)" so the user
+    // isn't nagged per event. The preview still shows one representative and the
+    // kind, so it's clear what the N are. (Must run last so it wins the labels.)
+    const groupN = pendingApproval.groupIds ? pendingApproval.groupIds.length : 1;
+    if (!payment && groupN > 1) {
+      $('approval-ask').textContent = 'wants to sign ' + groupN + ' events with your key';
+      allow.textContent = 'Allow all (' + groupN + ')';
+      hide(trust);
+    }
   }
 
   async function decideApproval(action) {
@@ -3242,9 +7689,15 @@
         err.textContent = 'Enter your PIN.';
         return;
       }
+      // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
       const resp = await bg({ type: 'SIDECAR_UNLOCK', pin });
-      if (!resp || !resp.ok) {
-        err.textContent = (resp && resp.error) || 'Incorrect PIN';
+      const st = resp && resp.ok && resp.result;
+      if (!st || st.status !== 'ok') {
+        err.textContent =
+          st && st.status === 'throttled' ? 'Too many attempts. Try again in ' + Math.ceil(st.waitMs / 1000) + 's.'
+          : st && st.status === 'bad' ? 'Incorrect PIN — ' + st.remaining + ' attempt' + (st.remaining === 1 ? '' : 's') + ' left before all data is erased.'
+          : st && st.status === 'wiped' ? 'Too many attempts — all data on this device was erased.'
+          : (resp && resp.error) || 'Incorrect PIN';
         $('approval-pin').value = '';
         $('approval-pin').focus();
         return;
@@ -3261,15 +7714,35 @@
       action = 'budget';
       extra = { budgetSats, perPaymentSats: 0 };
     }
-    await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
-    pendingApproval = null;
+    // Picked a different account in the switcher (fresh-login prompts only).
+    if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
+      extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
+    }
+    // Batch: an "Allow all (N)" / "Reject all" on a same-kind burst applies the
+    // same decision (and account choice) to every grouped request at once. Trust
+    // and budget are never batched (they're single-item / payment concerns).
+    const groupIds = pendingApproval.groupIds || [id];
+    if (groupIds.length > 1 && (action === 'once' || action === 'reject')) {
+      await bg({ type: 'SIDECAR_PROMPT_RESULT_BATCH', ids: groupIds, action, extra });
+    } else {
+      await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
+    }
     $('approval-pin').value = '';
-    refresh(); // back to the normal view (now unlocked, if we just unlocked)
+    // Leave pendingApproval set so refreshApproval() knows an approval was up:
+    // it shows the next queued one, or (queue empty) restores + re-syncs the base
+    // view. Nulling it here would skip that base refresh, leaving panel state stale.
+    await refreshApproval();
   }
 
   $('approval-allow').addEventListener('click', () => decideApproval('once'));
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
+  // Escape hatch: reject the whole backlog at once (this request + all waiting).
+  $('approval-reject-all').addEventListener('click', async () => {
+    pendingApproval = null;
+    await bg({ type: 'SIDECAR_REJECT_ALL_PENDING' });
+    await refreshApproval();
+  });
   // Tapping the dimmed backdrop (outside the card) rejects, like closing the popup.
   $('view-approval').addEventListener('click', (e) => {
     if (e.target === $('view-approval')) decideApproval('reject');
@@ -3284,11 +7757,91 @@
     e.target.value = v;
   });
 
-  // Keep a live port to the worker so inline approvals always reach us. MV3
-  // recycles the service worker (~30s idle; Chrome also force-drops ports after
-  // ~5 min), which silently kills the port — without reconnecting, the panel
-  // goes deaf and a page's request hangs until a refresh. So we re-establish the
-  // connection whenever it drops. (Reconnecting also wakes a sleeping worker.)
+  // The background owns the observable approval queue; the panel is a pure view
+  // of it. Pull the authoritative state and render: the head card, the "N more
+  // waiting" strip + Reject all, and any interrupted tombstones. Called on port
+  // (re)connect, on every SIDECAR_QUEUE_UPDATED ping, and after each decision —
+  // so the panel can never desync from what's actually pending.
+  // Render the approval overlay from the queue. Returns whether a head is showing.
+  // Non-recursive (never calls refresh) so it's safe to invoke from refresh() at
+  // render time — that's what makes the overlay survive a panel reload with a
+  // pending approval (no race where refresh() hides what this just showed).
+  async function syncApprovalOverlay() {
+    let resp;
+    try { resp = await bg({ type: 'SIDECAR_GET_PENDING' }); } catch (_) { return !!pendingApproval; }
+    const view = resp && resp.ok ? resp.result : null;
+    if (!view) return !!pendingApproval;
+    renderInterrupted(view.interrupted || []);
+    const head = view.head;
+    if (head) {
+      const group = head.groupIds && head.groupIds.length ? head.groupIds : [head.id];
+      if (!pendingApproval || pendingApproval.id !== head.id) {
+        pendingApproval = { id: head.id, data: head.data, groupIds: group, chosenPubkey: null };
+        closeModal();
+        showApproval();
+      } else if (!pendingApproval.groupIds || pendingApproval.groupIds.length !== group.length) {
+        // Same head, but more same-kind requests arrived (or drained) — re-render
+        // the batch count without resetting the user's account pick.
+        pendingApproval.groupIds = group;
+        showApproval();
+      } else {
+        // Same head, already built — just ensure the overlay is visible. This is
+        // what makes it robust to an intervening refresh() that hid all views
+        // (e.g. on a panel reload while a request is pending): showApproval only
+        // runs on a head change, so without this the overlay could stay hidden.
+        show($('view-approval'));
+      }
+      renderBacklog(view.waiting || []);
+      return true;
+    }
+    pendingApproval = null;
+    renderBacklog([]);
+    hide($('view-approval'));
+    return false;
+  }
+
+  // The background owns the observable approval queue; the panel is a pure view
+  // of it. Called on port (re)connect, on every SIDECAR_QUEUE_UPDATED ping, and
+  // after each decision. When the queue empties while an approval was up, restore
+  // the normal view.
+  async function refreshApproval() {
+    const wasShowing = !!pendingApproval;
+    const hasHead = await syncApprovalOverlay();
+    if (!hasHead && wasShowing) refresh();
+  }
+
+  // "N more waiting" strip inside the approval card + a Reject all escape hatch.
+  function renderBacklog(waiting) {
+    const strip = $('approval-backlog');
+    if (!strip) return;
+    if (!waiting.length) { hide(strip); return; }
+    const count = $('approval-backlog-count');
+    count.textContent = waiting.length + (waiting.length === 1 ? ' more request waiting' : ' more requests waiting');
+    show(strip);
+  }
+
+  // Requests that were in flight when Sidecar's service worker restarted. Their
+  // page channels are gone (the sites already got an error/timeout), so they
+  // can't be signed — surface them honestly as dismissible tombstones.
+  function renderInterrupted(list) {
+    const banner = $('interrupted-banner');
+    if (!banner) return;
+    if (!list.length) { hide(banner); banner.innerHTML = ''; return; }
+    banner.innerHTML = '';
+    const msg = h('span', { className: 'interrupted-msg', textContent:
+      list.length + (list.length === 1 ? ' signing request was' : ' signing requests were') +
+      ' interrupted when Sidecar restarted — the site' + (list.length === 1 ? '' : 's') + ' will ask again.' });
+    const dismiss = h('button', { className: 'interrupted-dismiss', textContent: 'Dismiss' });
+    dismiss.addEventListener('click', async () => { await bg({ type: 'SIDECAR_DISMISS_INTERRUPTED' }); refreshApproval(); });
+    banner.append(msg, dismiss);
+    show(banner);
+  }
+
+  // Keep a live port to the worker: it's the SIDECAR_QUEUE_UPDATED signal channel
+  // AND a keepalive that wakes/holds the worker. MV3 recycles it (~5 min, or on
+  // SW sleep); on any drop we reconnect and re-pull. The background REVERTS (not
+  // rejects) a shown approval when this port drops, so a blip can't lose a
+  // request — it re-surfaces on reconnect.
   function connectApprovalPort() {
     let port;
     try {
@@ -3297,25 +7850,150 @@
       setTimeout(connectApprovalPort, 1000);
       return;
     }
+    // Tell the worker which window this panel lives in. A side panel is
+    // per-window, so the worker uses this to keep a cross-window request's
+    // approval off this panel and on a popup over the right window instead.
+    try {
+      chrome.windows.getCurrent((w) => {
+        if (!chrome.runtime.lastError && w && w.id != null) {
+          try { port.postMessage({ type: 'panelWindow', windowId: w.id }); } catch (_) {}
+        }
+      });
+    } catch (_) {}
     port.onMessage.addListener((msg) => {
-      if (msg && msg.type === 'SIDECAR_PANEL_APPROVAL') {
-        pendingApproval = { id: msg.id, data: msg.data };
-        showApproval();
-      }
+      if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
+      if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {
-      // The worker that owned any in-flight approval is gone, so a showing card
-      // is now stale (the page is failed via the content-script timeout). Drop it.
-      if (pendingApproval) {
-        pendingApproval = null;
-        hide($('view-approval'));
-      }
+      // Not a failure: the background keeps pending requests alive and re-surfaces
+      // them. Just hide the (now un-decidable) card and reconnect; refreshApproval
+      // on reconnect restores the true state.
+      pendingApproval = null;
+      hide($('view-approval'));
       setTimeout(connectApprovalPort, 250);
     });
+    // Pull authoritative state on (re)connect.
+    refreshApproval();
   }
   connectApprovalPort();
+
+  // ---- dev build indicator ----
+  // Local/unpacked builds only (see isDevBuild). On by default in dev so it's
+  // immediately obvious which build is loaded; the toggle lets it be hidden for
+  // clean screenshots. Never appears on the Chrome Web Store build, regardless of
+  // a stored setting.
+  async function initDevBadge() {
+    if (!isDevBuild()) return;
+    show($('dev-settings-section'));
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    $('dev-indicator-toggle').checked = settings.devIndicator !== false;
+    applyDevBadge(settings.devIndicator !== false);
+    $('dev-indicator-toggle').addEventListener('change', async (e) => {
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devIndicator: e.target.checked } });
+      applyDevBadge(e.target.checked);
+    });
+  }
+  function applyDevBadge(on) {
+    if (!isDevBuild()) return; // belt-and-suspenders: never show on a store build
+    $('dev-badge').classList.toggle('hidden', !on);
+  }
+
+  // ---- debug panel ----
+  // Reads the in-memory trace log the background keeps (message dispatch,
+  // timings, uncaught SW errors — see background.js). Dev builds only, same
+  // gate as the badge itself.
+  let debugPanelRefresh = null; // set while the panel is open; re-pulls on SIDECAR_LOG_UPDATED
+
+  function debugLogRow(e) {
+    const row = h('div', { className: 'item debug-log-row debug-log-' + e.level });
+    const parts = [];
+    if (e.data) {
+      if (e.data.method) parts.push(e.data.method);
+      if (e.data.host) parts.push(e.data.host);
+      if (e.data.ms != null) parts.push(e.data.ms + 'ms');
+      if (e.data.version) parts.push('v' + e.data.version);
+      if (e.data.error) parts.push(e.data.error);
+      if (e.data.message) parts.push(e.data.message);
+      if (e.data.reason) parts.push(e.data.reason);
+      if (e.data.filename) parts.push(e.data.filename + (e.data.lineno != null ? ':' + e.data.lineno : ''));
+    }
+    row.append(h('div', { className: 'item-main' }, [
+      h('div', { className: 'item-label', textContent: '[' + e.tag + '] ' + e.msg }),
+      h('div', { className: 'item-sub', textContent: [new Date(e.ts).toLocaleTimeString(), ...parts].join(' · ') }),
+    ]));
+    return row;
+  }
+
+  function debugLogText(entries) {
+    return entries.map((e) => {
+      const meta = e.data ? ' ' + JSON.stringify(e.data) : '';
+      return '[' + new Date(e.ts).toISOString() + '] ' + e.level.toUpperCase() + ' ' + e.tag + ': ' + e.msg + meta;
+    }).join('\n');
+  }
+
+  async function openDebugPanel() {
+    let entries = [];
+    try { entries = await call({ type: 'SIDECAR_GET_DEBUG_LOG' }); } catch (_) {}
+
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      modal.appendChild(xBtn);
+
+      const build = window.SIDECAR_BUILD || {};
+      const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+      const verText = ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '');
+      modal.append(
+        h('div', {}, [
+          h('div', { className: 'notif-modal-title', textContent: 'Debug log' }),
+          h('div', { className: 'hint', textContent: 'Sidecar ' + verText + ' · dev build' }),
+        ])
+      );
+
+      const scroll = h('div', { className: 'notif-scroll' });
+      const list = h('div', { className: 'list' });
+      scroll.appendChild(list);
+      modal.appendChild(scroll);
+
+      function render() {
+        if (!entries.length) {
+          listState(list, 'No log entries yet — use the app and they’ll appear here.');
+          return;
+        }
+        list.innerHTML = '';
+        entries.slice().reverse().forEach((e) => list.append(debugLogRow(e)));
+      }
+      render();
+      debugPanelRefresh = async () => {
+        try { entries = await call({ type: 'SIDECAR_GET_DEBUG_LOG' }); } catch (_) { return; }
+        render();
+      };
+
+      const copyBtn = h('button', { className: 'secondary', textContent: 'Copy' });
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(debugLogText(entries) || '(empty)');
+          copyBtn.textContent = 'Copied ✓';
+          setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
+        } catch (_) {}
+      });
+      const clearBtn = h('button', { className: 'ghost', textContent: 'Clear' });
+      clearBtn.addEventListener('click', async () => {
+        try { entries = await call({ type: 'SIDECAR_CLEAR_DEBUG_LOG' }); } catch (_) { return; }
+        render();
+      });
+      modal.append(h('div', { className: 'actions' }, [clearBtn, copyBtn]));
+    }, () => { debugPanelRefresh = null; });
+  }
+
+  $('dev-badge').addEventListener('click', openDebugPanel);
+  $('dev-badge').appendChild(icon('bug'));
 
   // ---- boot ----
   document.addEventListener('DOMContentLoaded', refresh);
   if (document.readyState !== 'loading') refresh();
+  initDevBadge();
 })();

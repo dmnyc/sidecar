@@ -26,8 +26,19 @@ npm-debug.log*
 *.tmp
 *.temp
 *.log
+# Local release packages (built by scripts/package.sh into dist/)
+/dist/
 # Generated build stamp
 version.js
 
 # Temp font preview
 font-preview.html
+
+# Temp theme contrast check
+theme-preview.html
+
+# Local store-listing history / working docs (not part of the extension)
+store/
+
+# Local-only backups of removed content (e.g. site entries pending a URL change)
+local-backups/
