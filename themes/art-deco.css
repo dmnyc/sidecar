@@ -19,6 +19,11 @@
   --border: rgba(139, 115, 85, 0.20);
   --border-strong: rgba(139, 115, 85, 0.35);
   --border-rgb: 139, 115, 85;
+  --well-rgb: 232, 224, 208;
+  --warn: #a8521f;
+  --warn-rgb: 168, 82, 31;
+  --success: #2f7d52;
+  --success-rgb: 47, 125, 82;
 
   /* brand - bronze/gold */
   --orange: #B8860B;
@@ -76,4 +81,14 @@
    needs the light page color to stay legible */
 [data-theme="art-deco"] .add-account-badge {
   color: var(--bg);
+}
+/* The wallet balance and "sent" tx icon use --gold/#f4a64b, both tuned for a dark
+   backdrop — on deco's light eggshell field they read as washed out. Swap in
+   --orange (already a darker bronze-gold in this theme) for enough contrast. */
+[data-theme="art-deco"] .wallet-balance {
+  color: var(--orange);
+}
+[data-theme="art-deco"] .tx-icon.out {
+  color: var(--orange);
+  background: rgba(184, 134, 11, 0.12);
 }

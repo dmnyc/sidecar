@@ -18,6 +18,11 @@
   --banner-accent: #3a2470;
   --border: rgba(167, 139, 250, 0.16);
   --border-strong: rgba(167, 139, 250, 0.28);
+  --well-rgb: 8, 2, 20;
+  --warn: #ffb38a;
+  --warn-rgb: 255, 179, 138;
+  --success: #6ee7a8;
+  --success-rgb: 110, 231, 168;
 
   /* brand */
   --orange: #ea772f;
