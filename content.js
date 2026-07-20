@@ -318,11 +318,11 @@
     '.pay{margin-top:20px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;' +
     'border:none;border-radius:13px;padding:14px;font-size:15px;font-weight:700;{CARD_PAY_TEXT};' +
     'background:{CARD_PAY_BG};' +
-    'box-shadow:0 8px 22px rgba(221,111,35,0.36),inset 0 1px 0 rgba(255,255,255,0.45);transition:filter .12s ease,transform .12s ease;}' +
+    'box-shadow:0 8px 22px {CARD_PAY_SHADOW},inset 0 1px 0 rgba(255,255,255,0.45);transition:filter .12s ease,transform .12s ease;}' +
     '.pay:hover{filter:brightness(1.05);}' +
     '.pay:active{transform:translateY(1px);}' +
     '.pay.pending{cursor:default;opacity:.94;}' +
-    '.pay.done{cursor:default;background:none;box-shadow:none;color:#6ee7a8;}' +
+    '.pay.done{cursor:default;background:none;box-shadow:none;{CARD_SUCCESS};}' +
     '.pay-bolt{height:16px;width:auto;display:block;}' +
     '.pay.pending .pay-bolt,.pay.done .pay-bolt{display:none;}' +
     '.pay-check{display:none;width:18px;height:18px;}' +
@@ -331,7 +331,7 @@
     '.pay.pending .pay-spin{display:block;}' +
     '@keyframes sc-spin{to{transform:rotate(360deg);}}' +
     '.pay-status{margin-top:11px;font-size:12px;line-height:1.45;{CARD_MUTED};text-wrap:balance;}' +
-    '.pay-status.err{color:#ffb38a;}' +
+    '.pay-status.err{{CARD_WARN};}' +
     '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
     '.cancel:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
     '.card.busy .cancel{display:none;}' +
@@ -390,7 +390,10 @@
         CARD_BORDER_FAINT: 'rgba(167,139,250,0.16)',
         CARD_TOGGLE_OFF: 'rgba(167,139,250,0.25)',
         CARD_TRACK: '#cba14e',
-        CARD_THUMB_OFF: '#9a86c4'
+        CARD_THUMB_OFF: '#9a86c4',
+        CARD_WARN: 'color:#ffb38a',
+        CARD_SUCCESS: 'color:#6ee7a8',
+        CARD_PAY_SHADOW: 'rgba(221,111,35,0.36)'
       },
       'film-noir': {
         CARD_COLOR: 'color:#e0e0e0',
@@ -407,7 +410,10 @@
         CARD_BORDER_FAINT: 'rgba(192,192,192,0.12)',
         CARD_TOGGLE_OFF: 'rgba(192,192,192,0.20)',
         CARD_TRACK: '#c0c0c0',
-        CARD_THUMB_OFF: '#909090'
+        CARD_THUMB_OFF: '#909090',
+        CARD_WARN: 'color:#ffb38a',
+        CARD_SUCCESS: 'color:#6ee7a8',
+        CARD_PAY_SHADOW: 'rgba(160,160,160,0.36)'
       },
       'art-deco': {
         CARD_COLOR: 'color:#2a2a2a',
@@ -424,7 +430,10 @@
         CARD_BORDER_FAINT: 'rgba(139,115,85,0.20)',
         CARD_TOGGLE_OFF: 'rgba(139,115,85,0.25)',
         CARD_TRACK: '#D4AF37',
-        CARD_THUMB_OFF: '#6a6a6a'
+        CARD_THUMB_OFF: '#6a6a6a',
+        CARD_WARN: 'color:#a8521f',
+        CARD_SUCCESS: 'color:#2f7d52',
+        CARD_PAY_SHADOW: 'rgba(184,134,11,0.36)'
       }
     };
 
@@ -465,11 +474,15 @@
     const colors = getThemeColors();
     const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
       Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
+    // The wordmark's lettering is baked in as speakeasy's lavender (#BDA1FF), fine
+    // on speakeasy/noir's dark cards but illegible on deco's light one — recolor
+    // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
+    const logoSvg = cardTheme === 'art-deco' ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
       '<style>' + cardCss + '</style>' +
       '<div class="ov">' +
       '<div class="card" role="dialog" aria-label="Pay with Sidecar">' +
-      '<div class="brand">' + LOGO_SVG + '</div>' +
+      '<div class="brand">' + logoSvg + '</div>' +
       '<div class="eyebrow">' + eyebrow + '</div>' +
       amountBlock +
       memoBlock +

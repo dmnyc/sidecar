@@ -5936,7 +5936,7 @@
         textContent: 'Lost follows to a buggy client? Scan your relays for an older version of your follow list and restore it.',
       })
     );
-    const recoveryBtn = h('button', { className: 'secondary', textContent: 'Restore follow list' });
+    const recoveryBtn = h('button', { className: 'secondary', textContent: 'Follow List Recovery' });
     recoveryBtn.addEventListener('click', () => followRecoveryModal(active));
     recoveryWrap.append(recoveryBtn, mutableAttribution());
     setting.append(recoveryWrap);
