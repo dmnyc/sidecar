@@ -7,6 +7,19 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.5.0] — Unreleased
+
+### Added
+- **Firefox support.** The full signer — multi-account, NIP-07, the built-in Lightning wallet, and the approval flow — now runs on Firefox 128+ at parity with the Chrome build, from a single shared codebase. On Firefox, Sidecar lives in the sidebar rather than the side panel, and (because Firefox lets you decline site access at install) offers a one-click grant from the panel if you skipped it. Distributed through Firefox Add-ons (AMO).
+- **Three themes, selectable in Settings.** **Speakeasy** (the original after-hours velvet) stays the default, joined by **Film Noir** (matte black-on-black with silver accents) and **Art Deco** (a daylight eggshell-and-bronze palette with a geometric pattern background). Your choice persists across sessions, and the injected "Pay with Sidecar" card on web pages adopts the same theme.
+
+### Changed
+- **Toasts now appear at the bottom** of the panel instead of dropping over the top menu, so a confirmation like "Unlocked" no longer covers the account switcher and toolbar for a few seconds.
+- The follow-list recovery button is now labeled **"Follow List Recovery"**, matching what Mutable — the service that powers it — calls the feature.
+
+### Fixed
+- **Art Deco legibility pass.** On the light theme, several elements colored for a dark backdrop were washing out: the key-backup box and its warning text, the signing-approval event preview and caution banner, the wallet balance and transaction colors, the NIP-05 verification badges, and the "Pay with Sidecar" card's logo, error, and paid states. All now read clearly against the eggshell background.
+
 ## [1.4.1] — 2026-07-16
 
 ### Added
