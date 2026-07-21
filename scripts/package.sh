@@ -71,8 +71,8 @@ build_zip() {
     } else {
       delete m.side_panel;
       delete m.minimum_chrome_version;
-      // sidePanel is a Chrome-only permission; drop it so AMO's validator
-      // doesn't flag an unrecognized permission in the Firefox zip.
+      // sidePanel is a Chrome-only permission; drop it so the AMO
+      // validator does not flag an unrecognized permission in the Firefox zip.
       if (Array.isArray(m.permissions)) {
         m.permissions = m.permissions.filter((p) => p !== "sidePanel");
       }
