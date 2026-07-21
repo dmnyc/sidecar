@@ -19,6 +19,7 @@ Update that section alongside this file as part of every release.
 
 ### Fixed
 - **Art Deco legibility pass.** On the light theme, several elements colored for a dark backdrop were washing out: the key-backup box and its warning text, the signing-approval event preview and caution banner, the wallet balance and transaction colors, the NIP-05 verification badges, and the "Pay with Sidecar" card's logo, error, and paid states. All now read clearly against the eggshell background.
+- **The Close button on an expired standalone approval popup now works.** Previously, when a request timed out in the popup shown with the sidebar closed, "Close" did nothing — the request had already been purged, so the approval message had nothing to act on and the window never closed. Close now dismisses the popup directly.
 
 ## [1.4.1] — 2026-07-16
 
