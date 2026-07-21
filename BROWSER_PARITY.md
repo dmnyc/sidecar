@@ -13,15 +13,17 @@ skips Firefox (or vice versa).
 | Background        | MV3 `background.service_worker`       | event page: `background.scripts`                     |
 | Side UI           | `side_panel` (`chrome.sidePanel`)     | `sidebar_action`                                     |
 | Store metadata    | —                                     | requires `browser_specific_settings.gecko`           |
-| Lives on          | `main`                                | `feat/firefox-port` (+ `fix/firefox-message-origin`) |
+| Lives on          | `main`                                | `feat/firefox-port` (origin fix folded in)           |
 
 The Firefox port is kept on its own branch(es) until it's ready for AMO. Merging a
 release to `main` updates the Chrome build; the Firefox branch must be brought up to
 the same version separately (see the checklist).
 
-**Current status:** paused as of 1.4.0 — Chrome is the active priority. Resume by
-rebasing `feat/firefox-port` onto `main`, folding in `fix/firefox-message-origin`, and
-running the checklist below.
+**Current status:** resumed. `feat/firefox-port` is rebased onto 1.4.0 `main`
+(including the post-1.4.0 auto-lock UI work), `fix/firefox-message-origin` is folded
+in, and the port implementation is complete through the shims/permission-UX phase
+(see FIREFOX_PORT.md → Status). Next: the Firefox smoke test below, then the full
+parity benchmark, then AMO.
 
 ## Shared vs. browser-specific
 
@@ -58,7 +60,7 @@ running the checklist below.
 ## Known cross-browser gotchas
 
 - **Origin gate** (`background.js`) — use `runtime.getURL('/')`, not a hardcoded scheme.
-  Fixed on `fix/firefox-message-origin`; fold that into the Firefox branch.
+  Fixed on `feat/firefox-port` (the old `fix/firefox-message-origin` commit, folded in).
 - **Side UI** — `chrome.sidePanel` (Chrome) vs `sidebar_action` (Firefox); the manifest
   key and the open/close behavior both differ.
 - **Background** — MV3 service worker (Chrome) vs event page `background.scripts` (Firefox).

@@ -31,6 +31,13 @@
 
   <div class="page">
 
+    <!-- Firefox can decline site access in the install prompt — without it none of
+         these apps can see the signer. Chrome grants at install; never shows there. -->
+    <div id="perm-gate" class="perm-gate" hidden>
+      <p><strong>One more step:</strong> Sidecar needs permission to work on websites — without it, these apps can't see your signer.</p>
+      <button id="perm-grant-btn" class="perm-grant-btn">Grant site access</button>
+    </div>
+
     <header class="header">
       <h1>Your Nostr signer is ready.</h1>
       <p>Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.</p>

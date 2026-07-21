@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
-# Packages a Sidecar release zip from a git tag into dist/.
+# Packages Sidecar release zips (Chrome + Firefox) from a git tag into dist/.
 #
 # The GitHub Release is the canonical home for release zips; this script just
-# builds the local artifact to upload. dist/ is gitignored — nothing here is
-# committed. The output is a flat-root zip (manifest.json at the top, no wrapper
-# folder) ready for the Chrome Web Store and a GitHub Release asset.
+# builds the local artifacts to upload. dist/ is gitignored — nothing here is
+# committed. Each output is a flat-root zip (manifest.json at the top, no wrapper
+# folder): sidecar-X.Y.Z.zip for the Chrome Web Store, sidecar-X.Y.Z-firefox.zip
+# for AMO.
+#
+# Sidecar ships ONE unified codebase; the only per-store difference is the
+# manifest. The repo keeps the union of both browsers' keys (so dev-loading
+# unpacked works in either browser with no build step); at package time this
+# strips each store's zip down to the keys that store actually uses:
+#   Chrome  — drops sidebar_action, browser_specific_settings, background.scripts
+#   Firefox — drops side_panel, minimum_chrome_version, background.service_worker
+# so neither store's validator sees the other's keys (avoids a Chrome Web Store
+# rejection on the Firefox-only keys, and console warnings on both sides).
+# Requires node (dev-time only; not shipped) for the manifest edit.
 #
 # Usage: scripts/package.sh [vX.Y.Z]   (default: the manifest's current version)
-#
-# What it does: git archive the tag → strip docs/dev/tooling (README, CHANGELOG,
-# PRIVACY.md, scripts/, assets/, .github/, …) → regenerate version.js (gitignored,
-# stamped to the tag's short commit, clean) → zip → print sha256 + file count.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+ROOT="$PWD"
 
 MANIFEST_VERSION=$(grep -m1 '"version"' manifest.json | sed -E 's/.*"version"[^"]*"([^"]+)".*/\1/')
 TAG="${1:-v${MANIFEST_VERSION}}"
@@ -28,7 +36,6 @@ fi
 
 SHORT=$(git rev-parse --short "${TAG}^{commit}")
 VERSION_NO_V="${TAG#v}"
-OUT="dist/sidecar-${VERSION_NO_V}.zip"
 
 STAGE="$(mktemp -d)/sidecar"
 mkdir -p "${STAGE}"
@@ -38,7 +45,7 @@ git archive "${TAG}" | tar -x -C "${STAGE}"
 rm -rf "${STAGE}/.claude" "${STAGE}/.github" "${STAGE}/scripts" "${STAGE}/assets"
 rm -f "${STAGE}/.gitignore" "${STAGE}/README.md" "${STAGE}/CHANGELOG.md" \
       "${STAGE}/FEATURES.md" "${STAGE}/PRIVACY.md" "${STAGE}/BROWSER_PARITY.md" \
-      "${STAGE}/VENDOR.md" "${STAGE}/package.json"
+      "${STAGE}/FIREFOX_PORT.md" "${STAGE}/VENDOR.md" "${STAGE}/package.json"
 
 # version.js is gitignored and not in the archive — regenerate it, stamped to the tag.
 cat > "${STAGE}/version.js" <<EOF
@@ -46,13 +53,44 @@ cat > "${STAGE}/version.js" <<EOF
 window.SIDECAR_BUILD = { version: '${VERSION_NO_V}', commit: '${SHORT}' };
 EOF
 
-mkdir -p dist
-rm -f "${OUT}"
-( cd "${STAGE}" && zip -rqX "${OLDPWD}/${OUT}" . -x ".*" )
+# The archived manifest carries both browsers' keys; each zip gets only its own.
+PRISTINE_MANIFEST="$(mktemp)"
+cp "${STAGE}/manifest.json" "${PRISTINE_MANIFEST}"
 
-FILES=$(unzip -Z1 "${OUT}" | grep -vc '/$')
-SHA=$(shasum -a 256 "${OUT}" | awk '{print $1}')
-echo "Built ${OUT}"
-echo "  tag:      ${TAG} (${SHORT})"
-echo "  files:    ${FILES}"
-echo "  sha256:   ${SHA}"
+build_zip() {
+  local target="$1" out="$2"
+  cp "${PRISTINE_MANIFEST}" "${STAGE}/manifest.json"
+  node -e '
+    const fs = require("fs");
+    const file = process.argv[1], target = process.argv[2];
+    const m = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (target === "chrome") {
+      delete m.sidebar_action;
+      delete m.browser_specific_settings;
+      if (m.background) delete m.background.scripts;
+    } else {
+      delete m.side_panel;
+      delete m.minimum_chrome_version;
+      // sidePanel is a Chrome-only permission; drop it so AMO's validator
+      // doesn't flag an unrecognized permission in the Firefox zip.
+      if (Array.isArray(m.permissions)) {
+        m.permissions = m.permissions.filter((p) => p !== "sidePanel");
+      }
+      if (m.background) delete m.background.service_worker;
+    }
+    fs.writeFileSync(file, JSON.stringify(m, null, 2) + "\n");
+  ' "${STAGE}/manifest.json" "${target}"
+  rm -f "${ROOT}/${out}"
+  ( cd "${STAGE}" && zip -rqX "${ROOT}/${out}" . -x ".*" )
+  local files sha
+  files=$(unzip -Z1 "${ROOT}/${out}" | grep -vc '/$')
+  sha=$(shasum -a 256 "${ROOT}/${out}" | awk '{print $1}')
+  echo "Built ${out}  [${target}]"
+  echo "  files:   ${files}"
+  echo "  sha256:  ${sha}"
+}
+
+mkdir -p dist
+echo "Packaging ${TAG} (${SHORT})"
+build_zip chrome  "dist/sidecar-${VERSION_NO_V}.zip"
+build_zip firefox "dist/sidecar-${VERSION_NO_V}-firefox.zip"

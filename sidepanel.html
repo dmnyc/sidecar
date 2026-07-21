@@ -80,6 +80,13 @@
     </nav>
 
 
+    <!-- Firefox lets the user decline/revoke site access (host permissions); without
+         it there is no window.nostr anywhere and the signer looks dead. Chrome grants
+         at install, so this only shows there if the user restricted site access. -->
+    <div id="host-perm-banner" class="host-perm-banner hidden">
+      <div class="host-perm-msg"><strong>Sidecar can't see websites yet.</strong> Grant site access so Nostr apps can use your signer.</div>
+      <button id="host-perm-grant-btn" class="host-perm-grant-btn">Grant access</button>
+    </div>
     <div id="post-banner" class="post-banner hidden"></div>
     <!-- Offer to reload the open Nostr site so an account switch takes effect there. -->
     <div id="reload-banner" class="reload-banner hidden"></div>

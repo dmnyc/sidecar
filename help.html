@@ -53,6 +53,12 @@
       extension.</p>
       <p>Everything is protected by the PIN you chose when you set up Sidecar, and the
       panel locks itself after a period of inactivity you can adjust in Settings.</p>
+      <p>On Firefox, Sidecar lives in the sidebar rather than the side panel — same
+      signer, same features, and updates install automatically through the browser.
+      Two Firefox specifics: extensions stay off in private windows unless you allow
+      them (Manage Extensions → Sidecar → Run in Private Windows), and Sidecar needs
+      the site access it asks for at install — if you declined that, the panel shows
+      a one-click <em>Grant access</em> banner until it's restored.</p>
 
       <!-- screenshot: the approval prompt, a site asking to sign an event -->
       <figure class="shot">
@@ -230,21 +236,18 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.5.0</p>
+      <ul class="whatsnew-list">
+        <li><strong>Sidecar is now on Firefox.</strong> The full signer — multi-account, NIP-07, the Lightning wallet, and the approval flow — runs on Firefox 128 and later, at parity with Chrome. On Firefox it lives in the sidebar; install it from Firefox Add-ons.</li>
+        <li><strong>Three themes to choose from.</strong> A new picker in Settings offers Speakeasy (the original velvet), Film Noir (matte black with silver accents), and Art Deco (a daylight eggshell-and-bronze look). Your pick sticks, and the on-page "Pay with Sidecar" card follows it too.</li>
+        <li><strong>Toasts moved to the bottom</strong> of the panel, so a confirmation no longer sits over the account switcher and toolbar.</li>
+      </ul>
       <p class="whatsnew-version">Version 1.4.1</p>
       <ul class="whatsnew-list">
         <li><strong>Auto-lock, smoothed out.</strong> When the idle timer fires, the panel drops straight to the unlock screen with a "Locked due to inactivity" notice, instead of only surfacing the lock on your next action. Composing counts as activity so it won't lock mid-draft — and unlocking straight from a key reveal or export now flows through in one step.</li>
         <li><strong>Stronger PIN protection.</strong> The unlock screen's brute-force guard — escalating delays between wrong tries and the final-strike wipe — now covers every PIN prompt, including key reveals and exports.</li>
         <li><strong>More apps to explore.</strong> Eight new apps in the directory — Flotilla, Tunestr, Wavlake, WaveFunc Radio, Boost Me Bitch, Cordn, Imwald, and ContextVM — now also browsable on the web at sidecar.top/apps.</li>
         <li><strong>A lighter quoted-note icon</strong> in notifications, easier to see on the dark panel.</li>
-      </ul>
-      <p class="whatsnew-version">Version 1.4.0</p>
-      <ul class="whatsnew-list">
-        <li><strong>A clearer signing prompt.</strong> Event content shows in a compact, expandable preview with Formatted, Raw, and JSON views, and roughly 40 more event kinds are recognized by name — so routine actions no longer show the "unrecognized kind" caution.</li>
-        <li><strong>Readable identities.</strong> Encrypt and decrypt prompts show the other party by name, with their npub kept beneath it as a verifiable key — click the npub to reveal the full key.</li>
-        <li><strong>Auto-lock is on by default.</strong> Sidecar now locks after 15 minutes of inactivity — adjustable in Settings, including back to Never, and changes apply immediately.</li>
-        <li><strong>Save-your-PIN reminder.</strong> Right after you create a PIN, a one-time reminder prompts you to write it down or store it in a password manager — there's no recovery if it's forgotten.</li>
-        <li><strong>Tighter settings privacy.</strong> Websites can no longer read Sidecar's settings; pages see only the on-page pay-card toggle.</li>
-        <li><strong>Security audit addressed.</strong> Refreshed core libraries, tamper-detection for every bundled file, and a licensing fix so the whole project stays cleanly open source.</li>
       </ul>
       <p>The full history, including earlier releases, is in the
       <a href="https://github.com/dmnyc/sidecar/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer noopener" id="changelog-link">changelog on GitHub</a>.</p>

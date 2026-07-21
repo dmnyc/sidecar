@@ -7,8 +7,16 @@
 //
 // Decrypted private keys live only in the keystore's in-memory map here. If this worker
 // is killed (MV3 ~30s idle), that map is gone and the keystore re-locks — a feature.
+//
+// Chrome runs this file as a service worker and pulls its deps in via importScripts;
+// Firefox has no MV3 service workers and runs it as an event page (a window, where
+// importScripts doesn't exist) with the same files already loaded, in the same order,
+// via manifest background.scripts. Both suspend after ~30s idle, so the
+// survive-restart machinery below applies equally to both.
 
-importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js');
+if (typeof importScripts === 'function') {
+  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js');
+}
 
 const KS = self.SidecarKeystore;
 const PERMS = self.SidecarPermissions;
@@ -197,7 +205,13 @@ async function logActivity(entry) {
 // payments per account). This is internal diagnostics: message dispatch,
 // timings, and uncaught errors. In-memory only, so it resets on a service
 // worker restart (~30s idle) — same tradeoff as the keystore re-locking.
-const IS_DEV_BUILD = (() => {
+// Chrome: the Web Store injects `update_url` when it packages a release, so its
+// absence reliably means an unpacked dev load. Firefox/AMO never injects one, so
+// that heuristic would flag every production install as dev — there, start closed
+// and let management.getSelf() (async; getSelf is exempt from the "management"
+// permission) flip it on for temporary about:debugging loads only.
+let IS_DEV_BUILD = (() => {
+  if (typeof browser !== 'undefined') return false; // Firefox: resolved async below
   try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
 })();
 const DEBUG_LOG_MAX = 300;
@@ -210,7 +224,7 @@ function dlog(level, tag, msg, data) {
 }
 // ---- side panel open on toolbar click ----
 chrome.runtime.onInstalled.addListener((details) => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  if (chrome.sidePanel) chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   createPayMenu();
   if (details.reason === 'install') {
     chrome.storage.local.remove('firstPostTipDismissed');
@@ -218,7 +232,13 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 chrome.action.onClicked.addListener((tab) => {
-  chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+  if (chrome.sidePanel) {
+    chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+  } else if (typeof browser !== 'undefined' && browser.sidebarAction) {
+    // Firefox sidebar. toggle() only works when called synchronously from the
+    // user-input handler — no awaits before this line.
+    browser.sidebarAction.toggle();
+  }
 });
 
 // ============================================================================
@@ -248,15 +268,28 @@ const QUEUE_SESSION_KEY = 'sidecar_prompt_queue';
 const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
 
 // dlog() reads panelPort (declared above) to ping the panel on a new entry, so
-// this must run after that declaration — the log call below is synchronous.
-if (IS_DEV_BUILD) {
-  dlog('info', 'sw', 'Service worker started', { version: chrome.runtime.getManifest().version });
+// this must run after that declaration — the Chrome-path log call is synchronous.
+function startDebugLog() {
+  dlog('info', 'bg', 'Background started', { version: chrome.runtime.getManifest().version });
   self.addEventListener('error', (e) => {
-    dlog('error', 'sw', 'Uncaught error', { message: e.message, filename: e.filename, lineno: e.lineno });
+    dlog('error', 'bg', 'Uncaught error', { message: e.message, filename: e.filename, lineno: e.lineno });
   });
   self.addEventListener('unhandledrejection', (e) => {
-    dlog('error', 'sw', 'Unhandled rejection', { reason: String((e.reason && e.reason.message) || e.reason) });
+    dlog('error', 'bg', 'Unhandled rejection', { reason: String((e.reason && e.reason.message) || e.reason) });
   });
+}
+if (IS_DEV_BUILD) {
+  startDebugLog();
+} else if (typeof browser !== 'undefined') {
+  // Firefox: the answer arrives async, so the first moments of logs are dropped —
+  // failing closed beats showing dev UI to every AMO install.
+  try {
+    browser.management.getSelf().then((info) => {
+      if (info.installType !== 'development') return;
+      IS_DEV_BUILD = true;
+      startDebugLog();
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 // ---- session mirror (metadata only — no callbacks, no signable material) ----
@@ -1315,7 +1348,12 @@ function extractInvoice(text) {
 // run jsQR. jsQR is heavy (~250KB) so it's imported lazily, only on first QR pay.
 let jsqrReady = false;
 function ensureJsQR() {
-  if (!jsqrReady) { importScripts('jsqr.js'); jsqrReady = true; }
+  // Firefox (event page) has no importScripts — jsqr.js is loaded up front via
+  // manifest background.scripts there, so it's already on self.
+  if (!jsqrReady) {
+    if (typeof importScripts === 'function') importScripts('jsqr.js');
+    jsqrReady = true;
+  }
   return self.jsQR;
 }
 async function invoiceFromQrImage(srcUrl) {
@@ -1335,12 +1373,28 @@ async function invoiceFromQrImage(srcUrl) {
 
 function createPayMenu() {
   if (!chrome.contextMenus) return;
+  // Failures surface synchronously (throw, Firefox) or via lastError in the
+  // callback (Chrome) — cover both so one bad item can't take out the menu.
+  const create = (props, onFail) => {
+    try {
+      chrome.contextMenus.create(props, () => {
+        if (chrome.runtime.lastError && onFail) onFail();
+      });
+    } catch (_) { if (onFail) onFail(); }
+  };
   chrome.contextMenus.removeAll(() => {
     // Only on lightning: links (not every link), on any text selection, and on
     // QR images. (Canvas/SVG QRs have no image context — a later pass.)
-    chrome.contextMenus.create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] });
-    chrome.contextMenus.create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
-    chrome.contextMenus.create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
+    // Both browsers document targetUrlPatterns as accepting any URL scheme, but
+    // if a build ever rejects the lightning: pattern, fall back to a pattern-less
+    // link item — the click handler's extractInvoice already fails safe on
+    // non-lightning links with a "no invoice found" notice.
+    create(
+      { id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] },
+      () => create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'] })
+    );
+    create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
+    create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
   });
 }
 chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(createPayMenu);
@@ -1854,15 +1908,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // in CONTENT_OK. But the keystore/wallet/owner-crypto/prompt handlers below are
   // the crown jewels, so we ALSO hard-require an extension-page origin for
   // everything a content script doesn't legitimately need — the identity check is
-  // the sender's ORIGIN (our pages are chrome-extension://<id>/…; a content
-  // script carries the web page's origin), NOT sender.tab (prompt.html and
-  // welcome.html are extension pages that DO have a tab). This way no future
-  // content-script bug can pivot a hostile page into signing, key reveal,
-  // decryption, unlock, or settling an approval.
-  const EXT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
+  // whether the sender's URL is under OUR extension origin, taken from
+  // runtime.getURL (chrome-extension://<id>/ on Chrome, moz-extension://<uuid>/ on
+  // Firefox — so this is correct on both). A content script carries the web page's
+  // URL instead. NOT sender.tab (prompt.html and welcome.html are extension pages
+  // that DO have a tab). This way no future content-script bug can pivot a hostile
+  // page into signing, key reveal, decryption, unlock, or settling an approval.
+  const EXT_URL_PREFIX = chrome.runtime.getURL('/');
   const fromExtPage = !!sender && (
-    sender.origin === EXT_ORIGIN ||
-    (typeof sender.url === 'string' && sender.url.startsWith(EXT_ORIGIN + '/'))
+    (typeof sender.url === 'string' && sender.url.startsWith(EXT_URL_PREFIX)) ||
+    (typeof sender.origin === 'string' && sender.origin + '/' === EXT_URL_PREFIX)
   );
   const CONTENT_OK = new Set([
     'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',

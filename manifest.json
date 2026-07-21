@@ -15,10 +15,30 @@
     "https://*/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": [
+      "nostr-tools.js",
+      "crypto.js",
+      "keystore.js",
+      "permissions.js",
+      "signer.js",
+      "wallet-budgets.js",
+      "nwc-client.js",
+      "jsqr.js",
+      "background.js"
+    ]
   },
   "side_panel": {
     "default_path": "sidepanel.html"
+  },
+  "sidebar_action": {
+    "default_panel": "sidepanel.html",
+    "default_title": "Sidecar",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    },
+    "open_at_install": false
   },
   "action": {
     "default_title": "Open Sidecar"
@@ -26,17 +46,27 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "js": ["nostr-provider.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
       "run_at": "document_start",
       "all_frames": false
     }
   ],
-  "web_accessible_resources": [
-    {
-      "resources": ["nostr-provider.js"],
-      "matches": ["<all_urls>"]
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sidecar@sidecar.top",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
-  ],
+  },
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

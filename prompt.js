@@ -286,7 +286,15 @@
       els.ask.textContent = 'This request has expired.';
       els.allow.classList.add('hidden');
       els.trust.classList.add('hidden');
-      els.reject.textContent = 'Close';
+      // The request is already purged from the background queue, so routing Close
+      // through decide('reject') — the reject button's normal binding — is a no-op:
+      // the background has nothing to settle for this id and never closes the window.
+      // Swap in a fresh node (cloneNode drops the old listener) and close directly.
+      const close = els.reject.cloneNode(true);
+      close.textContent = 'Close';
+      els.reject.replaceWith(close);
+      els.reject = close;
+      els.reject.addEventListener('click', () => window.close());
       return;
     }
     data = resp.data;
