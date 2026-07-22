@@ -1711,8 +1711,9 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_OWNER_SIGN': {
         if (message.pin != null) await stepUpPin(message.pin); // unlocks if auto-lock raced the modal
         else if (KS.isLocked()) throw new Error('Keystore is locked');
-        const pk = await KS.getActivePubkey();
-        result = self.NostrTools.finalizeEvent(message.event, await KS.getPrivkey(pk));
+        // expectedPubkey (when the caller supplies it) makes this fail closed if
+        // the active account changed out from under the caller — see KS.ownerSign.
+        result = await KS.ownerSign(message.event, message.expectedPubkey);
         break;
       }
       case 'SIDECAR_OWNER_ENCRYPT': {

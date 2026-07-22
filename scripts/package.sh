@@ -42,7 +42,7 @@ mkdir -p "${STAGE}"
 git archive "${TAG}" | tar -x -C "${STAGE}"
 
 # Strip everything that isn't part of the running extension.
-rm -rf "${STAGE}/.claude" "${STAGE}/.github" "${STAGE}/scripts" "${STAGE}/assets"
+rm -rf "${STAGE}/.claude" "${STAGE}/.github" "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test"
 rm -f "${STAGE}/.gitignore" "${STAGE}/README.md" "${STAGE}/CHANGELOG.md" \
       "${STAGE}/FEATURES.md" "${STAGE}/PRIVACY.md" "${STAGE}/BROWSER_PARITY.md" \
       "${STAGE}/FIREFOX_PORT.md" "${STAGE}/VENDOR.md" "${STAGE}/package.json"

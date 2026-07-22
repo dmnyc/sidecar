@@ -3001,6 +3001,15 @@
   let activityRefreshTimer = null;
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    // The keystore's active account can change from another Sidecar view (e.g. a
+    // second window switching accounts). Storage change events reach every view, so
+    // treat an active-pubkey change as authoritative and re-sync — otherwise this
+    // panel keeps showing (and composing/signing as) a stale account.
+    if ('sidecar_active_pubkey' in changes && state && !state.locked
+        && changes.sidecar_active_pubkey.newValue !== state.activePubkey) {
+      refresh();
+      return;
+    }
     if (!('sidecar_activity' in changes) && !('sidecar_site_accounts' in changes) && !('sidecar_permissions' in changes)) return;
     if (!state || state.locked) return;
     const activeTab = document.querySelector('.tab.active');
@@ -3594,7 +3603,7 @@
     return servers;
   }
 
-  async function uploadToBlossom(file, servers) {
+  async function uploadToBlossom(file, servers, forPubkey) {
     const buffer = await file.arrayBuffer();
     const hash = await sha256Hex(buffer);
     const now = Math.floor(Date.now() / 1000);
@@ -3604,7 +3613,7 @@
       tags: [['t', 'upload'], ['x', hash], ['expiration', String(now + 300)]],
       content: 'Upload file',
     };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent });
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent, expectedPubkey: forPubkey });
     const authorization = 'Nostr ' + btoa(JSON.stringify(signed));
     let lastError;
     for (const server of servers) {
@@ -3634,12 +3643,13 @@
   // Returns a hosted URL via Blossom, or null when Blossom isn't usable (no
   // active account, no server list, or every server failed) — caller then falls
   // back to nostr.build.
-  async function tryBlossomFirst(file) {
-    if (!state.activePubkey) return null;
+  async function tryBlossomFirst(file, forPubkey) {
+    const pk = forPubkey || state.activePubkey;
+    if (!pk) return null;
     try {
-      const servers = await fetchBlossomServers(state.activePubkey);
+      const servers = await fetchBlossomServers(pk);
       if (!servers.length) return null;
-      return await uploadToBlossom(file, servers);
+      return await uploadToBlossom(file, servers, pk);
     } catch (e) {
       console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
       return null;
@@ -3647,10 +3657,11 @@
   }
 
   // ---- image upload (Blossom → nostr.build via NIP-98) ----
-  async function uploadImage(file, kind) {
+  async function uploadImage(file, kind, forPubkey) {
     if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
     if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
-    const blossomUrl = await tryBlossomFirst(file);
+    const forPk = forPubkey || state.activePubkey;
+    const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
     const url = 'https://nostr.build/api/v2/upload/' + (kind === 'profile' ? 'profile' : 'files');
     const authEvent = {
@@ -3659,7 +3670,7 @@
       tags: [['u', url], ['method', 'POST']],
       content: '',
     };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent });
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent, expectedPubkey: forPk });
     const token = 'Nostr ' + btoa(JSON.stringify(signed));
     const form = new FormData();
     form.append('file', file);
@@ -3672,12 +3683,13 @@
   }
 
   // ---- note media upload (Blossom → nostr.build via NIP-98, images + video) ----
-  async function uploadMedia(file) {
+  async function uploadMedia(file, forPubkey) {
     const isImg = file.type.startsWith('image/');
     const isVid = file.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error('Choose an image or video');
     if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100MB)');
-    const blossomUrl = await tryBlossomFirst(file);
+    const forPk = forPubkey || state.activePubkey;
+    const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
     const url = 'https://nostr.build/api/v2/upload/files';
     const authEvent = {
@@ -3686,7 +3698,7 @@
       tags: [['u', url], ['method', 'POST']],
       content: '',
     };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent });
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent, expectedPubkey: forPk });
     const token = 'Nostr ' + btoa(JSON.stringify(signed));
     const form = new FormData();
     form.append('file', file);
@@ -4162,7 +4174,7 @@
         tags,
         content,
       };
-      const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+      const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: pubkey });
       await publishSigned(signed);
       return signed;
     }
@@ -4464,7 +4476,7 @@
         const prev = lbl.textContent;
         lbl.textContent = 'Uploading…';
         try {
-          const url = await uploadMedia(file);
+          const url = await uploadMedia(file, pubkey);
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
           appendMediaUrl(url);
           draft.text = serializeEditor(editor);
@@ -4499,7 +4511,7 @@
         lbl.textContent = 'Uploading…';
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file);
+            const url = await uploadMedia(file, pubkey);
             draft.media.push({ url, isVideo: false });
             appendMediaUrl(url);
           }
