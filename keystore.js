@@ -385,6 +385,25 @@
     return bytes;
   }
 
+  // Sign an event as the OWNER — first-party panel actions (note publish, image /
+  // Blossom upload auth). Fails closed: when the caller names the account it
+  // believes is active (`expectedPubkey`) and the keystore has since switched
+  // (e.g. Sidecar switched accounts in another window and this panel went stale),
+  // refuse rather than silently sign as the wrong account. Omitting
+  // `expectedPubkey` preserves the old "sign as whatever is active" behavior.
+  async function ownerSign(event, expectedPubkey) {
+    requireUnlocked();
+    const pk = await getActivePubkey();
+    if (!pk) throw new Error('No active account');
+    if (expectedPubkey && expectedPubkey !== pk) {
+      throw new Error(
+        'Active account changed — not signing (expected ' +
+          expectedPubkey.slice(0, 8) + '…, active ' + pk.slice(0, 8) + '…)'
+      );
+    }
+    return root.NostrTools.finalizeEvent(event, await getPrivkey(pk));
+  }
+
   // Re-wrap every account (and the verifier) under a new PIN.
   async function changePin(oldPin, newPin) {
     const store = await loadStore();
@@ -430,6 +449,7 @@
     getActivePubkey,
     hasAccount,
     getPrivkey,
+    ownerSign,
     setNwc,
     getNwc,
     hasNwc,

@@ -4,6 +4,7 @@
   "description": "A multi-account NIP-07 nostr signer with a built-in Lightning wallet, in your browser sidebar",
   "scripts": {
     "dev": "echo 'Load this folder as an unpacked extension at chrome://extensions'",
+    "test": "node --test test/*.test.js",
     "update-vendor": "scripts/update-vendor.sh",
     "verify-vendor": "sha256sum -c scripts/vendor-hashes.sha256"
   },
