@@ -24,6 +24,7 @@
       "signer.js",
       "wallet-budgets.js",
       "nwc-client.js",
+      "relax-grants.js",
       "jsqr.js",
       "background.js"
     ]

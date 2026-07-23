@@ -325,6 +325,69 @@
     // Only an idle-timeout lock (auto) toasts — the user didn't trigger it, so
     // explain the sudden jump; manual lock / reset already show their own message.
     if (msg.event === 'locked') { refresh(); if (msg.auto) toast('Locked due to inactivity'); }
+    // A relax window was granted, revoked, or expired — refresh the banner.
+    if (msg.event === 'relaxChanged' && state && !state.locked) syncRelax();
+  });
+
+  // ---- timed "auto-sign" (relax) bottom status bar ----
+  // Apogee-style persistent footer: while a relax window is active, pin a status
+  // bar to the bottom of the panel with the signing account and a live mm:ss
+  // countdown, plus an "End" button. Hidden when nothing is active so the panel
+  // bottom stays clear. The background is the source of truth — we re-sync on
+  // render and on every relaxChanged broadcast; a 1s ticker only repaints the
+  // countdown from the cached expiry (no per-second query).
+  let relaxGrants = []; // last-synced [{ host, pubkey, expiresAt }]
+  let relaxTick = null;
+
+  function fmtRelax(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    // Pad both fields so the string is always 5 chars (mm:ss) — combined with the
+    // timer's fixed min-width this keeps its footprint stable, so it never nudges
+    // the progress bar beside it as the countdown ticks (Playfair's figures aren't
+    // fixed-width).
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function renderRelaxStatus() {
+    const bar = $('relax-status');
+    const view = $('view-main');
+    if (!bar) return;
+    if (!relaxGrants.length) {
+      hide(bar);
+      if (view) view.classList.remove('relax-active');
+      if (relaxTick) { clearInterval(relaxTick); relaxTick = null; }
+      return;
+    }
+    show(bar);
+    if (view) view.classList.add('relax-active'); // lift the floating compose FAB off the bar
+    if (!relaxTick) relaxTick = setInterval(renderRelaxStatus, 1000);
+    const g = relaxGrants[0]; // one window at a time (grant enforces it)
+    const accts = (state && state.accounts) || [];
+    const acct = accts.find((a) => a.pubkey === g.pubkey);
+    $('relax-status-name').textContent = acct ? displayName(acct) : 'this account';
+    $('relax-status-host').textContent = g.host;
+    const remaining = Math.max(0, g.expiresAt - Date.now());
+    const total = g.duration || 15 * 60000;
+    $('relax-status-time').textContent = fmtRelax(remaining);
+    $('relax-status-fill').style.width = Math.max(0, Math.min(100, (remaining / total) * 100)) + '%';
+    const dot = bar.querySelector('.relax-status-dot');
+    if (dot) dot.classList.toggle('low', remaining < 60000); // green → amber under a minute
+  }
+
+  async function syncRelax() {
+    if (!state || state.locked) { relaxGrants = []; renderRelaxStatus(); return; }
+    let g = [];
+    try { g = await call({ type: 'SIDECAR_GET_RELAX' }) || []; } catch (_) {}
+    relaxGrants = g;
+    renderRelaxStatus();
+  }
+
+  // "End" stops auto-signing entirely (ends every active window).
+  $('relax-status-end').addEventListener('click', async () => {
+    for (const g of relaxGrants) {
+      try { await call({ type: 'SIDECAR_REVOKE_RELAX', host: g.host, pubkey: g.pubkey }); } catch (_) {}
+    }
+    await syncRelax();
   });
 
   // Reset the background idle auto-lock timer on active panel use (composing),
@@ -1716,6 +1779,7 @@
     applyAvatar($('chip-av'), active || {});
     $('chip-name').textContent = active ? displayName(active) : 'No account';
     refreshBell();
+    syncRelax();
 
     // The active account already shows in the header chip and is marked (check +
     // highlight) in the list below, so the big "booth" card was a third copy.
@@ -3000,6 +3064,11 @@
   // a re-render resets filter text and pagination.
   let activityRefreshTimer = null;
   chrome.storage.onChanged.addListener((changes, area) => {
+    // Relax-grant changes (grant / revoke / expiry) live in session storage. This
+    // system-level channel is more reliable than the runtime broadcast — it catches
+    // the case where a window opens from the standalone popup while the panel is
+    // open, so the bottom bar appears the moment the grant is written.
+    if (area === 'session' && 'sidecar_relax_grants' in changes && state && !state.locked) syncRelax();
     if (area !== 'local') return;
     // The keystore's active account can change from another Sidecar view (e.g. a
     // second window switching accounts). Storage change events reach every view, so
@@ -7710,15 +7779,32 @@
       allow.textContent = 'Allow all (' + groupN + ')';
       hide(trust);
     }
+
+    // Offer a timed auto-sign window on single content-sign approvals — the
+    // shared-host escape hatch, and a middle rung between Allow once and Trust.
+    // Hidden for payments, decrypts, relay-auth, pure unlocks, and batched bursts
+    // (those already collapse into "Allow all").
+    const relaxRow = $('approval-relax-row');
+    const offerRelax =
+      !payment && groupN === 1 && data.needApproval &&
+      (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
+    if (offerRelax) {
+      show(relaxRow);
+      relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
+        chip.onclick = () => decideApproval('relax', { relaxMs: Number(chip.dataset.mins) * 60000 });
+      });
+    } else {
+      hide(relaxRow);
+    }
   }
 
-  async function decideApproval(action) {
+  async function decideApproval(action, opts) {
     if (!pendingApproval) return;
     const { id, data } = pendingApproval;
     const err = $('approval-error');
     err.textContent = '';
-    // Unlock first if needed (Allow once / Trust only).
-    if (data.needUnlock && (action === 'once' || action === 'trust')) {
+    // Unlock first if needed (Allow once / Trust / Relax only).
+    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
       const pin = $('approval-pin').value;
       if (!pin) {
         err.textContent = 'Enter your PIN.';
@@ -7749,6 +7835,10 @@
       action = 'budget';
       extra = { budgetSats, perPaymentSats: 0 };
     }
+    // Timed auto-sign window chosen via the relax chips.
+    if (action === 'relax') {
+      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
+    }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
@@ -7767,6 +7857,10 @@
     // it shows the next queued one, or (queue empty) restores + re-syncs the base
     // view. Nulling it here would skip that base refresh, leaving panel state stale.
     await refreshApproval();
+    // The relax grant is written in the background AFTER SIDECAR_PROMPT_RESULT
+    // responds, so the broadcast can land before/after this point. Re-sync shortly
+    // to make sure the bottom status bar appears the moment the window opens.
+    if (action === 'relax') setTimeout(syncRelax, 500);
   }
 
   $('approval-allow').addEventListener('click', () => decideApproval('once'));
