@@ -1855,7 +1855,8 @@
     grip.appendChild(icon('grip'));
     row.appendChild(grip);
 
-    row.appendChild(avatarEl(a, 'avatar'));
+    const av = avatarEl(a, 'avatar');
+    row.appendChild(av);
 
     const main = document.createElement('div');
     main.className = 'item-main';
@@ -1869,14 +1870,20 @@
 
     const isActive = a.pubkey === state.activePubkey;
     if (!isActive) {
-      main.style.cursor = 'pointer';
-      main.title = 'Set as active account';
+      // Both the avatar and the name area switch accounts on click — clicking the
+      // PFP used to be a no-op because only `main` carried the handler. The grip
+      // handle and the "more" actions are left out so drag and the menu still work.
+      const clickables = [av, main];
+      for (const el of clickables) {
+        el.style.cursor = 'pointer';
+        el.title = 'Set as active account';
+      }
       function resetRow() {
         row.classList.remove('item-pending');
         label.textContent = displayName(a);
         sub.textContent = shortNpub(a.npub);
       }
-      main.addEventListener('click', async () => {
+      const onActivate = async () => {
         const list = row.parentElement;
         list.querySelectorAll('.item-pending').forEach((el) => {
           if (el !== row && el._resetRow) el._resetRow();
@@ -1891,7 +1898,8 @@
           label.textContent = 'Set as active?';
           sub.textContent = 'Tap again to confirm';
         }
-      });
+      };
+      clickables.forEach((el) => el.addEventListener('click', onActivate));
       row._resetRow = resetRow;
     }
 
