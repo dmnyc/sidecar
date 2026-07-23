@@ -6293,6 +6293,12 @@
     // When the balance bar is pinned, hide this screen's own big balance card —
     // the pinned bar already shows it (avoids a double display).
     $('tab-wallet').classList.toggle('wallet-pinned', pinBalanceBar);
+    // ...and since the card is now hidden, make sure the bar is actually showing
+    // the balance. This is the choke point for a freshly connected/restored
+    // wallet, and SIDECAR_SET_NWC doesn't broadcast walletChanged, so without
+    // this the bar stays hidden (nothing was connected when it last rendered) —
+    // leaving the balance invisible on the Wallet screen until a tab switch.
+    if (pinBalanceBar) renderPinnedBalanceBar();
     // Balance card — show the last-known balance instantly, refresh below.
     const cached = balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     // Sentinel above the card; its visibility (not scrollTop) drives the collapse.
