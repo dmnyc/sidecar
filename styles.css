@@ -1862,6 +1862,63 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .remember input:disabled { opacity: 0.4; cursor: not-allowed; }
 .budget-unit { font-size: 12.5px; color: var(--muted); }
 
+/* Timed "auto-sign" (relax) UI — duration chips offered in the approval card, and
+   the banner shown only while a window is active, reminding the user which
+   account is signing for which site (with an "End" button). Gold-tinted like the
+   shared-identity note since both are "double-check this" affordances. */
+.relax-row { margin: 0 0 14px; text-align: center; }
+.relax-label { font-family: var(--font-display); font-size: 15px; color: var(--gold); font-weight: 700; letter-spacing: 0.01em; margin-bottom: 10px; text-align: center; }
+.relax-chips { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.relax-chip {
+  width: auto; flex: 1; padding: 9px 6px; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border); color: var(--text);
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  transition: border-color 0.15s, filter 0.15s;
+}
+.relax-chip:hover { border-color: var(--gold-soft); filter: brightness(1.06); }
+.relax-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.relax-status {
+  flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;
+  padding: 8px 12px 9px; border-top: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  color: var(--text);
+}
+.relax-status-top { display: flex; align-items: center; gap: 8px; }
+.relax-status-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+.relax-status-who #relax-status-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relax-status-sep { color: var(--faint); }
+.relax-status-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: #4ade80; --relax-glow: rgba(74, 222, 128, 0.5); /* green — plenty of time */
+  animation: relax-pulse 1.6s ease-out infinite;
+}
+.relax-status-dot.low {
+  background: var(--gold); --relax-glow: rgba(203, 161, 78, 0.5); /* amber — under a minute left */
+}
+.relax-status-x {
+  width: 22px; height: 22px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
+  background: var(--gold); border: none; color: #1a0a33;
+  display: inline-flex; align-items: center; justify-content: center; transition: filter 0.12s;
+}
+.relax-status-x svg { width: 12px; height: 12px; display: block; }
+.relax-status-x:hover { filter: brightness(1.1); }
+.relax-status-bottom { display: flex; align-items: center; gap: 9px; }
+.relax-status-track { flex: 1; height: 5px; border-radius: 99px; background: rgba(167, 139, 250, 0.18); overflow: hidden; }
+.relax-status-fill { height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); transition: width 1s linear; }
+.relax-status-time { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; min-width: 3.5em; text-align: right; }
+@keyframes relax-pulse {
+  0% { box-shadow: 0 0 0 0 var(--relax-glow); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .relax-status-dot { animation: none; }
+  .relax-status-fill { transition: none; }
+}
+/* Lift the floating compose FAB clear of the (two-row) status bar while it's visible. */
+#view-main.relax-active .fab { bottom: 72px; }
+
 /* ===== Theme Selector ===== */
 .theme-selector {
   display: flex;

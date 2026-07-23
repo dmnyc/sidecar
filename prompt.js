@@ -25,6 +25,7 @@
     remember: $('remember'),
     rememberBudget: $('remember-budget'),
     budgetAmount: $('budget-amount'),
+    relaxRow: $('relax-row'),
   };
 
   function send(message) {
@@ -326,6 +327,21 @@
     // wrong next time), and showing it anyway would over-promise.
     renderSharedNote(data);
 
+    // Offer a timed "auto-sign" window on content-sign approvals — the escape
+    // hatch for the shared-host per-sign confirm, and a middle rung between Allow
+    // once and Trust on any ask-tier site. Not for payments, decrypts, relay-auth,
+    // or a pure unlock (those have no approval to skip).
+    const isContentSign =
+      data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt';
+    if (data.needApproval && isContentSign && !isPayment) {
+      els.relaxRow.classList.remove('hidden');
+      els.relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
+        chip.addEventListener('click', () =>
+          decide('relax', { relaxMs: Number(chip.dataset.mins) * 60000 })
+        );
+      });
+    }
+
     if (data.needUnlock) {
       els.unlock.classList.remove('hidden');
       setTimeout(() => els.pin.focus(), 50);
@@ -494,10 +510,10 @@
     });
   }
 
-  async function decide(action) {
+  async function decide(action, opts) {
     els.error.textContent = '';
-    // Unlock first if needed (Allow once / Trust / Pay only).
-    if (data.needUnlock && (action === 'once' || action === 'trust')) {
+    // Unlock first if needed (Allow once / Trust / Relax / Pay only).
+    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
       const pin = els.pin.value;
       if (!pin) {
         els.error.textContent = 'Enter your PIN.';
@@ -529,6 +545,10 @@
       action = 'budget';
       extra = { budgetSats, perPaymentSats: 0 };
     }
+    // Timed auto-sign window chosen via the relax chips.
+    if (action === 'relax') {
+      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
+    }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (chosenPubkey && chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: chosenPubkey });
@@ -537,6 +557,7 @@
     els.allow.disabled = true;
     els.trust.disabled = true;
     els.reject.disabled = true;
+    els.relaxRow.querySelectorAll('.relax-chip').forEach((c) => (c.disabled = true));
     await send({ type: 'SIDECAR_PROMPT_RESULT', id: promptId, action, extra });
     // Background either navigates this window to the next queued request or closes it.
   }

@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js');
+  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -23,6 +23,7 @@ const PERMS = self.SidecarPermissions;
 const SIGNER = self.SidecarSigner;
 const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
+const RELAX = self.SidecarRelax;
 
 const DEFAULT_RELAYS = {
   'wss://nos.lol': { read: true, write: true },
@@ -712,6 +713,13 @@ function flushDecryptSiblings(host, pubkey, action) {
   }
 }
 
+// Timed "relax approvals" grant lives in relax-grants.js (loaded via
+// importScripts above, exposed as RELAX / self.SidecarRelax) so it can be unit-
+// tested in isolation — see test/relax-grant.test.js. It's the user-opted escape
+// hatch from the shared-host per-sign confirm; see that module for the full
+// safety rationale (per-(host,pubkey) scoping, control-kind exclusion, and the
+// re-login/lock revocation hooks wired into handleNostrRpc and lockKeystore).
+
 // ============================================================================
 // Page RPC handling (window.nostr.*)
 // ============================================================================
@@ -894,10 +902,18 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // account skip the prompt. Never bypasses a block (that already threw above)
     // or an unlock.
     const decryptCoalesced = DECRYPT_METHODS.has(method) && hasDecryptGrant(host, activePubkey);
+    // Timed "relax approvals" window: a user-opted auto-approve for this
+    // (host, account). Like the coalesce grants it only bypasses the prompt —
+    // never a block (already threw above) or an unlock (still required below).
+    // Account/wallet-control kinds (hand-over-the-keys actions) never relax, so
+    // the worst abuse still gets a per-sign confirm even mid-window.
+    const relaxActive =
+      isContentSign && !RELAX.isControlKind(signKind) && (await RELAX.has(host, activePubkey));
+    if (relaxActive) sharedIdentity = false;
     // A shared-identity content sign always confirms, regardless of trust tier —
-    // unless it's a coalesced app-data sign the user just approved.
+    // unless it's a coalesced app-data sign, under an active relax window, etc.
     const needApproval =
-      coalesced || appDataAutoAllow || decryptCoalesced
+      coalesced || appDataAutoAllow || decryptCoalesced || relaxActive
         ? false
         : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
 
@@ -970,7 +986,13 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         throw new Error('This site is now blocked');
       }
       if (decision.action === 'trust') await PERMS.setLevel(activePubkey, host, 'trusted');
-      // 'once' | 'trust' → proceed (after a successful unlock, if one was needed)
+      // 'relax' → open a timed auto-approve window for this (host, account), then
+      // proceed like 'once'. The risk acceptance happened in the prompt UI.
+      if (decision.action === 'relax') {
+        await RELAX.grant(host, activePubkey, decision.relaxMs || RELAX.DEFAULT_MS);
+        syncRelaxBadge();
+      }
+      // 'once' | 'trust' | 'relax' → proceed (after a successful unlock, if one was needed)
     }
 
     bumpAutoLock();
@@ -994,7 +1016,13 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // sharedIdentity is also an explicit choice (the user just confirmed who's
     // posting in the prompt), so it may move the binding too.
     if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
+      // A re-login to a DIFFERENT account is the one detectable moment the identity
+      // context for this host can change, so a prior relax window for it is no
+      // longer trustworthy — drop it. A same-account re-fetch leaves the binding
+      // unchanged and is left alone.
+      const prevBound = await getSiteAccount(host);
       await setSiteAccount(host, activePubkey);
+      if (prevBound && prevBound !== activePubkey) { await RELAX.revokeForHost(host); syncRelaxBadge(); }
     }
     // Record every account that acts on a host, so a second one makes it "shared".
     await addAuthorizedAccount(host, activePubkey);
@@ -1449,6 +1477,10 @@ async function lockKeystore(auto = false) {
   SIGNER.clearCache();
   closeSwNwc();
   chrome.alarms.clear(AUTO_LOCK_ALARM);
+  // A lock ends any active relax window: the keys are gone, so auto-approving
+  // signs makes no sense, and idle auto-lock is exactly the "walked away" case
+  // where a lingering auto-sign shouldn't survive.
+  RELAX.revokeAll().then(syncRelaxBadge);
   // Tell any open panel/popup to drop to the unlock screen immediately — otherwise
   // it keeps showing whatever was open (e.g. the composer) and only discovers the
   // lock on its next action, which then fails with a "locked" error. `auto` marks an
@@ -1466,6 +1498,27 @@ function bumpAutoLock() {
   });
 }
 
+// Reflect an active relax window on the toolbar icon badge (remaining minutes),
+// so auto-sign is visible EVEN WHEN THE SIDE PANEL IS CLOSED — the panel's
+// bottom bar is the detailed view; the badge is the always-on "something's
+// active" signal, and clicking the icon opens the panel to that bar. A 1-min
+// alarm ticks the countdown down; both clear when no window is live.
+const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
+function syncRelaxBadge() {
+  RELAX.active().then((grants) => {
+    if (grants && grants.length) {
+      const mins = Math.max(0, Math.round((grants[0].expiresAt - Date.now()) / 60000));
+      chrome.action.setBadgeText({ text: String(mins) });
+      chrome.action.setBadgeBackgroundColor({ color: '#cba14e' });
+      if (chrome.action.setBadgeTextColor) chrome.action.setBadgeTextColor({ color: '#1a0a33' });
+      chrome.alarms.create(RELAX_BADGE_ALARM, { periodInMinutes: 1 });
+    } else {
+      chrome.action.setBadgeText({ text: '' });
+      chrome.alarms.clear(RELAX_BADGE_ALARM);
+    }
+  }).catch(() => {});
+}
+
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === AUTO_LOCK_ALARM) {
     // Re-check the live setting at fire time: an alarm armed under an older
@@ -1474,6 +1527,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       if (resolveSettings(sidecar_settings).autoLockMinutes > 0) lockKeystore(true);
     });
   }
+  // A relax window expired — RELAX.onAlarm drops the grant and returns true.
+  // Alarms persist across a service-worker restart, so this fires even if the
+  // worker idled for the whole window.
+  else if (RELAX.onAlarm(alarm.name)) {
+    syncRelaxBadge(); // a window expired — drop the badge
+  }
+  // Tick the toolbar countdown down each minute while a window is active.
+  else if (alarm.name === RELAX_BADGE_ALARM) syncRelaxBadge();
   // Best-effort heartbeat while the approval queue is non-empty: sweeps expired
   // requests and re-drives the display so nothing stalls if the SW was napping.
   else if (alarm.name === QUEUE_KEEPALIVE_ALARM) driveDisplay();
@@ -1676,9 +1737,18 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_SET_PROFILE':
         result = await KS.setProfile(message.pubkey, { name: message.name, picture: message.picture });
         break;
-      case 'SIDECAR_SET_ACTIVE':
+      case 'SIDECAR_SET_ACTIVE': {
+        const prevActive = await KS.getActivePubkey();
         result = await KS.setActive(message.pubkey);
+        // Switching identity ends any active relax window: its countdown is for an
+        // account you've moved off of, and a lingering auto-sign shouldn't follow
+        // you across an identity change. Only on a real change — tapping the
+        // already-active account is a no-op and must not kill the window. Awaited
+        // so the panel's immediate re-query finds the grants already gone (no
+        // flicker of the disappearing indicator).
+        if (prevActive && prevActive !== message.pubkey) { await RELAX.revokeAll(); syncRelaxBadge(); }
         break;
+      }
       case 'SIDECAR_CHANGE_PIN':
         // changePin verifies the old PIN itself (and works from either lock
         // state); guardPinAttempt adds the shared throttle/wipe accounting.
@@ -2011,6 +2081,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     for (const id of message.ids || []) settlePrompt(id, message.action, message.extra);
     sendResponse({ ok: true });
     return false;
+  }
+  // Active "relax approvals" windows — the panel banner queries these, and the
+  // "End now" button revokes one. Extension-page only (not in CONTENT_OK).
+  if (message.type === 'SIDECAR_GET_RELAX') {
+    RELAX.active().then((result) => sendResponse({ ok: true, result }));
+    return true; // async response
+  }
+  if (message.type === 'SIDECAR_REVOKE_RELAX') {
+    RELAX.revoke(message.host, message.pubkey).then(() => { syncRelaxBadge(); sendResponse({ ok: true }); });
+    return true; // async response
   }
   // Observable-queue queries/actions (see the approval-queue section up top).
   if (message.type === 'SIDECAR_GET_PENDING') {

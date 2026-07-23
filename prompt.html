@@ -230,6 +230,17 @@
     .secondary:hover { border-color: var(--gold-soft); }
     .ghost { background: transparent; color: var(--muted); }
     .ghost:hover { color: var(--text); }
+    .relax-row { margin: 0 0 16px; text-align: center; }
+    .relax-label { font-family: var(--font-display); font-size: 15px; color: var(--gold); font-weight: 700; letter-spacing: 0.01em; margin-bottom: 10px; text-align: center; }
+    .relax-chips { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+    .relax-chip {
+      width: auto; flex: 1; padding: 9px 6px; border-radius: 10px; cursor: pointer;
+      background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+      border: 1px solid var(--border); color: var(--text);
+      font-family: inherit; font-size: 13px; font-weight: 600;
+    }
+    .relax-chip:hover { border-color: var(--gold-soft); filter: brightness(1.06); }
+    .relax-chip:disabled { opacity: 0.45; cursor: not-allowed; }
     .hidden { display: none; }
   </style>
 </head>
@@ -257,6 +268,15 @@
       <div class="budget-row">
         <input type="number" id="budget-amount" min="1" placeholder="sats" />
         <span class="budget-unit">sats / day without asking</span>
+      </div>
+    </div>
+
+    <div id="relax-row" class="relax-row hidden">
+      <div class="relax-label">Auto-sign for the next</div>
+      <div class="relax-chips">
+        <button type="button" class="relax-chip" data-mins="5">5 min</button>
+        <button type="button" class="relax-chip" data-mins="15">15 min</button>
+        <button type="button" class="relax-chip" data-mins="30">30 min</button>
       </div>
     </div>
   </div>
