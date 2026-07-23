@@ -569,6 +569,18 @@ async function driveOnce() {
     if (!head.data.needApproval) { settlePrompt(head.id, 'once'); driveAgain = true; return; }
   }
 
+  // Re-collapse a now-redundant approval: a relax window may have opened for
+  // this host+account (via another queued request settling 'relax') while this
+  // one was still waiting its turn — see the relaxEligible comment in
+  // handleNostrRpc for why the check has to be repeated here rather than once
+  // up front. Never short-circuits a still-needed unlock.
+  if (head.data.needApproval && !head.data.needUnlock && head.data.relaxEligible &&
+      (await RELAX.has(head.host, head.data.activePubkey))) {
+    settlePrompt(head.id, 'once');
+    driveAgain = true;
+    return;
+  }
+
   // Choose a surface. Prefer the panel — but only when it isn't in a different
   // window than the page that made the request; briefly wait for a reconnecting
   // panel before falling back to a popup positioned over the origin window.
@@ -907,8 +919,15 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // never a block (already threw above) or an unlock (still required below).
     // Account/wallet-control kinds (hand-over-the-keys actions) never relax, so
     // the worst abuse still gets a per-sign confirm even mid-window.
-    const relaxActive =
-      isContentSign && !RELAX.isControlKind(signKind) && (await RELAX.has(host, activePubkey));
+    // Split from relaxActive (below) so the "kind of request relax ever covers"
+    // half can ride along on the queued entry — see driveOnce()'s re-collapse,
+    // which re-checks RELAX.has() right before a prompt surfaces. A burst of
+    // near-simultaneous requests can all compute relaxActive=false before any of
+    // them has actually granted the window, so a later request in the same burst
+    // would otherwise still show a full prompt for a window that's active by the
+    // time its turn comes up.
+    const relaxEligible = isContentSign && !RELAX.isControlKind(signKind);
+    const relaxActive = relaxEligible && (await RELAX.has(host, activePubkey));
     if (relaxActive) sharedIdentity = false;
     // A shared-identity content sign always confirms, regardless of trust tier —
     // unless it's a coalesced app-data sign, under an active relax window, etc.
@@ -924,6 +943,12 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // to the accounts that have actually logged into this host. Other session
     // methods never offer it: their identity is fixed by the binding.
     const canOfferAccountSwitch = method === 'getPublicKey' || sharedIdentity;
+
+    // Set below when this very request opens a relax window, so the rebind
+    // block further down (which drops a now-stale relax window on an account
+    // change) can tell "stale window for the account we're leaving" apart from
+    // "the window we just opened for the account we're arriving at" — see there.
+    let relaxJustGrantedFor = null;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -961,6 +986,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         needUnlock,
         needApproval,
         sharedIdentity,
+        relaxEligible,
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
       }, originWindowId);
@@ -990,6 +1016,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {
         await RELAX.grant(host, activePubkey, decision.relaxMs || RELAX.DEFAULT_MS);
+        relaxJustGrantedFor = activePubkey;
         syncRelaxBadge();
       }
       // 'once' | 'trust' | 'relax' → proceed (after a successful unlock, if one was needed)
@@ -1019,10 +1046,18 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // A re-login to a DIFFERENT account is the one detectable moment the identity
       // context for this host can change, so a prior relax window for it is no
       // longer trustworthy — drop it. A same-account re-fetch leaves the binding
-      // unchanged and is left alone.
+      // unchanged and is left alone. Exception: if THIS request is the one that
+      // just opened the relax window for the account we're rebinding TO (the
+      // shared-host relax chip, granted a few lines up), it's not stale — it's
+      // the window the user just asked for. Without this guard, choosing "relax"
+      // on a shared host where the site's prior pin differs from the signing
+      // account would grant the window and then immediately revoke that same
+      // grant in this same request, so the status bar never appears.
       const prevBound = await getSiteAccount(host);
       await setSiteAccount(host, activePubkey);
-      if (prevBound && prevBound !== activePubkey) { await RELAX.revokeForHost(host); syncRelaxBadge(); }
+      if (prevBound && prevBound !== activePubkey && relaxJustGrantedFor !== activePubkey) {
+        await RELAX.revokeForHost(host); syncRelaxBadge();
+      }
     }
     // Record every account that acts on a host, so a second one makes it "shared".
     await addAuthorizedAccount(host, activePubkey);

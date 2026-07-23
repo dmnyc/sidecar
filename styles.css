@@ -1963,6 +1963,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* Lift the floating compose FAB clear of the (two-row) status bar while it's visible. */
 #view-main.relax-active .fab { bottom: 72px; }
+/* ...and the first-post balloon by the same amount, so it stays pinned above the
+   FAB instead of sliding down into the status bar it would otherwise overlap. */
+#view-main.relax-active .first-post-balloon { bottom: 144px; }
 
 /* ===== Theme Selector ===== */
 .theme-selector {
