@@ -80,6 +80,24 @@
     </nav>
 
 
+    <!-- Pinned wallet balance bar — under the nav on every tab when "Pin balance
+         bar" is on and a wallet is connected (the wallet screen hides its own big
+         balance card while pinned). Left: Send/Receive; center: balance; right:
+         hide balances + unpin. -->
+    <div id="pinned-balance" class="pinned-balance hidden">
+      <div class="pinned-balance-actions">
+        <button type="button" id="pinned-send" class="pinned-balance-btn" title="Send" aria-label="Send"></button>
+        <button type="button" id="pinned-receive" class="pinned-balance-btn" title="Receive" aria-label="Receive"></button>
+      </div>
+      <div class="pinned-balance-amt-wrap">
+        <span id="pinned-balance-amt" class="pinned-balance-amt">…</span>
+      </div>
+      <div class="pinned-balance-tools">
+        <button type="button" id="pinned-hide" class="pinned-balance-btn" title="Hide balances" aria-label="Hide balances"></button>
+        <button type="button" id="pinned-unpin" class="pinned-balance-btn" title="Unpin balance bar" aria-label="Unpin balance bar"></button>
+      </div>
+    </div>
+
     <!-- Firefox lets the user decline/revoke site access (host permissions); without
          it there is no window.nostr anywhere and the signer looks dead. Chrome grants
          at install, so this only shows there if the user restricted site access. -->
@@ -277,6 +295,12 @@
         <h3>Pay button on web pages</h3>
         <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
         <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
+      </div>
+
+      <div class="setting">
+        <h3>Pin balance bar</h3>
+        <p class="hint">Show your wallet balance under the navigation on every tab except Wallet, with quick Send and Receive buttons.</p>
+        <label class="toggle-row"><input type="checkbox" id="pinbalance-toggle" /> <span>Pin balance bar across tabs</span></label>
       </div>
 
       <div class="setting">

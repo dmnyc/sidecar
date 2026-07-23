@@ -251,6 +251,7 @@
 
   let state = null;
   let hideBalances = false;
+  let pinBalanceBar = false;
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
@@ -319,6 +320,7 @@
     if (msg.event === 'walletChanged' && state && !state.locked) {
       const active = document.querySelector('.tab.active');
       if (active && active.dataset.tab === 'wallet') renderWallet();
+      renderPinnedBalanceBar(); // refresh the pinned bar on any tab
     }
     // Auto-lock (or a lock from elsewhere) fired in the background — drop to the
     // unlock screen now. refresh() closes any open modal and routes to view-lock.
@@ -413,6 +415,7 @@
     state = await call({ type: 'SIDECAR_GET_STATE' });
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     hideBalances = !!(settings && settings.hideBalances);
+    pinBalanceBar = !!(settings && settings.pinBalanceBar);
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
@@ -824,6 +827,7 @@
       if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
+      renderPinnedBalanceBar(); // show on non-wallet tabs, hide on Wallet
     });
   });
 
@@ -1780,6 +1784,7 @@
     $('chip-name').textContent = active ? displayName(active) : 'No account';
     refreshBell();
     syncRelax();
+    renderPinnedBalanceBar();
 
     // The active account already shows in the header chip and is marked (check +
     // highlight) in the list below, so the big "booth" card was a third copy.
@@ -2697,6 +2702,7 @@
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
+    $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
     $('autozap-max').value = String(azMax);
@@ -6054,6 +6060,56 @@
   const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
+  // Optional pinned balance bar — compact balance + Send/Receive under the nav,
+  // on every tab except Wallet (which has the full display). Only renders when
+  // the setting is on, an account is active, and a wallet is connected. Paints
+  // the shared balanceCache instantly, then fetches fresh if it's empty or stale
+  // (>60s) for this account.
+  async function renderPinnedBalanceBar() {
+    const bar = $('pinned-balance');
+    if (!bar) return;
+    if (!pinBalanceBar || !state || !state.activePubkey) { hide(bar); return; }
+    let has = false;
+    try { has = !!(await call({ type: 'SIDECAR_HAS_NWC' })).has; } catch (_) {}
+    if (!has) { hide(bar); return; } // no wallet for this account — Wallet tab owns onboarding
+    show(bar);
+    const hideBtn = $('pinned-hide');
+    if (hideBtn) { hideBtn.innerHTML = ''; hideBtn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); hideBtn.title = hideBalances ? 'Show balances' : 'Hide balances'; }
+    const amt = $('pinned-balance-amt');
+    if (!amt) return;
+    const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
+    amt.textContent = cached ? fmtSats(balanceCache.sats) : '…';
+    const stale = !cached || !balanceCache.ts || Date.now() - balanceCache.ts > 60000;
+    if (stale) {
+      try {
+        const client = await ensureNwc();
+        if (client) {
+          const b = await client.getBalance();
+          balanceCache = { pubkey: state.activePubkey, sats: msatToSat(b && b.balance), ts: Date.now() };
+          amt.textContent = fmtSats(balanceCache.sats);
+        }
+      } catch (_) {}
+    }
+  }
+
+  // Keep the three pin affordances (settings checkbox, wallet-card pin icon, the
+  // bar itself) in sync after any of them toggles pinBalanceBar.
+  function syncPinControls() {
+    const cb = $('pinbalance-toggle');
+    if (cb) cb.checked = pinBalanceBar;
+    const wt = $('tab-wallet');
+    if (wt) wt.classList.toggle('wallet-pinned', pinBalanceBar); // hide/show the wallet's own balance card
+    renderPinnedBalanceBar();
+  }
+
+  // Keep the two hide-balances affordances (bar eye + wallet-card eye) in sync.
+  function syncHideControls() {
+    applyHideBalances();
+    const setEye = (btn) => { if (!btn) return; btn.innerHTML = ''; btn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); btn.title = hideBalances ? 'Show balances' : 'Hide balances'; };
+    setEye($('pinned-hide'));
+    document.querySelectorAll('.wallet-eye').forEach(setEye);
+  }
+
   // Lightning address for receiving. Some NWC connection strings embed a `lud16`
   // (the wallet's own address) — prefer that, then fall back to the account's
   // profile lud16. Returns null when neither is present.
@@ -6234,6 +6290,9 @@
   }
 
   async function renderWalletConnected(view) {
+    // When the balance bar is pinned, hide this screen's own big balance card —
+    // the pinned bar already shows it (avoids a double display).
+    $('tab-wallet').classList.toggle('wallet-pinned', pinBalanceBar);
     // Balance card — show the last-known balance instantly, refresh below.
     const cached = balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     // Sentinel above the card; its visibility (not scrollTop) drives the collapse.
@@ -6260,12 +6319,18 @@
     eye.addEventListener('click', async () => {
       hideBalances = !hideBalances;
       await call({ type: 'SIDECAR_SET_SETTINGS', settings: { hideBalances } });
-      applyHideBalances();
-      eye.innerHTML = '';
-      eye.appendChild(icon(hideBalances ? 'eye-off' : 'eye'));
-      eye.title = hideBalances ? 'Show balances' : 'Hide balances';
+      syncHideControls();
     });
-    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit);
+    // Pin the balance bar from the card's corner. Only reachable while the bar is
+    // unpinned (the card hides once pinned), so this is a one-way "pin" affordance.
+    const pin = h('button', { className: 'wallet-pin', title: 'Pin balance bar' });
+    pin.appendChild(icon('pin'));
+    pin.addEventListener('click', async () => {
+      pinBalanceBar = true;
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: true } });
+      syncPinControls();
+    });
+    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit, pin);
     view.append(card);
 
     // Actions
@@ -6356,7 +6421,7 @@
     if (!client) { view.innerHTML = ''; renderWalletConnect(view); return; }
     try {
       const b = await client.getBalance();
-      balanceCache = { pubkey: state.activePubkey, sats: msatToSat(b && b.balance) };
+      balanceCache = { pubkey: state.activePubkey, sats: msatToSat(b && b.balance), ts: Date.now() };
       bal.textContent = fmtSats(balanceCache.sats);
     } catch (_) {
       if (!cached) { bal.textContent = '—'; unit.textContent = 'balance unavailable'; }
@@ -6800,6 +6865,7 @@
           closeModal();
           toast('Payment sent' + (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''), 'success');
           renderWallet();
+          renderPinnedBalanceBar();
         } catch (e) {
           err.textContent = e.message;
           pay.disabled = false;
@@ -6884,6 +6950,7 @@
                   stopPoll();
                   showReceiveSuccess(body, sats);
                   renderWallet();
+                  renderPinnedBalanceBar();
                   return;
                 }
               } catch (_) {}
@@ -7197,6 +7264,30 @@
 
   $('datasync-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { confirmDataSync: e.target.checked } });
+  });
+
+  $('pinbalance-toggle').addEventListener('change', async (e) => {
+    pinBalanceBar = e.target.checked;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: e.target.checked } });
+    syncPinControls();
+  });
+
+  // Pinned balance bar — left: Send/Receive (wallet modals); right: hide balances
+  // + unpin. The bar only renders when a wallet is connected.
+  $('pinned-send').append(icon('arrow-up-right'));
+  $('pinned-receive').append(icon('arrow-down-left'));
+  $('pinned-unpin').append(icon('x'));
+  $('pinned-send').addEventListener('click', () => sendModal());
+  $('pinned-receive').addEventListener('click', () => receiveModal());
+  $('pinned-hide').addEventListener('click', async () => {
+    hideBalances = !hideBalances;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { hideBalances } });
+    syncHideControls();
+  });
+  $('pinned-unpin').addEventListener('click', async () => {
+    pinBalanceBar = false;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: false } });
+    syncPinControls();
   });
 
   $('countdown-toggle').addEventListener('change', async (e) => {

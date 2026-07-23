@@ -1274,10 +1274,54 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* privacy masking — masks each glyph at its real width, so toggling never reflows */
 .balances-hidden .wallet-balance,
 .balances-hidden .tx-amt,
-.balances-hidden .amt-hide {
+.balances-hidden .amt-hide,
+.balances-hidden .pinned-balance-amt {
   -webkit-text-security: disc;
   text-security: disc;
 }
+
+/* Pinned wallet balance bar — above the nav on every tab when enabled. Left:
+   Send/Receive (open the wallet's own modals); center: balance; right: hide
+   balances + unpin. flex-shrink:0 keeps it pinned above the scrolling content. */
+.pinned-balance {
+  flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--velvet-2), var(--velvet-1));
+  position: relative; z-index: 6; /* above scrolling content so the shadow lands on it */
+  box-shadow: 0 4px 8px -5px rgba(0, 0, 0, 0.22);
+}
+/* film-noir's velvet-1 is its darker shade (inverse of the other themes), so its
+   underhang keeps the default gradient direction — which already reads recessed. */
+[data-theme="film-noir"] .pinned-balance {
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+}
+.pinned-balance-actions, .pinned-balance-tools { display: flex; align-items: center; gap: 6px; }
+.pinned-balance-amt-wrap { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
+.pinned-balance-amt { font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; }
+.pinned-balance-btn {
+  width: 30px; height: 30px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
+  background: var(--hover-soft); border: 1px solid var(--border-strong); color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s, background 0.15s;
+}
+.pinned-balance-btn svg { width: 15px; height: 15px; }
+.pinned-balance-btn:hover { color: var(--lav); background: var(--hover-medium); }
+
+/* When the balance bar is pinned, the wallet screen hides its own big balance
+   card (and the scroll-collapsed mini — same element): the pinned bar already
+   shows the balance, so this avoids a double display. */
+#tab-wallet.wallet-pinned .wallet-card,
+#tab-wallet.wallet-pinned .wallet-sentinel,
+#tab-wallet.wallet-pinned .wallet-spacer { display: none; }
+
+/* Pin toggle on the balance card (bottom-right). Only visible while the bar is
+   unpinned — the card hides once pinned — so it's a one-way "pin" affordance. */
+.wallet-pin {
+  position: absolute; bottom: 8px; right: 10px; width: 30px; height: 30px; padding: 0;
+  border-radius: 50%; cursor: pointer; background: transparent; border: 1px solid var(--border);
+  color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
+}
+.wallet-pin svg { width: 15px; height: 15px; }
+.wallet-pin:hover { border-color: var(--gold-soft); color: var(--gold); }
 
 .wallet-card {
   position: sticky; top: 0; z-index: 5;
@@ -1306,7 +1350,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .wallet-card.compact .wallet-bal-label,
 .wallet-card.compact .wallet-unit,
 .wallet-card.compact .wallet-eye,
-.wallet-card.compact .wallet-refresh { display: none; }
+.wallet-card.compact .wallet-refresh,
+.wallet-card.compact .wallet-pin { display: none; }
 .wallet-card.compact .wallet-balance { font-size: 24px; margin: 0; line-height: 1; }
 .wallet-refresh {
   position: absolute; top: 10px; right: 10px;
