@@ -7,6 +7,17 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.5.1] — 2026-07-24
+
+### Fixed
+- **Relax mode reliability.** Three issues with timed auto-sign are resolved: the relax balloon and status bar no longer overlap; an activation race that could prevent relax mode from engaging is corrected; and the "granted 15 minutes, bar never showed" symptom is fixed at its root — relax mode was silently self-revoking when a host rebind occurred.
+- **Pinned balance bar on first wallet connect.** The balance bar now appears immediately when a wallet is freshly connected or restored on an account that previously had none, instead of requiring a panel reload.
+- **Themed backgrounds on Wallets and Help pages.** Both standalone pages lost their velvet texture and gradient highlights after the 1.5.0 theme refactor; the themed background is now restored on all three themes.
+
+### Changed
+- Tightened the switch-account tip and wallet onboarding copy for clarity.
+- Shortened the shared-identity heads-up blurb shown during signing approvals.
+
 ## [1.5.0] — 2026-07-21
 
 ### Added
