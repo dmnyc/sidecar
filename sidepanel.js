@@ -7714,8 +7714,7 @@
         h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: 'Heads up!' })]),
         h('p', {
           className: 'shared-headsup-body',
-          textContent:
-            "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.",
+          textContent: "Multiple accounts are signed in here — confirm who's posting each time.",
         }),
       ]);
       const got = h('button', { className: 'shared-headsup-btn', textContent: 'Got it' });
