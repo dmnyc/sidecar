@@ -731,7 +731,7 @@
         h('p', {
           className: 'switch-tip-body',
           textContent:
-            'Clients keep signing with the account you logged in with. After switching here, reload the site to use the new account (or log out and back in there). Multi-account switchers inside clients don’t talk to Sidecar.',
+            'Clients keep using the account you logged in with. Reload the page or log out and back in to switch accounts.',
         }),
         guideLink,
         x,
@@ -6202,7 +6202,7 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Connect a Lightning wallet with Nostr Wallet Connect (NWC). Paste a connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.',
+          'Paste a Nostr Wallet Connect (NWC) connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.',
       })
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
