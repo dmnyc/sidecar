@@ -11,7 +11,7 @@ Update that section alongside this file as part of every release.
 
 ### Added
 - **Relax mode.** Timed auto-sign window (5, 15, or 30 minutes) for trusted sites. A persistent status bar counts down the remaining time with an End button to revoke early. Resolves the friction of approving every action during active sessions on shared hosts.
-- **Pinned wallet balance bar.** Lightning balance is pinned to the panel and visible at all times, not just from the wallet section. Appears immediately on wallet connect or restore. Unpin with a single click.
+- **Pinned wallet balance bar.** Lightning balance is pinned to the panel and visible at all times, not just from the wallet section. Incoming payments update automatically via NIP-47 notifications (with a 30-second polling fallback). Appears immediately on wallet connect or restore. Unpin with a single click.
 
 ### Changed
 - Tightened the switch-account tip and wallet onboarding copy for clarity.
