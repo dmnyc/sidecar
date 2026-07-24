@@ -6525,6 +6525,23 @@
     loadPage();
   }
 
+  function normalizeDescription(desc) {
+    if (desc == null) return '';
+    let val = desc;
+    if (typeof val === 'string') {
+      try {
+        const parsed = JSON.parse(val);
+        if (Array.isArray(parsed)) val = parsed;
+        else return val;
+      } catch (_) { return val; }
+    }
+    if (Array.isArray(val)) {
+      const plain = val.find((t) => Array.isArray(t) && t[0] === 'text/plain');
+      return plain ? String(plain[1] || '') : '';
+    }
+    return String(val);
+  }
+
   function txDetailRow(label, value, copyValue, prose) {
     if (value == null || value === '') return null;
     const val = h('span', { className: 'tx-d-val' + (prose ? ' prose' : ''), textContent: String(value) });
@@ -6557,7 +6574,7 @@
     const row = h('div', { className: 'item tx-row' });
     const ic = h('span', { className: 'tx-icon ' + (incoming ? 'in' : 'out') });
     ic.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
-    const label = counterparty || tx.description || (incoming ? 'Received' : 'Sent');
+    const label = counterparty || normalizeDescription(tx.description) || (incoming ? 'Received' : 'Sent');
     const main = h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: label }),
       h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : 'pending' }),
@@ -6573,7 +6590,8 @@
     function buildDetails() {
       const fee = tx.fees_paid != null ? tx.fees_paid : meta.feeMsat;
       const when = tx.settled_at || tx.created_at;
-      const note = meta.comment || (tx.description && tx.description !== counterparty ? tx.description : '');
+      const normDesc = normalizeDescription(tx.description);
+      const note = meta.comment || (normDesc && normDesc !== counterparty ? normDesc : '');
       const rows = [
         txDetailRow(incoming ? 'From' : 'To', counterparty),
         txDetailRow('Note', note, null, true),
