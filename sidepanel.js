@@ -6559,6 +6559,23 @@
   const isLnInvoice = (v) => /^ln(bc|tb)[0-9]/i.test(v);
   const isLnAddress = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
 
+  // Amount encoded in a BOLT11's human-readable part, in sats. Mirrors invoiceSats()
+  // in background.js — the panel pays invoices the user pasted, so it needs to read
+  // the amount for its own confirmation, and this is pure string math (no decode).
+  // Returns null for an amountless invoice, which is a valid thing to be handed.
+  function bolt11Sats(bolt11) {
+    if (!bolt11) return null;
+    // The amount must be followed by a multiplier or the '1' separator. Without that
+    // anchor, an AMOUNTLESS invoice ("lnbc1p3x…") matches its own separator as the
+    // digits and reports 0 sats — i.e. it would claim "Sent 0 sats" for an invoice
+    // whose amount we don't actually know.
+    const m = /^ln(?:bc|tb|bcrt)(\d+)([munp])?1/i.exec(String(bolt11).replace(/^lightning:/i, '').trim());
+    if (!m || !m[1]) return null;
+    const FACTOR = { m: 1e5, u: 1e2, n: 1e-1, p: 1e-4, '': 1e8 };
+    const sats = Math.round(Number(m[1]) * FACTOR[(m[2] || '').toLowerCase()]);
+    return sats > 0 ? sats : null;
+  }
+
   // ---- Live balance updates (NIP-47 notifications + fallback polling) ----
 
   // Fetch the current balance, update the cache, and refresh visible displays.
@@ -7396,7 +7413,16 @@
           }
           closeModal();
           lightningStrike(); // only after the payment actually settles
-          toast('Payment sent' + (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''), 'success');
+          // Lead with the amount — "Payment sent" alone doesn't tell you what left.
+          // A pasted BOLT11 carries its own amount; a lightning address took one from
+          // the field above. An amountless invoice leaves us nothing honest to state,
+          // so it falls back to the bare confirmation rather than guessing.
+          const paidSats = isLnInvoice(val) ? bolt11Sats(val) : parseInt(amount.value, 10) || null;
+          toast(
+            (paidSats != null ? 'Sent ' + fmtSats(paidSats) + ' sats' : 'Payment sent') +
+              (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''),
+            'success'
+          );
           renderWallet();
           renderPinnedBalanceBar();
         } catch (e) {
@@ -7754,7 +7780,7 @@
           await client.payInvoice(invoice);
           closeModal();
           lightningStrike(); // only after the payment actually settles
-          toast('Thank you! Zap sent', 'success');
+          toast('Thank you! Zapped ' + fmtSats(sats) + ' sats', 'success');
         } catch (e) {
           err.textContent = e.message;
           send.disabled = false;
