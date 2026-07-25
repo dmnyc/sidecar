@@ -141,6 +141,13 @@
     Just as important: a guard that fires on ordinary edits gets trained away. These must
     <em>not</em> warn.
   </p>
+  <div class="warnbox" style="border-color:var(--gold);background:rgba(203,161,78,.08)">
+    <b style="color:var(--gold)">Seed first, or these labels lie.</b> The QUIET labels below
+    assume a 40-follow baseline from section 1. If the account already has a real follow
+    list — Sidecar seeds baselines from relays when the panel loads a profile — then e.g.
+    <em>195 → 21</em> is a genuine gutting and <b>will</b> warn, correctly. Either sign the
+    40-follow seed first, or read these against the real baseline.
+  </div>
   <div class="grid">
     <div class="case">
       <h3>Unfollow a few <span class="tag quiet">expect quiet</span></h3>
