@@ -437,6 +437,83 @@
     return themeColors[cardTheme] || themeColors.speakeasy;
   }
 
+  // ---- lightning strike (a payment settled) ----
+  // The same procedural bolt the side panel draws, thrown across the PAGE instead:
+  // when you zap, the page is where you're looking, not the panel. Injected into a
+  // shadow root with `all:initial` like the pay card, so no page stylesheet can
+  // restyle it and nothing leaks the other way.
+  //
+  // Kept intentionally inert: pointer-events none, no page-visible globals, removes
+  // itself, and every part is wrapped so decoration can't disturb the host page.
+  function pageLightningStrike() {
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const W = window.innerWidth || 1200;
+      const H = window.innerHeight || 800;
+
+      // Wider viewports get proportionally bigger steps, so the bolt reads the same
+      // whether the page is a phone-width column or a wide desktop window.
+      const startX = W * 0.2 + Math.random() * (W * 0.6);
+      const segments = 8 + Math.floor(Math.random() * 4);
+      const step = Math.max(30, W * 0.09);
+      let x = startX;
+      let y = 0;
+      let d = 'M' + x.toFixed(1) + ',0';
+      const edge = W * 0.05;
+      for (let i = 0; i < segments; i++) {
+        y += i === segments - 1 ? H - y : (H / segments) * (0.7 + Math.random() * 0.6);
+        const pull = (W / 2 - x) / W;
+        x += (Math.random() - 0.5 + pull * 0.5) * step * 2;
+        x = Math.max(edge, Math.min(W - edge, x));
+        d += ' L' + x.toFixed(1) + ',' + y.toFixed(1);
+        if (Math.random() > 0.65) {
+          let bx = x + (Math.random() - 0.5) * step * 2.2;
+          bx = Math.max(edge, Math.min(W - edge, bx));
+          const by = y + 14 + Math.random() * 34;
+          d += ' M' + x.toFixed(1) + ',' + y.toFixed(1) +
+               ' L' + bx.toFixed(1) + ',' + by.toFixed(1) +
+               ' M' + x.toFixed(1) + ',' + y.toFixed(1);
+        }
+      }
+
+      const host = document.createElement('div');
+      // pointer-events is set INLINE, not just in the :host rule — `all:initial`
+      // resets it, and relying on the overlay merely being transparent to stay
+      // click-through is too fragile for something covering the whole page.
+      host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483646;';
+      const root = host.attachShadow({ mode: 'open' });
+      const stroke = Math.random() > 0.5 ? '#cba14e' : '#f4a64b'; // gold / amber
+      const style = document.createElement('style');
+      style.textContent =
+        ':host{position:fixed;inset:0;z-index:2147483646;pointer-events:none}' +
+        '.layer{position:fixed;inset:0;pointer-events:none;animation:scf .26s ease-out}' +
+        '.b{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0;' +
+        'animation:sci .16s ease-out forwards,sco .6s ease-in .18s forwards}' +
+        '@keyframes scf{0%{background:rgba(255,255,255,.20)}100%{background:transparent}}' +
+        '@keyframes sci{from{opacity:0}to{opacity:1}}' +
+        '@keyframes sco{from{opacity:1}to{opacity:0}}';
+      const layer = document.createElement('div');
+      layer.className = 'layer';
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;filter:drop-shadow(0 0 3px rgba(244,166,75,.75))');
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('class', 'b');
+      p.setAttribute('d', d);
+      p.setAttribute('stroke', stroke);
+      p.setAttribute('stroke-width', (1.8 + Math.random() * 2.2).toFixed(1));
+      svg.appendChild(p);
+      layer.appendChild(svg);
+      root.append(style, layer);
+      (document.body || document.documentElement).appendChild(host);
+      setTimeout(() => { try { host.remove(); } catch (_) {} }, 950);
+    } catch (_) { /* decoration only — never disturb the page */ }
+  }
+
   function removeCard() {
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
     cardHost = null;
@@ -595,11 +672,18 @@
       scanForInvoice();
     } else if (msg.event === 'paid') {
       dismissedInvoice = msg.invoice; // don't resurface even if the link lingers
+      // Throw the bolt across the page whether or not our own card was up — a zap
+      // sent from the client's own UI has no card, and that's the common case.
+      pageLightningStrike();
       if (shownInvoice === msg.invoice) {
         if (cardControls) cardControls.setPaid(); // brief "Paid" flash, then clear
         const flashed = cardHost;
         setTimeout(() => { if (cardHost === flashed) removeCard(); }, 1000);
       }
+    } else if (msg.event === 'paidflash') {
+      // A WebLN payment (a zap from this page's own UI) settled. No card to dismiss —
+      // just the flourish.
+      pageLightningStrike();
     } else if (msg.event === 'payfailed') {
       // Don't dismiss — let the user retry from the same card.
       if (shownInvoice === msg.invoice && cardControls) cardControls.setError(msg.error);

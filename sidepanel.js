@@ -410,10 +410,9 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
     if (msg.event === 'walletChanged' && state && !state.locked) {
-      // Broadcast on an outbound WebLN payment — a zap sent from a page you're on,
-      // which is how most zaps actually happen. Strike for those too, so the panel
-      // reacts whether the payment started here or in a client.
-      lightningStrike();
+      // No strike here. A WebLN payment from a page gets its bolt thrown across THAT
+      // page by the content script (see notifyTabsPaidByHost) — where the user is
+      // actually looking when they zap. Striking here as well would double it.
       const active = document.querySelector('.tab.active');
       if (active && active.dataset.tab === 'wallet') renderWallet();
       renderPinnedBalanceBar(); // refresh the pinned bar on any tab

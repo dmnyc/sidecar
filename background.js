@@ -1352,6 +1352,11 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
   // Tell an open side panel to refresh its balance/history.
   chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
+  // Let the paying page celebrate (the content script's lightning strike). This is the
+  // WebLN path — a zap from a client's own UI, where notifyTabPaid isn't otherwise
+  // called because there's no "Pay with Sidecar" card involved. Best-effort: the page
+  // may have navigated away, and a missing flourish is not an error.
+  notifyTabsPaidByHost(host);
   return { preimage: preimage || '', sats };
 }
 
@@ -1372,6 +1377,26 @@ function notify(message) {
 
 // Tell a tab a page invoice was paid, so its "Pay with Sidecar" pill clears
 // (the invoice link often lingers in the DOM after the modal shows "Paid").
+// Tell the tabs on `host` that a payment settled, so the content script can throw its
+// lightning strike. Scoped to the paying host — never broadcast to every open tab, or
+// an unrelated page would flash for a payment that had nothing to do with it. Carries
+// no invoice: this is a visual cue, and the pay-card dismissal keys off the invoice via
+// notifyTabPaid instead.
+function notifyTabsPaidByHost(host) {
+  if (!host || !chrome.tabs) return;
+  try {
+    chrome.tabs.query({}, (tabs) => {
+      void chrome.runtime.lastError;
+      for (const t of tabs || []) {
+        let h = '';
+        try { h = new URL(t.url || '').host; } catch (_) { continue; }
+        if (h !== host || t.id == null) continue;
+        chrome.tabs.sendMessage(t.id, { type: 'SIDECAR_EVENT', event: 'paidflash' }, () => void chrome.runtime.lastError);
+      }
+    });
+  } catch (_) {}
+}
+
 function notifyTabPaid(tabId, invoice) {
   if (tabId != null && chrome.tabs) {
     chrome.tabs.sendMessage(tabId, { type: 'SIDECAR_EVENT', event: 'paid', invoice }, () => void chrome.runtime.lastError);
