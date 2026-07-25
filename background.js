@@ -1356,7 +1356,7 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
   // WebLN path — a zap from a client's own UI, where notifyTabPaid isn't otherwise
   // called because there's no "Pay with Sidecar" card involved. Best-effort: the page
   // may have navigated away, and a missing flourish is not an error.
-  notifyTabsPaidByHost(host);
+  notifyTabsPaidByHost(host).catch(() => {}); // deliberately not awaited — a flourish must not delay the reply
   return { preimage: preimage || '', sats };
 }
 
@@ -1382,8 +1382,14 @@ function notify(message) {
 // an unrelated page would flash for a payment that had nothing to do with it. Carries
 // no invoice: this is a visual cue, and the pay-card dismissal keys off the invoice via
 // notifyTabPaid instead.
-function notifyTabsPaidByHost(host) {
+async function notifyTabsPaidByHost(host) {
   if (!host || !chrome.tabs) return;
+  // Gate here rather than in the content script: the page-facing settings read is
+  // deliberately clamped to showPayButton (see SIDECAR_GET_SETTINGS above), and
+  // widening it would hand every visited site another config bit to fingerprint.
+  // Default on — only an explicit false disables it.
+  const settings = (await sget('sidecar_settings')).sidecar_settings || {};
+  if (settings.zapFlash === false) return;
   try {
     chrome.tabs.query({}, (tabs) => {
       void chrome.runtime.lastError;

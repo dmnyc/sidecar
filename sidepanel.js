@@ -241,6 +241,7 @@
   // for, so there it's skipped entirely rather than shortened.
   function lightningStrike() {
     try {
+      if (!zapFlash) return; // Settings → Payment animation
       if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const host = document.createElement('div');
       host.className = 'lightning-layer';
@@ -329,6 +330,7 @@
   let hideBalances = false;
   let pinBalanceBar = false;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
+  let zapFlash = true; // lightning bolt on payment — on unless turned off
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
@@ -512,6 +514,7 @@
     hideBalances = !!(settings && settings.hideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
+    zapFlash = !(settings && settings.zapFlash === false); // default on
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
@@ -2808,6 +2811,7 @@
       });
     }
     fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
+    $('zapflash-toggle').checked = settings.zapFlash !== false; // default on
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
     $('autozap-max').value = String(azMax);
@@ -7804,6 +7808,16 @@
   });
 
   $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));
+
+  // One switch covers both bolts: the in-panel one (payments started here) and the
+  // page one (a zap from a client) — the background reads the same flag before
+  // notifying the tab. Stored as an explicit false so the default stays on.
+  $('zapflash-toggle').addEventListener('change', async (e) => {
+    zapFlash = e.target.checked;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { zapFlash: e.target.checked } });
+    // Show the thing you just switched on, so the setting explains itself.
+    if (zapFlash) lightningStrike();
+  });
 
   // Pinned balance bar — left: Send/Receive (wallet modals); right: hide balances
   // + unpin. The bar only renders when a wallet is connected.
