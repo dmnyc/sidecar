@@ -231,6 +231,78 @@
     return t;
   }
 
+  // ---- lightning strike (zap sent) ----
+  // Ported from the CodepenLightning component shared by wordswithzaps, jumble-spark,
+  // and primal-web-spark — rewritten as plain DOM since Sidecar has no build step and
+  // no React. A procedurally-generated bolt zigzags top-to-bottom with occasional
+  // branches, over a brief full-panel flash, then removes itself.
+  //
+  // Honors prefers-reduced-motion: a full-panel flash is exactly what that setting is
+  // for, so there it's skipped entirely rather than shortened.
+  function lightningStrike() {
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const host = document.createElement('div');
+      host.className = 'lightning-layer';
+      const W = document.documentElement.clientWidth || 380;
+      const H = document.documentElement.clientHeight || 600;
+
+      // Start in the central 60% so the bolt reads as crossing the panel, not grazing
+      // an edge. More segments than the reference (which ran on a wide desktop
+      // viewport): the panel is tall and narrow, so a 5-segment bolt looks like a
+      // near-vertical line rather than lightning.
+      const startX = W * 0.2 + Math.random() * (W * 0.6);
+      const segments = 8 + Math.floor(Math.random() * 4); // 8-11
+      // Each joint steps from the PREVIOUS one rather than from startX — offsetting a
+      // fixed origin can't wander, which is what made early versions look like a
+      // slightly wobbly straight line.
+      const step = Math.max(26, W * 0.16);
+      let x = startX;
+      let y = 0;
+      let d = 'M' + x.toFixed(1) + ',0';
+      const edge = W * 0.06;
+      for (let i = 0; i < segments; i++) {
+        // The final segment always lands past the bottom edge, so the bolt exits the
+        // panel instead of stopping short of it.
+        y += i === segments - 1 ? H - y : (H / segments) * (0.7 + Math.random() * 0.6);
+        // Bias each step back toward the middle so a run of same-direction jitter
+        // can't pin the bolt to one wall.
+        const pull = (W / 2 - x) / W;
+        x += (Math.random() - 0.5 + pull * 0.5) * step * 2;
+        x = Math.max(edge, Math.min(W - edge, x));
+        d += ' L' + x.toFixed(1) + ',' + y.toFixed(1);
+        // ~35% of joints sprout a short branch; return to the joint so the main bolt
+        // continues from where it left off.
+        if (Math.random() > 0.65) {
+          let bx = x + (Math.random() - 0.5) * step * 2.2;
+          bx = Math.max(W * 0.03, Math.min(W * 0.97, bx));
+          const by = y + 12 + Math.random() * 28;
+          d += ' M' + x.toFixed(1) + ',' + y.toFixed(1) +
+               ' L' + bx.toFixed(1) + ',' + by.toFixed(1) +
+               ' M' + x.toFixed(1) + ',' + y.toFixed(1);
+        }
+      }
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'lightning-svg');
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      svg.setAttribute('preserveAspectRatio', 'none');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('class', 'lightning-bolt');
+      path.setAttribute('d', d);
+      // Gold rather than the reference's white/yellow — it's the panel's accent, and
+      // it reads as a Lightning payment rather than a weather effect.
+      path.setAttribute('stroke', Math.random() > 0.5 ? 'var(--gold)' : 'var(--amber)');
+      path.setAttribute('stroke-width', (1.6 + Math.random() * 2).toFixed(1));
+      path.setAttribute('fill', 'none');
+      svg.appendChild(path);
+      host.appendChild(svg);
+      document.body.appendChild(host);
+      requestAnimationFrame(() => host.classList.add('flash'));
+      setTimeout(() => host.remove(), 900); // after the bolt's fade-out completes
+    } catch (_) { /* decoration only — never let it break a payment */ }
+  }
+
   // ---- nsec paste guard ----
   // A secret key should only ever land in the key-import field. Block a paste of
   // an nsec anywhere else in the panel (note composer, PIN, wallet send, profile
@@ -338,6 +410,10 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
     if (msg.event === 'walletChanged' && state && !state.locked) {
+      // Broadcast on an outbound WebLN payment — a zap sent from a page you're on,
+      // which is how most zaps actually happen. Strike for those too, so the panel
+      // reacts whether the payment started here or in a client.
+      lightningStrike();
       const active = document.querySelector('.tab.active');
       if (active && active.dataset.tab === 'wallet') renderWallet();
       renderPinnedBalanceBar(); // refresh the pinned bar on any tab
@@ -7316,6 +7392,7 @@
             await savePayMeta(invoice, { address, comment: note, feeMsat });
           }
           closeModal();
+          lightningStrike(); // only after the payment actually settles
           toast('Payment sent' + (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''), 'success');
           renderWallet();
           renderPinnedBalanceBar();
@@ -7673,6 +7750,7 @@
           const invoice = await lnAddressToInvoice(CREATOR_LN, sats * 1000, message.value.trim() || 'Sidecar zap');
           await client.payInvoice(invoice);
           closeModal();
+          lightningStrike(); // only after the payment actually settles
           toast('Thank you! Zap sent', 'success');
         } catch (e) {
           err.textContent = e.message;
