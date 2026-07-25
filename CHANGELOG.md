@@ -9,14 +9,14 @@ Update that section alongside this file as part of every release.
 
 ## [1.5.1] — 2026-07-24
 
-### Fixed
-- **Relax mode reliability.** Three issues with timed auto-sign are resolved: the relax balloon and status bar no longer overlap; an activation race that could prevent relax mode from engaging is corrected; and the "granted 15 minutes, bar never showed" symptom is fixed at its root — relax mode was silently self-revoking when a host rebind occurred.
-- **Pinned balance bar on first wallet connect.** The balance bar now appears immediately when a wallet is freshly connected or restored on an account that previously had none, instead of requiring a panel reload.
-- **Themed backgrounds on Wallets and Help pages.** Both standalone pages lost their velvet texture and gradient highlights after the 1.5.0 theme refactor; the themed background is now restored on all three themes.
+### Added
+- **Relax mode.** Timed auto-sign window (5, 15, or 30 minutes) for trusted sites. A persistent status bar counts down the remaining time with an End button to revoke early. Resolves the friction of approving every action during active sessions on shared hosts.
+- **Pinned wallet balance bar.** Lightning balance is pinned to the panel and visible at all times, not just from the wallet section. Incoming payments update automatically via NIP-47 notifications (with a 30-second polling fallback) and trigger a gold glow pulse on the balance number. Appears immediately on wallet connect or restore. Unpin with a single click.
 
 ### Changed
 - Tightened the switch-account tip and wallet onboarding copy for clarity.
 - Shortened the shared-identity heads-up blurb shown during signing approvals.
+- **Film Noir's balance numbers are now gold** (matching Speakeasy) instead of silver, so Lightning amounts read warm even in the monochrome theme.
 
 ## [1.5.0] — 2026-07-21
 

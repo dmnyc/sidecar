@@ -437,6 +437,7 @@
       // (composer, wallet, key backup, …) so nothing sensitive sits over the lock
       // screen. The composer draft is autosaved, so it's offered again on unlock.
       closeModal();
+      stopWalletMonitor();
       if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
       balanceCache = { pubkey: null, sats: null };
       show($('view-lock'));
@@ -6057,6 +6058,8 @@
   // ====================== Wallet (NWC / NIP-47) ======================
   let nwc = null; // active SidecarNWC client for the current account
   let nwcPubkey = null; // which account the client belongs to
+  let nwcNotifSub = null; // NIP-47 notification subscription handle
+  let nwcPollTimer = null; // fallback balance polling interval
   const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
@@ -6163,15 +6166,79 @@
   const isLnInvoice = (v) => /^ln(bc|tb)[0-9]/i.test(v);
   const isLnAddress = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
 
+  // ---- Live balance updates (NIP-47 notifications + fallback polling) ----
+
+  // Fetch the current balance, update the cache, and refresh visible displays.
+  // Called when a payment notification arrives or the poll timer fires.
+  async function refreshWalletBalance() {
+    if (!state || state.locked) return;
+    try {
+      const client = await ensureNwc();
+      if (!client || state.locked) return; // state may have changed during await
+      const b = await client.getBalance();
+      if (state.locked) return; // re-check after network call
+      const prevSats = balanceCache ? balanceCache.sats : null;
+      const newSats = msatToSat(b && b.balance);
+      const changed = !balanceCache || balanceCache.sats !== newSats;
+      balanceCache = { pubkey: state.activePubkey, sats: newSats, ts: Date.now() };
+      if (changed) {
+        // Update pinned bar in place
+        const pinAmt = $('pinned-balance-amt');
+        if (pinAmt) pinAmt.textContent = fmtSats(newSats);
+        // Update wallet card balance in place (avoid full re-render)
+        const cardBal = document.querySelector('.wallet-balance');
+        if (cardBal) { cardBal.classList.remove('loading'); cardBal.textContent = fmtSats(newSats); }
+        // Glow pulse when balance increases
+        if (prevSats != null && newSats > prevSats) {
+          [pinAmt, cardBal].forEach((el) => {
+            if (!el) return;
+            el.classList.remove('balance-bump');
+            void el.offsetWidth; // force reflow to restart animation
+            el.classList.add('balance-bump');
+            setTimeout(() => el.classList.remove('balance-bump'), 5000);
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  function stopWalletMonitor() {
+    if (nwcNotifSub) { try { nwcNotifSub.close(); } catch (_) {} nwcNotifSub = null; }
+    if (nwcPollTimer) { clearInterval(nwcPollTimer); nwcPollTimer = null; }
+  }
+
+  function startWalletMonitor(client) {
+    stopWalletMonitor();
+    // Push: listen for NIP-47 kind:23196 payment notifications.
+    nwcNotifSub = client.subscribeNotifications((payload) => {
+      if (!state || state.locked) return;
+      const type = payload && payload.notification_type;
+      if (type === 'payment_received' || type === 'payment_sent') {
+        refreshWalletBalance();
+        if (type === 'payment_received') {
+          const amt = payload.notification && payload.notification.amount;
+          if (amt) toast('Received ' + fmtSats(msatToSat(amt)) + ' sats', 'success');
+          else toast('Payment received', 'success');
+        }
+      }
+    });
+    // Fallback: poll every 30s for wallets that don't send notifications.
+    nwcPollTimer = setInterval(() => {
+      if (state && !state.locked) refreshWalletBalance();
+    }, 30000);
+  }
+
   // Build (or reuse) the NWC client for the active account from its stored string.
   async function ensureNwc() {
     const pk = state.activePubkey;
     if (nwc && nwcPubkey === pk) return nwc;
+    stopWalletMonitor();
     if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
     const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
     if (!connection) return null;
     nwc = window.SidecarNWC.makeClient(connection);
     nwcPubkey = pk;
+    startWalletMonitor(nwc);
     return nwc;
   }
 
@@ -7089,6 +7156,7 @@
       cancel.addEventListener('click', closeModal);
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_NWC' });
+        stopWalletMonitor();
         if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
         closeModal();
         toast('Wallet disconnected', 'success');

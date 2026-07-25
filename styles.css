@@ -1378,6 +1378,17 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .wallet-balance.loading { animation: balance-pulse 1.1s ease-in-out infinite; }
 @keyframes balance-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+/* Glow pulse when balance increases (incoming payment). text-shadow avoids
+   conflict with wallet-balance's existing translateY transform. */
+.balance-bump { animation: balance-glow 5s ease-out; }
+@keyframes balance-glow {
+  0% { text-shadow: 0 0 0 transparent; }
+  8% { text-shadow: 0 0 20px var(--gold); }
+  25% { text-shadow: 0 0 8px var(--gold); }
+  45% { text-shadow: 0 0 20px var(--gold); }
+  65% { text-shadow: 0 0 6px var(--gold); }
+  100% { text-shadow: 0 0 0 transparent; }
+}
 .wallet-unit { font-size: 13px; color: var(--muted); }
 .wallet-actions { display: flex; gap: 10px; margin-bottom: 20px; }
 .wallet-actions button { flex: 1; }

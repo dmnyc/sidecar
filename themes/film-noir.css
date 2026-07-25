@@ -79,3 +79,9 @@
 [data-theme="film-noir"] textarea {
   background: var(--bg-2);
 }
+/* Balance numbers get a warm gold instead of the theme's silver — Lightning
+   sats should feel warm even in monochrome. */
+[data-theme="film-noir"] .wallet-balance,
+[data-theme="film-noir"] .pinned-balance-amt {
+  color: #cba14e;
+}

@@ -79,7 +79,37 @@
       });
     }
 
+  // Subscribe to NIP-47 kind:23196 notification events (payment_received,
+  // payment_sent). Returns a handle with .close(). The callback receives the
+  // decrypted notification object: { notification_type, notification }.
+  // Not all wallets send these — the caller should keep a polling fallback.
+  function subscribeNotifications(onNotification) {
+    let closed = false;
+    let sub = null;
+    try {
+      sub = pool().subscribeMany(
+        [relay],
+        { kinds: [23196], authors: [walletPubkey] },
+        {
+          onevent: async (ev) => {
+            if (closed) return;
+            try {
+              const payload = JSON.parse(await decrypt(ev.content));
+              onNotification(payload);
+            } catch (_) { /* ignore un-decryptable notifications */ }
+          },
+        }
+      );
+    } catch (_) { /* wallet or relay may not support notifications — that's fine */ }
     return {
+      close() {
+        closed = true;
+        try { if (sub) sub.close(); } catch (_) {}
+      },
+    };
+  }
+
+  return {
       walletPubkey,
       relay,
       getInfo: () => request('get_info'),
@@ -90,6 +120,7 @@
         request('make_invoice', { amount: amountMsat, description: description || '' }),
       listTransactions: (params) => request('list_transactions', params || { limit: 20, unpaid: false }),
       lookupInvoice: (params) => request('lookup_invoice', params),
+      subscribeNotifications,
       close: () => { try { pool().close([relay]); } catch (_) {} },
     };
   }
