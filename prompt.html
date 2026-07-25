@@ -163,8 +163,10 @@
     }
     .destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
     .destructive-warn-body { margin: 0; color: var(--text); font-size: 13px; line-height: 1.5; }
+    /* --muted, not --faint: --faint fails WCAG AA contrast in every theme at this
+       size. See the matching note in styles.css. */
     .destructive-warn-hint {
-      margin: 5px 0 0; color: var(--faint); font-size: 11.5px; line-height: 1.45;
+      margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5;
     }
     .info-note {
       margin-bottom: 16px; padding: 9px 11px; border-radius: 8px;

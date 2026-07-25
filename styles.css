@@ -1871,8 +1871,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   margin: 0; color: var(--text); font-size: 13px; line-height: 1.5;
 }
 .destructive-warn-body b { font-weight: 700; }
+/* --muted, not --faint. Measured against each theme's card background, --faint gives
+   2.6-3.4:1 — under the 4.5:1 WCAG AA needs for small text, and worst on Art Deco's
+   light card. --muted clears it in all three (4.5-5.9:1). Size nudged up too: this
+   sentence tells you how to undo a mistake, so it shouldn't be the smallest thing on
+   the prompt. */
 .destructive-warn-hint {
-  margin: 5px 0 0; color: var(--faint); font-size: 11.5px; line-height: 1.45;
+  margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5;
 }
 /* PIN-save reminder: a gently swaying antique key stands in for a boxed warning. */
 .pin-reminder-icon { display: flex; justify-content: center; margin-bottom: 4px; }
