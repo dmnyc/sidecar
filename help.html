@@ -29,6 +29,7 @@
         <a href="#pairing">How sites pair</a>
         <a href="#switching">Switching</a>
         <a href="#clients">Clients compared</a>
+        <a href="#relax">Relax mode</a>
         <a href="#wallet">Wallet</a>
         <a href="#whats-new">What's new</a>
       </div>
@@ -218,6 +219,62 @@
       that account and it has approved the site, Sidecar signs with it automatically. In
       those clients, switching inside the app works seamlessly once each account has
       been added.</p>
+    </section>
+
+    <!-- ===== Relax mode (timed auto-sign) ===== -->
+    <section class="guide-section" id="relax">
+      <h2>When every action asks: relax mode</h2>
+      <p>On a site where two of your accounts have signed in, Sidecar confirms
+      <em>every</em> post, reaction, and DM — for the reason in the last section: only
+      you can see which account the client is actually showing. That's the right
+      default, but during a busy session it means a lot of tapping.</p>
+
+      <p><strong>Relax mode is the escape hatch.</strong> On any confirm you'll see
+      <em>Auto-sign for the next</em> with three choices — 5, 15, or 30 minutes. Pick one
+      and Sidecar signs that site's requests for that account without asking again until
+      the time runs out.</p>
+
+      <!-- screenshot: the relax chips on an approval prompt -->
+      <figure class="shot shot-sm">
+        <div class="shot-frame">
+          <img src="screenshots/relax-chips.png" alt="An approval prompt showing the account that will sign, above an 'Auto-sign for the next' row with 5 min, 15 min, and 30 min buttons, followed by Allow once, Trust this site, and Reject">
+        </div>
+        <figcaption>Choosing a window instead of approving one event at a time.</figcaption>
+      </figure>
+
+      <p>While a window is open, a status bar sits at the bottom of the panel with the
+      account, the site, a live countdown, and a depleting bar. The dot is green, turning
+      amber under the last minute. The toolbar icon also carries a badge with the minutes
+      remaining, so you can tell at a glance from any tab. Tap the <strong>&times;</strong>
+      on the bar to end it immediately.</p>
+
+      <!-- screenshot: the relax status bar counting down -->
+      <figure class="shot shot-sm">
+        <div class="shot-frame">
+          <img src="screenshots/relax-status-bar.png" alt="A status bar pinned to the bottom of the Sidecar panel: a green dot, the account name Amelia, the site jumble.social, a depleting progress bar, a 14:52 countdown, and a round close button to end auto-signing">
+        </div>
+        <figcaption>One window at a time, always visible, always cancelable.</figcaption>
+      </figure>
+
+      <p><strong>What it deliberately doesn't cover.</strong> Relax mode skips the
+      repetitive confirms, not the ones that matter:</p>
+      <ul>
+        <li><strong>Handing over your account or wallet always asks.</strong> Pairing a
+        remote signer and wallet-control requests still confirm individually, every time,
+        even mid-window — those are the requests worth reading closely.</li>
+        <li><strong>One window at a time.</strong> Relaxing on a new site ends the
+        previous window, so there's never more than one site signing freely.</li>
+        <li><strong>It ends on anything that changes who you are:</strong> locking
+        Sidecar, switching your active account, or logging into that site as a different
+        account — plus the timer itself.</li>
+      </ul>
+
+      <p class="fine-note">Worth being honest about the trade: within its window, relax
+      mode signs without showing you each event. That's the point of it, and it's why the
+      windows are minutes rather than hours, why only one runs at a time, and why the
+      countdown is always on screen. If you're on a shared host and unsure which account
+      the client has selected, approve one at a time instead — the per-signature confirm
+      is the thing that catches a wrong-account post.</p>
     </section>
 
     <!-- ===== Wallet ===== -->
