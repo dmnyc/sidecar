@@ -168,6 +168,25 @@
     .destructive-warn-hint {
       margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5;
     }
+    /* Reject inside the warning, styled as the affirmative action — the red here means
+       "keep my data". The acknowledgement is deliberately quieter. */
+    .destructive-warn-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 11px; }
+    .destructive-warn-reject {
+      width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+      background: #f0566b; border: 1px solid #f0566b; color: #fff;
+      font-family: inherit; font-size: 13px; font-weight: 700;
+    }
+    .destructive-warn-reject:hover { filter: brightness(1.08); }
+    .destructive-warn-ack {
+      width: 100%; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+      background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
+      font-family: inherit; font-size: 12px;
+    }
+    .destructive-warn-ack:hover { color: var(--text); border-color: var(--muted); }
+    .destructive-warn-unlocked { margin: 9px 0 0; color: var(--muted); font-size: 12px; font-style: italic; }
+    .approval-locked #allow, .approval-locked #trust {
+      opacity: 0.4; cursor: not-allowed; filter: grayscale(0.5);
+    }
     .info-note {
       margin-bottom: 16px; padding: 9px 11px; border-radius: 8px;
       background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.22);

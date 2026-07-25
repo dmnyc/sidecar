@@ -7827,6 +7827,29 @@
       // Destructive replaceable overwrite (see replaceable-baseline.js) — louder than
       // the kind warning above, because this one is about losing data you already have.
       if (data.destructive && data.destructive.message) {
+        // Reject sits INSIDE the warning and Allow/Trust start disabled, unlocked only
+        // by an explicit "I understand". Approving normally means tapping where Allow
+        // always is — muscle memory that's fine for a note and wrong for a wipe. The
+        // safe choice should be the reachable one; the destructive choice should cost
+        // a deliberate second action.
+        const reject = h('button', {
+          className: 'destructive-warn-reject',
+          textContent: 'Reject — keep my data',
+        });
+        reject.addEventListener('click', () => decideApproval('reject'));
+        const ack = h('button', {
+          className: 'destructive-warn-ack',
+          textContent: 'I understand, let me approve it',
+        });
+        ack.addEventListener('click', () => {
+          setApprovalLocked(false);
+          ack.remove();
+          // Say what changed rather than just removing the button — otherwise the
+          // buttons below silently become live and it isn't obvious why.
+          box.querySelector('.destructive-warn').append(
+            h('p', { className: 'destructive-warn-unlocked', textContent: 'Approval unlocked below.' })
+          );
+        });
         box.append(
           h('div', { className: 'destructive-warn' }, [
             h('div', { className: 'destructive-warn-title' }, [
@@ -7838,6 +7861,7 @@
               className: 'destructive-warn-hint',
               textContent: 'If you didn\'t mean to do this, reject — the version on your relays stays as it is.',
             }),
+            h('div', { className: 'destructive-warn-actions' }, [reject, ack]),
           ])
         );
       }
@@ -7903,6 +7927,19 @@
       note.append(got);
     }
     acct.parentNode.insertBefore(note, acct);
+  }
+
+  // Disable/enable the approval prompt's Allow once + Trust this site while a
+  // destructive overwrite is unacknowledged. Reject is deliberately left alone — the
+  // safe way out must never be gated. The class on the footer dims the pair so they
+  // read as unavailable rather than merely unresponsive.
+  function setApprovalLocked(locked) {
+    const allow = $('approval-allow');
+    const trust = $('approval-trust');
+    if (allow) allow.disabled = locked;
+    if (trust) trust.disabled = locked;
+    const footer = allow && allow.parentNode;
+    if (footer) footer.classList.toggle('approval-locked', locked);
   }
 
   function renderApprovalAccountCapsule(data) {
@@ -7999,6 +8036,11 @@
     renderApprovalPreview(data);
 
     $('approval-error').textContent = '';
+    // Lock Allow/Trust behind the warning's "I understand" when this event destroys
+    // data. Applied here, after renderApprovalPreview built the warning, so a re-render
+    // (queue advance, unlock) re-locks rather than leaving a previous acknowledgement
+    // standing for a different event.
+    setApprovalLocked(!!(data.destructive && data.destructive.message));
     const allow = $('approval-allow');
     const trust = $('approval-trust');
     const pin = $('approval-pin');
@@ -8158,7 +8200,10 @@
     if (e.target === $('view-approval')) decideApproval('reject');
   });
   $('approval-pin').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') decideApproval('once');
+    // Respect the destructive lock: Enter here calls decideApproval directly, so
+    // without this check it would approve a wipe that the disabled Allow button is
+    // supposed to be holding back.
+    if (e.key === 'Enter' && !$('approval-allow').disabled) decideApproval('once');
   });
   // Numeric-only, capped budget input (static element, so not built via satsInput).
   $('approval-budget-amount').addEventListener('input', (e) => {

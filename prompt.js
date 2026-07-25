@@ -284,8 +284,31 @@
         const hint = document.createElement('p');
         hint.className = 'destructive-warn-hint';
         hint.textContent = "If you didn't mean to do this, reject — the version on your relays stays as it is.";
-        box.append(title, body, hint);
+
+        // Reject inside the warning; Allow/Trust disabled until acknowledged. See the
+        // matching note in sidepanel.js — approving normally is muscle memory, and this
+        // is the one prompt where that shouldn't be enough.
+        const actions = document.createElement('div');
+        actions.className = 'destructive-warn-actions';
+        const rejectBtn = document.createElement('button');
+        rejectBtn.className = 'destructive-warn-reject';
+        rejectBtn.textContent = 'Reject — keep my data';
+        rejectBtn.addEventListener('click', () => decide('reject'));
+        const ackBtn = document.createElement('button');
+        ackBtn.className = 'destructive-warn-ack';
+        ackBtn.textContent = 'I understand, let me approve it';
+        ackBtn.addEventListener('click', () => {
+          setLocked(false);
+          ackBtn.remove();
+          const note = document.createElement('p');
+          note.className = 'destructive-warn-unlocked';
+          note.textContent = 'Approval unlocked below.';
+          box.appendChild(note);
+        });
+        actions.append(rejectBtn, ackBtn);
+        box.append(title, body, hint, actions);
         els.preview.appendChild(box);
+        setLocked(true);
       }
       if (ev.content) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
@@ -545,6 +568,15 @@
     });
   }
 
+  // Disable Allow once + Trust this site while a destructive overwrite is
+  // unacknowledged. Reject is never gated — the safe way out must stay reachable.
+  function setLocked(locked) {
+    if (els.allow) els.allow.disabled = locked;
+    if (els.trust) els.trust.disabled = locked;
+    const footer = els.allow && els.allow.parentNode;
+    if (footer) footer.classList.toggle('approval-locked', locked);
+  }
+
   async function decide(action, opts) {
     els.error.textContent = '';
     // Unlock first if needed (Allow once / Trust / Relax / Pay only).
@@ -602,7 +634,9 @@
   els.reject.addEventListener('click', () => decide('reject'));
   els.pin &&
     els.pin.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') decide('once');
+      // Respect the destructive lock — Enter bypasses the disabled Allow button
+      // otherwise. Same guard as the panel's PIN field.
+      if (e.key === 'Enter' && !els.allow.disabled) decide('once');
     });
 
   init();
