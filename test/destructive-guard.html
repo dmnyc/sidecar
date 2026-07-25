@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidecar — destructive-guard test bench</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #171b21; --line: #262c35; --ink: #e6ebf2;
+    --dim: #8b95a3; --warn: #f0566b; --ok: #4ade80; --gold: #cba14e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, sans-serif;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 21px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 26px 0 10px; color: var(--gold); letter-spacing: .02em; }
+  .lede { color: var(--dim); margin: 0 0 18px; }
+  .warnbox {
+    border: 1px solid var(--warn); background: rgba(240,86,107,.08);
+    border-radius: 10px; padding: 12px 14px; margin: 0 0 20px; font-size: 13.5px;
+  }
+  .warnbox b { color: var(--warn); }
+  .status {
+    border: 1px solid var(--line); background: var(--card); border-radius: 10px;
+    padding: 11px 13px; margin: 0 0 18px; font-size: 13.5px;
+  }
+  #pubkey { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--dim); word-break: break-all; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .case {
+    border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 12px 13px;
+  }
+  .case h3 { margin: 0 0 3px; font-size: 13.5px; }
+  .case p { margin: 0 0 10px; color: var(--dim); font-size: 12.5px; }
+  .tag {
+    display: inline-block; font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 4px; margin-left: 6px; vertical-align: 1px;
+  }
+  .tag.warn { background: rgba(240,86,107,.16); color: var(--warn); }
+  .tag.quiet { background: rgba(74,222,128,.14); color: var(--ok); }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 7px; cursor: pointer;
+    background: #222831; color: var(--ink); border: 1px solid var(--line);
+  }
+  button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .primary { background: var(--gold); color: #1a1206; border-color: var(--gold); font-weight: 600; }
+  .primary:hover:not(:disabled) { filter: brightness(1.08); color: #1a1206; }
+  #log {
+    margin-top: 20px; border: 1px solid var(--line); background: #0b0d11; border-radius: 10px;
+    padding: 12px; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    max-height: 320px; overflow: auto; white-space: pre-wrap;
+  }
+  .l-ok { color: var(--ok); } .l-err { color: var(--warn); } .l-dim { color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Destructive-guard test bench</h1>
+  <p class="lede">Exercises Sidecar's replaceable-overwrite warning (kinds 0, 3, 10000).</p>
+
+  <div class="warnbox">
+    <b>Use a throwaway account.</b> Every button below asks Sidecar to <b>sign</b> a
+    replaceable event. If you approve one, it replaces that list <em>for that account</em>
+    on every relay it reaches — this bench does not publish, but an approved signature is
+    a real signature and a client holding it could. Reject to test the warning safely.
+  </div>
+
+  <div class="status">
+    <div class="row">
+      <button class="primary" id="connect">Connect to Sidecar</button>
+      <span id="state" class="l-dim">not connected</span>
+    </div>
+    <div id="pubkey"></div>
+  </div>
+
+  <h2>1 · Seed a baseline</h2>
+  <p class="lede" style="margin-bottom:10px">
+    The guard compares against what Sidecar last signed. Sign a healthy list first, approve
+    it, and that becomes the baseline. (Sidecar also seeds baselines from relays when the
+    panel loads a profile, so a real account may already have one.)
+  </p>
+  <div class="grid">
+    <div class="case">
+      <h3>Seed follows: 40 entries</h3>
+      <p>Establishes a 40-follow baseline.</p>
+      <button data-act="seed-follows">Sign kind 3 · 40 follows</button>
+    </div>
+    <div class="case">
+      <h3>Seed mute list: 25 entries</h3>
+      <p>Establishes a 25-entry mute baseline.</p>
+      <button data-act="seed-mutes">Sign kind 10000 · 25 muted</button>
+    </div>
+    <div class="case">
+      <h3>Seed profile: all fields</h3>
+      <p>bio, picture, nip05, Lightning address, display name.</p>
+      <button data-act="seed-profile">Sign kind 0 · full profile</button>
+    </div>
+  </div>
+
+  <h2>2 · Cases that SHOULD warn</h2>
+  <div class="grid">
+    <div class="case">
+      <h3>Wipe follows <span class="tag warn">expect warning</span></h3>
+      <p>Empty kind 3 — the classic client bug.</p>
+      <button data-act="wipe-follows">Sign kind 3 · 0 follows</button>
+    </div>
+    <div class="case">
+      <h3>Gut follows <span class="tag warn">expect warning</span></h3>
+      <p>40 → 3. Over half gone and ≥10 lost.</p>
+      <button data-act="gut-follows">Sign kind 3 · 3 follows</button>
+    </div>
+    <div class="case">
+      <h3>Clear mute list <span class="tag warn">expect warning</span></h3>
+      <p>Empty kind 10000 while entries exist.</p>
+      <button data-act="wipe-mutes">Sign kind 10000 · 0 muted</button>
+    </div>
+    <div class="case">
+      <h3>Gut mute list <span class="tag warn">expect warning</span></h3>
+      <p>25 → 2.</p>
+      <button data-act="gut-mutes">Sign kind 10000 · 2 muted</button>
+    </div>
+    <div class="case">
+      <h3>Drop bio <span class="tag warn">expect warning</span></h3>
+      <p>kind 0 keeping everything but <code>about</code>.</p>
+      <button data-act="drop-bio">Sign kind 0 · no bio</button>
+    </div>
+    <div class="case">
+      <h3>Strip profile <span class="tag warn">expect warning</span></h3>
+      <p>kind 0 with only <code>name</code> — several fields lost at once.</p>
+      <button data-act="strip-profile">Sign kind 0 · name only</button>
+    </div>
+  </div>
+
+  <h2>3 · Cases that should stay QUIET</h2>
+  <p class="lede" style="margin-bottom:10px">
+    Just as important: a guard that fires on ordinary edits gets trained away. These must
+    <em>not</em> warn.
+  </p>
+  <div class="grid">
+    <div class="case">
+      <h3>Unfollow a few <span class="tag quiet">expect quiet</span></h3>
+      <p>40 → 36. Small, ordinary.</p>
+      <button data-act="unfollow-few">Sign kind 3 · 36 follows</button>
+    </div>
+    <div class="case">
+      <h3>Just under half <span class="tag quiet">expect quiet</span></h3>
+      <p>40 → 21. Big but under the ratio.</p>
+      <button data-act="unfollow-half">Sign kind 3 · 21 follows</button>
+    </div>
+    <div class="case">
+      <h3>Grow the list <span class="tag quiet">expect quiet</span></h3>
+      <p>40 → 55.</p>
+      <button data-act="grow-follows">Sign kind 3 · 55 follows</button>
+    </div>
+    <div class="case">
+      <h3>Edit bio text <span class="tag quiet">expect quiet</span></h3>
+      <p>All fields still present, bio reworded.</p>
+      <button data-act="edit-bio">Sign kind 0 · new bio text</button>
+    </div>
+    <div class="case">
+      <h3>Drop unknown field <span class="tag quiet">expect quiet</span></h3>
+      <p>Removes a custom key Sidecar doesn't track.</p>
+      <button data-act="drop-custom">Sign kind 0 · no custom key</button>
+    </div>
+    <div class="case">
+      <h3>Add a field <span class="tag quiet">expect quiet</span></h3>
+      <p>Adds a website; nothing lost.</p>
+      <button data-act="add-field">Sign kind 0 · + website</button>
+    </div>
+  </div>
+
+  <h2>4 · Edge cases</h2>
+  <div class="grid">
+    <div class="case">
+      <h3>Malformed kind 3 <span class="tag quiet">expect quiet</span></h3>
+      <p>No <code>tags</code> array at all — should read as unknown, not as a wipe.</p>
+      <button data-act="malformed-follows">Sign kind 3 · no tags</button>
+    </div>
+    <div class="case">
+      <h3>Unreadable kind 0 <span class="tag quiet">expect quiet</span></h3>
+      <p><code>content</code> isn't JSON — unknown, not empty.</p>
+      <button data-act="malformed-profile">Sign kind 0 · bad JSON</button>
+    </div>
+    <div class="case">
+      <h3>Duplicate p-tags <span class="tag warn">expect warning</span></h3>
+      <p>40 tags but only 2 unique — dedupe should see a gutting.</p>
+      <button data-act="dupe-follows">Sign kind 3 · 2 unique</button>
+    </div>
+    <div class="case">
+      <h3>Untracked kind <span class="tag quiet">expect quiet</span></h3>
+      <p>kind 10002 (relay list) is replaceable but not guarded.</p>
+      <button data-act="relay-list">Sign kind 10002 · 1 relay</button>
+    </div>
+  </div>
+
+  <div id="log"><span class="l-dim">Ready. Connect, seed a baseline, then try a case.</span></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const logEl = $('log');
+
+  function log(msg, cls) {
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Deterministic 64-hex pubkeys so repeat runs produce identical lists — the
+  // baseline comparison is about COUNTS, and stable values keep runs comparable.
+  function fakePubkey(i) {
+    return (i + 1).toString(16).padStart(2, '0').repeat(32).slice(0, 64);
+  }
+  function pTags(n, opts) {
+    const tags = [];
+    for (let i = 0; i < n; i++) tags.push(['p', fakePubkey(opts && opts.same ? 0 : i)]);
+    return tags;
+  }
+
+  const FULL_PROFILE = {
+    name: 'guard-test',
+    display_name: 'Guard Test',
+    about: 'Throwaway account for exercising Sidecar’s destructive-overwrite guard.',
+    picture: 'https://example.invalid/avatar.png',
+    nip05: 'guard@example.invalid',
+    lud16: 'guard@example.invalid',
+    customThing: 'not a tracked field',
+  };
+  const profile = (over, drop) => {
+    const o = Object.assign({}, FULL_PROFILE, over || {});
+    for (const k of (drop || [])) delete o[k];
+    return JSON.stringify(o);
+  };
+
+  const CASES = {
+    'seed-follows':      () => ({ kind: 3, tags: pTags(40), content: '' }),
+    'seed-mutes':        () => ({ kind: 10000, tags: pTags(25), content: '' }),
+    'seed-profile':      () => ({ kind: 0, tags: [], content: profile() }),
+
+    'wipe-follows':      () => ({ kind: 3, tags: [], content: '' }),
+    'gut-follows':       () => ({ kind: 3, tags: pTags(3), content: '' }),
+    'wipe-mutes':        () => ({ kind: 10000, tags: [], content: '' }),
+    'gut-mutes':         () => ({ kind: 10000, tags: pTags(2), content: '' }),
+    'drop-bio':          () => ({ kind: 0, tags: [], content: profile(null, ['about']) }),
+    'strip-profile':     () => ({ kind: 0, tags: [], content: JSON.stringify({ name: 'guard-test' }) }),
+
+    'unfollow-few':      () => ({ kind: 3, tags: pTags(36), content: '' }),
+    'unfollow-half':     () => ({ kind: 3, tags: pTags(21), content: '' }),
+    'grow-follows':      () => ({ kind: 3, tags: pTags(55), content: '' }),
+    'edit-bio':          () => ({ kind: 0, tags: [], content: profile({ about: 'Reworded bio, same fields.' }) }),
+    'drop-custom':       () => ({ kind: 0, tags: [], content: profile(null, ['customThing']) }),
+    'add-field':         () => ({ kind: 0, tags: [], content: profile({ website: 'https://example.invalid' }) }),
+
+    // No `tags` key at all — the malformed case that used to read as a wipe.
+    'malformed-follows': () => ({ kind: 3, content: '' }),
+    'malformed-profile': () => ({ kind: 0, tags: [], content: '<not json at all>' }),
+    'dupe-follows':      () => {
+      const tags = pTags(39, { same: true }); // 39 copies of one pubkey
+      tags.push(['p', fakePubkey(7)]);        // + one other = 2 unique
+      return { kind: 3, tags, content: '' };
+    },
+    'relay-list':        () => ({ kind: 10002, tags: [['r', 'wss://relay.example.invalid']], content: '' }),
+  };
+
+  function setConnected(pk) {
+    $('state').textContent = 'connected';
+    $('state').className = 'l-ok';
+    $('pubkey').textContent = pk;
+    document.querySelectorAll('button[data-act]').forEach((b) => (b.disabled = false));
+  }
+
+  document.querySelectorAll('button[data-act]').forEach((b) => (b.disabled = true));
+
+  $('connect').addEventListener('click', async () => {
+    if (!window.nostr) {
+      log('window.nostr is missing — is Sidecar installed and allowed on this URL?', 'l-err');
+      return;
+    }
+    try {
+      const pk = await window.nostr.getPublicKey();
+      setConnected(pk);
+      log('connected as ' + pk.slice(0, 16) + '…', 'l-ok');
+    } catch (e) {
+      log('connect rejected: ' + (e && e.message ? e.message : e), 'l-err');
+    }
+  });
+
+  document.querySelectorAll('button[data-act]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const act = btn.dataset.act;
+      const build = CASES[act];
+      if (!build) return;
+      const tpl = build();
+      const ev = Object.assign({ created_at: Math.floor(Date.now() / 1000) }, tpl);
+      const n = Array.isArray(ev.tags) ? ev.tags.filter((t) => t[0] === 'p').length : 'n/a';
+      log('→ ' + act + ' (kind ' + ev.kind + ', p-tags: ' + n + ') — watch for the warning, then reject', 'l-dim');
+      btn.disabled = true;
+      try {
+        const signed = await window.nostr.signEvent(ev);
+        log('✓ SIGNED ' + act + ' — id ' + String(signed.id).slice(0, 16) + '… (NOT published by this page)', 'l-ok');
+      } catch (e) {
+        log('✗ rejected/failed: ' + (e && e.message ? e.message : e), 'l-err');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Auto-detect an already-authorized session so the bench is usable immediately.
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      if (!window.nostr) {
+        log('window.nostr not found. Serve this file over http:// or file:// with Sidecar enabled for the URL.', 'l-err');
+      } else {
+        log('window.nostr detected. Click Connect to begin.', 'l-dim');
+      }
+    }, 400);
+  });
+})();
+</script>
+</body>
+</html>
