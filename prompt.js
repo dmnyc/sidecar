@@ -350,9 +350,12 @@
     // hatch for the shared-host per-sign confirm, and a middle rung between Allow
     // once and Trust on any ask-tier site. Not for payments, decrypts, relay-auth,
     // or a pure unlock (those have no approval to skip).
+    // Also not on a destructive overwrite — see the matching note in sidepanel.js:
+    // approving the wipe makes the wiped list the new baseline, so a window granted
+    // here would let the next overwrite through unwarned.
     const isContentSign =
       data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt';
-    if (data.needApproval && isContentSign && !isPayment) {
+    if (data.needApproval && isContentSign && !isPayment && !data.destructive) {
       els.relaxRow.classList.remove('hidden');
       els.relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
         chip.addEventListener('click', () =>

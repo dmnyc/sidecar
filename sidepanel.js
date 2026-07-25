@@ -8007,9 +8007,15 @@
     // shared-host escape hatch, and a middle rung between Allow once and Trust.
     // Hidden for payments, decrypts, relay-auth, pure unlocks, and batched bursts
     // (those already collapse into "Allow all").
+    //
+    // Also hidden on a destructive overwrite. Offering "auto-sign for 30 min" directly
+    // beneath "this erases data" invites the one tap that does real harm: approving the
+    // wipe ALSO makes the wiped list the new baseline, so within that window a second
+    // overwrite has nothing left to lose and won't warn. A client that just tried to
+    // clear your follow list is precisely the one that shouldn't get a free window.
     const relaxRow = $('approval-relax-row');
     const offerRelax =
-      !payment && groupN === 1 && data.needApproval &&
+      !payment && groupN === 1 && data.needApproval && !data.destructive &&
       (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
     if (offerRelax) {
       show(relaxRow);
