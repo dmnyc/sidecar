@@ -210,20 +210,40 @@
   }
 
   // ---- toast notifications ----
+  // An identical message already on screen is REPLACED rather than stacked: tapping a
+  // button twice should restart one confirmation, not pile up two saying the same
+  // thing. Different messages still stack, so a payment result and a lock notice can
+  // coexist. Each toast owns its dismissal timer so replacing one can cancel it —
+  // otherwise the outgoing toast's timer would later remove its replacement.
+  const _toastTimers = new WeakMap();
   function toast(message, type) {
+    const host = document.getElementById('toasts');
+    const cls = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+    // Same text AND same kind — an error and a success reading alike are still two
+    // different outcomes and shouldn't silently collapse into one.
+    for (const prev of host.querySelectorAll('.toast')) {
+      if (prev.dataset.msg === message && prev.className.indexOf(cls) === 0) {
+        const timers = _toastTimers.get(prev);
+        if (timers) { clearTimeout(timers.hide); clearTimeout(timers.remove); }
+        prev.remove();
+      }
+    }
     const t = document.createElement('div');
-    t.className = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+    t.className = cls;
+    t.dataset.msg = message;
     t.appendChild(icon(type === 'error' ? 'alert' : 'check'));
     const span = document.createElement('span');
     span.textContent = message;
     t.appendChild(span);
-    const host = document.getElementById('toasts');
     host.appendChild(t);
     requestAnimationFrame(() => t.classList.add('show'));
-    setTimeout(() => {
+    const hide = setTimeout(() => {
       t.classList.remove('show');
-      setTimeout(() => t.remove(), 250);
+      const rm = setTimeout(() => t.remove(), 250);
+      const cur = _toastTimers.get(t);
+      if (cur) cur.remove = rm;
     }, 3200);
+    _toastTimers.set(t, { hide, remove: null });
     return t;
   }
 
