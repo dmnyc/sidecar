@@ -245,7 +245,16 @@ input:focus, select:focus, textarea:focus {
   background: none; border: none; padding: 3px; border-radius: 8px; cursor: pointer; color: var(--muted);
 }
 .profile-backup-jump:hover { color: var(--lav); background: var(--hover-medium); }
-.profile-backup-jump svg { width: 15px; height: 15px; display: block; }
+/* 18px, not 15 — the stroked reload glyph carries less visual weight than the old
+   filled mark, so it needs the extra size to read as a control rather than a speck. */
+.profile-backup-jump svg { width: 18px; height: 18px; display: block; }
+/* Spins while the refresh is in flight, so a slow relay looks busy rather than dead. */
+.profile-backup-jump.spinning svg { animation: profile-refresh-spin 0.9s linear infinite; }
+.profile-backup-jump:disabled { cursor: default; }
+@keyframes profile-refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .profile-backup-jump.spinning svg { animation: none; opacity: 0.5; }
+}
 .profile-about {
   font-size: 14px; line-height: 1.55; color: var(--text); margin: 12px 0;
   white-space: pre-wrap; overflow-wrap: anywhere; text-align: left;

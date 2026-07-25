@@ -931,6 +931,10 @@
   const PROFILE_TTL = 5 * 60 * 1000;
   const _profileCache = new Map();    // pubkey -> { content, name, picture, expiresAt }
   const _profileInflight = new Map(); // pubkey -> Promise
+  // Follow count per pubkey (see getFollowCount below). Session-lived with no TTL, so
+  // the profile screen's refresh button clears it alongside _profileCache — declared
+  // here rather than beside its function so both caches sit together.
+  const followCountCache = new Map(); // pubkey -> number|null
   function cacheProfile(pubkey, content) {
     const c = content || {};
     const rec = {
@@ -3214,17 +3218,45 @@
     // Following count (fetched from the account's kind:3). Followers are out of
     // scope for now — they require an aggregating index, not a single event.
     const followNum = h('strong', { textContent: '…' });
-    const backupJump = h('button', { className: 'profile-backup-jump', title: 'Backup & restore' });
-    backupJump.innerHTML =
-      '<svg viewBox="0 0 22 22" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-      '<path d="M10.9851 0C7.6057 0 4.58375 1.52106 2.56398 3.91405L0.855461 2.20784V7.70159H6.35666L4.78529 6.13235C6.22953 4.30005 8.46896 3.12232 10.9851 3.12232C15.3417 3.12232 18.8734 6.64928 18.8734 11C18.8734 15.3507 15.3417 18.8776 10.9851 18.8776C6.88814 18.8776 3.52149 15.7583 3.13471 11.7682H0C0.395343 17.4845 5.16066 22 10.9851 22C17.0685 22 22 17.0751 22 11C22 4.92486 17.0685 0 10.9851 0Z"/></svg>';
-    backupJump.addEventListener('click', () => {
-      const el = view.querySelector('.backup-setting');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // This circular-arrow used to only scroll down to the backup section — it reads as
+    // a refresh, so it is one now. Follow List Recovery already sits at the bottom of
+    // this screen under its own clear label, so the jump wasn't earning the icon.
+    //
+    // Profile data is cached for PROFILE_TTL (5 min) and the follow count is cached for
+    // the whole session, so an edit made elsewhere can look stuck. This drops both for
+    // the active account and refetches.
+    const refreshBtn = h('button', { className: 'profile-backup-jump', title: 'Refresh profile and follow count' });
+    // Clockwise, near-closed circle with a short arrow at the top right — the
+    // conventional "reload" glyph. The old mark was counter-clockwise and filled,
+    // which reads more like "undo" than "refresh". Stroked so it inherits the same
+    // weight as the panel's other icons.
+    refreshBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M20 12a8 8 0 1 1-2.34-5.66"></path>' +
+      '<polyline points="20 4.5 20 9 15.5 9"></polyline></svg>';
+    refreshBtn.addEventListener('click', async () => {
+      if (refreshBtn.disabled) return;
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add('spinning');
+      try {
+        _profileCache.delete(active.pubkey);
+        followCountCache.delete(active.pubkey);
+        profileFetchAttempted.delete(active.pubkey); // let fetchAndStoreProfile run again
+        await fetchAndStoreProfile(active.pubkey);
+        renderProfile();
+        toast('Profile refreshed', 'success');
+      } catch (_) {
+        toast("Couldn't reach your relays", 'error');
+      } finally {
+        // renderProfile() may have replaced this button; guard against a detached node.
+        refreshBtn.disabled = false;
+        refreshBtn.classList.remove('spinning');
+      }
     });
     const followStat = h('div', { className: 'profile-stats' }, [
       h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
-      backupJump,
+      refreshBtn,
     ]);
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
@@ -3334,10 +3366,10 @@
 
   // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
   // heavy kind:0 profile batch that getFollowList() does, since the profile just
-  // needs a number. Cached per pubkey. A completed query with no follow list means
-  // they aren't following anyone yet → 0 (common for a fresh account); only a
-  // thrown error returns null, which the UI renders as "—".
-  const followCountCache = new Map(); // pubkey -> number|null
+  // needs a number. Cached per pubkey (the cache itself is declared up with
+  // _profileCache, since the profile screen's refresh button clears both). A completed
+  // query with no follow list means they aren't following anyone yet → 0 (common for a
+  // fresh account); only a thrown error returns null, which the UI renders as "—".
   async function getFollowCount(pubkey) {
     if (!pubkey) return null;
     if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
