@@ -304,6 +304,14 @@
       </div>
 
       <div class="setting">
+        <h3>Local currency</h3>
+        <p class="hint">Tap your balance to switch between sats, BTC, and this currency. Rates come from mempool.space and Coinbase.</p>
+        <!-- Options are populated from FIAT_CURRENCIES in sidepanel.js, shared with
+             the wallet screen's copy of this picker. -->
+        <select id="fiat-select"></select>
+      </div>
+
+      <div class="setting">
         <h3>Automatic zaps</h3>
         <p class="hint">Pay zaps without a prompt, up to a limit per zap and a daily total across all sites. Larger zaps, anything over the daily total, and all other payments still ask.</p>
         <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>

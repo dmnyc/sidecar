@@ -252,6 +252,7 @@
   let state = null;
   let hideBalances = false;
   let pinBalanceBar = false;
+  let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
@@ -416,6 +417,7 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     hideBalances = !!(settings && settings.hideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
+    fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
@@ -2704,6 +2706,14 @@
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
+    // Populate from the shared list on first open, then select the saved currency.
+    const fiatSel = $('fiat-select');
+    if (fiatSel && !fiatSel.options.length) {
+      FIAT_CURRENCIES.forEach(([code, name]) => {
+        fiatSel.append(h('option', { value: code, textContent: name + ' (' + code + ')' }));
+      });
+    }
+    fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
     $('autozap-max').value = String(azMax);
@@ -2739,6 +2749,18 @@
       rlist.append(row);
     });
   }
+
+  // Currencies offered for the fiat leg of the balance display. One list feeds BOTH
+  // pickers (Settings and the wallet screen), so they can't drift apart. Declared up
+  // here with the other shared lists since renderSettings() below reads it.
+  const FIAT_CURRENCIES = [
+    ['USD', 'US dollar'], ['EUR', 'Euro'], ['GBP', 'British pound'],
+    ['CAD', 'Canadian dollar'], ['AUD', 'Australian dollar'], ['CHF', 'Swiss franc'],
+    ['JPY', 'Japanese yen'], ['CNY', 'Chinese yuan'], ['INR', 'Indian rupee'],
+    ['BRL', 'Brazilian real'], ['MXN', 'Mexican peso'], ['NGN', 'Nigerian naira'],
+    ['ZAR', 'South African rand'], ['KRW', 'South Korean won'], ['TRY', 'Turkish lira'],
+    ['ARS', 'Argentine peso'],
+  ];
 
   // ---- activity tab: connected sites (permission tiers) + signing history ----
   const LEVELS = [
@@ -6063,6 +6085,178 @@
   const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
+  // ---- balance denomination (sats → BTC → fiat, cycled by tapping the balance) ----
+  // Only the two balance DISPLAYS cycle (the pinned bar and the wallet card). Amounts
+  // you're about to act on — invoices, budgets, transaction rows — stay in sats, so a
+  // stale exchange rate can never misrepresent what's being paid.
+  const DENOM_ORDER = ['sats', 'btc', 'fiat'];
+  let denom = 'sats';
+
+
+  // Bitcoin's smallest unit is one sat, so 8 decimals is exact, not a rounding choice.
+  const fmtBtc = (sats) => (Math.round(sats) / 1e8).toFixed(8);
+
+  // Intl picks the right minor-unit count per currency (2 for USD, 0 for JPY), which
+  // hand-rolled toFixed(2) would get wrong for yen and friends. Returns the symbol
+  // SEPARATELY from the digits: at the balance's 40px Playfair, a currency glyph set
+  // in the same face swamps the number — worse for the currencies Intl renders as a
+  // three-letter code ("CHF", "NGN"). The caller sets the symbol in the UI font at a
+  // smaller size (see .wallet-fiat-sym / .pinned-fiat-sym).
+  function fmtFiatParts(value, currency) {
+    try {
+      const parts = new Intl.NumberFormat('en-US', { style: 'currency', currency }).formatToParts(value);
+      const sym = parts.filter((p) => p.type === 'currency').map((p) => p.value).join('');
+      // Trim the space Intl inserts after code-style symbols — the CSS gap spaces them.
+      const num = parts.filter((p) => p.type !== 'currency').map((p) => p.value).join('').trim();
+      return { sym, num };
+    } catch (_) {
+      return { sym: currency || '', num: value.toFixed(2) }; // unknown code — still show something
+    }
+  }
+
+  // Cached BTC price, shaped like balanceCache so the staleness check reads the same.
+  let priceCache = { currency: null, price: null, ts: 0 };
+  const PRICE_TTL = 5 * 60000; // 5 min — a balance display doesn't need tick-by-tick
+
+  // Currencies mempool.space quotes directly — one keyless call, no rate limit, and
+  // bitcoin-native. Anything else falls through to Coinbase's keyless spot endpoint.
+  // CoinGecko is deliberately NOT used: its free tier 429s after a handful of calls,
+  // which showed up as the fiat display silently reverting to sats mid-session.
+  const MEMPOOL_FIATS = new Set(['USD', 'EUR', 'GBP', 'CAD', 'CHF', 'AUD', 'JPY']);
+
+  async function fetchPriceMempool(cur) {
+    const r = await fetch('https://mempool.space/api/v1/prices');
+    if (!r.ok) throw new Error('mempool ' + r.status);
+    const j = await r.json();
+    const p = j && j[cur];
+    if (typeof p !== 'number') throw new Error('mempool has no ' + cur);
+    return p;
+  }
+
+  async function fetchPriceCoinbase(cur) {
+    const r = await fetch('https://api.coinbase.com/v2/prices/BTC-' + encodeURIComponent(cur) + '/spot');
+    if (!r.ok) throw new Error('coinbase ' + r.status);
+    const j = await r.json();
+    const p = j && j.data && parseFloat(j.data.amount);
+    if (!isFinite(p)) throw new Error('coinbase has no ' + cur);
+    return p;
+  }
+
+  // Resolve a BTC price, trying the best source for this currency then the other.
+  // Returns null only when both fail AND nothing is cached — callers treat null as
+  // "can't convert" and keep showing sats rather than a guessed number.
+  async function getBtcPrice(currency) {
+    const cur = (currency || 'USD').toUpperCase();
+    if (priceCache.currency === cur && priceCache.price != null && Date.now() - priceCache.ts < PRICE_TTL) {
+      return priceCache.price;
+    }
+    const sources = MEMPOOL_FIATS.has(cur)
+      ? [fetchPriceMempool, fetchPriceCoinbase]
+      : [fetchPriceCoinbase, fetchPriceMempool];
+    for (const src of sources) {
+      try {
+        const p = await src(cur);
+        priceCache = { currency: cur, price: p, ts: Date.now() };
+        return p;
+      } catch (_) { /* try the next source */ }
+    }
+    // Serve a stale price over showing nothing; null means "couldn't convert".
+    return priceCache.currency === cur ? priceCache.price : null;
+  }
+
+  // Render `sats` in the active denomination. Returns { text, unit, sym } — `sym` is
+  // the currency symbol for fiat (empty otherwise), kept out of `text` so callers can
+  // set it in a smaller UI font instead of the balance's display face.
+  // Fiat with no available rate falls back to sats rather than showing a wrong number.
+  function denomParts(sats) {
+    if (sats == null) return { text: '…', unit: 'sats', sym: '' };
+    if (denom === 'btc') return { text: fmtBtc(sats), unit: 'BTC', sym: '' };
+    if (denom === 'fiat') {
+      const p = priceCache.price;
+      if (priceCache.currency === fiatCurrency.toUpperCase() && p != null) {
+        const { sym, num } = fmtFiatParts((sats / 1e8) * p, fiatCurrency);
+        return { text: num, unit: fiatCurrency.toUpperCase(), sym };
+      }
+      return { text: fmtSats(sats), unit: 'sats', sym: '' }; // no rate yet — don't guess
+    }
+    return { text: fmtSats(sats), unit: 'sats', sym: '' };
+  }
+
+  // Paint a balance element with an optional smaller-font currency symbol prefix.
+  // Uses textContent for the number (never innerHTML — the symbol comes from Intl,
+  // but the habit matters in a signer).
+  function paintBalanceEl(el, parts, symClass) {
+    if (!el) return;
+    el.textContent = '';
+    if (parts.sym) el.append(h('span', { className: symClass, textContent: parts.sym }));
+    el.append(document.createTextNode(parts.text));
+  }
+
+  // Advance the cycle, persist nothing (it's a view preference, not a setting), warm
+  // the price if we're landing on fiat, then repaint both balance surfaces.
+  //
+  // If no rate can be had, skip the fiat leg entirely rather than landing on a step
+  // that silently renders as sats — otherwise the tap looks like it did nothing, and
+  // the display looks identical to the step before it. Says so once, out loud.
+  async function cycleDenom() {
+    const next = DENOM_ORDER[(DENOM_ORDER.indexOf(denom) + 1) % DENOM_ORDER.length];
+    if (next === 'fiat') {
+      const p = await getBtcPrice(fiatCurrency);
+      if (p == null) {
+        toast("Couldn't reach a price source — showing sats", 'error');
+        denom = 'sats';
+        repaintBalances();
+        return;
+      }
+    }
+    denom = next;
+    repaintBalances();
+  }
+
+  // Apply a currency change from either picker: persist it, drop the now-wrong
+  // cached rate (it's per-currency), refetch if fiat is showing, repaint, and keep
+  // the other picker in sync — same shape as syncPinControls/syncHideControls.
+  async function setFiatCurrency(code) {
+    fiatCurrency = code || 'USD';
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { fiatCurrency } });
+    priceCache = { currency: null, price: null, ts: 0 };
+    if (denom === 'fiat') await getBtcPrice(fiatCurrency);
+    const s = $('fiat-select');
+    if (s) s.value = fiatCurrency;
+    const w = $('wallet-fiat-select');
+    if (w) w.value = fiatCurrency;
+    repaintBalances();
+  }
+
+  // The wallet screen's copy of the currency preference — same setting as Settings,
+  // placed here because this is where you are when you tap the balance.
+  function renderFiatPicker() {
+    const wrap = h('div', { className: 'setting' });
+    wrap.append(h('h3', { textContent: 'Local currency' }));
+    wrap.append(h('p', {
+      className: 'hint',
+      textContent: 'Tap your balance to switch between sats, BTC, and this currency.',
+    }));
+    const sel = h('select', { id: 'wallet-fiat-select' });
+    FIAT_CURRENCIES.forEach(([code, name]) => {
+      sel.append(h('option', { value: code, textContent: name + ' (' + code + ')' }));
+    });
+    sel.value = fiatCurrency;
+    sel.addEventListener('change', (e) => setFiatCurrency(e.target.value));
+    wrap.append(sel);
+    return wrap;
+  }
+
+  // Repaint whichever balance surfaces are on screen, from the cached balance.
+  function repaintBalances() {
+    const sats = balanceCache && balanceCache.pubkey === (state && state.activePubkey) ? balanceCache.sats : null;
+    const parts = denomParts(sats);
+    paintBalanceEl($('pinned-balance-amt'), parts, 'pinned-fiat-sym');
+    paintBalanceEl(document.querySelector('.wallet-balance'), parts, 'wallet-fiat-sym');
+    const cardUnit = document.querySelector('.wallet-unit');
+    if (cardUnit && cardUnit.textContent !== 'balance unavailable') cardUnit.textContent = parts.unit;
+  }
+
   // Optional pinned balance bar — compact balance + Send/Receive under the nav,
   // on every tab except Wallet (which has the full display). Only renders when
   // the setting is on, an account is active, and a wallet is connected. Paints
@@ -6080,8 +6274,13 @@
     if (hideBtn) { hideBtn.innerHTML = ''; hideBtn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); hideBtn.title = hideBalances ? 'Show balances' : 'Hide balances'; }
     const amt = $('pinned-balance-amt');
     if (!amt) return;
+    // Tap the amount to cycle sats → BTC → fiat. Bound once (renderPinnedBalanceBar
+    // runs on every tab switch), hence onclick rather than addEventListener.
+    amt.onclick = cycleDenom;
+    amt.title = 'Tap to change units';
     const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
-    amt.textContent = cached ? fmtSats(balanceCache.sats) : '…';
+    if (cached) paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
+    else amt.textContent = '…';
     const stale = !cached || !balanceCache.ts || Date.now() - balanceCache.ts > 60000;
     if (stale) {
       try {
@@ -6089,7 +6288,7 @@
         if (client) {
           const b = await client.getBalance();
           balanceCache = { pubkey: state.activePubkey, sats: msatToSat(b && b.balance), ts: Date.now() };
-          amt.textContent = fmtSats(balanceCache.sats);
+          paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
         }
       } catch (_) {}
     }
@@ -6182,12 +6381,17 @@
       const changed = !balanceCache || balanceCache.sats !== newSats;
       balanceCache = { pubkey: state.activePubkey, sats: newSats, ts: Date.now() };
       if (changed) {
+        // Paint in the active denomination, so a live update doesn't silently snap
+        // the display back to sats while the user is reading BTC or fiat.
+        const parts = denomParts(newSats);
         // Update pinned bar in place
         const pinAmt = $('pinned-balance-amt');
-        if (pinAmt) pinAmt.textContent = fmtSats(newSats);
+        paintBalanceEl(pinAmt, parts, 'pinned-fiat-sym');
         // Update wallet card balance in place (avoid full re-render)
         const cardBal = document.querySelector('.wallet-balance');
-        if (cardBal) { cardBal.classList.remove('loading'); cardBal.textContent = fmtSats(newSats); }
+        if (cardBal) { cardBal.classList.remove('loading'); paintBalanceEl(cardBal, parts, 'wallet-fiat-sym'); }
+        const cardUnit = document.querySelector('.wallet-unit');
+        if (cardUnit && cardUnit.textContent !== 'balance unavailable') cardUnit.textContent = parts.unit;
         // Glow pulse when balance increases
         if (prevSats != null && newSats > prevSats) {
           [pinAmt, cardBal].forEach((el) => {
@@ -6380,9 +6584,14 @@
     });
     const bal = h('div', {
       className: 'wallet-balance' + (cached ? '' : ' loading'),
-      textContent: cached ? fmtSats(balanceCache.sats) : '…',
+      textContent: '…',
+      title: 'Tap to change units',
     });
-    const unit = h('div', { className: 'wallet-unit', textContent: 'sats' });
+    if (cached) paintBalanceEl(bal, denomParts(balanceCache.sats), 'wallet-fiat-sym');
+    // Tap the number to cycle sats → BTC → fiat. stopPropagation so it doesn't also
+    // trigger the card's scroll-to-top handler while the card is collapsed.
+    bal.addEventListener('click', (e) => { e.stopPropagation(); cycleDenom(); });
+    const unit = h('div', { className: 'wallet-unit', textContent: denomParts(cached ? balanceCache.sats : null).unit });
     const refresh = h('button', { className: 'wallet-refresh', title: 'Refresh' });
     refresh.appendChild(icon('refresh'));
     refresh.addEventListener('click', () => renderWallet());
@@ -6467,6 +6676,10 @@
     // Per-site WebLN spending budgets
     view.append(renderSitePayments());
 
+    // Local currency — the same preference as Settings, surfaced here because this
+    // is where you're looking when you tap the balance and want a different currency.
+    view.append(renderFiatPicker());
+
     // Disconnect
     const disc = h('button', { className: 'ghost wallet-disconnect', textContent: 'Disconnect wallet' });
     disc.addEventListener('click', () => disconnectModal());
@@ -6495,7 +6708,9 @@
     try {
       const b = await client.getBalance();
       balanceCache = { pubkey: state.activePubkey, sats: msatToSat(b && b.balance), ts: Date.now() };
-      bal.textContent = fmtSats(balanceCache.sats);
+      const parts = denomParts(balanceCache.sats);
+      paintBalanceEl(bal, parts, 'wallet-fiat-sym');
+      unit.textContent = parts.unit;
     } catch (_) {
       if (!cached) { bal.textContent = '—'; unit.textContent = 'balance unavailable'; }
     }
@@ -7363,6 +7578,8 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: e.target.checked } });
     syncPinControls();
   });
+
+  $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));
 
   // Pinned balance bar — left: Send/Receive (wallet modals); right: hide balances
   // + unpin. The bar only renders when a wallet is connected.
