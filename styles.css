@@ -1881,24 +1881,23 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* Reject lives in the warning so the safe choice is the nearest one, and is styled as
    the affirmative action — the red button here MEANS "keep my data", not "danger". */
-/* Side by side now the labels are short enough — stacked full-width buttons made two
-   small choices look like two more steps. Keep-my-data takes the larger share. */
 .destructive-warn-actions {
-  display: flex; gap: 8px; margin-top: 11px;
+  display: flex; flex-direction: column; gap: 7px; margin-top: 11px;
 }
+/* Uppercased in CSS, not in the string, so screen readers still announce it as
+   "Don't allow" rather than spelling it out. */
 .destructive-warn-reject {
-  flex: 1.3; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer;
   background: var(--red); border: 1px solid var(--red); color: #fff;
   font-family: inherit; font-size: 13px; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  text-transform: uppercase; letter-spacing: 0.06em;
   transition: filter 0.12s;
 }
-.destructive-warn-reject svg { width: 14px; height: 14px; flex-shrink: 0; }
 .destructive-warn-reject:hover { filter: brightness(1.08); }
 /* The escape hatch is deliberately quiet: a bordered, low-contrast control rather than
    a second button competing with Reject. */
 .destructive-warn-ack {
-  flex: 1; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+  width: 100%; padding: 7px 12px; border-radius: 8px; cursor: pointer;
   background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
   font-family: inherit; font-size: 12px;
   transition: color 0.12s, border-color 0.12s;
