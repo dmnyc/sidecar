@@ -437,6 +437,112 @@
     return themeColors[cardTheme] || themeColors.speakeasy;
   }
 
+  // ---- lightning strike (a payment settled) ----
+  // The same procedural bolt the side panel draws, thrown across the PAGE instead:
+  // when you zap, the page is where you're looking, not the panel. Injected into a
+  // shadow root with `all:initial` like the pay card, so no page stylesheet can
+  // restyle it and nothing leaks the other way.
+  //
+  // Kept intentionally inert: pointer-events none, no page-visible globals, removes
+  // itself, and every part is wrapped so decoration can't disturb the host page.
+  function pageLightningStrike() {
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const W = window.innerWidth || 1200;
+      const H = window.innerHeight || 800;
+
+      // Wider viewports get proportionally bigger steps, so the bolt reads the same
+      // whether the page is a phone-width column or a wide desktop window.
+      const startX = W * 0.2 + Math.random() * (W * 0.6);
+      const segments = 8 + Math.floor(Math.random() * 4);
+      const step = Math.max(30, W * 0.09);
+      let x = startX;
+      let y = 0;
+      let d = 'M' + x.toFixed(1) + ',0';
+      const edge = W * 0.05;
+      for (let i = 0; i < segments; i++) {
+        y += i === segments - 1 ? H - y : (H / segments) * (0.7 + Math.random() * 0.6);
+        const pull = (W / 2 - x) / W;
+        x += (Math.random() - 0.5 + pull * 0.5) * step * 2;
+        x = Math.max(edge, Math.min(W - edge, x));
+        d += ' L' + x.toFixed(1) + ',' + y.toFixed(1);
+        if (Math.random() > 0.65) {
+          let bx = x + (Math.random() - 0.5) * step * 2.2;
+          bx = Math.max(edge, Math.min(W - edge, bx));
+          const by = y + 14 + Math.random() * 34;
+          d += ' M' + x.toFixed(1) + ',' + y.toFixed(1) +
+               ' L' + bx.toFixed(1) + ',' + by.toFixed(1) +
+               ' M' + x.toFixed(1) + ',' + y.toFixed(1);
+        }
+      }
+
+      const host = document.createElement('div');
+      // pointer-events is set INLINE, not just in the :host rule — `all:initial`
+      // resets it, and relying on the overlay merely being transparent to stay
+      // click-through is too fragile for something covering the whole page.
+      //
+      // z-index alone can't win here: a payment modal (Bitcoin Connect, and Sidecar's
+      // own pay card) sits at the maximum 2147483647, so a bolt below that draws
+      // BEHIND the very modal the payment came from. Instead promote the overlay to
+      // the browser's TOP LAYER via the Popover API, which renders above every
+      // z-index stacking context regardless of value. Supported by both floors this
+      // extension targets (Chrome 114+, Firefox 128+); the max z-index below is the
+      // fallback if showPopover throws.
+      host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;border:0;background:transparent;';
+      const root = host.attachShadow({ mode: 'open' });
+      const stroke = Math.random() > 0.5 ? '#ffd479' : '#ffb457'; // bright gold / amber
+      const style = document.createElement('style');
+      style.textContent =
+        ':host{position:fixed;inset:0;pointer-events:none}' +
+        // A popover is a top-layer box: clear its UA chrome so only the bolt shows.
+        ':host(:popover-open){border:0;padding:0;margin:0;background:transparent;width:100%;height:100%;max-width:none;max-height:none;overflow:visible}' +
+        '.layer{position:fixed;inset:0;pointer-events:none;animation:scf .28s ease-out}' +
+        '.b{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0;' +
+        'animation:sci .12s ease-out forwards,sco .62s ease-in .2s forwards}' +
+        '@keyframes scf{0%{background:rgba(255,255,255,.34)}100%{background:transparent}}' +
+        '@keyframes sci{from{opacity:0}to{opacity:1}}' +
+        '@keyframes sco{from{opacity:1}to{opacity:0}}';
+      const layer = document.createElement('div');
+      layer.className = 'layer';
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      // Two stacked glows — a tight white-hot core and a wide amber bloom — so the
+      // bolt reads as luminous on a light page too, where a single thin gold stroke
+      // was getting lost.
+      svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;' +
+        'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px rgba(255,180,87,.85))');
+      const width = (2.4 + Math.random() * 2.4).toFixed(1);
+      // An under-stroke in near-white, slightly wider, gives the bolt a hot centre
+      // instead of a flat line — the thing that made it look dim before.
+      const glow = document.createElementNS(NS, 'path');
+      glow.setAttribute('class', 'b');
+      glow.setAttribute('d', d);
+      glow.setAttribute('stroke', '#fff8e7');
+      glow.setAttribute('stroke-width', (Number(width) + 2.2).toFixed(1));
+      glow.setAttribute('stroke-opacity', '0.55');
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('class', 'b');
+      p.setAttribute('d', d);
+      p.setAttribute('stroke', stroke);
+      p.setAttribute('stroke-width', width);
+      svg.append(glow, p);
+      layer.appendChild(svg);
+      root.append(style, layer);
+      (document.body || document.documentElement).appendChild(host);
+      // Top layer via popover — see the z-index note above. Falls back silently to the
+      // max z-index already set inline if the browser or page state refuses.
+      try {
+        host.setAttribute('popover', 'manual');
+        host.showPopover();
+      } catch (_) { /* z-index fallback */ }
+      setTimeout(() => { try { host.remove(); } catch (_) {} }, 950);
+    } catch (_) { /* decoration only — never disturb the page */ }
+  }
+
   function removeCard() {
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
     cardHost = null;
@@ -595,11 +701,18 @@
       scanForInvoice();
     } else if (msg.event === 'paid') {
       dismissedInvoice = msg.invoice; // don't resurface even if the link lingers
+      // Throw the bolt across the page whether or not our own card was up — a zap
+      // sent from the client's own UI has no card, and that's the common case.
+      pageLightningStrike();
       if (shownInvoice === msg.invoice) {
         if (cardControls) cardControls.setPaid(); // brief "Paid" flash, then clear
         const flashed = cardHost;
         setTimeout(() => { if (cardHost === flashed) removeCard(); }, 1000);
       }
+    } else if (msg.event === 'paidflash') {
+      // A WebLN payment (a zap from this page's own UI) settled. No card to dismiss —
+      // just the flourish.
+      pageLightningStrike();
     } else if (msg.event === 'payfailed') {
       // Don't dismiss — let the user retry from the same card.
       if (shownInvoice === msg.invoice && cardControls) cardControls.setError(msg.error);
