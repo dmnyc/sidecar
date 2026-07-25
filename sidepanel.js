@@ -1068,6 +1068,7 @@
         new Promise((res) => setTimeout(() => res(null), 6000)),
       ]);
       if (!ev) return;
+      seedBaseline(pubkey, ev); // free ride — see seedBaseline
       let meta = {};
       try { meta = JSON.parse(ev.content) || {}; } catch (_) { return; }
       const name = meta.display_name || meta.displayName || meta.name || '';
@@ -1305,6 +1306,7 @@
         const evs = await getPool().querySync(relays, { kinds: [10000], authors: [pubkey] });
         const ev = (evs || []).sort((x, y) => y.created_at - x.created_at)[0];
         if (ev) {
+          seedBaseline(pubkey, ev); // free ride — see seedBaseline
           ev.tags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
           if (ev.content) {
             // NIP-04 ciphertext is "<base64>?iv=<base64>"; NIP-44 is a single
@@ -3320,6 +3322,16 @@
   let followListPubkey = null;
   let followListInflight = null; // dedupe concurrent loads (rapid @-keystrokes)
 
+  // Seed the destructive-overwrite baseline (replaceable-baseline.js) from a kind
+  // 0/3/10000 the panel already fetched off relays, so the warning works on a fresh
+  // install rather than only after Sidecar has signed that kind once. The background
+  // keeps the record because the standalone prompt window can't reach relays itself.
+  // Fire-and-forget: this is opportunistic seeding, never on a critical path.
+  function seedBaseline(pubkey, ev) {
+    if (!pubkey || !ev) return;
+    call({ type: 'SIDECAR_SEED_BASELINE', pubkey, event: ev }).catch(() => {});
+  }
+
   // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
   // heavy kind:0 profile batch that getFollowList() does, since the profile just
   // needs a number. Cached per pubkey. A completed query with no follow list means
@@ -3335,6 +3347,10 @@
       if (ev) {
         const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
         count = set.size;
+        // Free ride: we already have this account's real follow list, so seed the
+        // overwrite baseline from it. Without this a fresh install can't warn about a
+        // wipe until after it has signed a kind:3 itself. Fire-and-forget.
+        seedBaseline(pubkey, ev);
       } else {
         count = 0;
       }
@@ -7756,6 +7772,23 @@
       if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
       const warning = approvalKindWarning(ev.kind);
       if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
+      // Destructive replaceable overwrite (see replaceable-baseline.js) — louder than
+      // the kind warning above, because this one is about losing data you already have.
+      if (data.destructive && data.destructive.message) {
+        box.append(
+          h('div', { className: 'destructive-warn' }, [
+            h('div', { className: 'destructive-warn-title' }, [
+              icon('alert'),
+              h('span', { textContent: 'This erases data' }),
+            ]),
+            h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
+            h('p', {
+              className: 'destructive-warn-hint',
+              textContent: 'If you didn\'t mean to do this, reject — the version on your relays stays as it is.',
+            }),
+          ])
+        );
+      }
       if (ev.content) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(peerRow('From', data.params && data.params.pubkey));

@@ -255,6 +255,25 @@
         warn.textContent = warning;
         els.preview.appendChild(warn);
       }
+      // Destructive replaceable overwrite (see replaceable-baseline.js). The background
+      // resolves this from local state, so this window gets it without needing relay
+      // access of its own — the reason the check isn't a relay fetch at prompt time.
+      // Built with DOM calls, not innerHTML: the text is ours, but this is a signer.
+      if (data.destructive && data.destructive.message) {
+        const box = document.createElement('div');
+        box.className = 'destructive-warn';
+        const title = document.createElement('div');
+        title.className = 'destructive-warn-title';
+        title.textContent = 'This erases data';
+        const body = document.createElement('p');
+        body.className = 'destructive-warn-body';
+        body.textContent = data.destructive.message;
+        const hint = document.createElement('p');
+        hint.className = 'destructive-warn-hint';
+        hint.textContent = "If you didn't mean to do this, reject — the version on your relays stays as it is.";
+        box.append(title, body, hint);
+        els.preview.appendChild(box);
+      }
       if (ev.content) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {

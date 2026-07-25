@@ -25,6 +25,7 @@
       "wallet-budgets.js",
       "nwc-client.js",
       "relax-grants.js",
+      "replaceable-baseline.js",
       "jsqr.js",
       "background.js"
     ]

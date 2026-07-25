@@ -1841,6 +1841,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: rgba(var(--warn-rgb), 0.1); border: 1px solid rgba(var(--warn-rgb), 0.3);
   color: var(--warn); font-size: 12px; text-align: left;
 }
+/* Destructive replaceable overwrite (follow list / mute list / profile fields about to
+   be erased). Deliberately louder than .kind-warn — that one says "unusual kind", this
+   one says "you are about to lose data you already have" — so it uses the red used for
+   errors rather than the amber caution tone. */
+.destructive-warn {
+  margin-top: 10px; padding: 10px 12px; border-radius: 9px; text-align: left;
+  background: rgba(240, 86, 107, 0.1); border: 1px solid rgba(240, 86, 107, 0.4);
+}
+.destructive-warn-title {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--red); font-weight: 700; font-size: 12.5px;
+}
+.destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
+.destructive-warn-body {
+  margin: 6px 0 0; color: var(--text); font-size: 12.5px; line-height: 1.45; font-weight: 600;
+}
+.destructive-warn-hint {
+  margin: 5px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.4;
+}
 /* PIN-save reminder: a gently swaying antique key stands in for a boxed warning. */
 .pin-reminder-icon { display: flex; justify-content: center; margin-bottom: 4px; }
 .pin-reminder-key { width: 48px; height: 32px; color: var(--gold); animation: pin-key-sway 2.6s ease-in-out infinite; }
