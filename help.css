@@ -170,11 +170,48 @@ html { scroll-behavior: smooth; }
 .fine-note {
   font-size: 13.5px;
   color: var(--muted);
+  /* Was flush against whatever preceded it — fine after a paragraph's own bottom
+     margin, but it collided with the last item of a list. */
+  margin-top: 18px;
   padding: 14px 18px;
   border-left: 2px solid rgba(167, 139, 250, 0.35);
   background: rgba(167, 139, 250, 0.05);
   border-radius: 0 10px 10px 0;
 }
+
+/* ===== Lists in a guide section =====
+   Until now the only lists in the guide were What's New's, which carry their own
+   class; a plain <ul> fell through to browser defaults with no spacing between items,
+   so several multi-line bullets ran together as a wall of text. Styled on the element
+   so any future list in a section inherits it. Bullets are set in gold and hung
+   outside the text block, which keeps a wrapped item's continuation lines aligned
+   under its first word rather than under the marker.
+   Scoped to :not([class]) so it can't reach the What's New lists below, which sit in
+   a .guide-section too and carry their own styling. */
+.guide-section ul:not([class]) {
+  margin: 14px 0 18px;
+  padding-left: 20px;
+  list-style: none;
+}
+.guide-section ul:not([class]) > li {
+  position: relative;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-2);
+  margin-bottom: 12px;
+}
+.guide-section ul:not([class]) > li:last-child { margin-bottom: 0; }
+.guide-section ul:not([class]) > li::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold-soft);
+}
+.guide-section ul:not([class]) > li strong { color: var(--text); }
 
 /* ===== What's new (release-notes list; mirrors the CHANGELOG.md highlights) ===== */
 
