@@ -480,16 +480,26 @@
       // pointer-events is set INLINE, not just in the :host rule — `all:initial`
       // resets it, and relying on the overlay merely being transparent to stay
       // click-through is too fragile for something covering the whole page.
-      host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483646;';
+      //
+      // z-index alone can't win here: a payment modal (Bitcoin Connect, and Sidecar's
+      // own pay card) sits at the maximum 2147483647, so a bolt below that draws
+      // BEHIND the very modal the payment came from. Instead promote the overlay to
+      // the browser's TOP LAYER via the Popover API, which renders above every
+      // z-index stacking context regardless of value. Supported by both floors this
+      // extension targets (Chrome 114+, Firefox 128+); the max z-index below is the
+      // fallback if showPopover throws.
+      host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;border:0;background:transparent;';
       const root = host.attachShadow({ mode: 'open' });
-      const stroke = Math.random() > 0.5 ? '#cba14e' : '#f4a64b'; // gold / amber
+      const stroke = Math.random() > 0.5 ? '#ffd479' : '#ffb457'; // bright gold / amber
       const style = document.createElement('style');
       style.textContent =
-        ':host{position:fixed;inset:0;z-index:2147483646;pointer-events:none}' +
-        '.layer{position:fixed;inset:0;pointer-events:none;animation:scf .26s ease-out}' +
+        ':host{position:fixed;inset:0;pointer-events:none}' +
+        // A popover is a top-layer box: clear its UA chrome so only the bolt shows.
+        ':host(:popover-open){border:0;padding:0;margin:0;background:transparent;width:100%;height:100%;max-width:none;max-height:none;overflow:visible}' +
+        '.layer{position:fixed;inset:0;pointer-events:none;animation:scf .28s ease-out}' +
         '.b{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0;' +
-        'animation:sci .16s ease-out forwards,sco .6s ease-in .18s forwards}' +
-        '@keyframes scf{0%{background:rgba(255,255,255,.20)}100%{background:transparent}}' +
+        'animation:sci .12s ease-out forwards,sco .62s ease-in .2s forwards}' +
+        '@keyframes scf{0%{background:rgba(255,255,255,.34)}100%{background:transparent}}' +
         '@keyframes sci{from{opacity:0}to{opacity:1}}' +
         '@keyframes sco{from{opacity:1}to{opacity:0}}';
       const layer = document.createElement('div');
@@ -500,16 +510,35 @@
       svg.setAttribute('preserveAspectRatio', 'none');
       svg.setAttribute('width', '100%');
       svg.setAttribute('height', '100%');
-      svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;filter:drop-shadow(0 0 3px rgba(244,166,75,.75))');
+      // Two stacked glows — a tight white-hot core and a wide amber bloom — so the
+      // bolt reads as luminous on a light page too, where a single thin gold stroke
+      // was getting lost.
+      svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;' +
+        'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px rgba(255,180,87,.85))');
+      const width = (2.4 + Math.random() * 2.4).toFixed(1);
+      // An under-stroke in near-white, slightly wider, gives the bolt a hot centre
+      // instead of a flat line — the thing that made it look dim before.
+      const glow = document.createElementNS(NS, 'path');
+      glow.setAttribute('class', 'b');
+      glow.setAttribute('d', d);
+      glow.setAttribute('stroke', '#fff8e7');
+      glow.setAttribute('stroke-width', (Number(width) + 2.2).toFixed(1));
+      glow.setAttribute('stroke-opacity', '0.55');
       const p = document.createElementNS(NS, 'path');
       p.setAttribute('class', 'b');
       p.setAttribute('d', d);
       p.setAttribute('stroke', stroke);
-      p.setAttribute('stroke-width', (1.8 + Math.random() * 2.2).toFixed(1));
-      svg.appendChild(p);
+      p.setAttribute('stroke-width', width);
+      svg.append(glow, p);
       layer.appendChild(svg);
       root.append(style, layer);
       (document.body || document.documentElement).appendChild(host);
+      // Top layer via popover — see the z-index note above. Falls back silently to the
+      // max z-index already set inline if the browser or page state refuses.
+      try {
+        host.setAttribute('popover', 'manual');
+        host.showPopover();
+      } catch (_) { /* z-index fallback */ }
       setTimeout(() => { try { host.remove(); } catch (_) {} }, 950);
     } catch (_) { /* decoration only — never disturb the page */ }
   }
