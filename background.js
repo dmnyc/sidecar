@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js');
+  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -24,6 +24,7 @@ const SIGNER = self.SidecarSigner;
 const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 const RELAX = self.SidecarRelax;
+const BASELINE = self.SidecarBaseline;
 
 const DEFAULT_RELAYS = {
   'wss://nos.lol': { read: true, write: true },
@@ -929,12 +930,26 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     const relaxEligible = isContentSign && !RELAX.isControlKind(signKind);
     const relaxActive = relaxEligible && (await RELAX.has(host, activePubkey));
     if (relaxActive) sharedIdentity = false;
+
+    // Destructive-overwrite check. Kinds 0/3/10000 REPLACE their previous version, so
+    // a client publishing a short or empty list wipes the real one everywhere. Compare
+    // against what Sidecar last signed and, if this looks like a wipe, always confirm —
+    // even on a trusted site and even mid relax window, on the same reasoning that
+    // exempts the account/wallet-control kinds: losing your whole follow list is not
+    // something to auto-approve. Purely local state, so it costs no network time.
+    // Fails open (null) — it can raise a confirm, never suppress one.
+    const destructive = method === 'signEvent' && !isRelayAuth
+      ? await BASELINE.check(activePubkey, signEvent)
+      : null;
+
     // A shared-identity content sign always confirms, regardless of trust tier —
     // unless it's a coalesced app-data sign, under an active relax window, etc.
-    const needApproval =
-      coalesced || appDataAutoAllow || decryptCoalesced || relaxActive
-        ? false
-        : ((status === 'ask' && !isRelayAuth) || sharedIdentity);
+    // A destructive overwrite overrides every skip.
+    const needApproval = destructive
+      ? true
+      : (coalesced || appDataAutoAllow || decryptCoalesced || relaxActive
+          ? false
+          : ((status === 'ask' && !isRelayAuth) || sharedIdentity));
 
     // Every getPublicKey is a login, and a login is the safe moment to pick an
     // identity: whatever pubkey we return is the identity the site adopts from
@@ -987,6 +1002,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         needApproval,
         sharedIdentity,
         relaxEligible,
+        destructive, // null, or { kind, type, from, to, lost, fields, message }
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
       }, originWindowId);
@@ -1030,6 +1046,15 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     } else {
       const privBytes = needsKey ? await KS.getPrivkey(activePubkey) : null;
       result = await SIGNER.perform(method, params, privBytes, activePubkey);
+    }
+
+    // The user approved this replaceable overwrite, so it becomes the new baseline —
+    // otherwise a deliberate list cut would keep re-warning against the old size on
+    // every subsequent edit. Recorded from the SIGNED event so created_at is the one
+    // that actually went out. Best-effort: a bookkeeping failure must not fail a sign
+    // that already succeeded.
+    if (method === 'signEvent' && !isRelayAuth && result && BASELINE.isTracked(result.kind)) {
+      try { await BASELINE.record(activePubkey, result, result.created_at || 0); } catch (_) {}
     }
 
     // Pin this host to the account it just successfully used. Only an explicit
@@ -1790,6 +1815,7 @@ async function handleControl(message, sendResponse) {
         await PERMS.clearAccount(message.pubkey);
         await BUDGETS.clearAccount(message.pubkey);
         await clearSiteAccountsForPubkey(message.pubkey);
+        await BASELINE.forget(message.pubkey); // don't leave overwrite baselines behind
         const acts = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
         await sset({ [ACTIVITY_KEY]: acts.filter((e) => e.pubkey !== message.pubkey) });
         break;
@@ -2152,6 +2178,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // "End now" button revokes one. Extension-page only (not in CONTENT_OK).
   if (message.type === 'SIDECAR_GET_RELAX') {
     RELAX.active().then((result) => sendResponse({ ok: true, result }));
+    return true; // async response
+  }
+  // The panel seeds an overwrite baseline from a version it fetched off relays, so a
+  // fresh install isn't blind until its first sign of that kind. recordIfNewer means a
+  // late-arriving older relay copy can't clobber what Sidecar itself just signed.
+  // Extension-page only (not in CONTENT_OK) — a page must never write these.
+  if (message.type === 'SIDECAR_SEED_BASELINE') {
+    BASELINE.recordIfNewer(message.pubkey, message.event, (message.event && message.event.created_at) || 0)
+      .then((updated) => sendResponse({ ok: true, result: updated }))
+      .catch(() => sendResponse({ ok: true, result: false }));
     return true; // async response
   }
   if (message.type === 'SIDECAR_REVOKE_RELAX') {

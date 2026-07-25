@@ -255,6 +255,61 @@
         warn.textContent = warning;
         els.preview.appendChild(warn);
       }
+      // Destructive replaceable overwrite (see replaceable-baseline.js). The background
+      // resolves this from local state, so this window gets it without needing relay
+      // access of its own — the reason the check isn't a relay fetch at prompt time.
+      // Built with DOM calls, not innerHTML: the text is ours, but this is a signer.
+      if (data.destructive && data.destructive.message) {
+        const box = document.createElement('div');
+        box.className = 'destructive-warn';
+        const title = document.createElement('div');
+        title.className = 'destructive-warn-title';
+        // Glyph as well as colour — the panel's copy has one, and red text alone is
+        // not a signal for a red-green colourblind user.
+        const warnIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        warnIcon.setAttribute('viewBox', '0 0 24 24');
+        warnIcon.setAttribute('fill', 'none');
+        warnIcon.setAttribute('stroke', 'currentColor');
+        warnIcon.setAttribute('stroke-width', '2');
+        warnIcon.setAttribute('stroke-linecap', 'round');
+        warnIcon.setAttribute('aria-hidden', 'true');
+        warnIcon.innerHTML =
+          '<circle cx="12" cy="12" r="10"></circle>' +
+          '<line x1="12" y1="8" x2="12" y2="12"></line>' +
+          '<line x1="12" y1="16" x2="12.01" y2="16"></line>';
+        title.append(warnIcon, document.createTextNode('This action erases data'));
+        const body = document.createElement('p');
+        body.className = 'destructive-warn-body';
+        body.textContent = data.destructive.message;
+        const hint = document.createElement('p');
+        hint.className = 'destructive-warn-hint';
+        hint.textContent = "If you didn't mean to do this, don't allow it — the version on your relays stays as it is.";
+
+        // Reject inside the warning; Allow/Trust disabled until acknowledged. See the
+        // matching note in sidepanel.js — approving normally is muscle memory, and this
+        // is the one prompt where that shouldn't be enough.
+        const actions = document.createElement('div');
+        actions.className = 'destructive-warn-actions';
+        const rejectBtn = document.createElement('button');
+        rejectBtn.className = 'destructive-warn-reject';
+        rejectBtn.textContent = "Don't allow";
+        rejectBtn.addEventListener('click', () => decide('reject'));
+        const ackBtn = document.createElement('button');
+        ackBtn.className = 'destructive-warn-ack';
+        ackBtn.textContent = 'I understand';
+        ackBtn.addEventListener('click', () => {
+          setLocked(false);
+          ackBtn.remove();
+          const note = document.createElement('p');
+          note.className = 'destructive-warn-unlocked';
+          note.textContent = 'Approval unlocked below.';
+          box.appendChild(note);
+        });
+        actions.append(rejectBtn, ackBtn);
+        box.append(title, body, hint, actions);
+        els.preview.appendChild(box);
+        setLocked(true);
+      }
       if (ev.content) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
@@ -331,9 +386,12 @@
     // hatch for the shared-host per-sign confirm, and a middle rung between Allow
     // once and Trust on any ask-tier site. Not for payments, decrypts, relay-auth,
     // or a pure unlock (those have no approval to skip).
+    // Also not on a destructive overwrite — see the matching note in sidepanel.js:
+    // approving the wipe makes the wiped list the new baseline, so a window granted
+    // here would let the next overwrite through unwarned.
     const isContentSign =
       data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt';
-    if (data.needApproval && isContentSign && !isPayment) {
+    if (data.needApproval && isContentSign && !isPayment && !data.destructive) {
       els.relaxRow.classList.remove('hidden');
       els.relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
         chip.addEventListener('click', () =>
@@ -510,6 +568,15 @@
     });
   }
 
+  // Disable Allow once + Trust this site while a destructive overwrite is
+  // unacknowledged. Reject is never gated — the safe way out must stay reachable.
+  function setLocked(locked) {
+    if (els.allow) els.allow.disabled = locked;
+    if (els.trust) els.trust.disabled = locked;
+    const footer = els.allow && els.allow.parentNode;
+    if (footer) footer.classList.toggle('approval-locked', locked);
+  }
+
   async function decide(action, opts) {
     els.error.textContent = '';
     // Unlock first if needed (Allow once / Trust / Relax / Pay only).
@@ -567,7 +634,9 @@
   els.reject.addEventListener('click', () => decide('reject'));
   els.pin &&
     els.pin.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') decide('once');
+      // Respect the destructive lock — Enter bypasses the disabled Allow button
+      // otherwise. Same guard as the panel's PIN field.
+      if (e.key === 'Enter' && !els.allow.disabled) decide('once');
     });
 
   init();

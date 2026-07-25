@@ -214,20 +214,40 @@
   }
 
   // ---- toast notifications ----
+  // An identical message already on screen is REPLACED rather than stacked: tapping a
+  // button twice should restart one confirmation, not pile up two saying the same
+  // thing. Different messages still stack, so a payment result and a lock notice can
+  // coexist. Each toast owns its dismissal timer so replacing one can cancel it —
+  // otherwise the outgoing toast's timer would later remove its replacement.
+  const _toastTimers = new WeakMap();
   function toast(message, type) {
+    const host = document.getElementById('toasts');
+    const cls = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+    // Same text AND same kind — an error and a success reading alike are still two
+    // different outcomes and shouldn't silently collapse into one.
+    for (const prev of host.querySelectorAll('.toast')) {
+      if (prev.dataset.msg === message && prev.className.indexOf(cls) === 0) {
+        const timers = _toastTimers.get(prev);
+        if (timers) { clearTimeout(timers.hide); clearTimeout(timers.remove); }
+        prev.remove();
+      }
+    }
     const t = document.createElement('div');
-    t.className = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+    t.className = cls;
+    t.dataset.msg = message;
     t.appendChild(icon(type === 'error' ? 'alert' : 'check'));
     const span = document.createElement('span');
     span.textContent = message;
     t.appendChild(span);
-    const host = document.getElementById('toasts');
     host.appendChild(t);
     requestAnimationFrame(() => t.classList.add('show'));
-    setTimeout(() => {
+    const hide = setTimeout(() => {
       t.classList.remove('show');
-      setTimeout(() => t.remove(), 250);
+      const rm = setTimeout(() => t.remove(), 250);
+      const cur = _toastTimers.get(t);
+      if (cur) cur.remove = rm;
     }, 3200);
+    _toastTimers.set(t, { hide, remove: null });
     return t;
   }
 
@@ -1030,6 +1050,10 @@
   const PROFILE_TTL = 5 * 60 * 1000;
   const _profileCache = new Map();    // pubkey -> { content, name, picture, expiresAt }
   const _profileInflight = new Map(); // pubkey -> Promise
+  // Follow count per pubkey (see getFollowCount below). Session-lived with no TTL, so
+  // the profile screen's refresh button clears it alongside _profileCache — declared
+  // here rather than beside its function so both caches sit together.
+  const followCountCache = new Map(); // pubkey -> number|null
   function cacheProfile(pubkey, content) {
     const c = content || {};
     const rec = {
@@ -1167,6 +1191,7 @@
         new Promise((res) => setTimeout(() => res(null), 6000)),
       ]);
       if (!ev) return;
+      seedBaseline(pubkey, ev); // free ride — see seedBaseline
       let meta = {};
       try { meta = JSON.parse(ev.content) || {}; } catch (_) { return; }
       const name = meta.display_name || meta.displayName || meta.name || '';
@@ -1404,6 +1429,7 @@
         const evs = await getPool().querySync(relays, { kinds: [10000], authors: [pubkey] });
         const ev = (evs || []).sort((x, y) => y.created_at - x.created_at)[0];
         if (ev) {
+          seedBaseline(pubkey, ev); // free ride — see seedBaseline
           ev.tags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
           if (ev.content) {
             // NIP-04 ciphertext is "<base64>?iv=<base64>"; NIP-44 is a single
@@ -3332,17 +3358,45 @@
     // Following count (fetched from the account's kind:3). Followers are out of
     // scope for now — they require an aggregating index, not a single event.
     const followNum = h('strong', { textContent: '…' });
-    const backupJump = h('button', { className: 'profile-backup-jump', title: 'Backup & restore' });
-    backupJump.innerHTML =
-      '<svg viewBox="0 0 22 22" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-      '<path d="M10.9851 0C7.6057 0 4.58375 1.52106 2.56398 3.91405L0.855461 2.20784V7.70159H6.35666L4.78529 6.13235C6.22953 4.30005 8.46896 3.12232 10.9851 3.12232C15.3417 3.12232 18.8734 6.64928 18.8734 11C18.8734 15.3507 15.3417 18.8776 10.9851 18.8776C6.88814 18.8776 3.52149 15.7583 3.13471 11.7682H0C0.395343 17.4845 5.16066 22 10.9851 22C17.0685 22 22 17.0751 22 11C22 4.92486 17.0685 0 10.9851 0Z"/></svg>';
-    backupJump.addEventListener('click', () => {
-      const el = view.querySelector('.backup-setting');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // This circular-arrow used to only scroll down to the backup section — it reads as
+    // a refresh, so it is one now. Follow List Recovery already sits at the bottom of
+    // this screen under its own clear label, so the jump wasn't earning the icon.
+    //
+    // Profile data is cached for PROFILE_TTL (5 min) and the follow count is cached for
+    // the whole session, so an edit made elsewhere can look stuck. This drops both for
+    // the active account and refetches.
+    const refreshBtn = h('button', { className: 'profile-backup-jump', title: 'Refresh profile and follow count' });
+    // Clockwise, near-closed circle with a short arrow at the top right — the
+    // conventional "reload" glyph. The old mark was counter-clockwise and filled,
+    // which reads more like "undo" than "refresh". Stroked so it inherits the same
+    // weight as the panel's other icons.
+    refreshBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M20 12a8 8 0 1 1-2.34-5.66"></path>' +
+      '<polyline points="20 4.5 20 9 15.5 9"></polyline></svg>';
+    refreshBtn.addEventListener('click', async () => {
+      if (refreshBtn.disabled) return;
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add('spinning');
+      try {
+        _profileCache.delete(active.pubkey);
+        followCountCache.delete(active.pubkey);
+        profileFetchAttempted.delete(active.pubkey); // let fetchAndStoreProfile run again
+        await fetchAndStoreProfile(active.pubkey);
+        renderProfile();
+        toast('Profile refreshed', 'success');
+      } catch (_) {
+        toast("Couldn't reach your relays", 'error');
+      } finally {
+        // renderProfile() may have replaced this button; guard against a detached node.
+        refreshBtn.disabled = false;
+        refreshBtn.classList.remove('spinning');
+      }
     });
     const followStat = h('div', { className: 'profile-stats' }, [
       h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
-      backupJump,
+      refreshBtn,
     ]);
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
@@ -3440,12 +3494,22 @@
   let followListPubkey = null;
   let followListInflight = null; // dedupe concurrent loads (rapid @-keystrokes)
 
+  // Seed the destructive-overwrite baseline (replaceable-baseline.js) from a kind
+  // 0/3/10000 the panel already fetched off relays, so the warning works on a fresh
+  // install rather than only after Sidecar has signed that kind once. The background
+  // keeps the record because the standalone prompt window can't reach relays itself.
+  // Fire-and-forget: this is opportunistic seeding, never on a critical path.
+  function seedBaseline(pubkey, ev) {
+    if (!pubkey || !ev) return;
+    call({ type: 'SIDECAR_SEED_BASELINE', pubkey, event: ev }).catch(() => {});
+  }
+
   // Lightweight follow COUNT (unique p-tags on the account's kind:3) — avoids the
   // heavy kind:0 profile batch that getFollowList() does, since the profile just
-  // needs a number. Cached per pubkey. A completed query with no follow list means
-  // they aren't following anyone yet → 0 (common for a fresh account); only a
-  // thrown error returns null, which the UI renders as "—".
-  const followCountCache = new Map(); // pubkey -> number|null
+  // needs a number. Cached per pubkey (the cache itself is declared up with
+  // _profileCache, since the profile screen's refresh button clears both). A completed
+  // query with no follow list means they aren't following anyone yet → 0 (common for a
+  // fresh account); only a thrown error returns null, which the UI renders as "—".
   async function getFollowCount(pubkey) {
     if (!pubkey) return null;
     if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
@@ -3455,6 +3519,10 @@
       if (ev) {
         const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
         count = set.size;
+        // Free ride: we already have this account's real follow list, so seed the
+        // overwrite baseline from it. Without this a fresh install can't warn about a
+        // wipe until after it has signed a kind:3 itself. Fire-and-forget.
+        seedBaseline(pubkey, ev);
       } else {
         count = 0;
       }
@@ -8237,6 +8305,47 @@
       if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
       const warning = approvalKindWarning(ev.kind);
       if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
+      // Destructive replaceable overwrite (see replaceable-baseline.js) — louder than
+      // the kind warning above, because this one is about losing data you already have.
+      if (data.destructive && data.destructive.message) {
+        // Reject sits INSIDE the warning and Allow/Trust start disabled, unlocked only
+        // by an explicit "I understand". Approving normally means tapping where Allow
+        // always is — muscle memory that's fine for a note and wrong for a wipe. The
+        // safe choice should be the reachable one; the destructive choice should cost
+        // a deliberate second action.
+        const reject = h('button', {
+          className: 'destructive-warn-reject',
+          textContent: "Don't allow",
+        });
+        reject.addEventListener('click', () => decideApproval('reject'));
+        const ack = h('button', {
+          className: 'destructive-warn-ack',
+          textContent: 'I understand',
+        });
+        ack.addEventListener('click', () => {
+          setApprovalLocked(false);
+          ack.remove();
+          // Say what changed rather than just removing the button — otherwise the
+          // buttons below silently become live and it isn't obvious why.
+          box.querySelector('.destructive-warn').append(
+            h('p', { className: 'destructive-warn-unlocked', textContent: 'Approval unlocked below.' })
+          );
+        });
+        box.append(
+          h('div', { className: 'destructive-warn' }, [
+            h('div', { className: 'destructive-warn-title' }, [
+              icon('alert'),
+              h('span', { textContent: 'This action erases data' }),
+            ]),
+            h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
+            h('p', {
+              className: 'destructive-warn-hint',
+              textContent: 'If you didn\'t mean to do this, don\'t allow it — the version on your relays stays as it is.',
+            }),
+            h('div', { className: 'destructive-warn-actions' }, [reject, ack]),
+          ])
+        );
+      }
       if (ev.content) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(peerRow('From', data.params && data.params.pubkey));
@@ -8299,6 +8408,19 @@
       note.append(got);
     }
     acct.parentNode.insertBefore(note, acct);
+  }
+
+  // Disable/enable the approval prompt's Allow once + Trust this site while a
+  // destructive overwrite is unacknowledged. Reject is deliberately left alone — the
+  // safe way out must never be gated. The class on the footer dims the pair so they
+  // read as unavailable rather than merely unresponsive.
+  function setApprovalLocked(locked) {
+    const allow = $('approval-allow');
+    const trust = $('approval-trust');
+    if (allow) allow.disabled = locked;
+    if (trust) trust.disabled = locked;
+    const footer = allow && allow.parentNode;
+    if (footer) footer.classList.toggle('approval-locked', locked);
   }
 
   function renderApprovalAccountCapsule(data) {
@@ -8395,6 +8517,11 @@
     renderApprovalPreview(data);
 
     $('approval-error').textContent = '';
+    // Lock Allow/Trust behind the warning's "I understand" when this event destroys
+    // data. Applied here, after renderApprovalPreview built the warning, so a re-render
+    // (queue advance, unlock) re-locks rather than leaving a previous acknowledgement
+    // standing for a different event.
+    setApprovalLocked(!!(data.destructive && data.destructive.message));
     const allow = $('approval-allow');
     const trust = $('approval-trust');
     const pin = $('approval-pin');
@@ -8455,9 +8582,15 @@
     // shared-host escape hatch, and a middle rung between Allow once and Trust.
     // Hidden for payments, decrypts, relay-auth, pure unlocks, and batched bursts
     // (those already collapse into "Allow all").
+    //
+    // Also hidden on a destructive overwrite. Offering "auto-sign for 30 min" directly
+    // beneath "this erases data" invites the one tap that does real harm: approving the
+    // wipe ALSO makes the wiped list the new baseline, so within that window a second
+    // overwrite has nothing left to lose and won't warn. A client that just tried to
+    // clear your follow list is precisely the one that shouldn't get a free window.
     const relaxRow = $('approval-relax-row');
     const offerRelax =
-      !payment && groupN === 1 && data.needApproval &&
+      !payment && groupN === 1 && data.needApproval && !data.destructive &&
       (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
     if (offerRelax) {
       show(relaxRow);
@@ -8548,7 +8681,10 @@
     if (e.target === $('view-approval')) decideApproval('reject');
   });
   $('approval-pin').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') decideApproval('once');
+    // Respect the destructive lock: Enter here calls decideApproval directly, so
+    // without this check it would approve a wipe that the disabled Allow button is
+    // supposed to be holding back.
+    if (e.key === 'Enter' && !$('approval-allow').disabled) decideApproval('once');
   });
   // Numeric-only, capped budget input (static element, so not built via satsInput).
   $('approval-budget-amount').addEventListener('input', (e) => {

@@ -147,6 +147,48 @@
       background: rgba(255, 179, 138, 0.1); border: 1px solid rgba(255, 179, 138, 0.3);
       color: #ffb38a; font-size: 12px; text-align: left;
     }
+    /* Destructive replaceable overwrite — louder than .kind-warn above, which only
+       says "unusual kind". This means data you already have is about to be erased.
+       Set as an editorial aside (rule + Playfair headline) rather than a nested red
+       box, which read as a stray browser error inside the preview card. Mirrors
+       .destructive-warn in styles.css; this window carries its own styles. */
+    .destructive-warn {
+      margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
+      border-left: 2px solid #f0566b;
+    }
+    .destructive-warn-title {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-display); font-weight: 700; font-size: 15px;
+      color: #f0566b; letter-spacing: 0.01em; margin-bottom: 3px;
+    }
+    .destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .destructive-warn-body { margin: 0; color: var(--text); font-size: 13px; line-height: 1.5; }
+    /* --muted, not --faint: --faint fails WCAG AA contrast in every theme at this
+       size. See the matching note in styles.css. */
+    .destructive-warn-hint {
+      margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5;
+    }
+    /* Reject inside the warning, styled as the affirmative action — the red here means
+       "keep my data". The acknowledgement is deliberately quieter. */
+    .destructive-warn-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 11px; }
+    /* Uppercased in CSS so screen readers still announce "Don't allow". */
+    .destructive-warn-reject {
+      width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+      background: #f0566b; border: 1px solid #f0566b; color: #fff;
+      font-family: inherit; font-size: 13px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .destructive-warn-reject:hover { filter: brightness(1.08); }
+    .destructive-warn-ack {
+      width: 100%; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+      background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
+      font-family: inherit; font-size: 12px;
+    }
+    .destructive-warn-ack:hover { color: var(--text); border-color: var(--muted); }
+    .destructive-warn-unlocked { margin: 9px 0 0; color: var(--muted); font-size: 12px; font-style: italic; }
+    .approval-locked #allow, .approval-locked #trust {
+      opacity: 0.4; cursor: not-allowed; filter: grayscale(0.5);
+    }
     .info-note {
       margin-bottom: 16px; padding: 9px 11px; border-radius: 8px;
       background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.22);

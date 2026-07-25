@@ -245,7 +245,16 @@ input:focus, select:focus, textarea:focus {
   background: none; border: none; padding: 3px; border-radius: 8px; cursor: pointer; color: var(--muted);
 }
 .profile-backup-jump:hover { color: var(--lav); background: var(--hover-medium); }
-.profile-backup-jump svg { width: 15px; height: 15px; display: block; }
+/* 18px, not 15 — the stroked reload glyph carries less visual weight than the old
+   filled mark, so it needs the extra size to read as a control rather than a speck. */
+.profile-backup-jump svg { width: 18px; height: 18px; display: block; }
+/* Spins while the refresh is in flight, so a slow relay looks busy rather than dead. */
+.profile-backup-jump.spinning svg { animation: profile-refresh-spin 0.9s linear infinite; }
+.profile-backup-jump:disabled { cursor: default; }
+@keyframes profile-refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .profile-backup-jump.spinning svg { animation: none; opacity: 0.5; }
+}
 .profile-about {
   font-size: 14px; line-height: 1.55; color: var(--text); margin: 12px 0;
   white-space: pre-wrap; overflow-wrap: anywhere; text-align: left;
@@ -1947,6 +1956,69 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   margin-top: 8px; padding: 8px 10px; border-radius: 8px;
   background: rgba(var(--warn-rgb), 0.1); border: 1px solid rgba(var(--warn-rgb), 0.3);
   color: var(--warn); font-size: 12px; text-align: left;
+}
+/* Destructive replaceable overwrite (follow list / mute list / profile fields about to
+   be erased). Louder than .kind-warn — that one says "unusual kind", this says "you are
+   about to lose data you already have" — but set as an editorial aside rather than a
+   system alert: a red box nested inside the event-preview box read as a stray browser
+   error, not as part of this panel. A rule and a Playfair headline carry the weight
+   instead, which is how the rest of Sidecar emphasises things.
+   The glyph stays so the warning isn't carried by colour alone. */
+.destructive-warn {
+  margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
+  border-left: 2px solid var(--red);
+}
+.destructive-warn-title {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-display); font-weight: 700; font-size: 15px;
+  color: var(--red); letter-spacing: 0.01em; margin-bottom: 3px;
+}
+.destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
+.destructive-warn-body {
+  margin: 0; color: var(--text); font-size: 13px; line-height: 1.5;
+}
+.destructive-warn-body b { font-weight: 700; }
+/* --muted, not --faint. Measured against each theme's card background, --faint gives
+   2.6-3.4:1 — under the 4.5:1 WCAG AA needs for small text, and worst on Art Deco's
+   light card. --muted clears it in all three (4.5-5.9:1). Size nudged up too: this
+   sentence tells you how to undo a mistake, so it shouldn't be the smallest thing on
+   the prompt. */
+.destructive-warn-hint {
+  margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5;
+}
+/* Reject lives in the warning so the safe choice is the nearest one, and is styled as
+   the affirmative action — the red button here MEANS "keep my data", not "danger". */
+.destructive-warn-actions {
+  display: flex; flex-direction: column; gap: 7px; margin-top: 11px;
+}
+/* Uppercased in CSS, not in the string, so screen readers still announce it as
+   "Don't allow" rather than spelling it out. */
+.destructive-warn-reject {
+  width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  background: var(--red); border: 1px solid var(--red); color: #fff;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  transition: filter 0.12s;
+}
+.destructive-warn-reject:hover { filter: brightness(1.08); }
+/* The escape hatch is deliberately quiet: a bordered, low-contrast control rather than
+   a second button competing with Reject. */
+.destructive-warn-ack {
+  width: 100%; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+  background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
+  font-family: inherit; font-size: 12px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.destructive-warn-ack:hover { color: var(--text); border-color: var(--muted); }
+.destructive-warn-unlocked {
+  margin: 9px 0 0; color: var(--muted); font-size: 12px; font-style: italic;
+}
+/* Dim the footer pair while locked so they read as unavailable, not just unresponsive. */
+.approval-locked #approval-allow,
+.approval-locked #approval-trust,
+.approval-locked #allow,
+.approval-locked #trust {
+  opacity: 0.4; cursor: not-allowed; filter: grayscale(0.5);
 }
 /* PIN-save reminder: a gently swaying antique key stands in for a boxed warning. */
 .pin-reminder-icon { display: flex; justify-content: center; margin-bottom: 4px; }
