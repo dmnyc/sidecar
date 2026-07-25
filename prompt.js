@@ -296,7 +296,7 @@
         rejectBtn.addEventListener('click', () => decide('reject'));
         const ackBtn = document.createElement('button');
         ackBtn.className = 'destructive-warn-ack';
-        ackBtn.textContent = 'Approve anyway';
+        ackBtn.textContent = 'I understand';
         ackBtn.addEventListener('click', () => {
           setLocked(false);
           ackBtn.remove();

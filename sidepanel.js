@@ -7839,7 +7839,7 @@
         reject.addEventListener('click', () => decideApproval('reject'));
         const ack = h('button', {
           className: 'destructive-warn-ack',
-          textContent: 'Approve anyway',
+          textContent: 'I understand',
         });
         ack.addEventListener('click', () => {
           setApprovalLocked(false);
