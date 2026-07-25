@@ -54,6 +54,10 @@
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
     pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
+    // Bare price line for the chart toggle on the wallet balance card — no axes (the
+    // right angle read as boxy at 15px) and no arrowhead, which would imply a rising
+    // price on a day the chart may well show falling.
+    chart: '<polyline points="3 16 8 10 12 13 16 7 21 11"></polyline>',
     bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
@@ -285,8 +289,12 @@
   // back into itself and flip the state every frame. The sentinel sits above the
   // card, so the card's resize never moves it — no feedback loop, no flicker.
   let walletCardObserver = null;
+  // Re-measures the collapse delta after something changes the card's expanded height
+  // (opening/closing the price chart). Set by observeWalletCard; null when no card.
+  let remeasureWalletCard = null;
   function observeWalletCard(card, sentinel, spacer) {
     if (walletCardObserver) { walletCardObserver.disconnect(); walletCardObserver = null; }
+    remeasureWalletCard = null;
     const root = document.querySelector('.content');
     if (!root || !('IntersectionObserver' in window)) return;
     // Defer until the card has laid out so we can measure its collapse delta.
@@ -296,12 +304,23 @@
       // scroll height. Without it, collapsing shrinks the document, the scroll
       // clamps at the bottom, the sentinel re-enters view, and it flickers —
       // worst on a short page like a wallet with no transactions.
-      card.classList.remove('compact');
-      const expandedH = card.offsetHeight;
-      card.classList.add('compact');
-      const compactH = card.offsetHeight;
-      card.classList.remove('compact');
-      const delta = Math.max(0, expandedH - compactH);
+      // `delta` is mutable because the expanded height isn't fixed: opening the price
+      // chart makes the card taller, and a stale delta would under-compensate the
+      // spacer (the page would jump on the next collapse). remeasure() recomputes it.
+      let delta = 0;
+      const wasCompact = () => card.classList.contains('compact');
+      const measure = () => {
+        const restore = wasCompact();
+        card.classList.remove('compact');
+        const expandedH = card.offsetHeight;
+        card.classList.add('compact');
+        const compactH = card.offsetHeight;
+        card.classList.toggle('compact', restore);
+        delta = Math.max(0, expandedH - compactH);
+        if (spacer) spacer.style.height = restore ? delta + 'px' : '0px';
+      };
+      measure();
+      remeasureWalletCard = measure;
       walletCardObserver = new IntersectionObserver(
         (entries) => {
           const compact = !entries[0].isIntersecting;
@@ -6164,6 +6183,94 @@
     return priceCache.currency === cur ? priceCache.price : null;
   }
 
+  // ---- 24h price history (the chart on the wallet balance card) ----
+  // Coinbase only runs BTC candle markets for a handful of quote currencies (USD, EUR,
+  // GBP, INR — not JPY, CHF, NGN…). Rather than showing a chart for four currencies and
+  // nothing for the rest, always pull the BTC-USD series and scale it by
+  // spot(target) / lastUsdClose. The shape of the day is what the chart conveys, and it
+  // ends exactly on the spot price the balance is showing — verified to land within a
+  // unit across JPY/CHF/NGN/KRW.
+  let historyCache = { currency: null, points: null, ts: 0 };
+  const HISTORY_TTL = 10 * 60000;
+
+  async function getPriceHistory(currency) {
+    const cur = (currency || 'USD').toUpperCase();
+    if (historyCache.currency === cur && historyCache.points && Date.now() - historyCache.ts < HISTORY_TTL) {
+      return historyCache.points;
+    }
+    try {
+      const end = new Date();
+      const start = new Date(Date.now() - 24 * 3600 * 1000);
+      const url = 'https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=900' +
+        '&start=' + encodeURIComponent(start.toISOString()) +
+        '&end=' + encodeURIComponent(end.toISOString());
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('candles ' + r.status);
+      const raw = await r.json();
+      if (!Array.isArray(raw) || raw.length < 2) throw new Error('no candles');
+      // [time, low, high, open, close, volume], newest-first from the API.
+      const rows = raw.slice().sort((a, b) => a[0] - b[0]);
+      const usd = rows.map((c) => Number(c[4])).filter((v) => isFinite(v) && v > 0);
+      if (usd.length < 2) throw new Error('no closes');
+      let series = usd;
+      if (cur !== 'USD') {
+        const spot = await getBtcPrice(cur);
+        if (spot == null) throw new Error('no spot for ' + cur);
+        const k = spot / usd[usd.length - 1];
+        series = usd.map((v) => v * k);
+      }
+      historyCache = { currency: cur, points: series, ts: Date.now() };
+      return series;
+    } catch (_) {
+      return historyCache.currency === cur ? historyCache.points : null;
+    }
+  }
+
+  // Hand-rolled SVG sparkline — no charting library, consistent with the rest of the
+  // panel. Gradient fill under a gold stroke, plus 24h-ago / now / high / low labels.
+  function buildPriceChart(series, currency) {
+    const W = 300, H = 96, PAD_T = 8, PAD_B = 14;
+    const min = Math.min(...series), max = Math.max(...series);
+    const span = max - min || 1; // flat series would divide by zero
+    const x = (i) => (i / (series.length - 1)) * W;
+    const y = (v) => PAD_T + (1 - (v - min) / span) * (H - PAD_T - PAD_B);
+
+    const line = series.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+    const area = line + ' L' + W + ' ' + H + ' L0 ' + H + ' Z';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('class', 'wallet-chart-svg');
+    // The gradient id is fixed: only one chart is ever on screen at a time.
+    svg.innerHTML =
+      '<defs><linearGradient id="sc-chart-grad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="var(--gold)" stop-opacity="0.34"/>' +
+      '<stop offset="100%" stop-color="var(--gold)" stop-opacity="0"/>' +
+      '</linearGradient></defs>' +
+      '<path d="' + area + '" fill="url(#sc-chart-grad)"/>' +
+      '<path d="' + line + '" fill="none" stroke="var(--gold)" stroke-width="1.6" ' +
+      'stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
+
+    const first = series[0], last = series[series.length - 1];
+    const pct = first ? ((last - first) / first) * 100 : 0;
+    const fmt = (v) => fmtFiatParts(v, currency).sym + fmtFiatParts(v, currency).num;
+
+    const wrap = h('div', { className: 'wallet-chart' });
+    wrap.append(svg);
+    wrap.append(
+      h('div', { className: 'wallet-chart-meta' }, [
+        h('span', { className: 'wallet-chart-range', textContent: '24h' }),
+        h('span', {
+          className: 'wallet-chart-delta ' + (pct >= 0 ? 'up' : 'down'),
+          textContent: (pct >= 0 ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(2) + '%',
+        }),
+        h('span', { className: 'wallet-chart-price', textContent: fmt(last) }),
+      ])
+    );
+    return wrap;
+  }
+
   // Render `sats` in the active denomination. Returns { text, unit, sym } — `sym` is
   // the currency symbol for fiat (empty otherwise), kept out of `text` so callers can
   // set it in a smaller UI font instead of the balance's display face.
@@ -6220,6 +6327,14 @@
     fiatCurrency = code || 'USD';
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { fiatCurrency } });
     priceCache = { currency: null, price: null, ts: 0 };
+    historyCache = { currency: null, points: null, ts: 0 };
+    // Force the open chart (if any) to redraw in the new currency on next open.
+    const slot = document.querySelector('.wallet-chart-slot');
+    if (slot) { delete slot.dataset.currency; slot.innerHTML = ''; }
+    const openCard = document.querySelector('.wallet-card.chart-open');
+    if (openCard) openCard.classList.remove('chart-open');
+    const cb = document.querySelector('.wallet-chart-btn.active');
+    if (cb) cb.classList.remove('active');
     if (denom === 'fiat') await getBtcPrice(fiatCurrency);
     const s = $('fiat-select');
     if (s) s.value = fiatCurrency;
@@ -6612,7 +6727,39 @@
       await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: true } });
       syncPinControls();
     });
-    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit, pin);
+    // Price chart toggle, bottom-left corner (mirroring the pin at bottom-right).
+    // Expands the card to reveal a 24h BTC price chart in the chosen currency.
+    // Wallet screen only — the pinned bar stays compact by design.
+    const chartBtn = h('button', { className: 'wallet-chart-btn', title: 'Bitcoin price, last 24 hours' });
+    chartBtn.appendChild(icon('chart'));
+    const chartSlot = h('div', { className: 'wallet-chart-slot' });
+    // Opening/closing the chart changes the card's expanded height, so the collapse
+    // observer's delta has to be recomputed — after the max-height transition ends,
+    // or we'd measure mid-animation.
+    const remeasureAfterToggle = () => {
+      setTimeout(() => { if (remeasureWalletCard) remeasureWalletCard(); }, 280);
+    };
+    chartBtn.addEventListener('click', async (e) => {
+      e.stopPropagation(); // don't trigger the card's scroll-to-top handler
+      const open = card.classList.toggle('chart-open');
+      chartBtn.classList.toggle('active', open);
+      if (!open) { remeasureAfterToggle(); return; }
+      if (chartSlot.dataset.currency === fiatCurrency) { remeasureAfterToggle(); return; }
+      chartSlot.innerHTML = '';
+      chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Loading…' }));
+      const series = await getPriceHistory(fiatCurrency);
+      chartSlot.innerHTML = '';
+      if (!series) {
+        // Leave the slot open with an explanation rather than silently collapsing.
+        chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Price history unavailable' }));
+        remeasureAfterToggle();
+        return;
+      }
+      chartSlot.dataset.currency = fiatCurrency;
+      chartSlot.append(buildPriceChart(series, fiatCurrency));
+      remeasureAfterToggle();
+    });
+    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit, chartSlot, chartBtn, pin);
     view.append(card);
 
     // Actions

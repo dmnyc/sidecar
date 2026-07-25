@@ -1328,6 +1328,57 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .wallet-pin svg { width: 15px; height: 15px; }
 .wallet-pin:hover { border-color: var(--gold-soft); color: var(--gold); }
 
+/* Price-chart toggle — mirrors .wallet-pin on the opposite corner. */
+.wallet-chart-btn {
+  position: absolute; bottom: 8px; left: 10px; width: 30px; height: 30px; padding: 0;
+  border-radius: 50%; cursor: pointer; background: transparent; border: 1px solid var(--border);
+  color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.wallet-chart-btn svg { width: 15px; height: 15px; }
+.wallet-chart-btn:hover,
+.wallet-chart-btn.active { border-color: var(--gold-soft); color: var(--gold); }
+
+/* The chart lives in a slot that's collapsed to zero height until toggled, so the
+   card grows instead of the chart overlaying anything. max-height (not height) keeps
+   the transition working without hardcoding the content's size. */
+.wallet-chart-slot {
+  max-height: 0; overflow: hidden; opacity: 0;
+  transition: max-height 0.24s ease, opacity 0.18s ease, margin-top 0.24s ease;
+}
+/* Full-bleed: negative side margins cancel the card's 16px padding so the chart runs
+   the full inner width. Deliberately -16px and NOT -17px — the extra pixel would put
+   the fill on top of the card's 1px hairline border instead of stopping at its inner
+   edge. No overflow clipping is needed even though the card has a 16px radius: the
+   gradient fades to transparent well above the bottom, so nothing solid can overhang
+   the rounded corners (worth knowing, since the card is position:sticky and adding
+   overflow there is risky). Bottom margin clears the two corner buttons. */
+.wallet-card.chart-open .wallet-chart-slot {
+  max-height: 150px; opacity: 1; margin: 14px -16px 30px;
+}
+/* Collapsed (scrolled) cards hide the chart — the compact card is a summary. Zero the
+   WHOLE margin, not just margin-top: the open rule sets a 30px bottom margin to clear
+   the corner buttons, and leaving it behind pads out the mini card. */
+.wallet-card.compact .wallet-chart-slot { max-height: 0; opacity: 0; margin: 0; }
+.wallet-card.compact .wallet-chart-btn { display: none; }
+
+.wallet-chart-svg { display: block; width: 100%; height: 96px; }
+.wallet-chart-meta {
+  display: flex; align-items: baseline; gap: 8px; justify-content: center;
+  font-family: var(--font-ui); font-size: 11.5px; color: var(--muted); margin-top: 2px;
+}
+.wallet-chart-range { letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
+.wallet-chart-delta.up { color: var(--success); }
+.wallet-chart-delta.down { color: var(--red); }
+.wallet-chart-price { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.wallet-chart-loading {
+  font-family: var(--font-ui); font-size: 12px; color: var(--faint);
+  padding: 28px 0; text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallet-chart-slot { transition: none; }
+}
+
 .wallet-card {
   position: sticky; top: 0; z-index: 5;
   text-align: center; padding: 22px 16px; border-radius: 16px; margin-bottom: 14px;
