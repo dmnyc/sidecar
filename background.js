@@ -1213,8 +1213,16 @@ async function handleWeblnRpc(method, params, host, sendResponse, originWindowId
       throw new Error('Sidecar does not support webln.' + method);
     }
 
-    await setSiteAccount(host, pubkey);
+    // Answer the page FIRST, then do bookkeeping. setSiteAccount is a storage read
+    // plus a write, and it used to sit between a completed payment and the reply —
+    // so if MV3 recycled the worker in that gap the sats had already moved, the
+    // Activity log already had it, and the page's webln.sendPayment promise was left
+    // hanging forever. That's issue #138: a stuck Bitcoin Connect modal on a payment
+    // that demonstrably succeeded (valid preimage, balance decremented).
     sendResponse({ ok: true, result });
+    // Fire-and-forget: the binding is useful but must never be able to cost the page
+    // its answer. A failure here is invisible and self-heals on the next request.
+    setSiteAccount(host, pubkey).catch(() => {});
   } catch (e) {
     sendResponse({ ok: false, error: e.message });
   }
@@ -1367,13 +1375,25 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
   const res = await c.payInvoice(invoice);
   const preimage = res && (res.preimage || res.payment_preimage);
 
-  // Decrement the budget by the paid amount (known amount only).
-  if (sats != null) await BUDGETS.consume(pubkey, host, sats);
-  // Count an auto-zap (one authorized solely by the zap allowance) against the
-  // rolling daily total, so the aggregate cap is enforced across the window.
-  if (zapOk && !budgetOk && sats != null) await recordAutoZap(sats);
-
-  await setSiteAccount(host, pubkey);
+  // ---- the money has moved; from here nothing may delay the caller ----
+  // Everything below is bookkeeping. It used to be awaited one item at a time
+  // BEFORE returning, which meant several storage round-trips sat between a
+  // settled payment and the page hearing about it. If MV3 recycled the worker in
+  // that window the sats were gone, the balance was right, the Activity log had the
+  // entry — and the page's promise never resolved. See issue #138: a Bitcoin
+  // Connect modal stuck on "waiting" for a payment with a valid preimage.
+  //
+  // These still run, and still run in order where order matters (budget accounting
+  // must not be dropped or the spend under-counts). They just no longer stand
+  // between the payment and the reply.
+  (async () => {
+    // Decrement the budget by the paid amount (known amount only).
+    if (sats != null) await BUDGETS.consume(pubkey, host, sats);
+    // Count an auto-zap (one authorized solely by the zap allowance) against the
+    // rolling daily total, so the aggregate cap is enforced across the window.
+    if (zapOk && !budgetOk && sats != null) await recordAutoZap(sats);
+    await setSiteAccount(host, pubkey);
+  })().catch(() => {});
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
   // Tell an open side panel to refresh its balance/history.
   chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
