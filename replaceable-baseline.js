@@ -153,7 +153,7 @@
         if (!lost.length) return null;
         return {
           kind: s.kind, type: 'profile-fields', lost,
-          message: 'This will clear your ' + humanFields(lost) + '.',
+          message: 'Clears your ' + humanFields(lost) + '.',
         };
       }
 
@@ -168,16 +168,16 @@
         return {
           kind: s.kind, type: 'emptied', from, to, lost,
           message: s.kind === KIND_FOLLOWS
-            ? 'This will remove all ' + from + ' accounts you follow.'
-            : 'This will clear your mute list of ' + from + ' ' + plural(from, 'account') + '.',
+            ? 'Removes all ' + from + ' accounts you follow.'
+            : 'Clears your mute list of ' + from + ' ' + plural(from, 'account') + '.',
         };
       }
       if (lost >= SHRINK_FLOOR && to <= from * SHRINK_RATIO) {
         return {
           kind: s.kind, type: 'shrink', from, to, lost,
           message: s.kind === KIND_FOLLOWS
-            ? 'This will drop your follows from ' + from + ' to ' + to + '.'
-            : 'This will drop your mute list from ' + from + ' to ' + to + '.',
+            ? 'Drops your follows from ' + from + ' to ' + to + '.'
+            : 'Drops your mute list from ' + from + ' to ' + to + '.',
         };
       }
       return null;

@@ -184,7 +184,7 @@ test('losing a profile field is flagged in plain language', async () => {
   const w = await B.check(pk, profileEvent({ picture: 'u', nip05: 'a@b' }));
   assert.equal(w.type, 'profile-fields');
   assert.deepEqual(w.lost, ['about']);
-  assert.match(w.message, /clear your bio/);
+  assert.match(w.message, /Clears your bio/);
 });
 
 test('losing several fields reads as a list', async () => {

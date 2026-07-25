@@ -7831,7 +7831,7 @@
           h('div', { className: 'destructive-warn' }, [
             h('div', { className: 'destructive-warn-title' }, [
               icon('alert'),
-              h('span', { textContent: 'This erases data' }),
+              h('span', { textContent: 'This action erases data' }),
             ]),
             h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
             h('p', {

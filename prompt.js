@@ -264,7 +264,20 @@
         box.className = 'destructive-warn';
         const title = document.createElement('div');
         title.className = 'destructive-warn-title';
-        title.textContent = 'This erases data';
+        // Glyph as well as colour — the panel's copy has one, and red text alone is
+        // not a signal for a red-green colourblind user.
+        const warnIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        warnIcon.setAttribute('viewBox', '0 0 24 24');
+        warnIcon.setAttribute('fill', 'none');
+        warnIcon.setAttribute('stroke', 'currentColor');
+        warnIcon.setAttribute('stroke-width', '2');
+        warnIcon.setAttribute('stroke-linecap', 'round');
+        warnIcon.setAttribute('aria-hidden', 'true');
+        warnIcon.innerHTML =
+          '<circle cx="12" cy="12" r="10"></circle>' +
+          '<line x1="12" y1="8" x2="12" y2="12"></line>' +
+          '<line x1="12" y1="16" x2="12.01" y2="16"></line>';
+        title.append(warnIcon, document.createTextNode('This action erases data'));
         const body = document.createElement('p');
         body.className = 'destructive-warn-body';
         body.textContent = data.destructive.message;

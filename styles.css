@@ -1851,23 +1851,28 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--warn); font-size: 12px; text-align: left;
 }
 /* Destructive replaceable overwrite (follow list / mute list / profile fields about to
-   be erased). Deliberately louder than .kind-warn — that one says "unusual kind", this
-   one says "you are about to lose data you already have" — so it uses the red used for
-   errors rather than the amber caution tone. */
+   be erased). Louder than .kind-warn — that one says "unusual kind", this says "you are
+   about to lose data you already have" — but set as an editorial aside rather than a
+   system alert: a red box nested inside the event-preview box read as a stray browser
+   error, not as part of this panel. A rule and a Playfair headline carry the weight
+   instead, which is how the rest of Sidecar emphasises things.
+   The glyph stays so the warning isn't carried by colour alone. */
 .destructive-warn {
-  margin-top: 10px; padding: 10px 12px; border-radius: 9px; text-align: left;
-  background: rgba(240, 86, 107, 0.1); border: 1px solid rgba(240, 86, 107, 0.4);
+  margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
+  border-left: 2px solid var(--red);
 }
 .destructive-warn-title {
   display: flex; align-items: center; gap: 6px;
-  color: var(--red); font-weight: 700; font-size: 12.5px;
+  font-family: var(--font-display); font-weight: 700; font-size: 15px;
+  color: var(--red); letter-spacing: 0.01em; margin-bottom: 3px;
 }
 .destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
 .destructive-warn-body {
-  margin: 6px 0 0; color: var(--text); font-size: 12.5px; line-height: 1.45; font-weight: 600;
+  margin: 0; color: var(--text); font-size: 13px; line-height: 1.5;
 }
+.destructive-warn-body b { font-weight: 700; }
 .destructive-warn-hint {
-  margin: 5px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.4;
+  margin: 5px 0 0; color: var(--faint); font-size: 11.5px; line-height: 1.45;
 }
 /* PIN-save reminder: a gently swaying antique key stands in for a boxed warning. */
 .pin-reminder-icon { display: flex; justify-content: center; margin-bottom: 4px; }

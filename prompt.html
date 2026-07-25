@@ -148,19 +148,23 @@
       color: #ffb38a; font-size: 12px; text-align: left;
     }
     /* Destructive replaceable overwrite — louder than .kind-warn above, which only
-       says "unusual kind". This one means data you already have is about to be erased,
-       so it borrows the error red. Mirrors .destructive-warn in styles.css; this window
-       carries its own styles rather than loading that file. */
+       says "unusual kind". This means data you already have is about to be erased.
+       Set as an editorial aside (rule + Playfair headline) rather than a nested red
+       box, which read as a stray browser error inside the preview card. Mirrors
+       .destructive-warn in styles.css; this window carries its own styles. */
     .destructive-warn {
-      margin-top: 10px; padding: 10px 12px; border-radius: 9px; text-align: left;
-      background: rgba(240, 86, 107, 0.1); border: 1px solid rgba(240, 86, 107, 0.4);
+      margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
+      border-left: 2px solid #f0566b;
     }
-    .destructive-warn-title { color: #f0566b; font-weight: 700; font-size: 12.5px; }
-    .destructive-warn-body {
-      margin: 6px 0 0; color: var(--text); font-size: 12.5px; line-height: 1.45; font-weight: 600;
+    .destructive-warn-title {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-display); font-weight: 700; font-size: 15px;
+      color: #f0566b; letter-spacing: 0.01em; margin-bottom: 3px;
     }
+    .destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .destructive-warn-body { margin: 0; color: var(--text); font-size: 13px; line-height: 1.5; }
     .destructive-warn-hint {
-      margin: 5px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.4;
+      margin: 5px 0 0; color: var(--faint); font-size: 11.5px; line-height: 1.45;
     }
     .info-note {
       margin-bottom: 16px; padding: 9px 11px; border-radius: 8px;
