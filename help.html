@@ -30,6 +30,7 @@
         <a href="#switching">Switching</a>
         <a href="#clients">Clients compared</a>
         <a href="#relax">Relax mode</a>
+        <a href="#erasing">Erasing data</a>
         <a href="#wallet">Wallet</a>
         <a href="#whats-new">What's new</a>
       </div>
@@ -279,6 +280,49 @@
       countdown is always on screen. If you're on a shared host and unsure which account
       the client has selected, approve one at a time instead — the per-signature confirm
       is the thing that catches a wrong-account post.</p>
+    </section>
+
+    <!-- ===== Destructive-overwrite guard ===== -->
+    <section class="guide-section" id="erasing">
+      <h2>When an app tries to erase your data</h2>
+      <p>Your follow list, mute list, and profile are <em>replaceable</em> events: each
+      new version wholly replaces the last one, everywhere. There's no merge and no undo.
+      So a client that publishes a short or empty list — through a bug, a bad sync, or a
+      half-loaded page — doesn't just fail to add something. It wipes what was there.</p>
+
+      <p>This is the most common way people lose data on Nostr, and it happens quietly:
+      the app looks like it worked, and you find out days later when your feed has gone
+      empty. Sidecar already helps you recover a lost follow list. This is the half that
+      tries to stop it happening.</p>
+
+      <p><strong>Before signing one of these, Sidecar compares it to what you had.</strong>
+      If the new version drops most of it, the prompt says so in plain numbers — not
+      "this event modifies kind 3", but <em>removes all 40 accounts you follow</em>.</p>
+
+      <!-- screenshot: the destructive-overwrite warning on an approval prompt -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/destructive-warning.png" width="716" height="876" alt="A Sidecar approval prompt headed 'Some Buggy Client wants to sign an event with your key', for a kind 3 follow list with 0 tags. A red-ruled warning reads 'This action erases data — Removes all 40 accounts you follow', followed by a prominent DON'T ALLOW button and a quieter 'I understand' button">
+        </div>
+        <figcaption>The prompt names what would be lost, and won't let you approve it by reflex.</figcaption>
+      </figure>
+
+      <p><strong>Approving takes a deliberate second step.</strong> <em>Allow once</em> and
+      <em>Trust this site</em> start greyed out, and <em>Don't allow</em> sits right in the
+      warning where your thumb already is. If the change really was intentional — you did
+      just prune your follows — press <em>I understand</em> and the usual buttons come
+      back. The point isn't to stop you; it's that erasing a list shouldn't be something
+      you can do by tapping where you always tap.</p>
+
+      <p>This holds everywhere: on a site you've marked trusted, and in the middle of a
+      relax-mode window. Both of those are shortcuts for the routine signing they were
+      meant for, and this isn't routine.</p>
+
+      <p class="fine-note">One honest limit: Sidecar can only compare against a version
+      it knows about — what it last signed for you, or what it saw on your relays when the
+      panel loaded your profile. On a brand-new install, before it has either, there's
+      nothing to compare and no warning will appear. So treat this as a safety net rather
+      than a guarantee: the absence of a warning doesn't prove an event is harmless.</p>
     </section>
 
     <!-- ===== Wallet ===== -->
