@@ -8,7 +8,7 @@ web apps you use, so you can sign in and sign events across Nostr clients withou
 pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
 Connect) and a composer for posting notes directly from the panel.
 
-**[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar/)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
+**[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
 
 <img width="3456" height="1944" alt="Sidecar" src="https://i.nostr.build/u9KBCFMuJk23EOrD.jpg" />
 
@@ -101,7 +101,7 @@ Sidecar has **no build step** — it's plain JavaScript loaded directly. To run 
 
 Sidecar runs on Firefox **128 and later** — the same signer, wallet, and approval flow as Chrome, in the sidebar instead of the side panel.
 
-1. **Install from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar/).**
+1. **Install from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/).**
 2. **Open the sidebar** — View → Sidebar → Sidecar (or click the Sidecar toolbar button). On first run you'll set a PIN, then add an account.
 3. **Use it on a Nostr site** — same as above.
 
