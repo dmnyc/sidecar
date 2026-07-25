@@ -6177,6 +6177,7 @@
       if (!client || state.locked) return; // state may have changed during await
       const b = await client.getBalance();
       if (state.locked) return; // re-check after network call
+      const prevSats = balanceCache ? balanceCache.sats : null;
       const newSats = msatToSat(b && b.balance);
       const changed = !balanceCache || balanceCache.sats !== newSats;
       balanceCache = { pubkey: state.activePubkey, sats: newSats, ts: Date.now() };
@@ -6187,6 +6188,16 @@
         // Update wallet card balance in place (avoid full re-render)
         const cardBal = document.querySelector('.wallet-balance');
         if (cardBal) { cardBal.classList.remove('loading'); cardBal.textContent = fmtSats(newSats); }
+        // Glow pulse when balance increases
+        if (prevSats != null && newSats > prevSats) {
+          [pinAmt, cardBal].forEach((el) => {
+            if (!el) return;
+            el.classList.remove('balance-bump');
+            void el.offsetWidth; // force reflow to restart animation
+            el.classList.add('balance-bump');
+            setTimeout(() => el.classList.remove('balance-bump'), 5000);
+          });
+        }
       }
     } catch (_) {}
   }
