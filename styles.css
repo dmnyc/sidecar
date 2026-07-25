@@ -1279,6 +1279,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   -webkit-text-security: disc;
   text-security: disc;
 }
+/* The currency symbol is smaller than the digits, so masking it too yields a runt
+   disc ahead of the full-size ones. Drop it while balances are hidden — there's no
+   amount to denominate, and the unit line below still names the currency. */
+.balances-hidden .wallet-fiat-sym,
+.balances-hidden .pinned-fiat-sym { display: none; }
 
 /* Pinned wallet balance bar — above the nav on every tab when enabled. Left:
    Send/Receive (open the wallet's own modals); center: balance; right: hide
@@ -1377,6 +1382,26 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   transform: translateY(-0.08em);
 }
 .wallet-balance.loading { animation: balance-pulse 1.1s ease-in-out infinite; }
+/* Both balance displays cycle sats → BTC → fiat on tap. Subtle affordance only —
+   a full button treatment would fight the card's typography. */
+.wallet-balance, .pinned-balance-amt { cursor: pointer; user-select: none; }
+.wallet-balance:hover, .pinned-balance-amt:hover { filter: brightness(1.12); }
+/* Currency symbols set in Playfair at the balance's size swamp the digits — worst
+   for the currencies Intl renders as a three-letter code ("CHF", "NGN"). Set them in
+   the UI face at ~0.6-0.7em, nudged up toward the numerals' cap height, and slightly
+   dimmed so the amount stays the thing you read first. Sizes were picked by rendering
+   both surfaces against $ and CHF: smaller/higher reads as a footnote, larger starts
+   competing with the number again. */
+.wallet-fiat-sym, .pinned-fiat-sym {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  opacity: 0.72;
+  margin-right: 0.14em;
+  vertical-align: baseline;
+  display: inline-block;
+}
+.wallet-fiat-sym { font-size: 0.62em; transform: translateY(-0.20em); }
+.pinned-fiat-sym { font-size: 0.7em; transform: translateY(-0.08em); }
 @keyframes balance-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 /* Glow pulse when balance increases (incoming payment). text-shadow avoids
    conflict with wallet-balance's existing translateY transform. */
