@@ -283,7 +283,7 @@
         body.textContent = data.destructive.message;
         const hint = document.createElement('p');
         hint.className = 'destructive-warn-hint';
-        hint.textContent = "If you didn't mean to do this, reject — the version on your relays stays as it is.";
+        hint.textContent = "If you didn't mean to do this, don't allow it — the version on your relays stays as it is.";
 
         // Reject inside the warning; Allow/Trust disabled until acknowledged. See the
         // matching note in sidepanel.js — approving normally is muscle memory, and this
@@ -292,11 +292,26 @@
         actions.className = 'destructive-warn-actions';
         const rejectBtn = document.createElement('button');
         rejectBtn.className = 'destructive-warn-reject';
-        rejectBtn.textContent = 'Reject — keep my data';
+        const stopIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        stopIcon.setAttribute('viewBox', '0 0 24 24');
+        stopIcon.setAttribute('fill', 'none');
+        stopIcon.setAttribute('stroke', 'currentColor');
+        stopIcon.setAttribute('stroke-width', '2');
+        stopIcon.setAttribute('stroke-linecap', 'round');
+        stopIcon.setAttribute('stroke-linejoin', 'round');
+        stopIcon.setAttribute('aria-hidden', 'true');
+        stopIcon.innerHTML =
+          '<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"></path>' +
+          '<path d="M12 11V4.5a1.5 1.5 0 0 1 3 0V11"></path>' +
+          '<path d="M15 11V6.5a1.5 1.5 0 0 1 3 0V13a7 7 0 0 1-7 7h-1a6 6 0 0 1-5.2-3l-2.2-3.8a1.5 1.5 0 0 1 2.6-1.5L6 14"></path>' +
+          '<path d="M9 11V9.5a1.5 1.5 0 0 0-3 0V14"></path>';
+        const rejectLabel = document.createElement('span');
+        rejectLabel.textContent = "Don't allow";
+        rejectBtn.append(stopIcon, rejectLabel);
         rejectBtn.addEventListener('click', () => decide('reject'));
         const ackBtn = document.createElement('button');
         ackBtn.className = 'destructive-warn-ack';
-        ackBtn.textContent = 'I understand, let me approve it';
+        ackBtn.textContent = 'Approve anyway';
         ackBtn.addEventListener('click', () => {
           setLocked(false);
           ackBtn.remove();

@@ -170,15 +170,17 @@
     }
     /* Reject inside the warning, styled as the affirmative action — the red here means
        "keep my data". The acknowledgement is deliberately quieter. */
-    .destructive-warn-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 11px; }
+    .destructive-warn-actions { display: flex; gap: 8px; margin-top: 11px; }
     .destructive-warn-reject {
-      width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+      flex: 1.3; padding: 9px 12px; border-radius: 8px; cursor: pointer;
       background: #f0566b; border: 1px solid #f0566b; color: #fff;
       font-family: inherit; font-size: 13px; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     }
+    .destructive-warn-reject svg { width: 14px; height: 14px; flex-shrink: 0; }
     .destructive-warn-reject:hover { filter: brightness(1.08); }
     .destructive-warn-ack {
-      width: 100%; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+      flex: 1; padding: 7px 12px; border-radius: 8px; cursor: pointer;
       background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
       font-family: inherit; font-size: 12px;
     }

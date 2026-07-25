@@ -55,6 +55,9 @@
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
     pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
     bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
+    // Raised palm — the "Don't allow" button on a destructive-overwrite warning. Reads
+    // as stop, where an X or a slashed circle would read as error or blocked.
+    'stop-hand': '<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"></path><path d="M12 11V4.5a1.5 1.5 0 0 1 3 0V11"></path><path d="M15 11V6.5a1.5 1.5 0 0 1 3 0V13a7 7 0 0 1-7 7h-1a6 6 0 0 1-5.2-3l-2.2-3.8a1.5 1.5 0 0 1 2.6-1.5L6 14"></path><path d="M9 11V9.5a1.5 1.5 0 0 0-3 0V14"></path>',
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
     bug: '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
@@ -7832,14 +7835,12 @@
         // always is — muscle memory that's fine for a note and wrong for a wipe. The
         // safe choice should be the reachable one; the destructive choice should cost
         // a deliberate second action.
-        const reject = h('button', {
-          className: 'destructive-warn-reject',
-          textContent: 'Reject — keep my data',
-        });
+        const reject = h('button', { className: 'destructive-warn-reject' });
+        reject.append(icon('stop-hand'), h('span', { textContent: "Don't allow" }));
         reject.addEventListener('click', () => decideApproval('reject'));
         const ack = h('button', {
           className: 'destructive-warn-ack',
-          textContent: 'I understand, let me approve it',
+          textContent: 'Approve anyway',
         });
         ack.addEventListener('click', () => {
           setApprovalLocked(false);
@@ -7859,7 +7860,7 @@
             h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
             h('p', {
               className: 'destructive-warn-hint',
-              textContent: 'If you didn\'t mean to do this, reject — the version on your relays stays as it is.',
+              textContent: 'If you didn\'t mean to do this, don\'t allow it — the version on your relays stays as it is.',
             }),
             h('div', { className: 'destructive-warn-actions' }, [reject, ack]),
           ])
