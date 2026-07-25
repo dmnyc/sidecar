@@ -29,6 +29,8 @@
         <a href="#pairing">How sites pair</a>
         <a href="#switching">Switching</a>
         <a href="#clients">Clients compared</a>
+        <a href="#relax">Relax mode</a>
+        <a href="#erasing">Erasing data</a>
         <a href="#wallet">Wallet</a>
         <a href="#whats-new">What's new</a>
       </div>
@@ -218,6 +220,109 @@
       that account and it has approved the site, Sidecar signs with it automatically. In
       those clients, switching inside the app works seamlessly once each account has
       been added.</p>
+    </section>
+
+    <!-- ===== Relax mode (timed auto-sign) ===== -->
+    <section class="guide-section" id="relax">
+      <h2>When every action asks: relax mode</h2>
+      <p>On a site where two of your accounts have signed in, Sidecar confirms
+      <em>every</em> post, reaction, and DM — for the reason in the last section: only
+      you can see which account the client is actually showing. That's the right
+      default, but during a busy session it means a lot of tapping.</p>
+
+      <p><strong>Relax mode is the escape hatch.</strong> On any confirm you'll see
+      <em>Auto-sign for the next</em> with three choices — 5, 15, or 30 minutes. Pick one
+      and Sidecar signs that site's requests for that account without asking again until
+      the time runs out.</p>
+
+      <!-- screenshot: the relax chips on an approval prompt -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/relax-chips.png" width="718" height="832" alt="An approval prompt: 'Signing as' above a card for the account Amelia with her avatar and npub, then an 'Auto-sign for the next' row with 5 min, 15 min, and 30 min buttons, followed by Allow once, Trust this site, and Reject">
+        </div>
+        <figcaption>Choosing a window instead of approving one event at a time.</figcaption>
+      </figure>
+
+      <p>While a window is open, a status bar sits at the bottom of the panel with the
+      account, the site, a live countdown, and a depleting bar. The dot is green, turning
+      amber under the last minute. The toolbar icon also carries a badge with the minutes
+      remaining, so you can tell at a glance from any tab. Tap the <strong>&times;</strong>
+      on the bar to end it immediately.</p>
+
+      <!-- screenshot: the relax status bar counting down -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/relax-status-bar.png" width="720" height="300" alt="The bottom of the Sidecar panel below the wordmark and compose button: a status bar with a green dot, the account name Amelia, the site jumble.social, a partly depleted progress bar, a 13:37 countdown, and a round close button to end auto-signing">
+        </div>
+        <figcaption>One window at a time, always visible, always cancelable.</figcaption>
+      </figure>
+
+      <p><strong>What it deliberately doesn't cover.</strong> Relax mode skips the
+      repetitive confirms, not the ones that matter:</p>
+      <ul>
+        <li><strong>Handing over your account or wallet always asks.</strong> Pairing a
+        remote signer and wallet-control requests still confirm individually, every time,
+        even mid-window — those are the requests worth reading closely.</li>
+        <li><strong>So does anything that erases your data.</strong> If a site asks to
+        replace your follow list, mute list, or profile with a version that drops most of
+        it, Sidecar breaks the window to show you what would be lost — and doesn't offer
+        to auto-sign that one.</li>
+        <li><strong>One window at a time.</strong> Relaxing on a new site ends the
+        previous window, so there's never more than one site signing freely.</li>
+        <li><strong>It ends on anything that changes who you are:</strong> locking
+        Sidecar, switching your active account, or logging into that site as a different
+        account — plus the timer itself.</li>
+      </ul>
+
+      <p class="fine-note">Worth being honest about the trade: within its window, relax
+      mode signs without showing you each event. That's the point of it, and it's why the
+      windows are minutes rather than hours, why only one runs at a time, and why the
+      countdown is always on screen. If you're on a shared host and unsure which account
+      the client has selected, approve one at a time instead — the per-signature confirm
+      is the thing that catches a wrong-account post.</p>
+    </section>
+
+    <!-- ===== Destructive-overwrite guard ===== -->
+    <section class="guide-section" id="erasing">
+      <h2>When an app tries to erase your data</h2>
+      <p>Your follow list, mute list, and profile are <em>replaceable</em> events: each
+      new version wholly replaces the last one, everywhere. There's no merge and no undo.
+      So a client that publishes a short or empty list — through a bug, a bad sync, or a
+      half-loaded page — doesn't just fail to add something. It wipes what was there.</p>
+
+      <p>This is the most common way people lose data on Nostr, and it happens quietly:
+      the app looks like it worked, and you find out days later when your feed has gone
+      empty. Sidecar already helps you recover a lost follow list. This is the half that
+      tries to stop it happening.</p>
+
+      <p><strong>Before signing one of these, Sidecar compares it to what you had.</strong>
+      If the new version drops most of it, the prompt says so in plain numbers — not
+      "this event modifies kind 3", but <em>removes all 40 accounts you follow</em>.</p>
+
+      <!-- screenshot: the destructive-overwrite warning on an approval prompt -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/destructive-warning.png" width="716" height="876" alt="A Sidecar approval prompt headed 'Some Buggy Client wants to sign an event with your key', for a kind 3 follow list with 0 tags. A red-ruled warning reads 'This action erases data — Removes all 40 accounts you follow', followed by a prominent DON'T ALLOW button and a quieter 'I understand' button">
+        </div>
+        <figcaption>The prompt names what would be lost, and won't let you approve it by reflex.</figcaption>
+      </figure>
+
+      <p><strong>Approving takes a deliberate second step.</strong> <em>Allow once</em> and
+      <em>Trust this site</em> start greyed out, and <em>Don't allow</em> sits right in the
+      warning where your thumb already is. If the change really was intentional — you did
+      just prune your follows — press <em>I understand</em> and the usual buttons come
+      back. The point isn't to stop you; it's that erasing a list shouldn't be something
+      you can do by tapping where you always tap.</p>
+
+      <p>This holds everywhere: on a site you've marked trusted, and in the middle of a
+      relax-mode window. Both of those are shortcuts for the routine signing they were
+      meant for, and this isn't routine.</p>
+
+      <p class="fine-note">One honest limit: Sidecar can only compare against a version
+      it knows about — what it last signed for you, or what it saw on your relays when the
+      panel loaded your profile. On a brand-new install, before it has either, there's
+      nothing to compare and no warning will appear. So treat this as a safety net rather
+      than a guarantee: the absence of a warning doesn't prove an event is harmless.</p>
     </section>
 
     <!-- ===== Wallet ===== -->
