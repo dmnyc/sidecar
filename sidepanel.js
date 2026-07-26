@@ -10,6 +10,11 @@
   // a stored value is missing or invalid.
   const AUTOZAP_DEFAULT_MAX = 100;
   const AUTOZAP_DAILY_MULT = 5; // default daily cap = 5× the per-zap cap
+  // Ceilings on the no-confirmation path — mirrored from background.js, which is
+  // where they are actually enforced. Reflected here only so a clamped entry snaps
+  // back visibly instead of appearing to have been accepted as typed.
+  const AUTOZAP_ABS_MAX = 1000;
+  const AUTOZAP_ABS_DAILY_MAX = 10000;
 
   // ---- messaging ----
   function bg(message) {
@@ -580,7 +585,6 @@
     // when an approval is already showing.
     if (typeof syncApprovalOverlay === 'function') syncApprovalOverlay();
   }
-
 
   // ---- onboarding ----
   const validateOnboardingPin = attachPinValidation($('ob-pin'), $('ob-pin2'), $('ob-submit'));
@@ -6258,7 +6262,6 @@
   const DENOM_ORDER = ['sats', 'btc', 'fiat'];
   let denom = 'sats';
 
-
   // Bitcoin's smallest unit is one sat, so 8 decimals is exact, not a rounding choice.
   const fmtBtc = (sats) => (Math.round(sats) / 1e8).toFixed(8);
 
@@ -7358,7 +7361,13 @@
     call({ type: 'SIDECAR_GET_BUDGETS' })
       .then((budgets) => {
         const hosts = Object.keys(budgets || {}).sort();
-        if (!hosts.length) { list.classList.add('empty'); listState(list, 'No sites have a spending budget.'); return; }
+        // Budgets can only be created from a payment prompt, so an empty list has to
+        // say how — otherwise the feature is invisible to anyone who ever unticked it.
+        if (!hosts.length) {
+          list.classList.add('empty');
+          listState(list, 'No sites have a spending budget. Tick “remember a budget” when you approve a payment.');
+          return;
+        }
         list.classList.remove('empty');
         list.innerHTML = '';
         hosts.forEach((host) => list.append(budgetRow(host, budgets[host])));
@@ -7958,25 +7967,25 @@
     const on = e.target.checked;
     $('autozap-max-row').classList.toggle('hidden', !on);
     $('autozap-daily-row').classList.toggle('hidden', !on);
-    const max = Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX);
+    const max = Math.min(AUTOZAP_ABS_MAX, Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX));
     $('autozap-max').value = String(max);
-    const daily = Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT);
+    const daily = Math.min(AUTOZAP_ABS_DAILY_MAX, Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT));
     $('autozap-daily-max').value = String(daily);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
   });
 
   $('autozap-max').addEventListener('change', async (e) => {
-    const max = Math.max(1, parseInt(e.target.value, 10) || AUTOZAP_DEFAULT_MAX);
+    const max = Math.min(AUTOZAP_ABS_MAX, Math.max(1, parseInt(e.target.value, 10) || AUTOZAP_DEFAULT_MAX));
     e.target.value = String(max);
     // Keep the daily total at or above the per-zap cap.
-    const daily = Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT);
+    const daily = Math.min(AUTOZAP_ABS_DAILY_MAX, Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT));
     $('autozap-daily-max').value = String(daily);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
   });
 
   $('autozap-daily-max').addEventListener('change', async (e) => {
-    const perZap = Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX);
-    const daily = Math.max(perZap, parseInt(e.target.value, 10) || perZap * AUTOZAP_DAILY_MULT);
+    const perZap = Math.min(AUTOZAP_ABS_MAX, Math.max(1, parseInt($('autozap-max').value, 10) || AUTOZAP_DEFAULT_MAX));
+    const daily = Math.min(AUTOZAP_ABS_DAILY_MAX, Math.max(perZap, parseInt(e.target.value, 10) || perZap * AUTOZAP_DAILY_MULT));
     e.target.value = String(daily);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapDailyMaxSats: daily } });
   });
