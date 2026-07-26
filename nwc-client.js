@@ -24,6 +24,7 @@
   }
 
   const REQUEST_TIMEOUT = 30000;
+  const LOOKUP_TIMEOUT = 10000;
 
   function makeClient(connectionString) {
     const conn = NT.nip47.parseConnectionString(connectionString); // { pubkey, relay, secret }
@@ -34,7 +35,15 @@
     const encrypt = (text) => NT.nip04.encrypt(sk, walletPubkey, text);
     const decrypt = (cipher) => NT.nip04.decrypt(sk, walletPubkey, cipher);
 
-    function request(method, params) {
+    // Rejection contract, which matters for pay_invoice: a rejected request does
+    // NOT mean the wallet did nothing. Once the kind:23194 request is published the
+    // wallet may act on it, and our ability to hear the kind:23195 answer is a
+    // separate, fallible thing — 23195 is ephemeral, so relays don't replay it if
+    // the connection blips. Only `err.walletDenied` (the wallet explicitly answered
+    // with an error) means no money moved. Every other rejection — timeout, dropped
+    // relay, undecryptable response — is INDETERMINATE, and a caller that spends
+    // money must verify with lookup_invoice before reporting failure.
+    function request(method, params, timeoutMs) {
       return new Promise((resolve, reject) => {
         (async () => {
           const content = await encrypt(JSON.stringify({ method, params: params || {} }));
@@ -56,8 +65,14 @@
                 try { sub.close(); } catch (_) {}
                 try {
                   const res = JSON.parse(await decrypt(ev.content));
-                  if (res.error) reject(new Error(res.error.message || res.error.code || 'Wallet error'));
-                  else resolve(res.result);
+                  if (res.error) {
+                    // The wallet answered, and the answer was no. This is the ONLY
+                    // failure we can be certain left the money where it was — see
+                    // the rejection contract above.
+                    const err = new Error(res.error.message || res.error.code || 'Wallet error');
+                    err.walletDenied = true;
+                    reject(err);
+                  } else resolve(res.result);
                 } catch (e) {
                   reject(new Error('Could not read wallet response'));
                 }
@@ -69,7 +84,7 @@
             settled = true;
             try { sub.close(); } catch (_) {}
             reject(new Error('Wallet did not respond (timed out)'));
-          }, REQUEST_TIMEOUT);
+          }, timeoutMs || REQUEST_TIMEOUT);
           try {
             await Promise.any(pool().publish([relay], reqEvent));
           } catch (_) {
@@ -119,7 +134,10 @@
       makeInvoice: (amountMsat, description) =>
         request('make_invoice', { amount: amountMsat, description: description || '' }),
       listTransactions: (params) => request('list_transactions', params || { limit: 20, unpaid: false }),
-      lookupInvoice: (params) => request('lookup_invoice', params),
+      // Short timeout: a lookup is a status poll, and one that hangs for the full 30s
+      // would stall the watcher that's meant to be checking on a payment in flight.
+      // Failing fast just means the next poll asks again.
+      lookupInvoice: (params, timeoutMs) => request('lookup_invoice', params, timeoutMs || LOOKUP_TIMEOUT),
       subscribeNotifications,
       close: () => { try { pool().close([relay]); } catch (_) {} },
     };
