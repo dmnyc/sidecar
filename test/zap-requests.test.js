@@ -166,6 +166,36 @@ test('malformed events are refused without throwing', async () => {
   assert.deepEqual(await Z.pending(), []);
 });
 
+// ---- peek: decides whether the page-invoice card can be skipped ----
+
+test('peek matches without consuming, so the payment can still claim', async () => {
+  await Z.record(SITE, ALICE, zapRequest(21000));
+  assert.equal(await Z.peek(SITE, ALICE, 21), true);
+  assert.equal(await Z.peek(SITE, ALICE, 21), true, 'repeatable — peeking is not spending');
+  assert.equal((await Z.pending()).length, 1);
+  assert.equal(await Z.claim(SITE, ALICE, 21), true, 'the record survived to be claimed');
+});
+
+test('peek is scoped exactly like claim', async () => {
+  await Z.record(SITE, ALICE, zapRequest(21000));
+  assert.equal(await Z.peek(OTHER, ALICE, 21), false, 'wrong site');
+  assert.equal(await Z.peek(SITE, BOB, 21), false, 'wrong account');
+  assert.equal(await Z.peek(SITE, ALICE, 22), false, 'wrong amount');
+  assert.equal(await Z.peek(SITE, ALICE, null), false, 'amountless');
+  assert.equal(await Z.peek(SITE, ALICE, 21), true);
+});
+
+test('peek finds nothing when no zap was authorized', async () => {
+  assert.equal(await Z.peek(SITE, ALICE, 21), false);
+});
+
+test('peek refuses an expired record', async () => {
+  await Z.record(SITE, ALICE, zapRequest(21000));
+  const stale = (await Z.pending()).map((z) => ({ ...z, ts: z.ts - Z.TTL_MS - 1000 }));
+  await new Promise((r) => chrome.storage.session.set({ [Z.STORAGE_KEY]: stale }, r));
+  assert.equal(await Z.peek(SITE, ALICE, 21), false);
+});
+
 // ---- expiry and lock ----
 
 test('an expired record is refused', async () => {

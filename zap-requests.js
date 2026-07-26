@@ -100,6 +100,19 @@
     return true;
   }
 
+  // Is there a request this payment would match? Same test as claim(), but it does
+  // NOT consume: callers that only need to decide whether to offer/skip a UI must
+  // leave the record intact for the payment itself to claim.
+  async function peek(host, pubkey, sats) {
+    if (!host || !pubkey) return false;
+    if (sats == null || !Number.isFinite(sats)) return false;
+    const t = now();
+    const msat = Math.round(sats * 1000);
+    return (await read()).some(
+      (z) => z && z.host === host && z.pubkey === pubkey && z.msat === msat && t - z.ts <= TTL_MS
+    );
+  }
+
   // Drop everything — used on lock, so a locked keystore leaves no spendable approvals.
   async function clear() {
     await write([]);
@@ -109,7 +122,7 @@
     return fresh(await read(), now());
   }
 
-  const api = { STORAGE_KEY, TTL_MS, record, claim, clear, pending };
+  const api = { STORAGE_KEY, TTL_MS, record, claim, peek, clear, pending };
   if (typeof self !== 'undefined') self.SidecarZapRequests = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarZapRequests = api;
 })();

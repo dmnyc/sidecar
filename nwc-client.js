@@ -24,6 +24,7 @@
   }
 
   const REQUEST_TIMEOUT = 30000;
+  const LOOKUP_TIMEOUT = 10000;
 
   function makeClient(connectionString) {
     const conn = NT.nip47.parseConnectionString(connectionString); // { pubkey, relay, secret }
@@ -42,7 +43,7 @@
     // with an error) means no money moved. Every other rejection — timeout, dropped
     // relay, undecryptable response — is INDETERMINATE, and a caller that spends
     // money must verify with lookup_invoice before reporting failure.
-    function request(method, params) {
+    function request(method, params, timeoutMs) {
       return new Promise((resolve, reject) => {
         (async () => {
           const content = await encrypt(JSON.stringify({ method, params: params || {} }));
@@ -83,7 +84,7 @@
             settled = true;
             try { sub.close(); } catch (_) {}
             reject(new Error('Wallet did not respond (timed out)'));
-          }, REQUEST_TIMEOUT);
+          }, timeoutMs || REQUEST_TIMEOUT);
           try {
             await Promise.any(pool().publish([relay], reqEvent));
           } catch (_) {
@@ -133,7 +134,10 @@
       makeInvoice: (amountMsat, description) =>
         request('make_invoice', { amount: amountMsat, description: description || '' }),
       listTransactions: (params) => request('list_transactions', params || { limit: 20, unpaid: false }),
-      lookupInvoice: (params) => request('lookup_invoice', params),
+      // Short timeout: a lookup is a status poll, and one that hangs for the full 30s
+      // would stall the watcher that's meant to be checking on a payment in flight.
+      // Failing fast just means the next poll asks again.
+      lookupInvoice: (params, timeoutMs) => request('lookup_invoice', params, timeoutMs || LOOKUP_TIMEOUT),
       subscribeNotifications,
       close: () => { try { pool().close([relay]); } catch (_) {} },
     };

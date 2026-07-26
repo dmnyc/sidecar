@@ -581,7 +581,6 @@
     if (typeof syncApprovalOverlay === 'function') syncApprovalOverlay();
   }
 
-
   // ---- onboarding ----
   const validateOnboardingPin = attachPinValidation($('ob-pin'), $('ob-pin2'), $('ob-submit'));
   $('onboarding-form').addEventListener('submit', async (e) => {
@@ -6257,7 +6256,6 @@
   // stale exchange rate can never misrepresent what's being paid.
   const DENOM_ORDER = ['sats', 'btc', 'fiat'];
   let denom = 'sats';
-
 
   // Bitcoin's smallest unit is one sat, so 8 decimals is exact, not a rounding choice.
   const fmtBtc = (sats) => (Math.round(sats) / 1e8).toFixed(8);
