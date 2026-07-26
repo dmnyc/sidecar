@@ -581,7 +581,6 @@
     if (typeof syncApprovalOverlay === 'function') syncApprovalOverlay();
   }
 
-
   // ---- onboarding ----
   const validateOnboardingPin = attachPinValidation($('ob-pin'), $('ob-pin2'), $('ob-submit'));
   $('onboarding-form').addEventListener('submit', async (e) => {
@@ -6258,7 +6257,6 @@
   const DENOM_ORDER = ['sats', 'btc', 'fiat'];
   let denom = 'sats';
 
-
   // Bitcoin's smallest unit is one sat, so 8 decimals is exact, not a rounding choice.
   const fmtBtc = (sats) => (Math.round(sats) / 1e8).toFixed(8);
 
@@ -7358,7 +7356,13 @@
     call({ type: 'SIDECAR_GET_BUDGETS' })
       .then((budgets) => {
         const hosts = Object.keys(budgets || {}).sort();
-        if (!hosts.length) { list.classList.add('empty'); listState(list, 'No sites have a spending budget.'); return; }
+        // Budgets can only be created from a payment prompt, so an empty list has to
+        // say how — otherwise the feature is invisible to anyone who ever unticked it.
+        if (!hosts.length) {
+          list.classList.add('empty');
+          listState(list, 'No sites have a spending budget. Tick “remember a budget” when you approve a payment.');
+          return;
+        }
         list.classList.remove('empty');
         list.innerHTML = '';
         hosts.forEach((host) => list.append(budgetRow(host, budgets[host])));

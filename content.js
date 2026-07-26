@@ -318,6 +318,14 @@
     '.pay:active{transform:translateY(1px);}' +
     '.pay.pending{cursor:default;opacity:.94;}' +
     '.pay.done{cursor:default;background:none;box-shadow:none;{CARD_SUCCESS};}' +
+    // Auto-zap: nothing here is pressable, so it must not read as a button. Strip the
+    // fill, the shadow and the bold weight and let it sit as a status line — the same
+    // treatment .done already uses. The spinner is drawn in the button-text color, so
+    // on a flat card it has to switch to currentColor or it disappears.
+    '.auto .pay{background:none;box-shadow:none;cursor:default;font-weight:600;padding:12px 14px 4px;color:{CARD_TEXT};}' +
+    '.auto .pay:hover{filter:none;}' +
+    '.auto .pay.pending{opacity:1;}' +
+    '.auto .pay.pending .pay-spin{border:2px solid currentColor;border-top-color:transparent;opacity:.55;}' +
     '.pay-bolt{height:16px;width:auto;display:block;}' +
     '.pay.pending .pay-bolt,.pay.done .pay-bolt{display:none;}' +
     '.pay-check{display:none;width:18px;height:18px;}' +
@@ -554,14 +562,17 @@
     }
   }
 
-  function renderCard(invoice) {
+  // `auto` renders the same card for a zap going out under the auto-zap limits: no
+  // decision to make, but the spend is still shown, and a failure has somewhere to
+  // land. It drops straight into the sending state and reuses setPaid/setError.
+  function renderCard(invoice, auto) {
     removeCard();
     shownInvoice = invoice;
     const sats = invoiceSats(invoice);
     const memo = invoiceMemo(invoice);
     const site = location.host.replace(/^www\./, '');
 
-    const eyebrow = sats != null ? "You're paying" : 'Pay with Sidecar';
+    const eyebrow = auto ? 'Auto-zapping' : sats != null ? "You're paying" : 'Pay with Sidecar';
     const amountBlock =
       sats != null
         ? '<div class="amt"><span class="num">' + sats.toLocaleString('en-US') + '</span><span class="unit">sats</span></div>'
@@ -582,7 +593,8 @@
     s.innerHTML =
       '<style>' + cardCss + '</style>' +
       '<div class="ov">' +
-      '<div class="card" role="dialog" aria-label="Pay with Sidecar">' +
+      '<div class="card' + (auto ? ' auto' : '') + '" role="dialog" aria-label="' +
+      (auto ? 'Auto-zap in progress' : 'Pay with Sidecar') + '">' +
       '<div class="brand">' + logoSvg + '</div>' +
       '<div class="eyebrow">' + eyebrow + '</div>' +
       amountBlock +
@@ -614,16 +626,18 @@
     // back or re-tap. The background reports the outcome via 'paid' / 'payfailed'.
     const label = s.querySelector('.pay-label');
     const status = s.querySelector('.pay-status');
-    function setSending() {
+    function setSending(isAuto) {
       sending = true;
       card.classList.add('busy'); // dims + disables Not now / the toggle
       payBtn.classList.remove('done');
       payBtn.classList.add('pending');
       payBtn.disabled = true;
-      label.textContent = 'Sending payment…';
+      label.textContent = isAuto ? 'Zapping…' : 'Sending payment…';
       status.hidden = false;
       status.className = 'pay-status';
-      status.textContent = 'Confirming with your wallet. This can take a few seconds.';
+      status.textContent = isAuto
+        ? 'Inside your auto-zap limits, so Sidecar is paying this without asking.'
+        : 'Confirming with your wallet. This can take a few seconds.';
     }
     function setPaid() {
       payBtn.classList.remove('pending');
@@ -676,13 +690,54 @@
 
     (document.documentElement || document.body).appendChild(cardHost);
     requestAnimationFrame(() => ov.classList.add('in'));
+    // Auto-zap: the payment is already on its way, so open in the sending state. A
+    // failure re-enables Try again / Not now via setError, which is the right
+    // affordance once there's a decision to make again.
+    if (auto) setSending(true);
   }
+
+  // Auto-pay bookkeeping. The MutationObserver re-scans constantly, so a decision
+  // in flight must not spawn a second attempt, and a decline must be remembered or
+  // the card would never get to appear.
+  let autopayPending = '';
+  let autopayDeclined = '';
 
   function scanForInvoice() {
     if (!showCard || !connectedToSite) return removeCard();
     const invoice = findPageInvoice();
     if (!invoice || invoice === dismissedInvoice) return removeCard();
     if (invoice === shownInvoice && cardHost) return; // already showing this one
+    if (invoice === autopayPending) return; // asking the worker; show nothing yet
+    if (invoice !== autopayDeclined) {
+      // Ask first whether this is just the invoice for a zap already authorized on
+      // this page. If it is, the worker pays it and no card is ever needed.
+      autopayPending = invoice;
+      chrome.runtime
+        .sendMessage({ type: 'SIDECAR_TRY_ZAP_AUTOPAY', invoice, host })
+        .then((res) => {
+          autopayPending = '';
+          const r = (res && res.ok && res.result) || null;
+          if (r && r.handled) {
+            // Either way the auto card has already been shown and carries the result.
+            // Mark the invoice spent so the next DOM mutation can't re-probe it — the
+            // approval is single-use, so that second probe would be declined and would
+            // replace the card (and, on failure, throw the error message away).
+            autopayDeclined = invoice;
+            if (r.paid) dismissedInvoice = invoice;
+            return;
+          }
+          autopayDeclined = invoice;
+          scanForInvoice();
+        })
+        .catch(() => {
+          // Worker asleep or updating — fall back to asking the user, never to
+          // paying silently.
+          autopayPending = '';
+          autopayDeclined = invoice;
+          scanForInvoice();
+        });
+      return;
+    }
     renderCard(invoice);
   }
 
@@ -699,6 +754,10 @@
     if (msg.event === 'settings') {
       showCard = msg.showPayButton !== false;
       scanForInvoice();
+    } else if (msg.event === 'autopaying') {
+      // An auto-zap is going out for this invoice — show it, with no action to take.
+      // The 'paid' / 'payfailed' events below then land on this same card.
+      if (msg.invoice) renderCard(msg.invoice, true);
     } else if (msg.event === 'paid') {
       dismissedInvoice = msg.invoice; // don't resurface even if the link lingers
       // Throw the bolt across the page whether or not our own card was up — a zap

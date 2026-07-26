@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js');
+  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -25,6 +25,7 @@ const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 const RELAX = self.SidecarRelax;
 const BASELINE = self.SidecarBaseline;
+const ZAPREQ = self.SidecarZapRequests;
 
 const DEFAULT_RELAYS = {
   'wss://nos.lol': { read: true, write: true },
@@ -969,9 +970,15 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // A shared-identity content sign always confirms, regardless of trust tier —
     // unless it's a coalesced app-data sign, under an active relax window, etc.
     // A destructive overwrite overrides every skip.
+    // A zap request within the auto-zap caps signs without asking, so "auto-approve
+    // zaps" covers the whole zap rather than just its second half. See autoZapMaySign.
+    const zapAutoSign = method === 'signEvent' && signKind === 9734
+      ? await autoZapMaySign(signEvent)
+      : false;
+
     const needApproval = destructive
       ? true
-      : (coalesced || appDataAutoAllow || decryptCoalesced || relaxActive
+      : (coalesced || appDataAutoAllow || decryptCoalesced || relaxActive || zapAutoSign
           ? false
           : ((status === 'ask' && !isRelayAuth) || sharedIdentity));
 
@@ -1079,6 +1086,12 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // that already succeeded.
     if (method === 'signEvent' && !isRelayAuth && result && BASELINE.isTracked(result.kind)) {
       try { await BASELINE.record(activePubkey, result, result.created_at || 0); } catch (_) {}
+    }
+
+    // A zap request the user just authorized. Remember it so the payment that follows
+    // can be recognized as that zap (see zap-requests.js). Best-effort, same as above.
+    if (method === 'signEvent' && !isRelayAuth && result && result.kind === 9734) {
+      try { await ZAPREQ.record(host, activePubkey, result); } catch (_) {}
     }
 
     // Pin this host to the account it just successfully used. Only an explicit
@@ -1301,20 +1314,6 @@ function bolt11PaymentHash(invoice) {
   if (!b || b.length !== 32) return '';
   return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 }
-function bolt11Description(invoice) {
-  const b = bolt11Field(invoice, 13); // 'd'
-  return b ? new TextDecoder().decode(b) : '';
-}
-function isZapInvoice(invoice) {
-  const desc = bolt11Description(invoice);
-  if (!desc || desc[0] !== '{') return false;
-  try {
-    const ev = JSON.parse(desc);
-    return !!ev && ev.kind === 9734;
-  } catch (_) {
-    return false;
-  }
-}
 
 // ---- payment serialization + auto-zap aggregate cap ----
 // Payments run one-at-a-time per account: without this, a burst of concurrent
@@ -1342,6 +1341,95 @@ async function autoZapWindow() {
 async function recordAutoZap(sats) {
   const { spent, resetAt } = await autoZapWindow();
   await sset({ [AUTOZAP_WINDOW_KEY]: { spent: spent + Math.max(0, Math.floor(sats || 0)), resetAt } });
+}
+
+// Auto-zap covers BOTH gates of a zap: signing the kind:9734 request, and paying the
+// invoice the lnurl server returns for it. Raising the cap only ever silenced the
+// second one, which is why a small zap could still stop to ask — the signing prompt is
+// governed by the site's permission tier and the shared-host override, not by any
+// wallet setting.
+//
+// A zap request carries its own `amount` tag, so the very same per-zap and daily caps
+// can be applied at signing time. This check is advisory: the payment path re-checks
+// and is the thing that actually records the spend, so the caps are still enforced
+// there even if several requests get signed before any of them is paid.
+//
+// Like relax mode, this overrides the shared-host confirm — and unlike relax mode it
+// is bounded by an amount, not just a clock. Fails closed on anything unexpected.
+async function autoZapMaySign(ev) {
+  try {
+    if (!ev || ev.kind !== 9734) return false;
+    if (KS.isLocked()) return false;
+    const settings = (await sget('sidecar_settings')).sidecar_settings || {};
+    if (settings.autoZap !== true) return false;
+    const zapMax = Number(settings.autoZapMaxSats) || 0;
+    if (zapMax <= 0) return false;
+    const tag = Array.isArray(ev.tags) ? ev.tags.find((t) => Array.isArray(t) && t[0] === 'amount') : null;
+    const msat = tag ? Number(tag[1]) : 0;
+    // NIP-57 makes `amount` optional, and a request that declares no amount can't be
+    // held to a cap. Ask for those.
+    if (!Number.isFinite(msat) || msat <= 0) return false;
+    const sats = Math.round(msat / 1000);
+    if (sats > zapMax) return false;
+    const dailySet = Number(settings.autoZapDailyMaxSats);
+    const dailyMax = dailySet > 0 ? dailySet : zapMax * AUTOZAP_DAILY_MULTIPLE;
+    if (dailyMax <= 0) return false;
+    const { spent } = await autoZapWindow();
+    return spent + sats <= dailyMax;
+  } catch (_) {
+    return false;
+  }
+}
+
+// The page-invoice card asks this before it appears: is this invoice simply the one
+// for a zap the user already authorized here? Jumble and other Bitcoin Connect clients
+// render a QR rather than calling window.webln, so the card — not the approval prompt —
+// is what stands between picking an amount and paying.
+//
+// Answers true only when an unconsumed zap request signed on THIS host and account,
+// for THIS exact amount, is waiting, and the auto-zap caps allow it. Then there is
+// nothing left to confirm. Every other case returns false and the card appears.
+//
+// Peeks rather than claims: payInvoiceCore does the real, single-use claim, and
+// consuming the record here would make it prompt instead.
+//
+// `host` MUST come from the sender's URL, never from the message body — see the call
+// site in the router.
+async function tryZapAutopay(invoiceRaw, host, originWindowId, tabId) {
+  const no = (why) => {
+    dlog('info', 'zap', 'auto-pay declined', { why, host });
+    return { handled: false, paid: false };
+  };
+  const inv = String(invoiceRaw || '');
+  if (!host || !inv) return no('no host or invoice');
+  if (KS.isLocked()) return no('keystore locked');
+  const settings = (await sget('sidecar_settings')).sidecar_settings || {};
+  if (settings.autoZap !== true) return no('auto-approve zaps is off');
+  const cap = Number(settings.autoZapMaxSats) || 0;
+  if (cap <= 0) return no('per-zap cap is 0');
+  const amt = invoiceSats(inv);
+  if (amt == null) return no('invoice has no amount');
+  if (amt > cap) return no(amt + ' sats exceeds the ' + cap + ' cap');
+  const who = await resolveSiteAccount(host);
+  if (!who) return no('no account resolved for ' + host);
+  if ((await PERMS.getLevel(who, host)) === 'blocked') return no('site is blocked');
+  if (!(await ZAPREQ.peek(host, who, amt))) {
+    return no('no zap request signed here matches ' + amt + ' sats (' + amt * 1000 + ' msat)');
+  }
+  // Show the card in its auto form first. Money moving with nothing on screen is the
+  // wrong trade even when the user opted out of being asked — and it means a failure
+  // has somewhere to be reported instead of vanishing.
+  notifyTabAutopaying(tabId, inv);
+  try {
+    await payInvoiceCore(inv, host, who, undefined, originWindowId);
+    notifyTabPaid(tabId, inv);
+    return { handled: true, paid: true };
+  } catch (e) {
+    // Still handled: the auto card is up and is where this error belongs. Replacing it
+    // with a fresh manual card would throw the reason away.
+    notifyTabPayFailed(tabId, inv, e && e.message);
+    return { handled: true, paid: false };
+  }
 }
 
 // Ask the wallet whether an invoice actually settled. Called ONLY to resolve a
@@ -1473,7 +1561,11 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
     ? (dailyMaxSet > 0 ? dailyMaxSet : zapMax * AUTOZAP_DAILY_MULTIPLE)
     : 0;
   let zapOk = false;
-  if (unlocked && zapMax > 0 && sats <= zapMax && isZapInvoice(invoice)) {
+  // Claim only if the payment actually needs it: the site's budget already covering
+  // this one makes autoOk true either way, and a zap approval is single-use, so
+  // spending one here would be for nothing. The amount is likewise checked first so
+  // an over-cap payment doesn't burn a record it can't use.
+  if (!budgetOk && unlocked && zapMax > 0 && sats <= zapMax && (await ZAPREQ.claim(host, pubkey, sats))) {
     const { spent } = await autoZapWindow();
     zapOk = zapDailyMax > 0 && spent + sats <= zapDailyMax;
   }
@@ -1602,6 +1694,15 @@ async function notifyTabsPaidByHost(host) {
       }
     });
   } catch (_) {}
+}
+
+// Tell a tab an auto-zap is going out, so the page-invoice card can show what's
+// happening instead of money moving with nothing on screen. Sent BEFORE the payment,
+// so the card is already up when the result lands on it.
+function notifyTabAutopaying(tabId, invoice) {
+  if (tabId != null && chrome.tabs) {
+    chrome.tabs.sendMessage(tabId, { type: 'SIDECAR_EVENT', event: 'autopaying', invoice }, () => void chrome.runtime.lastError);
+  }
 }
 
 function notifyTabPaid(tabId, invoice) {
@@ -1748,6 +1849,9 @@ async function lockKeystore(auto = false) {
   // signs makes no sense, and idle auto-lock is exactly the "walked away" case
   // where a lingering auto-sign shouldn't survive.
   RELAX.revokeAll().then(syncRelaxBadge);
+  // Same reasoning for pending zap requests: they authorize a payment to go out with
+  // no prompt, so a locked keystore must not leave any of them spendable.
+  ZAPREQ.clear().catch(() => {});
   // Tell any open panel/popup to drop to the unlock screen immediately — otherwise
   // it keeps showing whatever was open (e.g. the composer) and only discovers the
   // lock on its next action, which then fails with a "locked" error. `auto` marks an
@@ -2268,8 +2372,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (typeof sender.url === 'string' && sender.url.startsWith(EXT_URL_PREFIX)) ||
     (typeof sender.origin === 'string' && sender.origin + '/' === EXT_URL_PREFIX)
   );
+  // SIDECAR_TRY_ZAP_AUTOPAY belongs here for the same reason SIDECAR_PAY_PAGE_INVOICE
+  // does — the page-invoice card lives in the content script — and it is strictly
+  // more restrictive than that one: it pays only when auto-zap is on, the amount is
+  // inside both caps, and an unconsumed zap request signed on THIS host and account
+  // for THIS exact amount is waiting. A content script can't forge that record; only
+  // a signature the user authorized through Sidecar creates one.
   const CONTENT_OK = new Set([
     'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',
+    'SIDECAR_TRY_ZAP_AUTOPAY',
     'SIDECAR_IS_CONNECTED', 'SIDECAR_GET_SETTINGS', 'SIDECAR_SET_SETTINGS',
   ]);
   if (!fromExtPage && !CONTENT_OK.has(message.type)) {
@@ -2319,6 +2430,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // whether to nudge the user to open/pin Sidecar from the toolbar.
   if (message.type === 'SIDECAR_PANEL_OPEN') {
     waitForPanelPort(300).then((port) => sendResponse({ ok: true, open: !!port }));
+    return true; // async response
+  }
+
+  // Card auto-pay probe. Host comes from the sender's own URL, like the handlers
+  // around it — a content script must not be able to name a different site and spend
+  // against its zap approvals.
+  if (message.type === 'SIDECAR_TRY_ZAP_AUTOPAY') {
+    let h = '';
+    try { h = new URL((sender && sender.url) || '').host; } catch (_) {}
+    tryZapAutopay(message.invoice, h, originWindowId, sender && sender.tab && sender.tab.id)
+      .then((r) => sendResponse({ ok: true, result: r }))
+      .catch((e) => sendResponse({ ok: false, error: e.message }));
     return true; // async response
   }
 

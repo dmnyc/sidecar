@@ -26,6 +26,7 @@
       "nwc-client.js",
       "relax-grants.js",
       "replaceable-baseline.js",
+      "zap-requests.js",
       "jsqr.js",
       "background.js"
     ]
