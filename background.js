@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js');
+  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -25,6 +25,7 @@ const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 const RELAX = self.SidecarRelax;
 const BASELINE = self.SidecarBaseline;
+const ZAPREQ = self.SidecarZapRequests;
 
 const DEFAULT_RELAYS = {
   'wss://nos.lol': { read: true, write: true },
@@ -355,6 +356,29 @@ function pendingView() {
 
 // ---- keepalive (best-effort; correctness rests on the queue + reconcile) ----
 let keepaliveOn = false;
+// Payments in flight. An approved payment outlives the queue entry that authorized
+// it: settleEntry() splices the entry and resolves the prompt, and only THEN does
+// the NWC round trip begin. Without this counter, liveEntries() is already empty at
+// that moment, so approving a payment cleared the keepalive alarm at exactly the
+// instant the money was about to move — leaving the worker eligible for recycling
+// during a wait that can run to the full 30s NWC timeout. See issue #138.
+let payInFlight = 0;
+// The queue alarm fires at most every 30s, which is a coin-flip against MV3's own
+// ~30s idle timeout — fine for a prompt the user is looking at, not good enough to
+// carry a payment. Touching a chrome API on a shorter cycle is the documented way to
+// hold the worker up, so payments get a real heartbeat rather than a hopeful alarm.
+let payHeartbeat = null;
+function startPayHeartbeat() {
+  if (payHeartbeat) return;
+  payHeartbeat = setInterval(() => {
+    try { chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError); } catch (_) {}
+  }, 20000);
+}
+function stopPayHeartbeat() {
+  if (!payHeartbeat) return;
+  clearInterval(payHeartbeat);
+  payHeartbeat = null;
+}
 function ensureKeepalive() {
   if (keepaliveOn) return;
   keepaliveOn = true;
@@ -362,6 +386,7 @@ function ensureKeepalive() {
 }
 function stopKeepaliveIfIdle() {
   if (liveEntries().length) return;
+  if (payInFlight > 0) return; // never go idle with money in the air
   if (!keepaliveOn) return;
   keepaliveOn = false;
   chrome.alarms.clear(QUEUE_KEEPALIVE_ALARM);
@@ -1057,6 +1082,12 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       try { await BASELINE.record(activePubkey, result, result.created_at || 0); } catch (_) {}
     }
 
+    // A zap request the user just authorized. Remember it so the payment that follows
+    // can be recognized as that zap (see zap-requests.js). Best-effort, same as above.
+    if (method === 'signEvent' && !isRelayAuth && result && result.kind === 9734) {
+      try { await ZAPREQ.record(host, activePubkey, result); } catch (_) {}
+    }
+
     // Pin this host to the account it just successfully used. Only an explicit
     // identity choice may MOVE an existing binding: a login (getPublicKey) or a
     // template that named its author (authorSwitched). A session-shaped request
@@ -1233,19 +1264,18 @@ async function weblnSendPayment(params, host, pubkey, originWindowId) {
   return payInvoiceCore(invoice, host, pubkey, params && params.memo, originWindowId);
 }
 
-// Decode just the BOLT11 description ('d', tag 13) — bech32, no deps. A zap
-// invoice carries the NIP-57 zap request (kind 9734) JSON there, which is how we
-// tell a genuine zap apart from any other payment for the auto-approve setting.
+// Minimal BOLT11 tagged-field reader — bech32, no deps.
 const BECH32_CHARS = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-function bolt11Description(invoice) {
+// Read one BOLT11 tagged field as raw bytes; null when absent or malformed.
+function bolt11Field(invoice, wantTag) {
   try {
     const s = String(invoice).toLowerCase();
     const sep = s.lastIndexOf('1');
-    if (sep < 1) return '';
+    if (sep < 1) return null;
     const words = [];
     for (const c of s.slice(sep + 1)) {
       const v = BECH32_CHARS.indexOf(c);
-      if (v < 0) return '';
+      if (v < 0) return null;
       words.push(v);
     }
     const body = words.slice(0, words.length - 6); // drop checksum
@@ -1256,7 +1286,7 @@ function bolt11Description(invoice) {
       const len = body[i + 1] * 32 + body[i + 2];
       const start = i + 3;
       if (start + len > end) break;
-      if (tag === 13) {
+      if (tag === wantTag) {
         let acc = 0, bits = 0;
         const bytes = [];
         for (let k = start; k < start + len; k++) {
@@ -1264,22 +1294,19 @@ function bolt11Description(invoice) {
           bits += 5;
           if (bits >= 8) { bits -= 8; bytes.push((acc >> bits) & 0xff); }
         }
-        return new TextDecoder().decode(new Uint8Array(bytes));
+        return new Uint8Array(bytes);
       }
       i = start + len;
     }
   } catch (_) {}
-  return '';
+  return null;
 }
-function isZapInvoice(invoice) {
-  const desc = bolt11Description(invoice);
-  if (!desc || desc[0] !== '{') return false;
-  try {
-    const ev = JSON.parse(desc);
-    return !!ev && ev.kind === 9734;
-  } catch (_) {
-    return false;
-  }
+// The 'p' field — the one identifier that lets us ask a wallet, after the fact,
+// whether an invoice was actually paid.
+function bolt11PaymentHash(invoice) {
+  const b = bolt11Field(invoice, 1); // 'p'
+  if (!b || b.length !== 32) return '';
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 }
 
 // ---- payment serialization + auto-zap aggregate cap ----
@@ -1310,12 +1337,96 @@ async function recordAutoZap(sats) {
   await sset({ [AUTOZAP_WINDOW_KEY]: { spent: spent + Math.max(0, Math.floor(sats || 0)), resetAt } });
 }
 
+// Ask the wallet whether an invoice actually settled. Called ONLY to resolve a
+// pay_invoice whose outcome we couldn't hear — never to decide whether to pay.
+// lookup_invoice is read-only, so this can't double-spend.
+//
+// A payment can still be in flight when we first ask (a slow route is the very
+// reason the response was missed), so poll briefly rather than taking one "not yet"
+// as a no. An explicit 'failed' is authoritative and stops early.
+const naptime = (ms) => new Promise((r) => setTimeout(r, ms));
+const invSettled = (inv) => !!(inv && (inv.settled_at || inv.preimage || inv.state === 'settled'));
+const invFailed = (inv) => !!(inv && (inv.state === 'failed' || inv.state === 'expired'));
+
+// When to stop trusting silence. Most zaps settle in a few seconds; past that the
+// ephemeral response is more likely lost than late, and the wallet's own record is
+// both faster and more truthful than waiting out the 30s NWC timeout.
+const LOOKUP_START_MS = 8000;
+const LOOKUP_EVERY_MS = 3000;
+// How long to keep asking after pay_invoice has given up. A payment that outran the
+// NWC timeout is usually a slow route still completing, so it's worth a bounded wait
+// rather than immediately reporting a failure we haven't verified.
+const CONFIRM_GRACE_MS = 12000;
+
+// Pay, and watch the wallet's own ledger at the same time.
+//
+// pay_invoice alone is a single point of failure: the kind:23195 reply is ephemeral,
+// so if it goes missing the request just sits there until the 30s timeout, and the
+// page waits the whole time for an answer that already exists. Polling lookup_invoice
+// in parallel from 8s means the usual outcome is "we found out at ~8s" rather than
+// "we gave up at 30s" — and what we report is what the wallet actually did.
+//
+// One watcher serves both jobs: racing the payment, and confirming an indeterminate
+// failure afterwards. Running a second poller for the latter would just double the
+// traffic to the wallet relay. lookup_invoice is read-only, so watching a payment
+// alongside it can never cause a second one.
+async function payAndConfirm(c, invoice) {
+  const hash = bolt11PaymentHash(invoice);
+  const arg = hash ? { payment_hash: hash } : { invoice };
+  let stop = false;
+  let deadline = Infinity; // tightened once pay_invoice gives up
+
+  const paying = c.payInvoice(invoice).then(
+    (res) => ({ kind: 'paid', res }),
+    (err) => ({ kind: 'error', err })
+  );
+
+  const watching = (async () => {
+    await naptime(LOOKUP_START_MS);
+    while (!stop && Date.now() < deadline) {
+      try {
+        const inv = await c.lookupInvoice(arg);
+        if (invSettled(inv)) return { kind: 'paid', res: inv };
+        if (invFailed(inv)) return { kind: 'error', err: new Error('The payment failed') };
+      } catch (_) {
+        // Early on the wallet may not know this invoice yet ("not found"), and the
+        // lookup can fail on the same connection that lost the reply. Keep watching.
+      }
+      await naptime(LOOKUP_EVERY_MS);
+    }
+    return { kind: 'unknown' };
+  })();
+
+  try {
+    const first = await Promise.race([paying, watching]);
+    if (first.kind === 'paid') return first.res;
+    // The wallet gave a definitive no. Nothing moved, so don't go looking.
+    if (first.kind === 'error' && first.err && first.err.walletDenied) throw first.err;
+    // Indeterminate. Let the watcher already in flight run on a little longer.
+    deadline = Date.now() + CONFIRM_GRACE_MS;
+    const second = await watching;
+    if (second.kind === 'paid') return second.res;
+    throw first.err || (second.kind === 'error' ? second.err : new Error('Payment status unknown'));
+  } finally {
+    stop = true;
+  }
+}
+
 // Shared payment core: budget-gate (prompt if needed), pay via NWC, decrement
 // budget, log, and notify the panel. Used by window.webln.sendPayment AND the
 // "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
 // checked the account/site is usable. Serialized per account (see withPayLock).
 function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
-  return withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId));
+  // Hold the worker up for the whole payment, approval prompt included.
+  payInFlight++;
+  ensureKeepalive();
+  startPayHeartbeat();
+  return withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId))
+    .finally(() => {
+      payInFlight--;
+      if (payInFlight === 0) stopPayHeartbeat();
+      stopKeepaliveIfIdle();
+    });
 }
 async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) {
   const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
@@ -1337,7 +1448,8 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
     ? (dailyMaxSet > 0 ? dailyMaxSet : zapMax * AUTOZAP_DAILY_MULTIPLE)
     : 0;
   let zapOk = false;
-  if (unlocked && zapMax > 0 && sats <= zapMax && isZapInvoice(invoice)) {
+  // Amount is checked before claiming so an over-cap payment doesn't burn the record.
+  if (unlocked && zapMax > 0 && sats <= zapMax && (await ZAPREQ.claim(host, pubkey, sats))) {
     const { spent } = await autoZapWindow();
     zapOk = zapDailyMax > 0 && spent + sats <= zapDailyMax;
   }
@@ -1372,7 +1484,14 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
   bumpAutoLock();
   const c = await getSwNwc(pubkey);
   if (!c) throw new Error('No wallet connected in Sidecar');
-  const res = await c.payInvoice(invoice);
+  // Never report a payment as failed on the strength of not having heard back.
+  // Publishing the NIP-47 request is what commits the money; hearing the reply is a
+  // separate thing that can fail on its own (a slow route outrunning the 30s timeout,
+  // a relay blip losing the ephemeral kind:23195, an undecryptable response). Each of
+  // those used to surface to the page as an error while the sats were gone, or hang
+  // it for the full 180s — issue #138. The wallet is the only authority on what
+  // actually happened, so payAndConfirm asks it rather than inferring from silence.
+  const res = await payAndConfirm(c, invoice);
   const preimage = res && (res.preimage || res.payment_preimage);
 
   // ---- the money has moved; from here nothing may delay the caller ----
@@ -1592,6 +1711,9 @@ async function lockKeystore(auto = false) {
   // signs makes no sense, and idle auto-lock is exactly the "walked away" case
   // where a lingering auto-sign shouldn't survive.
   RELAX.revokeAll().then(syncRelaxBadge);
+  // Same reasoning for pending zap requests: they authorize a payment to go out with
+  // no prompt, so a locked keystore must not leave any of them spendable.
+  ZAPREQ.clear().catch(() => {});
   // Tell any open panel/popup to drop to the unlock screen immediately — otherwise
   // it keeps showing whatever was open (e.g. the composer) and only discovers the
   // lock on its next action, which then fails with a "locked" error. `auto` marks an

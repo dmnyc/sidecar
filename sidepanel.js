@@ -7358,7 +7358,13 @@
     call({ type: 'SIDECAR_GET_BUDGETS' })
       .then((budgets) => {
         const hosts = Object.keys(budgets || {}).sort();
-        if (!hosts.length) { list.classList.add('empty'); listState(list, 'No sites have a spending budget.'); return; }
+        // Budgets can only be created from a payment prompt, so an empty list has to
+        // say how — otherwise the feature is invisible to anyone who ever unticked it.
+        if (!hosts.length) {
+          list.classList.add('empty');
+          listState(list, 'No sites have a spending budget. Tick “remember a budget” when you approve a payment.');
+          return;
+        }
         list.classList.remove('empty');
         list.innerHTML = '';
         hosts.forEach((host) => list.append(budgetRow(host, budgets[host])));

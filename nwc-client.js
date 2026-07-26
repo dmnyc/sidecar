@@ -34,6 +34,14 @@
     const encrypt = (text) => NT.nip04.encrypt(sk, walletPubkey, text);
     const decrypt = (cipher) => NT.nip04.decrypt(sk, walletPubkey, cipher);
 
+    // Rejection contract, which matters for pay_invoice: a rejected request does
+    // NOT mean the wallet did nothing. Once the kind:23194 request is published the
+    // wallet may act on it, and our ability to hear the kind:23195 answer is a
+    // separate, fallible thing — 23195 is ephemeral, so relays don't replay it if
+    // the connection blips. Only `err.walletDenied` (the wallet explicitly answered
+    // with an error) means no money moved. Every other rejection — timeout, dropped
+    // relay, undecryptable response — is INDETERMINATE, and a caller that spends
+    // money must verify with lookup_invoice before reporting failure.
     function request(method, params) {
       return new Promise((resolve, reject) => {
         (async () => {
@@ -56,8 +64,14 @@
                 try { sub.close(); } catch (_) {}
                 try {
                   const res = JSON.parse(await decrypt(ev.content));
-                  if (res.error) reject(new Error(res.error.message || res.error.code || 'Wallet error'));
-                  else resolve(res.result);
+                  if (res.error) {
+                    // The wallet answered, and the answer was no. This is the ONLY
+                    // failure we can be certain left the money where it was — see
+                    // the rejection contract above.
+                    const err = new Error(res.error.message || res.error.code || 'Wallet error');
+                    err.walletDenied = true;
+                    reject(err);
+                  } else resolve(res.result);
                 } catch (e) {
                   reject(new Error('Could not read wallet response'));
                 }
