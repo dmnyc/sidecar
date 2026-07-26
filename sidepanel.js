@@ -1160,14 +1160,22 @@
 
   async function publishToRelays(relays, signed) {
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
-    const results = await Promise.allSettled(getPool().publish(relays, signed));
+    // Dedupe the way the pool will. A plain Set over the raw strings keeps
+    // 'wss://nos.lol' and 'wss://nos.lol/' as two entries, but SimplePool normalizes
+    // before connecting and rejects the second with 'duplicate url' — which then
+    // counts as a failed relay and muddies the error detail. Both spellings occur in
+    // the wild: NIP-65 tags and relay hints disagree about the trailing slash.
+    const targets = [...new Set(relays.map((u) => {
+      try { return NT.utils.normalizeURL(u); } catch (_) { return u; }
+    }))];
+    const results = await Promise.allSettled(getPool().publish(targets, signed));
     const ok = results.filter((r) => !publishFailed(r)).length;
     if (!ok) {
       const detail = results
         .map((r, i) => {
           const why =
             r.status === 'rejected' ? r.reason?.message || r.reason || 'rejected' : r.value;
-          return `${relays[i]}: ${why}`;
+          return `${targets[i]}: ${why}`;
         })
         .join(' | ');
       throw new Error(`Could not publish to any relay — ${detail}`);
