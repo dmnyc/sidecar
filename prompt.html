@@ -78,7 +78,16 @@
     .prompt-footer #unlock { margin-bottom: 12px; }
     .prompt-footer #unlock input[type=password] { margin-bottom: 0; }
     .prompt-footer #relax-row,
-    .prompt-footer #remember { margin-bottom: 12px; }
+    .prompt-footer #remember { margin-bottom: 10px; }
+    /* The chips are the last thing in the relax row; its own margin spaces them from
+       the buttons, so don't pay twice. */
+    .prompt-footer .relax-chips { margin-bottom: 0; }
+    /* .error reserves 18px + 8px so the body layout can't jump when a message
+       appears. In the footer that reservation is permanent dead space above the
+       buttons on every prompt — and the footer is the last thing on screen, so
+       nothing below it can be pushed around. Collapse it until it has something
+       to say. */
+    .prompt-footer .error:empty { display: none; }
     /* The relax heading is a Playfair display line sized for the body; in the footer
        it only needs to label three chips. */
     .prompt-footer .relax-label { font-size: 13px; margin-bottom: 7px; }
