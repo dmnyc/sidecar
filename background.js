@@ -1324,6 +1324,27 @@ function bolt11PaymentHash(invoice) {
 // each under the per-zap cap — the per-zap limit alone bounds nothing in aggregate.
 const PAY_DAY_MS = 24 * 60 * 60 * 1000;
 const AUTOZAP_DAILY_MULTIPLE = 5; // default daily cap = 5× the per-zap cap when unset
+// Hard ceilings on the no-confirmation path. Auto-zap spends with nothing to click,
+// so the limits that bound it shouldn't be whatever was last typed into a text field:
+// a stray zero on that input would otherwise widen the automatic path by 10×. Above
+// these, zaps fall back to a normal approval — which is the right behavior for an
+// amount large enough to want a second look.
+const AUTOZAP_ABS_MAX = 1000; // sats, per zap
+const AUTOZAP_ABS_DAILY_MAX = 10000; // sats, rolling day
+
+// The auto-zap limits in force, clamped. Applied on READ as well as on write, so a
+// value stored before these ceilings existed can't outlive them. Returns zeros when
+// the setting is off, which every caller treats as "ask".
+function autoZapLimits(settings) {
+  if (!settings || settings.autoZap !== true) return { perZap: 0, daily: 0 };
+  const perZap = Math.min(Math.max(0, Number(settings.autoZapMaxSats) || 0), AUTOZAP_ABS_MAX);
+  const set = Number(settings.autoZapDailyMaxSats);
+  const daily = Math.min(
+    set > 0 ? set : perZap * AUTOZAP_DAILY_MULTIPLE,
+    AUTOZAP_ABS_DAILY_MAX
+  );
+  return { perZap, daily };
+}
 const AUTOZAP_WINDOW_KEY = 'sidecar_autozap_window';
 const payLocks = new Map(); // pubkey -> tail of the serialized payment chain
 function withPayLock(pubkey, fn) {
@@ -1361,8 +1382,7 @@ async function autoZapMaySign(ev) {
     if (!ev || ev.kind !== 9734) return false;
     if (KS.isLocked()) return false;
     const settings = (await sget('sidecar_settings')).sidecar_settings || {};
-    if (settings.autoZap !== true) return false;
-    const zapMax = Number(settings.autoZapMaxSats) || 0;
+    const { perZap: zapMax, daily: dailyMax } = autoZapLimits(settings);
     if (zapMax <= 0) return false;
     const tag = Array.isArray(ev.tags) ? ev.tags.find((t) => Array.isArray(t) && t[0] === 'amount') : null;
     const msat = tag ? Number(tag[1]) : 0;
@@ -1371,8 +1391,6 @@ async function autoZapMaySign(ev) {
     if (!Number.isFinite(msat) || msat <= 0) return false;
     const sats = Math.round(msat / 1000);
     if (sats > zapMax) return false;
-    const dailySet = Number(settings.autoZapDailyMaxSats);
-    const dailyMax = dailySet > 0 ? dailySet : zapMax * AUTOZAP_DAILY_MULTIPLE;
     if (dailyMax <= 0) return false;
     const { spent } = await autoZapWindow();
     return spent + sats <= dailyMax;
@@ -1404,9 +1422,8 @@ async function tryZapAutopay(invoiceRaw, host, originWindowId, tabId) {
   if (!host || !inv) return no('no host or invoice');
   if (KS.isLocked()) return no('keystore locked');
   const settings = (await sget('sidecar_settings')).sidecar_settings || {};
-  if (settings.autoZap !== true) return no('auto-approve zaps is off');
-  const cap = Number(settings.autoZapMaxSats) || 0;
-  if (cap <= 0) return no('per-zap cap is 0');
+  const { perZap: cap } = autoZapLimits(settings);
+  if (cap <= 0) return no('auto-approve zaps is off, or the per-zap cap is 0');
   const amt = invoiceSats(inv);
   if (amt == null) return no('invoice has no amount');
   if (amt > cap) return no(amt + ' sats exceeds the ' + cap + ' cap');
@@ -1552,14 +1569,9 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
   const settings = (await sget('sidecar_settings')).sidecar_settings || {};
   const unlocked = !KS.isLocked() && sats != null;
   const budgetOk = unlocked && (await BUDGETS.covers(pubkey, host, sats));
-  const zapMax = settings.autoZap === true ? Number(settings.autoZapMaxSats) || 0 : 0;
-  // Auto-zap is gated by BOTH a per-zap cap and a rolling daily aggregate cap.
-  // The daily cap defaults to a multiple of the per-zap cap when unset, so
-  // existing auto-zap users are bounded without having to reconfigure.
-  const dailyMaxSet = Number(settings.autoZapDailyMaxSats);
-  const zapDailyMax = settings.autoZap === true
-    ? (dailyMaxSet > 0 ? dailyMaxSet : zapMax * AUTOZAP_DAILY_MULTIPLE)
-    : 0;
+  // Auto-zap is gated by BOTH a per-zap cap and a rolling daily aggregate cap, each
+  // held under a hard ceiling (see autoZapLimits).
+  const { perZap: zapMax, daily: zapDailyMax } = autoZapLimits(settings);
   let zapOk = false;
   // Claim only if the payment actually needs it: the site's budget already covering
   // this one makes autoOk true either way, and a zap approval is single-use, so
@@ -2192,6 +2204,15 @@ async function handleControl(message, sendResponse) {
       case 'SIDECAR_SET_SETTINGS': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const merged = { ...prev, ...message.settings };
+        // Hold the auto-zap limits under their ceilings here, not just in the panel
+        // that draws the input. This is the value every payment gate then trusts, so
+        // it is validated where it is stored rather than where it is typed.
+        if ('autoZapMaxSats' in merged) {
+          merged.autoZapMaxSats = Math.min(Math.max(1, Number(merged.autoZapMaxSats) || 1), AUTOZAP_ABS_MAX);
+        }
+        if ('autoZapDailyMaxSats' in merged) {
+          merged.autoZapDailyMaxSats = Math.min(Math.max(1, Number(merged.autoZapDailyMaxSats) || 1), AUTOZAP_ABS_DAILY_MAX);
+        }
         await sset({ sidecar_settings: merged });
         // Apply an auto-lock change immediately: drop any alarm armed under the
         // old value, then re-arm from the new one (no-op when Never or locked).
