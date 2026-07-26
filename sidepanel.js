@@ -8428,8 +8428,8 @@
     const trust = $('approval-trust');
     if (allow) allow.disabled = locked;
     if (trust) trust.disabled = locked;
-    const footer = allow && allow.parentNode;
-    if (footer) footer.classList.toggle('approval-locked', locked);
+    const actions = allow && allow.parentNode; // .approval-actions, not the card
+    if (actions) actions.classList.toggle('approval-locked', locked);
   }
 
   function renderApprovalAccountCapsule(data) {

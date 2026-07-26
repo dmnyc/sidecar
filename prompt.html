@@ -61,7 +61,8 @@
     }
     .prompt-footer {
       flex-shrink: 0;
-      padding: 10px 22px 18px;
+      padding: 12px 22px 18px;
+      border-top: 1px solid var(--border);
       background: rgba(12, 3, 26, 0.55);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
@@ -74,7 +75,6 @@
        The hairline sits on the footer itself so it lands correctly whichever of these
        is visible — they're conditional, and #relax-row and #remember never co-occur
        (signing vs payment). */
-    .prompt-footer { border-top: 1px solid var(--border); padding-top: 12px; }
     .prompt-footer #unlock { margin-bottom: 12px; }
     .prompt-footer #unlock input[type=password] { margin-bottom: 0; }
     .prompt-footer #pin-error { margin: 7px 0 0; }

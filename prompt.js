@@ -574,8 +574,8 @@
   function setLocked(locked) {
     if (els.allow) els.allow.disabled = locked;
     if (els.trust) els.trust.disabled = locked;
-    const footer = els.allow && els.allow.parentNode;
-    if (footer) footer.classList.toggle('approval-locked', locked);
+    const actions = els.allow && els.allow.parentNode; // .actions, not .prompt-footer
+    if (actions) actions.classList.toggle('approval-locked', locked);
   }
 
   async function decide(action, opts) {
