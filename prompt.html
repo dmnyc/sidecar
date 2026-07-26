@@ -66,6 +66,14 @@
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
     }
+    /* The unlock field sits in the footer (see the markup). A hairline separates it
+       from the scrolling body above, and its own margin keeps it off the buttons. */
+    .prompt-footer #unlock {
+      margin-bottom: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .prompt-footer #unlock input[type=password] { margin-bottom: 0; }
     .brand { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
     .brand img { height: 26px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
     .host {
@@ -300,11 +308,6 @@
     <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
 
-    <div id="unlock" class="hidden">
-      <label for="pin">Enter your PIN to unlock</label>
-      <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
-    </div>
-
     <div id="remember" class="remember hidden">
       <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
       <div class="budget-row">
@@ -324,6 +327,14 @@
   </div>
 
   <div class="prompt-footer">
+    <!-- The PIN lives in the FOOTER, not the scrolling body. It is the action the
+         button beside it demands, so it must not be able to scroll out of view — and
+         .prompt-scroll fades its own bottom edge, which was leaving the field
+         half-transparent before it even left the viewport. -->
+    <div id="unlock" class="hidden">
+      <label for="pin">Enter your PIN to unlock</label>
+      <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
+    </div>
     <div class="error" id="error"></div>
     <div class="actions">
       <button class="primary" id="allow">Allow once</button>
