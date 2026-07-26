@@ -66,14 +66,22 @@
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
     }
-    /* The unlock field sits in the footer (see the markup). A hairline separates it
-       from the scrolling body above, and its own margin keeps it off the buttons. */
-    .prompt-footer #unlock {
-      margin-bottom: 12px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
-    }
+    /* Everything the user ACTS on lives in the footer — PIN, the budget toggle, the
+       relax chips, the buttons. The body above holds what they're deciding about and
+       is the only part that scrolls. Anything interactive left in the body can be
+       scrolled out of reach with nothing to suggest it's there, which is how the
+       relax chips went missing once the PIN stopped scrolling.
+       The hairline sits on the footer itself so it lands correctly whichever of these
+       is visible — they're conditional, and #relax-row and #remember never co-occur
+       (signing vs payment). */
+    .prompt-footer { border-top: 1px solid var(--border); padding-top: 12px; }
+    .prompt-footer #unlock { margin-bottom: 12px; }
     .prompt-footer #unlock input[type=password] { margin-bottom: 0; }
+    .prompt-footer #relax-row,
+    .prompt-footer #remember { margin-bottom: 12px; }
+    /* The relax heading is a Playfair display line sized for the body; in the footer
+       it only needs to label three chips. */
+    .prompt-footer .relax-label { font-size: 13px; margin-bottom: 7px; }
     .brand { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
     .brand img { height: 26px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
     .host {
@@ -308,22 +316,7 @@
     <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
 
-    <div id="remember" class="remember hidden">
-      <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
-      <div class="budget-row">
-        <input type="number" id="budget-amount" min="1" placeholder="sats" />
-        <span class="budget-unit">sats / day without asking</span>
-      </div>
-    </div>
 
-    <div id="relax-row" class="relax-row hidden">
-      <div class="relax-label">Auto-sign for the next</div>
-      <div class="relax-chips">
-        <button type="button" class="relax-chip" data-mins="5">5 min</button>
-        <button type="button" class="relax-chip" data-mins="15">15 min</button>
-        <button type="button" class="relax-chip" data-mins="30">30 min</button>
-      </div>
-    </div>
   </div>
 
   <div class="prompt-footer">
@@ -334,6 +327,21 @@
     <div id="unlock" class="hidden">
       <label for="pin">Enter your PIN to unlock</label>
       <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
+    </div>
+    <div id="remember" class="remember hidden">
+    <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
+    <div class="budget-row">
+      <input type="number" id="budget-amount" min="1" placeholder="sats" />
+      <span class="budget-unit">sats / day without asking</span>
+    </div>
+    </div>
+    <div id="relax-row" class="relax-row hidden">
+    <div class="relax-label">Auto-sign for the next</div>
+    <div class="relax-chips">
+      <button type="button" class="relax-chip" data-mins="5">5 min</button>
+      <button type="button" class="relax-chip" data-mins="15">15 min</button>
+      <button type="button" class="relax-chip" data-mins="30">30 min</button>
+    </div>
     </div>
     <div class="error" id="error"></div>
     <div class="actions">
