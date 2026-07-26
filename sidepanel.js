@@ -8526,6 +8526,7 @@
     renderApprovalPreview(data);
 
     $('approval-error').textContent = '';
+    $('approval-pin-error').textContent = '';
     // Lock Allow/Trust behind the warning's "I understand" when this event destroys
     // data. Applied here, after renderApprovalPreview built the warning, so a re-render
     // (queue advance, unlock) re-locks rather than leaving a previous acknowledgement
@@ -8615,19 +8616,21 @@
     if (!pendingApproval) return;
     const { id, data } = pendingApproval;
     const err = $('approval-error');
+    const pinErr = $('approval-pin-error');
     err.textContent = '';
+    pinErr.textContent = '';
     // Unlock first if needed (Allow once / Trust / Relax only).
     if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
       const pin = $('approval-pin').value;
       if (!pin) {
-        err.textContent = 'Enter your PIN.';
+        pinErr.textContent = 'Enter your PIN.';
         return;
       }
       // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
       const resp = await bg({ type: 'SIDECAR_UNLOCK', pin });
       const st = resp && resp.ok && resp.result;
       if (!st || st.status !== 'ok') {
-        err.textContent =
+        pinErr.textContent =
           st && st.status === 'throttled' ? 'Too many attempts. Try again in ' + Math.ceil(st.waitMs / 1000) + 's.'
           : st && st.status === 'bad' ? 'Incorrect PIN — ' + st.remaining + ' attempt' + (st.remaining === 1 ? '' : 's') + ' left before all data is erased.'
           : st && st.status === 'wiped' ? 'Too many attempts — all data on this device was erased.'

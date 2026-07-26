@@ -407,6 +407,10 @@
       <div id="approval-unlock" class="hidden stack">
         <label for="approval-pin">Enter your PIN to unlock</label>
         <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />
+        <!-- PIN failures belong against the PIN, not below the budget/relax rows —
+             this is where "N attempts left before all data is erased" lands.
+             #approval-error stays for everything else. -->
+        <div class="error" id="approval-pin-error"></div>
       </div>
 
       <div id="approval-remember" class="remember hidden">

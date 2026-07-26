@@ -19,6 +19,7 @@
     unlock: $('unlock'),
     pin: $('pin'),
     error: $('error'),
+    pinError: $('pin-error'),
     allow: $('allow'),
     trust: $('trust'),
     reject: $('reject'),
@@ -579,18 +580,19 @@
 
   async function decide(action, opts) {
     els.error.textContent = '';
+    els.pinError.textContent = '';
     // Unlock first if needed (Allow once / Trust / Relax / Pay only).
     if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
       const pin = els.pin.value;
       if (!pin) {
-        els.error.textContent = 'Enter your PIN.';
+        els.pinError.textContent = 'Enter your PIN.';
         return;
       }
       // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
       const unlocked = await send({ type: 'SIDECAR_UNLOCK', pin });
       const st = unlocked && unlocked.ok && unlocked.result;
       if (!st || st.status !== 'ok') {
-        els.error.textContent =
+        els.pinError.textContent =
           st && st.status === 'throttled' ? 'Too many attempts. Try again in ' + Math.ceil(st.waitMs / 1000) + 's.'
           : st && st.status === 'bad' ? 'Incorrect PIN — ' + st.remaining + ' attempt' + (st.remaining === 1 ? '' : 's') + ' left before all data is erased.'
           : st && st.status === 'wiped' ? 'Too many attempts — all data on this device was erased.'
