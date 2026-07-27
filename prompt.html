@@ -61,11 +61,37 @@
     }
     .prompt-footer {
       flex-shrink: 0;
-      padding: 10px 22px 18px;
+      padding: 12px 22px 18px;
+      border-top: 1px solid var(--border);
       background: rgba(12, 3, 26, 0.55);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
     }
+    /* Everything the user ACTS on lives in the footer — PIN, the budget toggle, the
+       relax chips, the buttons. The body above holds what they're deciding about and
+       is the only part that scrolls. Anything interactive left in the body can be
+       scrolled out of reach with nothing to suggest it's there, which is how the
+       relax chips went missing once the PIN stopped scrolling.
+       The hairline sits on the footer itself so it lands correctly whichever of these
+       is visible — they're conditional, and #relax-row and #remember never co-occur
+       (signing vs payment). */
+    .prompt-footer #unlock { margin-bottom: 12px; }
+    .prompt-footer #unlock input[type=password] { margin-bottom: 0; }
+    .prompt-footer #pin-error { margin: 7px 0 0; }
+    .prompt-footer #relax-row,
+    .prompt-footer #remember { margin-bottom: 10px; }
+    /* The chips are the last thing in the relax row; its own margin spaces them from
+       the buttons, so don't pay twice. */
+    .prompt-footer .relax-chips { margin-bottom: 0; }
+    /* .error reserves 18px + 8px so the body layout can't jump when a message
+       appears. In the footer that reservation is permanent dead space above the
+       buttons on every prompt — and the footer is the last thing on screen, so
+       nothing below it can be pushed around. Collapse it until it has something
+       to say. */
+    .prompt-footer .error:empty { display: none; }
+    /* The relax heading is a Playfair display line sized for the body; in the footer
+       it only needs to label three chips. */
+    .prompt-footer .relax-label { font-size: 13px; margin-bottom: 7px; }
     .brand { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
     .brand img { height: 26px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
     .host {
@@ -300,30 +326,38 @@
     <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
 
-    <div id="unlock" class="hidden">
-      <label for="pin">Enter your PIN to unlock</label>
-      <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
-    </div>
 
-    <div id="remember" class="remember hidden">
-      <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
-      <div class="budget-row">
-        <input type="number" id="budget-amount" min="1" placeholder="sats" />
-        <span class="budget-unit">sats / day without asking</span>
-      </div>
-    </div>
-
-    <div id="relax-row" class="relax-row hidden">
-      <div class="relax-label">Auto-sign for the next</div>
-      <div class="relax-chips">
-        <button type="button" class="relax-chip" data-mins="5">5 min</button>
-        <button type="button" class="relax-chip" data-mins="15">15 min</button>
-        <button type="button" class="relax-chip" data-mins="30">30 min</button>
-      </div>
-    </div>
   </div>
 
   <div class="prompt-footer">
+    <!-- The PIN lives in the FOOTER, not the scrolling body. It is the action the
+         button beside it demands, so it must not be able to scroll out of view — and
+         .prompt-scroll fades its own bottom edge, which was leaving the field
+         half-transparent before it even left the viewport. -->
+    <div id="unlock" class="hidden">
+      <label for="pin">Enter your PIN to unlock</label>
+      <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
+      <!-- PIN failures belong against the PIN, not two controls further down next to
+           the buttons — this is where "N attempts left before all data is erased"
+           lands. #error below stays for everything else (the budget message, which is
+           already adjacent to the budget row). -->
+      <div class="error" id="pin-error"></div>
+    </div>
+    <div id="remember" class="remember hidden">
+    <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
+    <div class="budget-row">
+      <input type="number" id="budget-amount" min="1" placeholder="sats" />
+      <span class="budget-unit">sats / day without asking</span>
+    </div>
+    </div>
+    <div id="relax-row" class="relax-row hidden">
+    <div class="relax-label">Auto-sign for the next</div>
+    <div class="relax-chips">
+      <button type="button" class="relax-chip" data-mins="5">5 min</button>
+      <button type="button" class="relax-chip" data-mins="15">15 min</button>
+      <button type="button" class="relax-chip" data-mins="30">30 min</button>
+    </div>
+    </div>
     <div class="error" id="error"></div>
     <div class="actions">
       <button class="primary" id="allow">Allow once</button>
