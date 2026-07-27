@@ -8615,6 +8615,13 @@
       hide($('approval-unlock'));
     }
 
+    // The payment card offered to enable automatic zaps; confirm it here.
+    if (data.offerAutoZap > 0) {
+      $('approval-autozap-offer').classList.remove('hidden');
+      $('approval-autozap-offer-label').textContent =
+        'Turn on Auto Zaps (' + fmtSats(data.offerAutoZap) + ' sats max)';
+    }
+
     // Payment: one Pay button + an optional "remember a budget" toggle (no Trust).
     const remember = $('approval-remember');
     const rememberBudget = $('approval-remember-budget');
@@ -8721,11 +8728,18 @@
         return;
       }
       action = 'budget';
-      extra = { budgetSats, perPaymentSats: 0 };
+      // Merge, don't assign — other flags share this object (see prompt.js).
+      extra = Object.assign({}, extra, { budgetSats, perPaymentSats: 0 });
     }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {
       extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
+    }
+    // Carry the still-ticked auto-zap offer back with the approval. Only an approval
+    // reaches here, so declining the payment can never enable the setting.
+    if (pendingApproval && pendingApproval.data && pendingApproval.data.offerAutoZap > 0 &&
+        $('approval-autozap-offer-box').checked) {
+      extra = Object.assign({}, extra, { enableAutoZap: true });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {

@@ -88,6 +88,12 @@
   // the amount, and the originating site, with one clear "Pay with Sidecar" action.
   // A corner pill kept getting buried under docked bars; a modal can't be lost.
   let showCard = true; // setting (default on)
+  // >0 = auto-zap is off and enabling it would cover a zap up to this many sats, so
+  // the card offers to switch it on. The card can't write the setting — the offer
+  // rides along with the payment and is confirmed on Sidecar's own approval screen,
+  // because a page must not be able to enable automatic spending by itself.
+  let autoZapOffer = 0;
+  let offerAutoZapChecked = false;
   let cardHost = null;
   let shownInvoice = '';
   let dismissedInvoice = '';
@@ -580,6 +586,17 @@
     const memoText = memo || (sats == null ? 'A Lightning invoice — choose the amount in Sidecar.' : '');
     const memoBlock = memoText ? '<div class="memo">' + escapeHtml(memoText) + '</div>' : '';
 
+    // Offer auto-zap only when this very payment is one it would cover, so the
+    // amount on screen is the amount the setting would have handled.
+    const canOfferAutoZap = !auto && autoZapOffer > 0 && sats != null && sats <= autoZapOffer;
+    const offerRow = canOfferAutoZap
+      ? '<label class="tg tg-autozap"><span class="tg-label">Turn on Auto Zaps (' +
+        autoZapOffer.toLocaleString('en-US') +
+        ' sats max)</span>' +
+        '<input class="tg-input tg-autozap-input" type="checkbox">' +
+        '<span class="tg-track"><span class="tg-thumb"></span></span></label>'
+      : '';
+
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
     const s = cardHost.attachShadow({ mode: 'open' });
@@ -605,8 +622,10 @@
       '<span class="pay-label">Pay with Sidecar</span></button>' +
       '<div class="pay-status" hidden></div>' +
       '<button class="cancel" type="button">Not now</button>' +
-      '<label class="tg"><span class="tg-label">Show this automatically</span>' +
-      '<input class="tg-input" type="checkbox" checked>' +
+      (offerRow ||
+        '') +
+      '<label class="tg"><span class="tg-label">Don\'t show this prompt again</span>' +
+      '<input class="tg-input tg-showcard-input" type="checkbox">' +
       '<span class="tg-track"><span class="tg-thumb"></span></span></label>' +
       '</div></div>';
 
@@ -658,10 +677,24 @@
     }
     cardControls = { invoice: invoice, setPaid: setPaid, setError: setError };
 
+    const azBox = s.querySelector('.tg-autozap-input');
+    if (azBox) {
+      azBox.addEventListener('change', (e) => { offerAutoZapChecked = !!e.target.checked; });
+    }
+
     payBtn.addEventListener('click', () => {
       setSending();
       try {
-        chrome.runtime.sendMessage({ type: 'SIDECAR_PAY_PAGE_INVOICE', invoice }, () => void chrome.runtime.lastError);
+        chrome.runtime.sendMessage(
+          {
+            type: 'SIDECAR_PAY_PAGE_INVOICE',
+            invoice,
+            // Intent only. Sidecar's approval screen shows and confirms this, and
+            // writes the setting only if the payment is approved.
+            enableAutoZap: canOfferAutoZap && offerAutoZapChecked,
+          },
+          () => void chrome.runtime.lastError
+        );
       } catch (_) {
         setError('Sidecar was updated. Reload this page to pay.');
       }
@@ -670,8 +703,13 @@
     ov.addEventListener('click', (e) => {
       if (e.target === ov) dismiss();
     });
-    s.querySelector('.tg-input').addEventListener('change', (e) => {
-      if (!e.target.checked) {
+    // Target the show-card toggle specifically: `.tg-input` alone would match the
+    // Auto Zaps checkbox, which renders above it.
+    s.querySelector('.tg-showcard-input').addEventListener('change', (e) => {
+      // Inverted from "Show this automatically" (on by default) to "Don't show this
+      // prompt again" (off by default). Same stored setting, same outcome — now it's
+      // ticking the box that hides the card, not unticking it.
+      if (e.target.checked) {
         try {
           chrome.runtime.sendMessage(
             { type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: false } },
@@ -753,6 +791,7 @@
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
     if (msg.event === 'settings') {
       showCard = msg.showPayButton !== false;
+      if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       scanForInvoice();
     } else if (msg.event === 'autopaying') {
       // An auto-zap is going out for this invoice — show it, with no action to take.
@@ -806,6 +845,7 @@
       // on page load, only via the live settings push.)
       const settings = (s && s.result) || {};
       showCard = settings.showPayButton !== false;
+      autoZapOffer = Number(settings.autoZapOffer) || 0;
       scanForInvoice();
     });
   } catch (_) {}

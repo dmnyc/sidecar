@@ -318,9 +318,9 @@
       </div>
 
       <div class="setting">
-        <h3>Automatic zaps</h3>
+        <h3>Auto Zaps</h3>
         <p class="hint">Zaps under these limits go through with nothing to approve. Every other payment still asks. Capped at 1,000 sats a zap, 100,000 a day.</p>
-        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>
+        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Enable Auto Zaps</span></label>
         <label class="toggle-row hidden" id="autozap-max-row">
           <span>Max per zap</span>
           <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
@@ -411,6 +411,12 @@
              this is where "N attempts left before all data is erased" lands.
              #approval-error stays for everything else. -->
         <div class="error" id="approval-pin-error"></div>
+      </div>
+
+      <!-- Offered by the payment card, confirmed here — see prompt.html. -->
+      <div id="approval-autozap-offer" class="remember hidden">
+        <label class="check"><input type="checkbox" id="approval-autozap-offer-box" checked />
+        <span id="approval-autozap-offer-label">Turn on Auto Zaps</span></label>
       </div>
 
       <div id="approval-remember" class="remember hidden">
