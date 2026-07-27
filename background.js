@@ -1438,8 +1438,8 @@ async function tryZapAutopay(invoiceRaw, host, originWindowId, tabId) {
   // has somewhere to be reported instead of vanishing.
   notifyTabAutopaying(tabId, inv);
   try {
-    await payInvoiceCore(inv, host, who, undefined, originWindowId);
-    notifyTabPaid(tabId, inv);
+    const r = await payInvoiceCore(inv, host, who, undefined, originWindowId);
+    notifyTabPaid(tabId, inv, r && r.preimage);
     return { handled: true, paid: true };
   } catch (e) {
     // Still handled: the auto card is up and is where this error belongs. Replacing it
@@ -1717,9 +1717,16 @@ function notifyTabAutopaying(tabId, invoice) {
   }
 }
 
-function notifyTabPaid(tabId, invoice) {
+// `preimage` is what proves the payment to the page. Bitcoin Connect clients hand it
+// to their onPaid callback, so the content script needs it to close a modal that has
+// no other way of learning the invoice settled — see the bridge in nostr-provider.js.
+function notifyTabPaid(tabId, invoice, preimage) {
   if (tabId != null && chrome.tabs) {
-    chrome.tabs.sendMessage(tabId, { type: 'SIDECAR_EVENT', event: 'paid', invoice }, () => void chrome.runtime.lastError);
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: 'SIDECAR_EVENT', event: 'paid', invoice, preimage: String(preimage || '') },
+      () => void chrome.runtime.lastError
+    );
   }
 }
 
@@ -1817,7 +1824,7 @@ chrome.contextMenus &&
         .then((inv) => payFromPage(inv, host, originWindowId).then((r) => ({ r, inv })))
         .then(({ r, inv }) => {
           notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
-          notifyTabPaid(tab && tab.id, inv);
+          notifyTabPaid(tab && tab.id, inv, r.preimage);
         })
         .catch((e) => notify((e && e.message) || 'Payment failed'));
 
@@ -2473,7 +2480,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     payFromPage(message.invoice, host, originWindowId)
       .then((r) => {
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
-        notifyTabPaid(tabId, message.invoice);
+        notifyTabPaid(tabId, message.invoice, r.preimage);
       })
       .catch((e) => {
         const m = (e && e.message) || 'Payment failed';
