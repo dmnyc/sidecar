@@ -760,6 +760,17 @@
       if (msg.invoice) renderCard(msg.invoice, true);
     } else if (msg.event === 'paid') {
       dismissedInvoice = msg.invoice; // don't resurface even if the link lingers
+      // Tell the page's payment modal, if it has one, that this invoice settled. We
+      // paid it entirely outside the page — scraped from the DOM, sent over NWC — so
+      // a Bitcoin Connect modal is otherwise left spinning on an invoice that is
+      // already paid. Handed to the MAIN world (nostr-provider.js) because the event
+      // detail has to be built in the page's own realm for its listeners to read it.
+      try {
+        window.postMessage(
+          { ext: 'sidecar', kind: 'settled', invoice: msg.invoice, preimage: msg.preimage || '' },
+          '*'
+        );
+      } catch (_) {}
       // Throw the bolt across the page whether or not our own card was up — a zap
       // sent from the client's own UI has no card, and that's the common case.
       pageLightningStrike();

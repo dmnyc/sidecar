@@ -49,6 +49,46 @@
     else p.reject(new Error((r && r.error) || 'Sidecar request failed'));
   });
 
+  // ---- Bitcoin Connect settlement bridge ----
+  // A zap paid from Sidecar's card settles with the page none the wiser: the invoice
+  // was read out of the DOM and paid over NWC, so Bitcoin Connect — which only hears
+  // about payments its own connectors make — leaves the modal spinning on an invoice
+  // that is already settled. Its own launchPaymentModal listens for 'bc:onpaid' on
+  // window, and its setPaid() does exactly the two things below, so replaying them
+  // resolves the client's pending promise and closes the modal.
+  //
+  // These are internals, not published API. If they change this quietly stops working
+  // and the modal spins as it does today — the failure mode is the status quo, never
+  // something worse. Nothing here is a capability the page lacks: any script on the
+  // page can dispatch this event itself.
+  window.addEventListener('message', function (event) {
+    if (event.source !== window) return;
+    const d = event.data;
+    if (!d || d.ext !== 'sidecar' || d.kind !== 'settled') return;
+    try {
+      // No modal, no work — this is a no-op on pages that don't use Bitcoin Connect.
+      const el = document.querySelector('bc-payment');
+      if (!el) return;
+      // Only ever claim the invoice the modal is actually showing, and require the
+      // match — an unverifiable modal is left alone rather than told a payment
+      // settled. Accepting a missing `invoice` attribute as "close enough" would let
+      // a modal for one invoice be resolved by a payment for another, and a false
+      // "paid" is the one direction a payment UI must not fail in. If a future
+      // Bitcoin Connect stops putting the bolt11 here, this stops firing and the
+      // modal spins as it does today.
+      const shown = (el.getAttribute('invoice') || '').toLowerCase();
+      if (!shown || shown !== String(d.invoice || '').toLowerCase()) return;
+      el.setAttribute('paid', 'paid'); // drives Bitcoin Connect's own success state
+      el.dispatchEvent(
+        new CustomEvent('bc:onpaid', {
+          bubbles: true,
+          composed: true,
+          detail: { preimage: String(d.preimage || '') },
+        })
+      );
+    } catch (_) {}
+  });
+
   // ---- window.nostr (NIP-07) ----
   const nostr = {
     getPublicKey: () => call('nostr', 'getPublicKey'),
