@@ -804,13 +804,13 @@
 
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+    openExtensionPage('help.html');
   });
   // Release notes live in the help guide's "What's new" section — the guide is
   // updated as part of every release (see the RELEASE PRACTICE note in help.html).
   $('whats-new-link').addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#whats-new' });
+    openExtensionPage('help.html', '#whats-new');
   });
 
   // ---- settings (gear icon ↔ overlay view) ----
@@ -845,7 +845,7 @@
       });
       guideLink.addEventListener('click', (e) => {
         e.preventDefault();
-        chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#switching' });
+        openExtensionPage('help.html', '#switching');
       });
       const tip = h('div', { id: 'switch-tip', className: 'switch-tip' }, [
         h('div', { className: 'switch-tip-title' }, [
@@ -2104,7 +2104,7 @@
   $('add-account-link').addEventListener('click', () => addAccountModal());
   $('explore-apps-link').addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+    openExtensionPage('welcome.html');
   });
 
   // Share Sidecar via the OS's native share sheet when available (Messages, Mail,
@@ -4076,6 +4076,47 @@
       } else {
         chrome.tabs.create({ url });
       }
+    });
+  }
+
+  // Open one of Sidecar's own pages (help, welcome, wallets), reusing the tab we
+  // already opened it in rather than stacking duplicates.
+  //
+  // Deliberately NOT openInClient's approach of matching on host: every extension
+  // page shares one origin, so a host match would collide across help/welcome/wallets.
+  // And not tabs.query({url}) either — filtering by url needs the `tabs` permission
+  // or a matching host permission, and Sidecar has neither for its own
+  // chrome-extension:// origin, so that query could silently return nothing and this
+  // would fix nothing. Remembering the tab id we created needs no permission at all.
+  //
+  // The map lives in the panel's memory, so reopening the panel forgets it and the
+  // next click opens a fresh tab — the old behavior, which is the right way to be
+  // wrong. `url` is re-set on focus so clicking What's new while the guide is already
+  // open jumps to that section instead of appearing to do nothing.
+  const ownPageTabs = {};
+  function openExtensionPage(page, hash) {
+    const url = chrome.runtime.getURL(page) + (hash || '');
+    if (!(chrome.tabs && chrome.tabs.update)) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    const remember = (tab) => {
+      void chrome.runtime.lastError;
+      if (tab && tab.id != null) ownPageTabs[page] = tab.id;
+    };
+    const known = ownPageTabs[page];
+    if (known == null) {
+      chrome.tabs.create({ url }, remember);
+      return;
+    }
+    chrome.tabs.update(known, { active: true, url }, (tab) => {
+      if (chrome.runtime.lastError || !tab) {
+        // Closed since we opened it — start over rather than losing the click.
+        delete ownPageTabs[page];
+        chrome.tabs.create({ url }, remember);
+        return;
+      }
+      if (tab.windowId != null) chrome.windows.update(tab.windowId, { focused: true });
     });
   }
 
@@ -6803,7 +6844,7 @@
     const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'Need a wallet? See suggestions →' });
     primalLink.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+      openExtensionPage('wallets.html');
     });
     primalNotice.append(primalLink);
     const connect = h('button', { className: 'primary wallet-connect-btn', textContent: 'Connect wallet' });
@@ -6868,7 +6909,7 @@
     });
     find.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+      openExtensionPage('wallets.html');
     });
     view.append(find);
   }
