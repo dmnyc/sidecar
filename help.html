@@ -345,6 +345,17 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.6.0</p>
+      <ul class="whatsnew-list">
+        <li><strong>A warning before an app erases your data.</strong> Your follow list, mute list, and profile are stored as events that <em>replace</em> the previous version outright — there's no merge and no undo, so one careless app can wipe years of follows in a single signature. Sidecar now checks what it's being asked to sign against what it last signed for you, and stops to tell you in plain language what would be lost. You have to acknowledge the warning before the approval buttons unlock, and a timed auto-sign window can't wave it through.</li>
+        <li><strong>Zaps strike.</strong> A bolt of lightning crosses the page whenever a payment goes out, drawn fresh every time. Turn it off in Settings if you'd rather not.</li>
+        <li><strong>Tap your balance to change units.</strong> Cycle between sats, BTC, and your local currency — on the wallet card and the pinned balance bar. Sixteen currencies, set in Settings or on the wallet screen.</li>
+        <li><strong>A 24-hour price chart</strong> on the wallet card, in whichever currency you've chosen.</li>
+        <li><strong>Auto-approve zaps actually works now</strong> — it never fired before. Zaps within your limits go through with nothing to approve, capped at 1,000 sats a zap and 10,000 a day.</li>
+        <li><strong>Notes now reach your relays.</strong> A note could be signed, reported as posted, and stored nowhere, with no error shown. Sidecar publishes more widely and tells you plainly when a relay refuses.</li>
+        <li><strong>Payments report the truth.</strong> A payment that succeeded could be reported as failed, or leave the page waiting. Sidecar now asks your wallet what happened instead of guessing from silence.</li>
+        <li><strong>A clearer approval popup.</strong> The PIN field, the auto-sign options, and the name of the site asking all stay in view on a long request.</li>
+      </ul>
       <p class="whatsnew-version">Version 1.5.1</p>
       <ul class="whatsnew-list">
         <li><strong>Relax mode.</strong> Grant a timed auto-sign window — 5, 15, or 30 minutes — so you don't have to approve every action during an active session on a site you trust. A persistent status bar counts down the remaining time; tap End to revoke early.</li>
@@ -356,13 +367,6 @@
         <li><strong>Sidecar is now on Firefox.</strong> The full signer — multi-account, NIP-07, the Lightning wallet, and the approval flow — runs on Firefox 128 and later, at parity with Chrome. On Firefox it lives in the sidebar; install it from Firefox Add-ons.</li>
         <li><strong>Three themes to choose from.</strong> A new picker in Settings offers Speakeasy (the original velvet), Film Noir (matte black with silver accents), and Art Deco (a daylight eggshell-and-bronze look). Your pick sticks, and the on-page "Pay with Sidecar" card follows it too.</li>
         <li><strong>Toasts moved to the bottom</strong> of the panel, so a confirmation no longer sits over the account switcher and toolbar.</li>
-      </ul>
-      <p class="whatsnew-version">Version 1.4.1</p>
-      <ul class="whatsnew-list">
-        <li><strong>Auto-lock, smoothed out.</strong> When the idle timer fires, the panel drops straight to the unlock screen with a "Locked due to inactivity" notice, instead of only surfacing the lock on your next action. Composing counts as activity so it won't lock mid-draft — and unlocking straight from a key reveal or export now flows through in one step.</li>
-        <li><strong>Stronger PIN protection.</strong> The unlock screen's brute-force guard — escalating delays between wrong tries and the final-strike wipe — now covers every PIN prompt, including key reveals and exports.</li>
-        <li><strong>More apps to explore.</strong> Eight new apps in the directory — Flotilla, Tunestr, Wavlake, WaveFunc Radio, Boost Me Bitch, Cordn, Imwald, and ContextVM — now also browsable on the web at sidecar.top/apps.</li>
-        <li><strong>A lighter quoted-note icon</strong> in notifications, easier to see on the dark panel.</li>
       </ul>
       <p>The full history, including earlier releases, is in the
       <a href="https://github.com/dmnyc/sidecar/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer noopener" id="changelog-link">changelog on GitHub</a>.</p>

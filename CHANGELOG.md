@@ -7,6 +7,27 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.6.0] — 2026-07-26
+
+### Added
+- **Zap animations.** A bolt of lightning strikes across the page whenever a payment goes out — procedurally drawn, never the same twice. It fires for zaps sent from a client's own UI as well as from Sidecar, and can be turned off in Settings.
+- **Tap the balance to change units.** The wallet balance and the pinned balance bar cycle through sats, BTC, and your local currency on tap. Pick the currency in Settings or from the wallet screen; sixteen are supported, defaulting to USD.
+- **24-hour bitcoin price chart.** A round button on the wallet card opens a gradient-filled chart of the last 24 hours against your chosen currency.
+- **A warning before an app erases your data.** Follow lists, mute lists, and profiles are *replaceable* events: a new version wholly replaces the old one, with no merge and no undo, so a buggy or careless client can wipe years of follows in a single signature. Sidecar now compares what it's being asked to sign against what it last signed for you and stops to warn you — in plain language, naming what would be lost — before an event that would erase your follows, your mutes, or fields from your profile. The approval buttons stay disabled until you acknowledge it, a timed relax window can't wave it through, and the check is entirely local, so it costs no network time.
+- **Auto-zap now covers the whole zap.** Previously it never fired at all: it looked for the zap request inside the invoice's description, but NIP-57 issues description-*hash* invoices, so that field is empty on every spec-compliant zap. Sidecar now matches the payment against the zap request it signed for you moments earlier — same site, same account, same amount — and, when the amount is within your limits, signs and pays without a prompt or a payment card. Capped at 1,000 sats per zap and 10,000 per day, enforced whatever you type into the settings.
+- **Refresh your profile from the Profile screen** — the circular arrow now actually re-fetches, for when a change made elsewhere hasn't reached Sidecar yet.
+
+### Fixed
+- **Notes could be signed, reported as posted, and published nowhere.** Two faults compounded: Sidecar published only to the write relays declared in your relay list, so if those lapsed or gated on a web of trust the note had nowhere else to go; and a relay that couldn't be reached was being counted as a successful publish, so no error was ever raised. Posts now go to those relays *and* the ones configured in Settings, and an unreachable relay is reported as the failure it is, naming each relay and why. The same faults affected profile edits, relay-list updates, and follow lists.
+- **Payments could succeed while the page was told they failed** — or left waiting up to three minutes. Approving a payment cancelled the keepalive at the moment the money moved, and a lost confirmation from the wallet was being read as a failed payment. Sidecar now holds itself awake for the whole payment and asks the wallet what actually happened rather than inferring it from silence, so the answer arrives in seconds and is the truth.
+- **The approval popup no longer hides the PIN field, the auto-sign options, or the site asking.** On a long request the PIN scrolled out of view beneath the button demanding it — and because the field takes focus automatically, the popup opened scrolled to the bottom, pushing the site name and the multiple-accounts warning off-screen. Everything you act on now sits below the fold line, and a wrong-PIN message appears against the PIN field instead of down beside the buttons.
+- **Outgoing payment toasts name the amount** instead of a bare "Payment sent".
+- **Repeated actions no longer stack duplicate toasts.**
+- **Firefox Add-ons links point at the real listing.** (#133)
+
+### Changed
+- The help guide documents relax mode and the new data-erasure warning, with screenshots.
+
 ## [1.5.1] — 2026-07-24
 
 ### Added
