@@ -1133,20 +1133,51 @@
     return parsed;
   }
 
-  // Where to publish the active account's events: its NIP-65 write relays if it
-  // has them, else the relays configured in Settings.
+  // Where to publish the active account's events: its NIP-65 write relays UNION the
+  // relays configured in Settings.
+  //
+  // It used to be one or the other — NIP-65 if present, else Settings. That put every
+  // post at the mercy of the declared write set: if those relays lapse, gate on a
+  // web-of-trust, or simply stop resolving, the note goes nowhere even though a
+  // perfectly good relay is configured a few lines away. Publishing to both means a
+  // note still lands, and still lands where the account claims to write.
+  // publishNip65() already targets a union for the same reason.
   async function postRelays() {
     const n = await getNip65(state.activePubkey);
-    if (n && n.write.length) return n.write;
-    return relayUrls(true);
+    const configured = await relayUrls(true);
+    return [...new Set([...(n ? n.write : []), ...configured])];
   }
+
+  // A relay that could not be reached is NOT a successful publish. SimplePool.publish()
+  // resolves with the string "connection failure: …" instead of rejecting in that case
+  // (see nostr-tools.js — vendored and pinned, so this string is stable; re-check it if
+  // that file is ever upgraded). Counting settled promises therefore counted dead
+  // relays as wins: with enough of them every post reported success while landing
+  // nowhere, which is exactly how notes went out with a valid id and reached no one.
+  const publishFailed = (r) =>
+    r.status === 'rejected' ||
+    (typeof r.value === 'string' && r.value.startsWith('connection failure:'));
 
   async function publishToRelays(relays, signed) {
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
-    const results = await Promise.allSettled(getPool().publish(relays, signed));
-    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    // Dedupe the way the pool will. A plain Set over the raw strings keeps
+    // 'wss://nos.lol' and 'wss://nos.lol/' as two entries, but SimplePool normalizes
+    // before connecting and rejects the second with 'duplicate url' — which then
+    // counts as a failed relay and muddies the error detail. Both spellings occur in
+    // the wild: NIP-65 tags and relay hints disagree about the trailing slash.
+    const targets = [...new Set(relays.map((u) => {
+      try { return NT.utils.normalizeURL(u); } catch (_) { return u; }
+    }))];
+    const results = await Promise.allSettled(getPool().publish(targets, signed));
+    const ok = results.filter((r) => !publishFailed(r)).length;
     if (!ok) {
-      const detail = results.map((r, i) => `${relays[i]}: ${r.reason?.message || r.reason || 'rejected'}`).join(' | ');
+      const detail = results
+        .map((r, i) => {
+          const why =
+            r.status === 'rejected' ? r.reason?.message || r.reason || 'rejected' : r.value;
+          return `${targets[i]}: ${why}`;
+        })
+        .join(' | ');
       throw new Error(`Could not publish to any relay — ${detail}`);
     }
     return ok;
