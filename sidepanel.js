@@ -8,13 +8,13 @@
 
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
   // a stored value is missing or invalid.
-  const AUTOZAP_DEFAULT_MAX = 100;
-  const AUTOZAP_DAILY_MULT = 5; // default daily cap = 5× the per-zap cap
+  const AUTOZAP_DEFAULT_MAX = 200;
+  const AUTOZAP_DAILY_MULT = 100; // default daily cap = 100× the per-zap cap
   // Ceilings on the no-confirmation path — mirrored from background.js, which is
   // where they are actually enforced. Reflected here only so a clamped entry snaps
   // back visibly instead of appearing to have been accepted as typed.
   const AUTOZAP_ABS_MAX = 1000;
-  const AUTOZAP_ABS_DAILY_MAX = 10000;
+  const AUTOZAP_ABS_DAILY_MAX = 100000;
 
   // ---- messaging ----
   function bg(message) {

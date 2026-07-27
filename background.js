@@ -1323,14 +1323,14 @@ function bolt11PaymentHash(invoice) {
 // total, so a signed-in site can't drain the wallet by firing many zaps that are
 // each under the per-zap cap — the per-zap limit alone bounds nothing in aggregate.
 const PAY_DAY_MS = 24 * 60 * 60 * 1000;
-const AUTOZAP_DAILY_MULTIPLE = 5; // default daily cap = 5× the per-zap cap when unset
+const AUTOZAP_DAILY_MULTIPLE = 100; // default daily cap = 100× the per-zap cap when unset
 // Hard ceilings on the no-confirmation path. Auto-zap spends with nothing to click,
 // so the limits that bound it shouldn't be whatever was last typed into a text field:
 // a stray zero on that input would otherwise widen the automatic path by 10×. Above
 // these, zaps fall back to a normal approval — which is the right behavior for an
 // amount large enough to want a second look.
 const AUTOZAP_ABS_MAX = 1000; // sats, per zap
-const AUTOZAP_ABS_DAILY_MAX = 10000; // sats, rolling day
+const AUTOZAP_ABS_DAILY_MAX = 100000; // sats, rolling day
 
 // The auto-zap limits in force, clamped. Applied on READ as well as on write, so a
 // value stored before these ceilings existed can't outlive them. Returns zeros when
