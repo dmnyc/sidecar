@@ -8,7 +8,15 @@ already assumes the background can die at any moment) is unusually Firefox-frien
 The port is a handful of surgical changes plus one genuinely new piece of UX
 (host-permission granting), not a rewrite.
 
-## Status — resumed post-1.4.0
+## Status — DONE. Shipped in 1.5.0.
+
+**This plan is complete and kept for history.** Firefox launched in 1.5.0 and the
+add-on is live on AMO; W8 below closed with that submission. Both builds now ship
+from `main` off one manifest — see [BROWSER_PARITY.md](BROWSER_PARITY.md), which is
+the doc to keep current. Nothing here is outstanding work; read it as the record of
+how the port was done, not as a to-do list.
+
+The narrative below was written mid-port and is left as it stood:
 
 The port paused while 1.4.0 shipped to Chrome. The branch has since been rebased
 onto 1.4.0 (plus the auto-lock UI follow-up), the cross-browser origin-gate fix is
