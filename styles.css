@@ -1280,13 +1280,36 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* ===== wallet (NWC) ===== */
 .nwc-input { min-height: 84px; font-family: var(--font-mono); font-size: 12px; margin-bottom: 4px; }
-/* privacy masking — masks each glyph at its real width, so toggling never reflows */
+/* Privacy masking. A FIXED number of discs, not one per glyph.
+   -webkit-text-security masks each character in place, so the disc count was the
+   digit count — 84,231 sats read as six discs and 21 as two. That leaks the order of
+   magnitude, which is most of what hiding the balance is for, and it made the number
+   visibly change length when tapping to switch units.
+   The real text is hidden but keeps its box, so nothing reflows on toggle; the discs
+   are drawn over it. */
 .balances-hidden .wallet-balance,
 .balances-hidden .tx-amt,
 .balances-hidden .amt-hide,
 .balances-hidden .pinned-balance-amt {
-  -webkit-text-security: disc;
-  text-security: disc;
+  position: relative;
+  color: transparent;
+  text-shadow: none;
+  -webkit-text-fill-color: transparent;
+}
+.balances-hidden .wallet-balance::after,
+.balances-hidden .tx-amt::after,
+.balances-hidden .amt-hide::after,
+.balances-hidden .pinned-balance-amt::after {
+  content: '••••';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+  letter-spacing: 0.12em;
+  pointer-events: none;
 }
 /* The currency symbol is smaller than the digits, so masking it too yields a runt
    disc ahead of the full-size ones. Drop it while balances are hidden — there's no
@@ -1634,7 +1657,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .post-banner-x:hover { color: var(--text); }
 .post-banner-x svg { width: 14px; height: 14px; }
 /* reload-offer — a full-width action button after an account switch */
-.reload-banner { display: flex; margin: 10px 16px 0; }
+.reload-banner { display: flex; align-items: stretch; gap: 6px; margin: 10px 16px 0; }
+/* Dismiss. Quiet on purpose — the reload is the action, this is just an exit. */
+.reload-banner-x {
+  flex: 0 0 auto; width: 34px; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted);
+  font-size: 13px; line-height: 1;
+}
+.reload-banner-x:hover { color: var(--text); border-color: var(--border-strong); }
 .reload-banner-btn {
   flex: 1; justify-content: center;
   display: inline-flex; align-items: center; gap: 6px;

@@ -4212,7 +4212,16 @@
       try { chrome.tabs.reload(tab.id); } catch (_) {}
       dismissReloadBanner();
     });
-    banner.append(reload);
+    // Dismissable: the banner is a suggestion, not a task. It auto-clears after 30s,
+    // but a user who has decided not to reload shouldn't have to wait it out.
+    const close = h('button', {
+      className: 'reload-banner-x',
+      title: 'Dismiss',
+      'aria-label': 'Dismiss',
+      textContent: '✕',
+    });
+    close.addEventListener('click', dismissReloadBanner);
+    banner.append(reload, close);
     show(banner);
     _reloadBannerTimer = setTimeout(dismissReloadBanner, 30000);
     return true;
