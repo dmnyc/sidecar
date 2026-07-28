@@ -10,6 +10,9 @@ body {
     radial-gradient(1100px 480px at 50% -12%, rgba(167, 139, 250, 0.14), transparent 60%),
     radial-gradient(820px 560px at 115% 112%, rgba(234, 119, 47, 0.12), transparent 55%),
     linear-gradient(165deg, #170630 0%, var(--bg) 62%);
+  /* Centre the tile; the gradients stay anchored. Every theme does this now,
+     so a pattern is never clipped at the left edge. */
+  background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
 /* Film Noir — Black-on-black velvet Victorian filigree. A public-domain seamless
@@ -34,6 +37,9 @@ body {
     radial-gradient(700px 450px at 120% 110%, rgba(197, 160, 89, 0.12), transparent 50%),
     linear-gradient(160deg, #E8E0D0 0%, var(--bg) 65%);
   background-size: 360px, auto, auto, auto;
+  /* Centre the tile; the gradients stay anchored. Every theme does this now,
+     so a pattern is never clipped at the left edge. */
+  background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
 /* Aegean — the Greek key over whitewash, with sea light top and bottom.
@@ -47,19 +53,33 @@ body {
     radial-gradient(780px 460px at 118% 112%, rgba(11, 87, 164, 0.07), transparent 55%),
     linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
   background-size: 460px, auto, auto, auto;
+  /* Centre the tile; the gradients stay anchored. Every theme does this now,
+     so a pattern is never clipped at the left edge. */
+  background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
-/* Brownstone — masonry courses under a streetlamp. The tile is light-on-dark (see
-   the SVG), so the gradients are warm and low: lamplight spilling from the top, a
-   parlour window glow at the bottom right. */
+/* Brownstone — the tile is light-on-dark (see the SVG), so the gradients are warm
+   and low: lamplight from the top, a parlour window glow at the bottom right.
+   TWO TILES ship for this theme; swap the url AND size below together.
+     brownstone-pattern.svg         masonry courses — the facade. 150px.
+     brownstone-pattern-coffer.svg  concentric coffers — pressed tin and parquet,
+                                    the inside of the house. 400px; the tile is 4
+                                    coffers across, so size / 4 = one coffer.
+   Currently the masonry. The coffers were tried and sat too close to Aegean's
+   meander: both are orthogonal hard-edged geometry, so they read as the same idea
+   however they are scaled. The diagonal courses give the two themes genuinely
+   different silhouettes. */
 [data-theme="brownstone"] body {
   background-image:
     url(brownstone-pattern.svg),
     radial-gradient(1000px 460px at 50% -10%, rgba(224, 169, 74, 0.075), transparent 60%),
     radial-gradient(720px 440px at 116% 110%, rgba(180, 100, 58, 0.075), transparent 55%),
     linear-gradient(168deg, #1B1310 0%, var(--bg) 60%);
-  /* 150px, down from 320: at full size the courses read as big diagonal slabs;
-     halved, they read as coursed stone. */
   background-size: 150px, auto, auto, auto;
+  /* Centre the tile so it's symmetric in the panel rather than clipped at the left
+     edge. Only the pattern layer moves; the gradients stay anchored. Film Noir does
+     the same. */
+  background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
+
 
