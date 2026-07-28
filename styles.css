@@ -408,7 +408,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .icon-btn.sm { font-size: 14px; padding: 5px 6px; }
 .icon-btn svg { width: 19px; height: 19px; display: block; }
 .icon-btn.sm svg { width: 16px; height: 16px; }
-.topbar-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+/* 4px, not 2: with five icons the hover pills were close enough to touch and the
+   row read as one undifferentiated strip. Wider than this and they stop reading
+   as a set. */
+.topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 
 /* ===== main app ===== */
 .topbar {
