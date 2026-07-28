@@ -134,6 +134,58 @@ test('transactions look recent relative to now, not to a hardcoded date', () => 
   assert.ok(now - oldest < 30 * 24 * 3600 * 1000, 'oldest row should still be within a month');
 });
 
+// The first version of this data was all round numbers with a memo on every row,
+// which read as generated at a glance. These assert the shape that fixed it, since
+// it's the kind of thing that quietly degrades when someone adds a row.
+test('amounts mix round zap-sized values with irregular ones', () => {
+  const sats = DEMO.buildTransactions(Date.now()).map((t) => t.amount / 1000);
+  const round = sats.filter((v) => v % 100 === 0);
+  const irregular = sats.filter((v) => v % 100 !== 0);
+  assert.ok(round.length >= 3, 'zaps really are round numbers — some should be');
+  assert.ok(irregular.length >= 3, 'fiat-denominated and order amounts are not round');
+});
+
+test('most rows carry no memo, as a real NWC list does', () => {
+  const txs = DEMO.buildTransactions(Date.now());
+  const bare = txs.filter((t) => !t.description);
+  assert.ok(bare.length >= 3, 'bare zaps have no description — txRow shows Received/Sent');
+  assert.ok(bare.length < txs.length, 'but not all of them, or the list has no texture');
+});
+
+test('both directions are represented, with fees only on outgoing', () => {
+  const txs = DEMO.buildTransactions(Date.now());
+  assert.ok(txs.some((t) => t.type === 'incoming'));
+  assert.ok(txs.some((t) => t.type === 'outgoing'));
+  for (const t of txs) {
+    if (t.type === 'incoming') assert.equal(t.fees_paid, 0, 'receiving costs nothing');
+    else assert.ok(t.fees_paid > 0, 'an outgoing payment pays a routing fee');
+  }
+});
+
+// Percentage alone is the wrong test: routing has an effective ~1 sat floor, so a
+// 100 sat payment legitimately pays 1%. Either the fee is at the floor, or it's a
+// small fraction of the amount.
+test('routing fees stay plausible — at the 1 sat floor, or well under 1%', () => {
+  for (const t of DEMO.buildTransactions(Date.now())) {
+    if (t.type !== 'outgoing') continue;
+    const feeSats = t.fees_paid / 1000;
+    const pct = (t.fees_paid / t.amount) * 100;
+    assert.ok(
+      feeSats <= 1 || pct < 0.5,
+      'fee on ' + (t.amount / 1000) + ' sats was ' + feeSats + ' sats (' + pct.toFixed(2) + '%)'
+    );
+  }
+});
+
+test('hashes look like hex rather than an arithmetic pattern', () => {
+  for (const t of DEMO.buildTransactions(Date.now())) {
+    assert.match(t.payment_hash, /^[0-9a-f]{64}$/);
+    assert.match(t.preimage, /^[0-9a-f]{64}$/);
+    // The old generator emitted long ascending runs like "0123456789abcdef".
+    assert.ok(!/0123456789/.test(t.payment_hash), 'hash should not read as a counter');
+  }
+});
+
 test('the invoice stub cannot be mistaken for a payable bolt11', () => {
   for (const tx of DEMO.buildTransactions(Date.now())) {
     assert.ok(tx.invoice.startsWith('lnbcDEMO'), 'got ' + tx.invoice);

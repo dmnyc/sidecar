@@ -38,33 +38,57 @@
 (function (root) {
   const KEY = 'sidecar_demo_funds';
 
-  const DEMO_BALANCE_MSAT = 847_320_000; // 847,320 sats — enough digits to exercise the formatters
+  // Not a round number. A real balance is whatever's left after arbitrary payments,
+  // and 847,320 read as invented at a glance.
+  const DEMO_BALANCE_MSAT = 412_905_000; // 412,905 sats
 
-  // Offsets from "now" rather than fixed dates, so the list always reads as recent
-  // however long after writing this it's opened. Minutes for the top rows, days for
-  // the tail, which is what an active wallet actually looks like.
+  // A fortnight of plausible activity, as offsets from "now" rather than fixed dates,
+  // so the list still reads as recent however long after writing this it's opened.
+  //
+  // Two things make wallet history look real, and the first version had neither:
+  //
+  //   - Amounts split by KIND. Zaps really are round — 21, 210, 1000, 2100 are the
+  //     amounts people actually tap — but anything denominated in fiat or tied to an
+  //     order lands on an arbitrary number like 12,206. All-round amounts read as
+  //     generated; all-irregular reads as noise.
+  //   - Most rows have NO description. txRow falls back to "Received"/"Sent", which
+  //     is what a real NWC list mostly looks like: a bare zap carries no memo, and
+  //     only invoices and lightning-address sends bring text with them.
+  //
+  // Descriptions that ARE here are the shapes Sidecar renders in the wild: a
+  // lightning address for an outgoing payment (real wallets put it in the memo when
+  // there's no payMeta entry), a short zap comment, an order reference. No
+  // "Channel open" — that isn't a thing NWC reports.
   const TEMPLATE = [
-    { type: 'incoming', sats: 21000, ago: 4 * 60,           desc: 'Zap from a note' },
-    { type: 'outgoing', sats: 500,   ago: 38 * 60,          desc: 'Zap · npub1qq…4kx', fee: 1 },
-    { type: 'incoming', sats: 120000, ago: 3 * 3600,        desc: 'Invoice paid' },
-    { type: 'outgoing', sats: 2100,  ago: 7 * 3600,         desc: 'Zap · npub1w0…9dm', fee: 2 },
-    { type: 'outgoing', sats: 15000, ago: 26 * 3600,        desc: 'Coffee', fee: 8 },
-    { type: 'incoming', sats: 4200,  ago: 2 * 86400,        desc: 'Zap from a reply' },
-    { type: 'outgoing', sats: 210,   ago: 3 * 86400,        desc: 'Zap · npub1lq…7ts', fee: 1 },
-    { type: 'incoming', sats: 750000, ago: 5 * 86400,       desc: 'Channel open' },
-    { type: 'outgoing', sats: 33000, ago: 6 * 86400,        desc: 'Sats for a book', fee: 12 },
-    { type: 'incoming', sats: 8888,  ago: 9 * 86400,        desc: 'Zap from a long-form post' },
-    { type: 'outgoing', sats: 1000,  ago: 11 * 86400,       desc: 'Zap · npub1v4…2ep', fee: 1 },
-    { type: 'incoming', sats: 64000, ago: 14 * 86400,       desc: 'Invoice paid' },
+    { type: 'incoming', sats: 210,   ago: 6 * 60,      desc: '' },
+    { type: 'incoming', sats: 1000,  ago: 41 * 60,     desc: '🍸' },
+    { type: 'outgoing', sats: 210,   ago: 2 * 3600,    desc: 'hodl@getalby.com', fee: 1 },
+    { type: 'incoming', sats: 21,    ago: 3 * 3600,    desc: '' },
+    { type: 'outgoing', sats: 5000,  ago: 8 * 3600,    desc: 'sam@walletofsatoshi.com', fee: 3 },
+    { type: 'incoming', sats: 12206, ago: 19 * 3600,   desc: 'Invoice — podcast edit' },
+    { type: 'outgoing', sats: 2100,  ago: 26 * 3600,   desc: 'jack@primal.net', fee: 2 },
+    { type: 'incoming', sats: 500,   ago: 2 * 86400,   desc: 'great thread' },
+    { type: 'outgoing', sats: 47893, ago: 3 * 86400,   desc: 'Order 4471', fee: 41 },
+    { type: 'incoming', sats: 21000, ago: 4 * 86400,   desc: '' },
+    { type: 'outgoing', sats: 100,   ago: 6 * 86400,   desc: 'zbd@zbd.gg', fee: 1 },
+    { type: 'incoming', sats: 3847,  ago: 9 * 86400,   desc: '' },
   ];
 
-  // Hex of a fixed length, varied by index. Not random: Math.random() would make
-  // every render differ, which turns a screenshot diff into noise. Obviously fake on
-  // inspection ("demo" spelled out) so nobody mistakes one for a real hash.
+  // Deterministic pseudo-random hex. Math.random() would make every render differ,
+  // which turns a screenshot diff into noise, but the arithmetic pattern the first
+  // version produced ("de00ad001357…") read as obviously synthetic in the expanded
+  // detail view. A small LCG gives hex that looks like hex.
+  //
+  // The 'de' prefix survives on purpose: a hash here should still be identifiable as
+  // fabricated by anyone who looks closely.
   function fakeHex(len, i, tag) {
-    let s = 'de00' + tag + String(i).padStart(2, '0');
-    while (s.length < len) s += ((i * 7 + s.length * 13) % 16).toString(16);
-    return s.slice(0, len);
+    let seed = (i + 1) * 2654435761 + tag.charCodeAt(0) * 40503;
+    let out = 'de';
+    while (out.length < len) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      out += ((seed >>> 16) & 0xff).toString(16).padStart(2, '0');
+    }
+    return out.slice(0, len);
   }
 
   /** Build the demo transaction list, timestamped relative to `nowMs`. */
