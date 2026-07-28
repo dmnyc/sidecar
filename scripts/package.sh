@@ -45,7 +45,8 @@ git archive "${TAG}" | tar -x -C "${STAGE}"
 rm -rf "${STAGE}/.claude" "${STAGE}/.github" "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test"
 rm -f "${STAGE}/.gitignore" "${STAGE}/README.md" "${STAGE}/CHANGELOG.md" \
       "${STAGE}/FEATURES.md" "${STAGE}/PRIVACY.md" "${STAGE}/BROWSER_PARITY.md" \
-      "${STAGE}/FIREFOX_PORT.md" "${STAGE}/VENDOR.md" "${STAGE}/package.json"
+      "${STAGE}/FIREFOX_PORT.md" "${STAGE}/VENDOR.md" "${STAGE}/WALLET_BACKENDS.md" \
+      "${STAGE}/package.json"
 
 # version.js is gitignored and not in the archive — regenerate it, stamped to the tag.
 cat > "${STAGE}/version.js" <<EOF
