@@ -199,12 +199,26 @@ test('no real wallet providers or third-party domains appear', () => {
   }
 });
 
-test('every lightning address is at a domain we control', () => {
+// Scoped to COUNTERPARTIES on purpose. The wallet's own receive address is allowed
+// to name a real provider — see DEMO_LUD16 — because depicting where you receive is
+// different from listing payments to four competitors.
+test('every counterparty lightning address is at a domain we control', () => {
   for (const tx of DEMO.buildTransactions(Date.now())) {
     const d = tx.description || '';
     if (!d.includes('@')) continue;
     assert.match(d, /@sidecar\.top$/, 'unexpected counterparty domain: ' + d);
   }
+});
+
+test('the demo receive address is exposed and well-formed', () => {
+  assert.equal(DEMO.DEMO_LUD16, 'gatsby@zeuspay.com');
+  assert.match(DEMO.DEMO_LUD16, /^[^\s@]+@[a-z0-9.-]+\.[a-z]{2,}$/i);
+});
+
+test('getInfo advertises the demo address, so the receive card has one', async () => {
+  const info = await DEMO.wrap(null).getInfo();
+  assert.equal(info.lud16, DEMO.DEMO_LUD16);
+  assert.equal(info.alias, 'Demo wallet');
 });
 
 test('the invoice stub cannot be mistaken for a payable bolt11', () => {

@@ -42,6 +42,13 @@
   // and 847,320 read as invented at a glance.
   const DEMO_BALANCE_MSAT = 412_905_000; // 412,905 sats
 
+  // The demo wallet's OWN receive address, shown on the Lightning address card and
+  // its QR. Unlike the counterparties below this one names a real provider, and that
+  // asymmetry is deliberate: "the address I receive at is hosted by Zeus Pay" is a
+  // true, ordinary thing to depict, whereas a list of payments to four different
+  // providers put their brands in our screenshots as if they were our counterparties.
+  const DEMO_LUD16 = 'gatsby@zeuspay.com';
+
   // A fortnight of plausible activity, as offsets from "now" rather than fixed dates,
   // so the list still reads as recent however long after writing this it's opened.
   //
@@ -195,11 +202,11 @@
         const offset = (args && args.offset) || 0;
         return Promise.resolve({ transactions: all.slice(offset, offset + limit) });
       },
-      getInfo: () => Promise.resolve(
-        typeof base.getInfo === 'function'
-          ? { alias: 'Demo wallet', methods: ['get_balance', 'list_transactions'] }
-          : { alias: 'Demo wallet' }
-      ),
+      getInfo: () => Promise.resolve({
+        alias: 'Demo wallet',
+        lud16: DEMO_LUD16,
+        methods: ['get_balance', 'list_transactions', 'get_info'],
+      }),
       // Writes: refused, loudly.
       payInvoice: refuse('paying an invoice'),
       makeInvoice: refuse('creating an invoice'),
@@ -211,5 +218,5 @@
     };
   }
 
-  root.SidecarDemoFunds = { KEY, isOn, setOn, clear, wrap, buildTransactions, buildBalance, DEMO_BALANCE_MSAT };
+  root.SidecarDemoFunds = { KEY, isOn, setOn, clear, wrap, buildTransactions, buildBalance, DEMO_BALANCE_MSAT, DEMO_LUD16 };
 })(typeof self !== 'undefined' ? self : globalThis);

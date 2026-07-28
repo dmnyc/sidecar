@@ -7280,6 +7280,10 @@
     } catch (_) { return false; }
   }
   async function getLightningAddress() {
+    // Ahead of both real sources. Without this the demo wallet falls through to the
+    // active account's actual published lud16, which puts a real receive address on
+    // a screenshot of fabricated activity.
+    if (demoActive()) return DEMO.DEMO_LUD16;
     try {
       const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
       const fromNwc = connection && parseNwcLud16(connection);
