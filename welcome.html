@@ -40,10 +40,11 @@
       <button id="perm-grant-btn" class="perm-grant-btn">Grant site access</button>
     </div>
 
-    <!-- First run, panel not open yet. Sits in the page rather than floating with
-         an arrow at the toolbar: the arrow assumed Chrome's puzzle-piece position
-         and pointed at empty chrome everywhere else. welcome.js fills the last
-         word — "side panel" on Chrome, "sidebar" on Firefox — and unhides it. -->
+    <!-- First run, panel not open yet. Floats over the nav strip (CSS puts it
+         there; it's declared here so it isn't built by innerHTML). No pointer
+         arrow — the old one assumed Chrome's puzzle-piece position and aimed at
+         empty chrome in every other browser. welcome.js fills the last word,
+         "side panel" on Chrome and "sidebar" on Firefox, then unhides it. -->
     <div id="open-pin-gate" class="open-pin-gate" hidden>
       <img class="open-pin-icon" src="icons/icon128.png" alt="">
       <div class="open-pin-text">
