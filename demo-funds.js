@@ -59,18 +59,26 @@
   // lightning address for an outgoing payment (real wallets put it in the memo when
   // there's no payMeta entry), a short zap comment, an order reference. No
   // "Channel open" — that isn't a thing NWC reports.
+  //
+  // NAMES AND DOMAINS ARE INVENTED, DELIBERATELY. These rows get screenshotted for
+  // the store listings, and an earlier version used real handles at real providers
+  // (getalby.com, walletofsatoshi.com, primal.net, zbd.gg). That put other people's
+  // services — and in one case a real person's name — into Sidecar's marketing, and
+  // pointed anyone who read a screenshot closely at addresses that aren't ours to
+  // publish. The counterparties are now writers from Gatsby's own decade, at
+  // sidecar.top, which we control.
   const TEMPLATE = [
     { type: 'incoming', sats: 210,   ago: 6 * 60,      desc: '' },
     { type: 'incoming', sats: 1000,  ago: 41 * 60,     desc: '🍸' },
-    { type: 'outgoing', sats: 210,   ago: 2 * 3600,    desc: 'hodl@getalby.com', fee: 1 },
+    { type: 'outgoing', sats: 210,   ago: 2 * 3600,    desc: 'zelda@sidecar.top', fee: 1 },
     { type: 'incoming', sats: 21,    ago: 3 * 3600,    desc: '' },
-    { type: 'outgoing', sats: 5000,  ago: 8 * 3600,    desc: 'sam@walletofsatoshi.com', fee: 3 },
-    { type: 'incoming', sats: 12206, ago: 19 * 3600,   desc: 'Invoice — podcast edit' },
-    { type: 'outgoing', sats: 2100,  ago: 26 * 3600,   desc: 'jack@primal.net', fee: 2 },
-    { type: 'incoming', sats: 500,   ago: 2 * 86400,   desc: 'great thread' },
+    { type: 'outgoing', sats: 5000,  ago: 8 * 3600,    desc: 'ernest@sidecar.top', fee: 3 },
+    { type: 'incoming', sats: 12206, ago: 19 * 3600,   desc: 'Invoice — manuscript edit' },
+    { type: 'outgoing', sats: 2100,  ago: 26 * 3600,   desc: 'dorothy@sidecar.top', fee: 2 },
+    { type: 'incoming', sats: 500,   ago: 2 * 86400,   desc: 'for the last chapter' },
     { type: 'outgoing', sats: 47893, ago: 3 * 86400,   desc: 'Order 4471', fee: 41 },
     { type: 'incoming', sats: 21000, ago: 4 * 86400,   desc: '' },
-    { type: 'outgoing', sats: 100,   ago: 6 * 86400,   desc: 'zbd@zbd.gg', fee: 1 },
+    { type: 'outgoing', sats: 100,   ago: 6 * 86400,   desc: 'langston@sidecar.top', fee: 1 },
     { type: 'incoming', sats: 3847,  ago: 9 * 86400,   desc: '' },
   ];
 

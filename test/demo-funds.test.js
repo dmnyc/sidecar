@@ -186,6 +186,27 @@ test('hashes look like hex rather than an arithmetic pattern', () => {
   }
 });
 
+// These rows are screenshotted for the store listings. An earlier version used real
+// handles at real providers, which put someone else's service — and a real person's
+// name — into Sidecar's marketing. Every counterparty must be ours.
+test('no real wallet providers or third-party domains appear', () => {
+  const text = DEMO.buildTransactions(Date.now()).map((t) => t.description).join(' ').toLowerCase();
+  for (const host of [
+    'getalby.com', 'walletofsatoshi.com', 'primal.net', 'zbd.gg', 'strike.me',
+    'coinos.io', 'minibits.cash', 'blink.sv', 'zeusln.app', 'nostrplebs.com',
+  ]) {
+    assert.ok(!text.includes(host), 'demo data must not reference ' + host);
+  }
+});
+
+test('every lightning address is at a domain we control', () => {
+  for (const tx of DEMO.buildTransactions(Date.now())) {
+    const d = tx.description || '';
+    if (!d.includes('@')) continue;
+    assert.match(d, /@sidecar\.top$/, 'unexpected counterparty domain: ' + d);
+  }
+});
+
 test('the invoice stub cannot be mistaken for a payable bolt11', () => {
   for (const tx of DEMO.buildTransactions(Date.now())) {
     assert.ok(tx.invoice.startsWith('lnbcDEMO'), 'got ' + tx.invoice);
