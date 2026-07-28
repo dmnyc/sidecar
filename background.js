@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js');
+  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'demo-funds.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -26,6 +26,10 @@ const NWC = self.SidecarNWC;
 const RELAX = self.SidecarRelax;
 const BASELINE = self.SidecarBaseline;
 const ZAPREQ = self.SidecarZapRequests;
+// Dev-only demo wallet data. The background needs it for exactly one thing —
+// clearing the flag on lock — so the whole surface is guarded here rather than
+// assumed present.
+const DEMOFUNDS = self.SidecarDemoFunds || null;
 
 const DEFAULT_RELAYS = {
   'wss://nos.lol': { read: true, write: true },
@@ -1897,6 +1901,12 @@ async function lockKeystore(auto = false) {
   // Same reasoning for pending zap requests: they authorize a payment to go out with
   // no prompt, so a locked keystore must not leave any of them spendable.
   ZAPREQ.clear().catch(() => {});
+  // Demo funds show a fabricated balance. Anything that survived a lock could be
+  // mistaken for real money on the next unlock, so the flag dies here — an unlock
+  // always starts from the wallet's actual numbers. Dev builds only, but this runs
+  // unconditionally: clearing a key that was never set costs nothing, and a guard
+  // here would be one more thing that could be wrong.
+  if (DEMOFUNDS) DEMOFUNDS.clear().catch(() => {});
   // Tell any open panel/popup to drop to the unlock screen immediately — otherwise
   // it keeps showing whatever was open (e.g. the composer) and only discovers the
   // lock on its next action, which then fails with a "locked" error. `auto` marks an

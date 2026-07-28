@@ -27,6 +27,7 @@
       "relax-grants.js",
       "replaceable-baseline.js",
       "zap-requests.js",
+      "demo-funds.js",
       "jsqr.js",
       "background.js"
     ]

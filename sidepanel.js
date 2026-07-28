@@ -101,6 +101,29 @@
   })();
   function isDevBuild() { return devBuild; }
 
+  // ---- demo funds (dev builds only; see demo-funds.js) ----
+  // Mirrored into a local flag so the synchronous client-construction paths can
+  // consult it without awaiting storage. The flag is only ever set from
+  // refreshDemoFunds(), which fails closed on a store build.
+  const DEMO = (typeof self !== 'undefined' && self.SidecarDemoFunds) || null;
+  let demoFundsOn = false;
+
+  async function refreshDemoFunds() {
+    if (!DEMO) { demoFundsOn = false; return false; }
+    await devBuildReady; // Firefox resolves isDevBuild() asynchronously
+    demoFundsOn = await DEMO.isOn(isDevBuild());
+    return demoFundsOn;
+  }
+
+  // Every wallet client in the panel goes through here. One choke point rather than
+  // an `if (demo)` at each read site: a half-applied demo — real balance, fake
+  // transactions — would be worse than either.
+  function walletClient(connection) {
+    const real = window.SidecarNWC.makeClient(connection);
+    if (demoFundsOn && DEMO && isDevBuild()) return DEMO.wrap(real);
+    return real;
+  }
+
   // Filled lightning bolt (from wordswithzaps' bolt-yellow.svg). Inherits color
   // via currentColor; sized inline with text by the .bolt-ico class.
   function boltIcon(cls) {
@@ -451,7 +474,17 @@
     // unlock screen now. refresh() closes any open modal and routes to view-lock.
     // Only an idle-timeout lock (auto) toasts — the user didn't trigger it, so
     // explain the sudden jump; manual lock / reset already show their own message.
-    if (msg.event === 'locked') { refresh(); if (msg.auto) toast('Locked due to inactivity'); }
+    if (msg.event === 'locked') {
+      // Second layer: lockKeystore() already cleared the stored flag, but this panel
+      // holds its own mirrored copy that the synchronous client paths read. Drop it
+      // here too, so a demo balance can't survive into the next unlock even if the
+      // storage write lost a race.
+      demoFundsOn = false;
+      const dt = $('demo-funds-toggle');
+      if (dt) dt.checked = false;
+      refresh();
+      if (msg.auto) toast('Locked due to inactivity');
+    }
     // A relax window was granted, revoked, or expired — refresh the banner.
     if (msg.event === 'relaxChanged' && state && !state.locked) syncRelax();
   });
@@ -5790,7 +5823,7 @@
       throw new Error('Backup could not be read');
     }
     // Validate with a getInfo round-trip before saving, like manual connect.
-    const client = window.SidecarNWC.makeClient(connection);
+    const client = walletClient(connection);
     await client.getInfo();
     client.close();
     await call({ type: 'SIDECAR_SET_NWC', connection });
@@ -7341,8 +7374,18 @@
     stopWalletMonitor();
     if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
     const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
-    if (!connection) return null;
-    nwc = window.SidecarNWC.makeClient(connection);
+    // Demo funds are most useful with NO wallet connected — that's the state where
+    // the wallet screen shows only the connect prompt, so none of the balance or
+    // transaction UI renders at all. Fall through to a client backed by nothing.
+    // On a store build demoFundsOn can never be true, so this returns null as before.
+    if (!connection) {
+      if (!(demoFundsOn && DEMO && isDevBuild())) return null;
+      nwc = DEMO.wrap(null);
+      nwcPubkey = pk;
+      startWalletMonitor(nwc);
+      return nwc;
+    }
+    nwc = walletClient(connection);
     nwcPubkey = pk;
     startWalletMonitor(nwc);
     return nwc;
@@ -7411,7 +7454,7 @@
       connect.textContent = 'Connecting…';
       try {
         // Validate by parsing + a getInfo round-trip before saving.
-        const client = window.SidecarNWC.makeClient(conn);
+        const client = walletClient(conn);
         await client.getInfo();
         client.close();
         await call({ type: 'SIDECAR_SET_NWC', connection: conn });
@@ -9494,6 +9537,31 @@
     $('dev-indicator-toggle').addEventListener('change', async (e) => {
       await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devIndicator: e.target.checked } });
       applyDevBadge(e.target.checked);
+    });
+
+    // Demo funds. Deliberately NOT in sidecar_settings: that's disk-backed and
+    // survives everything, and a fabricated balance must not outlive the session
+    // that asked for it. The flag lives in chrome.storage.session, which never
+    // touches disk, and lockKeystore() drops it.
+    //
+    // Reading it here rather than at boot means the very first paint of a reopened
+    // panel can use the real client for a moment. That's the harmless direction of
+    // the race — real numbers shown briefly, never fabricated ones — but repaint if
+    // it turns out to be on so the wallet isn't left inconsistent.
+    const demoToggle = $('demo-funds-toggle');
+    const wasOn = await refreshDemoFunds();
+    demoToggle.checked = wasOn;
+    if (wasOn) { balanceCache = null; refresh(); }
+    demoToggle.addEventListener('change', async (e) => {
+      const want = e.target.checked;
+      const ok = await DEMO.setOn(want, isDevBuild());
+      if (!ok) { e.target.checked = false; toast('Could not change demo funds', 'error'); return; }
+      demoFundsOn = want;
+      toast(want ? 'Demo funds on — sending is disabled' : 'Demo funds off', want ? 'success' : 'info');
+      // Repaint the wallet against the new source. The balance cache holds the
+      // previous (real or fake) number, so it has to go or the card keeps showing it.
+      balanceCache = null;
+      await refresh();
     });
   }
   function applyDevBadge(on) {

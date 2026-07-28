@@ -390,6 +390,8 @@
         <h3>Developer</h3>
         <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
         <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
+        <label class="toggle-row"><input type="checkbox" id="demo-funds-toggle" /> <span>Demo funds</span></label>
+        <p class="hint">Fills the wallet with a fake balance and recent-looking transactions, so the wallet UI can be worked on without a funded connection. Sending and receiving are disabled while it's on, and it clears itself whenever Sidecar locks.</p>
       </div>
 
       <div class="setting">
@@ -497,6 +499,7 @@
   <script src="qrcode-generator.js"></script>
   <script src="qr.js"></script>
   <script src="nwc-client.js"></script>
+  <script src="demo-funds.js"></script>
   <script src="version.js"></script>
   <script src="sidepanel.js"></script>
 </body>
