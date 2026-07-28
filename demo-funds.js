@@ -74,7 +74,7 @@
     { type: 'incoming', sats: 21,    ago: 3 * 3600,    desc: '' },
     { type: 'outgoing', sats: 5000,  ago: 8 * 3600,    desc: 'holden@sidecar.top', fee: 3 },
     { type: 'incoming', sats: 12206, ago: 19 * 3600,   desc: 'Invoice — manuscript edit' },
-    { type: 'outgoing', sats: 2100,  ago: 26 * 3600,   desc: 'alice@sidecar.top', fee: 2 },
+    { type: 'outgoing', sats: 2100,  ago: 26 * 3600,   desc: 'georgia@sidecar.top', fee: 2 },
     { type: 'incoming', sats: 500,   ago: 2 * 86400,   desc: 'for the last chapter' },
     { type: 'outgoing', sats: 47893, ago: 3 * 86400,   desc: 'Order 4471', fee: 41 },
     { type: 'incoming', sats: 21000, ago: 4 * 86400,   desc: '' },
