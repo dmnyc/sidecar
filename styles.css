@@ -1281,39 +1281,37 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* ===== wallet (NWC) ===== */
 .nwc-input { min-height: 84px; font-family: var(--font-mono); font-size: 12px; margin-bottom: 4px; }
 /* Privacy masking. A FIXED number of discs, not one per glyph.
-   -webkit-text-security masks each character in place, so the disc count was the
+   -webkit-text-security masked each character in place, so the disc count was the
    digit count — 84,231 sats read as six discs and 21 as two. That leaks the order of
    magnitude, which is most of what hiding the balance is for, and it made the number
    visibly change length when tapping to switch units.
-   The real text is hidden but keeps its box, so nothing reflows on toggle; the discs
-   are drawn over it. */
+   `visibility` rather than a transparent colour: it hides the glyphs while leaving
+   `color` intact, so the discs inherit whatever the number is painted in — gold on
+   Speakeasy and Film Noir, bronze on Art Deco — instead of being hardcoded to one
+   value that matched no theme. It also keeps the element's box, so nothing reflows
+   on toggle, and unlike -webkit-text-fill-color it needs no prefix and can't fail
+   open on a browser that doesn't support it. */
 .balances-hidden .wallet-balance,
 .balances-hidden .tx-amt,
 .balances-hidden .amt-hide,
 .balances-hidden .pinned-balance-amt {
   position: relative;
-  color: transparent;
-  text-shadow: none;
-  -webkit-text-fill-color: transparent;
+  visibility: hidden;
 }
 .balances-hidden .wallet-balance::after,
 .balances-hidden .tx-amt::after,
 .balances-hidden .amt-hide::after,
 .balances-hidden .pinned-balance-amt::after {
   content: '••••';
+  visibility: visible;
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text);
-  -webkit-text-fill-color: var(--text);
   letter-spacing: 0.12em;
   pointer-events: none;
 }
-/* The currency symbol is smaller than the digits, so masking it too yields a runt
-   disc ahead of the full-size ones. Drop it while balances are hidden — there's no
-   amount to denominate, and the unit line below still names the currency. */
 .balances-hidden .wallet-fiat-sym,
 .balances-hidden .pinned-fiat-sym { display: none; }
 
