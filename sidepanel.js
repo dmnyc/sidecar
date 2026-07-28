@@ -1477,6 +1477,22 @@
     fetchAndStoreProfile(pubkey);
   }
 
+  // Does this account still need its name/picture pulled from kind:0?
+  //
+  // EITHER field missing is enough — not both. The earlier `!a.name && !a.picture`
+  // treated a name with no picture as a complete profile, and vault import
+  // produces exactly that: keystore writes `picture: ''` and never sets
+  // placeholderName, so a restored account kept the placeholder avatar in the
+  // chip and dropdown permanently, with no reload able to clear it.
+  //
+  // Over-fetching is cheap and bounded — maybeFetchProfile dedupes on
+  // profileFetchAttempted, so an account whose kind:0 genuinely carries no
+  // picture costs one attempt per panel session, not one per render.
+  function needsProfileBackfill(a) {
+    if (!a) return false;
+    return !!a.placeholderName || !a.name || !a.picture;
+  }
+
   // ---- notification bell ----
 
   async function loadNotifSeen() {
@@ -2194,10 +2210,12 @@
     state.accounts.forEach((a) => list.appendChild(accountRow(a)));
     makeSortable(list);
 
-    // Lazily pull name + picture from kind:0 for accounts that still lack a
-    // real (kind:0-sourced) profile — placeholder cocktail names don't count.
+    // Lazily pull name + picture from kind:0 for accounts that still lack a real
+    // (kind:0-sourced) profile — placeholder cocktail names don't count. Runs on
+    // every render, so an install carrying accounts from an older vault import
+    // heals itself the next time the list is drawn.
     state.accounts.forEach((a) => {
-      if (a.placeholderName || (!a.name && !a.picture)) maybeFetchProfile(a.pubkey);
+      if (needsProfileBackfill(a)) maybeFetchProfile(a.pubkey);
     });
   }
 
@@ -5923,7 +5941,10 @@
               const r = await call({ type: 'SIDECAR_REVEAL_NWC', pubkey: a.pubkey, pin });
               nwc = r.connection || null;
             }
-            accounts.push({ pubkey: a.pubkey, npub: a.npub, name: a.name, nsec, nwc });
+            // picture rides along so a restored account shows its avatar right
+            // away instead of waiting on a kind:0 round trip — and so the vault
+            // stops silently dropping data it already had in hand.
+            accounts.push({ pubkey: a.pubkey, npub: a.npub, name: a.name, picture: a.picture || '', nsec, nwc });
           }
           const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), accounts });
           const kdf = window.SidecarCrypto.newKdf();
@@ -5993,6 +6014,11 @@
             try {
               const added = await call({ type: 'SIDECAR_ADD_ACCOUNT', secret: a.nsec, name: a.name || '' });
               imported++;
+              // Vaults written before this field existed have no picture; those
+              // accounts fall back to the kind:0 backfill in renderAccounts.
+              if (a.picture) {
+                await call({ type: 'SIDECAR_SET_PROFILE', pubkey: added.pubkey, name: a.name || '', picture: a.picture });
+              }
               // The pubkey is derived from the secret, so a successful add always
               // lands under added.pubkey — safe to attach the wallet connection now.
               if (a.nwc) await call({ type: 'SIDECAR_SET_NWC', pubkey: added.pubkey, connection: a.nwc });
