@@ -469,6 +469,14 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 .search-close { flex-shrink: 0; }
+/* Suggestion list. Reuses .ac-item/.ac-loading from the composer's @-mention
+   dropdown, but sits in flow rather than absolutely positioned — the search bar
+   is already a drop-down, so a second floating layer would just clip. */
+.search-results {
+  margin-top: 8px; max-height: 232px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2);
+}
+.search-results:empty { display: none; }
 .search-status { font-size: 12px; color: var(--muted); margin-top: 6px; }
 .search-status:empty { display: none; }
 .search-status.error { color: var(--warn); }

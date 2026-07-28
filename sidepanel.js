@@ -821,6 +821,7 @@
     $('search-btn').setAttribute('aria-expanded', 'false');
     $('search-input').value = '';
     setSearchStatus('');
+    clearSearchResults();
   }
 
   function openSearch() {
@@ -903,7 +904,7 @@
       const client = await preferredClient();
       url = client.profile(NT.nip19.npubEncode(pubkey));
     } else {
-      setSearchStatus('Paste an npub, note, nevent, naddr, or a name@domain address.', true);
+      setSearchStatus('No match. Try a name, an npub, a note, or a name@domain address.', true);
       return;
     }
 
@@ -911,14 +912,125 @@
     closeSearch();
   }
 
+  // ---- name autocomplete in the search bar ----
+  // Same two sources the composer's @-mention dropdown uses: your follow list
+  // (local, instant once cached) and the Nostr Archives suggest endpoint for
+  // everyone else. Follows are listed first and the global results are appended
+  // as they land, so the box is useful before — and if — the network answers.
+  let searchAcSeq = 0, searchAcTimer = null, searchResults = [], searchIndex = -1;
+
+  function clearSearchResults() {
+    if (searchAcTimer) { clearTimeout(searchAcTimer); searchAcTimer = null; }
+    searchAcSeq++;
+    searchResults = []; searchIndex = -1;
+    $('search-results').innerHTML = '';
+    $('search-results').classList.add('hidden');
+  }
+
+  function paintSearchActive() {
+    $('search-results').querySelectorAll('.ac-item')
+      .forEach((el, i) => el.classList.toggle('active', i === searchIndex));
+  }
+
+  async function openProfileFor(pubkey) {
+    const client = await preferredClient();
+    openInClient(client.profile(NT.nip19.npubEncode(pubkey)));
+    closeSearch();
+  }
+
+  function renderSearchResults(items, loading) {
+    const box = $('search-results');
+    searchResults = items;
+    if (!items.length && !loading) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+    if (searchIndex >= items.length) searchIndex = items.length - 1;
+    box.classList.remove('hidden');
+    box.innerHTML = '';
+    items.forEach((c, i) => {
+      const item = h('div', { className: 'ac-item' + (i === searchIndex ? ' active' : '') });
+      const av = h('span', { className: 'ac-item-av' });
+      applyAvatar(av, c.picture ? { picture: c.picture } : {});
+      item.append(av, h('span', { className: 'ac-item-name', textContent: c.name }));
+      item.addEventListener('mousedown', (e) => { e.preventDefault(); openProfileFor(c.pubkey); });
+      box.append(item);
+    });
+    if (loading) {
+      box.append(h('div', { className: 'ac-loading' }, [
+        h('span', { className: 'ac-spinner' }),
+        h('span', { textContent: items.length ? 'Searching more…' : 'Searching Nostr…' }),
+      ]));
+    }
+  }
+
+  function updateSearchAc() {
+    const raw = $('search-input').value.trim();
+    // An identifier resolves on Enter; there is nothing to suggest for it. Same
+    // for a complete NIP-05 — that's a lookup, not a search.
+    if (!raw || extractEntity(raw) || NIP05_RE.test(raw) || raw.length < 2) {
+      clearSearchResults();
+      return;
+    }
+    const seq = ++searchAcSeq;
+    const q = raw.toLowerCase();
+    const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+
+    let follows = [];
+    let globals = [];
+    let globalPending = naAvailable();
+    const paint = () => {
+      if (seq !== searchAcSeq) return;
+      const seen = new Set(follows.map((c) => c.pubkey));
+      const merged = follows.slice();
+      for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+      renderSearchResults(merged.slice(0, 8), globalPending);
+    };
+
+    const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
+    if (cached) follows = matchFollows(cached);
+    paint();
+    if (!cached) {
+      getFollowList().then((list) => {
+        if (seq !== searchAcSeq) return;
+        follows = matchFollows(list);
+        paint();
+      }).catch(() => {});
+    }
+
+    if (globalPending) {
+      if (searchAcTimer) clearTimeout(searchAcTimer);
+      searchAcTimer = setTimeout(async () => {
+        const res = await naSuggest(raw);
+        if (seq !== searchAcSeq) return;
+        globals = res;
+        globalPending = false;
+        paint();
+      }, 250);
+    }
+  }
+
   $('search-btn').addEventListener('click', () => {
     if ($('search-bar').classList.contains('hidden')) openSearch();
     else closeSearch();
   });
   $('search-close').addEventListener('click', closeSearch);
+  $('search-input').addEventListener('input', () => { setSearchStatus(''); updateSearchAc(); });
   $('search-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
-    else if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+    const n = searchResults.length;
+    if (e.key === 'ArrowDown' && n) {
+      e.preventDefault(); searchIndex = Math.min(searchIndex + 1, n - 1); paintSearchActive();
+    } else if (e.key === 'ArrowUp' && n) {
+      e.preventDefault(); searchIndex = Math.max(searchIndex - 1, 0); paintSearchActive();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // A highlighted suggestion wins; then the top suggestion, since erroring
+      // "that isn't an npub" with a list of matches on screen would be absurd;
+      // otherwise decode what was actually typed.
+      const pick = searchResults[searchIndex >= 0 ? searchIndex : 0];
+      if (pick) openProfileFor(pick.pubkey);
+      else runSearch();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (searchResults.length) clearSearchResults(); else closeSearch();
+    }
   });
 
   // ---- help & guides (opens as a full page in the main browser window) ----
