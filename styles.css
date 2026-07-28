@@ -512,7 +512,16 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .acct-row-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acct-row-npub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acct-row-check { width: 18px; height: 18px; color: var(--gold); flex-shrink: 0; }
-.acct-row.foot { justify-content: center; color: var(--lav); border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; padding-top: 11px; }
+.acct-row.foot { justify-content: center; gap: 8px; color: var(--lav); border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; padding-top: 11px; }
+/* The rule separates the account list from the footer actions, so only the first
+   footer row draws one — two stacked rows would otherwise show two lines. */
+.acct-row.foot + .acct-row.foot { border-top: none; margin-top: 0; padding-top: 7px; }
+/* The menu row reuses .add-account-badge rather than defining its own disc, so it
+   picks up the per-theme color overrides Aegean and Art Deco already carry. Only
+   the scale differs. */
+.add-account-badge.sm { width: 17px; height: 17px; }
+.add-account-badge.sm svg { width: 11px; height: 11px; }
+.acct-row.foot:hover .add-account-badge { background: var(--lav); }
 
 /* nsec import preview — confirm the account a pasted key belongs to */
 
