@@ -199,9 +199,6 @@ test('no real wallet providers or third-party domains appear', () => {
   }
 });
 
-// Scoped to COUNTERPARTIES on purpose. The wallet's own receive address is allowed
-// to name a real provider — see DEMO_LUD16 — because depicting where you receive is
-// different from listing payments to four competitors.
 test('every counterparty lightning address is at a domain we control', () => {
   for (const tx of DEMO.buildTransactions(Date.now())) {
     const d = tx.description || '';
@@ -210,9 +207,12 @@ test('every counterparty lightning address is at a domain we control', () => {
   }
 });
 
-test('the demo receive address is exposed and well-formed', () => {
-  assert.equal(DEMO.DEMO_LUD16, 'gatsby@zeuspay.com');
+// The receive address is held to the same rule as the counterparties, and for a
+// sharper reason: it's encoded into a QR that gets published in store screenshots,
+// so a third-party address here would be scannable by anyone reading a listing.
+test('the demo receive address is well-formed and at a domain we control', () => {
   assert.match(DEMO.DEMO_LUD16, /^[^\s@]+@[a-z0-9.-]+\.[a-z]{2,}$/i);
+  assert.match(DEMO.DEMO_LUD16, /@sidecar\.top$/, 'a scannable QR must not point off-domain');
 });
 
 test('getInfo advertises the demo address, so the receive card has one', async () => {

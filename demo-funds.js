@@ -43,11 +43,14 @@
   const DEMO_BALANCE_MSAT = 412_905_000; // 412,905 sats
 
   // The demo wallet's OWN receive address, shown on the Lightning address card and
-  // its QR. Unlike the counterparties below this one names a real provider, and that
-  // asymmetry is deliberate: "the address I receive at is hosted by Zeus Pay" is a
-  // true, ordinary thing to depict, whereas a list of payments to four different
-  // providers put their brands in our screenshots as if they were our counterparties.
-  const DEMO_LUD16 = 'gatsby@zeuspay.com';
+  // encoded into its QR.
+  //
+  // Must stay at a domain we control. The QR gets published in store screenshots, so
+  // a real third-party address here is scannable — anyone who scans it from a listing
+  // would be paying whoever actually holds that handle. A placeholder at sidecar.top
+  // encodes to something inert, and this is the one line to change once a real
+  // Sidecar-owned address exists.
+  const DEMO_LUD16 = 'gatsby@sidecar.top';
 
   // A fortnight of plausible activity, as offsets from "now" rather than fixed dates,
   // so the list still reads as recent however long after writing this it's opened.
