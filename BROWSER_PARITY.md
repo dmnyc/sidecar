@@ -61,7 +61,10 @@ on Chrome. That gap is expected, not a problem to manage.
 
 ## Release checklist — run for every version bump
 
-- [ ] Bump `version` in `manifest.json` — one file, both builds.
+- [ ] Bump `version` in `manifest.json` — one file, both builds — and match it in
+      `package.json`. Only the manifest reaches the zip (`package.sh` reads it and
+      strips `package.json` from the archive), so a stale `package.json` ships
+      nothing wrong and gets missed: it sat at 1.5.0 from v1.5.1 through v1.6.0.
 - [ ] Any new background module added to **both** `importScripts(...)` in
       `background.js` and `background.scripts` in the manifest.
 - [ ] Single shared `CHANGELOG.md` entry — both builds ship the same notes.

@@ -7,7 +7,7 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
-## [1.6.0] — 2026-07-26
+## [1.6.0] — 2026-07-28
 
 ### Added
 - **Zap animations.** A bolt of lightning strikes across the page whenever a payment goes out — procedurally drawn, never the same twice. It fires for zaps sent from a client's own UI as well as from Sidecar, and can be turned off in Settings.
