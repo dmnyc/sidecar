@@ -914,11 +914,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 #share-sidecar-btn svg { width: 16px; height: 16px; }
 .first-post-balloon {
   position: absolute; bottom: 90px; right: 12px; z-index: 49;
-  background: var(--amber); color: #1a0e08;
+  background: var(--balloon-bg, var(--amber)); color: var(--btn-primary-text, #1a0e08);
   font-size: 12px; font-weight: 600;
   padding: 7px 13px; border-radius: 10px;
   white-space: nowrap; cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  box-shadow: 0 4px 14px var(--float-shadow, rgba(0,0,0,0.45));
   transition: background 0.12s, opacity 0.15s;
 }
 .first-post-balloon::after {
@@ -926,11 +926,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   bottom: -7px; right: 24px;
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
-  border-top: 7px solid var(--amber);
+  border-top: 7px solid var(--balloon-bg, var(--amber));
   transition: border-top-color 0.12s;
 }
-.first-post-balloon:hover { background: var(--gold); }
-.first-post-balloon:hover::after { border-top-color: var(--gold); }
+.first-post-balloon:hover { background: var(--balloon-bg-hover, var(--gold)); }
+.first-post-balloon:hover::after { border-top-color: var(--balloon-bg-hover, var(--gold)); }
 .add-actions button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px; }
 .add-actions button svg { width: 17px; height: 17px; }
 
@@ -1170,9 +1170,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   position: absolute; bottom: 18px; right: 16px; z-index: 50;
   width: 54px; height: 54px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  color: #1a0e08; border: none; cursor: pointer;
-  background: linear-gradient(160deg, #f4b860, var(--gold));
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  color: var(--btn-primary-text, #1a0e08); border: none; cursor: pointer;
+  background: var(--fab-bg, linear-gradient(160deg, #f4b860, var(--gold)));
+  box-shadow: 0 10px 26px var(--float-shadow-strong, rgba(0, 0, 0, 0.5)), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
   transition: transform 0.12s, box-shadow 0.15s, opacity 0.16s ease;
 }
 .fab.is-scrolling { opacity: 0.45; }

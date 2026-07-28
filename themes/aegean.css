@@ -80,6 +80,17 @@
      themes, cobalt here. */
   --accent-fill: var(--lav);
   --glow: var(--lav);
+  /* The composer button and its balloon. These default to --amber and a gold
+     gradient, which on whitewash read as olive rather than gold — the one place
+     in the theme that still looked like it belonged to Speakeasy. Cobalt, the
+     same door-blue as the primary button, with white text at 5.74:1. */
+  --balloon-bg: var(--lav);
+  --balloon-bg-hover: var(--purple);
+  --fab-bg: linear-gradient(160deg, var(--btn-primary-top), var(--btn-primary-mid));
+  /* Floating shadows are tuned for dark themes; half-opacity black under a
+     button sitting on plaster reads as grime. */
+  --float-shadow: rgba(11, 42, 66, 0.18);
+  --float-shadow-strong: rgba(11, 42, 66, 0.26);
 }
 
 /* --- what still needs a rule, and why --------------------------------------- */
