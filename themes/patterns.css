@@ -48,3 +48,18 @@ body {
     linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
   background-size: 460px, auto, auto, auto;
 }
+
+/* Brownstone — masonry courses under a streetlamp. The tile is light-on-dark (see
+   the SVG), so the gradients are warm and low: lamplight spilling from the top, a
+   parlour window glow at the bottom right. */
+[data-theme="brownstone"] body {
+  background-image:
+    url(brownstone-pattern.svg),
+    radial-gradient(1000px 460px at 50% -10%, rgba(224, 169, 74, 0.075), transparent 60%),
+    radial-gradient(720px 440px at 116% 110%, rgba(180, 100, 58, 0.075), transparent 55%),
+    linear-gradient(168deg, #1B1310 0%, var(--bg) 60%);
+  /* 150px, down from 320: at full size the courses read as big diagonal slabs;
+     halved, they read as coursed stone. */
+  background-size: 150px, auto, auto, auto;
+}
+

@@ -1008,7 +1008,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   flex-shrink: 0; white-space: nowrap;
   padding: 7px 12px; font-size: 12px; font-weight: 600;
   border-radius: 8px; cursor: pointer;
-  color: #1a0d33; background: var(--gold); border: 1px solid var(--gold);
+  color: var(--btn-primary-text, #1a0d33); background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold));
 }
 .switch-site-btn:hover { filter: brightness(1.08); }
 /* multi-login safeguard: this host has signed in with 2+ accounts */
@@ -1617,7 +1617,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--text-2); background: var(--hover-soft); border: 1px solid var(--border);
 }
 .preset-chip:hover { border-color: var(--gold-soft); }
-.preset-chip.active { color: #1a0d33; background: var(--gold); border-color: var(--gold); }
+.preset-chip.active { color: var(--btn-primary-text, #1a0d33); background: var(--accent-fill, var(--gold)); border-color: var(--accent-fill, var(--gold)); }
 
 /* receive: waiting + success states */
 .recv-waiting { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
@@ -2166,7 +2166,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .relax-status-x {
   width: 22px; height: 22px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
-  background: var(--gold); border: none; color: #1a0a33;
+  background: var(--accent-fill, var(--gold)); border: none; color: var(--btn-primary-text, #1a0a33);
   display: inline-flex; align-items: center; justify-content: center; transition: filter 0.12s;
 }
 .relax-status-x svg { width: 12px; height: 12px; display: block; }

@@ -151,7 +151,7 @@
 
   // Apply theme by setting data-theme attribute on HTML element
   function applyTheme(themeName) {
-    const validThemes = ['speakeasy', 'film-noir', 'art-deco', 'aegean'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

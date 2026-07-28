@@ -28,9 +28,12 @@
   --success: #4F6B3A;
   --success-rgb: 79, 107, 58;
 
+  /* --orange is the UI accent, not a decorative warm: it drives accent-color on
+     every checkbox, mentions, and chosen buttons. Terracotta here made the
+     checkboxes read as errors. Terracotta lives in --warn, where it belongs. */
+  --orange: #1565C0;
   /* brand — sun-bleached stone for money, so gold still reads as gold across all
      four themes, but pitched warm-neutral rather than yellow against white */
-  --orange: #A8432A;
   --amber: #B8912F;
   --gold: #9C7A1C;
   --gold-soft: rgba(156, 122, 28, 0.5);
@@ -73,6 +76,9 @@
   --focus-ring: rgba(21, 101, 192, 0.18);
   --btn-primary-text: #FFFFFF;
   --card-wash: rgba(21, 101, 192, 0.10);
+  /* Bright fill behind an active chip or the relax countdown — gold in the dark
+     themes, cobalt here. */
+  --accent-fill: var(--lav);
   --glow: var(--lav);
 }
 

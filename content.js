@@ -364,7 +364,7 @@
   // scripts, so the theme is read directly from storage, not via messaging.)
   let cardTheme = 'speakeasy';
   function setCardTheme(t) {
-    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'art-deco' && t !== 'aegean') return;
+    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'brownstone' && t !== 'art-deco' && t !== 'aegean') return;
     if (t === cardTheme) return;
     cardTheme = t;
     if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
@@ -447,6 +447,28 @@
       // Aegean — marble, Aegean blue, Attic gold. Mirrors themes/aegean.css;
       // the card carries its own copy because it renders in the page's shadow DOM
       // with no access to the extension's stylesheets.
+      // Brownstone — a dark theme, so the card keeps the light wordmark and the
+      // near-black button text the other dark themes use.
+      brownstone: {
+        CARD_COLOR: 'color:#F2E7DD',
+        CARD_BORDER: 'rgba(201,139,94,0.32)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(224,169,74,0.13),transparent 58%),linear-gradient(165deg,#1B1310,#120C0A)',
+        CARD_MUTED: 'color:#A89383',
+        CARD_GOLD: 'color:#E0A94A',
+        CARD_TEXT_2: 'color:#D8C7B8',
+        CARD_LAV: '#D69A6A',
+        CARD_PAY_TEXT: 'color:#241A15',
+        CARD_PAY_BG: 'linear-gradient(180deg,#F0C46B,#E0A94A 52%,#B48230)',
+        CARD_CANCEL_BG: 'rgba(201,139,94,0.14)',
+        CARD_TEXT: '#F2E7DD',
+        CARD_BORDER_FAINT: 'rgba(201,139,94,0.18)',
+        CARD_TOGGLE_OFF: 'rgba(201,139,94,0.25)',
+        CARD_TRACK: '#E0A94A',
+        CARD_THUMB_OFF: '#A89383',
+        CARD_WARN: 'color:#C4574A',
+        CARD_SUCCESS: 'color:#8FA05E',
+        CARD_PAY_SHADOW: 'rgba(224,169,74,0.34)'
+      },
       aegean: {
         CARD_COLOR: 'color:#14232E',
         CARD_BORDER: 'rgba(11,87,164,0.30)',
