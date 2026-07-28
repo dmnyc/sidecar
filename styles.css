@@ -133,7 +133,9 @@ input, select, textarea {
   padding: 11px 13px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6));
+  /* Themed: a light theme can't use a dark-purple field. Fallback keeps the dark
+     themes exactly as they were. */
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
   color: var(--text);
   font-size: 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -146,7 +148,7 @@ input::placeholder, textarea::placeholder { color: var(--faint); }
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--gold-soft);
-  box-shadow: 0 0 0 3px rgba(203, 161, 78, 0.16);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 
 /* ===== PIN / passphrase strength + match indicators ===== */
@@ -365,7 +367,8 @@ button { cursor: pointer; }
 .lav-btn:active { transform: translateY(0); }
 .primary {
   background: linear-gradient(180deg, var(--btn-primary-top, #f29248), var(--btn-primary-mid, var(--orange)) 55%, var(--btn-primary-bot, #d4621f));
-  color: #1c0c00;
+  /* Themed: right on amber, unreadable on a cobalt fill. */
+  color: var(--btn-primary-text, #1c0c00);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px var(--btn-shadow, rgba(234, 119, 47, 0.28));
 }
 .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
@@ -1413,7 +1416,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   position: sticky; top: 0; z-index: 5;
   text-align: center; padding: 22px 16px; border-radius: 16px; margin-bottom: 14px;
   background:
-    radial-gradient(120% 120% at 50% 0%, rgba(203, 161, 78, 0.14), transparent 60%),
+    radial-gradient(120% 120% at 50% 0%, var(--card-wash, rgba(203, 161, 78, 0.14)), transparent 60%),
     linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--gold-soft); box-shadow: var(--sheen), var(--shadow-sm);
   transition: padding 0.2s ease;
@@ -1489,10 +1492,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .balance-bump { animation: balance-glow 5s ease-out; }
 @keyframes balance-glow {
   0% { text-shadow: 0 0 0 transparent; }
-  8% { text-shadow: 0 0 20px var(--gold); }
-  25% { text-shadow: 0 0 8px var(--gold); }
-  45% { text-shadow: 0 0 20px var(--gold); }
-  65% { text-shadow: 0 0 6px var(--gold); }
+  8% { text-shadow: 0 0 20px var(--glow, var(--gold)); }
+  25% { text-shadow: 0 0 8px var(--glow, var(--gold)); }
+  45% { text-shadow: 0 0 20px var(--glow, var(--gold)); }
+  65% { text-shadow: 0 0 6px var(--glow, var(--gold)); }
   100% { text-shadow: 0 0 0 transparent; }
 }
 .wallet-unit { font-size: 13px; color: var(--muted); }
@@ -2195,7 +2198,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   margin-top: 12px;
 }
 
+/* Each card previews its own theme's accent, so the picker reads as a swatch
+   rather than a list of identical buttons. */
 .theme-card {
+  color: var(--lav);
   background: var(--velvet-1);
   border: 2px solid var(--border);
   border-radius: 8px;

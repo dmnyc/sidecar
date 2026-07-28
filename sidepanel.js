@@ -135,7 +135,9 @@
   // eggshell background; the cocktail-glass mark is identical in both files
   // (official colors), so only the wordmark changes.
   function logoSrcFor(themeName) {
-    return themeName === 'art-deco'
+    // Both light themes need the dark-wordmark variant; the default is baked
+    // lavender for a dark field and disappears on marble or eggshell.
+    return themeName === 'art-deco' || themeName === 'aegean'
       ? 'icons/sidecar-logo-deco.svg'
       : 'icons/sidecar-logo.svg';
   }
@@ -149,7 +151,7 @@
 
   // Apply theme by setting data-theme attribute on HTML element
   function applyTheme(themeName) {
-    const validThemes = ['speakeasy', 'film-noir', 'art-deco'];
+    const validThemes = ['speakeasy', 'film-noir', 'art-deco', 'aegean'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

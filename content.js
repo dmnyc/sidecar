@@ -364,7 +364,7 @@
   // scripts, so the theme is read directly from storage, not via messaging.)
   let cardTheme = 'speakeasy';
   function setCardTheme(t) {
-    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'art-deco') return;
+    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'art-deco' && t !== 'aegean') return;
     if (t === cardTheme) return;
     cardTheme = t;
     if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
@@ -443,6 +443,32 @@
         CARD_WARN: 'color:#a8521f',
         CARD_SUCCESS: 'color:#2f7d52',
         CARD_PAY_SHADOW: 'rgba(184,134,11,0.36)'
+      },
+      // Aegean — marble, Aegean blue, Attic gold. Mirrors themes/aegean.css;
+      // the card carries its own copy because it renders in the page's shadow DOM
+      // with no access to the extension's stylesheets.
+      aegean: {
+        CARD_COLOR: 'color:#14232E',
+        CARD_BORDER: 'rgba(11,87,164,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(21,101,192,0.10),transparent 58%),linear-gradient(165deg,#FFFFFF,#F4F7F9)',
+        CARD_MUTED: 'color:#5A6B78',
+        // The amount slot. Blue here for the same reason the wallet balance is —
+        // gold on whitewash reads as mustard. Mirrors themes/aegean.css.
+        CARD_GOLD: 'color:#0B57A4',
+        CARD_TEXT_2: 'color:#2C3E4C',
+        CARD_LAV: '#1565C0',
+        // White on the cobalt fill; the other themes' near-black is unreadable there.
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#2A7BD4,#1565C0 52%,#0B4F94)',
+        CARD_CANCEL_BG: 'rgba(11,87,164,0.10)',
+        CARD_TEXT: '#14232E',
+        CARD_BORDER_FAINT: 'rgba(11,87,164,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(11,87,164,0.25)',
+        CARD_TRACK: '#1565C0',
+        CARD_THUMB_OFF: '#5A6B78',
+        CARD_WARN: 'color:#A8432A',
+        CARD_SUCCESS: 'color:#4F6B3A',
+        CARD_PAY_SHADOW: 'rgba(21,101,192,0.32)'
       }
     };
 
@@ -606,7 +632,10 @@
     // The wordmark's lettering is baked in as speakeasy's lavender (#BDA1FF), fine
     // on speakeasy/noir's dark cards but illegible on deco's light one — recolor
     // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
-    const logoSvg = cardTheme === 'art-deco' ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
+    // Both light themes need it recoloured; the baked lavender vanishes on marble
+    // and eggshell alike.
+    const lightCard = cardTheme === 'art-deco' || cardTheme === 'aegean';
+    const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
       '<style>' + cardCss + '</style>' +
       '<div class="ov">' +

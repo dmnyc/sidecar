@@ -35,3 +35,16 @@ body {
     linear-gradient(160deg, #E8E0D0 0%, var(--bg) 65%);
   background-size: 360px, auto, auto, auto;
 }
+
+/* Aegean — the Greek key over whitewash, with sea light top and bottom.
+   Dialled well back from the first pass: at 300px and 7% ink the key read as loud
+   wallpaper and every screen looked like a maze. 460px pushes it to architecture
+   scale, and the ink is down to 4.5% in the SVG itself. */
+[data-theme="aegean"] body {
+  background-image:
+    url(aegean-pattern.svg),
+    radial-gradient(1000px 460px at 50% -10%, rgba(21, 101, 192, 0.10), transparent 62%),
+    radial-gradient(780px 460px at 118% 112%, rgba(11, 87, 164, 0.07), transparent 55%),
+    linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
+  background-size: 460px, auto, auto, auto;
+}
