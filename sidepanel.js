@@ -804,6 +804,123 @@
     if (a) showNotifModal(a);
   });
 
+  // ---- search: paste an identifier, open it in your client ----
+  // Deliberately has no index behind it. A NIP-19 string already *contains* what
+  // it points at — the npub is the pubkey, the nevent is the event id — so this
+  // is a local decode, not a lookup, and it can't be broken by a service going
+  // away. A NIP-05 name is the one form that needs the network, and it resolves
+  // against its own domain rather than anybody's directory.
+  function setSearchStatus(msg, isError) {
+    const el = $('search-status');
+    el.textContent = msg || '';
+    el.classList.toggle('error', !!isError);
+  }
+
+  function closeSearch() {
+    $('search-bar').classList.add('hidden');
+    $('search-btn').setAttribute('aria-expanded', 'false');
+    $('search-input').value = '';
+    setSearchStatus('');
+  }
+
+  function openSearch() {
+    $('search-bar').classList.remove('hidden');
+    $('search-btn').setAttribute('aria-expanded', 'true');
+    setSearchStatus('');
+    $('search-input').focus();
+  }
+
+  // A NIP-19 string, with or without a nostr: prefix or a web wrapper pasted
+  // around it (njump.me/npub1…, primal.net/p/npub1… and friends all end in the
+  // bech32 we want). Returns the bare identifier, or null.
+  function extractEntity(raw) {
+    const s = String(raw || '').trim().replace(/^(web\+)?nostr:/i, '');
+    const m = s.match(/(?:npub1|nprofile1|note1|nevent1|naddr1)[023456789acdefghjklmnpqrstuvwxyz]+/i);
+    return m ? m[0].toLowerCase() : null;
+  }
+
+  // name@domain, or a bare domain (NIP-05 treats that as the "_" name).
+  const NIP05_RE = /^(?:[^\s@]+@)?[a-z0-9.-]+\.[a-z]{2,}$/i;
+
+  async function resolveNip05ToPubkey(id) {
+    const at = id.indexOf('@');
+    const name = at === -1 ? '_' : id.slice(0, at);
+    const domain = at === -1 ? id : id.slice(at + 1);
+    const resp = await fetch(
+      'https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name),
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!resp.ok) throw new Error('lookup failed');
+    const data = await resp.json();
+    const pk = data && data.names && data.names[name];
+    if (!/^[0-9a-f]{64}$/i.test(pk || '')) throw new Error('not found');
+    return pk.toLowerCase();
+  }
+
+  // Map a decoded entity onto the client's profile or note URL. naddr and nevent
+  // pass through as-is: VIEW_CLIENTS.url() takes the bech32, and the notification
+  // list has been handing it naddr this way already.
+  function clientUrlFor(client, entity, decoded) {
+    switch (decoded.type) {
+      case 'npub':     return client.profile(entity);
+      case 'nprofile': return client.profile(NT.nip19.npubEncode(decoded.data.pubkey));
+      case 'note':     return client.url(NT.nip19.neventEncode({ id: decoded.data, relays: [] }));
+      default:         return client.url(entity); // nevent, naddr
+    }
+  }
+
+  async function runSearch() {
+    const raw = $('search-input').value.trim();
+    if (!raw) return;
+
+    const entity = extractEntity(raw);
+    let url = null;
+
+    if (entity) {
+      let decoded;
+      try {
+        decoded = NT.nip19.decode(entity);
+      } catch (_) {
+        setSearchStatus("That doesn't look like a valid Nostr identifier.", true);
+        return;
+      }
+      const client = await preferredClient();
+      try {
+        url = clientUrlFor(client, entity, decoded);
+      } catch (_) {
+        setSearchStatus("Couldn't build a link for that identifier.", true);
+        return;
+      }
+    } else if (NIP05_RE.test(raw)) {
+      setSearchStatus('Looking up ' + raw + '…');
+      let pubkey;
+      try {
+        pubkey = await resolveNip05ToPubkey(raw);
+      } catch (_) {
+        setSearchStatus("No Nostr address found at that domain.", true);
+        return;
+      }
+      const client = await preferredClient();
+      url = client.profile(NT.nip19.npubEncode(pubkey));
+    } else {
+      setSearchStatus('Paste an npub, note, nevent, naddr, or a name@domain address.', true);
+      return;
+    }
+
+    openInClient(url);
+    closeSearch();
+  }
+
+  $('search-btn').addEventListener('click', () => {
+    if ($('search-bar').classList.contains('hidden')) openSearch();
+    else closeSearch();
+  });
+  $('search-close').addEventListener('click', closeSearch);
+  $('search-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+  });
+
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
     openExtensionPage('help.html');
@@ -1944,7 +2061,9 @@
 
     // persistent header chip (current account)
     applyAvatar($('chip-av'), active || {});
-    $('chip-name').textContent = active ? displayName(active) : 'No account';
+    // The name is no longer drawn in the bar, so the tooltip has to carry it —
+    // otherwise two accounts with similar avatars are indistinguishable here.
+    $('acct-btn').title = active ? 'Switch account — ' + displayName(active) : 'No account';
     refreshBell();
     syncRelax();
     renderPinnedBalanceBar();

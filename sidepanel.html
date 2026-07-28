@@ -53,10 +53,12 @@
     <header class="topbar">
       <button id="acct-btn" class="acct-chip" title="Switch account">
         <span class="chip-av" id="chip-av"></span>
-        <span class="chip-name" id="chip-name">…</span>
         <svg class="chip-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
       <div class="topbar-actions">
+        <button id="search-btn" class="icon-btn" title="Find a profile or note" aria-expanded="false" aria-controls="search-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="16.2" y1="16.2" x2="21" y2="21"></line></svg>
+        </button>
         <button id="notif-bell-btn" class="icon-btn notif-bell" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           <span class="notif-badge hidden"></span>
@@ -73,6 +75,20 @@
       </div>
       <div id="acct-menu" class="acct-menu hidden"></div>
     </header>
+
+    <!-- Drops down from the magnifier, over the tabs. Paste an npub, note,
+         nevent, naddr or a NIP-05 name; it opens in your preferred client and
+         closes itself. -->
+    <div id="search-bar" class="search-bar hidden">
+      <div class="search-row">
+        <input id="search-input" type="text" spellcheck="false" autocomplete="off"
+               placeholder="npub, note, nevent, naddr, or name@domain" />
+        <button id="search-close" class="icon-btn search-close" title="Close search" aria-label="Close search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div id="search-status" class="search-status" role="status" aria-live="polite"></div>
+    </div>
 
     <nav class="tabs">
       <button class="tab active" data-tab="accounts">Accounts</button>

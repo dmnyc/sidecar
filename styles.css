@@ -425,14 +425,16 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .brand-logo-sm { height: 24px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
 
 /* persistent account chip + dropdown switcher */
+/* Avatar + chevron only. The name used to sit between them and ate most of the
+   bar; it's in the button's title and the dropdown lists it, so dropping it here
+   costs nothing and buys room for the search icon. */
 .acct-chip {
-  display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 64%;
+  display: flex; align-items: center; gap: 4px; min-width: 0; flex-shrink: 0;
   background: transparent; border: none; cursor: pointer; color: var(--text);
   padding: 4px 6px; border-radius: 10px;
 }
 .acct-chip:hover { background: var(--hover-soft); }
 .acct-chip:disabled { cursor: default; }
-.acct-chip:disabled .chip-name,
 .acct-chip:disabled .chip-chev { display: none; }
 .acct-chip:disabled .chip-av { opacity: 0.4; }
 .chip-av {
@@ -441,8 +443,35 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 }
 .chip-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .chip-av.avatar-ph img { width: 60%; height: 60%; margin: 20%; object-fit: contain; opacity: 0.72; }
-.chip-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip-chev { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+
+/* ===== search bar (drops down from the topbar magnifier) ===== */
+.search-bar {
+  border-bottom: 1px solid var(--border);
+  background: rgba(var(--velvet-1-rgb), 0.5);
+  padding: 10px 16px;
+  animation: search-drop 140ms ease-out;
+}
+@keyframes search-drop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .search-bar { animation: none; } }
+.search-row { display: flex; align-items: center; gap: 6px; }
+.search-row input {
+  flex: 1; min-width: 0;
+  padding: 8px 10px; font-size: 13px; border-radius: 9px;
+  color: var(--text); border: 1px solid var(--border);
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.search-row input:focus {
+  outline: none; border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
+}
+.search-close { flex-shrink: 0; }
+.search-status { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.search-status:empty { display: none; }
+.search-status.error { color: var(--warn); }
 
 .acct-menu {
   position: absolute; top: calc(100% + 4px); left: 10px; right: 10px;
