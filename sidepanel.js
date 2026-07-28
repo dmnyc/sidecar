@@ -115,13 +115,36 @@
     return demoFundsOn;
   }
 
+  // The one condition that decides whether wallet reads are fiction. Three terms
+  // because each rules out a different failure: the flag, the module being absent,
+  // and a store build where neither should matter.
+  function demoActive() { return demoFundsOn === true && !!DEMO && isDevBuild(); }
+
   // Every wallet client in the panel goes through here. One choke point rather than
   // an `if (demo)` at each read site: a half-applied demo — real balance, fake
   // transactions — would be worse than either.
   function walletClient(connection) {
     const real = window.SidecarNWC.makeClient(connection);
-    if (demoFundsOn && DEMO && isDevBuild()) return DEMO.wrap(real);
+    if (demoActive()) return DEMO.wrap(real);
     return real;
+  }
+
+  // Toggling demo mode changes where wallet numbers come from, so both caches that
+  // hold them have to go.
+  //
+  // balanceCache is reset to its declared SHAPE, not to null: renderWalletConnected
+  // reads balanceCache.pubkey unguarded, so a null here threw immediately after the
+  // view was cleared and left the wallet screen blank.
+  //
+  // And nwc is dropped because ensureNwc() returns it whenever the pubkey still
+  // matches — without this, flipping the toggle kept handing back the client built
+  // under the previous mode, so nothing appeared to change until an account switch.
+  function resetForDemoSwitch() {
+    balanceCache = { pubkey: null, sats: null };
+    stopWalletMonitor();
+    if (nwc) { try { nwc.close(); } catch (_) {} }
+    nwc = null;
+    nwcPubkey = null;
   }
 
   // Filled lightning bolt (from wordswithzaps' bolt-yellow.svg). Inherits color
@@ -7379,7 +7402,7 @@
     // transaction UI renders at all. Fall through to a client backed by nothing.
     // On a store build demoFundsOn can never be true, so this returns null as before.
     if (!connection) {
-      if (!(demoFundsOn && DEMO && isDevBuild())) return null;
+      if (!demoActive()) return null;
       nwc = DEMO.wrap(null);
       nwcPubkey = pk;
       startWalletMonitor(nwc);
@@ -7405,7 +7428,11 @@
     // would clear + append a card, leaving two overlapping sticky cards.
     if (seq !== walletRenderSeq) return;
     view.innerHTML = '';
-    if (!has) {
+    // Demo mode counts as having a wallet. This check asks the background whether a
+    // connection string is stored, which is the wrong question in demo mode — the
+    // whole point is to render the wallet UI with nothing connected, and ensureNwc()
+    // (which knows about demo) is only reached further down.
+    if (!has && !demoActive()) {
       renderWalletConnect(view);
       return;
     }
@@ -7516,7 +7543,10 @@
     // leaving the balance invisible on the Wallet screen until a tab switch.
     if (pinBalanceBar) renderPinnedBalanceBar();
     // Balance card — show the last-known balance instantly, refresh below.
-    const cached = balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
+    // Null-guarded like every other balanceCache reader. This one wasn't, and an
+    // assignment of null elsewhere threw here — immediately after view.innerHTML = ''
+    // — which left the entire wallet screen blank with nothing shown to explain it.
+    const cached = !!balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     // Sentinel above the card; its visibility (not scrollTop) drives the collapse.
     const sentinel = h('div', { className: 'wallet-sentinel' });
     view.append(sentinel);
@@ -9551,16 +9581,14 @@
     const demoToggle = $('demo-funds-toggle');
     const wasOn = await refreshDemoFunds();
     demoToggle.checked = wasOn;
-    if (wasOn) { balanceCache = null; refresh(); }
+    if (wasOn) { resetForDemoSwitch(); refresh(); }
     demoToggle.addEventListener('change', async (e) => {
       const want = e.target.checked;
       const ok = await DEMO.setOn(want, isDevBuild());
       if (!ok) { e.target.checked = false; toast('Could not change demo funds', 'error'); return; }
       demoFundsOn = want;
       toast(want ? 'Demo funds on — sending is disabled' : 'Demo funds off', want ? 'success' : 'info');
-      // Repaint the wallet against the new source. The balance cache holds the
-      // previous (real or fake) number, so it has to go or the card keeps showing it.
-      balanceCache = null;
+      resetForDemoSwitch();
       await refresh();
     });
   }
