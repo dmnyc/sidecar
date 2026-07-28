@@ -84,9 +84,23 @@
      gradient, which on whitewash read as olive rather than gold — the one place
      in the theme that still looked like it belonged to Speakeasy. Cobalt, the
      same door-blue as the primary button, with white text at 5.74:1. */
-  --balloon-bg: var(--lav);
-  --balloon-bg-hover: var(--purple);
-  --fab-bg: linear-gradient(160deg, var(--btn-primary-top), var(--btn-primary-mid));
+  /* Sky rather than door-blue. Cobalt with white text was legible but still read
+     dim next to Art Deco. Going lighter means the text has to go dark: white caps
+     out around #1E70CC (#2A7BD4 with white is 4.30:1, under the 4.5 floor for
+     text this size), so the balloon takes the theme's own ink instead — 5.46:1,
+     and 2.76:1 against the whitewash so it still reads as an object rather than
+     dissolving into the page. */
+  --balloon-bg: #4A9BE8;
+  --balloon-bg-hover: #6BB0EE;
+  --balloon-text: var(--text);
+  /* The compose button stays gold — it's the warm note the palette is built
+     around, and the balloon above it carries the cobalt. What made it look muddy
+     was the default gradient bottoming out on this theme's own --gold (#9C7A1C),
+     an olive that goes grey against whitewash. Pinned to bright metallic instead:
+     the quill reads 8.99:1 at the darkest stop, and the gradient keeps enough
+     depth to look like a button rather than a flat disc. --fab-icon stays unset,
+     so the quill keeps its default near-black. */
+  --fab-bg: linear-gradient(160deg, #F0C46B, #D4AF37);
   /* Floating shadows are tuned for dark themes; half-opacity black under a
      button sitting on plaster reads as grime. */
   --float-shadow: rgba(11, 42, 66, 0.18);

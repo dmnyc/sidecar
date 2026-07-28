@@ -914,7 +914,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 #share-sidecar-btn svg { width: 16px; height: 16px; }
 .first-post-balloon {
   position: absolute; bottom: 90px; right: 12px; z-index: 49;
-  background: var(--balloon-bg, var(--amber)); color: var(--btn-primary-text, #1a0e08);
+  background: var(--balloon-bg, var(--amber)); color: var(--balloon-text, #1a0e08);
   font-size: 12px; font-weight: 600;
   padding: 7px 13px; border-radius: 10px;
   white-space: nowrap; cursor: pointer;
@@ -1170,7 +1170,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   position: absolute; bottom: 18px; right: 16px; z-index: 50;
   width: 54px; height: 54px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  color: var(--btn-primary-text, #1a0e08); border: none; cursor: pointer;
+  color: var(--fab-icon, #1a0e08); border: none; cursor: pointer;
   background: var(--fab-bg, linear-gradient(160deg, #f4b860, var(--gold)));
   box-shadow: 0 10px 26px var(--float-shadow-strong, rgba(0, 0, 0, 0.5)), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
   transition: transform 0.12s, box-shadow 0.15s, opacity 0.16s ease;
