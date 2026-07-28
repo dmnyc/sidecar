@@ -32,6 +32,7 @@
 
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
+    plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
@@ -1143,6 +1144,19 @@
       }
       menu.append(row);
     });
+    // Adding an account is the other thing you come to this menu for, and until now
+    // it meant going to the Accounts tab first. Same modal the tab's button opens,
+    // so there's one path to Generate/Import rather than two.
+    const addRow = h('button', { className: 'acct-row foot' }, [
+      h('span', { className: 'add-account-badge sm' }, [icon('plus')]),
+      h('span', { className: 'acct-row-name', textContent: 'Add account' }),
+    ]);
+    addRow.addEventListener('click', () => {
+      closeAcctMenu();
+      addAccountModal();
+    });
+    menu.append(addRow);
+
     const foot = h('button', { className: 'acct-row foot' }, [
       h('span', { className: 'acct-row-name', textContent: 'Manage accounts' }),
     ]);
@@ -2134,10 +2148,11 @@
   function renderMain() {
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
 
-    // No accounts yet → the switcher chip has nothing to show or switch to (its
-    // dropdown would only offer "Manage accounts", the tab you're already on),
-    // and the "Accounts" heading is noise next to the welcome hero. Hide both;
-    // the topbar actions stay anchored right (margin-left:auto).
+    // No accounts yet → the switcher chip has nothing to show or switch to, and the
+    // "Accounts" heading is noise next to the welcome hero. Hide both; the topbar
+    // actions stay anchored right (margin-left:auto). The dropdown now also offers
+    // "Add account", but the empty state puts full-size Generate/Import buttons
+    // right there, so the chip has nothing to add.
     const hasAccounts = state.accounts.length > 0;
     // Empty state: keep a dimmed placeholder avatar in the top-left for balance,
     // but make the chip inert (no name, no chevron, no dropdown) until an account exists.
