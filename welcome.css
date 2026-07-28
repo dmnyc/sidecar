@@ -282,70 +282,46 @@ body {
   margin: 4px auto;
 }
 
-/* ===== Toolbar nudge (first run, side panel not open) ===== */
+/* ===== Open & pin nudge (first run, panel not open) ===== */
 
-.toolbar-callout {
-  position: fixed;
-  top: 14px;
-  right: 20px;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: 340px;
-  padding: 14px 30px 14px 16px;
-  background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+/* Deliberately in the page flow, not floating with an arrow at the toolbar. The
+   old callout was pinned top-right with a pointer aimed at Chrome's puzzle-piece
+   menu; every other browser puts that control somewhere else, so the arrow
+   pointed at nothing. A strip at the top of the content needs no geometry to be
+   correct, and it can't be clipped or land off-screen. */
+.open-pin-gate {
+  display: flex; align-items: center; gap: 14px; flex-wrap: nowrap;
+  margin: 0 0 28px; padding: 14px 16px; border-radius: 12px;
+  background: rgba(var(--border-rgb, 203, 161, 78), 0.09);
   border: 1px solid var(--border-strong);
-  border-radius: 14px;
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5);
-  animation: callout-bob 1.9s ease-in-out infinite;
+  animation: open-pin-attention 2.6s ease-in-out 3;
+}
+.open-pin-gate[hidden] { display: none; }
+
+/* Three slow pulses, then it stops. An indefinite animation on a strip you can't
+   scroll away from reads as an error state after the first few seconds. */
+@keyframes open-pin-attention {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--border-rgb, 203, 161, 78), 0); }
+  50%      { box-shadow: 0 0 0 5px rgba(var(--border-rgb, 203, 161, 78), 0.16); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .open-pin-gate { animation: none; }
 }
 
-.callout-arrow {
-  position: absolute;
-  top: -8px;
-  right: 26px;
-  width: 15px;
-  height: 15px;
-  background: var(--velvet-1);
-  border-left: 1px solid var(--border-strong);
-  border-top: 1px solid var(--border-strong);
-  transform: rotate(45deg);
-}
+.open-pin-icon { width: 42px; height: 42px; border-radius: 9px; flex-shrink: 0; }
+.open-pin-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.open-pin-text strong { font-size: 14px; color: var(--text); }
+.open-pin-text span { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 
-.callout-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 9px;
-  flex-shrink: 0;
+.open-pin-x {
+  margin-left: auto; align-self: flex-start; flex-shrink: 0;
+  background: none; border: none; color: var(--faint);
+  font-size: 19px; line-height: 1; cursor: pointer; padding: 2px 4px;
 }
-
-.callout-text { display: flex; flex-direction: column; gap: 3px; }
-.callout-text strong { font-size: 14px; color: var(--text); }
-.callout-text span { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
-
-.callout-x {
-  position: absolute;
-  top: 7px;
-  right: 9px;
-  background: none;
-  border: none;
-  color: var(--faint);
-  font-size: 17px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px;
-}
-.callout-x:hover { color: var(--text); }
-
-@keyframes callout-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(5px); }
-}
+.open-pin-x:hover { color: var(--text); }
 
 @media (max-width: 600px) {
-  .toolbar-callout { left: 16px; right: 16px; max-width: none; }
-  .callout-arrow { right: 26px; }
+  .open-pin-icon { width: 34px; height: 34px; }
 }
 
 /* ===== Hidden cards (filtered out) ===== */

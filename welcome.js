@@ -449,44 +449,43 @@ document.getElementById('filters').addEventListener('click', e => {
   });
 });
 
-// First-run nudge: if no side panel is open yet, float a caption pointing up to
-// the toolbar so the user knows to open and pin Sidecar. It shows at most once —
-// closing it or reloading the page keeps it gone (a "seen" flag is persisted to
-// chrome.storage.local). Also hides itself if the panel connects.
+// First-run nudge: if the panel isn't open yet, show a strip at the top of the
+// page telling the user to pin Sidecar. It shows at most once — closing it or
+// reloading keeps it gone (a "seen" flag is persisted to chrome.storage.local).
+// Also hides itself if the panel connects.
+//
+// This used to float at the top-right with an arrow pointing at Chrome's
+// Extensions menu. Every other browser puts that control somewhere else, so the
+// arrow pointed at empty chrome — and the copy said "side panel", which is the
+// Chrome name for it. Now it sits in the page (no geometry to get wrong) and
+// names the surface the current browser actually has.
 (function toolbarNudge() {
   if (!(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage && chrome.storage && chrome.storage.local)) return;
   const SEEN_KEY = 'welcomeNudgeSeen';
   let dismissed = false;
   let poll = null;
 
+  const gate = document.getElementById('open-pin-gate');
+  if (!gate) return;
+
+  // Firefox exposes sidebarAction and calls it a sidebar; Chrome has side_panel.
+  // Same test background.js uses to decide how to open the thing.
+  const isSidebar = typeof browser !== 'undefined' && !!browser.sidebarAction;
+  const surface = document.getElementById('open-pin-surface');
+  if (surface) surface.textContent = isSidebar ? 'sidebar' : 'side panel';
+
   function stop() { if (poll) { clearInterval(poll); poll = null; } }
-  function hide() {
-    const el = document.getElementById('toolbar-callout');
-    if (el) el.remove();
-  }
+  function hide() { gate.hidden = true; }
 
   function show() {
-    if (dismissed || document.getElementById('toolbar-callout')) return;
-    const el = document.createElement('div');
-    el.className = 'toolbar-callout';
-    el.id = 'toolbar-callout';
-    el.innerHTML =
-      '<div class="callout-arrow"></div>' +
-      '<img class="callout-icon" src="icons/icon128.png" alt="Sidecar">' +
-      '<div class="callout-text">' +
-        '<strong>Open &amp; pin Sidecar</strong>' +
-        '<span>Click the Extensions button (puzzle-piece icon) up here, pin Sidecar, then click it to open the side panel.</span>' +
-      '</div>' +
-      '<button class="callout-x" aria-label="Dismiss">&times;</button>';
-    document.body.appendChild(el);
-    el.querySelector('.callout-x').addEventListener('click', () => {
-      dismissed = true;
-      stop();
-      el.remove();
-    });
+    if (dismissed || !gate.hidden) return;
+    gate.hidden = false;
     // Shown once — don't bring it back on reload.
     try { chrome.storage.local.set({ [SEEN_KEY]: true }); } catch (_) {}
   }
+
+  const x = document.getElementById('open-pin-x');
+  if (x) x.addEventListener('click', () => { dismissed = true; stop(); hide(); });
 
   function check() {
     if (dismissed) return;

@@ -40,6 +40,19 @@
       <button id="perm-grant-btn" class="perm-grant-btn">Grant site access</button>
     </div>
 
+    <!-- First run, panel not open yet. Sits in the page rather than floating with
+         an arrow at the toolbar: the arrow assumed Chrome's puzzle-piece position
+         and pointed at empty chrome everywhere else. welcome.js fills the last
+         word — "side panel" on Chrome, "sidebar" on Firefox — and unhides it. -->
+    <div id="open-pin-gate" class="open-pin-gate" hidden>
+      <img class="open-pin-icon" src="icons/icon128.png" alt="">
+      <div class="open-pin-text">
+        <strong>Open &amp; pin Sidecar</strong>
+        <span>Open the Extensions menu (the puzzle-piece icon) in your browser toolbar, pin Sidecar, then click it to open the <span id="open-pin-surface">side panel</span>.</span>
+      </div>
+      <button id="open-pin-x" class="open-pin-x" aria-label="Dismiss">&times;</button>
+    </div>
+
     <header class="header">
       <h1>Your Nostr signer is ready.</h1>
       <p>Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.</p>
