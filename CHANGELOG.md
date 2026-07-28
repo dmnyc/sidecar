@@ -7,6 +7,36 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.6.0] — 2026-07-26
+
+### Added
+- **Zap animations.** A bolt of lightning strikes across the page whenever a payment goes out — procedurally drawn, never the same twice. It fires for zaps sent from a client's own UI as well as from Sidecar, and can be turned off in Settings.
+- **Tap the balance to change units.** The wallet balance and the pinned balance bar cycle through sats, BTC, and your local currency on tap. Pick the currency in Settings or from the wallet screen; sixteen are supported, defaulting to USD.
+- **24-hour bitcoin price chart.** A round button on the wallet card opens a gradient-filled chart of the last 24 hours against your chosen currency.
+- **A warning before an app erases your data.** Follow lists, mute lists, and profiles are *replaceable* events: a new version wholly replaces the old one, with no merge and no undo, so a buggy or careless client can wipe years of follows in a single signature. Sidecar now compares what it's being asked to sign against what it last signed for you and stops to warn you — in plain language, naming what would be lost — before an event that would erase your follows, your mutes, or fields from your profile. The approval buttons stay disabled until you acknowledge it, a timed relax window can't wave it through, and the check is entirely local, so it costs no network time.
+- **Auto Zaps now cover the whole zap.** Previously it never fired at all: it looked for the zap request inside the invoice's description, but NIP-57 issues description-*hash* invoices, so that field is empty on every spec-compliant zap. Sidecar now matches the payment against the zap request it signed for you moments earlier — same site, same account, same amount — and, when the amount is within your limits, signs and pays without a prompt or a payment card. Starts at 200 sats per zap and 20,000 per day, with a hard ceiling of 1,000 and 100,000 that holds whatever you type into the settings. When a zap is small enough to qualify, the payment card offers to switch Auto Zaps on — confirmed on Sidecar's own approval screen, never written on a page's say-so.
+- **The Bitcoin Connect modal closes itself.** A zap paid from Sidecar's card settled with the page none the wiser — the invoice was read from the page and paid over NWC, so the client's modal sat spinning on an invoice that had already gone through. Sidecar now tells the modal its payment landed.
+- **Refresh your profile from the Profile screen** — the circular arrow now actually re-fetches, for when a change made elsewhere hasn't reached Sidecar yet.
+- **Search.** A magnifier in the top bar opens a search field: paste an `npub`, `note`, `nevent` or `naddr` and it opens in whichever client you've set as your preferred one, then closes itself. Type a name instead and it suggests people as you go — your follows first, then a wider search. A NIP-05 address (`name@domain`) resolves against that domain directly. Pasted client links work too, so a `njump.me` or `primal.net` link someone sent you reopens in the client you actually use. Identifiers are decoded locally, with no lookup service involved, so that path can't hang or leak what you searched for. Room for the icon came from dropping the account name out of the bar — it's in the chip's tooltip now, and the switcher still lists it. (#150)
+- **Two new themes, bringing the total to five.** *Aegean* — whitewashed plaster, cobalt doors and sun-bleached stone, with the Greek key running behind the panel; Sidecar's second light theme after Art Deco. *Brownstone* — New York sandstone after dark: warm stone, lamplight gold, ivy green and black iron, over a tile of interlocking masonry courses. Both ship with matching palettes for the in-page payment card.
+
+### Fixed
+- **Notes could be signed, reported as posted, and published nowhere.** Two faults compounded: Sidecar published only to the write relays declared in your relay list, so if those lapsed or gated on a web of trust the note had nowhere else to go; and a relay that couldn't be reached was being counted as a successful publish, so no error was ever raised. Posts now go to those relays *and* the ones configured in Settings, and an unreachable relay is reported as the failure it is, naming each relay and why. The same faults affected profile edits, relay-list updates, and follow lists.
+- **Payments could succeed while the page was told they failed** — or left waiting up to three minutes. Approving a payment cancelled the keepalive at the moment the money moved, and a lost confirmation from the wallet was being read as a failed payment. Sidecar now holds itself awake for the whole payment and asks the wallet what actually happened rather than inferring it from silence, so the answer arrives in seconds and is the truth.
+- **The approval popup no longer hides the PIN field, the auto-sign options, or the site asking.** On a long request the PIN scrolled out of view beneath the button demanding it — and because the field takes focus automatically, the popup opened scrolled to the bottom, pushing the site name and the multiple-accounts warning off-screen. Everything you act on now sits below the fold line, and a wrong-PIN message appears against the PIN field instead of down beside the buttons.
+- **A hidden wallet balance no longer leaks its own size.** The mask drew one dot per character, so the number of dots told you the order of magnitude of the balance you'd just hidden. Every hidden balance now shows a fixed four, in the same color the number itself is drawn in for that theme.
+- **The reload notice can be dismissed.** The banner asking you to reload the page after an account switch now carries an X.
+- **Outgoing payment toasts name the amount** instead of a bare "Payment sent".
+- **Repeated actions no longer stack duplicate toasts.**
+- **Sidecar's own pages reuse their tab.** Clicking the help icon opened a second help tab with one already open; the same went for What's new, the switching guide, the welcome page, and the wallet guide.
+- **Firefox Add-ons links point at the real listing.** (#133)
+
+### Changed
+- **Art Deco is gold and tan rather than purple.** The theme's accents, buttons and chart all pull from the same warm palette as its border; only the Sidecar logo keeps its original color.
+- **Every theme's background pattern is centered** rather than anchored to the top-left, so the tile is no longer clipped along one edge.
+- The help guide documents relax mode and the new data-erasure warning, with screenshots.
+- The payment card's toggle now reads **"Don't show this prompt again"** and starts off, rather than "Show this automatically" starting on. Same setting, stated the way you'd actually think about it.
+
 ## [1.5.1] — 2026-07-24
 
 ### Added

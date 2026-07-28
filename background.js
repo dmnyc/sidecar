@@ -1323,14 +1323,17 @@ function bolt11PaymentHash(invoice) {
 // total, so a signed-in site can't drain the wallet by firing many zaps that are
 // each under the per-zap cap — the per-zap limit alone bounds nothing in aggregate.
 const PAY_DAY_MS = 24 * 60 * 60 * 1000;
-const AUTOZAP_DAILY_MULTIPLE = 5; // default daily cap = 5× the per-zap cap when unset
+const AUTOZAP_DAILY_MULTIPLE = 100; // default daily cap = 100× the per-zap cap when unset
 // Hard ceilings on the no-confirmation path. Auto-zap spends with nothing to click,
 // so the limits that bound it shouldn't be whatever was last typed into a text field:
 // a stray zero on that input would otherwise widen the automatic path by 10×. Above
 // these, zaps fall back to a normal approval — which is the right behavior for an
 // amount large enough to want a second look.
+// What enabling auto-zap from a payment card sets it to. The panel mirrors this as
+// AUTOZAP_DEFAULT_MAX for its own input default.
+const AUTOZAP_DEFAULT_MAX = 200;
 const AUTOZAP_ABS_MAX = 1000; // sats, per zap
-const AUTOZAP_ABS_DAILY_MAX = 10000; // sats, rolling day
+const AUTOZAP_ABS_DAILY_MAX = 100000; // sats, rolling day
 
 // The auto-zap limits in force, clamped. Applied on READ as well as on write, so a
 // value stored before these ceilings existed can't outlive them. Returns zeros when
@@ -1438,8 +1441,8 @@ async function tryZapAutopay(invoiceRaw, host, originWindowId, tabId) {
   // has somewhere to be reported instead of vanishing.
   notifyTabAutopaying(tabId, inv);
   try {
-    await payInvoiceCore(inv, host, who, undefined, originWindowId);
-    notifyTabPaid(tabId, inv);
+    const r = await payInvoiceCore(inv, host, who, undefined, originWindowId);
+    notifyTabPaid(tabId, inv, r && r.preimage);
     return { handled: true, paid: true };
   } catch (e) {
     // Still handled: the auto card is up and is where this error belongs. Replacing it
@@ -1546,19 +1549,19 @@ async function payAndConfirm(c, invoice) {
 // budget, log, and notify the panel. Used by window.webln.sendPayment AND the
 // "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
 // checked the account/site is usable. Serialized per account (see withPayLock).
-function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId) {
+function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap) {
   // Hold the worker up for the whole payment, approval prompt included.
   payInFlight++;
   ensureKeepalive();
   startPayHeartbeat();
-  return withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId))
+  return withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap))
     .finally(() => {
       payInFlight--;
       if (payInFlight === 0) stopPayHeartbeat();
       stopKeepaliveIfIdle();
     });
 }
-async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) {
+async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap) {
   const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
   if (!invoice) throw new Error('No invoice provided');
   if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
@@ -1597,9 +1600,32 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId) 
       memo: memo || '',
       needUnlock: KS.isLocked(),
       needApproval: true,
+      // The card offered to switch automatic zaps on. It is confirmed HERE, on
+      // Sidecar's own surface, and written only if the user approves the payment —
+      // a page must not be able to enable automatic spending on its own say-so.
+      // Offered only when it would actually cover this payment, so the amount in
+      // front of the user is one the setting would have handled.
+      offerAutoZap:
+        offerAutoZap && settings.autoZap !== true && sats != null && sats <= AUTOZAP_DEFAULT_MAX
+          ? AUTOZAP_DEFAULT_MAX
+          : 0,
     }, originWindowId);
     if (decision.action === 'reject') throw new Error('You rejected this payment');
     if (KS.isLocked()) throw new Error('Keystore is locked');
+    // Approved with the offer still ticked → turn it on, at the documented defaults.
+    // Reached only from an approval on an extension page; a rejected or dismissed
+    // prompt leaves the setting alone.
+    if (decision.enableAutoZap) {
+      const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+      await sset({
+        sidecar_settings: {
+          ...prev,
+          autoZap: true,
+          autoZapMaxSats: AUTOZAP_DEFAULT_MAX,
+          autoZapDailyMaxSats: AUTOZAP_DEFAULT_MAX * AUTOZAP_DAILY_MULTIPLE,
+        },
+      });
+    }
     // 'budget' → remember an allowance for this site before paying.
     if (decision.action === 'budget' && decision.budgetSats) {
       await BUDGETS.setBudget(pubkey, host, {
@@ -1717,9 +1743,16 @@ function notifyTabAutopaying(tabId, invoice) {
   }
 }
 
-function notifyTabPaid(tabId, invoice) {
+// `preimage` is what proves the payment to the page. Bitcoin Connect clients hand it
+// to their onPaid callback, so the content script needs it to close a modal that has
+// no other way of learning the invoice settled — see the bridge in nostr-provider.js.
+function notifyTabPaid(tabId, invoice, preimage) {
   if (tabId != null && chrome.tabs) {
-    chrome.tabs.sendMessage(tabId, { type: 'SIDECAR_EVENT', event: 'paid', invoice }, () => void chrome.runtime.lastError);
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: 'SIDECAR_EVENT', event: 'paid', invoice, preimage: String(preimage || '') },
+      () => void chrome.runtime.lastError
+    );
   }
 }
 
@@ -1736,14 +1769,14 @@ function notifyTabPayFailed(tabId, invoice, error) {
 }
 
 // Resolve the account/wallet for the page, then pay via the shared core.
-async function payFromPage(invoiceRaw, host, originWindowId) {
+async function payFromPage(invoiceRaw, host, originWindowId, offerAutoZap) {
   await KS.ensureLoaded();
   if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
   const pubkey = await resolveSiteAccount(host);
   if (!pubkey) throw new Error('No active Sidecar account');
   if ((await PERMS.getLevel(pubkey, host)) === 'blocked') throw new Error('This site is blocked in Sidecar');
   if (!(await KS.hasNwc(pubkey))) throw new Error('No wallet connected in Sidecar');
-  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId);
+  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId, offerAutoZap);
 }
 
 // First BOLT11 invoice inside a blob of text (selection, link, decoded QR).
@@ -1817,7 +1850,7 @@ chrome.contextMenus &&
         .then((inv) => payFromPage(inv, host, originWindowId).then((r) => ({ r, inv })))
         .then(({ r, inv }) => {
           notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
-          notifyTabPaid(tab && tab.id, inv);
+          notifyTabPaid(tab && tab.id, inv, r.preimage);
         })
         .catch((e) => notify((e && e.message) || 'Payment failed'));
 
@@ -2229,7 +2262,14 @@ async function handleControl(message, sendResponse) {
               if (t.id != null) {
                 chrome.tabs.sendMessage(
                   t.id,
-                  { type: 'SIDECAR_EVENT', event: 'settings', showPayButton: merged.showPayButton },
+                  {
+                    type: 'SIDECAR_EVENT',
+                    event: 'settings',
+                    showPayButton: merged.showPayButton,
+                    // Keep the card's auto-zap offer in step: turning the setting on
+                    // in Settings should retire the offer without a page reload.
+                    autoZapOffer: merged.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
+                  },
                   () => void chrome.runtime.lastError
                 );
               }
@@ -2420,7 +2460,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // long an unattended unlocked keystore stays warm) plus budget/autozap
     // config it has no business fingerprinting.
     sget('sidecar_settings').then(({ sidecar_settings }) => {
-      sendResponse({ ok: true, result: { showPayButton: (sidecar_settings || {}).showPayButton } });
+      // Plus whether the auto-zap offer is worth showing on the payment card. This
+      // reveals nothing the card doesn't already imply — if auto-zap were on and
+      // covered the amount, no card would have appeared at all. The cap is a product
+      // constant, not the user's configuration.
+      const st = sidecar_settings || {};
+      sendResponse({
+        ok: true,
+        result: {
+          showPayButton: st.showPayButton,
+          autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
+        },
+      });
     });
     return true;
   }
@@ -2470,10 +2521,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = sender && sender.tab && sender.tab.id;
     let host = '';
     try { host = new URL((sender && sender.url) || '').host; } catch (_) {}
-    payFromPage(message.invoice, host, originWindowId)
+    payFromPage(message.invoice, host, originWindowId, message.enableAutoZap === true)
       .then((r) => {
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
-        notifyTabPaid(tabId, message.invoice);
+        notifyTabPaid(tabId, message.invoice, r.preimage);
       })
       .catch((e) => {
         const m = (e && e.message) || 'Payment failed';

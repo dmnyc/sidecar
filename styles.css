@@ -133,7 +133,9 @@ input, select, textarea {
   padding: 11px 13px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6));
+  /* Themed: a light theme can't use a dark-purple field. Fallback keeps the dark
+     themes exactly as they were. */
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
   color: var(--text);
   font-size: 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -146,7 +148,7 @@ input::placeholder, textarea::placeholder { color: var(--faint); }
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--gold-soft);
-  box-shadow: 0 0 0 3px rgba(203, 161, 78, 0.16);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 
 /* ===== PIN / passphrase strength + match indicators ===== */
@@ -365,7 +367,8 @@ button { cursor: pointer; }
 .lav-btn:active { transform: translateY(0); }
 .primary {
   background: linear-gradient(180deg, var(--btn-primary-top, #f29248), var(--btn-primary-mid, var(--orange)) 55%, var(--btn-primary-bot, #d4621f));
-  color: #1c0c00;
+  /* Themed: right on amber, unreadable on a cobalt fill. */
+  color: var(--btn-primary-text, #1c0c00);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px var(--btn-shadow, rgba(234, 119, 47, 0.28));
 }
 .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
@@ -405,7 +408,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .icon-btn.sm { font-size: 14px; padding: 5px 6px; }
 .icon-btn svg { width: 19px; height: 19px; display: block; }
 .icon-btn.sm svg { width: 16px; height: 16px; }
-.topbar-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+/* 4px, not 2: with five icons the hover pills were close enough to touch and the
+   row read as one undifferentiated strip. Wider than this and they stop reading
+   as a set. */
+.topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 
 /* ===== main app ===== */
 .topbar {
@@ -422,14 +428,16 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .brand-logo-sm { height: 24px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
 
 /* persistent account chip + dropdown switcher */
+/* Avatar + chevron only. The name used to sit between them and ate most of the
+   bar; it's in the button's title and the dropdown lists it, so dropping it here
+   costs nothing and buys room for the search icon. */
 .acct-chip {
-  display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 64%;
+  display: flex; align-items: center; gap: 4px; min-width: 0; flex-shrink: 0;
   background: transparent; border: none; cursor: pointer; color: var(--text);
   padding: 4px 6px; border-radius: 10px;
 }
 .acct-chip:hover { background: var(--hover-soft); }
 .acct-chip:disabled { cursor: default; }
-.acct-chip:disabled .chip-name,
 .acct-chip:disabled .chip-chev { display: none; }
 .acct-chip:disabled .chip-av { opacity: 0.4; }
 .chip-av {
@@ -438,8 +446,43 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 }
 .chip-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .chip-av.avatar-ph img { width: 60%; height: 60%; margin: 20%; object-fit: contain; opacity: 0.72; }
-.chip-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip-chev { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+
+/* ===== search bar (drops down from the topbar magnifier) ===== */
+.search-bar {
+  border-bottom: 1px solid var(--border);
+  background: rgba(var(--velvet-1-rgb), 0.5);
+  padding: 10px 16px;
+  animation: search-drop 140ms ease-out;
+}
+@keyframes search-drop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .search-bar { animation: none; } }
+.search-row { display: flex; align-items: center; gap: 6px; }
+.search-row input {
+  flex: 1; min-width: 0;
+  padding: 8px 10px; font-size: 13px; border-radius: 9px;
+  color: var(--text); border: 1px solid var(--border);
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.search-row input:focus {
+  outline: none; border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
+}
+.search-close { flex-shrink: 0; }
+/* Suggestion list. Reuses .ac-item/.ac-loading from the composer's @-mention
+   dropdown, but sits in flow rather than absolutely positioned — the search bar
+   is already a drop-down, so a second floating layer would just clip. */
+.search-results {
+  margin-top: 8px; max-height: 232px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2);
+}
+.search-results:empty { display: none; }
+.search-status { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.search-status:empty { display: none; }
+.search-status.error { color: var(--warn); }
 
 .acct-menu {
   position: absolute; top: calc(100% + 4px); left: 10px; right: 10px;
@@ -1005,7 +1048,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   flex-shrink: 0; white-space: nowrap;
   padding: 7px 12px; font-size: 12px; font-weight: 600;
   border-radius: 8px; cursor: pointer;
-  color: #1a0d33; background: var(--gold); border: 1px solid var(--gold);
+  color: var(--btn-primary-text, #1a0d33); background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold));
 }
 .switch-site-btn:hover { filter: brightness(1.08); }
 /* multi-login safeguard: this host has signed in with 2+ accounts */
@@ -1280,17 +1323,38 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* ===== wallet (NWC) ===== */
 .nwc-input { min-height: 84px; font-family: var(--font-mono); font-size: 12px; margin-bottom: 4px; }
-/* privacy masking — masks each glyph at its real width, so toggling never reflows */
+/* Privacy masking. A FIXED number of discs, not one per glyph.
+   -webkit-text-security masked each character in place, so the disc count was the
+   digit count — 84,231 sats read as six discs and 21 as two. That leaks the order of
+   magnitude, which is most of what hiding the balance is for, and it made the number
+   visibly change length when tapping to switch units.
+   `visibility` rather than a transparent colour: it hides the glyphs while leaving
+   `color` intact, so the discs inherit whatever the number is painted in — gold on
+   Speakeasy and Film Noir, bronze on Art Deco — instead of being hardcoded to one
+   value that matched no theme. It also keeps the element's box, so nothing reflows
+   on toggle, and unlike -webkit-text-fill-color it needs no prefix and can't fail
+   open on a browser that doesn't support it. */
 .balances-hidden .wallet-balance,
 .balances-hidden .tx-amt,
 .balances-hidden .amt-hide,
 .balances-hidden .pinned-balance-amt {
-  -webkit-text-security: disc;
-  text-security: disc;
+  position: relative;
+  visibility: hidden;
 }
-/* The currency symbol is smaller than the digits, so masking it too yields a runt
-   disc ahead of the full-size ones. Drop it while balances are hidden — there's no
-   amount to denominate, and the unit line below still names the currency. */
+.balances-hidden .wallet-balance::after,
+.balances-hidden .tx-amt::after,
+.balances-hidden .amt-hide::after,
+.balances-hidden .pinned-balance-amt::after {
+  content: '••••';
+  visibility: visible;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.12em;
+  pointer-events: none;
+}
 .balances-hidden .wallet-fiat-sym,
 .balances-hidden .pinned-fiat-sym { display: none; }
 
@@ -1392,7 +1456,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   position: sticky; top: 0; z-index: 5;
   text-align: center; padding: 22px 16px; border-radius: 16px; margin-bottom: 14px;
   background:
-    radial-gradient(120% 120% at 50% 0%, rgba(203, 161, 78, 0.14), transparent 60%),
+    radial-gradient(120% 120% at 50% 0%, var(--card-wash, rgba(203, 161, 78, 0.14)), transparent 60%),
     linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--gold-soft); box-shadow: var(--sheen), var(--shadow-sm);
   transition: padding 0.2s ease;
@@ -1468,10 +1532,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .balance-bump { animation: balance-glow 5s ease-out; }
 @keyframes balance-glow {
   0% { text-shadow: 0 0 0 transparent; }
-  8% { text-shadow: 0 0 20px var(--gold); }
-  25% { text-shadow: 0 0 8px var(--gold); }
-  45% { text-shadow: 0 0 20px var(--gold); }
-  65% { text-shadow: 0 0 6px var(--gold); }
+  8% { text-shadow: 0 0 20px var(--glow, var(--gold)); }
+  25% { text-shadow: 0 0 8px var(--glow, var(--gold)); }
+  45% { text-shadow: 0 0 20px var(--glow, var(--gold)); }
+  65% { text-shadow: 0 0 6px var(--glow, var(--gold)); }
   100% { text-shadow: 0 0 0 transparent; }
 }
 .wallet-unit { font-size: 13px; color: var(--muted); }
@@ -1593,7 +1657,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--text-2); background: var(--hover-soft); border: 1px solid var(--border);
 }
 .preset-chip:hover { border-color: var(--gold-soft); }
-.preset-chip.active { color: #1a0d33; background: var(--gold); border-color: var(--gold); }
+.preset-chip.active { color: var(--btn-primary-text, #1a0d33); background: var(--accent-fill, var(--gold)); border-color: var(--accent-fill, var(--gold)); }
 
 /* receive: waiting + success states */
 .recv-waiting { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
@@ -1634,7 +1698,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .post-banner-x:hover { color: var(--text); }
 .post-banner-x svg { width: 14px; height: 14px; }
 /* reload-offer — a full-width action button after an account switch */
-.reload-banner { display: flex; margin: 10px 16px 0; }
+.reload-banner { display: flex; align-items: stretch; gap: 6px; margin: 10px 16px 0; }
+/* Dismiss. Quiet on purpose — the reload is the action, this is just an exit. */
+.reload-banner-x {
+  flex: 0 0 auto; width: 34px; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted);
+  font-size: 13px; line-height: 1;
+}
+.reload-banner-x:hover { color: var(--text); border-color: var(--border-strong); }
 .reload-banner-btn {
   flex: 1; justify-content: center;
   display: inline-flex; align-items: center; gap: 6px;
@@ -2133,7 +2206,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .relax-status-x {
   width: 22px; height: 22px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
-  background: var(--gold); border: none; color: #1a0a33;
+  background: var(--accent-fill, var(--gold)); border: none; color: var(--btn-primary-text, #1a0a33);
   display: inline-flex; align-items: center; justify-content: center; transition: filter 0.12s;
 }
 .relax-status-x svg { width: 12px; height: 12px; display: block; }
@@ -2165,7 +2238,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   margin-top: 12px;
 }
 
+/* Each card previews its own theme's accent, so the picker reads as a swatch
+   rather than a list of identical buttons. */
 .theme-card {
+  color: var(--lav);
   background: var(--velvet-1);
   border: 2px solid var(--border);
   border-radius: 8px;

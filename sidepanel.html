@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="themes/speakeasy.css" />
   <link rel="stylesheet" href="themes/film-noir.css" />
   <link rel="stylesheet" href="themes/art-deco.css" />
+  <link rel="stylesheet" href="themes/aegean.css" />
+  <link rel="stylesheet" href="themes/brownstone.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
 </head>
 <body>
@@ -51,13 +53,15 @@
     <header class="topbar">
       <button id="acct-btn" class="acct-chip" title="Switch account">
         <span class="chip-av" id="chip-av"></span>
-        <span class="chip-name" id="chip-name">…</span>
         <svg class="chip-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
       <div class="topbar-actions">
         <button id="notif-bell-btn" class="icon-btn notif-bell" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           <span class="notif-badge hidden"></span>
+        </button>
+        <button id="search-btn" class="icon-btn" title="Find a profile or note" aria-expanded="false" aria-controls="search-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="9"></circle><line x1="21" y1="21" x2="16.35" y2="16.35"></line></svg>
         </button>
         <button id="help-btn" class="icon-btn" title="Help &amp; guides">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line><line x1="9.17" y1="14.83" x2="4.93" y2="19.07"></line></svg>
@@ -71,6 +75,21 @@
       </div>
       <div id="acct-menu" class="acct-menu hidden"></div>
     </header>
+
+    <!-- Drops down from the magnifier, over the tabs. Paste an npub, note,
+         nevent, naddr or a NIP-05 name; it opens in your preferred client and
+         closes itself. -->
+    <div id="search-bar" class="search-bar hidden">
+      <div class="search-row">
+        <input id="search-input" type="text" spellcheck="false" autocomplete="off"
+               placeholder="npub, note, nevent, naddr, or username" />
+        <button id="search-close" class="icon-btn search-close" title="Close search" aria-label="Close search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div id="search-results" class="search-results hidden"></div>
+      <div id="search-status" class="search-status" role="status" aria-live="polite"></div>
+    </div>
 
     <nav class="tabs">
       <button class="tab active" data-tab="accounts">Accounts</button>
@@ -242,8 +261,14 @@
           <button type="button" class="theme-card" data-theme="film-noir">
             <span class="theme-name">Film Noir</span>
           </button>
+          <button type="button" class="theme-card" data-theme="brownstone">
+            <span class="theme-name">Brownstone</span>
+          </button>
           <button type="button" class="theme-card" data-theme="art-deco">
             <span class="theme-name">Art Deco</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="aegean">
+            <span class="theme-name">Aegean</span>
           </button>
         </div>
       </div>
@@ -318,9 +343,9 @@
       </div>
 
       <div class="setting">
-        <h3>Automatic zaps</h3>
-        <p class="hint">Zaps under these limits go through with nothing to approve. Every other payment still asks. Capped at 1,000 sats a zap, 10,000 a day.</p>
-        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Auto-approve zaps</span></label>
+        <h3>Auto Zaps</h3>
+        <p class="hint">Zaps under these limits go through with nothing to approve. Every other payment still asks. Capped at 1,000 sats a zap, 100,000 a day.</p>
+        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Enable Auto Zaps</span></label>
         <label class="toggle-row hidden" id="autozap-max-row">
           <span>Max per zap</span>
           <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
@@ -411,6 +436,12 @@
              this is where "N attempts left before all data is erased" lands.
              #approval-error stays for everything else. -->
         <div class="error" id="approval-pin-error"></div>
+      </div>
+
+      <!-- Offered by the payment card, confirmed here — see prompt.html. -->
+      <div id="approval-autozap-offer" class="remember hidden">
+        <label class="check"><input type="checkbox" id="approval-autozap-offer-box" checked />
+        <span id="approval-autozap-offer-label">Turn on Auto Zaps</span></label>
       </div>
 
       <div id="approval-remember" class="remember hidden">

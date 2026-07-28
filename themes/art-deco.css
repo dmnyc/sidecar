@@ -30,8 +30,13 @@
   --amber: #D4AF37;
   --gold: #C5A059;
   --gold-soft: rgba(197, 160, 89, 0.5);
-  --purple: #5a4a8a; /* darker purple for logo in light mode */
-  --lav: #6a5a9a;
+  /* De-purpled: deco is an eggshell-and-bronze theme, and two lavenders left over
+     from Speakeasy were the only cool notes in it. Names kept — they're shared with
+     the other themes and used in ~46 places — but the values are bronze here.
+     Contrast held at the previous levels so nothing else needed retuning:
+     purple was 6.27:1 on the eggshell, now 6.31; lav was 4.93:1, now 5.28. */
+  --purple: #6E4E14;
+  --lav: #7A5A18;
   --hover-soft: rgba(197, 160, 89, 0.08);
   --hover-medium: rgba(197, 160, 89, 0.12);
   --hover-faint: rgba(197, 160, 89, 0.06);
@@ -82,11 +87,18 @@
 [data-theme="art-deco"] .add-account-badge {
   color: var(--bg);
 }
-/* The wallet balance and "sent" tx icon use --gold/#f4a64b, both tuned for a dark
-   backdrop — on deco's light eggshell field they read as washed out. Swap in
-   --orange (already a darker bronze-gold in this theme) for enough contrast. */
-[data-theme="art-deco"] .wallet-balance {
-  color: var(--orange);
+/* The two balance displays were different colours, and both were washed out on the
+   light eggshell: the wallet card used --orange (#B8860B, 2.70:1) and the pinned bar
+   used --gold (#C5A059, 2.04:1). WCAG wants 3.0:1 even at display sizes, so both were
+   under the floor — the pinned one badly. One bronze for both: 4.16:1 on the eggshell
+   and 3.68:1 on the card, comfortably over the floor while staying gold rather than
+   brown. Going lighter runs out of room fast — the next step down is 3.24:1 on the
+   card and the one after that fails, because the card is the tighter surface.
+   The "sent" tx icon below has the same origin and keeps --orange, which is fine on
+   an icon at that size against its own tinted chip. */
+[data-theme="art-deco"] .wallet-balance,
+[data-theme="art-deco"] .pinned-balance-amt {
+  color: #8C6A1F;
 }
 [data-theme="art-deco"] .tx-icon.out {
   color: var(--orange);

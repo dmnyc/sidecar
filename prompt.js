@@ -27,6 +27,9 @@
     rememberBudget: $('remember-budget'),
     budgetAmount: $('budget-amount'),
     relaxRow: $('relax-row'),
+    autozapOffer: $('autozap-offer'),
+    autozapOfferBox: $('autozap-offer-box'),
+    autozapOfferLabel: $('autozap-offer-label'),
   };
 
   function send(message) {
@@ -235,6 +238,13 @@
   }
 
   function renderPreview() {
+    // Payment card offered to enable automatic zaps; show it for confirmation.
+    if (data.offerAutoZap > 0) {
+      els.autozapOffer.classList.remove('hidden');
+      els.autozapOfferLabel.textContent =
+        'Turn on Auto Zaps (' + fmtSats(data.offerAutoZap) + ' sats max)';
+    }
+
     if (isPayment) {
       const rows = [];
       rows.push(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
@@ -612,7 +622,14 @@
         return;
       }
       action = 'budget';
-      extra = { budgetSats, perPaymentSats: 0 };
+      // Merge, don't assign: other flags (the auto-zap offer below, relaxMs) share
+      // this object, and an assignment here silently dropped them.
+      extra = Object.assign({}, extra, { budgetSats, perPaymentSats: 0 });
+    }
+    // Carry the still-ticked auto-zap offer back with the approval. Only an approval
+    // reaches here, so declining the payment can never enable the setting.
+    if (data.offerAutoZap > 0 && els.autozapOfferBox.checked) {
+      extra = Object.assign({}, extra, { enableAutoZap: true });
     }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {

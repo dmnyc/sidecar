@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="themes/speakeasy.css" />
   <link rel="stylesheet" href="themes/film-noir.css" />
   <link rel="stylesheet" href="themes/art-deco.css" />
+  <link rel="stylesheet" href="themes/aegean.css" />
+  <link rel="stylesheet" href="themes/brownstone.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
   <style>
     :root {
@@ -79,6 +81,7 @@
     .prompt-footer #unlock input[type=password] { margin-bottom: 0; }
     .prompt-footer #pin-error { margin: 7px 0 0; }
     .prompt-footer #relax-row,
+    .prompt-footer #autozap-offer,
     .prompt-footer #remember { margin-bottom: 10px; }
     /* The chips are the last thing in the relax row; its own margin spaces them from
        the buttons, so don't pay twice. */
@@ -343,6 +346,14 @@
            already adjacent to the budget row). -->
       <div class="error" id="pin-error"></div>
     </div>
+    <!-- Offered by the payment card; confirmed here because a page must not be able
+         to switch automatic spending on by itself. Ticked by default since the user
+         already asked for it on the card — untick to pay without enabling it. -->
+    <div id="autozap-offer" class="remember hidden">
+      <label class="check"><input type="checkbox" id="autozap-offer-box" checked />
+      <span id="autozap-offer-label">Turn on Auto Zaps</span></label>
+    </div>
+
     <div id="remember" class="remember hidden">
     <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
     <div class="budget-row">

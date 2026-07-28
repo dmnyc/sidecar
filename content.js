@@ -88,6 +88,12 @@
   // the amount, and the originating site, with one clear "Pay with Sidecar" action.
   // A corner pill kept getting buried under docked bars; a modal can't be lost.
   let showCard = true; // setting (default on)
+  // >0 = auto-zap is off and enabling it would cover a zap up to this many sats, so
+  // the card offers to switch it on. The card can't write the setting — the offer
+  // rides along with the payment and is confirmed on Sidecar's own approval screen,
+  // because a page must not be able to enable automatic spending by itself.
+  let autoZapOffer = 0;
+  let offerAutoZapChecked = false;
   let cardHost = null;
   let shownInvoice = '';
   let dismissedInvoice = '';
@@ -358,7 +364,7 @@
   // scripts, so the theme is read directly from storage, not via messaging.)
   let cardTheme = 'speakeasy';
   function setCardTheme(t) {
-    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'art-deco') return;
+    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'brownstone' && t !== 'art-deco' && t !== 'aegean') return;
     if (t === cardTheme) return;
     cardTheme = t;
     if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
@@ -437,6 +443,54 @@
         CARD_WARN: 'color:#a8521f',
         CARD_SUCCESS: 'color:#2f7d52',
         CARD_PAY_SHADOW: 'rgba(184,134,11,0.36)'
+      },
+      // Aegean — marble, Aegean blue, Attic gold. Mirrors themes/aegean.css;
+      // the card carries its own copy because it renders in the page's shadow DOM
+      // with no access to the extension's stylesheets.
+      // Brownstone — a dark theme, so the card keeps the light wordmark and the
+      // near-black button text the other dark themes use.
+      brownstone: {
+        CARD_COLOR: 'color:#F2E7DD',
+        CARD_BORDER: 'rgba(201,139,94,0.32)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(224,169,74,0.13),transparent 58%),linear-gradient(165deg,#1B1310,#120C0A)',
+        CARD_MUTED: 'color:#A89383',
+        CARD_GOLD: 'color:#E0A94A',
+        CARD_TEXT_2: 'color:#D8C7B8',
+        CARD_LAV: '#D69A6A',
+        CARD_PAY_TEXT: 'color:#241A15',
+        CARD_PAY_BG: 'linear-gradient(180deg,#F0C46B,#E0A94A 52%,#B48230)',
+        CARD_CANCEL_BG: 'rgba(201,139,94,0.14)',
+        CARD_TEXT: '#F2E7DD',
+        CARD_BORDER_FAINT: 'rgba(201,139,94,0.18)',
+        CARD_TOGGLE_OFF: 'rgba(201,139,94,0.25)',
+        CARD_TRACK: '#E0A94A',
+        CARD_THUMB_OFF: '#A89383',
+        CARD_WARN: 'color:#C4574A',
+        CARD_SUCCESS: 'color:#8FA05E',
+        CARD_PAY_SHADOW: 'rgba(224,169,74,0.34)'
+      },
+      aegean: {
+        CARD_COLOR: 'color:#14232E',
+        CARD_BORDER: 'rgba(11,87,164,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(21,101,192,0.10),transparent 58%),linear-gradient(165deg,#FFFFFF,#F4F7F9)',
+        CARD_MUTED: 'color:#5A6B78',
+        // The amount slot. Blue here for the same reason the wallet balance is —
+        // gold on whitewash reads as mustard. Mirrors themes/aegean.css.
+        CARD_GOLD: 'color:#0B57A4',
+        CARD_TEXT_2: 'color:#2C3E4C',
+        CARD_LAV: '#1565C0',
+        // White on the cobalt fill; the other themes' near-black is unreadable there.
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#2A7BD4,#1565C0 52%,#0B4F94)',
+        CARD_CANCEL_BG: 'rgba(11,87,164,0.10)',
+        CARD_TEXT: '#14232E',
+        CARD_BORDER_FAINT: 'rgba(11,87,164,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(11,87,164,0.25)',
+        CARD_TRACK: '#1565C0',
+        CARD_THUMB_OFF: '#5A6B78',
+        CARD_WARN: 'color:#A8432A',
+        CARD_SUCCESS: 'color:#4F6B3A',
+        CARD_PAY_SHADOW: 'rgba(21,101,192,0.32)'
       }
     };
 
@@ -580,6 +634,17 @@
     const memoText = memo || (sats == null ? 'A Lightning invoice — choose the amount in Sidecar.' : '');
     const memoBlock = memoText ? '<div class="memo">' + escapeHtml(memoText) + '</div>' : '';
 
+    // Offer auto-zap only when this very payment is one it would cover, so the
+    // amount on screen is the amount the setting would have handled.
+    const canOfferAutoZap = !auto && autoZapOffer > 0 && sats != null && sats <= autoZapOffer;
+    const offerRow = canOfferAutoZap
+      ? '<label class="tg tg-autozap"><span class="tg-label">Turn on Auto Zaps (' +
+        autoZapOffer.toLocaleString('en-US') +
+        ' sats max)</span>' +
+        '<input class="tg-input tg-autozap-input" type="checkbox">' +
+        '<span class="tg-track"><span class="tg-thumb"></span></span></label>'
+      : '';
+
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
     const s = cardHost.attachShadow({ mode: 'open' });
@@ -589,7 +654,10 @@
     // The wordmark's lettering is baked in as speakeasy's lavender (#BDA1FF), fine
     // on speakeasy/noir's dark cards but illegible on deco's light one — recolor
     // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
-    const logoSvg = cardTheme === 'art-deco' ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
+    // Both light themes need it recoloured; the baked lavender vanishes on marble
+    // and eggshell alike.
+    const lightCard = cardTheme === 'art-deco' || cardTheme === 'aegean';
+    const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
       '<style>' + cardCss + '</style>' +
       '<div class="ov">' +
@@ -605,8 +673,10 @@
       '<span class="pay-label">Pay with Sidecar</span></button>' +
       '<div class="pay-status" hidden></div>' +
       '<button class="cancel" type="button">Not now</button>' +
-      '<label class="tg"><span class="tg-label">Show this automatically</span>' +
-      '<input class="tg-input" type="checkbox" checked>' +
+      (offerRow ||
+        '') +
+      '<label class="tg"><span class="tg-label">Don\'t show this prompt again</span>' +
+      '<input class="tg-input tg-showcard-input" type="checkbox">' +
       '<span class="tg-track"><span class="tg-thumb"></span></span></label>' +
       '</div></div>';
 
@@ -658,10 +728,24 @@
     }
     cardControls = { invoice: invoice, setPaid: setPaid, setError: setError };
 
+    const azBox = s.querySelector('.tg-autozap-input');
+    if (azBox) {
+      azBox.addEventListener('change', (e) => { offerAutoZapChecked = !!e.target.checked; });
+    }
+
     payBtn.addEventListener('click', () => {
       setSending();
       try {
-        chrome.runtime.sendMessage({ type: 'SIDECAR_PAY_PAGE_INVOICE', invoice }, () => void chrome.runtime.lastError);
+        chrome.runtime.sendMessage(
+          {
+            type: 'SIDECAR_PAY_PAGE_INVOICE',
+            invoice,
+            // Intent only. Sidecar's approval screen shows and confirms this, and
+            // writes the setting only if the payment is approved.
+            enableAutoZap: canOfferAutoZap && offerAutoZapChecked,
+          },
+          () => void chrome.runtime.lastError
+        );
       } catch (_) {
         setError('Sidecar was updated. Reload this page to pay.');
       }
@@ -670,8 +754,13 @@
     ov.addEventListener('click', (e) => {
       if (e.target === ov) dismiss();
     });
-    s.querySelector('.tg-input').addEventListener('change', (e) => {
-      if (!e.target.checked) {
+    // Target the show-card toggle specifically: `.tg-input` alone would match the
+    // Auto Zaps checkbox, which renders above it.
+    s.querySelector('.tg-showcard-input').addEventListener('change', (e) => {
+      // Inverted from "Show this automatically" (on by default) to "Don't show this
+      // prompt again" (off by default). Same stored setting, same outcome — now it's
+      // ticking the box that hides the card, not unticking it.
+      if (e.target.checked) {
         try {
           chrome.runtime.sendMessage(
             { type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: false } },
@@ -753,6 +842,7 @@
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
     if (msg.event === 'settings') {
       showCard = msg.showPayButton !== false;
+      if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       scanForInvoice();
     } else if (msg.event === 'autopaying') {
       // An auto-zap is going out for this invoice — show it, with no action to take.
@@ -760,6 +850,17 @@
       if (msg.invoice) renderCard(msg.invoice, true);
     } else if (msg.event === 'paid') {
       dismissedInvoice = msg.invoice; // don't resurface even if the link lingers
+      // Tell the page's payment modal, if it has one, that this invoice settled. We
+      // paid it entirely outside the page — scraped from the DOM, sent over NWC — so
+      // a Bitcoin Connect modal is otherwise left spinning on an invoice that is
+      // already paid. Handed to the MAIN world (nostr-provider.js) because the event
+      // detail has to be built in the page's own realm for its listeners to read it.
+      try {
+        window.postMessage(
+          { ext: 'sidecar', kind: 'settled', invoice: msg.invoice, preimage: msg.preimage || '' },
+          '*'
+        );
+      } catch (_) {}
       // Throw the bolt across the page whether or not our own card was up — a zap
       // sent from the client's own UI has no card, and that's the common case.
       pageLightningStrike();
@@ -795,6 +896,7 @@
       // on page load, only via the live settings push.)
       const settings = (s && s.result) || {};
       showCard = settings.showPayButton !== false;
+      autoZapOffer = Number(settings.autoZapOffer) || 0;
       scanForInvoice();
     });
   } catch (_) {}

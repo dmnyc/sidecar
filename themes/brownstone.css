@@ -1,0 +1,82 @@
+/* ============================================================
+   Sidecar — Brownstone Theme
+   New York sandstone after dark: warm stone, lit windows, ivy, black iron.
+   Groups with Speakeasy and Film Noir as a dark theme.
+   ============================================================ */
+
+[data-theme="brownstone"] {
+  color-scheme: dark;
+
+  /* surfaces — the stone in shadow. Brown-black rather than neutral black; a grey
+     base under a warm palette reads as dirt, not stone. */
+  --bg: #120C0A;
+  --bg-2: #180F0C;
+  --velvet-1: #1B1310;
+  --velvet-2: #150E0C;
+  --velvet-1-rgb: 27, 19, 16;
+  --av-from: #241A15;
+  --av-to: #150E0C;
+  --banner-accent: #241A15;
+  --border: rgba(201, 139, 94, 0.18);
+  --border-strong: rgba(201, 139, 94, 0.32);
+  --border-rgb: 201, 139, 94;
+  --well-rgb: 30, 21, 17;
+  --warn: #C4574A;
+  --warn-rgb: 196, 87, 74;
+  /* ivy on the facade — the one cool note in the palette, and the reason the
+     theme doesn't read as monochrome brown */
+  --success: #8FA05E;
+  --success-rgb: 143, 160, 94;
+
+  /* brand — lamplight through a parlour window. Money is gold across all themes
+     and this is the warmest reading of it: 8.74:1 on the ground. */
+  --orange: #B4643A;
+  --amber: #F0C46B;
+  --gold: #E0A94A;
+  --gold-soft: rgba(224, 169, 74, 0.5);
+  /* Sandstone in daylight takes the accent slot the other dark themes fill with
+     purple and silver. 6.45:1 and 5.95:1. */
+  --purple: #C98B5E;
+  --lav: #D69A6A;
+  --hover-soft: rgba(201, 139, 94, 0.08);
+  --hover-medium: rgba(201, 139, 94, 0.13);
+  --hover-faint: rgba(201, 139, 94, 0.06);
+  --mention-bg: rgba(214, 154, 106, 0.18);
+  --scroll-thumb: linear-gradient(180deg, #2E211A, #221812);
+  --scroll-thumb-hover: #3C2B21;
+
+  /* primary button — the lit window */
+  --btn-primary-top: #F0C46B;
+  --btn-primary-mid: #E0A94A;
+  --btn-primary-bot: #B48230;
+  --btn-shadow: rgba(224, 169, 74, 0.34);
+
+  /* ink — warm ivory, the colour of the limestone trim, never pure white */
+  --text: #F2E7DD;
+  --text-2: #D8C7B8;
+  --muted: #A89383;
+  --faint: #7A6A5E;
+  --red: #C4574A;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding. A dark theme could inherit
+     the fallbacks, but they're Speakeasy's purple and would sit cold in here. */
+  --input-bg: linear-gradient(180deg, rgba(8, 5, 4, 0.65), rgba(18, 12, 10, 0.65));
+  --focus-ring: rgba(224, 169, 74, 0.18);
+  --card-wash: rgba(224, 169, 74, 0.13);
+}
+
+/* Outgoing transactions in brick red, off the same facade as --warn. */
+[data-theme="brownstone"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.14);
+}
+[data-theme="brownstone"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}

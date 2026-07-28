@@ -1,0 +1,120 @@
+/* ============================================================
+   Sidecar — Aegean Theme
+   Whitewashed walls, cobalt doors, deep sea, sun-bleached stone.
+   The Greek key (meander) runs as the background pattern.
+   ============================================================ */
+
+[data-theme="aegean"] {
+  color-scheme: light;
+
+  /* surfaces — whitewash, not beige. An earlier pass used warm marble here and the
+     whole theme went muddy olive under the pattern; the reference is lime-washed
+     plaster in sea light, so the ground is neutral-cool and the cards are plain
+     white. */
+  --bg: #F7F8F8;
+  --bg-2: #EDF1F4;
+  --velvet-1: #FFFFFF;
+  --velvet-2: #F4F7F9;
+  --velvet-1-rgb: 255, 255, 255;
+  --av-from: #FFFFFF;
+  --av-to: #EDF1F4;
+  --banner-accent: #EDF1F4;
+  --border: rgba(11, 87, 164, 0.16);
+  --border-strong: rgba(11, 87, 164, 0.30);
+  --border-rgb: 11, 87, 164;
+  --well-rgb: 237, 241, 244;
+  --warn: #A8432A;
+  --warn-rgb: 168, 67, 42;
+  --success: #4F6B3A;
+  --success-rgb: 79, 107, 58;
+
+  /* --orange is the UI accent, not a decorative warm: it drives accent-color on
+     every checkbox, mentions, and chosen buttons. Terracotta here made the
+     checkboxes read as errors. Terracotta lives in --warn, where it belongs. */
+  --orange: #1565C0;
+  /* brand — sun-bleached stone for money, so gold still reads as gold across all
+     four themes, but pitched warm-neutral rather than yellow against white */
+  --amber: #B8912F;
+  --gold: #9C7A1C;
+  --gold-soft: rgba(156, 122, 28, 0.5);
+  /* Cobalt takes the accent slot the dark themes fill with purple: deep sea for the
+     strong tone, door-blue for the lighter. 6.77:1 and 5.40:1 on the ground. */
+  --purple: #0B57A4;
+  --lav: #1565C0;
+  --hover-soft: rgba(11, 87, 164, 0.06);
+  --hover-medium: rgba(11, 87, 164, 0.10);
+  --hover-faint: rgba(11, 87, 164, 0.04);
+  --mention-bg: rgba(21, 101, 192, 0.14);
+  --scroll-thumb: linear-gradient(180deg, #CBD8E2, #DDE6ED);
+  --scroll-thumb-hover: #B4C6D4;
+
+  /* primary button — the cobalt door, not gold. Gold on white read as mustard, and
+     blue is what the eye expects to be the action in this palette. */
+  --btn-primary-top: #2A7BD4;
+  --btn-primary-mid: #1565C0;
+  --btn-primary-bot: #0B4F94;
+  --btn-shadow: rgba(21, 101, 192, 0.32);
+
+  /* ink — blue-black; neutral grey looks dirty against whitewash */
+  --text: #14232E;
+  --text-2: #2C3E4C;
+  --muted: #5A6B78;
+  --faint: #8B99A5;
+  --red: #A8432A;
+
+  --shadow: 0 10px 30px rgba(11, 42, 66, 0.10);
+  --shadow-sm: 0 6px 18px rgba(11, 42, 66, 0.08);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding. Before these existed every
+     light theme had to re-state whole component rules to undo a dark-theme literal;
+     now a theme just declares its value and styles.css picks it up. Each has the old
+     hardcoded value as its fallback there, so the dark themes are untouched. */
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(21, 101, 192, 0.18);
+  --btn-primary-text: #FFFFFF;
+  --card-wash: rgba(21, 101, 192, 0.10);
+  /* Bright fill behind an active chip or the relax countdown — gold in the dark
+     themes, cobalt here. */
+  --accent-fill: var(--lav);
+  --glow: var(--lav);
+}
+
+/* --- what still needs a rule, and why --------------------------------------- */
+
+/* The "+" badge carries Speakeasy's near-black text on a coloured disc. Worth a
+   token of its own if a fourth theme needs it too. */
+[data-theme="aegean"] .add-account-badge {
+  color: var(--velvet-1);
+}
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="aegean"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+/* Outgoing transactions in terracotta, off the same pottery palette as --warn. */
+[data-theme="aegean"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+[data-theme="aegean"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+
+/* The wallet card is the one surface where the theme gets to be itself. Money is
+   gold in the other three and --gold still means gold here for badges, but on
+   whitewash a gold number reads as mustard and the card was pulling warm against a
+   cool room. Scoping --gold to the card turns the number, the chart line and its
+   gradient blue in one move — the chart draws from that variable inline. Both
+   balance displays share one colour, as they must. */
+[data-theme="aegean"] .wallet-card,
+[data-theme="aegean"] .pinned-balance {
+  --gold: var(--purple);
+  --gold-soft: rgba(var(--border-rgb), 0.42);
+}
+[data-theme="aegean"] .wallet-balance,
+[data-theme="aegean"] .pinned-balance-amt {
+  color: var(--purple);
+}

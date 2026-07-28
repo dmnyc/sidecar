@@ -8,13 +8,13 @@
 
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
   // a stored value is missing or invalid.
-  const AUTOZAP_DEFAULT_MAX = 100;
-  const AUTOZAP_DAILY_MULT = 5; // default daily cap = 5× the per-zap cap
+  const AUTOZAP_DEFAULT_MAX = 200;
+  const AUTOZAP_DAILY_MULT = 100; // default daily cap = 100× the per-zap cap
   // Ceilings on the no-confirmation path — mirrored from background.js, which is
   // where they are actually enforced. Reflected here only so a clamped entry snaps
   // back visibly instead of appearing to have been accepted as typed.
   const AUTOZAP_ABS_MAX = 1000;
-  const AUTOZAP_ABS_DAILY_MAX = 10000;
+  const AUTOZAP_ABS_DAILY_MAX = 100000;
 
   // ---- messaging ----
   function bg(message) {
@@ -135,7 +135,9 @@
   // eggshell background; the cocktail-glass mark is identical in both files
   // (official colors), so only the wordmark changes.
   function logoSrcFor(themeName) {
-    return themeName === 'art-deco'
+    // Both light themes need the dark-wordmark variant; the default is baked
+    // lavender for a dark field and disappears on marble or eggshell.
+    return themeName === 'art-deco' || themeName === 'aegean'
       ? 'icons/sidecar-logo-deco.svg'
       : 'icons/sidecar-logo.svg';
   }
@@ -149,7 +151,7 @@
 
   // Apply theme by setting data-theme attribute on HTML element
   function applyTheme(themeName) {
-    const validThemes = ['speakeasy', 'film-noir', 'art-deco'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
@@ -802,15 +804,244 @@
     if (a) showNotifModal(a);
   });
 
+  // ---- search: paste an identifier, open it in your client ----
+  // Deliberately has no index behind it. A NIP-19 string already *contains* what
+  // it points at — the npub is the pubkey, the nevent is the event id — so this
+  // is a local decode, not a lookup, and it can't be broken by a service going
+  // away. A NIP-05 name is the one form that needs the network, and it resolves
+  // against its own domain rather than anybody's directory.
+  function setSearchStatus(msg, isError) {
+    const el = $('search-status');
+    el.textContent = msg || '';
+    el.classList.toggle('error', !!isError);
+  }
+
+  function closeSearch() {
+    $('search-bar').classList.add('hidden');
+    $('search-btn').setAttribute('aria-expanded', 'false');
+    $('search-input').value = '';
+    setSearchStatus('');
+    clearSearchResults();
+  }
+
+  function openSearch() {
+    $('search-bar').classList.remove('hidden');
+    $('search-btn').setAttribute('aria-expanded', 'true');
+    setSearchStatus('');
+    $('search-input').focus();
+  }
+
+  // A NIP-19 string, with or without a nostr: prefix or a web wrapper pasted
+  // around it (njump.me/npub1…, primal.net/p/npub1… and friends all end in the
+  // bech32 we want). Returns the bare identifier, or null.
+  function extractEntity(raw) {
+    const s = String(raw || '').trim().replace(/^(web\+)?nostr:/i, '');
+    const m = s.match(/(?:npub1|nprofile1|note1|nevent1|naddr1)[023456789acdefghjklmnpqrstuvwxyz]+/i);
+    return m ? m[0].toLowerCase() : null;
+  }
+
+  // name@domain, or a bare domain (NIP-05 treats that as the "_" name).
+  const NIP05_RE = /^(?:[^\s@]+@)?[a-z0-9.-]+\.[a-z]{2,}$/i;
+
+  async function resolveNip05ToPubkey(id) {
+    const at = id.indexOf('@');
+    const name = at === -1 ? '_' : id.slice(0, at);
+    const domain = at === -1 ? id : id.slice(at + 1);
+    const resp = await fetch(
+      'https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name),
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!resp.ok) throw new Error('lookup failed');
+    const data = await resp.json();
+    const pk = data && data.names && data.names[name];
+    if (!/^[0-9a-f]{64}$/i.test(pk || '')) throw new Error('not found');
+    return pk.toLowerCase();
+  }
+
+  // Map a decoded entity onto the client's profile or note URL. naddr and nevent
+  // pass through as-is: VIEW_CLIENTS.url() takes the bech32, and the notification
+  // list has been handing it naddr this way already.
+  function clientUrlFor(client, entity, decoded) {
+    switch (decoded.type) {
+      case 'npub':     return client.profile(entity);
+      case 'nprofile': return client.profile(NT.nip19.npubEncode(decoded.data.pubkey));
+      case 'note':     return client.url(NT.nip19.neventEncode({ id: decoded.data, relays: [] }));
+      default:         return client.url(entity); // nevent, naddr
+    }
+  }
+
+  async function runSearch() {
+    const raw = $('search-input').value.trim();
+    if (!raw) return;
+
+    const entity = extractEntity(raw);
+    let url = null;
+
+    if (entity) {
+      let decoded;
+      try {
+        decoded = NT.nip19.decode(entity);
+      } catch (_) {
+        setSearchStatus("That doesn't look like a valid Nostr identifier.", true);
+        return;
+      }
+      const client = await preferredClient();
+      try {
+        url = clientUrlFor(client, entity, decoded);
+      } catch (_) {
+        setSearchStatus("Couldn't build a link for that identifier.", true);
+        return;
+      }
+    } else if (NIP05_RE.test(raw)) {
+      setSearchStatus('Looking up ' + raw + '…');
+      let pubkey;
+      try {
+        pubkey = await resolveNip05ToPubkey(raw);
+      } catch (_) {
+        setSearchStatus("No Nostr address found at that domain.", true);
+        return;
+      }
+      const client = await preferredClient();
+      url = client.profile(NT.nip19.npubEncode(pubkey));
+    } else {
+      setSearchStatus('No match. Try a name, an npub, a note, or a name@domain address.', true);
+      return;
+    }
+
+    openInClient(url);
+    closeSearch();
+  }
+
+  // ---- name autocomplete in the search bar ----
+  // Same two sources the composer's @-mention dropdown uses: your follow list
+  // (local, instant once cached) and the Nostr Archives suggest endpoint for
+  // everyone else. Follows are listed first and the global results are appended
+  // as they land, so the box is useful before — and if — the network answers.
+  let searchAcSeq = 0, searchAcTimer = null, searchResults = [], searchIndex = -1;
+
+  function clearSearchResults() {
+    if (searchAcTimer) { clearTimeout(searchAcTimer); searchAcTimer = null; }
+    searchAcSeq++;
+    searchResults = []; searchIndex = -1;
+    $('search-results').innerHTML = '';
+    $('search-results').classList.add('hidden');
+  }
+
+  function paintSearchActive() {
+    $('search-results').querySelectorAll('.ac-item')
+      .forEach((el, i) => el.classList.toggle('active', i === searchIndex));
+  }
+
+  async function openProfileFor(pubkey) {
+    const client = await preferredClient();
+    openInClient(client.profile(NT.nip19.npubEncode(pubkey)));
+    closeSearch();
+  }
+
+  function renderSearchResults(items, loading) {
+    const box = $('search-results');
+    searchResults = items;
+    if (!items.length && !loading) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+    if (searchIndex >= items.length) searchIndex = items.length - 1;
+    box.classList.remove('hidden');
+    box.innerHTML = '';
+    items.forEach((c, i) => {
+      const item = h('div', { className: 'ac-item' + (i === searchIndex ? ' active' : '') });
+      const av = h('span', { className: 'ac-item-av' });
+      applyAvatar(av, c.picture ? { picture: c.picture } : {});
+      item.append(av, h('span', { className: 'ac-item-name', textContent: c.name }));
+      item.addEventListener('mousedown', (e) => { e.preventDefault(); openProfileFor(c.pubkey); });
+      box.append(item);
+    });
+    if (loading) {
+      box.append(h('div', { className: 'ac-loading' }, [
+        h('span', { className: 'ac-spinner' }),
+        h('span', { textContent: items.length ? 'Searching more…' : 'Searching Nostr…' }),
+      ]));
+    }
+  }
+
+  function updateSearchAc() {
+    const raw = $('search-input').value.trim();
+    // An identifier resolves on Enter; there is nothing to suggest for it. Same
+    // for a complete NIP-05 — that's a lookup, not a search.
+    if (!raw || extractEntity(raw) || NIP05_RE.test(raw) || raw.length < 2) {
+      clearSearchResults();
+      return;
+    }
+    const seq = ++searchAcSeq;
+    const q = raw.toLowerCase();
+    const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+
+    let follows = [];
+    let globals = [];
+    let globalPending = naAvailable();
+    const paint = () => {
+      if (seq !== searchAcSeq) return;
+      const seen = new Set(follows.map((c) => c.pubkey));
+      const merged = follows.slice();
+      for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+      renderSearchResults(merged.slice(0, 8), globalPending);
+    };
+
+    const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
+    if (cached) follows = matchFollows(cached);
+    paint();
+    if (!cached) {
+      getFollowList().then((list) => {
+        if (seq !== searchAcSeq) return;
+        follows = matchFollows(list);
+        paint();
+      }).catch(() => {});
+    }
+
+    if (globalPending) {
+      if (searchAcTimer) clearTimeout(searchAcTimer);
+      searchAcTimer = setTimeout(async () => {
+        const res = await naSuggest(raw);
+        if (seq !== searchAcSeq) return;
+        globals = res;
+        globalPending = false;
+        paint();
+      }, 250);
+    }
+  }
+
+  $('search-btn').addEventListener('click', () => {
+    if ($('search-bar').classList.contains('hidden')) openSearch();
+    else closeSearch();
+  });
+  $('search-close').addEventListener('click', closeSearch);
+  $('search-input').addEventListener('input', () => { setSearchStatus(''); updateSearchAc(); });
+  $('search-input').addEventListener('keydown', (e) => {
+    const n = searchResults.length;
+    if (e.key === 'ArrowDown' && n) {
+      e.preventDefault(); searchIndex = Math.min(searchIndex + 1, n - 1); paintSearchActive();
+    } else if (e.key === 'ArrowUp' && n) {
+      e.preventDefault(); searchIndex = Math.max(searchIndex - 1, 0); paintSearchActive();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // A highlighted suggestion wins; then the top suggestion, since erroring
+      // "that isn't an npub" with a list of matches on screen would be absurd;
+      // otherwise decode what was actually typed.
+      const pick = searchResults[searchIndex >= 0 ? searchIndex : 0];
+      if (pick) openProfileFor(pick.pubkey);
+      else runSearch();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (searchResults.length) clearSearchResults(); else closeSearch();
+    }
+  });
+
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+    openExtensionPage('help.html');
   });
   // Release notes live in the help guide's "What's new" section — the guide is
   // updated as part of every release (see the RELEASE PRACTICE note in help.html).
   $('whats-new-link').addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#whats-new' });
+    openExtensionPage('help.html', '#whats-new');
   });
 
   // ---- settings (gear icon ↔ overlay view) ----
@@ -845,7 +1076,7 @@
       });
       guideLink.addEventListener('click', (e) => {
         e.preventDefault();
-        chrome.tabs.create({ url: chrome.runtime.getURL('help.html') + '#switching' });
+        openExtensionPage('help.html', '#switching');
       });
       const tip = h('div', { id: 'switch-tip', className: 'switch-tip' }, [
         h('div', { className: 'switch-tip-title' }, [
@@ -1942,7 +2173,9 @@
 
     // persistent header chip (current account)
     applyAvatar($('chip-av'), active || {});
-    $('chip-name').textContent = active ? displayName(active) : 'No account';
+    // The name is no longer drawn in the bar, so the tooltip has to carry it —
+    // otherwise two accounts with similar avatars are indistinguishable here.
+    $('acct-btn').title = active ? 'Switch account — ' + displayName(active) : 'No account';
     refreshBell();
     syncRelax();
     renderPinnedBalanceBar();
@@ -2104,7 +2337,7 @@
   $('add-account-link').addEventListener('click', () => addAccountModal());
   $('explore-apps-link').addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+    openExtensionPage('welcome.html');
   });
 
   // Share Sidecar via the OS's native share sheet when available (Messages, Mail,
@@ -4079,6 +4312,47 @@
     });
   }
 
+  // Open one of Sidecar's own pages (help, welcome, wallets), reusing the tab we
+  // already opened it in rather than stacking duplicates.
+  //
+  // Deliberately NOT openInClient's approach of matching on host: every extension
+  // page shares one origin, so a host match would collide across help/welcome/wallets.
+  // And not tabs.query({url}) either — filtering by url needs the `tabs` permission
+  // or a matching host permission, and Sidecar has neither for its own
+  // chrome-extension:// origin, so that query could silently return nothing and this
+  // would fix nothing. Remembering the tab id we created needs no permission at all.
+  //
+  // The map lives in the panel's memory, so reopening the panel forgets it and the
+  // next click opens a fresh tab — the old behavior, which is the right way to be
+  // wrong. `url` is re-set on focus so clicking What's new while the guide is already
+  // open jumps to that section instead of appearing to do nothing.
+  const ownPageTabs = {};
+  function openExtensionPage(page, hash) {
+    const url = chrome.runtime.getURL(page) + (hash || '');
+    if (!(chrome.tabs && chrome.tabs.update)) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    const remember = (tab) => {
+      void chrome.runtime.lastError;
+      if (tab && tab.id != null) ownPageTabs[page] = tab.id;
+    };
+    const known = ownPageTabs[page];
+    if (known == null) {
+      chrome.tabs.create({ url }, remember);
+      return;
+    }
+    chrome.tabs.update(known, { active: true, url }, (tab) => {
+      if (chrome.runtime.lastError || !tab) {
+        // Closed since we opened it — start over rather than losing the click.
+        delete ownPageTabs[page];
+        chrome.tabs.create({ url }, remember);
+        return;
+      }
+      if (tab.windowId != null) chrome.windows.update(tab.windowId, { focused: true });
+    });
+  }
+
   // Resolve a kind:0 display name for an npub (best-effort, for the About credit).
   async function fetchProfileName(npub) {
     try {
@@ -4171,7 +4445,16 @@
       try { chrome.tabs.reload(tab.id); } catch (_) {}
       dismissReloadBanner();
     });
-    banner.append(reload);
+    // Dismissable: the banner is a suggestion, not a task. It auto-clears after 30s,
+    // but a user who has decided not to reload shouldn't have to wait it out.
+    const close = h('button', {
+      className: 'reload-banner-x',
+      title: 'Dismiss',
+      'aria-label': 'Dismiss',
+      textContent: '✕',
+    });
+    close.addEventListener('click', dismissReloadBanner);
+    banner.append(reload, close);
     show(banner);
     _reloadBannerTimer = setTimeout(dismissReloadBanner, 30000);
     return true;
@@ -6803,7 +7086,7 @@
     const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'Need a wallet? See suggestions →' });
     primalLink.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+      openExtensionPage('wallets.html');
     });
     primalNotice.append(primalLink);
     const connect = h('button', { className: 'primary wallet-connect-btn', textContent: 'Connect wallet' });
@@ -6868,7 +7151,7 @@
     });
     find.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({ url: chrome.runtime.getURL('wallets.html') });
+      openExtensionPage('wallets.html');
     });
     view.append(find);
   }
@@ -8574,6 +8857,13 @@
       hide($('approval-unlock'));
     }
 
+    // The payment card offered to enable automatic zaps; confirm it here.
+    if (data.offerAutoZap > 0) {
+      $('approval-autozap-offer').classList.remove('hidden');
+      $('approval-autozap-offer-label').textContent =
+        'Turn on Auto Zaps (' + fmtSats(data.offerAutoZap) + ' sats max)';
+    }
+
     // Payment: one Pay button + an optional "remember a budget" toggle (no Trust).
     const remember = $('approval-remember');
     const rememberBudget = $('approval-remember-budget');
@@ -8680,11 +8970,18 @@
         return;
       }
       action = 'budget';
-      extra = { budgetSats, perPaymentSats: 0 };
+      // Merge, don't assign — other flags share this object (see prompt.js).
+      extra = Object.assign({}, extra, { budgetSats, perPaymentSats: 0 });
     }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {
       extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
+    }
+    // Carry the still-ticked auto-zap offer back with the approval. Only an approval
+    // reaches here, so declining the payment can never enable the setting.
+    if (pendingApproval && pendingApproval.data && pendingApproval.data.offerAutoZap > 0 &&
+        $('approval-autozap-offer-box').checked) {
+      extra = Object.assign({}, extra, { enableAutoZap: true });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
