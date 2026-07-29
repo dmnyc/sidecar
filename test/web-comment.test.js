@@ -38,7 +38,8 @@ vm.runInContext(
   lift(/const TRACKING_PARAMS = \[[\s\S]*?\];/, 'TRACKING_PARAMS') + '\n' +
   lift(/function unwrapJumbleTarget\(raw\)\s*\{[\s\S]*?\n  \}/, 'unwrapJumbleTarget') + '\n' +
   lift(/function normalizeWebUrl\(raw\)\s*\{[\s\S]*?\n  \}/, 'normalizeWebUrl') + '\n' +
-  lift(/function buildWebComment\(url, content\)\s*\{[\s\S]*?\n  \}/, 'buildWebComment') + '\n' +
+  lift(/const CLIENT_TAG = [^\n]+/, 'CLIENT_TAG') + '\n' +
+  lift(/function buildWebComment\(url, content, includeClientTag\)\s*\{[\s\S]*?\n  \}/, 'buildWebComment') + '\n' +
   lift(/const jumbleThreadUrl = [^\n]+\n[^\n]+/, 'jumbleThreadUrl') + '\n' +
   lift(/const jumbleNoteUrl = [^\n]+/, 'jumbleNoteUrl') + '\n' +
   'globalThis.unwrapJumbleTarget = unwrapJumbleTarget;' +
@@ -186,7 +187,7 @@ test('unwrap never throws on junk', () => {
 // ---- the event ----------------------------------------------------------------
 
 test('the event matches the tag shape a real Jumble comment uses', () => {
-  const ev = buildWebComment(CNN, 'hello');
+  const ev = buildWebComment(CNN, 'hello', false);
   assert.equal(ev.kind, 1111);
   assert.equal(ev.content, 'hello');
   // Compared as JSON, not deepEqual: the tags are built inside the vm realm, so
@@ -201,15 +202,49 @@ test('the event matches the tag shape a real Jumble comment uses', () => {
 });
 
 test('root and parent are identical for a top-level comment', () => {
-  const ev = buildWebComment(CNN, 'x');
+  const ev = buildWebComment(CNN, 'x', false);
   const I = ev.tags.find((t) => t[0] === 'I');
   const i = ev.tags.find((t) => t[0] === 'i');
   assert.equal(I[1], i[1], 'a comment on the page, not a reply to a comment');
 });
 
 test('created_at is unix SECONDS', () => {
-  const ev = buildWebComment(CNN, 'x');
+  const ev = buildWebComment(CNN, 'x', false);
   assert.ok(ev.created_at > 1_000_000_000 && ev.created_at < 100_000_000_000);
+});
+
+// Jumble renders this as "via Sidecar" — ReplyNote and NotePage both mount
+// <ClientTag> with no kind gate, so a 1111 shows it just like a note does.
+test('the client tag is appended when enabled', () => {
+  const ev = buildWebComment(CNN, 'x', true);
+  assert.equal(JSON.stringify(ev.tags[ev.tags.length - 1]), JSON.stringify(['client', 'Sidecar']));
+});
+
+test('the four scope tags keep their verified leading order with the client tag on', () => {
+  // The I/K/i/k prefix is what was checked byte-for-byte against a real comment;
+  // appending must not disturb it, so a future diff against one stays clean.
+  const ev = buildWebComment(CNN, 'x', true);
+  assert.equal(JSON.stringify(ev.tags.slice(0, 4)), JSON.stringify([
+    ['I', CNN], ['K', 'web'], ['i', CNN], ['k', 'web'],
+  ]));
+  assert.equal(ev.tags.length, 5);
+});
+
+test('the tag is omitted when the setting is off — the toggle must actually work', () => {
+  for (const off of [false, undefined]) {
+    const ev = buildWebComment(CNN, 'x', off);
+    assert.equal(ev.tags.length, 4, 'no client tag expected for ' + String(off));
+    assert.ok(!ev.tags.some((t) => t[0] === 'client'));
+  }
+});
+
+test('the exported CLIENT_TAG is never mutated between events', () => {
+  // buildWebComment pushes a copy; without .slice() a later edit to one event's tag
+  // would reach back into the shared constant.
+  const a = buildWebComment(CNN, 'x', true);
+  a.tags[a.tags.length - 1][1] = 'Tampered';
+  const b = buildWebComment(CNN, 'y', true);
+  assert.equal(b.tags[b.tags.length - 1][1], 'Sidecar');
 });
 
 // ---- the Jumble links ---------------------------------------------------------

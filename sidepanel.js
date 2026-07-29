@@ -905,7 +905,13 @@
         post.disabled = true;
         post.textContent = 'Posting\u2026';
         try {
-          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: buildWebComment(target, text) });
+          // Same opt-out the note composer honours (Settings → "Show client tag").
+          const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+          const withClient = !(settings && settings.showClientTag === false);
+          const signed = await call({
+            type: 'SIDECAR_OWNER_SIGN',
+            event: buildWebComment(target, text, withClient),
+          });
           await publishSigned(signed);
           let nevent = '';
           try {
@@ -1662,13 +1668,23 @@
     } catch (_) { return raw; }
   }
 
-  function buildWebComment(url, content) {
+  // `includeClientTag` comes from the same Settings toggle that governs notes, so
+  // the switch means what it says rather than covering only kind 1. Verified that
+  // Jumble renders it: ReplyNote and NotePage both mount <ClientTag> with no kind
+  // gate, so this shows as "via Sidecar" beside the name in a thread.
+  function buildWebComment(url, content, includeClientTag) {
+    // Root and parent are identical: this is a top-level comment on the page, not a
+    // reply to another comment.
+    const tags = [['I', url], ['K', 'web'], ['i', url], ['k', 'web']];
+    // Appended rather than prepended (notes put it first): these four scope tags are
+    // what was verified byte-for-byte against a real Jumble comment, so keeping them
+    // as the leading shape means a future diff against one stays clean. The client
+    // tag is metadata and position carries no meaning — readers use find().
+    if (includeClientTag) tags.push(CLIENT_TAG.slice());
     return {
       kind: WEB_COMMENT_KIND,
       created_at: Math.floor(Date.now() / 1000),
-      // Root and parent are identical: this is a top-level comment on the page,
-      // not a reply to another comment.
-      tags: [['I', url], ['K', 'web'], ['i', url], ['k', 'web']],
+      tags,
       content: content,
     };
   }
