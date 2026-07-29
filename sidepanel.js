@@ -919,7 +919,11 @@
           done.classList.remove('hidden');
           done.append(
             h('div', { className: 'webcomment-done-title', textContent: 'Comment posted' }),
-            nevent ? link('View your comment \u2192', jumbleNoteUrl(nevent)) : document.createTextNode(''),
+            // Jumble is named because it's currently the only client that renders a
+            // kind:1111 over a web target \u2014 "view your comment" without saying where
+            // suggests it's visible wherever you normally read Nostr, and it isn't.
+            // Drop the name once other clients catch up.
+            nevent ? link('View your comment on Jumble \u2192', jumbleNoteUrl(nevent)) : document.createTextNode(''),
             link('See all comments on this page \u2192', jumbleThreadUrl(target))
           );
           cancel.textContent = 'Close';
