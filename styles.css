@@ -908,6 +908,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .explore-link-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; padding: 0 4px; }
 .explore-link { font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; display: block; }
 .explore-link:hover { color: var(--lav); }
+/* For a link sitting inside a sentence rather than on its own line — the base rule
+   is display:block and centered, which breaks the sentence in half. Same treatment
+   .wallet-notice .explore-link already gets, as a reusable modifier. */
+.explore-link.inline { display: inline; color: inherit; text-align: inherit; text-decoration: underline; }
 .explore-link.share-link { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .share-link svg { width: 14px; height: 14px; }
 #share-sidecar-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
@@ -1628,6 +1632,58 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   margin: 0 0 12px; color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
 }
 .wallet-or::before, .wallet-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Quick start — the first thing on a screen that only appears when there's no
+   wallet, so it gets card weight rather than sitting as one more link. */
+.wallet-quickstart {
+  margin: 0 0 10px; padding: 14px; border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: var(--sheen);
+}
+.wallet-quickstart-title { font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 2px; }
+.wallet-quickstart .hint { margin: 0 0 11px; }
+/* Secondary, not primary: "Connect wallet" above owns the primary weight on this
+   screen, and two filled buttons would compete for the same decision. */
+.wallet-quickstart .secondary { display: block; width: 100%; }
+/* Separates the restore block from the quick-start card. Matches the spacing the
+   restore block gets from its own container. */
+.quickstart-or { margin-top: 20px; }
+
+/* Rizful quick-start modal. Deliberately few elements and larger type than the
+   first attempt, which stacked three numbered steps each carrying its own button
+   above a five-line disclosure — a lot of small text to read before anything could
+   be done. One action, one field, one closing note. */
+.rizful-lede {
+  font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5;
+  color: var(--text-2); margin: 0 0 14px;
+}
+/* The two trips to Rizful, same size so neither looks like the only one. Signup is
+   skippable if you already have an account; order carries that, so neither needs a
+   step number or an explanatory line. */
+.rizful-get { display: block; width: 100%; padding: 10px 14px; font-size: 14px; }
+.rizful-get + .rizful-get { margin-top: 7px; }
+/* A little air before the field — the two buttons are one group, the paste is the
+   next thing. */
+.rizful-get + .rizful-code { margin-top: 14px; }
+.rizful-code {
+  width: 100%; margin-top: 4px; padding: 11px 12px; border-radius: 10px;
+  font-family: var(--font-ui); font-size: 14px; letter-spacing: 0.04em;
+  color: var(--text); border: 1px solid var(--border);
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.rizful-code::placeholder { color: var(--faint); letter-spacing: normal; }
+.rizful-code:focus {
+  outline: none; border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
+}
+/* Sits below the buttons, above the modal's bottom edge — visible without standing
+   between the user and the first action. */
+.rizful-note {
+  font-family: var(--font-ui); font-size: 11.5px; line-height: 1.5;
+  color: var(--faint); margin: 12px 0 0; padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
 
 /* wallet backup card: label + status on top, full-width buttons below */
 .wallet-backup-card {

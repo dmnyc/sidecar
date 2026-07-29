@@ -7063,8 +7063,147 @@
     renderWalletConnected(view);
   }
 
+  // ---- Rizful quick start ----------------------------------------------------
+  //
+  // The hard part of connecting a wallet isn't pasting the string — it's that a user
+  // with no Lightning wallet has to go find one first. Rizful publishes a token
+  // exchange for exactly this: the user signs up, copies a short one-time code, and
+  // we trade it for a standard NWC connection string. Same flow Jumble uses.
+  //
+  // Nothing about Sidecar's architecture changes: what comes back is an ordinary
+  // `nostr+walletconnect://` URI that goes through the same SIDECAR_SET_NWC path as a
+  // hand-pasted one. This is purely a friendlier way to obtain it.
+  //
+  // Rizful is CUSTODIAL — they hold the funds. That's stated plainly in the UI rather
+  // than buried, because Sidecar's whole position is that it never holds your money,
+  // and offering a one-tap wallet shouldn't quietly blur that.
+  const RIZFUL_ORIGIN = 'https://rizful.com';
+  const RIZFUL_SIGNUP_URL = RIZFUL_ORIGIN + '/create-account';
+  const RIZFUL_GET_CODE_URL = RIZFUL_ORIGIN + '/nostr_onboarding_auth_token/get_token';
+  const RIZFUL_EXCHANGE_URL = RIZFUL_ORIGIN + '/nostr_onboarding_auth_token/post_for_secrets';
+
+  // Trade a one-time code for an NWC string. Returns { nwcUri, lightningAddress }.
+  //
+  // The response is treated as untrusted: a `nwc_uri` that isn't actually an NWC URI
+  // is rejected rather than handed to SIDECAR_SET_NWC, so a compromised or confused
+  // endpoint can't get an arbitrary string stored as the user's wallet.
+  async function rizfulExchangeCode(code, pubkey) {
+    const res = await fetch(RIZFUL_EXCHANGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'omit', // never attach cookies to a token exchange
+      body: JSON.stringify({ secret_code: String(code).trim(), nostr_public_key: pubkey }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.text()).slice(0, 200); } catch (_) {}
+      throw new Error(detail || 'Rizful rejected that code (' + res.status + ').');
+    }
+    let data;
+    try { data = await res.json(); } catch (_) { throw new Error('Rizful sent a response Sidecar could not read.'); }
+    const nwcUri = data && typeof data.nwc_uri === 'string' ? data.nwc_uri.trim() : '';
+    if (!nwcUri.startsWith('nostr+walletconnect://')) {
+      throw new Error('Rizful did not return a wallet connection.');
+    }
+    const addr = data && typeof data.lightning_address === 'string' ? data.lightning_address.trim() : '';
+    return { nwcUri, lightningAddress: addr && addr.includes('@') ? addr : parseNwcLud16(nwcUri) };
+  }
+
+  function rizfulQuickStartModal() {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const code = h('input', {
+        type: 'text', className: 'rizful-code', spellcheck: false, autocomplete: 'off',
+        placeholder: 'Paste your one-time code',
+      });
+      const go = h('button', { className: 'primary', textContent: 'Connect wallet' });
+
+      go.addEventListener('click', async () => {
+        const value = code.value.trim();
+        if (!value) return (err.textContent = 'Paste the code from Rizful.');
+        err.textContent = '';
+        go.disabled = true;
+        go.textContent = 'Connecting…';
+        try {
+          const { nwcUri, lightningAddress } = await rizfulExchangeCode(value, state.activePubkey);
+          // Prove it works before storing it — same check the paste path makes.
+          const client = window.SidecarNWC.makeClient(nwcUri);
+          await client.getInfo();
+          client.close();
+          await call({ type: 'SIDECAR_SET_NWC', connection: nwcUri });
+          closeModal();
+          toast(lightningAddress ? 'Wallet connected — ' + lightningAddress : 'Wallet connected', 'success');
+          // The Profile screen's existing lud16 prompt picks it up from here and
+          // offers to publish the address, which is what makes zaps reachable.
+          renderWallet();
+        } catch (e) {
+          err.textContent = (e && e.message) || 'Could not connect that wallet.';
+          go.disabled = false;
+          go.textContent = 'Connect wallet';
+        }
+      });
+      code.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      // Two buttons, in order, then the field.
+      //
+      // These were briefly one button ("Get a code from Rizful") with signup as a
+      // quiet link underneath. That was wrong: a user without an account clicks the
+      // big button, gets redirected to Rizful's signup, finishes it, and is then
+      // nowhere near a code — so they have to come back and click the same button
+      // again to actually get one. One control silently doing two different things on
+      // two clicks is exactly the confusion that caused.
+      //
+      // Signup is a real button now, sized like the other, so the two trips to Rizful
+      // are visible up front. Anyone who already has an account just skips the first.
+      // Still no step numbers — top-to-bottom order carries the sequence.
+      const signup = h('button', {
+        className: 'secondary rizful-get', textContent: 'Create a Rizful account',
+      });
+      signup.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_SIGNUP_URL }));
+
+      const getCode = h('button', {
+        className: 'secondary rizful-get', textContent: 'Get your one-time code',
+      });
+      getCode.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_GET_CODE_URL }));
+
+      // Custody still gets said plainly, but as a closing note rather than a wall the
+      // user has to read past. "Hosted" is in the line above, which is the word that
+      // actually carries the warning.
+      const note = h('p', { className: 'rizful-note' });
+      note.append(document.createTextNode('Run by '));
+      const megalith = h('a', { href: '#', className: 'explore-link inline', textContent: 'Megalith' });
+      megalith.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: 'https://megalithic.me/' });
+      });
+      note.append(
+        megalith,
+        document.createTextNode('. They hold the funds, not Sidecar — you can switch to a self-custodial wallet later.')
+      );
+
+      const actions = h('div', { className: 'actions setup-actions' }, [cancel, go]);
+
+      modal.append(
+        h('h3', { textContent: 'Start with Rizful' }),
+        h('p', { className: 'rizful-lede', textContent: 'A hosted Lightning wallet, ready in about a minute.' }),
+        signup,
+        getCode,
+        code,
+        err,
+        actions,
+        note
+      );
+      setTimeout(() => code.focus(), 50);
+    });
+  }
+
   function renderWalletConnect(view) {
     view.append(h('h2', { textContent: 'Wallet' }));
+
     view.append(
       h('p', {
         className: 'hint',
@@ -7083,7 +7222,7 @@
       document.createTextNode("— it doesn't support external apps like Sidecar."),
       document.createElement('br')
     );
-    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'Need a wallet? See suggestions →' });
+    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'More Lightning wallet options →' });
     primalLink.addEventListener('click', (e) => {
       e.preventDefault();
       openExtensionPage('wallets.html');
@@ -7143,11 +7282,31 @@
     restoreBlock.append(restore, restoreNote);
     view.append(restoreBlock);
 
-    // Help users who don't have an NWC-capable wallet yet.
+    // Quick start comes AFTER connect and restore, not before. Someone who already
+    // has a wallet — which is most people opening this screen deliberately — should
+    // reach their own path first and not have to scroll past an onboarding pitch. It
+    // sits last because it reads onward into the suggestions link below it.
+    // The divider goes OUTSIDE the card — .wallet-quickstart has its own border and
+    // background, and a rule inside it reads as a stray line rather than a separator.
+    view.append(h('div', { className: 'wallet-or quickstart-or', textContent: 'or' }));
+    const quick = h('div', { className: 'wallet-quickstart' });
+    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: 'New to Lightning?' }));
+    quick.append(h('p', {
+      className: 'hint compact',
+      textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
+    }));
+    const quickBtn = h('button', { className: 'secondary', textContent: 'Quick start with Rizful' });
+    quickBtn.addEventListener('click', rizfulQuickStartModal);
+    quick.append(quickBtn);
+    view.append(quick);
+
+    // Reads as the continuation of the quick-start block above rather than a
+    // consolation prize, so it's framed as more options rather than "you must not
+    // have one".
     const find = h('a', {
       className: 'explore-link wallet-find-link',
       href: '#',
-      textContent: 'Need a wallet? See suggestions →',
+      textContent: 'More Lightning wallet options →',
     });
     find.addEventListener('click', (e) => {
       e.preventDefault();
