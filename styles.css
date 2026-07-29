@@ -1176,11 +1176,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .webcomment-text { min-height: 96px; width: 100%; }
 /* The comment itself, shown under the card in Preview so the whole post can be read
    the way it will appear. */
+/* No margin, padding or border of its own: .compose-preview already supplies the
+   box. The separator this used to carry existed to divide the comment from the link
+   card when both shared the preview pane — moving the card above the tabs left it
+   as a stray rule and a doubled 12px above the first line. */
 .webcomment-preview-text {
   -webkit-user-select: text; user-select: text;
   font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5;
-  color: var(--text); margin-top: 12px; padding-top: 12px;
-  border-top: 1px solid var(--border); white-space: pre-wrap; word-break: break-word;
+  color: var(--text); white-space: pre-wrap; word-break: break-word;
 }
 .webcomment-done { display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
 .webcomment-done-title { font-weight: 600; font-size: 13.5px; color: var(--success); }
