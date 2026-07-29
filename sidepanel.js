@@ -804,6 +804,101 @@
     if (a) showNotifModal(a);
   });
 
+  // Comment on the page in the active tab. Opened from the topbar pencil.
+  function webCommentModal() {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const urlLine = h('div', { className: 'webcomment-url', textContent: 'Reading the current tab…' });
+      const body = h('textarea', {
+        className: 'compose-text webcomment-text',
+        placeholder: 'Write a comment about this page…',
+      });
+      const post = h('button', { className: 'primary', textContent: 'Post comment' });
+      post.disabled = true;
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      let target = null; // the normalized URL, once known
+
+      // Shown after a successful post: the two Jumble views, since that's where a
+      // kind:1111 on a web target is actually readable.
+      const done = h('div', { className: 'webcomment-done hidden' });
+
+      const link = (label, href) => {
+        const a = h('a', { className: 'explore-link', href: '#', textContent: label });
+        a.addEventListener('click', (e) => { e.preventDefault(); chrome.tabs.create({ url: href }); });
+        return a;
+      };
+
+      post.addEventListener('click', async () => {
+        const text = body.value.trim();
+        if (!target) return (err.textContent = 'No page to comment on.');
+        if (!text) return (err.textContent = 'Write something first.');
+        err.textContent = '';
+        post.disabled = true;
+        post.textContent = 'Posting…';
+        try {
+          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: buildWebComment(target, text) });
+          await publishSigned(signed);
+          // nevent rather than note: the relay hint is what lets Jumble find it.
+          let nevent = '';
+          try {
+            nevent = NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays: [] });
+          } catch (_) {}
+          body.disabled = true;
+          post.classList.add('hidden');
+          done.classList.remove('hidden');
+          done.append(
+            h('div', { className: 'webcomment-done-title', textContent: 'Comment posted' }),
+            nevent ? link('View your comment →', jumbleNoteUrl(nevent)) : document.createTextNode(''),
+            link('See all comments on this page →', jumbleThreadUrl(target))
+          );
+          cancel.textContent = 'Close';
+          toast('Comment posted', 'success');
+        } catch (e) {
+          err.textContent = (e && e.message) || 'Could not post that comment.';
+          post.disabled = false;
+          post.textContent = 'Post comment';
+        }
+      });
+
+      modal.append(
+        h('h3', { textContent: 'Comment on this page' }),
+        h('p', {
+          className: 'hint compact',
+          textContent: 'A public Nostr comment attached to this page’s address. Anyone can see it, '
+            + 'including the address itself.',
+        }),
+        urlLine,
+        body,
+        err,
+        done,
+        h('div', { className: 'actions setup-actions' }, [cancel, post])
+      );
+
+      // Resolve the tab AFTER the modal is up, so the URL is never read
+      // speculatively — and show exactly what will be published.
+      activeTabUrl().then((raw) => {
+        if (!raw) {
+          urlLine.textContent = 'Could not read the current tab.';
+          urlLine.classList.add('bad');
+          return;
+        }
+        const { url, error } = normalizeWebUrl(raw);
+        if (error) {
+          urlLine.textContent = error;
+          urlLine.classList.add('bad');
+          return;
+        }
+        target = url;
+        urlLine.textContent = url;
+        urlLine.classList.remove('bad');
+        post.disabled = false;
+        body.focus();
+      });
+    });
+  }
+
   // ---- search: paste an identifier, open it in your client ----
   // Deliberately has no index behind it. A NIP-19 string already *contains* what
   // it points at — the npub is the pubkey, the nevent is the event id — so this
@@ -1032,6 +1127,8 @@
       if (searchResults.length) clearSearchResults(); else closeSearch();
     }
   });
+
+  $('comment-btn').addEventListener('click', webCommentModal);
 
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
@@ -1417,6 +1514,90 @@
   // Publish an already-signed event to the account's write relays (NIP-65 → configured).
   async function publishSigned(signed) {
     return publishToRelays(await postRelays(), signed);
+  }
+
+  // ---- web comments (NIP-22 kind 1111 over a NIP-73 "web" target) -------------
+  //
+  // Comment on any page you're looking at. The event is a kind:1111 whose scope is
+  // the page URL, which is how Jumble's external-content view finds it.
+  //
+  // Tag shape is taken from a REAL Jumble comment, fetched and decoded rather than
+  // inferred from the spec — uppercase is the root scope, lowercase the parent, and
+  // for a top-level comment they're the same:
+  //
+  //   ["I", url] ["K", "web"] ["i", url] ["k", "web"]
+  //
+  // The identifier is the URL itself, so normalization decides whether two people
+  // commenting on the same page land in the same thread. Getting it wrong doesn't
+  // error — it silently splits the conversation.
+  const WEB_COMMENT_KIND = 1111;
+
+  // Params that identify where a visitor came FROM, never which page they're on.
+  // Left in, every share link spawns its own thread.
+  const TRACKING_PARAMS = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id',
+    'fbclid', 'gclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'igshid', 'mc_cid',
+    'mc_eid', 'ref_src', 'ref_url', 's_kwcid', 'yclid', '_ga', 'ttclid',
+  ];
+
+  // Reduce a page URL to the identifier the comment is tagged with.
+  // Returns { url } or { error } — never throws, and never guesses on refusal.
+  //
+  // Deliberately NOT nostr-tools' utils.normalizeURL: that one is built for relay
+  // URLs and rewrites https:// to wss://, which would tag every comment with an
+  // address that threads with nothing.
+  function normalizeWebUrl(raw) {
+    let u;
+    try { u = new URL(String(raw || '').trim()); } catch (_) { return { error: 'That is not a URL Sidecar can comment on.' }; }
+    // Only real web pages. chrome://, about:, moz-extension:// and friends aren't
+    // public documents, and file:// would publish a path from this machine to a
+    // relay — which is a privacy leak, not a comment.
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+      return { error: 'Only http and https pages can be commented on.' };
+    }
+    if (!u.hostname || u.hostname === 'localhost' || /^(\d{1,3}\.){3}\d{1,3}$/.test(u.hostname)) {
+      return { error: 'That page is local, so nobody else could open the comment.' };
+    }
+    u.hash = ''; // NIP-73 requires no fragment: #section is the same document
+    for (const p of TRACKING_PARAMS) u.searchParams.delete(p);
+    // The query itself stays — for plenty of sites it IS the page identity
+    // (youtube.com/watch?v=…), so stripping it would merge unrelated pages.
+    u.searchParams.sort(); // ?b=1&a=2 and ?a=2&b=1 are the same page
+    let out = u.toString();
+    // A bare origin normalizes to a trailing slash; a path shouldn't gain one.
+    if (u.pathname !== '/' && out.endsWith('/')) out = out.slice(0, -1);
+    return { url: out };
+  }
+
+  function buildWebComment(url, content) {
+    return {
+      kind: WEB_COMMENT_KIND,
+      created_at: Math.floor(Date.now() / 1000),
+      // Root and parent are identical: this is a top-level comment on the page,
+      // not a reply to another comment.
+      tags: [['I', url], ['K', 'web'], ['i', url], ['k', 'web']],
+      content: content,
+    };
+  }
+
+  // Jumble is where these are actually readable — most clients don't render
+  // kind:1111 over a web target at all, which is why both links point there.
+  const jumbleThreadUrl = (url) =>
+    'https://jumble.social/external-content?id=' + encodeURIComponent(url);
+  const jumbleNoteUrl = (nevent) => 'https://jumble.social/notes/' + nevent;
+
+  // The URL of the page the user is looking at. Read only when the comment panel
+  // is opened — never speculatively — because it's about to be published.
+  function activeTabUrl() {
+    return new Promise((resolve) => {
+      if (!(chrome.tabs && chrome.tabs.query)) return resolve(null);
+      try {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (chrome.runtime.lastError) return resolve(null);
+          resolve((tabs && tabs[0] && tabs[0].url) || null);
+        });
+      } catch (_) { resolve(null); }
+    });
   }
 
   // Build and publish a NIP-65 (kind:10002) relay list from the editor's model:

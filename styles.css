@@ -1157,6 +1157,24 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 
+/* ---- comment on this page (NIP-22 kind 1111) ---- */
+/* The URL is shown verbatim because posting publishes it. Explicitly selectable —
+   this is exactly the kind of content the body-level `user-select: none` must not
+   swallow, since the whole point is being able to check it before committing. */
+.webcomment-url {
+  -webkit-user-select: text; user-select: text;
+  font-family: var(--font-ui); font-size: 11.5px; line-height: 1.45;
+  color: var(--text-2); word-break: break-all;
+  padding: 8px 10px; margin: 2px 0 10px; border-radius: 8px;
+  background: rgba(var(--well-rgb), 0.6);
+  border: 1px solid var(--border);
+}
+.webcomment-url.bad { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.4); }
+.webcomment-text { min-height: 96px; width: 100%; }
+.webcomment-done { display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
+.webcomment-done-title { font-weight: 600; font-size: 13.5px; color: var(--success); }
+.webcomment-done .explore-link { text-align: left; }
+
 /* first-run profile setup wizard */
 .setup-progress { font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .modal .setup-actions { flex-direction: row; margin-top: 18px; }
