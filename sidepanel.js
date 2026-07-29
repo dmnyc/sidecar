@@ -565,7 +565,7 @@
       // screen. The composer draft is autosaved, so it's offered again on unlock.
       closeModal();
       stopWalletMonitor();
-      if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
+      if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
       balanceCache = { pubkey: null, sats: null };
       show($('view-lock'));
       setTimeout(() => $('unlock-pin').focus(), 50);
@@ -6125,9 +6125,62 @@
   // replaceable kind:30078 record that can be restored on another device.
   const NWC_BACKUP_DTAG = 'sidecar:nwc-backup';
 
-  async function hasNwcBackup() {
-    return !!(await fetchBackupEvent(NWC_BACKUP_DTAG));
+  // Compare the backup against the wallet actually connected — don't just detect
+  // that some backup exists. The d-tag is replaceable, so connecting a new wallet
+  // leaves the previous ciphertext in place: a bare existence check then reports
+  // "Backed up" for a string the user no longer holds, which is the one case where
+  // the reassurance is actively harmful.
+  //
+  // Fails closed. Anything we can't verify (no connection, decrypt failed, relays
+  // timed out) is 'unknown', never 'current'.
+  //
+  //   none    → no backup event on the relays
+  //   current → the backup decrypts to the connected string
+  //   stale   → a backup exists, but for a different wallet
+  //   unknown → couldn't tell
+  //
+  // Compares the whole string rather than the parsed wallet pubkey + secret: two
+  // URIs for one wallet can differ in param order or an added lud16, so a byte
+  // compare can say 'stale' when the wallet is really the same. That false positive
+  // only prompts a harmless re-backup, where a false 'current' is the bug itself.
+  async function nwcBackupState() {
+    const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+    if (!ev) return { state: 'none' };
+    let connection = '';
+    try {
+      connection = (await call({ type: 'SIDECAR_GET_NWC' })).connection || '';
+    } catch (_) {}
+    if (!connection) return { state: 'unknown', at: ev.created_at };
+    try {
+      const scheme = (ev.tags.find((x) => x[0] === 'encryption') || [])[1];
+      const backed = await call({
+        type: 'SIDECAR_OWNER_DECRYPT',
+        ciphertext: ev.content,
+        nip: scheme === 'nip04' ? 4 : 44,
+      });
+      const same = String(backed || '').trim() === connection.trim();
+      return { state: same ? 'current' : 'stale', at: ev.created_at };
+    } catch (_) {
+      return { state: 'unknown', at: ev.created_at };
+    }
   }
+
+  // Pubkey whose backup nudge was dismissed this session (see renderWalletConnected).
+  let nwcNudgeDismissed = null;
+
+  // Short by design — this renders in a ~360px sidebar and the pill ellipsizes.
+  //
+  // 'stale' and 'none' share a headline on purpose. If the stored copy isn't this
+  // wallet then this wallet isn't backed up, and that's the claim the user needs;
+  // describing the backup instead ("Out of date") reads as if the CONNECTION were
+  // old, since the pill sits beside a "Wallet connection" label. What separates the
+  // two is the warn color and the line underneath — don't "fix" the duplication.
+  const NWC_BACKUP_LABEL = {
+    current: 'Backed up ✓',
+    stale: 'Not backed up',
+    none: 'Not backed up',
+    unknown: "Couldn't check",
+  };
 
   async function backupNwcToRelays() {
     const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
@@ -6164,6 +6217,10 @@
     await client.getInfo();
     client.close();
     await call({ type: 'SIDECAR_SET_NWC', connection });
+    // ensureNwc() drops the stale balance too, but it runs after the wallet screen
+    // has already painted from cache — clearing here means the restored wallet never
+    // shows the previous one's balance, not even for a frame.
+    balanceCache = { pubkey: null, sats: null };
   }
 
   // Plain signed-JSON export of the account's identity events (download, no relays).
@@ -6975,6 +7032,7 @@
   // ====================== Wallet (NWC / NIP-47) ======================
   let nwc = null; // active SidecarNWC client for the current account
   let nwcPubkey = null; // which account the client belongs to
+  let nwcConn = null; // the connection string it was built from — see ensureNwc
   let nwcNotifSub = null; // NIP-47 notification subscription handle
   let nwcPollTimer = null; // fallback balance polling interval
   const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
@@ -7705,15 +7763,29 @@
   }
 
   // Build (or reuse) the NWC client for the active account from its stored string.
+  // Keyed on the CONNECTION, not just the account. Swapping wallets within one
+  // account (Restore, or connecting a different string) leaves activePubkey
+  // unchanged, so an account-only key handed back a client still talking to the
+  // previous wallet: the balance and history came from the wallet you just replaced.
+  // Disconnect happened to nulls the client by hand, which is why removing and
+  // re-importing the same string "fixed" it.
+  //
+  // Reading the connection every call costs a message round-trip, but it can't go
+  // stale. The alternative — having each write broadcast an invalidation — is the
+  // shape that produced this bug: Disconnect remembered to reset, Restore didn't.
   async function ensureNwc() {
     const pk = state.activePubkey;
-    if (nwc && nwcPubkey === pk) return nwc;
-    stopWalletMonitor();
-    if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
     const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
+    if (nwc && nwcPubkey === pk && nwcConn === connection) return nwc;
+    stopWalletMonitor();
+    if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
+    // A balance for the old wallet must not survive into the new one — it's keyed by
+    // account, so nothing else would notice it's now the wrong number.
+    if (balanceCache && balanceCache.pubkey === pk) balanceCache = { pubkey: null, sats: null };
     if (!connection) return null;
     nwc = window.SidecarNWC.makeClient(connection);
     nwcPubkey = pk;
+    nwcConn = connection;
     startWalletMonitor(nwc);
     return nwc;
   }
@@ -8107,6 +8179,56 @@
     actions.append(sendBtn, recvBtn);
     view.append(actions);
 
+    // Backup nudge. The Backup card is far below the transaction list, so after
+    // connecting a wallet nothing on the first screen says it isn't saved — and a
+    // stale backup used to read as "Backed up" down there. One line, dismissible:
+    // some people deliberately never put a connection string on relays.
+    const backupState = nwcBackupState();
+    let nudgeStateName = 'unknown';
+    const nudge = h('p', { className: 'hint wallet-notice wallet-backup-nudge hidden' });
+    const nudgeText = h('span', { textContent: '' });
+    const nudgeBtn = h('button', { className: 'explore-link', textContent: 'Back up' });
+    const doNudgeBackup = async () => {
+      nudgeBtn.disabled = true;
+      try {
+        await backupNwcToRelays();
+        toast('Wallet backed up', 'success');
+        renderWallet();
+      } catch (e) {
+        toast(e.message, 'error');
+        nudgeBtn.disabled = false;
+      }
+    };
+    nudgeBtn.addEventListener('click', () => {
+      // Same guard as the Backup card: from here the nudge only ever shows for
+      // 'none' or 'stale', so this asks exactly when a stored wallet is at risk.
+      if (nudgeStateName === 'stale') {
+        confirmOverwriteNwcBackup('stale', doNudgeBackup);
+        return;
+      }
+      doNudgeBackup();
+    });
+    const nudgeX = h('button', { className: 'wallet-nudge-x', textContent: '×', title: 'Dismiss' });
+    nudgeX.addEventListener('click', () => {
+      // Per account, and only for this session — renderWallet() runs often enough
+      // that a render-scoped dismissal would reappear immediately, but a permanent
+      // opt-out isn't right either for "your wallet isn't saved anywhere".
+      nwcNudgeDismissed = state.activePubkey;
+      hide(nudge);
+    });
+    nudge.append(nudgeText, ' ', nudgeBtn, nudgeX);
+    view.append(nudge);
+    backupState.then((r) => {
+      const s = (r && r.state) || 'unknown';
+      if (s !== 'none' && s !== 'stale') return;
+      if (nwcNudgeDismissed === state.activePubkey) return;
+      nudgeStateName = s;
+      nudgeText.textContent = s === 'stale'
+        ? 'Your backup is a different wallet.'
+        : "This wallet isn't backed up.";
+      nudge.classList.remove('hidden');
+    }).catch(() => {});
+
     // Lightning address card (only if one is available). Shows the copyable
     // address with a QR icon that toggles a scannable QR inline.
     const addrCard = h('div', { className: 'setting address-card hidden' });
@@ -8154,7 +8276,7 @@
     view.append(txWrap);
 
     // Backup to relays (detection mirrors zap.cooking)
-    view.append(renderWalletBackup());
+    view.append(renderWalletBackup(backupState));
 
     // Per-site WebLN spending budgets
     view.append(renderSitePayments());
@@ -8453,29 +8575,103 @@
     );
   }
 
-  function renderWalletBackup() {
+  // Backing up replaces the stored wallet. The d-tag is replaceable, so the old
+  // ciphertext is discarded — and if the relays were the only place that connection
+  // lived, it's gone.
+  //
+  // Deliberately does NOT say "export it first": Export reveals the CONNECTED
+  // wallet, which is the new one. Saving the old string means restoring it first,
+  // so that's what this points at.
+  function confirmOverwriteNwcBackup(backupState, onConfirm) {
+    openModal((modal) => {
+      const body = h('p', { className: 'hint' });
+      body.append(
+        document.createTextNode(
+          backupState === 'stale'
+            ? 'Your relays hold a different wallet. Backing up replaces it. '
+            : "Sidecar couldn't check what your relays hold. Backing up replaces it. "
+        ),
+        h('strong', { textContent: 'Restore it first if you still need it.' })
+      );
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      // Action first, Cancel last — matching disconnectModal, the other wallet
+      // confirm. 'danger' not 'primary': this discards a stored wallet, so it
+      // shouldn't wear the color reserved for the encouraged choice.
+      const go = h('button', { className: 'danger', textContent: 'Replace backup' });
+      go.addEventListener('click', () => { closeModal(); onConfirm(); });
+      modal.append(
+        h('h3', { textContent: 'Replace saved backup?' }),
+        body,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  // Restore replaces the connected wallet. Say what is lost, in one line.
+  function confirmRestoreNwc(backupState, onConfirm) {
+    openModal((modal) => {
+      const body = h('p', { className: 'hint' });
+      body.append(
+        document.createTextNode(
+          backupState === 'stale'
+            ? 'The backup is a different wallet. '
+            : "Sidecar couldn't check what the backup holds. "
+        ),
+        h('strong', { textContent: 'The wallet you have connected now will be replaced.' })
+      );
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+      const go = h('button', { className: 'danger', textContent: 'Replace it' });
+      go.addEventListener('click', () => { closeModal(); onConfirm(); });
+      modal.append(
+        h('h3', { textContent: 'Replace connected wallet?' }),
+        body,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
+  // `statePromise` is shared with the nudge in renderWalletConnected so the relay
+  // fetch + decrypt happens once per wallet render, not once per consumer.
+  function renderWalletBackup(statePromise) {
     const wrap = h('div', { className: 'setting wallet-backup' });
     wrap.append(h('h3', { textContent: 'Backup' }));
     wrap.append(h('p', { className: 'hint', textContent: 'Encrypt your wallet connection to your own key and store it on your relays (NIP-78). Restore it on another device or after a reset.' }));
 
+    let backupState = 'unknown';
     const status = h('span', { className: 'backup-status', textContent: 'Checking…' });
+    // Only shown for 'stale', where the pill alone can't say what's wrong.
+    const staleNote = h('p', { className: 'hint backup-stale-note hidden', textContent: 'The backup is a different wallet.' });
     const back = h('button', { className: 'secondary', textContent: 'Back up' });
     const restore = h('button', { className: 'secondary', textContent: 'Restore' });
-    back.addEventListener('click', async () => {
+    const doBackup = async () => {
       back.disabled = true;
       back.textContent = 'Backing up…';
       try {
         await backupNwcToRelays();
-        status.textContent = 'Backed up ✓';
+        backupState = 'current';
+        status.textContent = NWC_BACKUP_LABEL.current;
         status.classList.add('done');
+        status.classList.remove('warn');
+        staleNote.classList.add('hidden');
         toast('Wallet backed up', 'success');
       } catch (e) {
         toast(e.message, 'error');
       }
       back.disabled = false;
       back.textContent = 'Back up';
+    };
+    back.addEventListener('click', () => {
+      // Only when there's something to lose. 'none' has no stored wallet and
+      // 'current' would rewrite the same string.
+      if (backupState === 'stale' || backupState === 'unknown') {
+        confirmOverwriteNwcBackup(backupState, doBackup);
+        return;
+      }
+      doBackup();
     });
-    restore.addEventListener('click', async () => {
+    const doRestore = async () => {
       restore.disabled = true;
       restore.textContent = 'Restoring…';
       try {
@@ -8487,6 +8683,17 @@
         restore.disabled = false;
         restore.textContent = 'Restore';
       }
+    };
+    restore.addEventListener('click', () => {
+      // Restore overwrites the connected wallet via SIDECAR_SET_NWC. When the
+      // backup is a different wallet, that silently discards the string in use —
+      // and it's the case where someone reaching for Restore is most likely to be
+      // guessing. Confirm first; 'current' is a no-op so it doesn't ask.
+      if (backupState === 'stale' || backupState === 'unknown') {
+        confirmRestoreNwc(backupState, doRestore);
+        return;
+      }
+      doRestore();
     });
     const exportBtn = h('button', { className: 'wallet-export-link', textContent: 'Export connection string' });
     exportBtn.append(icon('key'));
@@ -8498,18 +8705,23 @@
         h('span', { className: 'item-label', textContent: 'Wallet connection' }),
         status,
       ]),
+      staleNote,
       h('div', { className: 'wallet-backup-actions' }, [back, restore]),
       exportBtn,
     ]);
     wrap.append(card);
 
-    hasNwcBackup()
-      .then((has) => {
-        status.textContent = has ? 'Backed up ✓' : 'Not backed up';
-        status.classList.toggle('done', has);
+    (statePromise || nwcBackupState())
+      .then((r) => {
+        backupState = (r && r.state) || 'unknown';
+        status.textContent = NWC_BACKUP_LABEL[backupState] || NWC_BACKUP_LABEL.unknown;
+        status.classList.toggle('done', backupState === 'current');
+        status.classList.toggle('warn', backupState === 'stale');
+        staleNote.classList.toggle('hidden', backupState !== 'stale');
       })
       .catch(() => {
-        status.textContent = 'Not backed up';
+        backupState = 'unknown';
+        status.textContent = NWC_BACKUP_LABEL.unknown;
       });
     // Only offer export when this account actually has a connection saved.
     call({ type: 'SIDECAR_HAS_NWC', pubkey: state.activePubkey })
@@ -8871,7 +9083,7 @@
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_NWC' });
         stopWalletMonitor();
-        if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; }
+        if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
         closeModal();
         toast('Wallet disconnected', 'success');
         renderWallet();

@@ -362,6 +362,22 @@ input:focus, select:focus, textarea:focus {
 .error.unlock-danger { font-weight: 700; }
 /* A wallet notice isn't a mistake to correct, just an explanation — gold, not red. */
 .wallet-notice { color: var(--gold); margin-bottom: 16px; }
+/* Backup nudge: one line, so it sits inline with its action and dismiss control
+   rather than becoming a stacked banner in a ~360px panel. */
+.wallet-backup-nudge { position: relative; color: var(--warn); margin: 2px 0 16px; padding-right: 18px; }
+/* The action is a <button> (it performs something, it doesn't navigate), but
+   .explore-link was only ever used on <a> so it resets no button chrome — without
+   these the UA's grey box and padding show through. */
+.wallet-backup-nudge .explore-link {
+  display: inline; color: inherit; text-decoration: underline; text-align: left;
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+}
+.wallet-backup-nudge .explore-link:hover { color: var(--text); }
+.wallet-nudge-x {
+  position: absolute; top: -2px; right: 0; padding: 0 2px; line-height: 1;
+  background: none; border: 0; color: var(--faint); font-size: 15px; cursor: pointer;
+}
+.wallet-nudge-x:hover { color: var(--text); }
 .wallet-notice .explore-link { display: inline; color: inherit; text-decoration: underline; }
 .unlock-forgot { align-self: center; margin-top: 16px; font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; }
 .unlock-forgot:hover { color: var(--lav); text-decoration: underline; }
@@ -1030,6 +1046,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .backup-status.done { color: var(--gold); }
+/* A backup that exists but holds a different wallet — the reassuring gold ✓ would
+   be exactly wrong here, so it reads as a warning instead. */
+.backup-status.warn { color: var(--warn); }
+.backup-stale-note { margin: -6px 0 12px; color: var(--warn); }
 .export-block { margin-top: 14px; }
 .export-block .hint { margin-bottom: 10px; }
 .export-block .secondary { display: block; width: 100%; margin-bottom: 8px; }
