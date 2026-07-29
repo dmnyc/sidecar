@@ -250,6 +250,74 @@ test('the exported CLIENT_TAG is never mutated between events', () => {
   assert.equal(b.tags[b.tags.length - 1][1], 'Sidecar');
 });
 
+// ---- mentions ------------------------------------------------------------------
+// The comment box is the note composer's editor (createMentionEditor), so an
+// @mention serializes to a bare `nostr:npub1…` token in the content. Without a
+// matching p tag the person tagged is never notified — the comment renders their
+// name and they never find out, which is the bug these pin shut.
+
+const NT = require('nostr-tools');
+// Two arbitrary but fixed keys: the assertions are about tag plumbing, not identity.
+const PK_A = '3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d';
+const PK_B = '82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6d2';
+const NPUB_A = NT.nip19.npubEncode(PK_A);
+const NPUB_B = NT.nip19.npubEncode(PK_B);
+
+// Spread into a HOST array: filter/map on vm-realm tags return vm-realm arrays, and
+// assert/strict's deepEqual rejects those on prototype alone ("same structure but not
+// reference-equal") even when every element matches. Same trap as the JSON.stringify
+// comparison above.
+const pTags = (ev) => [...ev.tags.filter((t) => t[0] === 'p').map((t) => t[1])];
+
+test('a mention in a comment becomes a p tag, so the person is actually notified', () => {
+  const ev = buildWebComment(CNN, 'good point nostr:' + NPUB_A, false);
+  assert.deepEqual(pTags(ev), [PK_A]);
+});
+
+test('an nprofile mention resolves to its pubkey', () => {
+  const nprofile = NT.nip19.nprofileEncode({ pubkey: PK_B, relays: ['wss://relay.example'] });
+  const ev = buildWebComment(CNN, 'nostr:' + nprofile + ' see this', false);
+  assert.deepEqual(pTags(ev), [PK_B], 'the relay hint must not end up in the tag');
+});
+
+test('several mentions are all tagged, in the order written', () => {
+  const ev = buildWebComment(CNN, 'nostr:' + NPUB_A + ' and nostr:' + NPUB_B, false);
+  assert.deepEqual(pTags(ev), [PK_A, PK_B]);
+});
+
+test('mentioning the same person twice tags them once', () => {
+  const ev = buildWebComment(CNN, 'nostr:' + NPUB_A + ' … also nostr:' + NPUB_A, false);
+  assert.deepEqual(pTags(ev), [PK_A], 'a duplicate p tag is a malformed event');
+});
+
+test('the p tags sit after the four scope tags and before the client tag', () => {
+  // Same ordering guarantee as the client-tag test: the I/K/i/k prefix was verified
+  // byte-for-byte against a real comment and mentions must not disturb it.
+  const ev = buildWebComment(CNN, 'hi nostr:' + NPUB_A, true);
+  assert.equal(JSON.stringify(ev.tags), JSON.stringify([
+    ['I', CNN], ['K', 'web'], ['i', CNN], ['k', 'web'],
+    ['p', PK_A],
+    ['client', 'Sidecar'],
+  ]));
+});
+
+test('a comment with no mention carries no p tags', () => {
+  assert.deepEqual(pTags(buildWebComment(CNN, 'just a plain comment', false)), []);
+});
+
+test('an npub-shaped token that is not valid bech32 is skipped, not thrown on', () => {
+  // A user can type or paste this by hand; mentionPTags swallows the decode error.
+  const ev = buildWebComment(CNN, 'nostr:npub1thisisnotarealkeyatall', false);
+  assert.deepEqual(pTags(ev), []);
+  assert.equal(ev.kind, 1111, 'the comment still builds');
+});
+
+test('a bare npub with no nostr: prefix is NOT tagged', () => {
+  // Only the serializer's `nostr:` form counts. A pasted bare npub renders as text
+  // in every client, so tagging it would notify someone the reader never sees named.
+  assert.deepEqual(pTags(buildWebComment(CNN, 'ask ' + NPUB_A, false)), []);
+});
+
 // ---- the Jumble links ---------------------------------------------------------
 
 test('the thread link matches the external-content format', () => {

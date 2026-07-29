@@ -1173,7 +1173,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-family: var(--font-ui); font-size: 11px; line-height: 1.45;
   color: var(--faint); word-break: break-all; margin-top: 7px;
 }
-.webcomment-text { min-height: 96px; width: 100%; }
+/* The comment box itself needs no rules here: it IS the note composer's editor
+   (.compose-text.compose-editor), created by createMentionEditor. */
 /* The comment itself, shown under the card in Preview so the whole post can be read
    the way it will appear. */
 /* No margin, padding or border of its own: .compose-preview already supplies the

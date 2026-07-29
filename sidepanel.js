@@ -830,8 +830,10 @@
       const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
-      const body = h('textarea', {
-        className: 'compose-text webcomment-text',
+      // The note composer's editor, reused verbatim, so a comment can tag people
+      // the same way a note can. Mentions land as nostr: pills that
+      // buildWebComment turns into the p tags a client needs to notify them.
+      const commentEditor = createMentionEditor({
         placeholder: 'Write a comment about this page\u2026',
       });
       const previewPane = h('div', { className: 'compose-preview hidden' });
@@ -871,7 +873,7 @@
       // above.
       function renderPreview() {
         previewPane.innerHTML = '';
-        const text = body.value.trim();
+        const text = commentEditor.getText().trim();
         previewPane.append(text
           ? h('div', { className: 'webcomment-preview-text', textContent: text })
           : h('p', { className: 'hint', textContent: 'Nothing written yet.' }));
@@ -881,9 +883,9 @@
         const preview = which === 'preview';
         tabWrite.classList.toggle('active', !preview);
         tabPreview.classList.toggle('active', preview);
-        body.classList.toggle('hidden', preview);
+        commentEditor.wrap.classList.toggle('hidden', preview);
         previewPane.classList.toggle('hidden', !preview);
-        if (preview) renderPreview();
+        if (preview) { commentEditor.close(); renderPreview(); }
       }
       tabWrite.addEventListener('click', () => showTab('write'));
       tabPreview.addEventListener('click', () => showTab('preview'));
@@ -898,7 +900,7 @@
       };
 
       post.addEventListener('click', async () => {
-        const text = body.value.trim();
+        const text = commentEditor.getText().trim();
         if (!target) return (err.textContent = 'No page to comment on.');
         if (!text) return (err.textContent = 'Write something first.');
         err.textContent = '';
@@ -917,9 +919,9 @@
           try {
             nevent = NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays: [] });
           } catch (_) {}
-          body.disabled = true;
+          commentEditor.editor.contentEditable = 'false';
           tabBar.classList.add('hidden');
-          body.classList.add('hidden');
+          commentEditor.wrap.classList.add('hidden');
           previewPane.classList.add('hidden');
           post.classList.add('hidden');
           done.classList.remove('hidden');
@@ -946,7 +948,7 @@
         author,
         targetBlock, // above the tabs: the subject, not one of the two views
         tabBar,
-        body,
+        commentEditor.wrap,
         previewPane,
         err,
         done,
@@ -960,13 +962,13 @@
         if (error) {
           err.textContent = error;
           tabBar.classList.add('hidden');
-          body.classList.add('hidden');
+          commentEditor.wrap.classList.add('hidden');
           return;
         }
         target = url;
         post.disabled = false;
         renderTarget(); // shows the URL and a loading card immediately
-        body.focus();
+        commentEditor.focus();
         // The card fills in when the fetch lands; the Write pane is usable throughout
         // and already shows the URL, so nothing waits on the network.
         call({ type: 'SIDECAR_FETCH_OG', url: target })
@@ -5018,6 +5020,228 @@
     if (last < text.length) appendText(text.slice(last));
   }
 
+  // A rich text box with @mention autocomplete and pills, shared by the note
+  // composer and the page-comment modal. Owns its own dropdown state so two can
+  // coexist; the caller supplies `onChange` for whatever it does with the text
+  // (draft autosave, enabling a Post button, repainting a preview).
+  //
+  // Returns { wrap, editor, getText, setText, focus, close }. Append `wrap` —
+  // not `editor` — since the dropdown positions itself against the wrapper.
+  function createMentionEditor(opts) {
+    const onChange = (opts && opts.onChange) || (() => {});
+    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
+    editor.dataset.placeholder = (opts && opts.placeholder) || '';
+    const wrap = h('div', { className: 'compose-editor-wrap' });
+    wrap.append(editor);
+
+    let acDropdown = null, acResults = [], acIndex = 0;
+    let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
+
+    function syncEmptyClass() {
+      const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
+      editor.classList.toggle('is-empty', isEmpty);
+      if (isEmpty) editor.innerHTML = '';
+    }
+
+    // Report the text upward, keeping the placeholder state in sync first.
+    function emit() {
+      const text = serializeEditor(editor);
+      syncEmptyClass();
+      onChange(text);
+    }
+
+    function getCaretContext() {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return null;
+      const range = sel.getRangeAt(0);
+      if (!range.collapsed) return null;
+      const node = range.startContainer;
+      if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
+      const before = node.textContent.slice(0, range.startOffset);
+      const match = before.match(/@([^\s@]*)$/);
+      if (!match) return null;
+      return { node, query: match[1] };
+    }
+
+    function closeAcDropdown() {
+      if (acDropdown) { acDropdown.remove(); acDropdown = null; }
+      acResults = []; acIndex = 0;
+    }
+
+    function updateAcActiveItem() {
+      if (!acDropdown) return;
+      acDropdown.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acIndex));
+    }
+
+    function selectAcItem(contact, query) {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      if (node.nodeType !== Node.TEXT_NODE) return;
+      const offset = range.startOffset;
+      // Text before the '@'. Trim any trailing whitespace and re-add exactly one
+      // space, so the mention is always preceded by a single space (or nothing
+      // at line start). Trimming the whole run both collapses a stray double
+      // space and sidesteps the old single-code-unit check, which mis-read an
+      // emoji's surrogate half (e.g. 🤝) as a non-space char and inserted an
+      // extra space.
+      const beforeAt = node.textContent.slice(0, Math.max(0, offset - (query.length + 1)));
+      const trimmed = beforeAt.replace(/\s+$/, '');
+      const atStart = trimmed.length;
+      const needsLeadingSpace = trimmed.length > 0;
+      range.setStart(node, atStart);
+      range.setEnd(node, offset);
+      range.deleteContents();
+      const pill = document.createElement('span');
+      pill.className = 'mention-pill';
+      pill.contentEditable = 'false';
+      pill.dataset.bech32 = 'nostr:' + NT.nip19.npubEncode(contact.pubkey);
+      pill.textContent = '@' + contact.name;
+      if (needsLeadingSpace) range.insertNode(document.createTextNode(' '));
+      range.collapse(false);
+      range.insertNode(pill);
+      // NBSP after pill: never collapsed by the browser, normalized to space by serializer.
+      const trailingSpace = document.createTextNode(' ');
+      range.setStartAfter(pill);
+      range.insertNode(trailingSpace);
+      range.setStartAfter(trailingSpace);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      closeAcDropdown();
+      emit();
+    }
+
+    // Anchor the dropdown just under the caret line rather than the bottom of
+    // the (tall) editor box. Falls back to the CSS default if no caret rect.
+    function positionAcDropdown() {
+      if (!acDropdown) return;
+      try {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        const r = sel.getRangeAt(0).getBoundingClientRect();
+        if (!r || (!r.top && !r.bottom)) return;
+        const wrapRect = wrap.getBoundingClientRect();
+        acDropdown.style.top = Math.round(r.bottom - wrapRect.top + 4) + 'px';
+      } catch (_) {}
+    }
+
+    // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
+    // and keeps the dropdown open even when there are no local matches yet.
+    function renderAcResults(items, ctx, loading) {
+      acResults = items;
+      if (!acResults.length && !loading) { closeAcDropdown(); return; }
+      acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
+      if (!acDropdown) {
+        acDropdown = h('div', { className: 'ac-dropdown' });
+        wrap.append(acDropdown);
+      }
+      positionAcDropdown();
+      acDropdown.innerHTML = '';
+      acResults.forEach((c, i) => {
+        const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
+        const av = h('span', { className: 'ac-item-av' });
+        applyAvatar(av, c.picture ? { picture: c.picture } : {});
+        item.append(av, h('span', { className: 'ac-item-name', textContent: '@' + c.name }));
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const fresh = getCaretContext();
+          selectAcItem(c, fresh ? fresh.query : ctx.query);
+        });
+        acDropdown.append(item);
+      });
+      if (loading) {
+        acDropdown.append(h('div', { className: 'ac-loading' }, [
+          h('span', { className: 'ac-spinner' }),
+          h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
+        ]));
+      }
+    }
+
+    // Two async sources feed the dropdown: your follow list (instant from
+    // cache, else a slow first relay load) and a global Nostr search. NEVER
+    // block the UI on the follow list — the first load hits relays and can take
+    // many seconds. Paint immediately (with a spinner), then repaint as each
+    // source resolves. `paint()` renders the deduped union + loading state.
+    async function updateAcDropdown() {
+      const ctx = getCaretContext();
+      if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
+      const seq = ++acSeq;
+      const q = ctx.query.toLowerCase();
+      const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
+
+      const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+      let followMatches = [];
+      let globals = [];
+      let globalPending = willSearchGlobal;
+      const paint = () => {
+        if (seq !== acSeq) return;
+        const seen = new Set(followMatches.map((c) => c.pubkey));
+        const merged = followMatches.slice();
+        for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+        renderAcResults(merged.slice(0, 8), ctx, globalPending);
+      };
+
+      // Follows: use the cache synchronously if present; otherwise load in the
+      // background and repaint when ready (no await here).
+      const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
+      if (cached) followMatches = matchFollows(cached);
+      paint(); // instant feedback: local matches (maybe none) + spinner if searching
+      if (!cached) {
+        getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
+      }
+
+      // Global search across all of Nostr so you can tag people you don't
+      // follow. Debounced; best-effort — a failure/rate-limit just clears the
+      // spinner and leaves the follow matches.
+      if (willSearchGlobal) {
+        if (acSuggestTimer) clearTimeout(acSuggestTimer);
+        acSuggestTimer = setTimeout(async () => {
+          const res = await naSuggest(ctx.query);
+          if (seq !== acSeq) return; // query changed since
+          globals = res;
+          globalPending = false;
+          paint();
+        }, 250);
+      }
+    }
+
+    editor.addEventListener('input', () => {
+      emit();
+      updateAcDropdown();
+      noteActivity(); // composing counts as activity — keep auto-lock at bay
+    });
+
+    editor.addEventListener('keydown', (e) => {
+      if (!acDropdown) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
+      else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
+      } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
+    });
+
+    editor.addEventListener('blur', () => setTimeout(closeAcDropdown, 150));
+
+    return {
+      wrap,
+      editor,
+      getText: () => serializeEditor(editor),
+      // Re-read the editor after the caller mutated its DOM directly (e.g.
+      // appending an uploaded media URL) so the text, placeholder and any
+      // onChange-driven state agree with what's on screen.
+      sync: emit,
+      setText(text) {
+        editor.innerHTML = '';
+        if (text) hydrateEditorFromText(editor, text);
+        syncEmptyClass();
+      },
+      focus: () => editor.focus(),
+      close: closeAcDropdown,
+    };
+  }
+
   // ---- composer draft autosave (per account, in chrome.storage.local) ----
   function loadComposeDraft(pubkey) {
     return new Promise((res) => {
@@ -5094,202 +5318,15 @@
       const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
-      const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
-      editor.dataset.placeholder = "What’s on your mind?";
-      if (draft.text) { hydrateEditorFromText(editor, draft.text); editor.classList.remove('is-empty'); }
-
-      const editorWrap = h('div', { className: 'compose-editor-wrap' });
-      editorWrap.append(editor);
-
-      // ---- @mention autocomplete ----
-      let acDropdown = null, acResults = [], acIndex = 0;
-      let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
-
-      function getCaretContext() {
-        const sel = window.getSelection();
-        if (!sel.rangeCount) return null;
-        const range = sel.getRangeAt(0);
-        if (!range.collapsed) return null;
-        const node = range.startContainer;
-        if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
-        const before = node.textContent.slice(0, range.startOffset);
-        const match = before.match(/@([^\s@]*)$/);
-        if (!match) return null;
-        return { node, query: match[1] };
-      }
-
-      function closeAcDropdown() {
-        if (acDropdown) { acDropdown.remove(); acDropdown = null; }
-        acResults = []; acIndex = 0;
-      }
-
-      function updateAcActiveItem() {
-        if (!acDropdown) return;
-        acDropdown.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acIndex));
-      }
-
-      function selectAcItem(contact, query) {
-        const sel = window.getSelection();
-        if (!sel.rangeCount) return;
-        const range = sel.getRangeAt(0);
-        const node = range.startContainer;
-        if (node.nodeType !== Node.TEXT_NODE) return;
-        const offset = range.startOffset;
-        // Text before the '@'. Trim any trailing whitespace and re-add exactly one
-        // space, so the mention is always preceded by a single space (or nothing
-        // at line start). Trimming the whole run both collapses a stray double
-        // space and sidesteps the old single-code-unit check, which mis-read an
-        // emoji's surrogate half (e.g. 🤝) as a non-space char and inserted an
-        // extra space.
-        const beforeAt = node.textContent.slice(0, Math.max(0, offset - (query.length + 1)));
-        const trimmed = beforeAt.replace(/\s+$/, '');
-        const atStart = trimmed.length;
-        const needsLeadingSpace = trimmed.length > 0;
-        range.setStart(node, atStart);
-        range.setEnd(node, offset);
-        range.deleteContents();
-        const pill = document.createElement('span');
-        pill.className = 'mention-pill';
-        pill.contentEditable = 'false';
-        pill.dataset.bech32 = 'nostr:' + NT.nip19.npubEncode(contact.pubkey);
-        pill.textContent = '@' + contact.name;
-        if (needsLeadingSpace) range.insertNode(document.createTextNode(' '));
-        range.collapse(false);
-        range.insertNode(pill);
-        // NBSP after pill: never collapsed by the browser, normalized to space by serializer.
-        const trailingSpace = document.createTextNode(' ');
-        range.setStartAfter(pill);
-        range.insertNode(trailingSpace);
-        range.setStartAfter(trailingSpace);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        closeAcDropdown();
-        draft.text = serializeEditor(editor);
-        syncEmptyClass();
-        updatePostState();
-        scheduleSave();
-      }
-
-      // Anchor the dropdown just under the caret line rather than the bottom of
-      // the (tall) editor box. Falls back to the CSS default if no caret rect.
-      function positionAcDropdown() {
-        if (!acDropdown) return;
-        try {
-          const sel = window.getSelection();
-          if (!sel.rangeCount) return;
-          const r = sel.getRangeAt(0).getBoundingClientRect();
-          if (!r || (!r.top && !r.bottom)) return;
-          const wrap = editorWrap.getBoundingClientRect();
-          acDropdown.style.top = Math.round(r.bottom - wrap.top + 4) + 'px';
-        } catch (_) {}
-      }
-
-      // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
-      // and keeps the dropdown open even when there are no local matches yet.
-      function renderAcResults(items, ctx, loading) {
-        acResults = items;
-        if (!acResults.length && !loading) { closeAcDropdown(); return; }
-        acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
-        if (!acDropdown) {
-          acDropdown = h('div', { className: 'ac-dropdown' });
-          editorWrap.append(acDropdown);
-        }
-        positionAcDropdown();
-        acDropdown.innerHTML = '';
-        acResults.forEach((c, i) => {
-          const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
-          const av = h('span', { className: 'ac-item-av' });
-          applyAvatar(av, c.picture ? { picture: c.picture } : {});
-          item.append(av, h('span', { className: 'ac-item-name', textContent: '@' + c.name }));
-          item.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            const fresh = getCaretContext();
-            selectAcItem(c, fresh ? fresh.query : ctx.query);
-          });
-          acDropdown.append(item);
-        });
-        if (loading) {
-          acDropdown.append(h('div', { className: 'ac-loading' }, [
-            h('span', { className: 'ac-spinner' }),
-            h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
-          ]));
-        }
-      }
-
-      // Two async sources feed the dropdown: your follow list (instant from
-      // cache, else a slow first relay load) and a global Nostr search. NEVER
-      // block the UI on the follow list — the first load hits relays and can take
-      // many seconds. Paint immediately (with a spinner), then repaint as each
-      // source resolves. `paint()` renders the deduped union + loading state.
-      async function updateAcDropdown() {
-        const ctx = getCaretContext();
-        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
-        const seq = ++acSeq;
-        const q = ctx.query.toLowerCase();
-        const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
-
-        const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
-        let followMatches = [];
-        let globals = [];
-        let globalPending = willSearchGlobal;
-        const paint = () => {
-          if (seq !== acSeq) return;
-          const seen = new Set(followMatches.map((c) => c.pubkey));
-          const merged = followMatches.slice();
-          for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-          renderAcResults(merged.slice(0, 8), ctx, globalPending);
-        };
-
-        // Follows: use the cache synchronously if present; otherwise load in the
-        // background and repaint when ready (no await here).
-        const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
-        if (cached) followMatches = matchFollows(cached);
-        paint(); // instant feedback: local matches (maybe none) + spinner if searching
-        if (!cached) {
-          getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
-        }
-
-        // Global search across all of Nostr so you can tag people you don't
-        // follow. Debounced; best-effort — a failure/rate-limit just clears the
-        // spinner and leaves the follow matches.
-        if (willSearchGlobal) {
-          if (acSuggestTimer) clearTimeout(acSuggestTimer);
-          acSuggestTimer = setTimeout(async () => {
-            const res = await naSuggest(ctx.query);
-            if (seq !== acSeq) return; // query changed since
-            globals = res;
-            globalPending = false;
-            paint();
-          }, 250);
-        }
-      }
-
-      function syncEmptyClass() {
-        const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
-        editor.classList.toggle('is-empty', isEmpty);
-        if (isEmpty) editor.innerHTML = '';
-      }
-
-      editor.addEventListener('input', () => {
-        draft.text = serializeEditor(editor);
-        syncEmptyClass();
-        updatePostState();
-        updateAcDropdown();
-        scheduleSave();
-        noteActivity(); // composing counts as activity — keep auto-lock at bay
+      // Rich text box with @mention autocomplete, shared with the page-comment
+      // modal. Edits flow back through onChange into the draft + Post button.
+      const mentionEditor = createMentionEditor({
+        placeholder: "What’s on your mind?",
+        onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
       });
-
-      editor.addEventListener('keydown', (e) => {
-        if (!acDropdown) return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
-        else if (e.key === 'Enter' || e.key === 'Tab') {
-          if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
-        } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
-      });
-
-      editor.addEventListener('blur', () => setTimeout(closeAcDropdown, 150));
+      mentionEditor.setText(draft.text);
+      const editor = mentionEditor.editor;
+      const editorWrap = mentionEditor.wrap;
 
       const previewPane = h('div', { className: 'compose-preview hidden' });
       function renderPreview() {
@@ -5311,7 +5348,7 @@
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p);
         previewPane.classList.toggle('hidden', !p);
-        if (p) { closeAcDropdown(); renderPreview(); }
+        if (p) { mentionEditor.close(); renderPreview(); }
       }
       tabWrite.addEventListener('click', () => setMode(false));
       tabPreview.addEventListener('click', () => setMode(true));
@@ -5340,11 +5377,8 @@
               }
             }
             draft.media.splice(i, 1);
-            draft.text = serializeEditor(editor);
-            syncEmptyClass();
+            mentionEditor.sync();
             renderThumbs();
-            updatePostState();
-            scheduleSave();
           });
           cell.append(rm);
           thumbs.append(cell);
@@ -5383,11 +5417,8 @@
           const url = await uploadMedia(file, pubkey);
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
           appendMediaUrl(url);
-          draft.text = serializeEditor(editor);
-          syncEmptyClass();
+          mentionEditor.sync();
           renderThumbs();
-          updatePostState();
-          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -5419,11 +5450,8 @@
             draft.media.push({ url, isVideo: false });
             appendMediaUrl(url);
           }
-          draft.text = serializeEditor(editor);
-          syncEmptyClass();
+          mentionEditor.sync();
           renderThumbs();
-          updatePostState();
-          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
