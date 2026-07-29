@@ -36,7 +36,10 @@ const ctx = { console, URL, Date, NT: require('nostr-tools') };
 vm.createContext(ctx);
 vm.runInContext(
   lift(/const WEB_COMMENT_KIND = \d+;/, 'WEB_COMMENT_KIND') + '\n' +
-  lift(/const TRACKING_PARAMS = \[[\s\S]*?\];/, 'TRACKING_PARAMS') + '\n' +
+  lift(/const TRACKING_PARAMS = \[[\s\S]*?\n  \];/, 'TRACKING_PARAMS') + '\n' +
+  lift(/const TRACKING_PREFIXES = \[[^\]]*\];/, 'TRACKING_PREFIXES') + '\n' +
+  lift(/const HOST_TRACKING_PARAMS = \[[\s\S]*?\n  \];/, 'HOST_TRACKING_PARAMS') + '\n' +
+  lift(/function isTrackingParam\(name\)\s*\{[\s\S]*?\n  \}/, 'isTrackingParam') + '\n' +
   lift(/function unwrapJumbleTarget\(raw\)\s*\{[\s\S]*?\n  \}/, 'unwrapJumbleTarget') + '\n' +
   lift(/function normalizeWebUrl\(raw\)\s*\{[\s\S]*?\n  \}/, 'normalizeWebUrl') + '\n' +
   lift(/const CLIENT_TAG = [^\n]+/, 'CLIENT_TAG') + '\n' +
@@ -45,6 +48,7 @@ vm.runInContext(
   lift(/function buildWebComment\(url, content, includeClientTag\)\s*\{[\s\S]*?\n  \}/, 'buildWebComment') + '\n' +
   lift(/const jumbleThreadUrl = [^\n]+\n[^\n]+/, 'jumbleThreadUrl') + '\n' +
   lift(/const jumbleNoteUrl = [^\n]+/, 'jumbleNoteUrl') + '\n' +
+  'globalThis.isTrackingParam = isTrackingParam;' +
   'globalThis.unwrapJumbleTarget = unwrapJumbleTarget;' +
   'globalThis.normalizeWebUrl = normalizeWebUrl;' +
   'globalThis.buildWebComment = buildWebComment;' +
@@ -53,7 +57,7 @@ vm.runInContext(
   'globalThis.WEB_COMMENT_KIND = WEB_COMMENT_KIND;',
   ctx
 );
-const { normalizeWebUrl, buildWebComment, jumbleThreadUrl, jumbleNoteUrl, unwrapJumbleTarget } = ctx;
+const { normalizeWebUrl, buildWebComment, jumbleThreadUrl, jumbleNoteUrl, unwrapJumbleTarget, isTrackingParam } = ctx;
 
 // The exact URL from the real Jumble comment this was modelled on.
 const CNN = 'https://www.cnn.com/2026/07/28/politics/jay-clayton-director-national-intelligence';
@@ -75,6 +79,102 @@ test('tracking params are dropped, so share links do not fork the thread', () =>
   ];
   for (const q of cases) {
     assert.equal(normalizeWebUrl(CNN + q).url, CNN, 'failed for ' + q);
+  }
+});
+
+// Asked publicly (nevent1qqs27heeae…): "does the comment thread key off the raw url,
+// or a normalized one so utm junk and trackers don't split the same page into three
+// threads?" These pin the answer.
+
+test('the whole utm_ family goes, not just the common five', () => {
+  // A fixed list of utm_source/medium/campaign/term/content rots: vendors keep
+  // minting new ones. Matched by prefix instead, so future variants are covered.
+  for (const p of ['utm_name', 'utm_cid', 'utm_reader', 'utm_referrer', 'utm_social',
+                   'utm_source_platform', 'utm_marketing_tactic', 'utm_creative_format',
+                   'utm_pubreferrer', 'utm_brand', 'utm_anythingatall']) {
+    assert.equal(normalizeWebUrl(CNN + '?' + p + '=x').url, CNN, 'survived: ' + p);
+  }
+});
+
+test('the other analytics namespaces go by prefix too', () => {
+  // Matomo/Piwik (pk_, piwik_, mtm_) and HubSpot ads (hsa_).
+  for (const p of ['pk_campaign', 'pk_kwd', 'piwik_campaign', 'mtm_source',
+                   'mtm_placement', 'hsa_acc', 'hsa_cam']) {
+    assert.equal(normalizeWebUrl(CNN + '?' + p + '=x').url, CNN, 'survived: ' + p);
+  }
+});
+
+test('a capitalized tracker is still a tracker', () => {
+  // Vendors ship both `ScCid` and `sccid`; surviving on a capital letter splits the
+  // thread just as effectively as surviving outright.
+  for (const p of ['UTM_Source', 'FBCLID', 'ScCid', 'GCLid']) {
+    assert.equal(normalizeWebUrl(CNN + '?' + p + '=x').url, CNN, 'survived: ' + p);
+  }
+});
+
+test('the newer ad-click and marketing IDs are covered', () => {
+  for (const p of ['dclid', 'srsltid', 'li_fat_id', 'epik', 'rdt_cid', 'sccid',
+                   'mkt_tok', '_hsenc', '_hsmi', 'vero_id', '__s', '_openstat',
+                   'guccounter', 'guce_referrer', 'fb_ref', 'action_object_map']) {
+    assert.equal(normalizeWebUrl(CNN + '?' + p + '=x').url, CNN, 'survived: ' + p);
+  }
+});
+
+test('a pile of trackers at once collapses to the bare page', () => {
+  const junk = '?utm_source=nostr&utm_medium=social&utm_campaign=launch' +
+    '&fbclid=IwAR123&gclid=xyz&mkt_tok=abc&_hsenc=def';
+  assert.equal(normalizeWebUrl(CNN + junk + '#section-3').url, CNN,
+    'three shares of one page = one thread');
+  // But `si` is host-scoped, so on a non-YouTube host it survives. Asserted rather
+  // than left implicit: this is the one spot where "we strip trackers" and what
+  // actually happens diverge. Note it goes in the QUERY — after the '#' it would be
+  // part of the fragment and vanish for an unrelated reason.
+  assert.equal(normalizeWebUrl(CNN + junk + '&si=ghi#section-3').url, CNN + '?si=ghi');
+});
+
+// YouTube's `si` is host-scoped: it is the most common splitter in practice (every
+// Share press mints a new one) but `si` is too short a name to strip everywhere.
+test("YouTube's share token is dropped, and the video id survives", () => {
+  assert.equal(
+    normalizeWebUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ&si=xLpQ99').url,
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+  );
+  assert.equal(
+    normalizeWebUrl('https://youtu.be/dQw4w9WgXcQ?si=xLpQ99&feature=shared').url,
+    'https://youtu.be/dQw4w9WgXcQ'
+  );
+});
+
+test('`si` is NOT stripped off a host where it might mean something', () => {
+  // Host-scoped on purpose. Removing a load-bearing param is worse than a split
+  // thread: the identifier would point at a page that renders different content.
+  assert.equal(
+    normalizeWebUrl('https://example.com/search?si=42').url,
+    'https://example.com/search?si=42'
+  );
+});
+
+test('a lookalike host does not get the YouTube rule', () => {
+  assert.equal(
+    normalizeWebUrl('https://notyoutube.com/watch?v=a&si=b').url,
+    'https://notyoutube.com/watch?si=b&v=a'
+  );
+});
+
+test('`ref` is deliberately KEPT — too often functional to guess at', () => {
+  assert.equal(
+    normalizeWebUrl('https://example.com/p?ref=nav').url,
+    'https://example.com/p?ref=nav'
+  );
+});
+
+test('isTrackingParam does not fire on params that merely start similarly', () => {
+  // Guards the prefix rule against over-reach: `utmost` is not `utm_`.
+  for (const p of ['utmost', 'utm', 'pkg', 'picture', 'mtmx', 'reference', 'q', 'id', 'v']) {
+    assert.equal(isTrackingParam(p), false, 'wrongly stripped: ' + p);
+  }
+  for (const p of ['utm_x', 'pk_x', 'piwik_x', 'mtm_x', 'hsa_x', 'fbclid']) {
+    assert.equal(isTrackingParam(p), true, 'missed: ' + p);
   }
 });
 
