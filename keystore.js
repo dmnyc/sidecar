@@ -470,8 +470,11 @@
     getState: serialized(getState),
     reorderAccounts: serialized(reorderAccounts),
     initialize: serialized(initialize),
-    unlock,
-    lock,
+    // unlock() writes too, indirectly: it ends by returning getState(), which
+    // backfills placeholder names and saves when it does. Left unserialized that was
+    // the one store write still outside the chain.
+    unlock: serialized(unlock),
+    lock, // touches only in-memory state and the session key, never the store
     addAccountFromBytes: serialized(addAccountFromBytes),
     importSecret: serialized(importSecret),
     generateAccount: serialized(generateAccount),
