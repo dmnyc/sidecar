@@ -1658,14 +1658,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5;
   color: var(--text-2); margin: 0 0 14px;
 }
+/* The two trips to Rizful, same size so neither looks like the only one. Signup is
+   skippable if you already have an account; order carries that, so neither needs a
+   step number or an explanatory line. */
 .rizful-get { display: block; width: 100%; padding: 10px 14px; font-size: 14px; }
-/* A quiet text link, not a second button competing with the one above it. */
-.rizful-signup {
-  display: block; width: 100%; margin: -2px 0 4px;
-  background: none; border: none; cursor: pointer; padding: 6px;
-  font-family: var(--font-ui); font-size: 12.5px; color: var(--muted);
-}
-.rizful-signup:hover { color: var(--lav); }
+.rizful-get + .rizful-get { margin-top: 7px; }
+/* A little air before the field — the two buttons are one group, the paste is the
+   next thing. */
+.rizful-get + .rizful-code { margin-top: 14px; }
 .rizful-code {
   width: 100%; margin-top: 4px; padding: 11px 12px; border-radius: 10px;
   font-family: var(--font-ui); font-size: 14px; letter-spacing: 0.04em;

@@ -7148,19 +7148,27 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
 
-      // One action, one field, one footnote — in that order.
+      // Two buttons, in order, then the field.
       //
-      // The first pass was a numbered three-step list with its own button inside each
-      // step, above a paragraph of custodial disclosure. It read as a form to fill in
-      // rather than two things to do, and the disclosure gated the actions behind five
-      // lines of small print. Both steps 1 and 2 happen on Rizful's site anyway, so
-      // they collapse into one button; step 3 was just restating the input's own
-      // placeholder.
-      const getCode = h('button', { className: 'secondary rizful-get', textContent: 'Get a code from Rizful' });
-      getCode.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_GET_CODE_URL }));
-
-      const signup = h('button', { className: 'rizful-signup', textContent: 'New to Rizful? Create an account' });
+      // These were briefly one button ("Get a code from Rizful") with signup as a
+      // quiet link underneath. That was wrong: a user without an account clicks the
+      // big button, gets redirected to Rizful's signup, finishes it, and is then
+      // nowhere near a code — so they have to come back and click the same button
+      // again to actually get one. One control silently doing two different things on
+      // two clicks is exactly the confusion that caused.
+      //
+      // Signup is a real button now, sized like the other, so the two trips to Rizful
+      // are visible up front. Anyone who already has an account just skips the first.
+      // Still no step numbers — top-to-bottom order carries the sequence.
+      const signup = h('button', {
+        className: 'secondary rizful-get', textContent: 'Create a Rizful account',
+      });
       signup.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_SIGNUP_URL }));
+
+      const getCode = h('button', {
+        className: 'secondary rizful-get', textContent: 'Get your one-time code',
+      });
+      getCode.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_GET_CODE_URL }));
 
       // Custody still gets said plainly, but as a closing note rather than a wall the
       // user has to read past. "Hosted" is in the line above, which is the word that
@@ -7182,8 +7190,8 @@
       modal.append(
         h('h3', { textContent: 'Start with Rizful' }),
         h('p', { className: 'rizful-lede', textContent: 'A hosted Lightning wallet, ready in about a minute.' }),
-        getCode,
         signup,
+        getCode,
         code,
         err,
         actions,
