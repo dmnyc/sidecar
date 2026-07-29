@@ -31,7 +31,8 @@ function lift(pattern, label) {
   return m[0];
 }
 
-const ctx = { console, URL, Date };
+// NT is the panel's alias for window.NostrTools; mentionPTags decodes npubs with it.
+const ctx = { console, URL, Date, NT: require('nostr-tools') };
 vm.createContext(ctx);
 vm.runInContext(
   lift(/const WEB_COMMENT_KIND = \d+;/, 'WEB_COMMENT_KIND') + '\n' +
@@ -39,6 +40,8 @@ vm.runInContext(
   lift(/function unwrapJumbleTarget\(raw\)\s*\{[\s\S]*?\n  \}/, 'unwrapJumbleTarget') + '\n' +
   lift(/function normalizeWebUrl\(raw\)\s*\{[\s\S]*?\n  \}/, 'normalizeWebUrl') + '\n' +
   lift(/const CLIENT_TAG = [^\n]+/, 'CLIENT_TAG') + '\n' +
+  // buildWebComment calls this to p-tag mentions, so it has to come along.
+  lift(/function mentionPTags\(content\)\s*\{[\s\S]*?\n  \}/, 'mentionPTags') + '\n' +
   lift(/function buildWebComment\(url, content, includeClientTag\)\s*\{[\s\S]*?\n  \}/, 'buildWebComment') + '\n' +
   lift(/const jumbleThreadUrl = [^\n]+\n[^\n]+/, 'jumbleThreadUrl') + '\n' +
   lift(/const jumbleNoteUrl = [^\n]+/, 'jumbleNoteUrl') + '\n' +

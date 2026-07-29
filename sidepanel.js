@@ -1668,6 +1668,28 @@
     } catch (_) { return raw; }
   }
 
+  // `p` tags for every profile mentioned in the text, deduped and in order.
+  //
+  // This is what makes a mention reach the person mentioned: notification discovery
+  // is `{'#p': [pubkey]}` (see the bell's own filter), so a mention with no p tag
+  // renders for every reader and is invisible to its target. Shared by notes and
+  // comments — it was inline in the note composer, and duplicating it is how the two
+  // drifted apart in the first place.
+  function mentionPTags(content) {
+    const out = [];
+    const seen = new Set();
+    const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+    let m;
+    while ((m = re.exec(String(content || ''))) !== null) {
+      try {
+        const d = NT.nip19.decode(m[1]);
+        const pk = d.type === 'npub' ? d.data : d.data.pubkey;
+        if (pk && !seen.has(pk)) { seen.add(pk); out.push(['p', pk]); }
+      } catch (_) { /* malformed mention — skip it, don't fail the post */ }
+    }
+    return out;
+  }
+
   // `includeClientTag` comes from the same Settings toggle that governs notes, so
   // the switch means what it says rather than covering only kind 1. Verified that
   // Jumble renders it: ReplyNote and NotePage both mount <ClientTag> with no kind
@@ -1676,6 +1698,8 @@
     // Root and parent are identical: this is a top-level comment on the page, not a
     // reply to another comment.
     const tags = [['I', url], ['K', 'web'], ['i', url], ['k', 'web']];
+    // Then who's involved, so a mention actually notifies the person mentioned.
+    tags.push(...mentionPTags(content));
     // Appended rather than prepended (notes put it first): these four scope tags are
     // what was verified byte-for-byte against a real Jumble comment, so keeping them
     // as the leading shape means a future diff against one stays clean. The client
@@ -1833,6 +1857,9 @@
       const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
       return { glyph, text: 'reacted to your note' };
     }
+    // A NIP-22 comment that p-tags you. Worth its own wording: "mentioned you" sends
+    // the reader looking for a note, and this is a comment on a page.
+    if (ev.kind === WEB_COMMENT_KIND) return { glyph: '@', text: 'mentioned you in a comment' };
     // kind 1
     const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
     // Ornamental quote mark (U+275D) — a text glyph like the '@' below, so it
@@ -1869,8 +1896,10 @@
   // target (card just isn't clickable then).
   function notifLink(ev, client, acctPubkey) {
     try {
-      // kind 1 (reply/mention) → the note itself.
-      if (ev.kind === 1) {
+      // kind 1 (reply/mention) → the note itself. Same for a kind 1111 comment: it
+      // carries I/i scope tags rather than `e`, so every branch below would miss it
+      // and the row would render with no link at all.
+      if (ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) {
         return client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] }));
       }
 
@@ -2091,7 +2120,10 @@
       // own notes — matched by id so they're caught even without a `p` tag.
       const ownIdList = [...ownIds];
       function buildFilters(sinceTs, limit) {
-        const base = { kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since: sinceTs };
+        // 1111 is a NIP-22 comment (e.g. on a web page). Included so a mention inside
+        // one reaches you: Sidecar writes p tags on comments now, and not querying
+        // them would leave it a client that can send a mention but never receive one.
+        const base = { kinds: [1, 6, 7, 1111, 9735], '#p': [a.pubkey], since: sinceTs };
         const list = [limit ? Object.assign({ limit }, base) : base];
         if (ownIdList.length) {
           const repost = { kinds: [6], '#e': ownIdList, since: sinceTs };
@@ -2202,7 +2234,7 @@
       // Action row
       item.appendChild(h('div', { className: 'notif-action', textContent: text }));
 
-      if (ev.kind === 1 && ev.content) {
+      if ((ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) && ev.content) {
         const cleaned = cleanSnippet(ev.content);
         if (cleaned) {
           const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
@@ -2327,7 +2359,7 @@
         const need = new Set();
         events.forEach((e) => {
           need.add(zapSender(e)); // the zapper for zaps, the author otherwise
-          if (e.kind === 1 && e.content) {
+          if ((e.kind === 1 || e.kind === WEB_COMMENT_KIND) && e.content) {
             const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
             let mm;
             while ((mm = re.exec(e.content)) !== null) {
@@ -5034,17 +5066,9 @@
 
     async function doPublish() {
       const content = draft.text.trim();
-      const pTags = [];
-      const seenPks = new Set();
-      const mentionRe = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
-      let mm;
-      while ((mm = mentionRe.exec(content)) !== null) {
-        try {
-          const d = NT.nip19.decode(mm[1]);
-          const pk = d.type === 'npub' ? d.data : d.data.pubkey;
-          if (pk && !seenPks.has(pk)) { seenPks.add(pk); pTags.push(['p', pk]); }
-        } catch (_) {}
-      }
+      // Shared with the page-comment path — see mentionPTags. Was inline here, which
+      // is how comments ended up shipping without it.
+      const pTags = mentionPTags(content);
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
       const tags = settings && settings.showClientTag === false ? [...pTags] : [CLIENT_TAG.slice(), ...pTags];
