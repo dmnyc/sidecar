@@ -7063,8 +7063,142 @@
     renderWalletConnected(view);
   }
 
+  // ---- Rizful quick start ----------------------------------------------------
+  //
+  // The hard part of connecting a wallet isn't pasting the string — it's that a user
+  // with no Lightning wallet has to go find one first. Rizful publishes a token
+  // exchange for exactly this: the user signs up, copies a short one-time code, and
+  // we trade it for a standard NWC connection string. Same flow Jumble uses.
+  //
+  // Nothing about Sidecar's architecture changes: what comes back is an ordinary
+  // `nostr+walletconnect://` URI that goes through the same SIDECAR_SET_NWC path as a
+  // hand-pasted one. This is purely a friendlier way to obtain it.
+  //
+  // Rizful is CUSTODIAL — they hold the funds. That's stated plainly in the UI rather
+  // than buried, because Sidecar's whole position is that it never holds your money,
+  // and offering a one-tap wallet shouldn't quietly blur that.
+  const RIZFUL_ORIGIN = 'https://rizful.com';
+  const RIZFUL_SIGNUP_URL = RIZFUL_ORIGIN + '/create-account';
+  const RIZFUL_GET_CODE_URL = RIZFUL_ORIGIN + '/nostr_onboarding_auth_token/get_token';
+  const RIZFUL_EXCHANGE_URL = RIZFUL_ORIGIN + '/nostr_onboarding_auth_token/post_for_secrets';
+
+  // Trade a one-time code for an NWC string. Returns { nwcUri, lightningAddress }.
+  //
+  // The response is treated as untrusted: a `nwc_uri` that isn't actually an NWC URI
+  // is rejected rather than handed to SIDECAR_SET_NWC, so a compromised or confused
+  // endpoint can't get an arbitrary string stored as the user's wallet.
+  async function rizfulExchangeCode(code, pubkey) {
+    const res = await fetch(RIZFUL_EXCHANGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'omit', // never attach cookies to a token exchange
+      body: JSON.stringify({ secret_code: String(code).trim(), nostr_public_key: pubkey }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.text()).slice(0, 200); } catch (_) {}
+      throw new Error(detail || 'Rizful rejected that code (' + res.status + ').');
+    }
+    let data;
+    try { data = await res.json(); } catch (_) { throw new Error('Rizful sent a response Sidecar could not read.'); }
+    const nwcUri = data && typeof data.nwc_uri === 'string' ? data.nwc_uri.trim() : '';
+    if (!nwcUri.startsWith('nostr+walletconnect://')) {
+      throw new Error('Rizful did not return a wallet connection.');
+    }
+    const addr = data && typeof data.lightning_address === 'string' ? data.lightning_address.trim() : '';
+    return { nwcUri, lightningAddress: addr && addr.includes('@') ? addr : parseNwcLud16(nwcUri) };
+  }
+
+  function rizfulQuickStartModal() {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+      const code = h('input', {
+        type: 'text', className: 'rizful-code', spellcheck: false, autocomplete: 'off',
+        placeholder: 'Paste your one-time code',
+      });
+      const go = h('button', { className: 'primary', textContent: 'Connect wallet' });
+
+      const step = (n, label, btnText, url) => {
+        const row = h('div', { className: 'rizful-step' });
+        row.append(h('span', { className: 'rizful-step-n', textContent: String(n) }));
+        const body = h('div', { className: 'rizful-step-body' });
+        body.append(h('div', { className: 'rizful-step-label', textContent: label }));
+        if (btnText) {
+          const b = h('button', { className: 'secondary rizful-step-btn', textContent: btnText });
+          b.addEventListener('click', () => chrome.tabs.create({ url }));
+          body.append(b);
+        }
+        row.append(body);
+        return row;
+      };
+
+      go.addEventListener('click', async () => {
+        const value = code.value.trim();
+        if (!value) return (err.textContent = 'Paste the code from Rizful.');
+        err.textContent = '';
+        go.disabled = true;
+        go.textContent = 'Connecting…';
+        try {
+          const { nwcUri, lightningAddress } = await rizfulExchangeCode(value, state.activePubkey);
+          // Prove it works before storing it — same check the paste path makes.
+          const client = window.SidecarNWC.makeClient(nwcUri);
+          await client.getInfo();
+          client.close();
+          await call({ type: 'SIDECAR_SET_NWC', connection: nwcUri });
+          closeModal();
+          toast(lightningAddress ? 'Wallet connected — ' + lightningAddress : 'Wallet connected', 'success');
+          // The Profile screen's existing lud16 prompt picks it up from here and
+          // offers to publish the address, which is what makes zaps reachable.
+          renderWallet();
+        } catch (e) {
+          err.textContent = (e && e.message) || 'Could not connect that wallet.';
+          go.disabled = false;
+          go.textContent = 'Connect wallet';
+        }
+      });
+      code.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      modal.append(
+        h('h3', { textContent: 'Start with a Rizful wallet' }),
+        h('p', {
+          className: 'hint',
+          textContent:
+            'Rizful is a hosted Lightning wallet — they hold the funds, not you and not Sidecar. '
+            + 'It is the quickest way to start receiving zaps, and you can connect a self-custodial '
+            + 'wallet later instead.',
+        }),
+        step(1, 'Create a Rizful account (skip if you have one)', 'Sign up', RIZFUL_SIGNUP_URL),
+        step(2, 'Get your one-time code', 'Get code', RIZFUL_GET_CODE_URL),
+        step(3, 'Paste it here'),
+        code,
+        err,
+        h('div', { className: 'actions' }, [cancel, go])
+      );
+      setTimeout(() => code.focus(), 50);
+    });
+  }
+
   function renderWalletConnect(view) {
     view.append(h('h2', { textContent: 'Wallet' }));
+
+    // Quick start goes FIRST: this screen only renders when no wallet is connected,
+    // so "I don't have one" is the common case, not the edge case.
+    const quick = h('div', { className: 'wallet-quickstart' });
+    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: 'New to Lightning?' }));
+    quick.append(h('p', {
+      className: 'hint compact',
+      textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
+    }));
+    const quickBtn = h('button', { className: 'primary', textContent: 'Quick start with Rizful' });
+    quickBtn.addEventListener('click', rizfulQuickStartModal);
+    quick.append(quickBtn);
+    view.append(quick);
+    view.append(h('div', { className: 'wallet-or', textContent: 'or' }));
+
     view.append(
       h('p', {
         className: 'hint',

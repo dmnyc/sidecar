@@ -1629,6 +1629,40 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .wallet-or::before, .wallet-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
+/* Quick start — the first thing on a screen that only appears when there's no
+   wallet, so it gets card weight rather than sitting as one more link. */
+.wallet-quickstart {
+  margin: 4px 0 14px; padding: 14px; border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: var(--sheen);
+}
+.wallet-quickstart-title { font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 2px; }
+.wallet-quickstart .hint { margin: 0 0 11px; }
+.wallet-quickstart .primary { display: block; width: 100%; }
+
+/* Numbered steps in the Rizful modal. */
+.rizful-step { display: flex; align-items: flex-start; gap: 10px; margin: 11px 0; }
+.rizful-step-n {
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+  background: var(--accent-fill, var(--gold)); color: var(--btn-primary-text, #1a0e08);
+}
+.rizful-step-body { min-width: 0; flex: 1; }
+.rizful-step-label { font-size: 13px; color: var(--text-2); }
+.rizful-step-btn { margin-top: 6px; padding: 5px 11px; font-size: 12.5px; }
+.rizful-code {
+  width: 100%; margin-top: 2px; padding: 9px 11px; border-radius: 9px;
+  font-size: 13px; letter-spacing: 0.04em;
+  color: var(--text); border: 1px solid var(--border);
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.rizful-code:focus {
+  outline: none; border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
+}
+
 /* wallet backup card: label + status on top, full-width buttons below */
 .wallet-backup-card {
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
