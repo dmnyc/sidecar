@@ -805,12 +805,44 @@
     if (a) showNotifModal(a);
   });
 
+  // In-progress comment text, keyed by account + target URL. Clicking the overlay
+  // dismisses the modal, and losing a half-written comment to a stray click is
+  // infuriating in a panel this narrow.
+  //
+  // Memory only, NOT chrome.storage, unlike the note composer's drafts. A comment is
+  // tied to a page you're looking at, so it only has to survive reopening the modal
+  // while that URL is still around — outliving the panel would mean stashing text
+  // about someone's browsing on disk, which is a worse trade than retyping.
+  //
+  // Keyed by pubkey too: the note composer scopes drafts per account, and finding
+  // another account's half-written comment waiting for you would be a surprise.
+  const webCommentDrafts = new Map();
+  const WEB_COMMENT_DRAFT_MAX = 20; // abandoned drafts shouldn't accumulate forever
+
+  const webCommentDraftKey = (pubkey, url) => String(pubkey) + '\n' + String(url);
+
+  function saveWebCommentDraft(pubkey, url, text) {
+    if (!url) return; // no target resolved yet — nothing to key on
+    const key = webCommentDraftKey(pubkey, url);
+    if (!text || !text.trim()) { webCommentDrafts.delete(key); return; }
+    webCommentDrafts.delete(key); // re-insert so eviction below is least-recent-first
+    webCommentDrafts.set(key, text);
+    while (webCommentDrafts.size > WEB_COMMENT_DRAFT_MAX) {
+      webCommentDrafts.delete(webCommentDrafts.keys().next().value);
+    }
+  }
+
   // Comment on the page in the active tab. Opened from the topbar pencil.
   //
   // Deliberately built to the New-note convention rather than its own shape: same
   // "Posting as" header, same Write/Preview tabs, same link card, same button
   // order. A second composer that looked different would read as a different app.
   function webCommentModal() {
+    // Declared out here so the modal's onClose can reach it. Without that teardown a
+    // countdown left running after the modal is dismissed would still fire and
+    // publish the comment — closing the dialog has to mean it doesn't go out.
+    let countdown = null;
+    const stopCountdown = () => { if (countdown) { countdown.stop(); countdown = null; } };
     openModal((modal) => {
       const err = h('div', { className: 'error' });
 
@@ -834,8 +866,12 @@
       // The note composer's editor, reused verbatim, so a comment can tag people
       // the same way a note can. Mentions land as nostr: pills that
       // buildWebComment turns into the p tags a client needs to notify them.
+      // onChange keeps the draft current on every keystroke rather than saving on
+      // close \u2014 the overlay click path tears the modal down without going through
+      // Cancel, so anything deferred to teardown is the thing that gets lost.
       const commentEditor = createMentionEditor({
         placeholder: 'Write a comment about this page\u2026',
+        onChange: (text) => saveWebCommentDraft(state.activePubkey, target, text),
       });
       const previewPane = h('div', { className: 'compose-preview hidden' });
 
@@ -855,29 +891,44 @@
       // box with no subject.
       const targetBlock = h('div', { className: 'webcomment-target' });
 
-      function renderTarget() {
-        targetBlock.innerHTML = '';
+      // Takes a container so the review countdown can render its own copy rather
+      // than borrowing this one out of the editor pane and having to put it back.
+      function renderTargetInto(into) {
+        into.innerHTML = '';
         if (!target) return;
         if (ogMeta === undefined) {
-          targetBlock.append(h('div', { className: 'link-card loading' }));
+          into.append(h('div', { className: 'link-card loading' }));
         } else if (ogMeta) {
           const card = h('a', { className: 'link-card' });
           renderLinkCard(card, target, ogMeta);
-          targetBlock.append(card);
+          into.append(card);
         }
         // The URL is what actually gets published, so it stays visible even when a
         // card renders — as a caption, not the headline.
-        targetBlock.append(h('div', { className: 'webcomment-url', textContent: target }));
+        into.append(h('div', { className: 'webcomment-url', textContent: target }));
       }
+      function renderTarget() { renderTargetInto(targetBlock); }
 
       // Preview now shows only the comment itself, since the target is permanent
       // above.
       function renderPreview() {
         previewPane.innerHTML = '';
         const text = commentEditor.getText().trim();
-        previewPane.append(text
-          ? h('div', { className: 'webcomment-preview-text', textContent: text })
-          : h('p', { className: 'hint', textContent: 'Nothing written yet.' }));
+        if (!text) {
+          previewPane.append(h('p', { className: 'hint', textContent: 'Nothing written yet.' }));
+          return;
+        }
+        // renderNotePreview, not textContent: a mention serializes to a bare
+        // `nostr:npub1…` token, so the raw string showed the reader a 63-character
+        // key where the published comment shows a name.
+        previewPane.append(commentBodyPreview(text));
+      }
+
+      // Shared by the Preview tab and the review countdown so they can't drift.
+      function commentBodyPreview(text) {
+        const body = h('div', { className: 'webcomment-preview-text' });
+        renderNotePreview(body, text);
+        return body;
       }
 
       function showTab(which) {
@@ -900,11 +951,30 @@
         return a;
       };
 
-      post.addEventListener('click', async () => {
+      const heading = h('h3', { textContent: 'Comment on this page' });
+      const actions = h('div', { className: 'actions' }, [post, cancel]);
+
+      // The editor pane. Re-appending the same nodes is enough to come back from the
+      // countdown, which clears the modal to take it over.
+      function showCommentEditor() {
+        stopCountdown();
+        modal.innerHTML = '';
+        modal.append(
+          heading,
+          author,
+          targetBlock, // above the tabs: the subject, not one of the two views
+          tabBar,
+          commentEditor.wrap,
+          previewPane,
+          err,
+          done,
+          actions
+        );
+      }
+
+      async function doPost() {
         const text = commentEditor.getText().trim();
-        if (!target) return (err.textContent = 'No page to comment on.');
-        if (!text) return (err.textContent = 'Write something first.');
-        err.textContent = '';
+        showCommentEditor(); // the countdown may have replaced the pane
         post.disabled = true;
         post.textContent = 'Posting\u2026';
         try {
@@ -916,6 +986,9 @@
             event: buildWebComment(target, text, withClient),
           });
           await publishSigned(signed);
+          // Only after it's actually out. Dropping the draft on a failed publish would
+          // lose the text at the exact moment the user still needs it.
+          saveWebCommentDraft(state.activePubkey, target, '');
           let nevent = '';
           try {
             nevent = NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays: [] });
@@ -942,19 +1015,42 @@
           post.disabled = false;
           post.textContent = 'Post comment';
         }
+      }
+
+      post.addEventListener('click', async () => {
+        const text = commentEditor.getText().trim();
+        if (!target) return (err.textContent = 'No page to comment on.');
+        if (!text) return (err.textContent = 'Write something first.');
+        err.textContent = '';
+        // Same setting the note composer reads — "Review countdown before posting"
+        // covers everything publishable, so this doesn't get a switch of its own.
+        const { on, secs } = await postCountdownSetting();
+        if (!on) return doPost();
+        // The review screen leads with the page, not the text. A comment inherits its
+        // target from whichever tab was active when the modal opened, and that is the
+        // mistake nothing else in the flow would catch — posting on the wrong page
+        // isn't visible until it's already published on someone else's site.
+        const cdPreview = h('div', { className: 'countdown-preview' });
+        const cdTarget = h('div', { className: 'webcomment-target' });
+        renderTargetInto(cdTarget);
+        cdPreview.append(cdTarget, commentBodyPreview(text));
+        countdown = showPostCountdown({
+          modal,
+          secs,
+          title: 'Posting your comment',
+          hint: 'Check the page and your comment before it posts.',
+          preview: cdPreview,
+          onFire: doPost,
+          onCancel: () => {
+            showCommentEditor();
+            post.disabled = false;
+            post.textContent = 'Post comment';
+            commentEditor.focus();
+          },
+        });
       });
 
-      modal.append(
-        h('h3', { textContent: 'Comment on this page' }),
-        author,
-        targetBlock, // above the tabs: the subject, not one of the two views
-        tabBar,
-        commentEditor.wrap,
-        previewPane,
-        err,
-        done,
-        h('div', { className: 'actions' }, [post, cancel])
-      );
+      showCommentEditor();
 
       // Resolve the tab only after the modal is up \u2014 never speculatively, since this
       // URL is about to be published.
@@ -968,6 +1064,19 @@
         }
         target = url;
         post.disabled = false;
+
+        // Bring back whatever was being written for this page. The target resolves
+        // asynchronously, so anything typed in the meantime already exists in the
+        // editor and wins — restoring over it would delete what the user just typed
+        // to hand them something older.
+        const typedAlready = commentEditor.getText().trim();
+        if (typedAlready) {
+          saveWebCommentDraft(state.activePubkey, target, commentEditor.getText());
+        } else {
+          const saved = webCommentDrafts.get(webCommentDraftKey(state.activePubkey, target));
+          if (saved) commentEditor.setText(saved);
+        }
+
         renderTarget(); // shows the URL and a loading card immediately
         commentEditor.focus();
         // The card fills in when the fetch lands; the Write pane is usable throughout
@@ -977,7 +1086,7 @@
           .catch(() => { ogMeta = null; })
           .then(renderTarget);
       });
-    });
+    }, stopCountdown);
   }
 
   // ---- search: paste an identifier, open it in your client ----
@@ -1628,11 +1737,49 @@
 
   // Params that identify where a visitor came FROM, never which page they're on.
   // Left in, every share link spawns its own thread.
+  //
+  // Deliberately a denylist, never "strip the whole query". For plenty of sites the
+  // query IS the page (youtube.com/watch?v=…), and dropping a load-bearing param is
+  // strictly worse than a split thread: the published identifier would then point at
+  // a URL rendering different content, or nothing. Anything ambiguous stays — `ref`
+  // in particular is functional often enough to leave alone.
   const TRACKING_PARAMS = [
-    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id',
-    'fbclid', 'gclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'igshid', 'mc_cid',
-    'mc_eid', 'ref_src', 'ref_url', 's_kwcid', 'yclid', '_ga', 'ttclid',
+    // ad-click IDs
+    'fbclid', 'gclid', 'dclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'ttclid',
+    'yclid', 'igshid', 'li_fat_id', 'epik', 'rdt_cid', 'sccid', 'srsltid', 's_kwcid',
+    // email + marketing platforms
+    'mc_cid', 'mc_eid', 'mkt_tok', '_hsenc', '_hsmi', 'vero_conv', 'vero_id',
+    'oly_anon_id', 'oly_enc_id', '__s',
+    // analytics and referrer echoes
+    '_ga', '_openstat', 'ref_src', 'ref_url', 'ncid', 'spm', 'at_medium', 'at_campaign',
+    // Yahoo consent-redirect residue
+    'guccounter', 'guce_referrer', 'guce_referrer_sig',
+    // Facebook share callbacks
+    'fb_action_ids', 'fb_action_types', 'fb_ref', 'fb_source',
+    'action_object_map', 'action_type_map', 'action_ref_map',
   ];
+
+  // Namespaces that exist only for analytics, so the whole family goes without
+  // enumerating it. `utm_` alone has a dozen variants past the common five
+  // (utm_name, utm_source_platform, utm_marketing_tactic, …) and vendors keep adding
+  // more — matching the prefix is what actually answers "utm junk", where a fixed
+  // list silently rots.
+  const TRACKING_PREFIXES = ['utm_', 'pk_', 'piwik_', 'mtm_', 'hsa_'];
+
+  // Pure tracking on a specific host, but possibly load-bearing elsewhere, so only
+  // stripped where we know what it means. YouTube's `si` is the most common
+  // real-world splitter there is: every press of Share mints a fresh one, so one
+  // video would otherwise carry a separate thread per sharer.
+  const HOST_TRACKING_PARAMS = [
+    { host: /(^|\.)(youtube\.com|youtu\.be)$/i, params: ['si', 'pp', 'feature', 'kw'] },
+  ];
+
+  // Case-insensitive: the same vendor ships both `ScCid` and `sccid`, and a param
+  // that survives on a capital letter splits the thread just as effectively.
+  function isTrackingParam(name) {
+    const n = String(name).toLowerCase();
+    return TRACKING_PARAMS.includes(n) || TRACKING_PREFIXES.some((p) => n.startsWith(p));
+  }
 
   // Reduce a page URL to the identifier the comment is tagged with.
   // Returns { url } or { error } — never throws, and never guesses on refusal.
@@ -1653,7 +1800,13 @@
       return { error: 'That page is local, so nobody else could open the comment.' };
     }
     u.hash = ''; // NIP-73 requires no fragment: #section is the same document
-    for (const p of TRACKING_PARAMS) u.searchParams.delete(p);
+    // Snapshot the keys first: deleting while iterating searchParams skips entries.
+    for (const name of [...u.searchParams.keys()]) {
+      if (isTrackingParam(name)) u.searchParams.delete(name);
+    }
+    for (const rule of HOST_TRACKING_PARAMS) {
+      if (rule.host.test(u.hostname)) for (const p of rule.params) u.searchParams.delete(p);
+    }
     // The query itself stays — for plenty of sites it IS the page identity
     // (youtube.com/watch?v=…), so stripping it would merge unrelated pages.
     u.searchParams.sort(); // ?b=1&a=2 and ?a=2&b=1 are the same page
@@ -5330,6 +5483,93 @@
     });
   }
 
+  // The review window before something irreversible goes out, shared by the note
+  // composer and page comments. Takes over `modal` and returns a stop() so the caller
+  // can clear the interval if it tears the modal down another way.
+  //
+  // Signing happens inside onFire, never here — cancelling must not have produced a
+  // signature, and the countdown is the last point where cancelling is still free.
+  //
+  // `preview` is whatever the caller wants reviewed: the note composer passes its
+  // rendered note, a comment passes the target link card plus the comment text. That
+  // is the whole reason this is parameterized rather than duplicated — for a comment
+  // the URL is the thing most worth a second look, since it was captured from
+  // whichever tab happened to be active.
+  function showPostCountdown(opts) {
+    const { modal, secs, title, hint, preview, confirmLabel, onFire, onCancel } = opts;
+    modal.innerHTML = '';
+    let remaining = secs;
+    let timer = null;
+
+    const R = 30;
+    const C = 2 * Math.PI * R;
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ring.setAttribute('viewBox', '0 0 72 72');
+    ring.setAttribute('class', 'countdown-ring');
+    ring.innerHTML =
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
+      'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
+    const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
+    const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
+
+    // Same identity strip as the editor — who's posting shouldn't be ambiguous right
+    // before it actually publishes.
+    const active = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
+    const author = h('div', { className: 'compose-author' });
+    author.append(avatarEl(active || {}, 'compose-author-av'));
+    author.append(
+      h('div', { className: 'compose-author-info' }, [
+        h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+        h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
+      ])
+    );
+
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const now = h('button', { className: 'primary', textContent: confirmLabel || 'Post now' });
+    const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+
+    async function fire() {
+      stop();
+      now.disabled = true;
+      now.textContent = 'Posting…';
+      await onFire();
+    }
+    now.addEventListener('click', fire);
+    cancel.addEventListener('click', () => { stop(); onCancel(); });
+
+    modal.append(
+      h('h3', { textContent: title }),
+      author,
+      h('p', { className: 'hint', textContent: hint || 'Review before it posts.' }),
+      preview,
+      ringWrap,
+      h('div', { className: 'actions' }, [now, cancel])
+    );
+
+    const fill = ring.querySelector('.ring-fill');
+    timer = setInterval(() => {
+      remaining -= 1;
+      num.textContent = String(Math.max(remaining, 0));
+      fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
+      if (remaining <= 0) fire();
+    }, 1000);
+
+    return { stop };
+  }
+
+  // Resolved once per post: the toggle is worded "Review countdown before posting"
+  // and covers everything publishable, so comments read the same setting as notes
+  // rather than adding a second switch that would drift out of step.
+  async function postCountdownSetting() {
+    let s = {};
+    try { s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
+    const secs = NOTE_COUNTDOWN_PRESETS.includes(s.noteCountdownSecs)
+      ? s.noteCountdownSecs
+      : NOTE_COUNTDOWN_DEFAULT;
+    return { on: s.noteCountdown !== false, secs }; // default on
+  }
+
   async function openComposer(initialText) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
@@ -5338,7 +5578,7 @@
     const pubkey = state.activePubkey;
     let draft = { text: initialText || '', media: [] };
     const modal = $('modal');
-    let timer = null;
+    let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
     let published = false;
     let enteredEditor = false;
@@ -5369,7 +5609,7 @@
     }
 
     function showEditor() {
-      if (timer) { clearInterval(timer); timer = null; }
+      stopCountdown();
       enteredEditor = true;
       modal.innerHTML = '';
 
@@ -5526,9 +5766,7 @@
       function updatePostState() { post.disabled = !draft.text.trim() && !draft.media.length; }
       post.addEventListener('click', async () => {
         if (post.disabled) return;
-        const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
-        const on = s.noteCountdown !== false; // default on
-        const secs = NOTE_COUNTDOWN_PRESETS.includes(s.noteCountdownSecs) ? s.noteCountdownSecs : NOTE_COUNTDOWN_DEFAULT;
+        const { on, secs } = await postCountdownSetting();
         if (on) {
           showCountdown(secs);
         } else {
@@ -5583,71 +5821,27 @@
       }
     }
 
+    // Delegates to the shared countdown; the composer supplies the note preview and
+    // what to do when it fires or is cancelled.
     function showCountdown(secs) {
-      modal.innerHTML = '';
-      let remaining = secs;
-
-      // Full-size countdown ring, centered below the note preview.
-      const R = 30;
-      const C = 2 * Math.PI * R;
-      const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      ring.setAttribute('viewBox', '0 0 72 72');
-      ring.setAttribute('class', 'countdown-ring');
-      ring.innerHTML =
-        '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
-        '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
-        'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
-      const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
-      const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
-
-      // Same identity strip as the editor — who's posting shouldn't be ambiguous
-      // right before it actually publishes.
-      const active = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
-      const author = h('div', { className: 'compose-author' });
-      author.append(avatarEl(active || {}, 'compose-author-av'));
-      author.append(
-        h('div', { className: 'compose-author-info' }, [
-          h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
-          h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
-        ])
-      );
-
-      // The note exactly as it will be published, for a last review.
       const previewScroll = h('div', { className: 'countdown-preview' });
       const previewBody = h('div', { className: 'preview-body' });
       const bodyText = draft.text.trim();
       if (bodyText) renderNotePreview(previewBody, bodyText);
       else previewBody.append(h('p', { className: 'hint', textContent: 'Empty note.' }));
       previewScroll.append(previewBody);
+      countdown = showPostCountdown({
+        modal,
+        secs,
+        title: 'Posting your note',
+        preview: previewScroll,
+        onFire: finishPublish,
+        onCancel: showEditor,
+      });
+    }
 
-      const now = h('button', { className: 'primary', textContent: 'Post now' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-
-      async function fire() {
-        if (timer) { clearInterval(timer); timer = null; }
-        now.disabled = true;
-        now.textContent = 'Posting…';
-        await finishPublish();
-      }
-      now.addEventListener('click', fire);
-      cancel.addEventListener('click', () => { showEditor(); });
-
-      modal.append(
-        h('h3', { textContent: 'Posting your note' }),
-        author,
-        h('p', { className: 'hint', textContent: 'Review before it posts.' }),
-        previewScroll,
-        ringWrap,
-        h('div', { className: 'actions' }, [now, cancel])
-      );
-
-      const fill = ring.querySelector('.ring-fill');
-      timer = setInterval(() => {
-        remaining -= 1;
-        num.textContent = String(Math.max(remaining, 0));
-        fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
-        if (remaining <= 0) fire();
-      }, 1000);
+    function stopCountdown() {
+      if (countdown) { countdown.stop(); countdown = null; }
     }
 
     // Offer to resume a saved draft (or start fresh) before opening the editor.
@@ -5699,7 +5893,7 @@
     openModal(
       () => { if (hasSaved) showDraftChooser(saved); else showEditor(); },
       () => {
-        if (timer) { clearInterval(timer); timer = null; }
+        stopCountdown();
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
