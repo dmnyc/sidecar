@@ -512,7 +512,16 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .acct-row-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acct-row-npub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acct-row-check { width: 18px; height: 18px; color: var(--gold); flex-shrink: 0; }
-.acct-row.foot { justify-content: center; color: var(--lav); border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; padding-top: 11px; }
+.acct-row.foot { justify-content: center; gap: 8px; color: var(--lav); border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; padding-top: 11px; }
+/* The rule separates the account list from the footer actions, so only the first
+   footer row draws one — two stacked rows would otherwise show two lines. */
+.acct-row.foot + .acct-row.foot { border-top: none; margin-top: 0; padding-top: 7px; }
+/* The menu row reuses .add-account-badge rather than defining its own disc, so it
+   picks up the per-theme color overrides Aegean and Art Deco already carry. Only
+   the scale differs. */
+.add-account-badge.sm { width: 17px; height: 17px; }
+.add-account-badge.sm svg { width: 11px; height: 11px; }
+.acct-row.foot:hover .add-account-badge { background: var(--lav); }
 
 /* nsec import preview — confirm the account a pasted key belongs to */
 
@@ -1431,7 +1440,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    the rounded corners (worth knowing, since the card is position:sticky and adding
    overflow there is risky). Bottom margin clears the two corner buttons. */
 .wallet-card.chart-open .wallet-chart-slot {
-  max-height: 150px; opacity: 1; margin: 14px -16px 30px;
+  /* 96px trace + the range row above it + the meta line below, plus breathing room.
+     Was 150px, before the range selector existed. */
+  max-height: 190px; opacity: 1; margin: 14px -16px 30px;
 }
 /* Collapsed (scrolled) cards hide the chart — the compact card is a summary. Zero the
    WHOLE margin, not just margin-top: the open rule sets a 30px bottom margin to clear
@@ -1444,10 +1455,51 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   display: flex; align-items: baseline; gap: 8px; justify-content: center;
   font-family: var(--font-ui); font-size: 11.5px; color: var(--muted); margin-top: 2px;
 }
-.wallet-chart-range { letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
 .wallet-chart-delta.up { color: var(--success); }
 .wallet-chart-delta.down { color: var(--red); }
 .wallet-chart-price { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.wallet-chart-lowhigh { font-variant-numeric: tabular-nums; opacity: 0.8; }
+
+/* ---- range selector ---- */
+.wallet-chart-ranges {
+  display: flex; justify-content: center; gap: 4px; margin-bottom: 2px;
+}
+.wallet-chart-range-btn {
+  background: none; border: none; cursor: pointer; padding: 3px 7px; border-radius: 6px;
+  font-family: var(--font-ui); font-size: 10px; letter-spacing: 0.06em;
+  color: var(--faint); transition: color 0.12s, background 0.12s;
+}
+.wallet-chart-range-btn:hover { color: var(--text-2); background: var(--hover-soft); }
+.wallet-chart-range-btn.active { color: var(--btn-primary-text, #1a0e08); background: var(--accent-fill, var(--gold)); }
+
+/* ---- hover scrub ---- */
+/* The plot is the positioning context for both the readout and the SVG marker, and
+   the surface the pointer is measured against — fraction across THIS box maps to a
+   timestamp, which is why it can't be the SVG (that's stretched by
+   preserveAspectRatio="none"). */
+.wallet-chart-plot { position: relative; }
+.wallet-chart-mark { opacity: 0; transition: opacity 0.1s; }
+.wallet-chart.scrubbing .wallet-chart-mark { opacity: 1; }
+.wallet-chart-scrub {
+  position: absolute; top: 2px; transform: translateX(-50%);
+  display: none; flex-direction: column; align-items: center; gap: 1px;
+  padding: 3px 6px; border-radius: 7px; pointer-events: none; white-space: nowrap;
+  background: rgba(var(--velvet-1-rgb), 0.86);
+  border: 1px solid var(--border);
+  font-family: var(--font-ui);
+}
+.wallet-chart.scrubbing .wallet-chart-scrub { display: flex; }
+/* Sit opposite the trace: when the scrubbed point is high in the window the readout
+   would land on the line, so drop it to the bottom instead. */
+.wallet-chart-scrub.low { top: auto; bottom: 2px; }
+.wallet-chart-scrub-price {
+  font-size: 11.5px; line-height: 1.1; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.wallet-chart-scrub-time { font-size: 9.5px; line-height: 1.1; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .wallet-chart-mark { transition: none; }
+}
 .wallet-chart-loading {
   font-family: var(--font-ui); font-size: 12px; color: var(--faint);
   padding: 28px 0; text-align: center;

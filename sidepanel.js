@@ -32,6 +32,7 @@
 
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
+    plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
@@ -1143,6 +1144,19 @@
       }
       menu.append(row);
     });
+    // Adding an account is the other thing you come to this menu for, and until now
+    // it meant going to the Accounts tab first. Same modal the tab's button opens,
+    // so there's one path to Generate/Import rather than two.
+    const addRow = h('button', { className: 'acct-row foot' }, [
+      h('span', { className: 'add-account-badge sm' }, [icon('plus')]),
+      h('span', { className: 'acct-row-name', textContent: 'Add account' }),
+    ]);
+    addRow.addEventListener('click', () => {
+      closeAcctMenu();
+      addAccountModal();
+    });
+    menu.append(addRow);
+
     const foot = h('button', { className: 'acct-row foot' }, [
       h('span', { className: 'acct-row-name', textContent: 'Manage accounts' }),
     ]);
@@ -2162,10 +2176,11 @@
   function renderMain() {
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
 
-    // No accounts yet → the switcher chip has nothing to show or switch to (its
-    // dropdown would only offer "Manage accounts", the tab you're already on),
-    // and the "Accounts" heading is noise next to the welcome hero. Hide both;
-    // the topbar actions stay anchored right (margin-left:auto).
+    // No accounts yet → the switcher chip has nothing to show or switch to, and the
+    // "Accounts" heading is noise next to the welcome hero. Hide both; the topbar
+    // actions stay anchored right (margin-left:auto). The dropdown now also offers
+    // "Add account", but the empty state puts full-size Generate/Import buttons
+    // right there, so the chip has nothing to add.
     const hasAccounts = state.accounts.length > 0;
     // Empty state: keep a dimmed placeholder avatar in the top-left for balance,
     // but make the chip inert (no name, no chevron, no dropdown) until an account exists.
@@ -6708,13 +6723,96 @@
   // spot(target) / lastUsdClose. The shape of the day is what the chart conveys, and it
   // ends exactly on the spot price the balance is showing — verified to land within a
   // unit across JPY/CHF/NGN/KRW.
+  // Ranges the chart offers, in display order.
+  const PRICE_RANGES = [
+    { key: '24h', label: '24H' },
+    { key: '7d', label: '7D' },
+    { key: '30d', label: '30D' },
+    { key: '1y', label: '1Y' },
+    { key: 'all', label: 'ALL' },
+  ];
+  const RANGE_SECONDS = {
+    '24h': 24 * 3600,
+    '7d': 7 * 24 * 3600,
+    '30d': 30 * 24 * 3600,
+    '1y': 365 * 24 * 3600,
+    all: null, // everything upstream has
+  };
+
   let historyCache = { currency: null, points: null, ts: 0 };
   const HISTORY_TTL = 10 * 60000;
 
-  async function getPriceHistory(currency) {
+  // Full BTC history from mempool.space — already a Sidecar price source, so no new
+  // third party. One response covers every range beyond 24h, so switching ranges
+  // after the first load costs nothing. It IS about a megabyte, which is why 24h
+  // stays on Coinbase candles below: that's the default view and the one most
+  // people only ever look at.
+  let rawHistoryCache = { usd: null, times: null, ts: 0 };
+  const RAW_HISTORY_TTL = 10 * 60000;
+
+  async function getRawHistory() {
+    if (rawHistoryCache.usd && Date.now() - rawHistoryCache.ts < RAW_HISTORY_TTL) return rawHistoryCache;
+    const r = await fetch('https://mempool.space/api/v1/historical-price?currency=USD', {
+      signal: AbortSignal.timeout(15000), // large payload; generous, but never hang the panel
+    });
+    if (!r.ok) throw new Error('history ' + r.status);
+    const j = await r.json();
+    if (!Array.isArray(j.prices)) throw new Error('history malformed');
+    // Upstream is newest-first. Keep time and price together through the filter so a
+    // bad row can't shift the axis, and require time > 0 so an absurd timestamp
+    // can't stretch the whole span.
+    const rows = j.prices
+      .map((p) => ({ t: Number(p.time) * 1000, v: Number(p.USD) }))
+      .filter((p) => isFinite(p.t) && p.t > 0 && isFinite(p.v) && p.v > 0)
+      .sort((a, b) => a.t - b.t);
+    if (rows.length < 2) throw new Error('history too short');
+    rawHistoryCache = { usd: rows.map((p) => p.v), times: rows.map((p) => p.t), ts: Date.now() };
+    return rawHistoryCache;
+  }
+
+  // Longer ranges: slice the full series to the window, then scale USD → target the
+  // same way the 24h path does. Deliberately NOT the response's own exchangeRates —
+  // those cover six currencies and Sidecar offers sixteen, so nine would silently
+  // fail. Scaling by present-day spot is also the honest reading: this is a USD
+  // history shown in another unit, not a historical FX series.
+  async function getRangeHistory(cur, range) {
+    const raw = await getRawHistory();
+    const secs = RANGE_SECONDS[range];
+    const latest = raw.times[raw.times.length - 1];
+    let from = 0;
+    if (secs != null) {
+      const cutoff = latest - secs * 1000;
+      from = raw.times.findIndex((t) => t >= cutoff);
+      if (from < 0) from = 0;
+    }
+    let values = raw.usd.slice(from);
+    let times = raw.times.slice(from);
+    // Too thin to draw — fall back to everything rather than rendering an error.
+    if (values.length < 2) { values = raw.usd.slice(); times = raw.times.slice(); }
+    if (cur !== 'USD') {
+      const spot = await getBtcPrice(cur);
+      if (spot == null) throw new Error('no spot for ' + cur);
+      const k = spot / values[values.length - 1];
+      values = values.map((v) => v * k);
+    }
+    return { values, times };
+  }
+
+  async function getPriceHistory(currency, range) {
     const cur = (currency || 'USD').toUpperCase();
-    if (historyCache.currency === cur && historyCache.points && Date.now() - historyCache.ts < HISTORY_TTL) {
+    const rng = RANGE_SECONDS[range] !== undefined ? range : '24h';
+    const cacheKey = cur + '|' + rng;
+    if (historyCache.currency === cacheKey && historyCache.points && Date.now() - historyCache.ts < HISTORY_TTL) {
       return historyCache.points;
+    }
+    if (rng !== '24h') {
+      try {
+        const points = await getRangeHistory(cur, rng);
+        historyCache = { currency: cacheKey, points, ts: Date.now() };
+        return points;
+      } catch (_) {
+        return null; // a stale 24h series would be mislabeled under another range
+      }
     }
     try {
       const end = new Date();
@@ -6728,29 +6826,132 @@
       if (!Array.isArray(raw) || raw.length < 2) throw new Error('no candles');
       // [time, low, high, open, close, volume], newest-first from the API.
       const rows = raw.slice().sort((a, b) => a[0] - b[0]);
-      const usd = rows.map((c) => Number(c[4])).filter((v) => isFinite(v) && v > 0);
-      if (usd.length < 2) throw new Error('no closes');
-      let series = usd;
+      // Keep each close paired with its own candle time. Filtering the values
+      // alone would decouple them from the rows, so one bad close would shift
+      // every later timestamp by a slot and the hover label would read the wrong
+      // time. Candle times are unix SECONDS; store milliseconds.
+      const kept = rows.filter((c) => isFinite(Number(c[4])) && Number(c[4]) > 0);
+      if (kept.length < 2) throw new Error('no closes');
+      const usd = kept.map((c) => Number(c[4]));
+      const times = kept.map((c) => Number(c[0]) * 1000);
+      let values = usd;
       if (cur !== 'USD') {
         const spot = await getBtcPrice(cur);
         if (spot == null) throw new Error('no spot for ' + cur);
         const k = spot / usd[usd.length - 1];
-        series = usd.map((v) => v * k);
+        values = usd.map((v) => v * k);
       }
-      historyCache = { currency: cur, points: series, ts: Date.now() };
-      return series;
+      const points = { values, times };
+      historyCache = { currency: cacheKey, points, ts: Date.now() };
+      return points;
     } catch (_) {
-      return historyCache.currency === cur ? historyCache.points : null;
+      return historyCache.currency === cacheKey ? historyCache.points : null;
     }
   }
 
+  // Thin a series down to what the chart can actually show, preserving the envelope.
+  //
+  // ALL arrives as ~32k points drawn into 300 viewBox units — measured, only ~1,400
+  // land on distinct x positions, so ~96% overplot and the path string runs to
+  // 379 KB. Bucketing by x and keeping each bucket's min AND max (in the order they
+  // occurred) keeps every spike and trough that's visible at this width while
+  // cutting the path to a few KB. Dropping to one point per bucket would flatten
+  // real volatility, which on a price chart is the whole signal.
+  //
+  // Returns { values, times } unchanged when the series is already small enough.
+  function decimateSeries(values, times, buckets) {
+    const n = values.length;
+    if (n <= buckets * 2) return { values, times };
+    const tFirst = times[0], tSpan = times[n - 1] - tFirst;
+    if (!(tSpan > 0)) return { values, times };
+    const outV = [], outT = [];
+    let bStart = 0;
+    let bIndex = 0;
+    for (let i = 0; i <= n; i++) {
+      const b = i < n ? Math.min(buckets - 1, Math.floor(((times[i] - tFirst) / tSpan) * buckets)) : -1;
+      if (i === n || b !== bIndex) {
+        // Flush [bStart, i): emit the bucket's extremes in chronological order.
+        let loI = bStart, hiI = bStart;
+        for (let k = bStart + 1; k < i; k++) {
+          if (values[k] < values[loI]) loI = k;
+          if (values[k] > values[hiI]) hiI = k;
+        }
+        const a = Math.min(loI, hiI), z = Math.max(loI, hiI);
+        outV.push(values[a]); outT.push(times[a]);
+        if (z !== a) { outV.push(values[z]); outT.push(times[z]); }
+        if (i === n) break;
+        bStart = i;
+        bIndex = b;
+      }
+    }
+    // Always land on the true last point — it's the one the balance is showing.
+    if (outT[outT.length - 1] !== times[n - 1]) { outV.push(values[n - 1]); outT.push(times[n - 1]); }
+    return { values: outV, times: outT };
+  }
+
+  // Currency formatter that doesn't collapse sub-unit values to zero. Bitcoin's
+  // early history is cents, so ALL's low is $0.05 and Intl's default 2-decimal
+  // currency style renders the low/high readout as "$0 – $126,073".
+  function fmtChartPrice(v, currency) {
+    if (v > 0 && v < 1) {
+      try {
+        const parts = new Intl.NumberFormat('en-US', {
+          style: 'currency', currency, minimumSignificantDigits: 1, maximumSignificantDigits: 2,
+        }).formatToParts(v);
+        const sym = parts.filter((p) => p.type === 'currency').map((p) => p.value).join('');
+        const num = parts.filter((p) => p.type !== 'currency').map((p) => p.value).join('').trim();
+        return sym + num;
+      } catch (_) { /* fall through */ }
+    }
+    const p = fmtFiatParts(v, currency);
+    return p.sym + p.num;
+  }
+
+  // Nearest index to `target` in a sorted times array. Binary search rather than a
+  // scan: ALL runs to ~32k points and this is called on every pointer move.
+  function nearestTimeIndex(times, target) {
+    let lo = 0, hi = times.length - 1;
+    if (hi < 1) return 0;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (times[mid] <= target) lo = mid; else hi = mid;
+    }
+    return target - times[lo] <= times[hi] - target ? lo : hi;
+  }
+
+  // Label for a scrubbed point. Shorter ranges want the clock, longer ones the date —
+  // "14:32" is meaningless on ALL and "2019" is useless on 24H.
+  function fmtScrubTime(ms, range) {
+    const d = new Date(ms);
+    try {
+      if (range === '24h') return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      if (range === '7d') return d.toLocaleString([], { weekday: 'short', hour: 'numeric' });
+      if (range === '30d') return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      if (range === '1y') return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+      return d.toLocaleDateString([], { month: 'short', year: 'numeric' });
+    } catch (_) { return d.toISOString().slice(0, 10); }
+  }
+
   // Hand-rolled SVG sparkline — no charting library, consistent with the rest of the
-  // panel. Gradient fill under a gold stroke, plus 24h-ago / now / high / low labels.
-  function buildPriceChart(series, currency) {
+  // panel. Gradient fill under a gold stroke, a range selector, and a hover scrub
+  // that reads out the price and time under the pointer.
+  //
+  // `history` is { values, times }; `onRange(key)` is called when a range is picked.
+  function buildPriceChart(history, currency, range, onRange) {
     const W = 300, H = 96, PAD_T = 8, PAD_B = 14;
+    // One bucket per viewBox unit. Also caps Math.min/max below: spreading 32k
+    // arguments with ...series risks a call-stack overflow, quite apart from the
+    // 379 KB path string it would build.
+    const thin = decimateSeries(history.values, history.times, W);
+    const series = thin.values, times = thin.times;
     const min = Math.min(...series), max = Math.max(...series);
     const span = max - min || 1; // flat series would divide by zero
-    const x = (i) => (i / (series.length - 1)) * W;
+    const tFirst = times[0], tLast = times[times.length - 1];
+    const tSpan = tLast - tFirst;
+    // x maps from TIME, not index. Upstream resolution is uneven — mempool's early
+    // history steps in days while recent points step in hours — so spacing points
+    // evenly by index would put 2013 where 2011 belongs on ALL.
+    const x = (i) => (tSpan > 0 ? ((times[i] - tFirst) / tSpan) * W : (i / Math.max(1, series.length - 1)) * W);
     const y = (v) => PAD_T + (1 - (v - min) / span) * (H - PAD_T - PAD_B);
 
     const line = series.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
@@ -6770,19 +6971,98 @@
       '<path d="' + line + '" fill="none" stroke="var(--gold)" stroke-width="1.6" ' +
       'stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
 
+    // Scrub marker, appended after the trace so it draws on top. A ring rather than
+    // a filled disc: preserveAspectRatio="none" would squash a circle into an
+    // ellipse, but a hairline stroke stays round under vector-effect.
+    const NS = 'http://www.w3.org/2000/svg';
+    const markGroup = document.createElementNS(NS, 'g');
+    markGroup.setAttribute('class', 'wallet-chart-mark');
+    const markLine = document.createElementNS(NS, 'line');
+    markLine.setAttribute('y1', '0');
+    markLine.setAttribute('y2', String(H));
+    markLine.setAttribute('stroke', 'var(--gold)');
+    markLine.setAttribute('stroke-width', '0.75');
+    markLine.setAttribute('opacity', '0.5');
+    markLine.setAttribute('vector-effect', 'non-scaling-stroke');
+    const markDot = document.createElementNS(NS, 'circle');
+    markDot.setAttribute('r', '1.6');
+    markDot.setAttribute('fill', 'var(--velvet-1)');
+    markDot.setAttribute('stroke', 'var(--gold)');
+    markDot.setAttribute('stroke-width', '1.5');
+    markDot.setAttribute('vector-effect', 'non-scaling-stroke');
+    markGroup.append(markLine, markDot);
+    svg.append(markGroup);
+
     const first = series[0], last = series[series.length - 1];
     const pct = first ? ((last - first) / first) * 100 : 0;
-    const fmt = (v) => fmtFiatParts(v, currency).sym + fmtFiatParts(v, currency).num;
+    const fmt = (v) => fmtChartPrice(v, currency);
 
     const wrap = h('div', { className: 'wallet-chart' });
-    wrap.append(svg);
+
+    // Range selector. Spaced text rather than pills — the card already carries
+    // enough chrome.
+    const rangeRow = h('div', { className: 'wallet-chart-ranges' });
+    PRICE_RANGES.forEach(({ key, label }) => {
+      const b = h('button', {
+        className: 'wallet-chart-range-btn' + (key === range ? ' active' : ''),
+        textContent: label,
+      });
+      b.addEventListener('click', (e) => {
+        e.stopPropagation(); // the card itself has a click handler
+        if (key !== range && onRange) onRange(key);
+      });
+      rangeRow.append(b);
+    });
+    wrap.append(rangeRow);
+
+    const plot = h('div', { className: 'wallet-chart-plot' });
+    plot.append(svg);
+    const scrub = h('div', { className: 'wallet-chart-scrub' });
+    const scrubPrice = h('span', { className: 'wallet-chart-scrub-price' });
+    const scrubWhen = h('span', { className: 'wallet-chart-scrub-time' });
+    scrub.append(scrubPrice, scrubWhen);
+    plot.append(scrub);
+    wrap.append(plot);
+
+    // ---- hover scrub ----
+    // Fraction across the ELEMENT, not SVG coordinates: under
+    // preserveAspectRatio="none" the viewBox is stretched, so clientX has to be
+    // measured against the rendered box.
+    function moveTo(clientX) {
+      const rect = plot.getBoundingClientRect();
+      if (rect.width <= 0 || series.length < 2) return;
+      const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      const i = tSpan > 0
+        ? nearestTimeIndex(times, tFirst + frac * tSpan)
+        : Math.round(frac * (series.length - 1));
+      const px = x(i), py = y(series[i]);
+      markLine.setAttribute('x1', String(px));
+      markLine.setAttribute('x2', String(px));
+      markDot.setAttribute('cx', String(px));
+      markDot.setAttribute('cy', String(py));
+      scrubPrice.textContent = fmt(series[i]);
+      scrubWhen.textContent = fmtScrubTime(times[i], range);
+      // Positioned as a percentage in the DOM so the text renders crisp rather than
+      // stretched with the viewBox. Clamped so it can't hang off either edge, and
+      // flipped to whichever half the point ISN'T in, so it never covers the trace.
+      scrub.style.left = Math.min(85, Math.max(15, (px / W) * 100)) + '%';
+      scrub.classList.toggle('low', py < H / 2);
+      wrap.classList.add('scrubbing');
+    }
+    function endScrub() { wrap.classList.remove('scrubbing'); }
+
+    plot.addEventListener('pointermove', (e) => moveTo(e.clientX));
+    plot.addEventListener('pointerdown', (e) => moveTo(e.clientX));
+    plot.addEventListener('pointerleave', endScrub);
+    plot.addEventListener('pointercancel', endScrub);
+
     wrap.append(
       h('div', { className: 'wallet-chart-meta' }, [
-        h('span', { className: 'wallet-chart-range', textContent: '24h' }),
         h('span', {
           className: 'wallet-chart-delta ' + (pct >= 0 ? 'up' : 'down'),
           textContent: (pct >= 0 ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(2) + '%',
         }),
+        h('span', { className: 'wallet-chart-lowhigh', textContent: fmt(min) + ' – ' + fmt(max) }),
         h('span', { className: 'wallet-chart-price', textContent: fmt(last) }),
       ])
     );
@@ -7433,25 +7713,45 @@
     const remeasureAfterToggle = () => {
       setTimeout(() => { if (remeasureWalletCard) remeasureWalletCard(); }, 280);
     };
+    // Selected range persists while the panel is open, so reopening the chart or
+    // switching currency keeps whatever the user last looked at.
+    let chartRange = '24h';
+    let chartSeq = 0; // a slow fetch must not paint over a newer selection
+
+    async function paintChart() {
+      const seq = ++chartSeq;
+      chartSlot.innerHTML = '';
+      chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Loading…' }));
+      const history = await getPriceHistory(fiatCurrency, chartRange);
+      if (seq !== chartSeq) return; // a newer range was picked while this was in flight
+      chartSlot.innerHTML = '';
+      if (!history) {
+        // Leave the slot open with an explanation rather than silently collapsing.
+        chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Price history unavailable' }));
+        chartSlot.dataset.currency = '';
+        remeasureAfterToggle();
+        return;
+      }
+      chartSlot.dataset.currency = fiatCurrency;
+      chartSlot.dataset.range = chartRange;
+      chartSlot.append(buildPriceChart(history, fiatCurrency, chartRange, (key) => {
+        chartRange = key;
+        paintChart();
+      }));
+      remeasureAfterToggle();
+    }
+
     chartBtn.addEventListener('click', async (e) => {
       e.stopPropagation(); // don't trigger the card's scroll-to-top handler
       const open = card.classList.toggle('chart-open');
       chartBtn.classList.toggle('active', open);
       if (!open) { remeasureAfterToggle(); return; }
-      if (chartSlot.dataset.currency === fiatCurrency) { remeasureAfterToggle(); return; }
-      chartSlot.innerHTML = '';
-      chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Loading…' }));
-      const series = await getPriceHistory(fiatCurrency);
-      chartSlot.innerHTML = '';
-      if (!series) {
-        // Leave the slot open with an explanation rather than silently collapsing.
-        chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Price history unavailable' }));
+      // Already showing this currency and range — nothing to refetch.
+      if (chartSlot.dataset.currency === fiatCurrency && chartSlot.dataset.range === chartRange) {
         remeasureAfterToggle();
         return;
       }
-      chartSlot.dataset.currency = fiatCurrency;
-      chartSlot.append(buildPriceChart(series, fiatCurrency));
-      remeasureAfterToggle();
+      await paintChart();
     });
     card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit, chartSlot, chartBtn, pin);
     view.append(card);
