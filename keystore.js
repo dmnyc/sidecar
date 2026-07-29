@@ -426,6 +426,36 @@
     return getState();
   }
 
+  // ---- store-write serialization -------------------------------------------------
+  //
+  // Every mutator above does load → mutate → write of the WHOLE store object. Two
+  // that overlap each save a snapshot taken before the other's change, so one update
+  // is silently lost. Classic lost update, and it was not theoretical: importing a
+  // vault and letting the avatar backfill run fires one setProfile per account at
+  // once, and one or more pictures vanish. Which account loses depends on relay
+  // timing, so it presents as intermittent.
+  //
+  // The stakes go well past avatars. A lost addAccountFromBytes write loses a
+  // PRIVATE KEY. A lost changePin could leave the vault keyed to a PIN the user no
+  // longer has. Serializing is cheap — these calls are rare, small, and never on a
+  // hot path — and it removes a whole class of bug rather than the one symptom that
+  // exposed it.
+  //
+  // Applied at the export boundary rather than inside each function so the bodies
+  // stay readable and nothing internal can accidentally bypass it by calling a
+  // sibling directly (an inner call runs inside the caller's own turn, which is
+  // already serialized).
+  let storeChain = Promise.resolve();
+  function serialized(fn) {
+    return function (...args) {
+      const run = storeChain.then(() => fn.apply(this, args));
+      // The caller must still see a rejection, but it must not poison the chain for
+      // everyone after it — so the swallow happens on a separate branch.
+      storeChain = run.then(() => {}, () => {});
+      return run;
+    };
+  }
+
   root.SidecarKeystore = {
     bytesToHex,
     hexToBytes,
@@ -434,27 +464,39 @@
     isLocked,
     ensureLoaded,
     verifyPin,
-    getState,
-    reorderAccounts,
-    initialize,
-    unlock,
-    lock,
-    addAccountFromBytes,
-    importSecret,
-    generateAccount,
-    removeAccount,
-    renameAccount,
-    setProfile,
-    setActive,
+    // Serialized: every one of these reads the store, changes it, and writes the
+    // whole thing back. getState is included because it too can write (it backfills
+    // placeholder names), so it can lose an update just like the rest.
+    getState: serialized(getState),
+    reorderAccounts: serialized(reorderAccounts),
+    initialize: serialized(initialize),
+    // unlock() writes too, indirectly: it ends by returning getState(), which
+    // backfills placeholder names and saves when it does. Left unserialized that was
+    // the one store write still outside the chain.
+    unlock: serialized(unlock),
+    lock, // touches only in-memory state and the session key, never the store
+    addAccountFromBytes: serialized(addAccountFromBytes),
+    importSecret: serialized(importSecret),
+    generateAccount: serialized(generateAccount),
+    removeAccount: serialized(removeAccount),
+    renameAccount: serialized(renameAccount),
+    setProfile: serialized(setProfile),
+    setActive: serialized(setActive),
     getActivePubkey,
     hasAccount,
     getPrivkey,
     ownerSign,
-    setNwc,
+    // The NWC store is a separate key but the same read-modify-write shape, and
+    // removeAccount also deletes from it — so it shares the chain rather than
+    // getting a second one.
+    setNwc: serialized(setNwc),
     getNwc,
     hasNwc,
-    clearNwc,
-    changePin,
+    clearNwc: serialized(clearNwc),
+    // Highest-stakes writer here: it re-encrypts every account's key under a new
+    // derived key and rewrites the whole store. Losing this write, or interleaving
+    // it with another, is how a vault ends up keyed to a PIN nobody has.
+    changePin: serialized(changePin),
     // expose the derived key getter for sibling modules (e.g. NWC string encryption)
     _getDerivedKey: () => derivedKey,
   };
