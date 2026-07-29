@@ -844,25 +844,37 @@
       let target = null;   // the normalized URL this comments on
       let ogMeta;          // undefined = not fetched, null = no preview available
 
-      // The page being commented on, as the card the composer would draw for it.
-      // The raw URL only appears as a caption underneath: it IS what gets published,
-      // so it can't be hidden, but it shouldn't be the headline either.
-      function renderPreview() {
-        previewPane.innerHTML = '';
-        if (!target) {
-          previewPane.append(h('p', { className: 'hint', textContent: 'No page to comment on.' }));
-          return;
-        }
+      // The page being commented on. This sits ABOVE the tabs, not inside Preview,
+      // because it's CONTEXT rather than content — the same reason "Commenting as"
+      // is up there. A kind:1111 is defined by its target, so writing a comment
+      // without being able to see what you're commenting on is the wrong shape; the
+      // first version hid it behind the Preview tab and the Write pane was a blank
+      // box with no subject.
+      const targetBlock = h('div', { className: 'webcomment-target' });
+
+      function renderTarget() {
+        targetBlock.innerHTML = '';
+        if (!target) return;
         if (ogMeta === undefined) {
-          previewPane.append(h('div', { className: 'link-card loading' }));
+          targetBlock.append(h('div', { className: 'link-card loading' }));
         } else if (ogMeta) {
           const card = h('a', { className: 'link-card' });
           renderLinkCard(card, target, ogMeta);
-          previewPane.append(card);
+          targetBlock.append(card);
         }
-        previewPane.append(h('div', { className: 'webcomment-url', textContent: target }));
+        // The URL is what actually gets published, so it stays visible even when a
+        // card renders — as a caption, not the headline.
+        targetBlock.append(h('div', { className: 'webcomment-url', textContent: target }));
+      }
+
+      // Preview now shows only the comment itself, since the target is permanent
+      // above.
+      function renderPreview() {
+        previewPane.innerHTML = '';
         const text = body.value.trim();
-        if (text) previewPane.append(h('div', { className: 'webcomment-preview-text', textContent: text }));
+        previewPane.append(text
+          ? h('div', { className: 'webcomment-preview-text', textContent: text })
+          : h('p', { className: 'hint', textContent: 'Nothing written yet.' }));
       }
 
       function showTab(which) {
@@ -922,6 +934,7 @@
       modal.append(
         h('h3', { textContent: 'Comment on this page' }),
         author,
+        targetBlock, // above the tabs: the subject, not one of the two views
         tabBar,
         body,
         previewPane,
@@ -930,8 +943,8 @@
         h('div', { className: 'actions' }, [post, cancel])
       );
 
-      // Resolve the tab only after the modal is up \u2014 never speculatively, since
-      // this URL is about to be published.
+      // Resolve the tab only after the modal is up \u2014 never speculatively, since this
+      // URL is about to be published.
       activeTabUrl().then((raw) => {
         const { url, error } = normalizeWebUrl(unwrapJumbleTarget(raw));
         if (error) {
@@ -942,13 +955,14 @@
         }
         target = url;
         post.disabled = false;
+        renderTarget(); // shows the URL and a loading card immediately
         body.focus();
-        // Fetch the card in the background; the Write tab is usable immediately and
-        // Preview fills in when it lands.
+        // The card fills in when the fetch lands; the Write pane is usable throughout
+        // and already shows the URL, so nothing waits on the network.
         call({ type: 'SIDECAR_FETCH_OG', url: target })
           .then((meta) => { ogMeta = meta || null; })
           .catch(() => { ogMeta = null; })
-          .then(() => { if (!previewPane.classList.contains('hidden')) renderPreview(); });
+          .then(renderTarget);
       });
     });
   }

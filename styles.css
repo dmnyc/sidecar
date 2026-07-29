@@ -1164,6 +1164,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    published so it can't be hidden, but the card is what tells you which page this
    is. Explicitly selectable: this is exactly the content the body-level
    `user-select: none` must not swallow. */
+/* The subject of the comment, pinned above the tabs — it's context, so it stays put
+   while Write/Preview switch beneath it. */
+.webcomment-target { margin: 4px 0 12px; }
+.webcomment-target:empty { display: none; }
 .webcomment-url {
   -webkit-user-select: text; user-select: text;
   font-family: var(--font-ui); font-size: 11px; line-height: 1.45;
