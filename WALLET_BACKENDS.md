@@ -1,7 +1,8 @@
 # Wallet backends — what Sidecar uses, and what it ruled out
 
 Sidecar's Lightning wallet talks **NWC (NIP-47)** to a wallet you already control.
-Sidecar never holds funds and never runs a node.
+Sidecar never holds funds and never runs a node. For users who don't have a wallet
+yet, the Rizful quick start (below) obtains an NWC connection without a paste.
 
 This file records the alternatives that were evaluated and rejected, and why. It
 exists so the question doesn't get re-opened from scratch every few months — and so
@@ -108,10 +109,77 @@ Held for now because the specification is an
 and wallet-side support is limited. Cheap to add alongside NWC if it gains traction;
 expensive to have shipped early if it doesn't.
 
-### Making NWC connection easier
+## Bitcoin Connect — nothing to add, on either side
 
-The problem worth solving is not that NWC is bad — it's that a user with no Lightning
-wallet at all has a hard first five minutes. An app-initiated connection handshake
-(Sidecar generates a keypair, the user approves in their wallet, the connection string
-returns without copy-paste) would be a large onboarding win for a fraction of the cost
-of embedding a wallet, and costs neither an API key nor Firefox support.
+[`@getalby/bitcoin-connect`](https://www.npmjs.com/package/@getalby/bitcoin-connect)
+is a connect-a-wallet UI for web apps, not a wallet backend. It comes up anyway, so
+both directions are recorded here.
+
+**As something pages use to reach Sidecar: already works, nothing to do.** Bitcoin
+Connect registers its extension connector as `extension.generic`, labeled "Browser
+Extensions" — generic, not Alby-specific — and it picks up any `window.webln`, which
+Sidecar provides. Sidecar also already carries a settlement bridge for it
+(`nostr-provider.js`, the "Bitcoin Connect settlement bridge" block): a zap paid from
+Sidecar's own card would otherwise leave the page's modal spinning on an invoice that
+had already settled.
+
+One thing worth knowing for support: users on a Bitcoin Connect page click **"Browser
+Extensions"**, not "Sidecar." That is Bitcoin Connect's copy, not something this side
+can change.
+
+**As a connect option inside Sidecar: no case for it.** Its connector list is Alby
+Hub, Browser Extensions, NWC, Coinos, LNbits, LNbits NWC Plugin, Cashu.me. Against
+that:
+
+- The connectors largely duplicate what exists. "NWC" is paste-a-connection-string.
+  Alby Hub, Coinos and LNbits are provider flows that all terminate in an NWC string —
+  which is exactly what the Rizful quick start below does, at no dependency cost.
+- "Browser Extensions" is incoherent here. It means consuming another extension's
+  `window.webln`. Sidecar *is* a WebLN provider, and the side panel has no page
+  `window.webln` to consume in any case.
+- 263 KB for the UMD bundle — about 14% on top of the entire shipped package — plus
+  five transitive dependencies including `@getalby/sdk` and `@lightninglabs/lnc-web`.
+  Sidecar's NWC client is ~150 hand-rolled lines with zero dependencies; this would
+  import an SDK to redo it.
+- It is a Lit web-component UI with its own theming, and would match none of the five
+  themes.
+- `VENDOR.md` promises byte-exact provenance with CI-pinned hashes so that "no trust
+  in this repo is required." A 263 KB third-party UI bundle with five dependencies is
+  a large surface to stand behind in a signer, for a connect dialog.
+
+**The one case that would justify it** is breadth of connectors without writing each
+flow — particularly LND-direct over LNC, which Bitcoin Connect supports and Sidecar
+would otherwise never build. That is a question about who the users are, not about
+architecture.
+
+## What shipped instead: the Rizful quick start
+
+The problem was never that NWC is bad — it's that a user with **no** Lightning wallet
+has a hard first five minutes. That is now solved without a backend change at all.
+
+Rizful publishes a token exchange (the same one Jumble uses): the user creates an
+account, gets a one-time code, and Sidecar trades it for a standard NWC connection
+string, which then goes through the same `SIDECAR_SET_NWC` path as a hand-pasted one
+and is validated by the same `getInfo` round-trip first.
+
+Why this beats every embedded-wallet option evaluated above:
+
+- **No API key, no WASM, no offscreen document**, so it works identically on Firefox —
+  which is where Breez Spark failed outright.
+- **No new dependency.** One `fetch` and a text field.
+- **It completes the loop.** The exchange returns a lightning address (or one rides in
+  the NWC string's `lud16`), which the Profile screen's existing `maybeSuggestLud16`
+  prompt offers to publish. That is what makes a brand-new wallet reachable by zaps,
+  and it was already built — the gap was only ever *acquiring the string*.
+- **The pattern generalizes.** A second provider is a few dozen lines against the same
+  UI, so this is not a single-vendor lock-in.
+
+The trade-off is stated in the UI rather than hidden: Rizful is custodial, run by
+[Megalith](https://megalithic.me/), and the modal says they hold the funds and that a
+self-custodial wallet can replace it later. Sidecar still holds nothing.
+
+A fully app-initiated handshake — Sidecar generates a keypair, the user approves in
+their wallet, no copy-paste at all — remains the ideal, and is what Damus appears to
+have with Coinos. It needs provider-side support that isn't in Coinos's public API
+([open feature request](https://github.com/coinos/coinos-server/issues/74)), so the
+code exchange is the best available today.
