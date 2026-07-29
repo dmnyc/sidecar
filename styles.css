@@ -1636,14 +1636,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* Quick start — the first thing on a screen that only appears when there's no
    wallet, so it gets card weight rather than sitting as one more link. */
 .wallet-quickstart {
-  margin: 4px 0 14px; padding: 14px; border-radius: 12px;
+  margin: 0 0 10px; padding: 14px; border-radius: 12px;
   border: 1px solid var(--border-strong);
   background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
   box-shadow: var(--sheen);
 }
 .wallet-quickstart-title { font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 2px; }
 .wallet-quickstart .hint { margin: 0 0 11px; }
-.wallet-quickstart .primary { display: block; width: 100%; }
+/* Secondary, not primary: "Connect wallet" above owns the primary weight on this
+   screen, and two filled buttons would compete for the same decision. */
+.wallet-quickstart .secondary { display: block; width: 100%; }
+/* Separates the restore block from the quick-start card. Matches the spacing the
+   restore block gets from its own container. */
+.quickstart-or { margin-top: 20px; }
 
 /* Rizful quick-start modal. Deliberately few elements and larger type than the
    first attempt, which stacked three numbered steps each carrying its own button

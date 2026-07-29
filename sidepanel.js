@@ -7196,20 +7196,6 @@
   function renderWalletConnect(view) {
     view.append(h('h2', { textContent: 'Wallet' }));
 
-    // Quick start goes FIRST: this screen only renders when no wallet is connected,
-    // so "I don't have one" is the common case, not the edge case.
-    const quick = h('div', { className: 'wallet-quickstart' });
-    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: 'New to Lightning?' }));
-    quick.append(h('p', {
-      className: 'hint compact',
-      textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
-    }));
-    const quickBtn = h('button', { className: 'primary', textContent: 'Quick start with Rizful' });
-    quickBtn.addEventListener('click', rizfulQuickStartModal);
-    quick.append(quickBtn);
-    view.append(quick);
-    view.append(h('div', { className: 'wallet-or', textContent: 'or' }));
-
     view.append(
       h('p', {
         className: 'hint',
@@ -7228,7 +7214,7 @@
       document.createTextNode("— it doesn't support external apps like Sidecar."),
       document.createElement('br')
     );
-    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'Need a wallet? See suggestions →' });
+    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'More Lightning wallet options →' });
     primalLink.addEventListener('click', (e) => {
       e.preventDefault();
       openExtensionPage('wallets.html');
@@ -7288,11 +7274,31 @@
     restoreBlock.append(restore, restoreNote);
     view.append(restoreBlock);
 
-    // Help users who don't have an NWC-capable wallet yet.
+    // Quick start comes AFTER connect and restore, not before. Someone who already
+    // has a wallet — which is most people opening this screen deliberately — should
+    // reach their own path first and not have to scroll past an onboarding pitch. It
+    // sits last because it reads onward into the suggestions link below it.
+    // The divider goes OUTSIDE the card — .wallet-quickstart has its own border and
+    // background, and a rule inside it reads as a stray line rather than a separator.
+    view.append(h('div', { className: 'wallet-or quickstart-or', textContent: 'or' }));
+    const quick = h('div', { className: 'wallet-quickstart' });
+    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: 'New to Lightning?' }));
+    quick.append(h('p', {
+      className: 'hint compact',
+      textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
+    }));
+    const quickBtn = h('button', { className: 'secondary', textContent: 'Quick start with Rizful' });
+    quickBtn.addEventListener('click', rizfulQuickStartModal);
+    quick.append(quickBtn);
+    view.append(quick);
+
+    // Reads as the continuation of the quick-start block above rather than a
+    // consolation prize, so it's framed as more options rather than "you must not
+    // have one".
     const find = h('a', {
       className: 'explore-link wallet-find-link',
       href: '#',
-      textContent: 'Need a wallet? See suggestions →',
+      textContent: 'More Lightning wallet options →',
     });
     find.addEventListener('click', (e) => {
       e.preventDefault();
