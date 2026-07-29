@@ -1445,36 +1445,64 @@
     return ok;
   }
 
-  const profileFetchAttempted = new Set();
+  // pubkey → { tries, at, settled }. `settled` means stop asking: either the profile
+  // landed, or the relays gave a definitive answer that there's nothing to store.
+  const profileFetchState = new Map();
+  const PROFILE_FETCH_MAX_TRIES = 3;
+  const PROFILE_FETCH_COOLDOWN_MS = 15000;
 
+  // Returns true when the question is answered for good, false when it's worth
+  // asking again. The distinction is the point: a relay timeout is transient, an
+  // empty kind:0 is not.
   async function fetchAndStoreProfile(pubkey) {
     try {
       const relayMap = await call({ type: 'SIDECAR_GET_RELAYS' });
       const relays = Object.keys(relayMap || {});
-      if (!relays.length) return;
+      if (!relays.length) return false; // nothing configured yet — try again later
       const ev = await Promise.race([
         poolGet(relays, { kinds: [0], authors: [pubkey] }),
         new Promise((res) => setTimeout(() => res(null), 6000)),
       ]);
-      if (!ev) return;
+      // No event may mean "no profile" OR "the relays were slow" — and after a vault
+      // import, with several of these in flight at once, slow is common. Retryable.
+      if (!ev) return false;
       seedBaseline(pubkey, ev); // free ride — see seedBaseline
       let meta = {};
-      try { meta = JSON.parse(ev.content) || {}; } catch (_) { return; }
+      try { meta = JSON.parse(ev.content) || {}; } catch (_) { return true; } // malformed: asking again won't help
       const name = meta.display_name || meta.displayName || meta.name || '';
       const picture = meta.picture || '';
-      if (!name && !picture) return;
+      if (!name && !picture) return true; // a real answer: this profile has neither
       await call({ type: 'SIDECAR_SET_PROFILE', pubkey, name, picture });
       state = await call({ type: 'SIDECAR_GET_STATE' });
       if (!state.locked) renderMain();
+      return true;
     } catch (_) {
-      /* offline / no profile — keep placeholder */
+      return false; // offline / transport error — retryable
     }
   }
 
+  // Bounded retries, because the old version marked a pubkey as attempted BEFORE
+  // fetching and never cleared it on failure. One transient miss — a timeout, three
+  // concurrent queries competing after a vault import, a profile not yet propagated —
+  // permanently blocked that account's avatar for the rest of the panel session. It
+  // looked like a storage bug, and the giveaway was that reloading the extension
+  // fixed it: a fresh Set, so the fetch got a second chance it should have had anyway.
+  //
+  // Capped and cooled down rather than retried freely: renderMain() runs on plenty of
+  // events, and an unbounded retry would turn a burst of renders into a burst of
+  // relay queries.
   function maybeFetchProfile(pubkey) {
-    if (profileFetchAttempted.has(pubkey)) return;
-    profileFetchAttempted.add(pubkey);
-    fetchAndStoreProfile(pubkey);
+    const s = profileFetchState.get(pubkey);
+    if (s) {
+      if (s.settled) return;
+      if (s.tries >= PROFILE_FETCH_MAX_TRIES) return;
+      if (Date.now() - s.at < PROFILE_FETCH_COOLDOWN_MS) return;
+    }
+    profileFetchState.set(pubkey, { tries: (s ? s.tries : 0) + 1, at: Date.now(), settled: false });
+    fetchAndStoreProfile(pubkey).then((settled) => {
+      const cur = profileFetchState.get(pubkey);
+      if (cur && settled) cur.settled = true;
+    });
   }
 
   // Does this account still need its name/picture pulled from kind:0?
@@ -1485,9 +1513,9 @@
   // placeholderName, so a restored account kept the placeholder avatar in the
   // chip and dropdown permanently, with no reload able to clear it.
   //
-  // Over-fetching is cheap and bounded — maybeFetchProfile dedupes on
-  // profileFetchAttempted, so an account whose kind:0 genuinely carries no
-  // picture costs one attempt per panel session, not one per render.
+  // Over-fetching is cheap and bounded — maybeFetchProfile caps tries per pubkey and
+  // marks a definitive answer as settled, so an account whose kind:0 genuinely carries
+  // no picture costs one attempt per panel session, not one per render.
   function needsProfileBackfill(a) {
     if (!a) return false;
     return !!a.placeholderName || !a.name || !a.picture;
@@ -3668,7 +3696,7 @@
       try {
         _profileCache.delete(active.pubkey);
         followCountCache.delete(active.pubkey);
-        profileFetchAttempted.delete(active.pubkey); // let fetchAndStoreProfile run again
+        profileFetchState.delete(active.pubkey); // clear tries + settled so it refetches
         await fetchAndStoreProfile(active.pubkey);
         renderProfile();
         toast('Profile refreshed', 'success');
