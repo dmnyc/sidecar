@@ -805,25 +805,80 @@
   });
 
   // Comment on the page in the active tab. Opened from the topbar pencil.
+  //
+  // Deliberately built to the New-note convention rather than its own shape: same
+  // "Posting as" header, same Write/Preview tabs, same link card, same button
+  // order. A second composer that looked different would read as a different app.
   function webCommentModal() {
     openModal((modal) => {
       const err = h('div', { className: 'error' });
-      const urlLine = h('div', { className: 'webcomment-url', textContent: 'Reading the current tab…' });
+
+      // Who this posts as. Same block the note composer uses — a public comment
+      // signed by an account you might not have realized was active is exactly the
+      // mistake this prevents.
+      const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+      const author = h('div', { className: 'compose-author' });
+      author.append(avatarEl(active || {}, 'compose-author-av'));
+      author.append(
+        h('div', { className: 'compose-author-info' }, [
+          h('span', { className: 'compose-author-eyebrow', textContent: 'Commenting as' }),
+          h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '\u2014' }),
+        ])
+      );
+
+      const tabWrite = h('button', { className: 'compose-tab active', textContent: 'Write' });
+      const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
+      const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
+
       const body = h('textarea', {
         className: 'compose-text webcomment-text',
-        placeholder: 'Write a comment about this page…',
+        placeholder: 'Write a comment about this page\u2026',
       });
+      const previewPane = h('div', { className: 'compose-preview hidden' });
+
       const post = h('button', { className: 'primary', textContent: 'Post comment' });
       post.disabled = true;
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
 
-      let target = null; // the normalized URL, once known
+      let target = null;   // the normalized URL this comments on
+      let ogMeta;          // undefined = not fetched, null = no preview available
 
-      // Shown after a successful post: the two Jumble views, since that's where a
-      // kind:1111 on a web target is actually readable.
+      // The page being commented on, as the card the composer would draw for it.
+      // The raw URL only appears as a caption underneath: it IS what gets published,
+      // so it can't be hidden, but it shouldn't be the headline either.
+      function renderPreview() {
+        previewPane.innerHTML = '';
+        if (!target) {
+          previewPane.append(h('p', { className: 'hint', textContent: 'No page to comment on.' }));
+          return;
+        }
+        if (ogMeta === undefined) {
+          previewPane.append(h('div', { className: 'link-card loading' }));
+        } else if (ogMeta) {
+          const card = h('a', { className: 'link-card' });
+          renderLinkCard(card, target, ogMeta);
+          previewPane.append(card);
+        }
+        previewPane.append(h('div', { className: 'webcomment-url', textContent: target }));
+        const text = body.value.trim();
+        if (text) previewPane.append(h('div', { className: 'webcomment-preview-text', textContent: text }));
+      }
+
+      function showTab(which) {
+        const preview = which === 'preview';
+        tabWrite.classList.toggle('active', !preview);
+        tabPreview.classList.toggle('active', preview);
+        body.classList.toggle('hidden', preview);
+        previewPane.classList.toggle('hidden', !preview);
+        if (preview) renderPreview();
+      }
+      tabWrite.addEventListener('click', () => showTab('write'));
+      tabPreview.addEventListener('click', () => showTab('preview'));
+
+      // Shown after posting: both links point at Jumble, since almost nothing else
+      // renders a kind:1111 over a web target.
       const done = h('div', { className: 'webcomment-done hidden' });
-
       const link = (label, href) => {
         const a = h('a', { className: 'explore-link', href: '#', textContent: label });
         a.addEventListener('click', (e) => { e.preventDefault(); chrome.tabs.create({ url: href }); });
@@ -836,22 +891,24 @@
         if (!text) return (err.textContent = 'Write something first.');
         err.textContent = '';
         post.disabled = true;
-        post.textContent = 'Posting…';
+        post.textContent = 'Posting\u2026';
         try {
           const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: buildWebComment(target, text) });
           await publishSigned(signed);
-          // nevent rather than note: the relay hint is what lets Jumble find it.
           let nevent = '';
           try {
             nevent = NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays: [] });
           } catch (_) {}
           body.disabled = true;
+          tabBar.classList.add('hidden');
+          body.classList.add('hidden');
+          previewPane.classList.add('hidden');
           post.classList.add('hidden');
           done.classList.remove('hidden');
           done.append(
             h('div', { className: 'webcomment-done-title', textContent: 'Comment posted' }),
-            nevent ? link('View your comment →', jumbleNoteUrl(nevent)) : document.createTextNode(''),
-            link('See all comments on this page →', jumbleThreadUrl(target))
+            nevent ? link('View your comment \u2192', jumbleNoteUrl(nevent)) : document.createTextNode(''),
+            link('See all comments on this page \u2192', jumbleThreadUrl(target))
           );
           cancel.textContent = 'Close';
           toast('Comment posted', 'success');
@@ -864,37 +921,34 @@
 
       modal.append(
         h('h3', { textContent: 'Comment on this page' }),
-        h('p', {
-          className: 'hint compact',
-          textContent: 'A public Nostr comment attached to this page’s address. Anyone can see it, '
-            + 'including the address itself.',
-        }),
-        urlLine,
+        author,
+        tabBar,
         body,
+        previewPane,
         err,
         done,
-        h('div', { className: 'actions setup-actions' }, [cancel, post])
+        h('div', { className: 'actions' }, [post, cancel])
       );
 
-      // Resolve the tab AFTER the modal is up, so the URL is never read
-      // speculatively — and show exactly what will be published.
+      // Resolve the tab only after the modal is up \u2014 never speculatively, since
+      // this URL is about to be published.
       activeTabUrl().then((raw) => {
-        if (!raw) {
-          urlLine.textContent = 'Could not read the current tab.';
-          urlLine.classList.add('bad');
-          return;
-        }
-        const { url, error } = normalizeWebUrl(raw);
+        const { url, error } = normalizeWebUrl(unwrapJumbleTarget(raw));
         if (error) {
-          urlLine.textContent = error;
-          urlLine.classList.add('bad');
+          err.textContent = error;
+          tabBar.classList.add('hidden');
+          body.classList.add('hidden');
           return;
         }
         target = url;
-        urlLine.textContent = url;
-        urlLine.classList.remove('bad');
         post.disabled = false;
         body.focus();
+        // Fetch the card in the background; the Write tab is usable immediately and
+        // Preview fills in when it lands.
+        call({ type: 'SIDECAR_FETCH_OG', url: target })
+          .then((meta) => { ogMeta = meta || null; })
+          .catch(() => { ogMeta = null; })
+          .then(() => { if (!previewPane.classList.contains('hidden')) renderPreview(); });
       });
     });
   }
@@ -1567,6 +1621,27 @@
     // A bare origin normalizes to a trailing slash; a path shouldn't gain one.
     if (u.pathname !== '/' && out.endsWith('/')) out = out.slice(0, -1);
     return { url: out };
+  }
+
+  // If the tab is already a Jumble external-content view, comment on the ARTICLE it
+  // is showing rather than on the Jumble URL.
+  //
+  // Without this, reading a thread on Jumble and then commenting from Sidecar starts
+  // a second thread addressed to `jumble.social/external-content?id=…` — which is a
+  // different identifier, so it never joins the conversation the user is looking at.
+  // Silent and confusing; caught because a screenshot happened to be taken on that
+  // exact page.
+  function unwrapJumbleTarget(raw) {
+    try {
+      const u = new URL(String(raw || ''));
+      if (!/(^|\.)jumble\.social$/i.test(u.hostname)) return raw;
+      if (u.pathname !== '/external-content') return raw;
+      const inner = u.searchParams.get('id');
+      // Only unwrap to something that is itself a web page — an `id` of anything
+      // else (an npub, a note, junk) is left alone for normalizeWebUrl to refuse.
+      if (inner && /^https?:\/\//i.test(inner)) return inner;
+      return raw;
+    } catch (_) { return raw; }
   }
 
   function buildWebComment(url, content) {

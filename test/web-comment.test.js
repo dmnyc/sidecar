@@ -36,10 +36,12 @@ vm.createContext(ctx);
 vm.runInContext(
   lift(/const WEB_COMMENT_KIND = \d+;/, 'WEB_COMMENT_KIND') + '\n' +
   lift(/const TRACKING_PARAMS = \[[\s\S]*?\];/, 'TRACKING_PARAMS') + '\n' +
+  lift(/function unwrapJumbleTarget\(raw\)\s*\{[\s\S]*?\n  \}/, 'unwrapJumbleTarget') + '\n' +
   lift(/function normalizeWebUrl\(raw\)\s*\{[\s\S]*?\n  \}/, 'normalizeWebUrl') + '\n' +
   lift(/function buildWebComment\(url, content\)\s*\{[\s\S]*?\n  \}/, 'buildWebComment') + '\n' +
   lift(/const jumbleThreadUrl = [^\n]+\n[^\n]+/, 'jumbleThreadUrl') + '\n' +
   lift(/const jumbleNoteUrl = [^\n]+/, 'jumbleNoteUrl') + '\n' +
+  'globalThis.unwrapJumbleTarget = unwrapJumbleTarget;' +
   'globalThis.normalizeWebUrl = normalizeWebUrl;' +
   'globalThis.buildWebComment = buildWebComment;' +
   'globalThis.jumbleThreadUrl = jumbleThreadUrl;' +
@@ -47,7 +49,7 @@ vm.runInContext(
   'globalThis.WEB_COMMENT_KIND = WEB_COMMENT_KIND;',
   ctx
 );
-const { normalizeWebUrl, buildWebComment, jumbleThreadUrl, jumbleNoteUrl } = ctx;
+const { normalizeWebUrl, buildWebComment, jumbleThreadUrl, jumbleNoteUrl, unwrapJumbleTarget } = ctx;
 
 // The exact URL from the real Jumble comment this was modelled on.
 const CNN = 'https://www.cnn.com/2026/07/28/politics/jay-clayton-director-national-intelligence';
@@ -135,6 +137,49 @@ test('junk input returns an error rather than throwing', () => {
   for (const junk of ['', '   ', 'not a url', null, undefined, 'http://']) {
     const r = normalizeWebUrl(junk);
     assert.ok(r.error, JSON.stringify(junk) + ' should error');
+  }
+});
+
+// ---- unwrapping a Jumble thread view ------------------------------------------
+//
+// Reading a thread on Jumble and then commenting from Sidecar would otherwise
+// address the comment to `jumble.social/external-content?id=…` — a different
+// identifier from the article, so it would never join the thread on screen. Silent,
+// and only caught because a screenshot happened to be taken on that exact page.
+
+test('a Jumble external-content view unwraps to the article', () => {
+  const wrapped = jumbleThreadUrl(CNN);
+  assert.equal(unwrapJumbleTarget(wrapped), CNN);
+  // ...and the round trip through normalization still lands on the reference URL.
+  assert.equal(normalizeWebUrl(unwrapJumbleTarget(wrapped)).url, CNN);
+});
+
+test('other Jumble pages are left alone', () => {
+  for (const u of [
+    'https://jumble.social/notes/nevent1abc',
+    'https://jumble.social/users/npub1abc',
+    'https://jumble.social/',
+  ]) {
+    assert.equal(unwrapJumbleTarget(u), u, u + ' should not be unwrapped');
+  }
+});
+
+test('an external-content id that is not a web URL is not unwrapped', () => {
+  // Jumble uses this view for other identifier types; only http(s) is a page.
+  for (const id of ['npub1abc', 'note1abc', 'isbn:123', 'javascript:alert(1)', '']) {
+    const u = 'https://jumble.social/external-content?id=' + encodeURIComponent(id);
+    assert.equal(unwrapJumbleTarget(u), u, id + ' should be left for normalizeWebUrl to refuse');
+  }
+});
+
+test('unwrapping only applies to jumble.social, not a lookalike host', () => {
+  const evil = 'https://jumble.social.attacker.example/external-content?id=' + encodeURIComponent(CNN);
+  assert.equal(unwrapJumbleTarget(evil), evil, 'suffix match must be anchored to the real host');
+});
+
+test('unwrap never throws on junk', () => {
+  for (const junk of ['', 'not a url', null, undefined]) {
+    assert.doesNotThrow(() => unwrapJumbleTarget(junk));
   }
 });
 

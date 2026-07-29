@@ -1158,19 +1158,26 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 
 /* ---- comment on this page (NIP-22 kind 1111) ---- */
-/* The URL is shown verbatim because posting publishes it. Explicitly selectable —
-   this is exactly the kind of content the body-level `user-select: none` must not
-   swallow, since the whole point is being able to check it before committing. */
+/* Follows the note composer: same author header, tabs and link card. Only the bits
+   with no equivalent there are defined here.
+   The URL is a caption under the card rather than a box of its own — it IS what gets
+   published so it can't be hidden, but the card is what tells you which page this
+   is. Explicitly selectable: this is exactly the content the body-level
+   `user-select: none` must not swallow. */
 .webcomment-url {
   -webkit-user-select: text; user-select: text;
-  font-family: var(--font-ui); font-size: 11.5px; line-height: 1.45;
-  color: var(--text-2); word-break: break-all;
-  padding: 8px 10px; margin: 2px 0 10px; border-radius: 8px;
-  background: rgba(var(--well-rgb), 0.6);
-  border: 1px solid var(--border);
+  font-family: var(--font-ui); font-size: 11px; line-height: 1.45;
+  color: var(--faint); word-break: break-all; margin-top: 7px;
 }
-.webcomment-url.bad { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.4); }
 .webcomment-text { min-height: 96px; width: 100%; }
+/* The comment itself, shown under the card in Preview so the whole post can be read
+   the way it will appear. */
+.webcomment-preview-text {
+  -webkit-user-select: text; user-select: text;
+  font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5;
+  color: var(--text); margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border); white-space: pre-wrap; word-break: break-word;
+}
 .webcomment-done { display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
 .webcomment-done-title { font-weight: 600; font-size: 13.5px; color: var(--success); }
 .webcomment-done .explore-link { text-align: left; }
