@@ -7119,20 +7119,6 @@
       });
       const go = h('button', { className: 'primary', textContent: 'Connect wallet' });
 
-      const step = (n, label, btnText, url) => {
-        const row = h('div', { className: 'rizful-step' });
-        row.append(h('span', { className: 'rizful-step-n', textContent: String(n) }));
-        const body = h('div', { className: 'rizful-step-body' });
-        body.append(h('div', { className: 'rizful-step-label', textContent: label }));
-        if (btnText) {
-          const b = h('button', { className: 'secondary rizful-step-btn', textContent: btnText });
-          b.addEventListener('click', () => chrome.tabs.create({ url }));
-          body.append(b);
-        }
-        row.append(body);
-        return row;
-      };
-
       go.addEventListener('click', async () => {
         const value = code.value.trim();
         if (!value) return (err.textContent = 'Paste the code from Rizful.');
@@ -7162,34 +7148,46 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
 
-      // Who actually runs the wallet belongs next to the custodial warning, not
-      // buried: the user is being asked to trust an operator with funds, so name the
-      // operator and make it verifiable.
-      const runBy = h('p', { className: 'hint compact' });
-      runBy.append(document.createTextNode('Rizful is run by '));
+      // One action, one field, one footnote — in that order.
+      //
+      // The first pass was a numbered three-step list with its own button inside each
+      // step, above a paragraph of custodial disclosure. It read as a form to fill in
+      // rather than two things to do, and the disclosure gated the actions behind five
+      // lines of small print. Both steps 1 and 2 happen on Rizful's site anyway, so
+      // they collapse into one button; step 3 was just restating the input's own
+      // placeholder.
+      const getCode = h('button', { className: 'secondary rizful-get', textContent: 'Get a code from Rizful' });
+      getCode.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_GET_CODE_URL }));
+
+      const signup = h('button', { className: 'rizful-signup', textContent: 'New to Rizful? Create an account' });
+      signup.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_SIGNUP_URL }));
+
+      // Custody still gets said plainly, but as a closing note rather than a wall the
+      // user has to read past. "Hosted" is in the line above, which is the word that
+      // actually carries the warning.
+      const note = h('p', { className: 'rizful-note' });
+      note.append(document.createTextNode('Run by '));
       const megalith = h('a', { href: '#', className: 'explore-link inline', textContent: 'Megalith' });
       megalith.addEventListener('click', (e) => {
         e.preventDefault();
         chrome.tabs.create({ url: 'https://megalithic.me/' });
       });
-      runBy.append(megalith, document.createTextNode('.'));
+      note.append(
+        megalith,
+        document.createTextNode('. They hold the funds, not Sidecar — you can switch to a self-custodial wallet later.')
+      );
+
+      const actions = h('div', { className: 'actions setup-actions' }, [cancel, go]);
 
       modal.append(
-        h('h3', { textContent: 'Start with a Rizful wallet' }),
-        h('p', {
-          className: 'hint',
-          textContent:
-            'Rizful is a hosted Lightning wallet — they hold the funds, not you and not Sidecar. '
-            + 'It is the quickest way to start receiving zaps, and you can connect a self-custodial '
-            + 'wallet later instead.',
-        }),
-        runBy,
-        step(1, 'Create a Rizful account (skip if you have one)', 'Sign up', RIZFUL_SIGNUP_URL),
-        step(2, 'Get your one-time code', 'Get code', RIZFUL_GET_CODE_URL),
-        step(3, 'Paste it here'),
+        h('h3', { textContent: 'Start with Rizful' }),
+        h('p', { className: 'rizful-lede', textContent: 'A hosted Lightning wallet, ready in about a minute.' }),
+        getCode,
+        signup,
         code,
         err,
-        h('div', { className: 'actions' }, [cancel, go])
+        actions,
+        note
       );
       setTimeout(() => code.focus(), 50);
     });

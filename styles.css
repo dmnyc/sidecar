@@ -1645,26 +1645,39 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .wallet-quickstart .hint { margin: 0 0 11px; }
 .wallet-quickstart .primary { display: block; width: 100%; }
 
-/* Numbered steps in the Rizful modal. */
-.rizful-step { display: flex; align-items: flex-start; gap: 10px; margin: 11px 0; }
-.rizful-step-n {
-  flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; margin-top: 1px;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-ui); font-size: 11px; font-weight: 700;
-  background: var(--accent-fill, var(--gold)); color: var(--btn-primary-text, #1a0e08);
+/* Rizful quick-start modal. Deliberately few elements and larger type than the
+   first attempt, which stacked three numbered steps each carrying its own button
+   above a five-line disclosure — a lot of small text to read before anything could
+   be done. One action, one field, one closing note. */
+.rizful-lede {
+  font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5;
+  color: var(--text-2); margin: 0 0 14px;
 }
-.rizful-step-body { min-width: 0; flex: 1; }
-.rizful-step-label { font-size: 13px; color: var(--text-2); }
-.rizful-step-btn { margin-top: 6px; padding: 5px 11px; font-size: 12.5px; }
+.rizful-get { display: block; width: 100%; padding: 10px 14px; font-size: 14px; }
+/* A quiet text link, not a second button competing with the one above it. */
+.rizful-signup {
+  display: block; width: 100%; margin: -2px 0 4px;
+  background: none; border: none; cursor: pointer; padding: 6px;
+  font-family: var(--font-ui); font-size: 12.5px; color: var(--muted);
+}
+.rizful-signup:hover { color: var(--lav); }
 .rizful-code {
-  width: 100%; margin-top: 2px; padding: 9px 11px; border-radius: 9px;
-  font-size: 13px; letter-spacing: 0.04em;
+  width: 100%; margin-top: 4px; padding: 11px 12px; border-radius: 10px;
+  font-family: var(--font-ui); font-size: 14px; letter-spacing: 0.04em;
   color: var(--text); border: 1px solid var(--border);
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
+.rizful-code::placeholder { color: var(--faint); letter-spacing: normal; }
 .rizful-code:focus {
   outline: none; border-color: var(--border-strong);
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
+}
+/* Sits below the buttons, above the modal's bottom edge — visible without standing
+   between the user and the first action. */
+.rizful-note {
+  font-family: var(--font-ui); font-size: 11.5px; line-height: 1.5;
+  color: var(--faint); margin: 12px 0 0; padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 /* wallet backup card: label + status on top, full-width buttons below */
