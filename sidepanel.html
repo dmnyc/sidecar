@@ -63,6 +63,15 @@
         <button id="search-btn" class="icon-btn" title="Find a profile or note" aria-expanded="false" aria-controls="search-bar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="9"></circle><line x1="21" y1="21" x2="16.35" y2="16.35"></line></svg>
         </button>
+        <!-- Comment on the current page (NIP-22 kind 1111). Feather's message-square
+             with three dots inside: a pencil reads as "edit", and the composer FAB
+             already owns the quill. Grouped with the bell and search — those three act
+             on content, while help/settings/lock are app chrome.
+             Dots sit at y=10 with 3 units' clearance from every wall, which renders as
+             ~3.2px dots at the topbar's 19px icon size: still legible, not mud. -->
+        <button id="comment-btn" class="icon-btn" title="Comment on this page">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><circle cx="8" cy="10" r="1"></circle><circle cx="12" cy="10" r="1"></circle><circle cx="16" cy="10" r="1"></circle></svg>
+        </button>
         <button id="help-btn" class="icon-btn" title="Help &amp; guides">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line><line x1="9.17" y1="14.83" x2="4.93" y2="19.07"></line></svg>
         </button>
@@ -291,8 +300,8 @@
 
       <div class="setting">
         <h3>Client tag</h3>
-        <p class="hint">Add a “client” tag to notes you post, attributing them to Sidecar. Turn off to post without it.</p>
-        <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span>Tag notes as posted with Sidecar</span></label>
+        <p class="hint">Add a “client” tag to notes and page comments you post, attributing them to Sidecar. Turn off to post without it.</p>
+        <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span>Tag posts as made with Sidecar</span></label>
       </div>
 
       <div class="setting">

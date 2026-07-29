@@ -1,0 +1,339 @@
+'use strict';
+
+// Unit coverage for the web-comment target logic in sidepanel.js:
+// normalizeWebUrl() and buildWebComment().
+//
+// A kind:1111 comment on a webpage is addressed BY the page URL, so normalization
+// decides whether two people commenting on the same page land in the same thread.
+// Getting it wrong doesn't raise an error — it silently splits the conversation, so
+// the rules are pinned here rather than left to manual checking.
+//
+// The tag shape asserted below was taken from a real Jumble comment, fetched from
+// relays and decoded, not inferred from the spec.
+//
+// One trap this guards against: nostr-tools' utils.normalizeURL — the obvious thing
+// to reuse, since Sidecar already imports it for relay URLs — rewrites https:// to
+// wss://. Using it here would tag every comment with an address that threads with
+// nothing at all.
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const ROOT = path.join(__dirname, '..');
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+
+function lift(pattern, label) {
+  const m = source.match(pattern);
+  if (!m) throw new Error('Could not find ' + label + ' in sidepanel.js');
+  return m[0];
+}
+
+// NT is the panel's alias for window.NostrTools; mentionPTags decodes npubs with it.
+const ctx = { console, URL, Date, NT: require('nostr-tools') };
+vm.createContext(ctx);
+vm.runInContext(
+  lift(/const WEB_COMMENT_KIND = \d+;/, 'WEB_COMMENT_KIND') + '\n' +
+  lift(/const TRACKING_PARAMS = \[[\s\S]*?\];/, 'TRACKING_PARAMS') + '\n' +
+  lift(/function unwrapJumbleTarget\(raw\)\s*\{[\s\S]*?\n  \}/, 'unwrapJumbleTarget') + '\n' +
+  lift(/function normalizeWebUrl\(raw\)\s*\{[\s\S]*?\n  \}/, 'normalizeWebUrl') + '\n' +
+  lift(/const CLIENT_TAG = [^\n]+/, 'CLIENT_TAG') + '\n' +
+  // buildWebComment calls this to p-tag mentions, so it has to come along.
+  lift(/function mentionPTags\(content\)\s*\{[\s\S]*?\n  \}/, 'mentionPTags') + '\n' +
+  lift(/function buildWebComment\(url, content, includeClientTag\)\s*\{[\s\S]*?\n  \}/, 'buildWebComment') + '\n' +
+  lift(/const jumbleThreadUrl = [^\n]+\n[^\n]+/, 'jumbleThreadUrl') + '\n' +
+  lift(/const jumbleNoteUrl = [^\n]+/, 'jumbleNoteUrl') + '\n' +
+  'globalThis.unwrapJumbleTarget = unwrapJumbleTarget;' +
+  'globalThis.normalizeWebUrl = normalizeWebUrl;' +
+  'globalThis.buildWebComment = buildWebComment;' +
+  'globalThis.jumbleThreadUrl = jumbleThreadUrl;' +
+  'globalThis.jumbleNoteUrl = jumbleNoteUrl;' +
+  'globalThis.WEB_COMMENT_KIND = WEB_COMMENT_KIND;',
+  ctx
+);
+const { normalizeWebUrl, buildWebComment, jumbleThreadUrl, jumbleNoteUrl, unwrapJumbleTarget } = ctx;
+
+// The exact URL from the real Jumble comment this was modelled on.
+const CNN = 'https://www.cnn.com/2026/07/28/politics/jay-clayton-director-national-intelligence';
+
+test('the reference URL passes through byte-for-byte', () => {
+  // If this changes, Sidecar's comments stop threading with Jumble's.
+  assert.equal(normalizeWebUrl(CNN).url, CNN);
+});
+
+test('the fragment is stripped — NIP-73 requires it, and #section is the same page', () => {
+  assert.equal(normalizeWebUrl(CNN + '#comments').url, CNN);
+  assert.equal(normalizeWebUrl('https://example.com/a#x').url, 'https://example.com/a');
+});
+
+test('tracking params are dropped, so share links do not fork the thread', () => {
+  const cases = [
+    '?utm_source=twitter', '?utm_medium=social&utm_campaign=x', '?fbclid=abc',
+    '?gclid=abc', '?igshid=zzz', '?mc_cid=1&mc_eid=2', '?ttclid=q',
+  ];
+  for (const q of cases) {
+    assert.equal(normalizeWebUrl(CNN + q).url, CNN, 'failed for ' + q);
+  }
+});
+
+// This is the counterweight: for plenty of sites the query IS the page.
+test('a meaningful query is KEPT', () => {
+  assert.equal(
+    normalizeWebUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ').url,
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+  );
+  // ...even mixed with tracking noise, which is dropped around it.
+  assert.equal(
+    normalizeWebUrl('https://www.youtube.com/watch?v=abc&utm_source=x').url,
+    'https://www.youtube.com/watch?v=abc'
+  );
+});
+
+test('query order does not create two threads for one page', () => {
+  const a = normalizeWebUrl('https://example.com/p?b=2&a=1').url;
+  const b = normalizeWebUrl('https://example.com/p?a=1&b=2').url;
+  assert.equal(a, b);
+});
+
+test('a bare origin gets one trailing slash; a path never gains one', () => {
+  assert.equal(normalizeWebUrl('https://example.com').url, 'https://example.com/');
+  assert.equal(normalizeWebUrl('https://example.com/').url, 'https://example.com/');
+  assert.equal(normalizeWebUrl('https://example.com/path/').url, 'https://example.com/path');
+});
+
+test('the host is case-folded but the path is not', () => {
+  // Hosts are case-insensitive; paths are not, and folding them would point at a
+  // different resource on plenty of servers.
+  const out = normalizeWebUrl('https://Example.COM/Path/To/Thing').url;
+  assert.equal(out, 'https://example.com/Path/To/Thing');
+});
+
+// Refusals. Each of these would either be meaningless to another reader or would
+// publish something private, so they must fail closed with a reason rather than
+// being guessed at.
+test('non-web schemes are refused, not normalized', () => {
+  for (const bad of [
+    'chrome://extensions',
+    'about:debugging',
+    'moz-extension://abc/sidepanel.html',
+    'chrome-extension://abc/sidepanel.html',
+    'file:///Users/daniel/secret.txt',
+    'data:text/html,<h1>x',
+    'javascript:alert(1)',
+  ]) {
+    const r = normalizeWebUrl(bad);
+    assert.ok(r.error, bad + ' must be refused');
+    assert.equal(r.url, undefined, bad + ' must not yield a URL');
+  }
+});
+
+// file:// would publish a path from this machine to a public relay.
+test('a local path is never publishable', () => {
+  assert.ok(normalizeWebUrl('file:///Users/daniel/Documents/notes.txt').error);
+  assert.ok(normalizeWebUrl('http://localhost:3000/admin').error);
+  assert.ok(normalizeWebUrl('http://127.0.0.1:8080/').error);
+  assert.ok(normalizeWebUrl('http://192.168.1.1/router').error);
+});
+
+test('junk input returns an error rather than throwing', () => {
+  for (const junk of ['', '   ', 'not a url', null, undefined, 'http://']) {
+    const r = normalizeWebUrl(junk);
+    assert.ok(r.error, JSON.stringify(junk) + ' should error');
+  }
+});
+
+// ---- unwrapping a Jumble thread view ------------------------------------------
+//
+// Reading a thread on Jumble and then commenting from Sidecar would otherwise
+// address the comment to `jumble.social/external-content?id=…` — a different
+// identifier from the article, so it would never join the thread on screen. Silent,
+// and only caught because a screenshot happened to be taken on that exact page.
+
+test('a Jumble external-content view unwraps to the article', () => {
+  const wrapped = jumbleThreadUrl(CNN);
+  assert.equal(unwrapJumbleTarget(wrapped), CNN);
+  // ...and the round trip through normalization still lands on the reference URL.
+  assert.equal(normalizeWebUrl(unwrapJumbleTarget(wrapped)).url, CNN);
+});
+
+test('other Jumble pages are left alone', () => {
+  for (const u of [
+    'https://jumble.social/notes/nevent1abc',
+    'https://jumble.social/users/npub1abc',
+    'https://jumble.social/',
+  ]) {
+    assert.equal(unwrapJumbleTarget(u), u, u + ' should not be unwrapped');
+  }
+});
+
+test('an external-content id that is not a web URL is not unwrapped', () => {
+  // Jumble uses this view for other identifier types; only http(s) is a page.
+  for (const id of ['npub1abc', 'note1abc', 'isbn:123', 'javascript:alert(1)', '']) {
+    const u = 'https://jumble.social/external-content?id=' + encodeURIComponent(id);
+    assert.equal(unwrapJumbleTarget(u), u, id + ' should be left for normalizeWebUrl to refuse');
+  }
+});
+
+test('unwrapping only applies to jumble.social, not a lookalike host', () => {
+  const evil = 'https://jumble.social.attacker.example/external-content?id=' + encodeURIComponent(CNN);
+  assert.equal(unwrapJumbleTarget(evil), evil, 'suffix match must be anchored to the real host');
+});
+
+test('unwrap never throws on junk', () => {
+  for (const junk of ['', 'not a url', null, undefined]) {
+    assert.doesNotThrow(() => unwrapJumbleTarget(junk));
+  }
+});
+
+// ---- the event ----------------------------------------------------------------
+
+test('the event matches the tag shape a real Jumble comment uses', () => {
+  const ev = buildWebComment(CNN, 'hello', false);
+  assert.equal(ev.kind, 1111);
+  assert.equal(ev.content, 'hello');
+  // Compared as JSON, not deepEqual: the tags are built inside the vm realm, so
+  // their prototype differs from the host's Array and assert/strict's deepEqual
+  // fails on that alone ("same structure but not reference-equal").
+  assert.equal(JSON.stringify(ev.tags), JSON.stringify([
+    ['I', CNN],   // uppercase = root scope
+    ['K', 'web'], // uppercase = root kind
+    ['i', CNN],   // lowercase = parent scope
+    ['k', 'web'], // lowercase = parent kind
+  ]));
+});
+
+test('root and parent are identical for a top-level comment', () => {
+  const ev = buildWebComment(CNN, 'x', false);
+  const I = ev.tags.find((t) => t[0] === 'I');
+  const i = ev.tags.find((t) => t[0] === 'i');
+  assert.equal(I[1], i[1], 'a comment on the page, not a reply to a comment');
+});
+
+test('created_at is unix SECONDS', () => {
+  const ev = buildWebComment(CNN, 'x', false);
+  assert.ok(ev.created_at > 1_000_000_000 && ev.created_at < 100_000_000_000);
+});
+
+// Jumble renders this as "via Sidecar" — ReplyNote and NotePage both mount
+// <ClientTag> with no kind gate, so a 1111 shows it just like a note does.
+test('the client tag is appended when enabled', () => {
+  const ev = buildWebComment(CNN, 'x', true);
+  assert.equal(JSON.stringify(ev.tags[ev.tags.length - 1]), JSON.stringify(['client', 'Sidecar']));
+});
+
+test('the four scope tags keep their verified leading order with the client tag on', () => {
+  // The I/K/i/k prefix is what was checked byte-for-byte against a real comment;
+  // appending must not disturb it, so a future diff against one stays clean.
+  const ev = buildWebComment(CNN, 'x', true);
+  assert.equal(JSON.stringify(ev.tags.slice(0, 4)), JSON.stringify([
+    ['I', CNN], ['K', 'web'], ['i', CNN], ['k', 'web'],
+  ]));
+  assert.equal(ev.tags.length, 5);
+});
+
+test('the tag is omitted when the setting is off — the toggle must actually work', () => {
+  for (const off of [false, undefined]) {
+    const ev = buildWebComment(CNN, 'x', off);
+    assert.equal(ev.tags.length, 4, 'no client tag expected for ' + String(off));
+    assert.ok(!ev.tags.some((t) => t[0] === 'client'));
+  }
+});
+
+test('the exported CLIENT_TAG is never mutated between events', () => {
+  // buildWebComment pushes a copy; without .slice() a later edit to one event's tag
+  // would reach back into the shared constant.
+  const a = buildWebComment(CNN, 'x', true);
+  a.tags[a.tags.length - 1][1] = 'Tampered';
+  const b = buildWebComment(CNN, 'y', true);
+  assert.equal(b.tags[b.tags.length - 1][1], 'Sidecar');
+});
+
+// ---- mentions ------------------------------------------------------------------
+// The comment box is the note composer's editor (createMentionEditor), so an
+// @mention serializes to a bare `nostr:npub1…` token in the content. Without a
+// matching p tag the person tagged is never notified — the comment renders their
+// name and they never find out, which is the bug these pin shut.
+
+const NT = require('nostr-tools');
+// Two arbitrary but fixed keys: the assertions are about tag plumbing, not identity.
+const PK_A = '3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d';
+const PK_B = '82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6d2';
+const NPUB_A = NT.nip19.npubEncode(PK_A);
+const NPUB_B = NT.nip19.npubEncode(PK_B);
+
+// Spread into a HOST array: filter/map on vm-realm tags return vm-realm arrays, and
+// assert/strict's deepEqual rejects those on prototype alone ("same structure but not
+// reference-equal") even when every element matches. Same trap as the JSON.stringify
+// comparison above.
+const pTags = (ev) => [...ev.tags.filter((t) => t[0] === 'p').map((t) => t[1])];
+
+test('a mention in a comment becomes a p tag, so the person is actually notified', () => {
+  const ev = buildWebComment(CNN, 'good point nostr:' + NPUB_A, false);
+  assert.deepEqual(pTags(ev), [PK_A]);
+});
+
+test('an nprofile mention resolves to its pubkey', () => {
+  const nprofile = NT.nip19.nprofileEncode({ pubkey: PK_B, relays: ['wss://relay.example'] });
+  const ev = buildWebComment(CNN, 'nostr:' + nprofile + ' see this', false);
+  assert.deepEqual(pTags(ev), [PK_B], 'the relay hint must not end up in the tag');
+});
+
+test('several mentions are all tagged, in the order written', () => {
+  const ev = buildWebComment(CNN, 'nostr:' + NPUB_A + ' and nostr:' + NPUB_B, false);
+  assert.deepEqual(pTags(ev), [PK_A, PK_B]);
+});
+
+test('mentioning the same person twice tags them once', () => {
+  const ev = buildWebComment(CNN, 'nostr:' + NPUB_A + ' … also nostr:' + NPUB_A, false);
+  assert.deepEqual(pTags(ev), [PK_A], 'a duplicate p tag is a malformed event');
+});
+
+test('the p tags sit after the four scope tags and before the client tag', () => {
+  // Same ordering guarantee as the client-tag test: the I/K/i/k prefix was verified
+  // byte-for-byte against a real comment and mentions must not disturb it.
+  const ev = buildWebComment(CNN, 'hi nostr:' + NPUB_A, true);
+  assert.equal(JSON.stringify(ev.tags), JSON.stringify([
+    ['I', CNN], ['K', 'web'], ['i', CNN], ['k', 'web'],
+    ['p', PK_A],
+    ['client', 'Sidecar'],
+  ]));
+});
+
+test('a comment with no mention carries no p tags', () => {
+  assert.deepEqual(pTags(buildWebComment(CNN, 'just a plain comment', false)), []);
+});
+
+test('an npub-shaped token that is not valid bech32 is skipped, not thrown on', () => {
+  // A user can type or paste this by hand; mentionPTags swallows the decode error.
+  const ev = buildWebComment(CNN, 'nostr:npub1thisisnotarealkeyatall', false);
+  assert.deepEqual(pTags(ev), []);
+  assert.equal(ev.kind, 1111, 'the comment still builds');
+});
+
+test('a bare npub with no nostr: prefix is NOT tagged', () => {
+  // Only the serializer's `nostr:` form counts. A pasted bare npub renders as text
+  // in every client, so tagging it would notify someone the reader never sees named.
+  assert.deepEqual(pTags(buildWebComment(CNN, 'ask ' + NPUB_A, false)), []);
+});
+
+// ---- the Jumble links ---------------------------------------------------------
+
+test('the thread link matches the external-content format', () => {
+  assert.equal(
+    jumbleThreadUrl(CNN),
+    'https://jumble.social/external-content?id=' +
+      'https%3A%2F%2Fwww.cnn.com%2F2026%2F07%2F28%2Fpolitics%2Fjay-clayton-director-national-intelligence'
+  );
+});
+
+test('the URL is encoded, so a query in the target cannot break the link', () => {
+  const link = jumbleThreadUrl('https://example.com/a?b=1&c=2');
+  assert.ok(!link.slice('https://jumble.social/external-content?id='.length).includes('&'),
+    'an unencoded & would read as a second Jumble param');
+});
+
+test('the note link matches the notes format', () => {
+  assert.equal(jumbleNoteUrl('nevent1abc'), 'https://jumble.social/notes/nevent1abc');
+});

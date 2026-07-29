@@ -805,6 +805,181 @@
     if (a) showNotifModal(a);
   });
 
+  // Comment on the page in the active tab. Opened from the topbar pencil.
+  //
+  // Deliberately built to the New-note convention rather than its own shape: same
+  // "Posting as" header, same Write/Preview tabs, same link card, same button
+  // order. A second composer that looked different would read as a different app.
+  function webCommentModal() {
+    openModal((modal) => {
+      const err = h('div', { className: 'error' });
+
+      // Who this posts as. Same block the note composer uses — a public comment
+      // signed by an account you might not have realized was active is exactly the
+      // mistake this prevents.
+      const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+      const author = h('div', { className: 'compose-author' });
+      author.append(avatarEl(active || {}, 'compose-author-av'));
+      author.append(
+        h('div', { className: 'compose-author-info' }, [
+          h('span', { className: 'compose-author-eyebrow', textContent: 'Commenting as' }),
+          h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '\u2014' }),
+        ])
+      );
+
+      const tabWrite = h('button', { className: 'compose-tab active', textContent: 'Write' });
+      const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
+      const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
+
+      // The note composer's editor, reused verbatim, so a comment can tag people
+      // the same way a note can. Mentions land as nostr: pills that
+      // buildWebComment turns into the p tags a client needs to notify them.
+      const commentEditor = createMentionEditor({
+        placeholder: 'Write a comment about this page\u2026',
+      });
+      const previewPane = h('div', { className: 'compose-preview hidden' });
+
+      const post = h('button', { className: 'primary', textContent: 'Post comment' });
+      post.disabled = true;
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      let target = null;   // the normalized URL this comments on
+      let ogMeta;          // undefined = not fetched, null = no preview available
+
+      // The page being commented on. This sits ABOVE the tabs, not inside Preview,
+      // because it's CONTEXT rather than content — the same reason "Commenting as"
+      // is up there. A kind:1111 is defined by its target, so writing a comment
+      // without being able to see what you're commenting on is the wrong shape; the
+      // first version hid it behind the Preview tab and the Write pane was a blank
+      // box with no subject.
+      const targetBlock = h('div', { className: 'webcomment-target' });
+
+      function renderTarget() {
+        targetBlock.innerHTML = '';
+        if (!target) return;
+        if (ogMeta === undefined) {
+          targetBlock.append(h('div', { className: 'link-card loading' }));
+        } else if (ogMeta) {
+          const card = h('a', { className: 'link-card' });
+          renderLinkCard(card, target, ogMeta);
+          targetBlock.append(card);
+        }
+        // The URL is what actually gets published, so it stays visible even when a
+        // card renders — as a caption, not the headline.
+        targetBlock.append(h('div', { className: 'webcomment-url', textContent: target }));
+      }
+
+      // Preview now shows only the comment itself, since the target is permanent
+      // above.
+      function renderPreview() {
+        previewPane.innerHTML = '';
+        const text = commentEditor.getText().trim();
+        previewPane.append(text
+          ? h('div', { className: 'webcomment-preview-text', textContent: text })
+          : h('p', { className: 'hint', textContent: 'Nothing written yet.' }));
+      }
+
+      function showTab(which) {
+        const preview = which === 'preview';
+        tabWrite.classList.toggle('active', !preview);
+        tabPreview.classList.toggle('active', preview);
+        commentEditor.wrap.classList.toggle('hidden', preview);
+        previewPane.classList.toggle('hidden', !preview);
+        if (preview) { commentEditor.close(); renderPreview(); }
+      }
+      tabWrite.addEventListener('click', () => showTab('write'));
+      tabPreview.addEventListener('click', () => showTab('preview'));
+
+      // Shown after posting: both links point at Jumble, since almost nothing else
+      // renders a kind:1111 over a web target.
+      const done = h('div', { className: 'webcomment-done hidden' });
+      const link = (label, href) => {
+        const a = h('a', { className: 'explore-link', href: '#', textContent: label });
+        a.addEventListener('click', (e) => { e.preventDefault(); chrome.tabs.create({ url: href }); });
+        return a;
+      };
+
+      post.addEventListener('click', async () => {
+        const text = commentEditor.getText().trim();
+        if (!target) return (err.textContent = 'No page to comment on.');
+        if (!text) return (err.textContent = 'Write something first.');
+        err.textContent = '';
+        post.disabled = true;
+        post.textContent = 'Posting\u2026';
+        try {
+          // Same opt-out the note composer honours (Settings → "Show client tag").
+          const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+          const withClient = !(settings && settings.showClientTag === false);
+          const signed = await call({
+            type: 'SIDECAR_OWNER_SIGN',
+            event: buildWebComment(target, text, withClient),
+          });
+          await publishSigned(signed);
+          let nevent = '';
+          try {
+            nevent = NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays: [] });
+          } catch (_) {}
+          commentEditor.editor.contentEditable = 'false';
+          tabBar.classList.add('hidden');
+          commentEditor.wrap.classList.add('hidden');
+          previewPane.classList.add('hidden');
+          post.classList.add('hidden');
+          done.classList.remove('hidden');
+          done.append(
+            h('div', { className: 'webcomment-done-title', textContent: 'Comment posted' }),
+            // Jumble is named because it's currently the only client that renders a
+            // kind:1111 over a web target \u2014 "view your comment" without saying where
+            // suggests it's visible wherever you normally read Nostr, and it isn't.
+            // Drop the name once other clients catch up.
+            nevent ? link('View your comment on Jumble \u2192', jumbleNoteUrl(nevent)) : document.createTextNode(''),
+            link('See all comments on this page \u2192', jumbleThreadUrl(target))
+          );
+          cancel.textContent = 'Close';
+          toast('Comment posted', 'success');
+        } catch (e) {
+          err.textContent = (e && e.message) || 'Could not post that comment.';
+          post.disabled = false;
+          post.textContent = 'Post comment';
+        }
+      });
+
+      modal.append(
+        h('h3', { textContent: 'Comment on this page' }),
+        author,
+        targetBlock, // above the tabs: the subject, not one of the two views
+        tabBar,
+        commentEditor.wrap,
+        previewPane,
+        err,
+        done,
+        h('div', { className: 'actions' }, [post, cancel])
+      );
+
+      // Resolve the tab only after the modal is up \u2014 never speculatively, since this
+      // URL is about to be published.
+      activeTabUrl().then((raw) => {
+        const { url, error } = normalizeWebUrl(unwrapJumbleTarget(raw));
+        if (error) {
+          err.textContent = error;
+          tabBar.classList.add('hidden');
+          commentEditor.wrap.classList.add('hidden');
+          return;
+        }
+        target = url;
+        post.disabled = false;
+        renderTarget(); // shows the URL and a loading card immediately
+        commentEditor.focus();
+        // The card fills in when the fetch lands; the Write pane is usable throughout
+        // and already shows the URL, so nothing waits on the network.
+        call({ type: 'SIDECAR_FETCH_OG', url: target })
+          .then((meta) => { ogMeta = meta || null; })
+          .catch(() => { ogMeta = null; })
+          .then(renderTarget);
+      });
+    });
+  }
+
   // ---- search: paste an identifier, open it in your client ----
   // Deliberately has no index behind it. A NIP-19 string already *contains* what
   // it points at — the npub is the pubkey, the nevent is the event id — so this
@@ -1033,6 +1208,8 @@
       if (searchResults.length) clearSearchResults(); else closeSearch();
     }
   });
+
+  $('comment-btn').addEventListener('click', webCommentModal);
 
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
@@ -1433,6 +1610,145 @@
     return publishToRelays(await postRelays(), signed);
   }
 
+  // ---- web comments (NIP-22 kind 1111 over a NIP-73 "web" target) -------------
+  //
+  // Comment on any page you're looking at. The event is a kind:1111 whose scope is
+  // the page URL, which is how Jumble's external-content view finds it.
+  //
+  // Tag shape is taken from a REAL Jumble comment, fetched and decoded rather than
+  // inferred from the spec — uppercase is the root scope, lowercase the parent, and
+  // for a top-level comment they're the same:
+  //
+  //   ["I", url] ["K", "web"] ["i", url] ["k", "web"]
+  //
+  // The identifier is the URL itself, so normalization decides whether two people
+  // commenting on the same page land in the same thread. Getting it wrong doesn't
+  // error — it silently splits the conversation.
+  const WEB_COMMENT_KIND = 1111;
+
+  // Params that identify where a visitor came FROM, never which page they're on.
+  // Left in, every share link spawns its own thread.
+  const TRACKING_PARAMS = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id',
+    'fbclid', 'gclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'igshid', 'mc_cid',
+    'mc_eid', 'ref_src', 'ref_url', 's_kwcid', 'yclid', '_ga', 'ttclid',
+  ];
+
+  // Reduce a page URL to the identifier the comment is tagged with.
+  // Returns { url } or { error } — never throws, and never guesses on refusal.
+  //
+  // Deliberately NOT nostr-tools' utils.normalizeURL: that one is built for relay
+  // URLs and rewrites https:// to wss://, which would tag every comment with an
+  // address that threads with nothing.
+  function normalizeWebUrl(raw) {
+    let u;
+    try { u = new URL(String(raw || '').trim()); } catch (_) { return { error: 'That is not a URL Sidecar can comment on.' }; }
+    // Only real web pages. chrome://, about:, moz-extension:// and friends aren't
+    // public documents, and file:// would publish a path from this machine to a
+    // relay — which is a privacy leak, not a comment.
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+      return { error: 'Only http and https pages can be commented on.' };
+    }
+    if (!u.hostname || u.hostname === 'localhost' || /^(\d{1,3}\.){3}\d{1,3}$/.test(u.hostname)) {
+      return { error: 'That page is local, so nobody else could open the comment.' };
+    }
+    u.hash = ''; // NIP-73 requires no fragment: #section is the same document
+    for (const p of TRACKING_PARAMS) u.searchParams.delete(p);
+    // The query itself stays — for plenty of sites it IS the page identity
+    // (youtube.com/watch?v=…), so stripping it would merge unrelated pages.
+    u.searchParams.sort(); // ?b=1&a=2 and ?a=2&b=1 are the same page
+    let out = u.toString();
+    // A bare origin normalizes to a trailing slash; a path shouldn't gain one.
+    if (u.pathname !== '/' && out.endsWith('/')) out = out.slice(0, -1);
+    return { url: out };
+  }
+
+  // If the tab is already a Jumble external-content view, comment on the ARTICLE it
+  // is showing rather than on the Jumble URL.
+  //
+  // Without this, reading a thread on Jumble and then commenting from Sidecar starts
+  // a second thread addressed to `jumble.social/external-content?id=…` — which is a
+  // different identifier, so it never joins the conversation the user is looking at.
+  // Silent and confusing; caught because a screenshot happened to be taken on that
+  // exact page.
+  function unwrapJumbleTarget(raw) {
+    try {
+      const u = new URL(String(raw || ''));
+      if (!/(^|\.)jumble\.social$/i.test(u.hostname)) return raw;
+      if (u.pathname !== '/external-content') return raw;
+      const inner = u.searchParams.get('id');
+      // Only unwrap to something that is itself a web page — an `id` of anything
+      // else (an npub, a note, junk) is left alone for normalizeWebUrl to refuse.
+      if (inner && /^https?:\/\//i.test(inner)) return inner;
+      return raw;
+    } catch (_) { return raw; }
+  }
+
+  // `p` tags for every profile mentioned in the text, deduped and in order.
+  //
+  // This is what makes a mention reach the person mentioned: notification discovery
+  // is `{'#p': [pubkey]}` (see the bell's own filter), so a mention with no p tag
+  // renders for every reader and is invisible to its target. Shared by notes and
+  // comments — it was inline in the note composer, and duplicating it is how the two
+  // drifted apart in the first place.
+  function mentionPTags(content) {
+    const out = [];
+    const seen = new Set();
+    const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+    let m;
+    while ((m = re.exec(String(content || ''))) !== null) {
+      try {
+        const d = NT.nip19.decode(m[1]);
+        const pk = d.type === 'npub' ? d.data : d.data.pubkey;
+        if (pk && !seen.has(pk)) { seen.add(pk); out.push(['p', pk]); }
+      } catch (_) { /* malformed mention — skip it, don't fail the post */ }
+    }
+    return out;
+  }
+
+  // `includeClientTag` comes from the same Settings toggle that governs notes, so
+  // the switch means what it says rather than covering only kind 1. Verified that
+  // Jumble renders it: ReplyNote and NotePage both mount <ClientTag> with no kind
+  // gate, so this shows as "via Sidecar" beside the name in a thread.
+  function buildWebComment(url, content, includeClientTag) {
+    // Root and parent are identical: this is a top-level comment on the page, not a
+    // reply to another comment.
+    const tags = [['I', url], ['K', 'web'], ['i', url], ['k', 'web']];
+    // Then who's involved, so a mention actually notifies the person mentioned.
+    tags.push(...mentionPTags(content));
+    // Appended rather than prepended (notes put it first): these four scope tags are
+    // what was verified byte-for-byte against a real Jumble comment, so keeping them
+    // as the leading shape means a future diff against one stays clean. The client
+    // tag is metadata and position carries no meaning — readers use find().
+    if (includeClientTag) tags.push(CLIENT_TAG.slice());
+    return {
+      kind: WEB_COMMENT_KIND,
+      created_at: Math.floor(Date.now() / 1000),
+      tags,
+      content: content,
+    };
+  }
+
+  // Jumble is where these are actually readable — most clients don't render
+  // kind:1111 over a web target at all, which is why both links point there.
+  const jumbleThreadUrl = (url) =>
+    'https://jumble.social/external-content?id=' + encodeURIComponent(url);
+  const jumbleNoteUrl = (nevent) => 'https://jumble.social/notes/' + nevent;
+
+  // The URL of the page the user is looking at. Read only when the comment panel
+  // is opened — never speculatively — because it's about to be published.
+  function activeTabUrl() {
+    return new Promise((resolve) => {
+      if (!(chrome.tabs && chrome.tabs.query)) return resolve(null);
+      try {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (chrome.runtime.lastError) return resolve(null);
+          resolve((tabs && tabs[0] && tabs[0].url) || null);
+        });
+      } catch (_) { resolve(null); }
+    });
+  }
+
   // Build and publish a NIP-65 (kind:10002) relay list from the editor's model:
   // [{ url, read, write }]. A relay with both markers gets a plain ['r', url]
   // tag (per spec, no marker = both); otherwise the single applicable marker.
@@ -1601,6 +1917,9 @@
       const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
       return { glyph, text: 'reacted to your note' };
     }
+    // A NIP-22 comment that p-tags you. Worth its own wording: "mentioned you" sends
+    // the reader looking for a note, and this is a comment on a page.
+    if (ev.kind === WEB_COMMENT_KIND) return { glyph: '@', text: 'mentioned you in a comment' };
     // kind 1
     const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
     // Ornamental quote mark (U+275D) — a text glyph like the '@' below, so it
@@ -1637,8 +1956,10 @@
   // target (card just isn't clickable then).
   function notifLink(ev, client, acctPubkey) {
     try {
-      // kind 1 (reply/mention) → the note itself.
-      if (ev.kind === 1) {
+      // kind 1 (reply/mention) → the note itself. Same for a kind 1111 comment: it
+      // carries I/i scope tags rather than `e`, so every branch below would miss it
+      // and the row would render with no link at all.
+      if (ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) {
         return client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] }));
       }
 
@@ -1859,7 +2180,10 @@
       // own notes — matched by id so they're caught even without a `p` tag.
       const ownIdList = [...ownIds];
       function buildFilters(sinceTs, limit) {
-        const base = { kinds: [1, 6, 7, 9735], '#p': [a.pubkey], since: sinceTs };
+        // 1111 is a NIP-22 comment (e.g. on a web page). Included so a mention inside
+        // one reaches you: Sidecar writes p tags on comments now, and not querying
+        // them would leave it a client that can send a mention but never receive one.
+        const base = { kinds: [1, 6, 7, 1111, 9735], '#p': [a.pubkey], since: sinceTs };
         const list = [limit ? Object.assign({ limit }, base) : base];
         if (ownIdList.length) {
           const repost = { kinds: [6], '#e': ownIdList, since: sinceTs };
@@ -1970,7 +2294,7 @@
       // Action row
       item.appendChild(h('div', { className: 'notif-action', textContent: text }));
 
-      if (ev.kind === 1 && ev.content) {
+      if ((ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) && ev.content) {
         const cleaned = cleanSnippet(ev.content);
         if (cleaned) {
           const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
@@ -2095,7 +2419,7 @@
         const need = new Set();
         events.forEach((e) => {
           need.add(zapSender(e)); // the zapper for zaps, the author otherwise
-          if (e.kind === 1 && e.content) {
+          if ((e.kind === 1 || e.kind === WEB_COMMENT_KIND) && e.content) {
             const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
             let mm;
             while ((mm = re.exec(e.content)) !== null) {
@@ -4757,6 +5081,228 @@
     if (last < text.length) appendText(text.slice(last));
   }
 
+  // A rich text box with @mention autocomplete and pills, shared by the note
+  // composer and the page-comment modal. Owns its own dropdown state so two can
+  // coexist; the caller supplies `onChange` for whatever it does with the text
+  // (draft autosave, enabling a Post button, repainting a preview).
+  //
+  // Returns { wrap, editor, getText, setText, focus, close }. Append `wrap` —
+  // not `editor` — since the dropdown positions itself against the wrapper.
+  function createMentionEditor(opts) {
+    const onChange = (opts && opts.onChange) || (() => {});
+    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
+    editor.dataset.placeholder = (opts && opts.placeholder) || '';
+    const wrap = h('div', { className: 'compose-editor-wrap' });
+    wrap.append(editor);
+
+    let acDropdown = null, acResults = [], acIndex = 0;
+    let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
+
+    function syncEmptyClass() {
+      const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
+      editor.classList.toggle('is-empty', isEmpty);
+      if (isEmpty) editor.innerHTML = '';
+    }
+
+    // Report the text upward, keeping the placeholder state in sync first.
+    function emit() {
+      const text = serializeEditor(editor);
+      syncEmptyClass();
+      onChange(text);
+    }
+
+    function getCaretContext() {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return null;
+      const range = sel.getRangeAt(0);
+      if (!range.collapsed) return null;
+      const node = range.startContainer;
+      if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
+      const before = node.textContent.slice(0, range.startOffset);
+      const match = before.match(/@([^\s@]*)$/);
+      if (!match) return null;
+      return { node, query: match[1] };
+    }
+
+    function closeAcDropdown() {
+      if (acDropdown) { acDropdown.remove(); acDropdown = null; }
+      acResults = []; acIndex = 0;
+    }
+
+    function updateAcActiveItem() {
+      if (!acDropdown) return;
+      acDropdown.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acIndex));
+    }
+
+    function selectAcItem(contact, query) {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      if (node.nodeType !== Node.TEXT_NODE) return;
+      const offset = range.startOffset;
+      // Text before the '@'. Trim any trailing whitespace and re-add exactly one
+      // space, so the mention is always preceded by a single space (or nothing
+      // at line start). Trimming the whole run both collapses a stray double
+      // space and sidesteps the old single-code-unit check, which mis-read an
+      // emoji's surrogate half (e.g. 🤝) as a non-space char and inserted an
+      // extra space.
+      const beforeAt = node.textContent.slice(0, Math.max(0, offset - (query.length + 1)));
+      const trimmed = beforeAt.replace(/\s+$/, '');
+      const atStart = trimmed.length;
+      const needsLeadingSpace = trimmed.length > 0;
+      range.setStart(node, atStart);
+      range.setEnd(node, offset);
+      range.deleteContents();
+      const pill = document.createElement('span');
+      pill.className = 'mention-pill';
+      pill.contentEditable = 'false';
+      pill.dataset.bech32 = 'nostr:' + NT.nip19.npubEncode(contact.pubkey);
+      pill.textContent = '@' + contact.name;
+      if (needsLeadingSpace) range.insertNode(document.createTextNode(' '));
+      range.collapse(false);
+      range.insertNode(pill);
+      // NBSP after pill: never collapsed by the browser, normalized to space by serializer.
+      const trailingSpace = document.createTextNode(' ');
+      range.setStartAfter(pill);
+      range.insertNode(trailingSpace);
+      range.setStartAfter(trailingSpace);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      closeAcDropdown();
+      emit();
+    }
+
+    // Anchor the dropdown just under the caret line rather than the bottom of
+    // the (tall) editor box. Falls back to the CSS default if no caret rect.
+    function positionAcDropdown() {
+      if (!acDropdown) return;
+      try {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        const r = sel.getRangeAt(0).getBoundingClientRect();
+        if (!r || (!r.top && !r.bottom)) return;
+        const wrapRect = wrap.getBoundingClientRect();
+        acDropdown.style.top = Math.round(r.bottom - wrapRect.top + 4) + 'px';
+      } catch (_) {}
+    }
+
+    // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
+    // and keeps the dropdown open even when there are no local matches yet.
+    function renderAcResults(items, ctx, loading) {
+      acResults = items;
+      if (!acResults.length && !loading) { closeAcDropdown(); return; }
+      acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
+      if (!acDropdown) {
+        acDropdown = h('div', { className: 'ac-dropdown' });
+        wrap.append(acDropdown);
+      }
+      positionAcDropdown();
+      acDropdown.innerHTML = '';
+      acResults.forEach((c, i) => {
+        const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
+        const av = h('span', { className: 'ac-item-av' });
+        applyAvatar(av, c.picture ? { picture: c.picture } : {});
+        item.append(av, h('span', { className: 'ac-item-name', textContent: '@' + c.name }));
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const fresh = getCaretContext();
+          selectAcItem(c, fresh ? fresh.query : ctx.query);
+        });
+        acDropdown.append(item);
+      });
+      if (loading) {
+        acDropdown.append(h('div', { className: 'ac-loading' }, [
+          h('span', { className: 'ac-spinner' }),
+          h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
+        ]));
+      }
+    }
+
+    // Two async sources feed the dropdown: your follow list (instant from
+    // cache, else a slow first relay load) and a global Nostr search. NEVER
+    // block the UI on the follow list — the first load hits relays and can take
+    // many seconds. Paint immediately (with a spinner), then repaint as each
+    // source resolves. `paint()` renders the deduped union + loading state.
+    async function updateAcDropdown() {
+      const ctx = getCaretContext();
+      if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
+      const seq = ++acSeq;
+      const q = ctx.query.toLowerCase();
+      const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
+
+      const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+      let followMatches = [];
+      let globals = [];
+      let globalPending = willSearchGlobal;
+      const paint = () => {
+        if (seq !== acSeq) return;
+        const seen = new Set(followMatches.map((c) => c.pubkey));
+        const merged = followMatches.slice();
+        for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
+        renderAcResults(merged.slice(0, 8), ctx, globalPending);
+      };
+
+      // Follows: use the cache synchronously if present; otherwise load in the
+      // background and repaint when ready (no await here).
+      const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
+      if (cached) followMatches = matchFollows(cached);
+      paint(); // instant feedback: local matches (maybe none) + spinner if searching
+      if (!cached) {
+        getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
+      }
+
+      // Global search across all of Nostr so you can tag people you don't
+      // follow. Debounced; best-effort — a failure/rate-limit just clears the
+      // spinner and leaves the follow matches.
+      if (willSearchGlobal) {
+        if (acSuggestTimer) clearTimeout(acSuggestTimer);
+        acSuggestTimer = setTimeout(async () => {
+          const res = await naSuggest(ctx.query);
+          if (seq !== acSeq) return; // query changed since
+          globals = res;
+          globalPending = false;
+          paint();
+        }, 250);
+      }
+    }
+
+    editor.addEventListener('input', () => {
+      emit();
+      updateAcDropdown();
+      noteActivity(); // composing counts as activity — keep auto-lock at bay
+    });
+
+    editor.addEventListener('keydown', (e) => {
+      if (!acDropdown) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
+      else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
+      } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
+    });
+
+    editor.addEventListener('blur', () => setTimeout(closeAcDropdown, 150));
+
+    return {
+      wrap,
+      editor,
+      getText: () => serializeEditor(editor),
+      // Re-read the editor after the caller mutated its DOM directly (e.g.
+      // appending an uploaded media URL) so the text, placeholder and any
+      // onChange-driven state agree with what's on screen.
+      sync: emit,
+      setText(text) {
+        editor.innerHTML = '';
+        if (text) hydrateEditorFromText(editor, text);
+        syncEmptyClass();
+      },
+      focus: () => editor.focus(),
+      close: closeAcDropdown,
+    };
+  }
+
   // ---- composer draft autosave (per account, in chrome.storage.local) ----
   function loadComposeDraft(pubkey) {
     return new Promise((res) => {
@@ -4805,17 +5351,9 @@
 
     async function doPublish() {
       const content = draft.text.trim();
-      const pTags = [];
-      const seenPks = new Set();
-      const mentionRe = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
-      let mm;
-      while ((mm = mentionRe.exec(content)) !== null) {
-        try {
-          const d = NT.nip19.decode(mm[1]);
-          const pk = d.type === 'npub' ? d.data : d.data.pubkey;
-          if (pk && !seenPks.has(pk)) { seenPks.add(pk); pTags.push(['p', pk]); }
-        } catch (_) {}
-      }
+      // Shared with the page-comment path — see mentionPTags. Was inline here, which
+      // is how comments ended up shipping without it.
+      const pTags = mentionPTags(content);
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
       const tags = settings && settings.showClientTag === false ? [...pTags] : [CLIENT_TAG.slice(), ...pTags];
@@ -4841,202 +5379,15 @@
       const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
-      const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
-      editor.dataset.placeholder = "What’s on your mind?";
-      if (draft.text) { hydrateEditorFromText(editor, draft.text); editor.classList.remove('is-empty'); }
-
-      const editorWrap = h('div', { className: 'compose-editor-wrap' });
-      editorWrap.append(editor);
-
-      // ---- @mention autocomplete ----
-      let acDropdown = null, acResults = [], acIndex = 0;
-      let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
-
-      function getCaretContext() {
-        const sel = window.getSelection();
-        if (!sel.rangeCount) return null;
-        const range = sel.getRangeAt(0);
-        if (!range.collapsed) return null;
-        const node = range.startContainer;
-        if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
-        const before = node.textContent.slice(0, range.startOffset);
-        const match = before.match(/@([^\s@]*)$/);
-        if (!match) return null;
-        return { node, query: match[1] };
-      }
-
-      function closeAcDropdown() {
-        if (acDropdown) { acDropdown.remove(); acDropdown = null; }
-        acResults = []; acIndex = 0;
-      }
-
-      function updateAcActiveItem() {
-        if (!acDropdown) return;
-        acDropdown.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acIndex));
-      }
-
-      function selectAcItem(contact, query) {
-        const sel = window.getSelection();
-        if (!sel.rangeCount) return;
-        const range = sel.getRangeAt(0);
-        const node = range.startContainer;
-        if (node.nodeType !== Node.TEXT_NODE) return;
-        const offset = range.startOffset;
-        // Text before the '@'. Trim any trailing whitespace and re-add exactly one
-        // space, so the mention is always preceded by a single space (or nothing
-        // at line start). Trimming the whole run both collapses a stray double
-        // space and sidesteps the old single-code-unit check, which mis-read an
-        // emoji's surrogate half (e.g. 🤝) as a non-space char and inserted an
-        // extra space.
-        const beforeAt = node.textContent.slice(0, Math.max(0, offset - (query.length + 1)));
-        const trimmed = beforeAt.replace(/\s+$/, '');
-        const atStart = trimmed.length;
-        const needsLeadingSpace = trimmed.length > 0;
-        range.setStart(node, atStart);
-        range.setEnd(node, offset);
-        range.deleteContents();
-        const pill = document.createElement('span');
-        pill.className = 'mention-pill';
-        pill.contentEditable = 'false';
-        pill.dataset.bech32 = 'nostr:' + NT.nip19.npubEncode(contact.pubkey);
-        pill.textContent = '@' + contact.name;
-        if (needsLeadingSpace) range.insertNode(document.createTextNode(' '));
-        range.collapse(false);
-        range.insertNode(pill);
-        // NBSP after pill: never collapsed by the browser, normalized to space by serializer.
-        const trailingSpace = document.createTextNode(' ');
-        range.setStartAfter(pill);
-        range.insertNode(trailingSpace);
-        range.setStartAfter(trailingSpace);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        closeAcDropdown();
-        draft.text = serializeEditor(editor);
-        syncEmptyClass();
-        updatePostState();
-        scheduleSave();
-      }
-
-      // Anchor the dropdown just under the caret line rather than the bottom of
-      // the (tall) editor box. Falls back to the CSS default if no caret rect.
-      function positionAcDropdown() {
-        if (!acDropdown) return;
-        try {
-          const sel = window.getSelection();
-          if (!sel.rangeCount) return;
-          const r = sel.getRangeAt(0).getBoundingClientRect();
-          if (!r || (!r.top && !r.bottom)) return;
-          const wrap = editorWrap.getBoundingClientRect();
-          acDropdown.style.top = Math.round(r.bottom - wrap.top + 4) + 'px';
-        } catch (_) {}
-      }
-
-      // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
-      // and keeps the dropdown open even when there are no local matches yet.
-      function renderAcResults(items, ctx, loading) {
-        acResults = items;
-        if (!acResults.length && !loading) { closeAcDropdown(); return; }
-        acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
-        if (!acDropdown) {
-          acDropdown = h('div', { className: 'ac-dropdown' });
-          editorWrap.append(acDropdown);
-        }
-        positionAcDropdown();
-        acDropdown.innerHTML = '';
-        acResults.forEach((c, i) => {
-          const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
-          const av = h('span', { className: 'ac-item-av' });
-          applyAvatar(av, c.picture ? { picture: c.picture } : {});
-          item.append(av, h('span', { className: 'ac-item-name', textContent: '@' + c.name }));
-          item.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            const fresh = getCaretContext();
-            selectAcItem(c, fresh ? fresh.query : ctx.query);
-          });
-          acDropdown.append(item);
-        });
-        if (loading) {
-          acDropdown.append(h('div', { className: 'ac-loading' }, [
-            h('span', { className: 'ac-spinner' }),
-            h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
-          ]));
-        }
-      }
-
-      // Two async sources feed the dropdown: your follow list (instant from
-      // cache, else a slow first relay load) and a global Nostr search. NEVER
-      // block the UI on the follow list — the first load hits relays and can take
-      // many seconds. Paint immediately (with a spinner), then repaint as each
-      // source resolves. `paint()` renders the deduped union + loading state.
-      async function updateAcDropdown() {
-        const ctx = getCaretContext();
-        if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
-        const seq = ++acSeq;
-        const q = ctx.query.toLowerCase();
-        const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
-
-        const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
-        let followMatches = [];
-        let globals = [];
-        let globalPending = willSearchGlobal;
-        const paint = () => {
-          if (seq !== acSeq) return;
-          const seen = new Set(followMatches.map((c) => c.pubkey));
-          const merged = followMatches.slice();
-          for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-          renderAcResults(merged.slice(0, 8), ctx, globalPending);
-        };
-
-        // Follows: use the cache synchronously if present; otherwise load in the
-        // background and repaint when ready (no await here).
-        const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
-        if (cached) followMatches = matchFollows(cached);
-        paint(); // instant feedback: local matches (maybe none) + spinner if searching
-        if (!cached) {
-          getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
-        }
-
-        // Global search across all of Nostr so you can tag people you don't
-        // follow. Debounced; best-effort — a failure/rate-limit just clears the
-        // spinner and leaves the follow matches.
-        if (willSearchGlobal) {
-          if (acSuggestTimer) clearTimeout(acSuggestTimer);
-          acSuggestTimer = setTimeout(async () => {
-            const res = await naSuggest(ctx.query);
-            if (seq !== acSeq) return; // query changed since
-            globals = res;
-            globalPending = false;
-            paint();
-          }, 250);
-        }
-      }
-
-      function syncEmptyClass() {
-        const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
-        editor.classList.toggle('is-empty', isEmpty);
-        if (isEmpty) editor.innerHTML = '';
-      }
-
-      editor.addEventListener('input', () => {
-        draft.text = serializeEditor(editor);
-        syncEmptyClass();
-        updatePostState();
-        updateAcDropdown();
-        scheduleSave();
-        noteActivity(); // composing counts as activity — keep auto-lock at bay
+      // Rich text box with @mention autocomplete, shared with the page-comment
+      // modal. Edits flow back through onChange into the draft + Post button.
+      const mentionEditor = createMentionEditor({
+        placeholder: "What’s on your mind?",
+        onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
       });
-
-      editor.addEventListener('keydown', (e) => {
-        if (!acDropdown) return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
-        else if (e.key === 'Enter' || e.key === 'Tab') {
-          if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
-        } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
-      });
-
-      editor.addEventListener('blur', () => setTimeout(closeAcDropdown, 150));
+      mentionEditor.setText(draft.text);
+      const editor = mentionEditor.editor;
+      const editorWrap = mentionEditor.wrap;
 
       const previewPane = h('div', { className: 'compose-preview hidden' });
       function renderPreview() {
@@ -5058,7 +5409,7 @@
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p);
         previewPane.classList.toggle('hidden', !p);
-        if (p) { closeAcDropdown(); renderPreview(); }
+        if (p) { mentionEditor.close(); renderPreview(); }
       }
       tabWrite.addEventListener('click', () => setMode(false));
       tabPreview.addEventListener('click', () => setMode(true));
@@ -5087,11 +5438,8 @@
               }
             }
             draft.media.splice(i, 1);
-            draft.text = serializeEditor(editor);
-            syncEmptyClass();
+            mentionEditor.sync();
             renderThumbs();
-            updatePostState();
-            scheduleSave();
           });
           cell.append(rm);
           thumbs.append(cell);
@@ -5130,11 +5478,8 @@
           const url = await uploadMedia(file, pubkey);
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
           appendMediaUrl(url);
-          draft.text = serializeEditor(editor);
-          syncEmptyClass();
+          mentionEditor.sync();
           renderThumbs();
-          updatePostState();
-          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -5166,11 +5511,8 @@
             draft.media.push({ url, isVideo: false });
             appendMediaUrl(url);
           }
-          draft.text = serializeEditor(editor);
-          syncEmptyClass();
+          mentionEditor.sync();
           renderThumbs();
-          updatePostState();
-          scheduleSave();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');

@@ -1170,6 +1170,39 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 
+/* ---- comment on this page (NIP-22 kind 1111) ---- */
+/* Follows the note composer: same author header, tabs and link card. Only the bits
+   with no equivalent there are defined here.
+   The URL is a caption under the card rather than a box of its own — it IS what gets
+   published so it can't be hidden, but the card is what tells you which page this
+   is. Explicitly selectable: this is exactly the content the body-level
+   `user-select: none` must not swallow. */
+/* The subject of the comment, pinned above the tabs — it's context, so it stays put
+   while Write/Preview switch beneath it. */
+.webcomment-target { margin: 4px 0 12px; }
+.webcomment-target:empty { display: none; }
+.webcomment-url {
+  -webkit-user-select: text; user-select: text;
+  font-family: var(--font-ui); font-size: 11px; line-height: 1.45;
+  color: var(--faint); word-break: break-all; margin-top: 7px;
+}
+/* The comment box itself needs no rules here: it IS the note composer's editor
+   (.compose-text.compose-editor), created by createMentionEditor. */
+/* The comment itself, shown under the card in Preview so the whole post can be read
+   the way it will appear. */
+/* No margin, padding or border of its own: .compose-preview already supplies the
+   box. The separator this used to carry existed to divide the comment from the link
+   card when both shared the preview pane — moving the card above the tabs left it
+   as a stray rule and a doubled 12px above the first line. */
+.webcomment-preview-text {
+  -webkit-user-select: text; user-select: text;
+  font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5;
+  color: var(--text); white-space: pre-wrap; word-break: break-word;
+}
+.webcomment-done { display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
+.webcomment-done-title { font-weight: 600; font-size: 13.5px; color: var(--success); }
+.webcomment-done .explore-link { text-align: left; }
+
 /* first-run profile setup wizard */
 .setup-progress { font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .modal .setup-actions { flex-direction: row; margin-top: 18px; }
