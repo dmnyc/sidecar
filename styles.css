@@ -82,6 +82,38 @@ body {
   background-attachment: fixed;
 }
 
+/* ===== selection: chrome no, content yes =====================================
+   Dragging across the panel used to highlight tab labels, headings, hints and
+   button text, which reads as a web page rather than an app.
+   Chrome is unselectable by default and CONTENT opts back in below. That's the
+   riskier direction — a class missed here can't be copied, where a missed one in
+   the other direction is merely cosmetic — so the list is deliberately generous,
+   and `.selectable` exists as an escape hatch for anything added later.
+   This lives in styles.css, which ONLY sidepanel.html loads. help/welcome/wallets
+   load welcome.css and are documents: selecting prose there is the point. The
+   approval prompt has its own stylesheet and is left alone on purpose — its whole
+   job is letting you inspect what you're about to sign. */
+body { -webkit-user-select: none; user-select: none; }
+
+/* Form controls always. A parent's `none` otherwise makes a field you can type in
+   but can't select within, which is worse than either extreme. */
+input, textarea, select, [contenteditable="true"],
+/* identifiers */
+.item-sub, .acct-row-npub, .profile-npub, .aa-npub, .ip-npub, .import-preview,
+/* prose the user wrote or is reading */
+.profile-about, .about-clamp, .about-description, .notif-content, .preview-body,
+.note-embed, .compose-preview, .draft-preview, .evpreview, .ac-item-name,
+/* things that are effectively data: hashes, invoices, addresses, versions */
+.tx-d-val, .address-value, .about-version,
+/* opt-in for anything new */
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* .mention-pill and .secret-box set `user-select: all` further down — one click
+   takes the whole value. Both are more specific than the body rule, so they keep
+   working; listing them here would only weaken that to `text`. */
+
 .hidden { display: none !important; }
 
 /* form controls inherit the UI font — never fall back to Arial/Helvetica */
