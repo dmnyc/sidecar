@@ -7162,6 +7162,18 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
 
+      // Who actually runs the wallet belongs next to the custodial warning, not
+      // buried: the user is being asked to trust an operator with funds, so name the
+      // operator and make it verifiable.
+      const runBy = h('p', { className: 'hint compact' });
+      runBy.append(document.createTextNode('Rizful is run by '));
+      const megalith = h('a', { href: '#', className: 'explore-link inline', textContent: 'Megalith' });
+      megalith.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: 'https://megalithic.me/' });
+      });
+      runBy.append(megalith, document.createTextNode('.'));
+
       modal.append(
         h('h3', { textContent: 'Start with a Rizful wallet' }),
         h('p', {
@@ -7171,6 +7183,7 @@
             + 'It is the quickest way to start receiving zaps, and you can connect a self-custodial '
             + 'wallet later instead.',
         }),
+        runBy,
         step(1, 'Create a Rizful account (skip if you have one)', 'Sign up', RIZFUL_SIGNUP_URL),
         step(2, 'Get your one-time code', 'Get code', RIZFUL_GET_CODE_URL),
         step(3, 'Paste it here'),
