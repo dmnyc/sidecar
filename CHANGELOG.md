@@ -7,6 +7,28 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.7.0] — 2026-07-29
+
+### Added
+- **Comment on any webpage.** A speech-bubble icon in the top bar opens a composer addressed to the page you're reading, publishing a kind 1111 comment (NIP-22) tagged with the page's URL (NIP-73). Mentions work — type `@` and tag someone the same way you do in a note; the person tagged gets a `p` tag and will be notified. A link card fetched from the page sits above the editor so you can always see what you're commenting on, and the review countdown (the same one notes use) fires before it goes out. Since almost nothing but Jumble renders a kind 1111 over a web target today, both links after posting — view your comment, and see all comments on the page — point there, named explicitly. (#156, #159)
+- **Quick-start a Lightning wallet.** When you don't have a wallet connected, the wallet screen offers a quick start through Rizful: enter a one-time code, and Sidecar receives an NWC connection string — no separate app, no manual paste. A Lightning address comes back with it. For users who already have a wallet, the same screen still offers manual NWC entry and relay restore as before. (#152)
+- **Historical price chart with hover.** The wallet's price chart now shows more than the last 24 hours, and a hover indicator tracks the price at any point along the curve. (#155)
+- **Add an account from the dropdown.** The account switcher's dropdown now carries an "Add account" link alongside the accounts panel, so you don't have to navigate to settings to bring in a second identity. (#155)
+- **Review countdown for comments.** Comments go through the same review window as notes — a ring counts down, with the page card and comment text visible for a last look. Reads the same "Review countdown before posting" setting; no separate toggle. (#159)
+- **Tracker stripping for web comments.** The comment's target URL is normalized before tagging — fragment stripped, query sorted, host case-folded — so share links with different tracking parameters don't fork the same page into separate threads. The whole `utm_` family is matched by prefix (not just the common six), plus ~20 more exact params, and YouTube's share token `si` is stripped on YouTube only. (#159)
+- **Comment drafts.** A stray click outside the modal no longer loses a half-written comment. The draft is held in memory, keyed by account and page URL, and restored when you reopen the modal on the same page. Nothing is written to disk — a comment belongs to a page you're looking at, not a permanent record. (#159)
+
+### Fixed
+- **Wallet backup now tells the truth.** "Backed up ✓" was a bare existence check — it reported success for any backup event on your relays, even one holding a connection string you'd already replaced. Sidecar now decrypts the backup and compares it to the wallet actually connected, reporting four states: backed up, not backed up, a different wallet is backed up, or couldn't check. Both Back up and Restore warn before overwriting a different wallet, pointing at Restore (not Export) for recovery — Export reveals the *connected* wallet, so it would save the wrong string. (#158)
+- **Restoring a wallet showed the previous wallet's balance.** The NWC client was cached under the account alone, so swapping wallets within one account (Restore, or connecting a different string) handed back a client still pointed at the wallet you'd just replaced. A restored wallet with 400 sats displayed 0 until you removed and re-imported the same string. Now keyed on the connection, fixed at the choke point so every writer path is covered. (#158)
+- **Keystore lost-update race.** Concurrent writes to `chrome.storage` could silently overwrite each other — the last writer won, every time. The vault-import avatar bug (imported accounts showed no profile pictures until a reload) was the visible symptom: a profile write and an account-list write racing. All keystore writes are now serialized through a single promise chain. (#154)
+- **Vault import loads profile pictures immediately.** The race above meant a freshly imported account's profile fetch landed and was stored, then got overwritten by the stale account list. Fixed by the serialization, plus a bounded retry on the profile fetch so a slow relay doesn't leave a placeholder name permanently. (#154)
+- **Interface text is no longer selectable.** Dragging across the panel highlighted tab labels, headings and button text, reading as a web page rather than an app. Chrome is unselectable by default; content — identifiers, prose, form fields, balances — opts back in. (#157)
+
+### Changed
+- **Comment button icon.** Feather's message-square-with-dots replaced by message-circle, scaled 1.10× to match the optical weight of the neighboring search and help icons. The dots collapsed to a smudge at the topbar's 19px. (#159)
+- **WALLET_BACKENDS.md** documents the public reasoning behind the wallet-backend decisions: Breez Spark ruled out (Firefox/11 MB/API key/CSP), Cashu/NIP-60 ruled out (no Lightning address, no zaps), Bitcoin Connect ruled out, and NWC-first with Rizful as the on-ramp. (#152)
+
 ## [1.6.0] — 2026-07-28
 
 ### Added
