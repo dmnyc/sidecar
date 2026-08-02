@@ -2752,6 +2752,50 @@
 
   function makeSortable(listEl) {
     let dragged = null;
+
+    // The items that are actually draggable, excluding the dragged element itself.
+    function dragTargets() {
+      return [...listEl.querySelectorAll('.item[draggable]')].filter((el) => el !== dragged);
+    }
+
+    // Clear every drop indicator, then show one on the element the cursor is over.
+    // Returns the target + 'before'|'after', or null when there's nowhere to drop.
+    function highlightAt(clientY) {
+      listEl.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach((el) => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      const items = dragTargets();
+      if (!items.length) return null;
+
+      // The cursor is ABOVE the first item → drop before it.
+      const first = items[0];
+      if (clientY < first.getBoundingClientRect().top + first.getBoundingClientRect().height / 2) {
+        first.classList.add('drag-over-top');
+        return { target: first, pos: 'before' };
+      }
+
+      // The cursor is BELOW the last item → drop after it. This is the case that
+      // used to silently fail: dropping past the end hit the container, not an
+      // item, so e.target.closest('.item[draggable]') returned null and nothing
+      // happened — the item snapped back with no feedback.
+      const last = items[items.length - 1];
+      if (clientY >= last.getBoundingClientRect().top + last.getBoundingClientRect().height / 2) {
+        last.classList.add('drag-over-bottom');
+        return { target: last, pos: 'after' };
+      }
+
+      // Som in the middle — find whichever item the cursor is over.
+      for (const el of items) {
+        const r = el.getBoundingClientRect();
+        if (clientY >= r.top && clientY < r.bottom) {
+          const mid = r.top + r.height / 2;
+          if (clientY < mid) { el.classList.add('drag-over-top'); return { target: el, pos: 'before' }; }
+          el.classList.add('drag-over-bottom'); return { target: el, pos: 'after' };
+        }
+      }
+      return null;
+    }
+
     listEl.addEventListener('dragstart', (e) => {
       dragged = e.target.closest('.item[draggable]');
       if (!dragged) return;
@@ -2768,21 +2812,16 @@
     listEl.addEventListener('dragover', (e) => {
       e.preventDefault();
       if (!dragged) return;
-      const target = e.target.closest('.item[draggable]');
-      listEl.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach((el) => {
-        el.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
-      if (!target || target === dragged) return;
-      const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
-      target.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+      e.dataTransfer.dropEffect = 'move';
+      highlightAt(e.clientY);
     });
     listEl.addEventListener('drop', async (e) => {
       e.preventDefault();
       if (!dragged) return;
-      const target = e.target.closest('.item[draggable]');
-      if (target && target !== dragged) {
-        const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
-        listEl.insertBefore(dragged, e.clientY < mid ? target : target.nextSibling);
+      const drop = highlightAt(e.clientY);
+      if (drop) {
+        if (drop.pos === 'before') listEl.insertBefore(dragged, drop.target);
+        else listEl.insertBefore(dragged, drop.target.nextSibling);
       }
       listEl.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach((el) => {
         el.classList.remove('drag-over-top', 'drag-over-bottom');

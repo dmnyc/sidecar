@@ -802,8 +802,11 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .grip-handle:active { cursor: grabbing; }
 .item:hover .grip-handle { opacity: 0.65; }
 .item.dragging { opacity: 0.4; transform: scale(0.98); }
-.item.drag-over-top { border-top-color: var(--gold); }
-.item.drag-over-bottom { border-bottom-color: var(--gold); }
+/* 2px so the line is unmistakable — a 1px border-color swap (what the hover uses)
+   was too subtle to see at a glance, especially on the top and bottom edges where
+   the indicator is the only feedback that a drop will land. */
+.item.drag-over-top { border-top: 2px solid var(--gold); }
+.item.drag-over-bottom { border-bottom: 2px solid var(--gold); }
 .item-active {
   border-color: var(--gold-soft);
   box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft), 0 8px 24px rgba(0, 0, 0, 0.4);
