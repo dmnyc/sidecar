@@ -28,6 +28,27 @@
   // never relax — a per-sign confirm is exactly what gates them, even mid-window.
   const CONTROL_KINDS = new Set([24133, 23194, 23195]);
 
+  // Replaceable kinds whose new version WHOLLY REPLACES the old, with no merge and no
+  // undo: 0 (profile), 3 (follows), 10000 (mutes).
+  //
+  // These never relax either, and the reason is subtler than for CONTROL_KINDS. The
+  // destructive check in replaceable-baseline.js already suppresses the relax offer
+  // when THIS event looks like a wipe — but that check is per-event, while the window
+  // it would grant is not. An ordinary, complete profile edit isn't destructive, so it
+  // used to offer "auto-sign the next 30 minutes"; the NEXT profile write inside that
+  // window then goes through unwarned, and that one could be the wipe. Approving a
+  // write also makes it the new baseline, so the comparison the guard depends on is
+  // gone by then.
+  //
+  // A profile or follow-list write is rare enough that a per-sign confirm costs
+  // nothing — nobody edits their bio in a burst.
+  //
+  // A literal here rather than read from SidecarBaseline.TRACKED: this file is loaded
+  // BEFORE replaceable-baseline.js by background.js's importScripts, and is
+  // deliberately dependency-free so it can be unit-tested against a bare chrome mock.
+  // test/relax-grant.test.js asserts the two sets stay in agreement.
+  const REPLACEABLE_KINDS = new Set([0, 3, 10000]);
+
   function sgetS(keys) {
     return new Promise((r) => chrome.storage.session.get(keys, r));
   }
@@ -151,9 +172,16 @@
   }
 
   const api = {
-    STORAGE_KEY, ALARM_PREFIX, MAX_MS, DEFAULT_MS, CONTROL_KINDS,
+    STORAGE_KEY, ALARM_PREFIX, MAX_MS, DEFAULT_MS, CONTROL_KINDS, REPLACEABLE_KINDS,
     has, grant, revoke, revokeForHost, revokeAll, active, onAlarm,
     isControlKind: (k) => k != null && CONTROL_KINDS.has(k),
+    isReplaceableKind: (k) => k != null && REPLACEABLE_KINDS.has(k),
+    // The single question the callers ask: may a relax window ever cover this kind?
+    // Both call sites (background.js's relaxEligible and prompt.js's offer gate) go
+    // through this, so the two can't drift — the bug this fixes was exactly a gate
+    // that existed in one place and not the other.
+    neverRelaxes: (k) =>
+      k != null && (CONTROL_KINDS.has(k) || REPLACEABLE_KINDS.has(k)),
   };
   if (typeof self !== 'undefined') self.SidecarRelax = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarRelax = api;

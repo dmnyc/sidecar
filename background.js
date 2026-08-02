@@ -701,6 +701,51 @@ reconcileQueue();
 const COALESCE_KINDS = new Set([30078]);
 const COALESCE_WINDOW_MS = 60000;
 const contentGrants = new Map(); // `host|pubkey|kind` -> expiry ms
+
+// ---- "you keep approving this" nudge ----
+// How many times the user has picked Allow once for a (host, account). Nothing in
+// the prompt says WHICH button ends the asking, so someone on a single account can
+// approve the same site forever without ever noticing Trust is the answer. After a
+// few, the prompt adds one line pointing at it.
+//
+// chrome.storage.session, NOT a Map — same reasoning as relax-grants.js spells out.
+// The MV3 service worker is evicted after ~30s idle, and the gap between two
+// approvals is however long the user takes, so an in-memory tally resets between
+// almost every pair and never reaches the threshold. (That was the first cut of this,
+// and it simply never fired.) The 60s coalesce grants above can stay in memory
+// precisely because their window is shorter than the eviction timer.
+//
+// Session storage also has exactly the retention this wants: survives eviction,
+// clears on browser restart. It catches a habit within one browsing session rather
+// than accumulating a record of which sites someone uses.
+const APPROVE_NUDGE_AFTER = 3;
+const APPROVE_COUNT_KEY = 'sidecar_approve_counts';
+function sgetSession(keys) {
+  return new Promise((resolve) => chrome.storage.session.get(keys, resolve));
+}
+function ssetSession(obj) {
+  return new Promise((resolve) => chrome.storage.session.set(obj, resolve));
+}
+function approveCountKey(host, pubkey) { return host + '|' + pubkey; }
+async function approveCountMap() {
+  return (await sgetSession(APPROVE_COUNT_KEY))[APPROVE_COUNT_KEY] || {};
+}
+async function bumpApproveCount(host, pubkey) {
+  const m = await approveCountMap();
+  const k = approveCountKey(host, pubkey);
+  m[k] = (m[k] || 0) + 1;
+  await ssetSession({ [APPROVE_COUNT_KEY]: m });
+}
+async function shouldNudgeTrust(host, pubkey) {
+  const m = await approveCountMap();
+  return (m[approveCountKey(host, pubkey)] || 0) >= APPROVE_NUDGE_AFTER;
+}
+// Trusting (or blocking) settles the question, so the tally stops being useful.
+async function clearApproveCount(host, pubkey) {
+  const m = await approveCountMap();
+  delete m[approveCountKey(host, pubkey)];
+  await ssetSession({ [APPROVE_COUNT_KEY]: m });
+}
 function grantKey(host, pubkey, kind) { return host + '|' + pubkey + '|' + kind; }
 function hasContentGrant(host, pubkey, kind) {
   const exp = contentGrants.get(grantKey(host, pubkey, kind));
@@ -952,7 +997,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // them has actually granted the window, so a later request in the same burst
     // would otherwise still show a full prompt for a window that's active by the
     // time its turn comes up.
-    const relaxEligible = isContentSign && !RELAX.isControlKind(signKind);
+    const relaxEligible = isContentSign && !RELAX.neverRelaxes(signKind);
     const relaxActive = relaxEligible && (await RELAX.has(host, activePubkey));
     if (relaxActive) sharedIdentity = false;
 
@@ -998,6 +1043,8 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
+      // Read once — the payload below needs both the theme and the auto-lock choice.
+      const promptSettings = (await sget('sidecar_settings')).sidecar_settings || {};
       const st = await KS.getState();
       const acct = st.accounts.find((a) => a.pubkey === activePubkey);
       const otherAccounts = canOfferAccountSwitch
@@ -1033,6 +1080,22 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         needApproval,
         sharedIdentity,
         relaxEligible,
+        // True once this (host, account) has been approved one-time a few times over —
+        // the prompt turns it into a line pointing at Trust. Suppressed while a
+        // destructive warning is showing: that screen is asking for full attention on
+        // what's about to be lost, and "trust this site to stop asking" is the last
+        // advice it should be carrying.
+        nudgeTrust: !destructive && (await shouldNudgeTrust(host, activePubkey)),
+        // The popup window loads every theme stylesheet but has no settings access of
+        // its own, so without this it renders whatever the default is — Speakeasy
+        // purple over someone's Brownstone panel. Carried on the payload rather than
+        // fetched in prompt.js so the window paints themed on first frame instead of
+        // flashing the default.
+        theme: promptSettings.theme || 'speakeasy',
+        // Auto-lock is off, so this unlock is the once-per-browser-session one rather
+        // than an idle timeout. The UI says so — otherwise "Never" looks broken to
+        // someone who set it and is then asked for a PIN the next morning.
+        autoLockNever: resolveSettings(promptSettings).autoLockMinutes === 0,
         destructive, // null, or { kind, type, from, to, lost, fields, message }
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
@@ -1055,10 +1118,17 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       }
 
       if (decision.action === 'block') {
+        await clearApproveCount(host, activePubkey);
         await PERMS.setLevel(activePubkey, host, 'blocked');
         throw new Error('This site is now blocked');
       }
-      if (decision.action === 'trust') await PERMS.setLevel(activePubkey, host, 'trusted');
+      if (decision.action === 'trust') {
+        await clearApproveCount(host, activePubkey);
+        await PERMS.setLevel(activePubkey, host, 'trusted');
+      }
+      // Tally the one-time approvals so the prompt can eventually point at Trust.
+      // Only 'once' — picking 'relax' or 'trust' IS acting on that advice.
+      if (decision.action === 'once') await bumpApproveCount(host, activePubkey);
       // 'relax' → open a timed auto-approve window for this (host, account), then
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {

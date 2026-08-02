@@ -5,12 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sidecar</title>
   <link rel="stylesheet" href="fonts.css" />
-  <link rel="stylesheet" href="themes/speakeasy.css" />
-  <link rel="stylesheet" href="themes/film-noir.css" />
-  <link rel="stylesheet" href="themes/art-deco.css" />
-  <link rel="stylesheet" href="themes/aegean.css" />
-  <link rel="stylesheet" href="themes/brownstone.css" />
-  <link rel="stylesheet" href="themes/patterns.css" />
   <style>
     :root {
       /* Theme-specific color variables are loaded from themes/*.css */
@@ -19,12 +13,25 @@
       --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
       --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
-      /* Default fallback colors (will be overridden by theme files) */
+      /* Default fallback colors (will be overridden by theme files). Matches
+         styles.css's :root so every var a theme file sets has a fallback here —
+         a missing var leaves a hardcoded literal unreachable by the override. */
       --bg: #0a0118;
+      --bg-2: #140428;
       --velvet-1: #23114a;
       --velvet-2: #160a30;
+      --velvet-1-rgb: 35, 17, 74;
+      --av-from: #2a1257;
+      --av-to: #160a30;
+      --banner-accent: #3a2470;
       --border: rgba(167, 139, 250, 0.16);
       --border-strong: rgba(167, 139, 250, 0.28);
+      --border-rgb: 167, 139, 250;
+      --well-rgb: 8, 2, 20;
+      --warn: #ffb38a;
+      --warn-rgb: 255, 179, 138;
+      --success: #6ee7a8;
+      --success-rgb: 110, 231, 168;
       --orange: #ea772f;
       --gold: #cba14e;
       --gold-soft: rgba(203, 161, 78, 0.5);
@@ -34,9 +41,22 @@
       --muted: #9a86c4;
       --faint: #6f5fa0;
       --red: #f0566b;
+      --btn-primary-top: #f29248;
+      --btn-primary-mid: var(--orange);
+      --btn-primary-bot: #d4621f;
+      --btn-primary-text: #1c0c00;
+      --btn-shadow: rgba(234, 119, 47, 0.28);
       --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
       --pattern-opacity: 1;
     }
+  </style>
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+  <link rel="stylesheet" href="themes/film-noir.css" />
+  <link rel="stylesheet" href="themes/art-deco.css" />
+  <link rel="stylesheet" href="themes/aegean.css" />
+  <link rel="stylesheet" href="themes/brownstone.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
+  <style>
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
@@ -65,7 +85,7 @@
       flex-shrink: 0;
       padding: 12px 22px 18px;
       border-top: 1px solid var(--border);
-      background: rgba(12, 3, 26, 0.55);
+      background: rgba(var(--well-rgb), 0.55);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
     }
@@ -135,7 +155,7 @@
     .card .row span:first-child { color: var(--muted); }
     .card .row span:last-child { word-break: break-all; text-align: right; font-family: var(--font-mono); font-size: 12px; }
     pre {
-      background: rgba(8, 2, 20, 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
+      background: rgba(var(--well-rgb), 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
       font-family: var(--font-mono);
       font-size: 12px; white-space: pre-wrap; word-break: break-word;
       max-height: 160px; overflow: auto; color: var(--text);
@@ -143,7 +163,7 @@
     /* Event-content preview: short by default (keeps the account card in view),
        expandable, with a Formatted/Raw toggle for note-like kinds. */
     .evpreview {
-      background: rgba(8, 2, 20, 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
+      background: rgba(var(--well-rgb), 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
       font-size: 12.5px; line-height: 1.5; color: var(--text); text-align: left;
       white-space: pre-wrap; overflow-wrap: anywhere;
     }
@@ -173,8 +193,8 @@
     .evpreview-toggle:hover { color: var(--text); }
     .kind-warn {
       margin-top: 8px; padding: 8px 10px; border-radius: 8px;
-      background: rgba(255, 179, 138, 0.1); border: 1px solid rgba(255, 179, 138, 0.3);
-      color: #ffb38a; font-size: 12px; text-align: left;
+      background: rgba(var(--warn-rgb), 0.1); border: 1px solid rgba(var(--warn-rgb), 0.3);
+      color: var(--warn); font-size: 12px; text-align: left;
     }
     /* Destructive replaceable overwrite — louder than .kind-warn above, which only
        says "unusual kind". This means data you already have is about to be erased.
@@ -183,12 +203,12 @@
        .destructive-warn in styles.css; this window carries its own styles. */
     .destructive-warn {
       margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
-      border-left: 2px solid #f0566b;
+      border-left: 2px solid var(--red);
     }
     .destructive-warn-title {
       display: flex; align-items: center; gap: 6px;
       font-family: var(--font-display); font-weight: 700; font-size: 15px;
-      color: #f0566b; letter-spacing: 0.01em; margin-bottom: 3px;
+      color: var(--red); letter-spacing: 0.01em; margin-bottom: 3px;
     }
     .destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
     .destructive-warn-body { margin: 0; color: var(--text); font-size: 13px; line-height: 1.5; }
@@ -203,7 +223,7 @@
     /* Uppercased in CSS so screen readers still announce "Don't allow". */
     .destructive-warn-reject {
       width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer;
-      background: #f0566b; border: 1px solid #f0566b; color: #fff;
+      background: var(--red); border: 1px solid var(--red); color: #fff;
       font-family: inherit; font-size: 13px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.06em;
     }
@@ -220,7 +240,7 @@
     }
     .info-note {
       margin-bottom: 16px; padding: 9px 11px; border-radius: 8px;
-      background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.22);
+      background: rgba(var(--border-rgb), 0.08); border: 1px solid rgba(var(--border-rgb), 0.22);
       color: var(--muted); font-size: 11.5px; line-height: 1.45; text-align: left;
     }
     .account { margin-bottom: 18px; }
@@ -240,9 +260,9 @@
       background: transparent; border: none; cursor: pointer; color: var(--text);
       padding: 9px 10px; border-radius: 10px; font-family: inherit; font-weight: 400;
     }
-    .switch-row:hover { background: rgba(167, 139, 250, 0.1); }
+    .switch-row:hover { background: rgba(var(--border-rgb), 0.1); }
     .switch-row.active { background: rgba(203, 161, 78, 0.08); }
-    .switch-row-av { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #2a1257; }
+    .switch-row-av { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--av-from); }
     .switch-row-info { flex: 1; min-width: 0; }
     .switch-row-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .switch-row-npub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -253,14 +273,14 @@
       background: linear-gradient(150deg, var(--velvet-1), var(--velvet-2));
       border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; box-shadow: var(--sheen);
     }
-    .acct-av { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #2a1257; box-shadow: 0 0 0 1px var(--gold-soft); }
+    .acct-av { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--av-from); box-shadow: 0 0 0 1px var(--gold-soft); }
     .acct-meta { min-width: 0; text-align: center; }
     .acct-name { font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .acct-np { font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); margin-top: 4px; word-break: break-all; }
     label { display: block; font-size: 12px; letter-spacing: 0.03em; color: var(--muted); margin: 0 0 6px; }
     input[type=password] {
       width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6));
+      background: var(--input-bg, linear-gradient(180deg, rgba(var(--well-rgb), 0.6), rgba(var(--velvet-1-rgb), 0.6)));
       color: var(--text); font-size: 16px; margin-bottom: 8px;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
@@ -271,7 +291,7 @@
     .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
     .remember input[type=number] {
       width: 110px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6));
+      background: var(--input-bg, linear-gradient(180deg, rgba(var(--well-rgb), 0.6), rgba(var(--velvet-1-rgb), 0.6)));
       color: var(--text); font-size: 14px; font-family: var(--font-mono);
     }
     .remember input[type=number]:focus { outline: none; border-color: var(--gold-soft); }
@@ -285,13 +305,14 @@
       transition: transform 0.12s, filter 0.15s, border-color 0.15s, box-shadow 0.15s;
     }
     .primary {
-      background: linear-gradient(180deg, #f29248, var(--orange) 55%, #d4621f); color: #1c0c00;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px rgba(234, 119, 47, 0.28);
+      background: linear-gradient(180deg, var(--btn-primary-top, #f29248), var(--btn-primary-mid, var(--orange)) 55%, var(--btn-primary-bot, #d4621f));
+      color: var(--btn-primary-text, #1c0c00);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px var(--btn-shadow, rgba(234, 119, 47, 0.28));
     }
     .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
     .lav-btn {
       background: linear-gradient(180deg, #cebfff, var(--lav) 58%, var(--purple)); color: #190a33;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px rgba(167, 139, 250, 0.24);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px rgba(var(--border-rgb), 0.24);
     }
     .lav-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
     .secondary {
@@ -312,6 +333,11 @@
     }
     .relax-chip:hover { border-color: var(--gold-soft); filter: brightness(1.06); }
     .relax-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* Advice, not a warning — muted, so it doesn't compete with the destructive
+       banner or read as something being wrong. The site name inside is lavender to
+       tie it to "Trust this site" right below. */
+    .trust-nudge { font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; margin: 0 0 12px; }
+    .trust-nudge strong { color: var(--lav); font-weight: 600; }
     .hidden { display: none; }
   </style>
 </head>
@@ -370,6 +396,11 @@
     </div>
     </div>
     <div class="error" id="error"></div>
+    <!-- Shown once you've approved this site a few times over. Nothing else on this
+         screen says which button ends the asking, and "Allow once" is the one that
+         looks like the default answer. Sits directly above the buttons so it reads as
+         a label for the one below it. -->
+    <div id="trust-nudge" class="trust-nudge hidden"></div>
     <div class="actions">
       <button class="primary" id="allow">Allow once</button>
       <button class="lav-btn" id="trust">Trust this site</button>

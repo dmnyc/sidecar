@@ -150,6 +150,70 @@ test('isControlKind flags wallet/account-control kinds only', () => {
   assert.equal(RELAX.isControlKind(null), false, 'non-signEvent methods (null kind) are relaxable');
 });
 
+// ---- replaceable kinds never relax ---------------------------------------------
+//
+// The bug: a relax window could be granted from a profile-edit prompt. The
+// destructive check suppresses the offer when THIS event looks like a wipe, but it is
+// per-event and the window is not — an ordinary complete profile edit isn't
+// destructive, so it offered "auto-sign the next 30 minutes", and the NEXT profile
+// write in that window went through unwarned. Approving a write also makes it the new
+// baseline, so the comparison the guard relies on is gone by then.
+
+test('isReplaceableKind flags the wipeable kinds', () => {
+  for (const k of [0, 3, 10000]) {
+    assert.equal(RELAX.isReplaceableKind(k), true, 'replaceable kind ' + k);
+  }
+  assert.equal(RELAX.isReplaceableKind(1), false, 'a note replaces nothing');
+  assert.equal(RELAX.isReplaceableKind(1111), false, 'a comment replaces nothing');
+  assert.equal(RELAX.isReplaceableKind(null), false);
+});
+
+test('kind 0 never relaxes — the reported case', () => {
+  // A profile edit on an ask-tier site offered a 30-minute auto-sign window.
+  assert.equal(RELAX.neverRelaxes(0), true);
+});
+
+test('neverRelaxes covers both control and replaceable kinds', () => {
+  for (const k of [24133, 23194, 23195, 0, 3, 10000]) {
+    assert.equal(RELAX.neverRelaxes(k), true, 'kind ' + k + ' must never relax');
+  }
+});
+
+test('neverRelaxes leaves ordinary content relaxable', () => {
+  // The feature still has to work for what it was built for: notes, reactions,
+  // reposts, comments, DMs — the high-frequency signing a session actually produces.
+  for (const k of [1, 6, 7, 1111, 9734, 30023, 4, 14]) {
+    assert.equal(RELAX.neverRelaxes(k), false, 'kind ' + k + ' should stay relaxable');
+  }
+  assert.equal(RELAX.neverRelaxes(null), false, 'encrypt/decrypt carry no kind');
+  assert.equal(RELAX.neverRelaxes(undefined), false);
+});
+
+test('the replaceable set agrees with replaceable-baseline.js', () => {
+  // Two files hold this list: relax-grants.js can't import the baseline module (it is
+  // loaded first by background.js's importScripts, and stays dependency-free so it can
+  // be tested against a bare chrome mock). If the destructive guard ever starts
+  // tracking a fourth kind, this fails until relax excludes it too — otherwise that
+  // kind would be wipeable inside a relax window.
+  const baselineSrc = fs.readFileSync(path.join(ROOT, 'replaceable-baseline.js'), 'utf8');
+  const m = baselineSrc.match(/const TRACKED = new Set\(\[([^\]]*)\]\)/);
+  assert.ok(m, 'could not find TRACKED in replaceable-baseline.js');
+  // TRACKED is built from named constants (KIND_PROFILE &c.) — resolve each.
+  const kinds = m[1].split(',').map((name) => {
+    const t = name.trim();
+    if (/^\d+$/.test(t)) return Number(t);
+    const dm = baselineSrc.match(new RegExp('const ' + t + ' = (\\d+)'));
+    assert.ok(dm, 'could not resolve ' + t);
+    return Number(dm[1]);
+  });
+  assert.deepEqual(kinds.slice().sort((a, b) => a - b), [0, 3, 10000],
+    'baseline tracks a different set than expected');
+  for (const k of kinds) {
+    assert.equal(RELAX.neverRelaxes(k), true,
+      'baseline guards kind ' + k + ' but relax would let a window cover it');
+  }
+});
+
 test('a re-grant for the same pair replaces the window (no duplicate alarms)', async () => {
   await RELAX.grant(HOST, pkA, 60000);
   await RELAX.grant(HOST, pkA, 60000);
