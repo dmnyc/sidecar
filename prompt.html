@@ -347,13 +347,17 @@
     <div class="host" id="host">…</div>
     <div class="ask" id="ask">wants to…</div>
 
-    <div id="preview" class="card hidden"></div>
-
-    <div id="decrypt-note" class="info-note hidden"></div>
-
+    <!-- Account capsule ABOVE the event preview: "Signing as" is context, not
+         detail — it belongs with the host name, before the thing being signed.
+         Below the preview it was pushed off-screen by a long event, defeating
+         the clamp's own comment ("keeps the account card in view"). -->
     <div class="account" id="account"></div>
     <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
+
+    <div id="preview" class="card hidden"></div>
+
+    <div id="decrypt-note" class="info-note hidden"></div>
 
 
   </div>
