@@ -568,6 +568,17 @@
       if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
       balanceCache = { pubkey: null, sats: null };
       show($('view-lock'));
+      // On Never, the only thing that can have locked this is the browser closing —
+      // the derived key lives in chrome.storage.session, which is memory-only and
+      // cleared on browser close. Without saying so, "Never" reads as broken.
+      call({ type: 'SIDECAR_GET_SETTINGS' })
+        .then((s) => {
+          if (s && s.autoLockMinutes === 0) {
+            $('view-lock').querySelector('.lede').textContent =
+              'Locked since your browser closed. Enter your PIN to unlock your accounts.';
+          }
+        })
+        .catch(() => {});
       setTimeout(() => $('unlock-pin').focus(), 50);
     } else {
       show($('view-main'));
@@ -10113,6 +10124,15 @@
     pin.value = '';
     if (data.needUnlock) {
       show($('approval-unlock'));
+      // With auto-lock on Never, the only thing that can have locked this is the
+      // browser closing — the key lives in memory for the session, never on disk.
+      // Say so, or the setting looks broken. Mirrors prompt.js.
+      const unlockLabel = $('approval-unlock').querySelector('label');
+      if (unlockLabel) {
+        unlockLabel.textContent = data.autoLockNever
+          ? 'Enter your PIN — first unlock since your browser started'
+          : 'Enter your PIN to unlock';
+      }
       setTimeout(() => pin.focus(), 50);
     } else {
       hide($('approval-unlock'));
@@ -10180,9 +10200,17 @@
     // wipe ALSO makes the wiped list the new baseline, so within that window a second
     // overwrite has nothing left to lose and won't warn. A client that just tried to
     // clear your follow list is precisely the one that shouldn't get a free window.
+    //
+    // `relaxEligible` comes from the background (RELAX.neverRelaxes) and is the
+    // authority on which KINDS a window may ever cover — account/wallet-control, and
+    // the replaceable 0/3/10000 whose next write inside the window would go through
+    // unwarned. Honoring the flag rather than re-deriving the rule is the point: this
+    // gate, prompt.js's, and the background's were three separate copies, and a
+    // profile edit that wasn't itself destructive slipped past all but the background.
     const relaxRow = $('approval-relax-row');
     const offerRelax =
       !payment && groupN === 1 && data.needApproval && !data.destructive &&
+      data.relaxEligible !== false &&
       (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
     if (offerRelax) {
       show(relaxRow);
@@ -10191,6 +10219,22 @@
       });
     } else {
       hide(relaxRow);
+    }
+
+    // Point at Trust once this site has been approved one-time several times over.
+    // textContent, never innerHTML — `host` is attacker-controlled.
+    const nudge = $('approval-trust-nudge');
+    nudge.textContent = '';
+    if (data.nudgeTrust && !payment) {
+      const strong = h('strong', { textContent: data.host || 'this site' });
+      nudge.append(
+        document.createTextNode('Approving this often? Trust '),
+        strong,
+        document.createTextNode(' to stop being asked.')
+      );
+      show(nudge);
+    } else {
+      hide(nudge);
     }
   }
 

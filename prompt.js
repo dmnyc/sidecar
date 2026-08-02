@@ -27,6 +27,7 @@
     rememberBudget: $('remember-budget'),
     budgetAmount: $('budget-amount'),
     relaxRow: $('relax-row'),
+    trustNudge: $('trust-nudge'),
     autozapOffer: $('autozap-offer'),
     autozapOfferBox: $('autozap-offer-box'),
     autozapOfferLabel: $('autozap-offer-label'),
@@ -365,6 +366,16 @@
       return;
     }
     data = resp.data;
+    // Match the panel's theme. All five stylesheets are already linked in
+    // prompt.html; they key off [data-theme], which nothing here used to set — so
+    // this window always rendered Speakeasy regardless of what the panel was wearing.
+    // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
+    // than writing an arbitrary string into the DOM.
+    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean'];
+    document.documentElement.setAttribute(
+      'data-theme',
+      THEMES.includes(data.theme) ? data.theme : 'speakeasy'
+    );
     isPayment = data.scope === 'webln' && data.method === 'sendPayment';
     chosenPubkey = data.activePubkey;
 
@@ -400,9 +411,16 @@
     // Also not on a destructive overwrite — see the matching note in sidepanel.js:
     // approving the wipe makes the wiped list the new baseline, so a window granted
     // here would let the next overwrite through unwarned.
+    //
+    // `relaxEligible` comes from the background (RELAX.neverRelaxes) and is the
+    // authority on which KINDS a window may ever cover — account/wallet-control and
+    // the replaceable 0/3/10000. Honoring it here rather than re-deriving the rule is
+    // the point: this gate and the background's used to be written separately, and a
+    // profile edit that wasn't itself destructive slipped through this one while the
+    // background would have accepted the window.
     const isContentSign =
       data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt';
-    if (data.needApproval && isContentSign && !isPayment && !data.destructive) {
+    if (data.needApproval && isContentSign && !isPayment && !data.destructive && data.relaxEligible !== false) {
       els.relaxRow.classList.remove('hidden');
       els.relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
         chip.addEventListener('click', () =>
@@ -411,8 +429,29 @@
       });
     }
 
+    // Point at Trust once someone has approved this site several times over. Built with
+    // textContent, not innerHTML — `host` is attacker-controlled, and this string is
+    // assembled from it.
+    if (data.nudgeTrust && !isPayment) {
+      const host = document.createElement('strong');
+      host.textContent = data.host || 'this site';
+      els.trustNudge.append(
+        document.createTextNode('Approving this often? Trust '),
+        host,
+        document.createTextNode(' to stop being asked.')
+      );
+      els.trustNudge.classList.remove('hidden');
+    }
+
     if (data.needUnlock) {
       els.unlock.classList.remove('hidden');
+      // With auto-lock on Never, the only thing that can have locked this is the
+      // browser closing — the key lives in memory for the session and is never
+      // written to disk. Say so, or the setting looks broken.
+      if (data.autoLockNever) {
+        const label = els.unlock.querySelector('label');
+        if (label) label.textContent = 'Enter your PIN — first unlock since your browser started';
+      }
       setTimeout(() => els.pin.focus(), 50);
     }
 

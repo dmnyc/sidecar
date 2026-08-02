@@ -270,6 +270,13 @@
           <option value="15">After 15 minutes</option>
           <option value="60">After 1 hour</option>
         </select>
+        <!-- "Never" turns off the idle timer, and reads like an absolute promise —
+             but the unlocked key lives in memory for the browser session and is gone
+             when the browser closes, because the alternative is writing a decrypted
+             key to disk. Someone who picks Never and is then asked for a PIN the next
+             morning has no way to tell that apart from the setting not working. -->
+        <p class="hint">Sidecar asks for your PIN once per browser session even on
+        Never — your key is held in memory and never written to disk unencrypted.</p>
       </div>
 
       <div class="setting">
@@ -444,11 +451,13 @@
       <div class="approval-host" id="approval-host">…</div>
       <div class="approval-ask" id="approval-ask">wants to…</div>
 
-      <div id="approval-preview" class="card hidden"></div>
-
+      <!-- Account capsule ABOVE the event preview — mirrors the popup (prompt.html).
+           Below the preview it was pushed off-screen by a long event. -->
       <div class="approval-account" id="approval-account"></div>
       <button class="approval-switch-toggle hidden" id="approval-switch-toggle">Sign in with a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
+
+      <div id="approval-preview" class="card hidden"></div>
 
       <div id="approval-unlock" class="hidden stack">
         <label for="approval-pin">Enter your PIN to unlock</label>
@@ -483,6 +492,11 @@
       </div>
 
       <div class="error" id="approval-error"></div>
+
+      <!-- Shown once this site has been approved one-time a few times over. Nothing
+           else here says which button ends the asking, and "Allow once" is the one
+           that looks like the default answer. Mirrors the popup's #trust-nudge. -->
+      <div id="approval-trust-nudge" class="trust-nudge hidden"></div>
 
       <div class="approval-actions">
         <button class="primary" id="approval-allow">Allow once</button>
