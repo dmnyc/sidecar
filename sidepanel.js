@@ -444,7 +444,15 @@
       // page by the content script (see notifyTabsPaidByHost) — where the user is
       // actually looking when they zap. Striking here as well would double it.
       const active = document.querySelector('.tab.active');
-      if (active && active.dataset.tab === 'wallet') renderWallet();
+      if (active && active.dataset.tab === 'wallet') {
+        // Update in place rather than full renderWallet(). A zap changes the balance
+        // and the transaction list — rebuilding the entire wallet view (innerHTML='',
+        // async relay round-trips, new DOM tree) made both flash blank behind a modal
+        // overlay AND made the transaction list vanish and reappear. Targeted updates
+        // paint specific elements without tearing the view down.
+        refreshWalletBalance();
+        refreshTransactionList();
+      }
       renderPinnedBalanceBar(); // refresh the pinned bar on any tab
     }
     // Auto-lock (or a lock from elsewhere) fired in the background — drop to the
@@ -8035,6 +8043,16 @@
   }
 
   let walletRenderSeq = 0;
+  // Set by loadTransactions so the walletChanged handler can prepend new entries
+  // without tearing the whole view down. Null when the wallet view isn't mounted.
+  let _refreshTxList = null;
+
+  // Prepend any transactions not already in the list, without clearing it.
+  // Called from the walletChanged handler so a zap doesn't make the history blink.
+  function refreshTransactionList() {
+    if (_refreshTxList) _refreshTxList();
+  }
+
   async function renderWallet() {
     const view = $('wallet-view');
     const seq = ++walletRenderSeq;
@@ -8047,6 +8065,7 @@
     // Bail if another renderWallet() started during the await — otherwise both
     // would clear + append a card, leaving two overlapping sticky cards.
     if (seq !== walletRenderSeq) return;
+    _refreshTxList = null; // previous view's transaction refresh callback is stale
     view.innerHTML = '';
     if (!has) {
       renderWalletConnect(view);
@@ -8652,7 +8671,40 @@
         loading = false;
       }
     }
+
+    // Prepend any transactions that aren't already in the list, without clearing it.
+    // Keyed on payment_hash (unique per payment) so a re-fetch after a zap adds only
+    // the new entry — the existing rows stay in place, no flash.
+    async function refresh() {
+      if (loading) return;
+      loading = true;
+      try {
+        const res = await client.listTransactions({ limit: PAGE, offset: 0, unpaid: false });
+        const txns = (res && res.transactions) || [];
+        const existing = new Set(
+          [...listEl.querySelectorAll('.tx-row[data-ph]')].map((el) => el.dataset.ph)
+        );
+        // Find new entries in reverse so prepend lands them newest-first.
+        const fresh = txns.filter((tx) => tx.payment_hash && !existing.has(tx.payment_hash));
+        if (fresh.length) {
+          // If the list was showing "No transactions yet.", clear that placeholder.
+          const placeholder = listEl.querySelector('.list-state');
+          if (placeholder) placeholder.remove();
+          const freshMeta = await getPayMeta();
+          fresh.reverse().forEach((tx) => listEl.prepend(txRow(tx, freshMeta)));
+          show(more);
+          more.textContent = 'Show more';
+        }
+      } catch (_) {
+        // Best-effort — a failed refresh is silent (the next full renderWallet picks
+        // everything up). Don't clear the list or show an error.
+      } finally {
+        loading = false;
+      }
+    }
+
     more.addEventListener('click', () => { more.textContent = 'Loading…'; loadPage(); });
+    _refreshTxList = refresh;
     loadPage();
   }
 
@@ -8703,6 +8755,7 @@
     const counterparty = incoming ? '' : meta.address || '';
 
     const row = h('div', { className: 'item tx-row' });
+    if (tx.payment_hash) row.dataset.ph = tx.payment_hash;
     const ic = h('span', { className: 'tx-icon ' + (incoming ? 'in' : 'out') });
     ic.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
     const label = counterparty || normalizeDescription(tx.description) || (incoming ? 'Received' : 'Sent');
