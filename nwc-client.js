@@ -13,8 +13,6 @@
   'use strict';
   const NT = root.NostrTools;
 
-  let _pool = null;
-  const pool = () => (_pool || (_pool = new NT.SimplePool()));
   const nowSec = () => Math.floor(Date.now() / 1000);
 
   function hexToBytes(hex) {
@@ -25,12 +23,62 @@
 
   const REQUEST_TIMEOUT = 30000;
   const LOOKUP_TIMEOUT = 10000;
+  const PROBE_TIMEOUT = 5000;
+
+  // Is the wallet's relay reachable at all? Opens a bare WebSocket and races it
+  // against a short timeout. Used only to word a timeout correctly (see #120) —
+  // never to decide whether a payment happened.
+  //
+  // A raw socket rather than SimplePool: nostr-tools doesn't cleanly expose
+  // per-relay connect errors, and this needs to distinguish "can't reach the relay"
+  // from "relay is fine, the wallet is quiet."
+  function probeRelay(url) {
+    return new Promise((resolve) => {
+      let done = false;
+      let ws;
+      const finish = (up) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try { if (ws) ws.close(); } catch (_) {}
+        resolve(up);
+      };
+      const timer = setTimeout(() => finish(false), PROBE_TIMEOUT);
+      try {
+        ws = new WebSocket(url);
+        ws.onopen = () => finish(true);
+        ws.onerror = () => finish(false);
+        ws.onclose = () => finish(false); // closed before open ⇒ unreachable
+      } catch (_) {
+        finish(false); // malformed URL, blocked scheme, etc.
+      }
+    });
+  }
 
   function makeClient(connectionString) {
     const conn = NT.nip47.parseConnectionString(connectionString); // { pubkey, relay, secret }
     const sk = hexToBytes(conn.secret);
     const walletPubkey = conn.pubkey;
     const relay = conn.relay;
+
+    // ONE POOL PER CLIENT, not a module singleton.
+    //
+    // This was a real, reproducible way to break the wallet until a full extension
+    // reload: the pool used to be module-level, and close() called
+    // pool().close([relay]) — closing that relay in the SHARED pool. Every connect,
+    // restore and Rizful quick-start creates a throwaway client to validate the
+    // string with getInfo() and then closes it, which marked the relay closed for
+    // the real client created moments later on the same relay. Balance stopped
+    // returning, transactions failed, and nothing recovered because the singleton
+    // survived for the life of the page.
+    //
+    // A pool per client makes close() affect only that client. The cost is one
+    // WebSocket per client instead of one shared per relay — negligible, since at
+    // most a couple of clients are alive at once and the validation probes are
+    // short-lived.
+    let _pool = null;
+    const pool = () => (_pool || (_pool = new NT.SimplePool()));
+    let closed = false;
 
     const encrypt = (text) => NT.nip04.encrypt(sk, walletPubkey, text);
     const decrypt = (cipher) => NT.nip04.decrypt(sk, walletPubkey, cipher);
@@ -46,6 +94,9 @@
     function request(method, params, timeoutMs) {
       return new Promise((resolve, reject) => {
         (async () => {
+          // A closed client's pool has its relay shut; requesting on it would hang
+          // until the timeout and report a false "wallet didn't respond."
+          if (closed) throw new Error('This wallet connection was closed');
           const content = await encrypt(JSON.stringify({ method, params: params || {} }));
           const reqEvent = NT.finalizeEvent(
             { kind: 23194, created_at: nowSec(), tags: [['p', walletPubkey]], content },
@@ -79,16 +130,31 @@
               },
             }
           );
-          timer = setTimeout(() => {
+          // Name the actual cause instead of one generic timeout for three different
+          // failures (#120). A dead relay and a quiet wallet are the same 30-second
+          // wait today, which reads as a Sidecar bug either way.
+          timer = setTimeout(async () => {
             if (settled) return;
             settled = true;
             try { sub.close(); } catch (_) {}
-            reject(new Error('Wallet did not respond (timed out)'));
+            const relayUp = await probeRelay(relay);
+            let err;
+            if (!relayUp) {
+              const host = (() => { try { return new URL(relay).host; } catch (_) { return relay; } })();
+              err = new Error("Can't reach your wallet's relay (" + host + ") — the relay looks down, not Sidecar.");
+              err.relayDown = true;
+            } else {
+              err = new Error("Your wallet didn't respond in time — it may be offline or not running.");
+              err.walletSilent = true;
+            }
+            // Still INDETERMINATE for spends: see the rejection contract above. Only
+            // walletDenied means the money definitely stayed put.
+            reject(err);
           }, timeoutMs || REQUEST_TIMEOUT);
           try {
             await Promise.any(pool().publish([relay], reqEvent));
           } catch (_) {
-            /* if no relay accepted, the timeout will reject */
+            /* if no relay accepted, the timeout will reject — with a probed message */
           }
         })().catch(reject);
       });
@@ -99,7 +165,10 @@
   // decrypted notification object: { notification_type, notification }.
   // Not all wallets send these — the caller should keep a polling fallback.
   function subscribeNotifications(onNotification) {
-    let closed = false;
+    // `subClosed`, not `closed` — the client-level `closed` above tracks whether the
+    // whole client was torn down, and shadowing it here would make the handle's
+    // close() look like it closed the client (or vice versa).
+    let subClosed = false;
     let sub = null;
     try {
       sub = pool().subscribeMany(
@@ -107,7 +176,7 @@
         { kinds: [23196], authors: [walletPubkey] },
         {
           onevent: async (ev) => {
-            if (closed) return;
+            if (subClosed || closed) return;
             try {
               const payload = JSON.parse(await decrypt(ev.content));
               onNotification(payload);
@@ -118,7 +187,7 @@
     } catch (_) { /* wallet or relay may not support notifications — that's fine */ }
     return {
       close() {
-        closed = true;
+        subClosed = true;
         try { if (sub) sub.close(); } catch (_) {}
       },
     };
@@ -139,7 +208,13 @@
       // Failing fast just means the next poll asks again.
       lookupInvoice: (params, timeoutMs) => request('lookup_invoice', params, timeoutMs || LOOKUP_TIMEOUT),
       subscribeNotifications,
-      close: () => { try { pool().close([relay]); } catch (_) {} },
+      // Tears down only THIS client's pool. Safe to call on a validation probe
+      // without affecting the live wallet client on the same relay.
+      close: () => {
+        closed = true;
+        try { if (_pool) _pool.close([relay]); } catch (_) {}
+        _pool = null;
+      },
     };
   }
 
