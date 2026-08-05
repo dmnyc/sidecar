@@ -1799,16 +1799,69 @@
     const results = await Promise.allSettled(getPool().publish(targets, signed));
     const ok = results.filter((r) => !publishFailed(r)).length;
     if (!ok) {
-      const detail = results
-        .map((r, i) => {
-          const why =
-            r.status === 'rejected' ? r.reason?.message || r.reason || 'rejected' : r.value;
-          return `${targets[i]}: ${why}`;
-        })
-        .join(' | ');
-      throw new Error(`Could not publish to any relay — ${detail}`);
+      throw new Error(publishFailureMessage(targets, results));
     }
     return ok;
+  }
+
+  // One readable sentence instead of eight stacked "wss://…/: connection failure:
+  // connection timed out" lines. The old message pasted every relay's raw error into
+  // the toast — a wall of near-identical text that filled the panel and told the user
+  // nothing they could act on.
+  //
+  // Groups by reason, because the reasons repeat: when every relay times out at once
+  // the cause is almost never eight simultaneous outages but something local (no
+  // network, or Sidecar holding too many connections). Says so, rather than making
+  // the user infer it from a list.
+  function publishFailureMessage(targets, results) {
+    const reasonOf = (r) => {
+      const raw = r.status === 'rejected'
+        ? (r.reason && r.reason.message) || String(r.reason || 'rejected')
+        : String(r.value || 'refused');
+      // 'connection failure: connection timed out' → 'timed out'
+      if (/timed?\s*out/i.test(raw)) return 'timed out';
+      if (/connection failure|failed to connect|websocket/i.test(raw)) return "couldn't connect";
+      if (/blocked|restricted|not allowed|forbidden/i.test(raw)) return 'refused the note';
+      if (/rate|too many|slow down/i.test(raw)) return 'rate-limited us';
+      if (/auth/i.test(raw)) return 'wants authentication';
+      // Something specific and short enough to be worth showing verbatim.
+      return raw.replace(/^connection failure:\s*/i, '').slice(0, 60);
+    };
+
+    const byReason = new Map();
+    results.forEach((r, i) => {
+      const why = reasonOf(r);
+      if (!byReason.has(why)) byReason.set(why, []);
+      byReason.get(why).push(hostOf(targets[i]));
+    });
+
+    const n = targets.length;
+    const relayCount = n === 1 ? 'your relay' : `all ${n} of your relays`;
+    // Every relay failed the same way — almost certainly local, so lead with that.
+    if (byReason.size === 1) {
+      const [why] = [...byReason.keys()];
+      if (why === 'timed out' || why === "couldn't connect") {
+        return `Couldn't reach ${relayCount}. Check your connection, then try again — your note is saved as a draft.`;
+      }
+      const subject = n === 1 ? 'Your relay' : `All ${n} relays`;
+      return `${subject} ${why}. Your note is saved as a draft.`;
+    }
+
+    // Mixed reasons: name each group, capped so the toast stays a toast.
+    const parts = [...byReason.entries()]
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 3)
+      .map(([why, hosts]) => {
+        const shown = hosts.slice(0, 2).join(', ');
+        const more = hosts.length > 2 ? ` +${hosts.length - 2} more` : '';
+        return `${shown}${more} ${why}`;
+      });
+    return `Couldn't publish to any relay — ${parts.join('; ')}. Your note is saved as a draft.`;
+  }
+
+  // 'wss://relay.nostr.wine/' → 'relay.nostr.wine'
+  function hostOf(url) {
+    try { return new URL(url).host; } catch (_) { return String(url).replace(/^wss?:\/\//, '').replace(/\/$/, ''); }
   }
 
   // Publish an already-signed event to the account's write relays (NIP-65 → configured).
@@ -2384,6 +2437,24 @@
     return p;
   }
 
+  // Close the live notification subscriptions for every account except `keepPubkey`.
+  // Without this they accumulated for the life of the panel: initNotifSubs subscribed
+  // for EVERY account, each with three filters, across every configured relay — with
+  // 3 accounts and 8 relays that's 144 concurrent REQs on one shared pool. Relays cap
+  // subscriptions per connection (paid ones like nostr.wine more tightly), so past the
+  // limit they stop answering or drop the socket, and a publish then fails on every
+  // relay at once with 'connection timed out' — which reads as an outage but is
+  // Sidecar exhausting its own connections.
+  function closeNotifSubsExcept(keepPubkey) {
+    for (const [pk, cache] of _notifCache) {
+      if (pk === keepPubkey) continue;
+      if (cache && cache.liveSub) {
+        try { cache.liveSub.close(); } catch (_) {}
+        cache.liveSub = null;
+      }
+    }
+  }
+
   async function initNotifSubs() {
     if (!state || !state.accounts || state.accounts.length === 0) return;
     await loadNotifSeen();
@@ -2391,8 +2462,16 @@
     if (!relays.length) return;
     const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // notification backfill window
 
-    for (const a of state.accounts) {
-      if (_notifCache.has(a.pubkey)) continue;
+    // Only the ACTIVE account. refreshBell() reads state.activePubkey and nothing
+    // renders an unseen count for any other account, so subscribing for the rest
+    // bought nothing and cost a multiple of every relay connection. Switching
+    // accounts calls this again, which subscribes the new one and drops the old.
+    const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
+    if (!active) return;
+    closeNotifSubsExcept(active.pubkey);
+
+    for (const a of [active]) {
+      if (_notifCache.has(a.pubkey) && _notifCache.get(a.pubkey).liveSub) continue;
 
       // Load mutes and own note ids BEFORE subscribing so addEvent filters from
       // the first event and the repost/quote filters below are ready. Cap the
@@ -2403,7 +2482,10 @@
         Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
       ]);
 
-      const cache = { events: [], liveSub: null };
+      // Reuse the existing cache when re-subscribing after an account switch — a
+      // fresh object would throw away every notification already collected for this
+      // account and reset its unseen count to zero.
+      const cache = _notifCache.get(a.pubkey) || { events: [], liveSub: null };
       _notifCache.set(a.pubkey, cache);
 
       const addEvent = (ev) => {
