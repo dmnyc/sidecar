@@ -354,6 +354,49 @@
     true
   );
 
+  // ---- timed clipboard clear for copied secrets ----
+  // The reveal UI auto-hides a secret after 30s, but a COPY of it outlives the
+  // modal: OS clipboard history and cross-device clipboard sync (Windows
+  // clipboard history, Universal Clipboard) can hold an nsec or wallet
+  // connection string indefinitely. So a secret copy schedules a clear of the
+  // clipboard CLIPBOARD_CLEAR_S later. Best-effort on two counts: reading the
+  // clipboard first (to avoid wiping something the user copied elsewhere in
+  // the meantime) needs the clipboardRead permission, which Sidecar
+  // deliberately doesn't request — so when the read fails the clear happens
+  // blind. That blind clear is why every OTHER copy the panel makes goes
+  // through copyPlain(), which cancels a pending clear: the public value has
+  // replaced the secret on the clipboard, so there is nothing left to protect
+  // and the timer would only destroy the user's copy. And writing needs a
+  // focused document, so the clear can no-op if the panel has lost focus or
+  // closed — same "reduce the window, don't promise to close it" stance as
+  // wipe() in the keystore. The copy toast announces the countdown so a
+  // clipboard entry vanishing a minute later is expected, not spooky.
+  const CLIPBOARD_CLEAR_S = 60;
+  let clipClearTimer = null;
+  function cancelClipboardClear() {
+    if (clipClearTimer) { clearTimeout(clipClearTimer); clipClearTimer = null; }
+  }
+  async function copyPlain(text) {
+    cancelClipboardClear();
+    await navigator.clipboard.writeText(text);
+  }
+  async function copySecret(secret) {
+    await navigator.clipboard.writeText(secret);
+    cancelClipboardClear();
+    clipClearTimer = setTimeout(async () => {
+      clipClearTimer = null;
+      try {
+        // If the clipboard is readable and no longer holds the secret, leave it.
+        if ((await navigator.clipboard.readText()) !== secret) return;
+      } catch (_) { /* no clipboardRead — proceed with the blind clear */ }
+      try { await navigator.clipboard.writeText(''); } catch (_) { /* unfocused/closed */ }
+    }, CLIPBOARD_CLEAR_S * 1000);
+  }
+  // A manual selection-copy (Ctrl+C) inside the panel also replaces the
+  // clipboard; writeText() never fires this event, so a secret copy can't
+  // cancel its own timer.
+  document.addEventListener('copy', cancelClipboardClear, true);
+
   let state = null;
   let hideBalances = false;
   let pinBalanceBar = false;
@@ -2951,7 +2994,7 @@
       catch (e) { if (e && e.name === 'AbortError') return; } // dismissed → done; else fall through to copy
     }
     try {
-      await navigator.clipboard.writeText(message);
+      await copyPlain(message);
       toast('Message copied — share it with a friend', 'success');
     } catch (_) {
       toast('Could not share', 'error');
@@ -3183,7 +3226,7 @@
       };
       const list = h('div', { className: 'menu-list' }, [
         menuItem('Copy npub', 'copy', () => {
-          navigator.clipboard.writeText(a.npub);
+          copyPlain(a.npub);
           toast('npub copied', 'success');
           closeModal();
         }),
@@ -3327,8 +3370,8 @@
     const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
     copy.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(secret);
-        toast(noun + ' copied', 'success');
+        await copySecret(secret);
+        toast(noun + ' copied — clipboard clears in ' + CLIPBOARD_CLEAR_S + 's', 'success');
       } catch (_) {}
     });
 
@@ -4539,7 +4582,7 @@
     el.append(icon('copy'), h('span', { textContent: shortNpub(npub) }));
     el.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(npub);
+        await copyPlain(npub);
         const span = el.querySelector('span');
         const prev = span.textContent;
         span.textContent = 'Copied ✓';
@@ -8504,7 +8547,7 @@
       ]);
       addr.addEventListener('click', async () => {
         try {
-          await navigator.clipboard.writeText(lud16);
+          await copyPlain(lud16);
           const s = addr.querySelector('span');
           const prev = s.textContent;
           s.textContent = 'Copied ✓';
@@ -8734,7 +8777,7 @@
       val.addEventListener('click', async (e) => {
         e.stopPropagation();
         try {
-          await navigator.clipboard.writeText(String(copyValue));
+          await copyPlain(String(copyValue));
           const old = val.textContent;
           val.textContent = 'Copied';
           val.classList.add('copied');
@@ -9303,7 +9346,7 @@
         copy.append(addrText);
         copy.addEventListener('click', async () => {
           try {
-            await navigator.clipboard.writeText(lud16);
+            await copyPlain(lud16);
             addrText.textContent = 'Copied ✓';
             setTimeout(() => (addrText.textContent = lud16), 1200);
           } catch (_) {}
@@ -9362,7 +9405,7 @@
     const copy = h('button', { className: 'secondary recv-copy', textContent: 'Copy invoice' });
     copy.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(invoice);
+        await copyPlain(invoice);
         copy.textContent = 'Copied ✓';
         setTimeout(() => (copy.textContent = 'Copy invoice'), 1200);
       } catch (_) {}
@@ -9503,7 +9546,7 @@
       const copy = h('button', { className: 'secondary', textContent: CREATOR_LN });
       copy.addEventListener('click', async () => {
         try {
-          await navigator.clipboard.writeText(CREATOR_LN);
+          await copyPlain(CREATOR_LN);
           copy.textContent = 'Copied ✓';
           setTimeout(() => (copy.textContent = CREATOR_LN), 1200);
         } catch (_) {}
@@ -10649,7 +10692,7 @@
       const copyBtn = h('button', { className: 'secondary', textContent: 'Copy' });
       copyBtn.addEventListener('click', async () => {
         try {
-          await navigator.clipboard.writeText(debugLogText(entries) || '(empty)');
+          await copyPlain(debugLogText(entries) || '(empty)');
           copyBtn.textContent = 'Copied ✓';
           setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
         } catch (_) {}
