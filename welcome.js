@@ -222,6 +222,13 @@ const APPS = [
     desc: 'A peer-to-peer marketplace on Nostr — buy and sell goods and services for Bitcoin, no middleman.',
   },
   {
+    name: 'SatsList',
+    url: 'https://www.satslist.shop',
+    domain: 'satslist.shop',
+    cat: 'commerce',
+    desc: 'Bitcoin-only classifieds — post a listing and buy or sell over Lightning.',
+  },
+  {
     name: 'Formstr',
     url: 'https://formstr.app',
     domain: 'formstr.app',

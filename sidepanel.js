@@ -7855,6 +7855,14 @@
     return wrap;
   }
 
+  // Is the wallet card's unit line currently showing a failure instead of a unit?
+  // A repaint must not overwrite it with 'sats' — that would claim a balance loaded
+  // when none did. Kept as one predicate because there are several such strings now
+  // (#120 added the relay-specific one) and comparing against a single literal is
+  // how the previous guard quietly stopped covering all of them.
+  const BALANCE_ERROR_UNITS = ['balance unavailable', 'wallet relay unreachable'];
+  const isBalanceErrorUnit = (s) => BALANCE_ERROR_UNITS.includes(String(s || '').trim());
+
   // Repaint whichever balance surfaces are on screen, from the cached balance.
   function repaintBalances() {
     const sats = balanceCache && balanceCache.pubkey === (state && state.activePubkey) ? balanceCache.sats : null;
@@ -7862,7 +7870,7 @@
     paintBalanceEl($('pinned-balance-amt'), parts, 'pinned-fiat-sym');
     paintBalanceEl(document.querySelector('.wallet-balance'), parts, 'wallet-fiat-sym');
     const cardUnit = document.querySelector('.wallet-unit');
-    if (cardUnit && cardUnit.textContent !== 'balance unavailable') cardUnit.textContent = parts.unit;
+    if (cardUnit && !isBalanceErrorUnit(cardUnit.textContent)) cardUnit.textContent = parts.unit;
   }
 
   // Optional pinned balance bar — compact balance + Send/Receive under the nav,
@@ -8016,7 +8024,7 @@
         const cardBal = document.querySelector('.wallet-balance');
         if (cardBal) { cardBal.classList.remove('loading'); paintBalanceEl(cardBal, parts, 'wallet-fiat-sym'); }
         const cardUnit = document.querySelector('.wallet-unit');
-        if (cardUnit && cardUnit.textContent !== 'balance unavailable') cardUnit.textContent = parts.unit;
+        if (cardUnit && !isBalanceErrorUnit(cardUnit.textContent)) cardUnit.textContent = parts.unit;
         // Glow pulse when balance increases
         if (prevSats != null && newSats > prevSats) {
           [pinAmt, cardBal].forEach((el) => {
@@ -8622,8 +8630,15 @@
       const parts = denomParts(balanceCache.sats);
       paintBalanceEl(bal, parts, 'wallet-fiat-sym');
       unit.textContent = parts.unit;
-    } catch (_) {
-      if (!cached) { bal.textContent = '—'; unit.textContent = 'balance unavailable'; }
+    } catch (e) {
+      if (!cached) {
+        bal.textContent = '—';
+        // Name the cause when the client could work it out (#120): a relay that's
+        // down reads as a Sidecar failure otherwise. Kept short — this sits under
+        // the balance in a narrow panel; the full sentence goes in the toast.
+        unit.textContent = e && e.relayDown ? 'wallet relay unreachable' : 'balance unavailable';
+        if (e && (e.relayDown || e.walletSilent)) toast(e.message, 'error');
+      }
     }
     bal.classList.remove('loading');
     // Attach the collapse observer only after the balance and transactions have
