@@ -68,6 +68,25 @@
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
     bug: '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
+    // ---- activity-log kinds ----
+    // Stock Feather at 24x24, stroke-width 2 (see icon()). Added so the Recent
+    // activity list can distinguish what was signed instead of showing one quill
+    // for everything — a column of identical feathers is unreadable when a client
+    // fires a dozen relay auths.
+    repeat: '<polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>',
+    heart: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
+    'user-check': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline>',
+    'user-x': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line>',
+    'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>',
+    mail: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline>',
+    'message-circle': '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
+    bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>',
+    award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
+    'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
+    globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
+    'log-in': '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line>',
+    settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>',
   };
   function icon(name) {
     const wrap = document.createElement('span');
@@ -3803,7 +3822,7 @@
   const KIND_NAMES = {
     0: 'profile', 1: 'note', 3: 'contacts', 4: 'direct message', 5: 'deletion',
     6: 'repost', 7: 'reaction', 8: 'badge award', 62: 'vanish request',
-    1018: 'poll response', 1059: 'gift wrap', 1068: 'poll', 1222: 'voice message',
+    1018: 'poll response', 1059: 'gift wrap', 1068: 'poll', 1111: 'comment', 1222: 'voice message',
     1337: 'code snippet', 1985: 'label', 4454: 'DM device key', 4455: 'DM key transfer',
     4550: 'community post', 9041: 'zap goal', 9321: 'nutzap', 9734: 'zap request',
     9802: 'highlight', 10000: 'mute list', 10002: 'relay list', 10006: 'blocked relays',
@@ -3813,9 +3832,74 @@
     30000: 'follow set', 30023: 'article', 30078: 'app data', 30315: 'status',
     30818: 'wiki article', 34550: 'community', 39089: 'starter pack', 39701: 'web bookmark',
   };
+
+  // Which icon each signed kind gets in the Recent activity list. Everything used to
+  // show the same feather, so a client firing a dozen relay auths produced an
+  // unreadable column of identical quills — you couldn't see at a glance what you'd
+  // actually reacted to or reposted.
+  //
+  // The feather is kept for genuine authorship (notes, articles, wiki, community
+  // posts) so it still means "you wrote this". Everything else gets the glyph the
+  // rest of Nostr already uses for it: a repeat arrow for reposts, a heart for
+  // reactions, a bolt for zaps.
+  //
+  // Anything not listed falls back to the feather via KIND_ICON_DEFAULT, so a new
+  // kind degrades to today's behaviour rather than rendering blank.
+  const KIND_ICON_DEFAULT = 'feather';
+  const KIND_ICONS = {
+    0: 'user-check',          // profile
+    1: 'feather',             // note — the thing the quill is actually for
+    3: 'users',               // contacts / follow list
+    4: 'mail',                // direct message
+    5: 'trash',               // deletion
+    6: 'repeat',              // repost
+    7: 'heart',               // reaction
+    8: 'award',               // badge award
+    62: 'trash',              // vanish request
+    1018: 'bar-chart',        // poll response
+    1059: 'lock',             // gift wrap
+    1068: 'bar-chart',        // poll
+    1111: 'message-circle',   // comment (NIP-22)
+    1222: 'mail',             // voice message
+    1337: 'file-text',        // code snippet
+    1985: 'pin',              // label
+    4454: 'key',              // DM device key
+    4455: 'key',              // DM key transfer
+    4550: 'users',            // community post
+    9041: 'zap',              // zap goal
+    9321: 'zap',              // nutzap
+    9734: 'zap',              // zap request
+    9802: 'edit',             // highlight
+    10000: 'user-x',          // mute list
+    10002: 'wifi',            // relay list
+    10006: 'wifi',            // blocked relays
+    10007: 'wifi',            // search relays
+    10012: 'wifi',            // favorite relays
+    10015: 'pin',             // interests
+    10030: 'heart',           // emoji list
+    10044: 'key',             // DM encryption key
+    10050: 'wifi',            // DM relay list
+    10063: 'download',        // blossom servers
+    22242: 'wifi',            // relay auth — the flood this was mostly about
+    24133: 'share',           // connect (NIP-46)
+    24242: 'download',        // blossom auth
+    27235: 'log-in',          // HTTP auth
+    30000: 'users',           // follow set
+    30023: 'file-text',       // article
+    30078: 'settings',        // app data
+    30315: 'user-check',      // status
+    30818: 'file-text',       // wiki article
+    34550: 'users',           // community
+    39089: 'users',           // starter pack
+    39701: 'bookmark',        // web bookmark
+  };
+
   const METHOD_META = {
     getPublicKey: { icon: 'key', label: () => 'Shared public key' },
-    signEvent: { icon: 'feather', label: (e) => 'Signed ' + (KIND_NAMES[e.kind] || ('kind ' + e.kind)) },
+    signEvent: {
+      icon: (e) => KIND_ICONS[e.kind] || KIND_ICON_DEFAULT,
+      label: (e) => 'Signed ' + (KIND_NAMES[e.kind] || ('kind ' + e.kind)),
+    },
     getRelays: { icon: 'wifi', label: () => 'Read relay list' },
     'nip04.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
     'nip04.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
@@ -3986,7 +4070,10 @@
     const meta = METHOD_META[e.method] || { icon: 'feather', label: () => e.method };
     const row = h('div', { className: 'item activity-item' });
     const iconBox = h('div', { className: 'act-icon' });
-    iconBox.appendChild(icon(meta.icon));
+    // signEvent picks its icon from the event's kind, so `icon` may be a function.
+    // Everything else is a fixed string.
+    const iconName = typeof meta.icon === 'function' ? meta.icon(e) : meta.icon;
+    iconBox.appendChild(icon(iconName || 'feather'));
     const main = h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: meta.label(e) }),
       h('div', { className: 'item-sub', textContent: e.host + ' · ' + relTime(e.ts) }),

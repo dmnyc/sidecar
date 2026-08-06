@@ -1,0 +1,163 @@
+'use strict';
+
+// Unit coverage for the Recent activity icon mapping in sidepanel.js.
+//
+// THE COMPLAINT (2026-08-05/06): every signed event showed the same feather. A
+// screenshot of the Activity tab was nine "Signed relay auth" rows out of twelve,
+// all with an identical quill — you couldn't see at a glance what you'd reacted to,
+// reposted, or zapped. The *label* already distinguished them; the icon carried no
+// information at all.
+//
+// These tests pin three things:
+//   1. every named kind resolves to an icon that actually exists (a typo renders a
+//      blank box, which is worse than the feather it replaced)
+//   2. the feather still means authorship, not "signed something"
+//   3. the icons users already recognise are used for the events they know
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const ROOT = path.join(__dirname, '..');
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+
+function block(name, pattern) {
+  const m = source.match(pattern);
+  if (!m) throw new Error('Could not find ' + name + ' in sidepanel.js');
+  return m[1];
+}
+
+// Parse the three maps straight out of the source. Running the whole panel needs a
+// DOM; the mapping itself is plain data and is what actually broke.
+const iconsSrc = block('ICONS', /const ICONS = \{([\s\S]*?)\n  \};/);
+const kindIconsSrc = block('KIND_ICONS', /const KIND_ICONS = \{([\s\S]*?)\n  \};/);
+const kindNamesSrc = block('KIND_NAMES', /const KIND_NAMES = \{([\s\S]*?)\n  \};/);
+
+const ICON_NAMES = new Set(
+  [...iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'/gm)].map((m) => m[1])
+);
+const KIND_ICONS = Object.fromEntries(
+  [...kindIconsSrc.matchAll(/^\s*(\d+):\s*'([\w-]+)'/gm)].map((m) => [Number(m[1]), m[2]])
+);
+const KIND_NAMES = Object.fromEntries(
+  [...kindNamesSrc.matchAll(/(\d+):\s*'([^']+)'/g)].map((m) => [Number(m[1]), m[2]])
+);
+
+// ---- nothing renders blank -------------------------------------------------------
+
+test('every kind icon exists in the ICONS map', () => {
+  // A name with no entry makes icon() emit an empty <svg> — an invisible box in the
+  // list, strictly worse than the feather it replaced.
+  const missing = Object.entries(KIND_ICONS)
+    .filter(([, name]) => !ICON_NAMES.has(name))
+    .map(([kind, name]) => `kind ${kind} → '${name}'`);
+  assert.deepEqual(missing, [], 'unresolvable icon names');
+});
+
+test('every named kind has an icon', () => {
+  const uncovered = Object.keys(KIND_NAMES)
+    .map(Number)
+    .filter((k) => !(k in KIND_ICONS))
+    .map((k) => `${k} (${KIND_NAMES[k]})`);
+  assert.deepEqual(uncovered, [], 'kinds that would fall back to the feather');
+});
+
+test('an unknown kind falls back to the feather rather than blank', () => {
+  assert.match(source, /const KIND_ICON_DEFAULT = 'feather';/);
+  assert.match(source, /KIND_ICONS\[e\.kind\] \|\| KIND_ICON_DEFAULT/,
+    'a kind Sidecar has never seen must still render something');
+});
+
+// ---- the feather keeps its meaning ----------------------------------------------
+
+test('the feather is reserved for authorship', () => {
+  // If everything is a feather again, the icon column is back to carrying no
+  // information. Only kinds where the user actually wrote prose should use it.
+  const feathered = Object.entries(KIND_ICONS)
+    .filter(([, name]) => name === 'feather')
+    .map(([kind]) => Number(kind));
+  assert.deepEqual(feathered, [1], 'only the plain note should be a feather');
+});
+
+test('the noisy machine kinds are NOT feathers', () => {
+  // These are what flooded the log in the report. Each is a client housekeeping
+  // signature, not something the user chose to write.
+  for (const kind of [22242, 30078, 24133, 27235, 24242]) {
+    assert.notEqual(KIND_ICONS[kind], 'feather',
+      `kind ${kind} (${KIND_NAMES[kind]}) should not look like authorship`);
+  }
+});
+
+// ---- the icons users already recognise ------------------------------------------
+
+test('reposts, reactions and zaps use their conventional glyphs', () => {
+  assert.equal(KIND_ICONS[6], 'repeat', 'repost');
+  assert.equal(KIND_ICONS[7], 'heart', 'reaction');
+  assert.equal(KIND_ICONS[9734], 'zap', 'zap request');
+  assert.equal(KIND_ICONS[9321], 'zap', 'nutzap');
+  assert.equal(KIND_ICONS[9041], 'zap', 'zap goal');
+});
+
+test('relay-related kinds all share the wifi glyph', () => {
+  // 22242 relay auth is the one that flooded the screenshot; grouping the whole
+  // family under one glyph makes that block visually skippable.
+  for (const kind of [22242, 10002, 10006, 10007, 10012, 10050]) {
+    assert.equal(KIND_ICONS[kind], 'wifi', `kind ${kind} (${KIND_NAMES[kind]})`);
+  }
+});
+
+test('destructive kinds are visually distinct', () => {
+  assert.equal(KIND_ICONS[5], 'trash', 'deletion');
+  assert.equal(KIND_ICONS[62], 'trash', 'vanish request');
+  assert.equal(KIND_ICONS[10000], 'user-x', 'mute list');
+});
+
+test('long-form writing is a document, not a note', () => {
+  assert.equal(KIND_ICONS[30023], 'file-text', 'article');
+  assert.equal(KIND_ICONS[30818], 'file-text', 'wiki article');
+});
+
+test('the comment kind uses the same bubble as the compose button', () => {
+  // 1111 is what the "Comment on this page" feature publishes; the topbar button
+  // for it is a message-circle, so the log should agree.
+  assert.equal(KIND_ICONS[1111], 'message-circle');
+});
+
+// ---- the icon field can be a function -------------------------------------------
+
+test('signEvent resolves its icon per event, others stay strings', () => {
+  const meta = source.match(/const METHOD_META = \{([\s\S]*?)\n  \};/)[1];
+  assert.match(meta, /icon: \(e\) => KIND_ICONS\[e\.kind\]/,
+    'signEvent must pick an icon from the event');
+  assert.match(meta, /getPublicKey: \{ icon: 'key'/, 'non-sign methods keep a fixed icon');
+});
+
+test('activityRow handles both a function and a string', () => {
+  // signEvent's icon is now a function while every other entry is a string. Passing
+  // the function straight to icon() would look up ICONS[<function>] and render blank.
+  const fn = source.match(/function activityRow\(e\) \{[\s\S]*?\n  \}/)[0];
+  assert.match(fn, /typeof meta\.icon === 'function' \? meta\.icon\(e\) : meta\.icon/);
+  assert.match(fn, /icon\(iconName \|\| 'feather'\)/, 'and still guards against undefined');
+});
+
+// ---- the icon set itself ---------------------------------------------------------
+
+test('no duplicate keys in ICONS', () => {
+  // A duplicate silently shadows the earlier entry, so one icon quietly becomes
+  // another. Object literals accept it without complaint.
+  const all = [...iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'/gm)].map((m) => m[1]);
+  const seen = new Set();
+  const dupes = all.filter((n) => (seen.has(n) ? true : (seen.add(n), false)));
+  assert.deepEqual(dupes, [], 'duplicate icon keys');
+});
+
+test('every icon body is renderable SVG content', () => {
+  // icon() drops the string inside <svg viewBox="0 0 24 24">…</svg> — anything that
+  // isn't an element would produce an empty box.
+  const bad = [...iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'([^']*)'/gm)]
+    .filter(([, , body]) => !/^<(path|circle|line|polyline|polygon|rect|ellipse)\b/.test(body.trim()))
+    .map(([, name]) => name);
+  assert.deepEqual(bad, [], 'icon bodies that do not start with an SVG shape');
+});
