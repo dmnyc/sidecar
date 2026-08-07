@@ -141,6 +141,13 @@ test('the filled Blossom mark still follows the theme colour', () => {
   assert.match(body, /stroke="none"/, 'and must not also be stroked, which doubles the outline');
 });
 
+test('app data is a stored record, not a settings gear', () => {
+  // Kind 30078 is NIP-78 app-scoped storage — a client persisting its own state
+  // (feed prefs, sync markers). A gear implies the user opened a settings screen and
+  // changed something, which is not what happened; reported as looking wrong.
+  assert.equal(KIND_ICONS[30078], 'copy');
+});
+
 test('HTTP auth is a globe, not a login arrow', () => {
   // NIP-98 signs an HTTP request to prove identity to a WEB SERVER. A login arrow
   // implies entering an app, which is not what happened — reported as making no
