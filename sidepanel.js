@@ -69,6 +69,16 @@
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
     bug: '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
     // ---- activity-log kinds ----
+    // Broadcast tower for relay auth. Drawn as stroke centre-lines on the 24x24 grid
+    // rather than imported as filled art: icon() forces viewBox="0 0 24 24" with
+    // fill:none and stroke=currentColor, so a filled path renders as a hollow outline
+    // of itself, in the wrong box. Apex emitter, A-frame mast with a cross-brace, and
+    // two pairs of arcs for near/far signal.
+    tower: '<circle cx="12" cy="6" r="1.6"></circle><path d="M10.6 9.4 7 22"></path><path d="M13.4 9.4 17 22"></path><path d="M9.2 15h5.6"></path><path d="M8.1 4a6 6 0 0 0 0 8"></path><path d="M15.9 4a6 6 0 0 1 0 8"></path><path d="M5.2 1.6a9.6 9.6 0 0 0 0 12.8"></path><path d="M18.8 1.6a9.6 9.6 0 0 1 0 12.8"></path>',
+    // Blossom (the media-server protocol) has a blossom for a mark, so petals are the
+    // literal read. Four circles rather than four arcs — at 16px the arc-petal version
+    // muddied into a rosette, and plain circles have bounds you can reason about.
+    flower: '<circle cx="12" cy="7.6" r="3.6"></circle><circle cx="12" cy="16.4" r="3.6"></circle><circle cx="7.6" cy="12" r="3.6"></circle><circle cx="16.4" cy="12" r="3.6"></circle><circle cx="12" cy="12" r="2"></circle>',
     // Stock Feather at 24x24, stroke-width 2 (see icon()). Added so the Recent
     // activity list can distinguish what was signed instead of showing one quill
     // for everything — a column of identical feathers is unreadable when a client
@@ -3879,10 +3889,10 @@
     10030: 'heart',           // emoji list
     10044: 'key',             // DM encryption key
     10050: 'wifi',            // DM relay list
-    10063: 'download',        // blossom servers
-    22242: 'wifi',            // relay auth — the flood this was mostly about
+    10063: 'flower',          // blossom servers
+    22242: 'tower',           // relay auth — the flood this was mostly about
     24133: 'share',           // connect (NIP-46)
-    24242: 'download',        // blossom auth
+    24242: 'flower',          // blossom auth — Blossom's own mark is a blossom
     27235: 'log-in',          // HTTP auth
     30000: 'users',           // follow set
     30023: 'file-text',       // article

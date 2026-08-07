@@ -100,12 +100,21 @@ test('reposts, reactions and zaps use their conventional glyphs', () => {
   assert.equal(KIND_ICONS[9041], 'zap', 'zap goal');
 });
 
-test('relay-related kinds all share the wifi glyph', () => {
-  // 22242 relay auth is the one that flooded the screenshot; grouping the whole
-  // family under one glyph makes that block visually skippable.
-  for (const kind of [22242, 10002, 10006, 10007, 10012, 10050]) {
-    assert.equal(KIND_ICONS[kind], 'wifi', `kind ${kind} (${KIND_NAMES[kind]})`);
+test('relay auth gets the broadcast tower, relay LISTS get wifi', () => {
+  // These are different actions and were briefly conflated under one wifi glyph.
+  // Authenticating TO a relay is a handshake — the tower reads as transmission.
+  // Editing a list of relays is configuration, and wifi reads as connectivity.
+  assert.equal(KIND_ICONS[22242], 'tower', 'relay auth — the kind that floods the log');
+  for (const kind of [10002, 10006, 10007, 10012, 10050]) {
+    assert.equal(KIND_ICONS[kind], 'wifi', `kind ${kind} (${KIND_NAMES[kind]}) is a list, not a handshake`);
   }
+});
+
+test('both Blossom kinds use the flower', () => {
+  // Blossom's own mark is a blossom, so petals are the literal read — and it beats
+  // the generic download arrow these had, which said nothing about the protocol.
+  assert.equal(KIND_ICONS[24242], 'flower', 'blossom auth');
+  assert.equal(KIND_ICONS[10063], 'flower', 'blossom servers');
 });
 
 test('destructive kinds are visually distinct', () => {
@@ -151,6 +160,44 @@ test('no duplicate keys in ICONS', () => {
   const seen = new Set();
   const dupes = all.filter((n) => (seen.has(n) ? true : (seen.add(n), false)));
   assert.deepEqual(dupes, [], 'duplicate icon keys');
+});
+
+test('no icon carries its own viewBox or a hard-coded colour', () => {
+  // icon() wraps every body in <svg viewBox="0 0 24 24" fill="none"
+  // stroke="currentColor" stroke-width="2">. Art pasted in from a design tool is
+  // usually FILLED geometry on its own viewBox — dropped in as-is it renders as a
+  // hollow outline of itself, in the wrong box, and ignores the theme colour. Icons
+  // have to be redrawn as stroke centre-lines on the 24x24 grid.
+  //
+  // fill="currentColor" is allowed and used deliberately by the dot glyphs (`more`,
+  // `grip`), which have to be solid. Anything else pins a colour the themes can't
+  // override.
+  const offenders = [];
+  for (const [, name, body] of iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'([^']*)'/gm)) {
+    if (/viewBox=/.test(body)) offenders.push(name + ' (own viewBox)');
+    for (const p of body.matchAll(/\b(fill|stroke)="([^"]*)"/g)) {
+      if (p[2] !== 'currentColor' && p[2] !== 'none') {
+        offenders.push(`${name} (${p[1]}="${p[2]}")`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], 'icons carrying their own viewBox or a fixed colour');
+});
+
+test('icon geometry stays inside the 24x24 box with room for the stroke', () => {
+  // stroke-width 2 means the ink extends 1 unit past every centre-line, so a circle
+  // at cy=12 r=11.5 would clip. Only circles are checked — their bounds are exact
+  // and they are what the hand-drawn icons here are built from.
+  const bad = [];
+  for (const [, name, body] of iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'([^']*)'/gm)) {
+    for (const c of body.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"/g)) {
+      const [cx, cy, r] = [+c[1], +c[2], +c[3]];
+      if (cx - r - 1 < 0 || cx + r + 1 > 24 || cy - r - 1 < 0 || cy + r + 1 > 24) {
+        bad.push(`${name}: circle(${cx},${cy},r${r})`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'geometry that clips at stroke-width 2');
 });
 
 test('every icon body is renderable SVG content', () => {
