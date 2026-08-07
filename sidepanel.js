@@ -2747,7 +2747,47 @@
     return wrap;
   }
 
+  // Set when renderMain() is skipped because something is covering the panel, so the
+  // overlay's own teardown can run the render the user didn't see.
+  let _mainRenderDeferred = false;
+
+  // Is anything covering the panel right now? Two separate surfaces do it and only
+  // one sets a class: openModal() adds `modal-open` to <html>, while the approval
+  // screen is just #view-approval with its `hidden` class removed. Missing the
+  // second would leave the flicker in place for exactly the screen where a
+  // background repaint is most alarming — the one asking you to approve a signature.
+  function panelIsCovered() {
+    if (document.documentElement.classList.contains('modal-open')) return true;
+    const approval = $('view-approval');
+    return !!approval && !approval.classList.contains('hidden');
+  }
+
+  // Draw whatever was skipped while an overlay was up. Callers must clear their own
+  // visible state FIRST, or panelIsCovered() still reports true and this no-ops.
+  function flushDeferredMainRender() {
+    if (!_mainRenderDeferred) return;
+    if (panelIsCovered()) return;
+    if (!state || state.locked) return;
+    renderMain();
+  }
+
   function renderMain() {
+    // renderMain clears and rebuilds the header and the account list, and re-runs the
+    // pinned balance bar. Behind an open modal that tear-down is visible as a flicker
+    // through the overlay — reported while reading the notifications panel.
+    //
+    // The trigger is a loop: renderMain kicks off a profile backfill for any account
+    // missing a kind:0, and each fetch that lands calls renderMain again. An account
+    // whose profile never resolves keeps that cycling on the retry cooldown, so the
+    // flicker repeats for as long as the panel is open.
+    //
+    // Deferring is safe because renderMain reads only from `state` — nothing is lost
+    // by drawing once on close instead of N times underneath.
+    if (panelIsCovered()) {
+      _mainRenderDeferred = true;
+      return;
+    }
+    _mainRenderDeferred = false;
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
 
     // No accounts yet → the switcher chip has nothing to show or switch to, and the
@@ -3088,6 +3128,10 @@
     hide($('modal-overlay'));
     $('modal').innerHTML = '';
     document.documentElement.classList.remove('modal-open');
+    // Draw whatever was skipped while the modal covered the panel. The class is
+    // removed above first, or panelIsCovered() would still report true and the panel
+    // would keep showing stale account names until the next unrelated render.
+    flushDeferredMainRender();
   }
   $('modal-overlay').addEventListener('click', (e) => {
     if (e.target === $('modal-overlay')) closeModal();
@@ -10638,6 +10682,7 @@
     pendingApproval = null;
     renderBacklog([]);
     hide($('view-approval'));
+    flushDeferredMainRender(); // the approval card is gone — draw anything skipped behind it
     return false;
   }
 
@@ -10711,6 +10756,7 @@
       // on reconnect restores the true state.
       pendingApproval = null;
       hide($('view-approval'));
+      flushDeferredMainRender(); // the approval card is gone — draw anything skipped behind it
       setTimeout(connectApprovalPort, 250);
     });
     // Pull authoritative state on (re)connect.
