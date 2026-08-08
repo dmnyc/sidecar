@@ -5182,7 +5182,11 @@
     if (!banner) return false;
     if (_reloadBannerTimer) clearTimeout(_reloadBannerTimer);
     banner.innerHTML = '';
-    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: 'Reload ' + host })]);
+    // "Reload client window", not "Reload jumble.social". The host was noise — this
+    // banner only ever offers the tab you're already looking at, so naming it told
+    // the user something they could see, and a long host stretched the button.
+    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: 'Reload client window' })]);
+    reload.title = 'Reload ' + host; // still available on hover, just not shouted
     reload.addEventListener('click', () => {
       try { chrome.tabs.reload(tab.id); } catch (_) {}
       dismissReloadBanner();
@@ -5192,9 +5196,12 @@
     const close = h('button', {
       className: 'reload-banner-x',
       title: 'Dismiss',
-      'aria-label': 'Dismiss',
       textContent: '✕',
     });
+    // setAttribute, not h(): h() does Object.assign, which sets a JS PROPERTY named
+    // 'aria-label' and never reaches the attribute — so this button had no accessible
+    // name at all, only a hover title. Same trap as elsewhere in this file.
+    close.setAttribute('aria-label', 'Dismiss');
     close.addEventListener('click', dismissReloadBanner);
     banner.append(reload, close);
     show(banner);
