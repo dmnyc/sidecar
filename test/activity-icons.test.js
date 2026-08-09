@@ -117,6 +117,37 @@ test('both Blossom kinds use the flower', () => {
   assert.equal(KIND_ICONS[10063], 'flower', 'blossom servers');
 });
 
+test('the flower is the real Blossom mark, fitted to the box', () => {
+  // Replaced the five circles I approximated it with. This is filled art on its own
+  // 58.48x63.59 viewBox, so it needs a transform into the 24x24 box icon() supplies —
+  // without one it would render at ~2.7x and be clipped to a corner fragment.
+  const body = iconsSrc.match(/^\s*flower: '([^']*)'/m)[1];
+  const t = body.match(/transform="translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)"/);
+  assert.ok(t, 'the mark must be transformed into the 24-unit box');
+  const [, tx, ty, scale] = t.map(Number);
+  const w = 58.48 * scale, h = 63.59 * scale;
+  assert.ok(tx >= 0 && ty >= 0 && tx + w <= 24 && ty + h <= 24,
+    `spans ${tx.toFixed(1)}..${(tx + w).toFixed(1)} x ${ty.toFixed(1)}..${(ty + h).toFixed(1)} — outside the box`);
+  // And it should carry the tower's weight: that reaches y 1.6..22, so ~20 units.
+  assert.ok(h > 18, `only ${h.toFixed(1)} units tall — reads small beside the tower`);
+});
+
+test('the filled Blossom mark still follows the theme colour', () => {
+  // icon() sets fill:none stroke=currentColor, which renders a filled path invisible.
+  // The mark has to opt into fill="currentColor" — a literal colour would pin it and
+  // stop the five themes from recolouring it.
+  const body = iconsSrc.match(/^\s*flower: '([^']*)'/m)[1];
+  assert.match(body, /fill="currentColor"/, 'a filled glyph needs an explicit fill');
+  assert.match(body, /stroke="none"/, 'and must not also be stroked, which doubles the outline');
+});
+
+test('HTTP auth is a globe, not a login arrow', () => {
+  // NIP-98 signs an HTTP request to prove identity to a WEB SERVER. A login arrow
+  // implies entering an app, which is not what happened — reported as making no
+  // sense in the log.
+  assert.equal(KIND_ICONS[27235], 'globe');
+});
+
 test('destructive kinds are visually distinct', () => {
   assert.equal(KIND_ICONS[5], 'trash', 'deletion');
   assert.equal(KIND_ICONS[62], 'trash', 'vanish request');
@@ -204,7 +235,7 @@ test('every icon body is renderable SVG content', () => {
   // icon() drops the string inside <svg viewBox="0 0 24 24">…</svg> — anything that
   // isn't an element would produce an empty box.
   const bad = [...iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'([^']*)'/gm)]
-    .filter(([, , body]) => !/^<(path|circle|line|polyline|polygon|rect|ellipse)\b/.test(body.trim()))
+    .filter(([, , body]) => !/^<(g|path|circle|line|polyline|polygon|rect|ellipse)\b/.test(body.trim()))
     .map(([, name]) => name);
   assert.deepEqual(bad, [], 'icon bodies that do not start with an SVG shape');
 });
