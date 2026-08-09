@@ -75,8 +75,10 @@
     // of itself, in the wrong box. Apex emitter, A-frame mast with a cross-brace, and
     // two pairs of arcs for near/far signal.
     tower: '<circle cx="12" cy="6" r="1.6"></circle><path d="M10.6 9.4 7 22"></path><path d="M13.4 9.4 17 22"></path><path d="M9.2 15h5.6"></path><path d="M8.1 4a6 6 0 0 0 0 8"></path><path d="M15.9 4a6 6 0 0 1 0 8"></path><path d="M5.2 1.6a9.6 9.6 0 0 0 0 12.8"></path><path d="M18.8 1.6a9.6 9.6 0 0 1 0 12.8"></path>',
-    // Blossom's actual mark, supplied by Daniel — a far better read than the circles
-    // I approximated it with. This one is FILLED art on a 58.48x63.59 viewBox, so
+    // A vector resembling the cherry-blossom emoji the Blossom repo uses in its README
+    // title (github.com/hzrd149/blossom — the protocol has no official vector mark).
+    // Supplied by Daniel; a better read than the circles I first approximated it with.
+    // FILLED art on a 58.48x63.59 viewBox, so
     // unlike every stroke icon here it needs two things icon() doesn't give it:
     //   fill="currentColor" stroke="none"  — icon() sets fill:none, which would
     //     render a filled path invisible (and stroking it draws a doubled outline)
