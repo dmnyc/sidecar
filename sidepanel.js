@@ -10516,12 +10516,13 @@
     const list = $('approval-wrong-acct-list');
     list.innerHTML = '';
     // Only the two things the user can't learn afterwards: that this cancels, and that the
-    // switch is app-wide rather than just this site. "Makes that account active" carries
-    // the second one in Sidecar's own vocabulary, tying to the ACTIVE tag on the row below.
+    // switch is app-wide rather than just this site. "Makes the selected account active"
+    // carries the second in Sidecar's own vocabulary, tying to the ACTIVE tag on the row
+    // below.
     // The reconnect instruction is deliberately NOT here — it lands as a toast the moment
     // the detach settles, with the account name filled in, which this can't do. Three lines
     // of lede in a sidebar to pre-announce it was too much.
-    list.append(h('p', { className: 'wrong-acct-lede', textContent: 'Cancels this request and makes that account active.' }));
+    list.append(h('p', { className: 'wrong-acct-lede', textContent: 'Cancels this request and makes the selected account active.' }));
     accts.forEach((a) => {
       const row = h('button', { className: 'acct-row' });
       const av = document.createElement('span');

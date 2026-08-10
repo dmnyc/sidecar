@@ -303,7 +303,7 @@ test('detach needs the PIN when the keystore is locked', () => {
 
 const COPY_TITLE = 'Not the right account?';
 const COPY_TOGGLE = 'Detach and use another identity.';
-const COPY_LEDE = 'Cancels this request and makes that account active.';
+const COPY_LEDE = 'Cancels this request and makes the selected account active.';
 
 test('both surfaces carry the hint, the toggle and the list', () => {
   assert.match(sidepanelHtml, /id="approval-wrong-acct"/);
@@ -350,7 +350,7 @@ test('the lede carries both facts the user cannot learn afterwards', () => {
   // else was cut — three lines of lede in a sidebar was too much.
   for (const src of [sidepanelJs, promptJs]) {
     assert.match(src, /Cancels this request/);
-    assert.match(src, /makes that account active/);
+    assert.match(src, /makes the selected account active/);
   }
 });
 
