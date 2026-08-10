@@ -1060,6 +1060,27 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
               picture: a.picture || '',
             }))
         : null;
+      // Accounts offerable in the "wrong account" escape. Excludes the account the
+      // prompt is already showing (activePubkey — the resolved signer), since detaching
+      // to re-pick the same identity is a no-op with extra steps. NOT `otherAccounts`:
+      // that list is scoped to accounts authorized on this host, and the whole point
+      // here is that the one the user wants isn't in that set yet.
+      //
+      // The GLOBALLY active account sorts first. On a host pinned to someone else it's
+      // both the likeliest pick and the one the user already chose in Sidecar, so it
+      // shouldn't be buried in an eight-row list.
+      const globalActivePubkey = await KS.getActivePubkey();
+      const escapeAccounts = st.accounts
+        .filter((a) => a.pubkey !== activePubkey)
+        .map((a) => ({
+          pubkey: a.pubkey,
+          npub: self.NostrTools.nip19.npubEncode(a.pubkey),
+          name: a.name || '',
+          picture: a.picture || '',
+          active: a.pubkey === globalActivePubkey,
+        }));
+      escapeAccounts.sort((x, y) => (y.active ? 1 : 0) - (x.active ? 1 : 0));
+
       // For encrypt/decrypt, translate the counterparty's hex pubkey to an npub so
       // the prompt can show a recognizable identity instead of raw hex. Pure offline
       // encoding — no relay lookup. Falls back to the raw hex if it isn't valid.
@@ -1104,6 +1125,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // separate !isRelayAuth term. sharedIdentity means the real switcher is already
         // showing, and two account pickers on one signing screen is worse than none.
         wrongAccountEscape: isContentSign && !sharedIdentity && st.accounts.length > 1,
+        allAccounts: escapeAccounts,
         // The popup window loads every theme stylesheet but has no settings access of
         // its own, so without this it renders whatever the default is — Speakeasy
         // purple over someone's Brownstone panel. Carried on the payload rather than
@@ -1133,6 +1155,43 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         if (switchedStatus === 'reject') throw new Error('This site is blocked in Sidecar for that account');
         activePubkey = decision.switchToPubkey;
         await KS.setActive(activePubkey);
+      }
+
+      // "Wrong account" escape: detach this host from the account it's pinned to, make
+      // the chosen account active, and REJECT this signature.
+      //
+      // DETACH (clear the binding), not rebind (write a new one). This is the same
+      // primitive behind Settings -> Sites -> "Use <account>" (switchSiteModal in
+      // sidepanel.js), so both routes leave identical state and there's one behavior to
+      // reason about rather than two. Clearing means the next getPublicKey re-pairs the
+      // host to whatever is active — which is why setActive below is the line that
+      // actually decides who the user comes back as, not the clear.
+      //
+      // Deliberately not "sign this one as them": the event the client built carries the
+      // pubkey the client still has cached, so signing it under another identity yields
+      // one correct event and then silent reverts on the next. Rejecting means the client
+      // re-asks after the user reconnects, at which point getPublicKey runs and both
+      // sides agree on the identity for real.
+      if (decision.action === 'detach') {
+        const target = decision.detachPubkey;
+        if (!target || !(await KS.hasAccount(target))) {
+          throw new Error('That account is no longer available');
+        }
+        if ((await PERMS.getPermissionStatus(target, host, method)) === 'reject') {
+          throw new Error('This site is blocked in Sidecar for that account');
+        }
+        await clearSiteAccount(host);
+        await KS.setActive(target);
+        // The relax window was earned by the identity we're leaving. Left standing it
+        // would auto-approve the next request for the one arriving — a grant the user
+        // never gave to that account.
+        await RELAX.revokeForHost(host);
+        syncRelaxBadge();
+        const tgt = st.accounts.find((a) => a.pubkey === target);
+        throw new Error(
+          'Detached ' + host + '. Sign out and back in as ' + ((tgt && tgt.name) || 'that account') +
+          ' — the site is still using the old identity.'
+        );
       }
 
       if (decision.action === 'block') {

@@ -461,18 +461,16 @@
            one account and the switcher above is hidden (only one account has logged in
            here), so the prompt names an identity they may not have picked and has no
            control to change it.
-           A hint plus one action, not a picker. An earlier cut listed every account and
-           let the user choose one — but the only thing Sidecar can honestly do is cancel,
-           because the event the client built carries the pubkey the client still has
-           cached. Signing it as someone else yields one correct event and then silent
-           reverts. Since the user has to cancel and reconnect on the site either way, the
-           list was a choice with no outcome; the line below IS that cancel.
-           It rejects — same as the Reject button, and like Reject it is never gated behind
-           the PIN or the destructive lock, because the safe way out must always be one
-           tap away. -->
+           Collapsed, because with eight accounts an always-open list buries the account
+           capsule this screen exists to show.
+           Picking a row DETACHES the host and makes that account active, then rejects —
+           the same primitive as Settings -> Sites -> "Use <account>", so both routes leave
+           identical state. See the 'detach' branch in background.js for why signing this
+           request as a different account would be worse than failing it. -->
       <div class="approval-wrong-acct hidden" id="approval-wrong-acct">
         <strong>Not the right account?</strong>
-        <button class="approval-wrong-acct-cancel" id="approval-wrong-acct-cancel">Cancel and login with another identity.</button>
+        <button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle" aria-expanded="false">Detach and use another identity.</button>
+        <div class="approval-wrong-acct-list hidden" id="approval-wrong-acct-list"></div>
       </div>
 
       <div id="approval-preview" class="card hidden"></div>

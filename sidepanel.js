@@ -10472,24 +10472,75 @@
     });
   }
 
-  // "Wrong account?" hint. The switcher above only appears when 2+ accounts have logged
-  // in on this host, so on a single-login host a user looking at the wrong identity has
-  // no control at all. This tells them what to do about it.
+  // "Wrong account?" escape. The switcher above only appears when 2+ accounts have logged
+  // in on this host, so on a single-login host a user looking at the wrong identity has no
+  // control at all. This is that control.
   //
-  // Static copy, deliberately. An earlier cut listed every account and rebound the host
-  // on a pick — but the only honest outcome was still "canceled, now reconnect on the
-  // site", because the event the client built carries the pubkey it still has cached.
-  // With eight accounts on screen that was a long list offering a choice that changed
-  // nothing. The Reject button already cancels; this just says so.
+  // Picking a row detaches the host and makes that account active — the same primitive as
+  // Settings -> Sites -> "Use <account>", reachable from the moment the problem is
+  // actually discovered instead of three levels into Settings.
   //
-  // Shown generously (see the gate in background.js — any content sign with 2+
-  // accounts). Sidecar can't see the client's UI, so it can't tell a correct prompt from
-  // a wrong one; only the user can.
+  // Shown generously (see the gate in background.js — any content sign with 2+ accounts).
+  // Sidecar can't see the client's UI, so it can't tell a correct prompt from a wrong one;
+  // only the user can.
   function renderWrongAcctEscape(data) {
     const hint = $('approval-wrong-acct');
-    if (!hint) return;
-    if (data.wrongAccountEscape) show(hint);
-    else hide(hint);
+    const toggle = $('approval-wrong-acct-toggle');
+    const list = $('approval-wrong-acct-list');
+    if (!hint || !toggle || !list) return;
+    // Collapse on every render, not just the first: the panel re-shows the approval on
+    // queue advance and unlock, and an expanded list left over from the previous request
+    // would be offering to detach a different host.
+    list.innerHTML = '';
+    hide(list);
+    toggle.setAttribute('aria-expanded', 'false');
+    const accts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
+    if (!data.wrongAccountEscape || !accts.length) {
+      hide(hint);
+      return;
+    }
+    show(hint);
+    toggle.onclick = () => {
+      if (list.classList.contains('hidden')) {
+        buildWrongAcctList(data, accts);
+        show(list);
+        toggle.setAttribute('aria-expanded', 'true');
+      } else {
+        hide(list);
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    };
+  }
+
+  function buildWrongAcctList(data, accts) {
+    const list = $('approval-wrong-acct-list');
+    list.innerHTML = '';
+    // Says "everywhere in Sidecar" because detach + setActive moves the GLOBAL active
+    // account, not just this site's. That's the coherent thing to do — it's the two steps
+    // the user would take by hand — but a silent global state change from a signing prompt
+    // is how you get a confused bug report a month later.
+    list.append(
+      h('p', {
+        className: 'wrong-acct-lede',
+        textContent: 'Picks who this site uses next, everywhere in Sidecar. Cancels this request — sign out and back in on ' + (data.host || 'the site') + '.',
+      })
+    );
+    accts.forEach((a) => {
+      const row = h('button', { className: 'acct-row' });
+      const av = document.createElement('span');
+      av.className = 'acct-row-av';
+      applyAvatar(av, a);
+      row.append(
+        av,
+        h('div', { className: 'acct-row-info' }, [
+          h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
+          h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
+        ])
+      );
+      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: 'Active' }));
+      row.addEventListener('click', () => decideApproval('detach', { detachPubkey: a.pubkey }));
+      list.append(row);
+    });
   }
 
   function showApproval() {
@@ -10666,8 +10717,12 @@
     const pinErr = $('approval-pin-error');
     err.textContent = '';
     pinErr.textContent = '';
-    // Unlock first if needed (Allow once / Trust / Relax only).
-    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
+    // Unlock first if needed. 'detach' is in here even though it never signs: it clears
+    // the site binding and moves the GLOBAL active account, and without it a locked prompt
+    // would be the one surface that can change persistent state with no authentication —
+    // reachable by anyone at an unattended browser who can make a site ask for a
+    // signature. Reject stays ungated; the safe way out must never need a PIN.
+    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {
       const pin = $('approval-pin').value;
       if (!pin) {
         pinErr.textContent = 'Enter your PIN.';
@@ -10698,6 +10753,11 @@
       action = 'budget';
       // Merge, don't assign — other flags share this object (see prompt.js).
       extra = Object.assign({}, extra, { budgetSats, perPaymentSats: 0 });
+    }
+    // "Wrong account" escape: carry the account to make active. The background detaches
+    // and then throws, so this never signs.
+    if (action === 'detach') {
+      extra = Object.assign({}, extra, { detachPubkey: (opts && opts.detachPubkey) || '' });
     }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {
@@ -10736,10 +10796,6 @@
   $('approval-allow').addEventListener('click', () => decideApproval('once'));
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
-  // The "wrong account?" hint's cancel line. Same decision as Reject — including the
-  // batch behavior in decideApproval, so a grouped burst is dismissed in one go rather
-  // than re-prompting for each sibling under the same wrong identity.
-  $('approval-wrong-acct-cancel').addEventListener('click', () => decideApproval('reject'));
   // Escape hatch: reject the whole backlog at once (this request + all waiting).
   $('approval-reject-all').addEventListener('click', async () => {
     pendingApproval = null;

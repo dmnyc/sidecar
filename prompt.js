@@ -17,7 +17,8 @@
     switchToggle: $('switch-toggle'),
     switchMenu: $('switch-menu'),
     wrongAcct: $('wrong-acct'),
-    wrongAcctCancel: $('wrong-acct-cancel'),
+    wrongAcctToggle: $('wrong-acct-toggle'),
+    wrongAcctList: $('wrong-acct-list'),
     unlock: $('unlock'),
     pin: $('pin'),
     error: $('error'),
@@ -621,11 +622,61 @@
     });
   }
 
-  // "Wrong account?" hint — the popup half of renderWrongAcctEscape in sidepanel.js.
-  // Copy lives in prompt.html; keep it in step with sidepanel.html's.
+  // "Wrong account?" escape — the popup half of renderWrongAcctEscape in sidepanel.js.
+  // Keep the two in step; the lede copy is asserted identical in both by the tests.
   function buildWrongAcct() {
-    if (!els.wrongAcct) return;
-    els.wrongAcct.classList.toggle('hidden', !data.wrongAccountEscape);
+    if (!els.wrongAcct || !els.wrongAcctToggle || !els.wrongAcctList) return;
+    els.wrongAcctList.innerHTML = '';
+    els.wrongAcctList.classList.add('hidden');
+    els.wrongAcctToggle.setAttribute('aria-expanded', 'false');
+    const accts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
+    els.wrongAcct.classList.toggle('hidden', !data.wrongAccountEscape || !accts.length);
+    els.wrongAcctToggle.onclick = () => {
+      if (els.wrongAcctList.classList.contains('hidden')) {
+        buildWrongAcctList(accts);
+        els.wrongAcctList.classList.remove('hidden');
+        els.wrongAcctToggle.setAttribute('aria-expanded', 'true');
+      } else {
+        els.wrongAcctList.classList.add('hidden');
+        els.wrongAcctToggle.setAttribute('aria-expanded', 'false');
+      }
+    };
+  }
+
+  function buildWrongAcctList(accts) {
+    els.wrongAcctList.innerHTML = '';
+    const lede = document.createElement('p');
+    lede.className = 'wrong-acct-lede';
+    lede.textContent =
+      'Picks who this site uses next, everywhere in Sidecar. Cancels this request — sign out and back in on ' + (data.host || 'the site') + '.';
+    els.wrongAcctList.append(lede);
+    accts.forEach((a) => {
+      const row = document.createElement('button');
+      row.className = 'switch-row';
+      const av = document.createElement('img');
+      av.className = 'switch-row-av';
+      av.referrerPolicy = 'no-referrer';
+      av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
+      av.src = a.picture || 'icons/avatar-default.svg';
+      const info = document.createElement('div');
+      info.className = 'switch-row-info';
+      const name = document.createElement('div');
+      name.className = 'switch-row-name';
+      name.textContent = a.name || shortNpub(a.npub);
+      const np = document.createElement('div');
+      np.className = 'switch-row-npub';
+      np.textContent = shortNpub(a.npub);
+      info.append(name, np);
+      row.append(av, info);
+      if (a.active) {
+        const tag = document.createElement('span');
+        tag.className = 'wrong-acct-tag';
+        tag.textContent = 'Active';
+        row.append(tag);
+      }
+      row.addEventListener('click', () => decide('detach', { detachPubkey: a.pubkey }));
+      els.wrongAcctList.append(row);
+    });
   }
 
   // Disable Allow once + Trust this site while a destructive overwrite is
@@ -640,8 +691,9 @@
   async function decide(action, opts) {
     els.error.textContent = '';
     els.pinError.textContent = '';
-    // Unlock first if needed (Allow once / Trust / Relax / Pay only).
-    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
+    // Unlock first if needed. 'detach' is included even though it never signs — see
+    // decideApproval in sidepanel.js. Reject stays ungated.
+    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {
       const pin = els.pin.value;
       if (!pin) {
         els.pinError.textContent = 'Enter your PIN.';
@@ -680,6 +732,11 @@
     if (data.offerAutoZap > 0 && els.autozapOfferBox.checked) {
       extra = Object.assign({}, extra, { enableAutoZap: true });
     }
+    // "Wrong account" escape: carry the account to make active. The background detaches
+    // and then throws, so this never signs.
+    if (action === 'detach') {
+      extra = Object.assign({}, extra, { detachPubkey: (opts && opts.detachPubkey) || '' });
+    }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {
       extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
@@ -700,10 +757,6 @@
   els.allow.addEventListener('click', () => decide('once'));
   els.trust.addEventListener('click', () => decide('trust'));
   els.reject.addEventListener('click', () => decide('reject'));
-  // The "wrong account?" hint's cancel line — same decision as Reject. Bound directly
-  // rather than forwarded to els.reject, which init() swaps for a plain Close button on
-  // an expired request.
-  els.wrongAcctCancel.addEventListener('click', () => decide('reject'));
   els.pin &&
     els.pin.addEventListener('keydown', (e) => {
       // Respect the destructive lock — Enter bypasses the disabled Allow button

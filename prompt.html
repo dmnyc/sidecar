@@ -263,13 +263,23 @@
       text-align: center; margin: -8px 0 14px;
     }
     .wrong-acct strong { display: block; color: var(--text); font-weight: 600; }
-    /* Reads as a link, not a button — see .approval-wrong-acct-cancel in styles.css for
+    /* Reads as a link, not a button — see .approval-wrong-acct-toggle in styles.css for
        why this is --muted rather than the --lav accent. */
-    .wrong-acct-cancel {
+    .wrong-acct-toggle {
       background: none; border: none; padding: 2px 4px; cursor: pointer;
       font: inherit; color: var(--muted); text-decoration: underline;
     }
-    .wrong-acct-cancel:hover { color: var(--text); }
+    .wrong-acct-toggle:hover { color: var(--text); }
+    .wrong-acct-list {
+      text-align: left; margin: 8px 0 0; padding: 6px;
+      background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+      border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--sheen);
+    }
+    .wrong-acct-lede { margin: 2px 6px 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
+    .wrong-acct-tag {
+      margin-left: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--muted); white-space: nowrap;
+    }
     .switch-row {
       display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
       background: transparent; border: none; cursor: pointer; color: var(--text);
@@ -374,7 +384,8 @@
          hidden. Copy must stay in step with the panel's. -->
     <div class="wrong-acct hidden" id="wrong-acct">
       <strong>Not the right account?</strong>
-      <button class="wrong-acct-cancel" id="wrong-acct-cancel">Cancel and login with another identity.</button>
+      <button class="wrong-acct-toggle" id="wrong-acct-toggle" aria-expanded="false">Detach and use another identity.</button>
+      <div class="wrong-acct-list hidden" id="wrong-acct-list"></div>
     </div>
 
     <div id="preview" class="card hidden"></div>

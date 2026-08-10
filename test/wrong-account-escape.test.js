@@ -8,18 +8,25 @@
 // there's no control at all — and no indication that cancelling and reconnecting is the
 // way out. Users hit this and concluded Sidecar was stuck.
 //
-// The fix is a hint plus one action, not a picker:
+// The fix, on both approval surfaces:
 //
 //   Not the right account?
-//   Cancel and login with another identity.   <- clickable, rejects the request
+//   Detach and use another identity.          <- collapsed; expands to the account list
+//     Picks who this site uses next, everywhere in Sidecar. Cancels this request ...
+//     [ accounts, globally-active first and tagged, current signer excluded ]
 //
-// An earlier cut listed every account and rebound the host on a pick. It was dropped
-// because the only honest outcome was still "canceled — now reconnect on the site": the
-// event the client built carries the pubkey the client still has cached, so signing it as
-// someone else yields one correct event and then silent reverts. With eight accounts in
-// the keystore that was a long scroll offering a choice that changed nothing. So there is
-// no 'rebind' decision to test — only that the hint appears in the right places, on both
-// surfaces, with matching copy, and that its line actually rejects.
+// Picking a row DETACHES the host (clears its binding), makes that account active, and
+// rejects the request. That is the same primitive as Settings -> Sites -> "Use <account>"
+// (switchSiteModal in sidepanel.js) — the fix already existed, three levels into Settings,
+// and the prompt is where the problem is actually discovered.
+//
+// Detach, not rebind: clearing the binding means the next getPublicKey re-pairs the host to
+// whatever is active, so setActive is the line that decides who the user comes back as.
+// Writing a new binding instead would pin an identity the site hasn't approved.
+//
+// Never "sign this one as them": the event the client built carries the pubkey the client
+// still has cached, so signing it under another identity yields one correct event and then
+// silent reverts on the next. That reads as working and isn't.
 //
 // The gate is deliberately BROAD — any content sign, 2+ accounts, no switcher already
 // showing. Two earlier cuts tried to detect that the account was "pinned" (by a host
@@ -46,6 +53,7 @@ const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
 const PK_A = 'a'.repeat(64);
 const PK_B = 'b'.repeat(64);
+const HOST = 'jumble.social';
 
 // ---------------------------------------------------------------------------
 // 1. The payload gate
@@ -123,34 +131,165 @@ test('relay auth is excluded via isContentSign, not a separate term', () => {
 // of dead code that gets mistaken for a working feature later ('block' in background.js
 // was already discovered to be dead this way).
 
-test("no 'rebind' decision exists in the background", () => {
-  assert.ok(!/decision\.action === 'rebind'/.test(background), 'rebind branch should be gone');
-  assert.ok(!/rebindPubkey/.test(background), 'rebindPubkey should be gone');
+test('the action detaches the binding, never writes a new one', () => {
+  // Rebinding would pin an identity the site hasn't approved, and would diverge from the
+  // Settings -> Sites route, leaving two behaviors to reason about instead of one.
+  const br = liftDetach();
+  assert.match(br, /clearSiteAccount\(host\)/, 'must clear the binding');
+  assert.ok(!/setSiteAccount/.test(br), 'must not write a new binding');
+  assert.ok(!/'rebind'/.test(background), 'the old rebind action should be gone');
 });
 
-test("no surface sends a 'rebind' decision", () => {
-  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    assert.ok(!/'rebind'/.test(src), label + ' should not reference a rebind action');
-    assert.ok(!/rebindPubkey/.test(src), label + ' should not send rebindPubkey');
+test('the offered list excludes the account already being shown', () => {
+  // Detaching to re-pick the same identity is a no-op with extra steps.
+  const m = background.match(/const escapeAccounts = st\.accounts\s*\n\s*\.filter\((.*)\)\n/);
+  assert.ok(m, 'escapeAccounts should filter st.accounts');
+  assert.match(m[1], /a\.pubkey !== activePubkey/);
+});
+
+test('the offered list is built from every account, not the authorized set', () => {
+  // The account the user wants is the one that ISN'T authorized on this host yet, so
+  // sourcing this from `otherAccounts` (host-scoped) would leave it empty in exactly the
+  // case that matters.
+  const m = background.match(/const escapeAccounts = (st\.accounts|otherAccounts)/);
+  assert.ok(m);
+  assert.equal(m[1], 'st.accounts');
+});
+
+test('the globally-active account sorts first and is flagged', () => {
+  // With eight accounts the likeliest pick must not be buried, and an unexplained top row
+  // reads as arbitrary — hence both the sort and the flag the UI tags.
+  assert.match(background, /active: a\.pubkey === globalActivePubkey/);
+  assert.match(background, /escapeAccounts\.sort\(\(x, y\) => \(y\.active \? 1 : 0\) - \(x\.active \? 1 : 0\)\)/);
+  assert.match(background, /const globalActivePubkey = await KS\.getActivePubkey\(\)/);
+});
+
+// ---------------------------------------------------------------------------
+// 2b. The detach decision branch
+// ---------------------------------------------------------------------------
+
+function liftDetach() {
+  const m = background.match(/ {6}if \(decision\.action === 'detach'\) \{[\s\S]*?\n {6}\}/);
+  if (!m) throw new Error("Could not find the detach branch in background.js");
+  return m[0];
+}
+
+async function runDetach({ target, accounts = [PK_A, PK_B], status = 'ask' }) {
+  const calls = [];
+  const ctx = {
+    decision: { action: 'detach', detachPubkey: target },
+    host: HOST,
+    method: 'signEvent',
+    st: { accounts: accounts.map((pk) => ({ pubkey: pk, name: 'Acct ' + pk[0] })) },
+    KS: {
+      hasAccount: async (pk) => accounts.includes(pk),
+      setActive: async (pk) => calls.push(['setActive', pk]),
+    },
+    PERMS: { getPermissionStatus: async () => status },
+    RELAX: { revokeForHost: async (h) => calls.push(['revokeForHost', h]) },
+    clearSiteAccount: async (h) => calls.push(['clearSiteAccount', h]),
+    syncRelaxBadge: () => calls.push(['syncRelaxBadge']),
+    Error,
+  };
+  vm.createContext(ctx);
+  let threw = null;
+  try {
+    await vm.runInContext('(async () => {\n' + liftDetach() + '\n})()', ctx);
+  } catch (e) {
+    threw = e;
+  }
+  return { calls, threw };
+}
+
+test('detach clears the host binding', async () => {
+  const { calls } = await runDetach({ target: PK_B });
+  assert.deepEqual(calls.filter((c) => c[0] === 'clearSiteAccount'), [['clearSiteAccount', HOST]]);
+});
+
+test('detach makes the chosen account active', async () => {
+  // This is the line that decides who the user comes back as — clearing alone would let
+  // the reconnect land on whatever happened to be active.
+  const { calls } = await runDetach({ target: PK_B });
+  assert.deepEqual(calls.filter((c) => c[0] === 'setActive'), [['setActive', PK_B]]);
+});
+
+test('detach revokes any relax window on the host', async () => {
+  // The auto-sign window was earned by the identity being left. Left standing it would
+  // auto-approve the next request for the one arriving.
+  const { calls } = await runDetach({ target: PK_B });
+  assert.deepEqual(calls.filter((c) => c[0] === 'revokeForHost'), [['revokeForHost', HOST]]);
+  assert.ok(calls.some((c) => c[0] === 'syncRelaxBadge'), 'badge should re-sync after the revoke');
+});
+
+test('detach always throws — it never returns to the signer', async () => {
+  const { threw } = await runDetach({ target: PK_B });
+  assert.ok(threw instanceof Error, 'detach must not fall through to signing');
+});
+
+test('the detach error names the host and the account to reconnect as', async () => {
+  const { threw } = await runDetach({ target: PK_B });
+  assert.match(threw.message, new RegExp(HOST));
+  assert.match(threw.message, /sign out and back in as/i);
+  assert.match(threw.message, /Acct b/);
+});
+
+test('detach to an account that no longer exists changes nothing', async () => {
+  const { calls, threw } = await runDetach({ target: 'c'.repeat(64) });
+  assert.ok(threw instanceof Error);
+  assert.match(threw.message, /no longer available/i);
+  assert.deepEqual(calls, [], 'a missing account must not touch the binding');
+});
+
+test('detach with a missing pubkey changes nothing', async () => {
+  const { calls, threw } = await runDetach({ target: '' });
+  assert.ok(threw instanceof Error);
+  assert.deepEqual(calls, []);
+});
+
+test('detach to an account blocked on this host changes nothing', async () => {
+  // The user blocked this site for that identity; honoring the pick would quietly undo it.
+  const { calls, threw } = await runDetach({ target: PK_B, status: 'reject' });
+  assert.ok(threw instanceof Error);
+  assert.match(threw.message, /blocked/i);
+  assert.deepEqual(calls, [], 'a blocked target must not touch the binding');
+});
+
+test('the detach branch runs before the block and trust branches', () => {
+  // All three throw or settle; whichever comes first wins.
+  const iDetach = background.indexOf("decision.action === 'detach'");
+  const iBlock = background.indexOf("decision.action === 'block'");
+  const iTrust = background.indexOf("decision.action === 'trust'");
+  assert.ok(iDetach > 0 && iBlock > 0 && iTrust > 0);
+  assert.ok(iDetach < iBlock, 'detach should precede block');
+  assert.ok(iDetach < iTrust, 'detach should precede trust');
+});
+
+test("'detach' is not treated as an approval by the decrypt coalescing", () => {
+  // settlePrompt grants a short decrypt window on 'once'/'trust'. detach is a refusal; if
+  // it matched there it would hand the site a decrypt grant on the way out.
+  const m = background.match(/if \(action === 'reject'\) \{[\s\S]*?grantDecrypt\(host, activePubkey\);/);
+  assert.ok(m, 'could not find the decrypt-coalescing branch');
+  assert.ok(!/detach/.test(m[0]), 'detach must not appear in the decrypt grant path');
+});
+
+test("'detach' is not batched across a grouped burst", () => {
+  // Allow all / Reject all fan one decision across a same-kind burst. Detaching is a
+  // per-site identity change, not something to apply N times.
+  for (const src of [sidepanelJs, promptJs]) {
+    const m = src.match(/groupIds\.length > 1 && \(([^)]*)\)/);
+    if (m) assert.ok(!/detach/.test(m[1]), 'detach must not be in the batch predicate');
   }
 });
 
-test('the payload no longer carries an account list for the hint', () => {
-  // allAccounts existed only to render the picker.
-  assert.ok(!/allAccounts/.test(background), 'allAccounts should be gone from the payload');
-  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    assert.ok(!/allAccounts/.test(src), label + ' should not read allAccounts');
-  }
-});
-
-test('the unlock gate is back to the three actions that sign', () => {
-  // rebind was gated on unlock because it mutated persistent state. With it gone the
-  // gate should cover exactly the signing actions again — and never reject.
+test('detach needs the PIN when the keystore is locked', () => {
+  // It signs nothing, but it clears the binding and moves the GLOBAL active account.
+  // Without this a locked prompt is the one surface that can change persistent state with
+  // no authentication, reachable by anyone who can make a site request a signature.
   for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
     const m = src.match(/if \(data\.needUnlock && \(([^)]*)\)\)/);
     assert.ok(m, 'could not find the needUnlock gate in ' + label);
-    const actions = m[1].match(/'[a-z]+'/g).map((x) => x.slice(1, -1)).sort();
-    assert.deepEqual(actions, ['once', 'relax', 'trust'], label);
+    assert.match(m[1], /action === 'detach'/, label + ' should gate detach on unlock');
+    assert.ok(!/'reject'/.test(m[1]), label + ': reject must never need a PIN');
   }
 });
 
@@ -163,77 +302,84 @@ test('the unlock gate is back to the three actions that sign', () => {
 // before.
 
 const COPY_TITLE = 'Not the right account?';
-const COPY_BODY = 'Cancel and login with another identity.';
+const COPY_TOGGLE = 'Detach and use another identity.';
+const COPY_LEDE = 'Picks who this site uses next, everywhere in Sidecar. Cancels this request — sign out and back in on ';
 
-test('both surfaces carry the hint element', () => {
+test('both surfaces carry the hint, the toggle and the list', () => {
   assert.match(sidepanelHtml, /id="approval-wrong-acct"/);
+  assert.match(sidepanelHtml, /id="approval-wrong-acct-toggle"/);
+  assert.match(sidepanelHtml, /id="approval-wrong-acct-list"/);
   assert.match(promptHtml, /id="wrong-acct"/);
+  assert.match(promptHtml, /id="wrong-acct-toggle"/);
+  assert.match(promptHtml, /id="wrong-acct-list"/);
 });
 
-test('both surfaces start hidden', () => {
+test('both surfaces start hidden and collapsed', () => {
   assert.match(sidepanelHtml, /class="approval-wrong-acct hidden"/);
+  assert.match(sidepanelHtml, /class="approval-wrong-acct-list hidden"/);
   assert.match(promptHtml, /class="wrong-acct hidden"/);
+  assert.match(promptHtml, /class="wrong-acct-list hidden"/);
 });
 
-test('both surfaces use the same copy, word for word', () => {
-  // Two files, one sentence. Drift here means two different explanations of the same
-  // situation depending on whether the panel happened to be open.
+test('both surfaces use the same title and toggle copy, word for word', () => {
+  // Two files, one explanation. Drift means the same situation reads differently depending
+  // on whether the panel happened to be open.
   for (const [label, src] of [['sidepanel.html', sidepanelHtml], ['prompt.html', promptHtml]]) {
     assert.ok(src.includes('<strong>' + COPY_TITLE + '</strong>'), label + ' title');
-    assert.ok(src.includes('>' + COPY_BODY + '</button>'), label + ' body');
+    assert.ok(src.includes('>' + COPY_TOGGLE + '</button>'), label + ' toggle');
   }
 });
 
-test('the copy says cancel, not switch', () => {
-  // The hint must not imply Sidecar can sign this request as someone else — it can't,
-  // and promising it was the flaw in the picker.
-  for (const src of [sidepanelHtml, promptHtml]) {
-    assert.match(src, /Cancel and login with/);
-    assert.ok(!/Pick who this site should use/.test(src), 'leftover picker copy');
-  }
-});
-
-test('the cancel line is a button on both surfaces', () => {
-  // Plain text left the user reading advice with nothing to act on.
-  assert.match(sidepanelHtml, /<button class="approval-wrong-acct-cancel" id="approval-wrong-acct-cancel">/);
-  assert.match(promptHtml, /<button class="wrong-acct-cancel" id="wrong-acct-cancel">/);
-});
-
-test('the cancel line rejects, on both surfaces', () => {
-  assert.match(sidepanelJs, /\$\('approval-wrong-acct-cancel'\)\.addEventListener\('click', \(\) => decideApproval\('reject'\)\)/);
-  assert.match(promptJs, /els\.wrongAcctCancel\.addEventListener\('click', \(\) => decide\('reject'\)\)/);
-});
-
-test('the cancel line never signs', () => {
-  // One character away from being the worst bug in the extension: a control the user
-  // taps *because* the identity is wrong must not approve under that identity.
-  const BINDINGS = [
-    ['sidepanel.js', sidepanelJs, /\$\('approval-wrong-acct-cancel'\)\.addEventListener\([^;]*;/],
-    ['prompt.js', promptJs, /els\.wrongAcctCancel\.addEventListener\([^;]*;/],
-  ];
-  for (const [label, src, re] of BINDINGS) {
-    const m = src.match(re);
-    assert.ok(m, 'could not find the cancel binding in ' + label);
-    assert.match(m[0], /'reject'/, label + ': cancel must send reject');
-    assert.ok(!/'once'|'trust'|'relax'|'budget'/.test(m[0]), label + ': cancel must not approve');
-  }
-});
-
-test('the popup binds cancel directly, not via els.reject', () => {
-  // init() replaces els.reject with a plain Close button when the request has already
-  // expired. Forwarding through it would leave cancel wired to a stale node.
-  const m = promptJs.match(/els\.wrongAcctCancel\.addEventListener\([^)]*\)[^;]*;/);
-  assert.ok(m, 'could not find the popup cancel binding');
-  assert.ok(!/els\.reject/.test(m[0]), 'must not forward through els.reject');
-});
-
-test('the cancel line is not disabled by the destructive lock', () => {
-  // setApprovalLocked / setLocked gate Allow + Trust behind "I understand". The way out
-  // is never gated — same rule that keeps Reject enabled.
+test('both surfaces use the same lede copy, word for word', () => {
   for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    const fn = src.match(/function set(?:Approval)?Locked\(locked\) \{[\s\S]*?\n {2}\}/);
-    assert.ok(fn, label);
-    assert.ok(!/wrongAcct|wrong-acct/.test(fn[0]), label + ': cancel must stay enabled');
+    assert.ok(src.includes(COPY_LEDE), label + ' lede');
+  }
+});
+
+test('the lede says the account change is global', () => {
+  // detach + setActive moves the GLOBAL active account, not just this site's. That is the
+  // coherent thing to do, but a silent global state change from a signing prompt is how you
+  // get a confused report a month later.
+  for (const src of [sidepanelJs, promptJs]) {
+    assert.match(src, /everywhere in Sidecar/);
+    assert.match(src, /Cancels this request/);
+  }
+});
+
+test('the copy never promises to sign as the other account', () => {
+  // The one thing Sidecar cannot honestly offer here.
+  for (const src of [sidepanelHtml, promptHtml, sidepanelJs, promptJs]) {
+    assert.ok(!/[Ss]ign (this|it) as/.test(src), 'must not offer to sign as another account');
+  }
+});
+
+test('the toggle is a button on both surfaces', () => {
+  assert.match(sidepanelHtml, /<button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle"/);
+  assert.match(promptHtml, /<button class="wrong-acct-toggle" id="wrong-acct-toggle"/);
+});
+
+test('picking a row sends detach with that pubkey, on both surfaces', () => {
+  assert.match(sidepanelJs, /decideApproval\('detach', \{ detachPubkey: a\.pubkey \}\)/);
+  assert.match(promptJs, /decide\('detach', \{ detachPubkey: a\.pubkey \}\)/);
+});
+
+test('picking a row never approves', () => {
+  // One character away from the worst bug in the extension: a control tapped *because* the
+  // identity is wrong must not approve under that identity.
+  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
+    const fn = src.match(/function buildWrongAcctList\([\s\S]*?\n {2}\}/);
+    assert.ok(fn, 'could not find buildWrongAcctList in ' + label);
+    const m = fn[0].match(/row\.addEventListener\('click',[^;]*;/);
+    assert.ok(m, 'could not find the row binding in ' + label);
+    assert.match(m[0], /'detach'/, label + ': row must send detach');
+    assert.ok(!/'once'|'trust'|'relax'|'budget'|'reject'/.test(m[0]), label + ': row must not approve');
+  }
+});
+
+test('the active account is tagged on both surfaces', () => {
+  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
+    assert.match(src, /a\.active/, label + ' should read the active flag');
+    assert.match(src, /'Active'/, label + ' should render the tag');
   }
 });
 
@@ -242,38 +388,79 @@ test('both surfaces gate the hint on the payload flag', () => {
   assert.match(promptJs, /data\.wrongAccountEscape/);
 });
 
+test('both surfaces read the account list from allAccounts', () => {
+  assert.match(sidepanelJs, /Array\.isArray\(data\.allAccounts\)/);
+  assert.match(promptJs, /Array\.isArray\(data\.allAccounts\)/);
+});
+
+test('an empty account list hides the hint entirely', () => {
+  // The gate can be true while the list is empty (every other account deleted). A visible
+  // "Detach and use another identity" that expands to nothing is worse than no hint.
+  assert.match(sidepanelJs, /!data\.wrongAccountEscape \|\| !accts\.length/);
+  assert.match(promptJs, /!data\.wrongAccountEscape \|\| !accts\.length/);
+});
+
 test('the hint is re-evaluated every time an approval is shown', () => {
-  // Not once at load: the panel re-renders on queue advance and unlock, and a hint left
-  // standing from a previous request would advise cancelling a prompt that is fine.
+  // Not once at load: the panel re-shows the approval on queue advance and unlock.
   assert.match(sidepanelJs, /renderApprovalAccountCapsule\(data\);\s*\n\s*renderWrongAcctEscape\(data\);/);
   assert.match(promptJs, /buildAccountCapsule\(\);\s*\n\s*buildWrongAcct\(\);/);
 });
 
+test('the list re-collapses on every render', () => {
+  // An expanded list left over from the previous request would offer to detach a different
+  // host than the one now on screen.
+  const panel = sidepanelJs.match(/function renderWrongAcctEscape\(data\) \{[\s\S]*?\n {2}\}/)[0];
+  assert.match(panel, /list\.innerHTML = '';/);
+  assert.match(panel, /hide\(list\);/);
+  assert.match(panel, /setAttribute\('aria-expanded', 'false'\)/);
+  const popup = promptJs.match(/function buildWrongAcct\(\) \{[\s\S]*?\n {2}\}/)[0];
+  assert.match(popup, /innerHTML = '';/);
+  assert.match(popup, /classList\.add\('hidden'\)/);
+  assert.match(popup, /setAttribute\('aria-expanded', 'false'\)/);
+});
+
 test('the hint hides again when the flag is false', () => {
   // A show-only render leaks the hint onto the next request in the queue.
-  assert.match(sidepanelJs, /if \(data\.wrongAccountEscape\) show\(hint\);\s*\n\s*else hide\(hint\);/);
-  assert.match(promptJs, /classList\.toggle\('hidden', !data\.wrongAccountEscape\)/);
+  assert.match(sidepanelJs, /hide\(hint\);/);
+  assert.match(promptJs, /els\.wrongAcct\.classList\.toggle\('hidden', !data\.wrongAccountEscape/);
 });
 
-test('the hint has styles on both surfaces', () => {
-  assert.match(css, /\.approval-wrong-acct \{/);
-  assert.match(css, /\.approval-wrong-acct strong \{/);
-  assert.match(promptHtml, /\.wrong-acct \{/);
-  assert.match(promptHtml, /\.wrong-acct strong \{/);
+test('account names and the host are set as text, never as HTML', () => {
+  // Profile metadata and the host are both attacker-controlled.
+  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
+    const fn = src.match(/function buildWrongAcctList\([\s\S]*?\n {2}\}/);
+    assert.ok(fn, 'could not find buildWrongAcctList in ' + label);
+    assert.ok(!/innerHTML\s*=\s*[^']/.test(fn[0].replace(/innerHTML = '';/g, '')),
+      label + ' should not assign untrusted innerHTML');
+    assert.match(fn[0], /textContent/);
+  }
 });
 
-test('the cancel line is de-emphasized, not accented', () => {
+test('the toggle is de-emphasized, not accented', () => {
   // At --lav it competed with the account capsule directly above, which is the thing the
   // user actually needs to read on a signing screen. The underline carries the affordance.
   for (const [label, src, sel] of [
-    ['styles.css', css, '.approval-wrong-acct-cancel'],
-    ['prompt.html', promptHtml, '.wrong-acct-cancel'],
+    ['styles.css', css, '.approval-wrong-acct-toggle'],
+    ['prompt.html', promptHtml, '.wrong-acct-toggle'],
   ]) {
     const blk = src.match(new RegExp('\\' + sel + ' \\{[^}]*\\}'));
     assert.ok(blk, 'could not find ' + sel + ' in ' + label);
     assert.match(blk[0], /color: var\(--muted\)/, label + ': should use the secondary color');
     assert.ok(!/var\(--lav\)/.test(blk[0]), label + ': should not use the accent');
     assert.match(blk[0], /text-decoration: underline/, label + ': needs the link affordance');
+  }
+});
+
+test('the hint has styles on both surfaces', () => {
+  for (const sel of ['.approval-wrong-acct ', '.approval-wrong-acct-toggle ', '.approval-wrong-acct-list ']) {
+    assert.ok(css.includes(sel + '{'), 'styles.css missing ' + sel);
+  }
+  for (const sel of ['.wrong-acct ', '.wrong-acct-toggle ', '.wrong-acct-list ']) {
+    assert.ok(promptHtml.includes(sel + '{'), 'prompt.html missing ' + sel);
+  }
+  for (const src of [css, promptHtml]) {
+    assert.ok(src.includes('.wrong-acct-lede {'), 'missing the lede style');
+    assert.ok(src.includes('.wrong-acct-tag {'), 'missing the active-tag style');
   }
 });
 
@@ -287,7 +474,7 @@ test('the popup hint only uses CSS variables that exist', () => {
   );
   for (const src of files) for (const m of src.matchAll(/(--[a-z0-9-]+)\s*:/g)) defined.add(m[1]);
   for (const [label, src] of [['prompt.html', promptHtml], ['styles.css', css]]) {
-    for (const blk of src.matchAll(/\.(?:approval-)?wrong-acct[^{]*\{[^}]*\}/g)) {
+    for (const blk of src.matchAll(/\.(?:approval-)?wrong-acct[a-z-]*[^{]*\{[^}]*\}/g)) {
       for (const v of blk[0].matchAll(/var\((--[a-z0-9-]+)/g)) {
         assert.ok(defined.has(v[1]), label + ' uses undefined ' + v[1]);
       }
