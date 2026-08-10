@@ -59,27 +59,82 @@
       180000
     );
 
-    try {
-      chrome.runtime.sendMessage(
-        { type, scope: d.scope, method: d.method, params: d.params, host },
-        function (response) {
-          let err;
-          try { err = chrome.runtime.lastError; } catch (_) {
-            return reply({ ok: false, error: 'Sidecar was updated — reload this page to reconnect.' });
+    // MV3 evicts the service worker after ~30s idle. If that happens between the
+    // page's call and our response, the request is lost: the page waits out its own
+    // timeout and reports a failure for something Sidecar never even asked about.
+    // Reported as "had to reload the extension to get Jumble to send the draft".
+    //
+    // Chrome distinguishes the two failure shapes through lastError.message, and only
+    // ONE of them is safe to retry:
+    //
+    //   "Could not establish connection. Receiving end does not exist."
+    //       The worker wasn't running and couldn't be woken; the message was NEVER
+    //       delivered. Nothing was prompted, nothing signed. Retrying is safe.
+    //
+    //   "The message port closed before a response was received."
+    //       The listener DID get it — the channel died before sendResponse. The user
+    //       may already have approved, and the signature may exist. Retrying could
+    //       prompt a second time and produce a SECOND signed event, which for a note
+    //       means a duplicate post and for a payment means paying twice. Never retry.
+    //
+    // So the retry is deliberately narrow. Sending the same event twice is worse than
+    // one clear failure, and the background has no request-level dedupe to fall back on.
+    const RETRYABLE = /receiving end does not exist|could not establish connection/i;
+    let attempted = 0;
+
+    function dispatch() {
+      attempted++;
+      try {
+        chrome.runtime.sendMessage(
+          { type, scope: d.scope, method: d.method, params: d.params, host },
+          function (response) {
+            let err;
+            try { err = chrome.runtime.lastError; } catch (_) {
+              return reply({ ok: false, error: 'Sidecar was updated — reload this page to reconnect.' });
+            }
+            // Undelivered, and we haven't retried yet: wake the worker and try once
+            // more. A short delay gives Chrome time to actually start it — an
+            // immediate re-send usually races the same cold start and fails again.
+            if (err && attempted === 1 && RETRYABLE.test(err.message || '')) {
+              setTimeout(dispatch, 150);
+              return;
+            }
+            // A successful nostr call means the page is signed in — unlock the pay
+            // card and re-scan in case an invoice is already on screen.
+            if (!err && d.scope === 'nostr' && response && response.ok && !connectedToSite) {
+              connectedToSite = true;
+              scheduleScan();
+            }
+            reply(err ? { ok: false, error: friendlyError(err.message) } : response);
           }
-          // A successful nostr call means the page is signed in — unlock the pay
-          // card and re-scan in case an invoice is already on screen.
-          if (!err && d.scope === 'nostr' && response && response.ok && !connectedToSite) {
-            connectedToSite = true;
-            scheduleScan();
-          }
-          reply(err ? { ok: false, error: err.message } : response);
-        }
-      );
-    } catch (e) {
-      reply({ ok: false, error: 'Sidecar was updated — reload this page to reconnect.' });
+        );
+      } catch (e) {
+        reply({ ok: false, error: 'Sidecar was updated — reload this page to reconnect.' });
+      }
     }
+    dispatch();
   });
+
+  // Turn Chrome's internal messaging errors into something a user can act on. The raw
+  // strings name Chrome's plumbing ("the message port closed before a response was
+  // received"), which reads as a Sidecar crash rather than the recoverable hiccup it is.
+  function friendlyError(msg) {
+    const m = String(msg || '');
+    if (/message port closed/i.test(m)) {
+      // The request reached Sidecar but the answer didn't come back. Deliberately does
+      // NOT say "try again" without qualification: if the user already approved, the
+      // event may have been signed and re-sending would duplicate it.
+      return 'Sidecar lost the connection while handling this. Check whether it went through before retrying.';
+    }
+    if (/receiving end does not exist|could not establish connection/i.test(m)) {
+      // Survived a retry, so Sidecar genuinely isn't reachable.
+      return "Sidecar didn't respond. Make sure it's enabled, then try again.";
+    }
+    if (/context invalidated/i.test(m)) {
+      return 'Sidecar was updated — reload this page to reconnect.';
+    }
+    return m || 'Sidecar request failed.';
+  }
 
   // ===== "Pay with Sidecar" confirmation card =====
   // When the page shows a Lightning invoice (a lightning: link, an input/QR value,
