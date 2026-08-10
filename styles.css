@@ -2346,6 +2346,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border: 1px solid var(--border-strong); border-radius: 14px;
   padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
 }
+/* "Wrong account?" hint (see renderWrongAcctEscape in sidepanel.js). Matches
+   .trust-nudge, the other advisory line on this screen — muted, so it doesn't compete
+   with the destructive banner or read as something being wrong. */
+.approval-wrong-acct {
+  font-size: 12.5px; line-height: 1.45; color: var(--muted);
+  text-align: center; margin: -6px 0 14px;
+}
+.approval-wrong-acct strong { display: block; color: var(--text); font-weight: 600; }
+/* Reads as a link, not a button — it sits above the real action row and must not look
+   like a fourth choice competing with Allow / Trust / Reject. Secondary color, not --lav:
+   at accent weight it pulled the eye away from the account capsule directly above, which
+   is the thing the user actually needs to read on this screen. The underline carries the
+   affordance on its own, and hover brings it up to full text color. */
+.approval-wrong-acct-cancel {
+  background: none; border: none; padding: 2px 4px; cursor: pointer;
+  font: inherit; color: var(--muted); text-decoration: underline;
+}
+.approval-wrong-acct-cancel:hover { color: var(--text); }
+
 .approval-as {
   font-size: 10.5px; color: var(--muted); margin-bottom: 8px;
   text-transform: uppercase; letter-spacing: 0.22em; text-align: center;

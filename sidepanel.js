@@ -10472,6 +10472,26 @@
     });
   }
 
+  // "Wrong account?" hint. The switcher above only appears when 2+ accounts have logged
+  // in on this host, so on a single-login host a user looking at the wrong identity has
+  // no control at all. This tells them what to do about it.
+  //
+  // Static copy, deliberately. An earlier cut listed every account and rebound the host
+  // on a pick — but the only honest outcome was still "canceled, now reconnect on the
+  // site", because the event the client built carries the pubkey it still has cached.
+  // With eight accounts on screen that was a long list offering a choice that changed
+  // nothing. The Reject button already cancels; this just says so.
+  //
+  // Shown generously (see the gate in background.js — any content sign with 2+
+  // accounts). Sidecar can't see the client's UI, so it can't tell a correct prompt from
+  // a wrong one; only the user can.
+  function renderWrongAcctEscape(data) {
+    const hint = $('approval-wrong-acct');
+    if (!hint) return;
+    if (data.wrongAccountEscape) show(hint);
+    else hide(hint);
+  }
+
   function showApproval() {
     if (!pendingApproval) return;
     const data = pendingApproval.data;
@@ -10504,6 +10524,7 @@
       : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
 
     renderApprovalAccountCapsule(data);
+    renderWrongAcctEscape(data);
 
     // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
     // "who's posting" choice explicit; relabel the switcher for signing context.
@@ -10715,6 +10736,10 @@
   $('approval-allow').addEventListener('click', () => decideApproval('once'));
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
+  // The "wrong account?" hint's cancel line. Same decision as Reject — including the
+  // batch behavior in decideApproval, so a grouped burst is dismissed in one go rather
+  // than re-prompting for each sibling under the same wrong identity.
+  $('approval-wrong-acct-cancel').addEventListener('click', () => decideApproval('reject'));
   // Escape hatch: reject the whole backlog at once (this request + all waiting).
   $('approval-reject-all').addEventListener('click', async () => {
     pendingApproval = null;

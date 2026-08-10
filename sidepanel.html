@@ -457,6 +457,24 @@
       <button class="approval-switch-toggle hidden" id="approval-switch-toggle">Sign in with a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
 
+      <!-- "Wrong account?" hint. Shown on a content sign when the user holds more than
+           one account and the switcher above is hidden (only one account has logged in
+           here), so the prompt names an identity they may not have picked and has no
+           control to change it.
+           A hint plus one action, not a picker. An earlier cut listed every account and
+           let the user choose one — but the only thing Sidecar can honestly do is cancel,
+           because the event the client built carries the pubkey the client still has
+           cached. Signing it as someone else yields one correct event and then silent
+           reverts. Since the user has to cancel and reconnect on the site either way, the
+           list was a choice with no outcome; the line below IS that cancel.
+           It rejects — same as the Reject button, and like Reject it is never gated behind
+           the PIN or the destructive lock, because the safe way out must always be one
+           tap away. -->
+      <div class="approval-wrong-acct hidden" id="approval-wrong-acct">
+        <strong>Not the right account?</strong>
+        <button class="approval-wrong-acct-cancel" id="approval-wrong-acct-cancel">Cancel and login with another identity.</button>
+      </div>
+
       <div id="approval-preview" class="card hidden"></div>
 
       <div id="approval-unlock" class="hidden stack">

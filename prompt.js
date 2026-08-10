@@ -16,6 +16,8 @@
     account: $('account'),
     switchToggle: $('switch-toggle'),
     switchMenu: $('switch-menu'),
+    wrongAcct: $('wrong-acct'),
+    wrongAcctCancel: $('wrong-acct-cancel'),
     unlock: $('unlock'),
     pin: $('pin'),
     error: $('error'),
@@ -383,6 +385,7 @@
     const verb = isPayment ? 'wants to send a Lightning payment' : 'wants to ' + (METHOD_LABELS[data.method] || data.method);
     els.ask.textContent = verb;
     buildAccountCapsule();
+    buildWrongAcct();
     renderPreview();
 
     // Decrypt-burst note: a client loading a DM inbox fires many decrypt requests
@@ -618,6 +621,13 @@
     });
   }
 
+  // "Wrong account?" hint — the popup half of renderWrongAcctEscape in sidepanel.js.
+  // Copy lives in prompt.html; keep it in step with sidepanel.html's.
+  function buildWrongAcct() {
+    if (!els.wrongAcct) return;
+    els.wrongAcct.classList.toggle('hidden', !data.wrongAccountEscape);
+  }
+
   // Disable Allow once + Trust this site while a destructive overwrite is
   // unacknowledged. Reject is never gated — the safe way out must stay reachable.
   function setLocked(locked) {
@@ -690,6 +700,10 @@
   els.allow.addEventListener('click', () => decide('once'));
   els.trust.addEventListener('click', () => decide('trust'));
   els.reject.addEventListener('click', () => decide('reject'));
+  // The "wrong account?" hint's cancel line — same decision as Reject. Bound directly
+  // rather than forwarded to els.reject, which init() swaps for a plain Close button on
+  // an expired request.
+  els.wrongAcctCancel.addEventListener('click', () => decide('reject'));
   els.pin &&
     els.pin.addEventListener('keydown', (e) => {
       // Respect the destructive lock — Enter bypasses the disabled Allow button

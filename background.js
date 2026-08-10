@@ -1086,6 +1086,24 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // what's about to be lost, and "trust this site to stop asking" is the last
         // advice it should be carrying.
         nudgeTrust: !destructive && (await shouldNudgeTrust(host, activePubkey)),
+        // The "wrong account" escape: offer the account list on any content sign where
+        // the user holds more than one account and no switcher is already on screen.
+        //
+        // Deliberately NOT gated on detecting that the account is "pinned" (a binding,
+        // or a client-stamped author). The first cut tried that and it was wrong twice
+        // over. Pin detection can only ever REMOVE a working way out, and it misses the
+        // case that matters most: a client showing account A while Sidecar's active
+        // account is B, with nothing pinned and nothing stamped. Sidecar cannot see the
+        // client's UI, so it cannot detect that at all — only the user can, and this is
+        // the control they need in order to say so.
+        //
+        // The cost of being generous is one muted collapsed line on prompts that did not
+        // need it. The cost of being clever was no route out at all.
+        //
+        // isContentSign already excludes relay auth (see its definition), so there is no
+        // separate !isRelayAuth term. sharedIdentity means the real switcher is already
+        // showing, and two account pickers on one signing screen is worse than none.
+        wrongAccountEscape: isContentSign && !sharedIdentity && st.accounts.length > 1,
         // The popup window loads every theme stylesheet but has no settings access of
         // its own, so without this it renders whatever the default is — Speakeasy
         // purple over someone's Brownstone panel. Carried on the payload rather than

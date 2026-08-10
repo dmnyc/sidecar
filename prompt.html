@@ -255,6 +255,21 @@
       border: 1px solid var(--border-strong); border-radius: 14px;
       padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
     }
+    /* "Wrong account?" hint — mirrors .approval-wrong-acct in styles.css. Same muted
+       weight as .trust-nudge, which is the other advisory line on this screen; it must
+       not compete with the destructive banner or read as something being wrong. */
+    .wrong-acct {
+      font-size: 12.5px; line-height: 1.45; color: var(--muted);
+      text-align: center; margin: -8px 0 14px;
+    }
+    .wrong-acct strong { display: block; color: var(--text); font-weight: 600; }
+    /* Reads as a link, not a button — see .approval-wrong-acct-cancel in styles.css for
+       why this is --muted rather than the --lav accent. */
+    .wrong-acct-cancel {
+      background: none; border: none; padding: 2px 4px; cursor: pointer;
+      font: inherit; color: var(--muted); text-decoration: underline;
+    }
+    .wrong-acct-cancel:hover { color: var(--text); }
     .switch-row {
       display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
       background: transparent; border: none; cursor: pointer; color: var(--text);
@@ -354,6 +369,13 @@
     <div class="account" id="account"></div>
     <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
+    <!-- "Wrong account?" hint — mirrors #approval-wrong-acct in sidepanel.html. Shown
+         on a content sign when the user holds 2+ accounts and the switcher above is
+         hidden. Copy must stay in step with the panel's. -->
+    <div class="wrong-acct hidden" id="wrong-acct">
+      <strong>Not the right account?</strong>
+      <button class="wrong-acct-cancel" id="wrong-acct-cancel">Cancel and login with another identity.</button>
+    </div>
 
     <div id="preview" class="card hidden"></div>
 
