@@ -10472,9 +10472,11 @@
     });
   }
 
-  // "Wrong account?" escape. The switcher above only appears when 2+ accounts have logged
-  // in on this host, so on a single-login host a user looking at the wrong identity has no
-  // control at all. This is that control.
+  // "Wrong account?" escape. Offers exactly the accounts the switcher above cannot: it
+  // appears only once 2+ accounts have logged in on this host, and even then it is scoped
+  // to those accounts, so a user whose intended identity is a third one has no control at
+  // all. This is that control. See the gate in background.js — the two lists are disjoint
+  // by construction, so this never repeats a row the switcher already offers.
   //
   // Picking a row detaches the host and makes that account active — the same primitive as
   // Settings -> Sites -> "Use <account>", reachable from the moment the problem is

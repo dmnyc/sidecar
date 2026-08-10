@@ -623,7 +623,9 @@
   }
 
   // "Wrong account?" escape — the popup half of renderWrongAcctEscape in sidepanel.js.
-  // Keep the two in step; the lede copy is asserted identical in both by the tests.
+  // Offers the accounts the switcher above can't reach; the two lists are disjoint by
+  // construction in background.js. Keep the two surfaces in step; the lede copy is
+  // asserted identical in both by the tests.
   function buildWrongAcct() {
     if (!els.wrongAcct || !els.wrongAcctToggle || !els.wrongAcctList) return;
     els.wrongAcctList.innerHTML = '';

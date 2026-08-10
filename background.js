@@ -1060,18 +1060,31 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
               picture: a.picture || '',
             }))
         : null;
-      // Accounts offerable in the "wrong account" escape. Excludes the account the
-      // prompt is already showing (activePubkey — the resolved signer), since detaching
-      // to re-pick the same identity is a no-op with extra steps. NOT `otherAccounts`:
-      // that list is scoped to accounts authorized on this host, and the whole point
-      // here is that the one the user wants isn't in that set yet.
+      // Accounts offerable in the "wrong account" escape: exactly the ones the switcher
+      // above CANNOT offer. Two exclusions, for two different reasons.
+      //
+      // The resolved signer (activePubkey) — detaching to re-pick the identity already on
+      // screen is a no-op with extra steps.
+      //
+      // Anything already in `otherAccounts` — that's the switcher's own list, and those
+      // accounts can be picked up there without cancelling anything. Subtracting it keeps
+      // the two lists disjoint, so the prompt never shows the same account twice under two
+      // different actions. Derived from `otherAccounts` itself rather than re-deriving the
+      // condition, so the two stay complementary if that filter ever changes.
+      //
+      // This is what closes the gap that shipped first: on a SHARED host the switcher is
+      // scoped to accounts already authorized here (never silently introduce a new identity
+      // to a site), and the escape used to be suppressed on shared hosts because "the real
+      // switcher is already showing". Both guards are individually right, and together they
+      // left a user with three accounts and two signed in unable to reach the third at all.
       //
       // The GLOBALLY active account sorts first. On a host pinned to someone else it's
       // both the likeliest pick and the one the user already chose in Sidecar, so it
       // shouldn't be buried in an eight-row list.
       const globalActivePubkey = await KS.getActivePubkey();
+      const offeredInSwitcher = new Set((otherAccounts || []).map((a) => a.pubkey));
       const escapeAccounts = st.accounts
-        .filter((a) => a.pubkey !== activePubkey)
+        .filter((a) => a.pubkey !== activePubkey && !offeredInSwitcher.has(a.pubkey))
         .map((a) => ({
           pubkey: a.pubkey,
           npub: self.NostrTools.nip19.npubEncode(a.pubkey),
@@ -1124,7 +1137,11 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // isContentSign already excludes relay auth (see its definition), so there is no
         // separate !isRelayAuth term. sharedIdentity means the real switcher is already
         // showing, and two account pickers on one signing screen is worse than none.
-        wrongAccountEscape: isContentSign && !sharedIdentity && st.accounts.length > 1,
+        // No !sharedIdentity term and no account-count term: both are now implied by
+        // escapeAccounts being non-empty. When the switcher already covers every other
+        // account the subtraction empties this list on its own, so the escape disappears
+        // without needing to reason about shared hosts separately.
+        wrongAccountEscape: isContentSign && escapeAccounts.length > 0,
         allAccounts: escapeAccounts,
         // The popup window loads every theme stylesheet but has no settings access of
         // its own, so without this it renders whatever the default is — Speakeasy

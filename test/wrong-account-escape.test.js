@@ -2,11 +2,13 @@
 
 // Coverage for the "wrong account" hint on the signing approval.
 //
-// The problem: a client and Sidecar can disagree about which account is signed in, and
-// the approval then names an identity the user didn't pick. The existing account switcher
-// only appears once 2+ accounts have logged in on that host, so on a single-login host
-// there's no control at all — and no indication that cancelling and reconnecting is the
-// way out. Users hit this and concluded Sidecar was stuck.
+// The problem: a client and Sidecar can disagree about which account is signed in, and the
+// approval then names an identity the user didn't pick. The existing switcher can't always
+// fix it, for two different reasons:
+//   - on a single-login host it doesn't appear at all (it needs 2+ accounts signed in);
+//   - on a shared host it DOES appear but is scoped to the accounts already signed in
+//     there, so a user whose intended identity is a third one still can't reach it.
+// Both were reported as Sidecar being stuck.
 //
 // The fix, on both approval surfaces:
 //
@@ -28,14 +30,21 @@
 // still has cached, so signing it under another identity yields one correct event and then
 // silent reverts on the next. That reads as working and isn't.
 //
-// The gate is deliberately BROAD — any content sign, 2+ accounts, no switcher already
-// showing. Two earlier cuts tried to detect that the account was "pinned" (by a host
-// binding, or by a client stamping the author pubkey on the template) and both were
-// wrong: pin detection can only ever remove a working hint, and the case that matters
-// most has no pin to detect. A client showing account A while Sidecar's active account is
-// B leaves nothing for Sidecar to observe — it cannot see the client's UI. Only the user
-// can, which is the whole reason the hint exists. The tests below pin that breadth down,
-// because it is the part most likely to get "tightened" back.
+// The gate is deliberately BROAD: any content sign with at least one account the switcher
+// can't offer. Every attempt to narrow it has been a bug.
+//
+// Two cuts tried to detect that the account was "pinned" (by a host binding, then by a
+// client-stamped author pubkey). Both wrong — the case that matters most has no pin to
+// observe, since a client showing account A while Sidecar's active account is B leaves
+// nothing Sidecar can see. It cannot read the client's UI. Only the user can, which is the
+// whole reason the escape exists.
+//
+// A third cut excluded shared-identity hosts on the grounds that "the real switcher is
+// already showing". That produced the reported bug directly: the switcher on those hosts is
+// scoped to accounts already authorized there, so suppressing the escape made a third
+// account unreachable. The escape is now the COMPLEMENT of the switcher rather than an
+// alternative to it, and the tests below pin that down, because it is the part most likely
+// to get "tightened" back again.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -68,25 +77,116 @@ function liftGate() {
   return m[1];
 }
 
-function gate({ isContentSign, sharedIdentity, accounts }) {
-  const ctx = { isContentSign, sharedIdentity, st: { accounts } };
-  vm.createContext(ctx);
-  return vm.runInContext('(' + liftGate() + ')', ctx);
+// Lifts the real list construction too, not just the gate. The two are one decision now —
+// the gate is `escapeAccounts.length > 0`, so testing it against a hand-made array would
+// prove nothing about which accounts actually reach the list.
+function liftList() {
+  const m = background.match(
+    /const globalActivePubkey = await KS[\s\S]*?escapeAccounts\.sort\([^;]*;/
+  );
+  if (!m) throw new Error('Could not find the escapeAccounts construction in background.js');
+  return m[0];
 }
 
-const TWO = [{ pubkey: PK_A }, { pubkey: PK_B }];
+// accounts: every pubkey in the keystore. signer: the account the prompt shows.
+// switcher: pubkeys the switcher above already offers. active: the globally-active account.
+function evaluate({ accounts, signer, switcher = [], active = null, isContentSign = true }) {
+  const ctx = {
+    st: { accounts: accounts.map((pk) => ({ pubkey: pk, name: 'Acct ' + pk[0] })) },
+    activePubkey: signer,
+    otherAccounts: switcher.map((pk) => ({ pubkey: pk })),
+    KS: { getActivePubkey: async () => active },
+    self: { NostrTools: { nip19: { npubEncode: (pk) => 'npub_' + pk[0] } } },
+    isContentSign,
+    Set,
+  };
+  vm.createContext(ctx);
+  return vm.runInContext(
+    '(async () => {\n' + liftList() + '\n' +
+    'return { show: ' + liftGate() + ', list: escapeAccounts };\n})()',
+    ctx
+  );
+}
 
-test('hint shows on a content sign with more than one account', () => {
-  assert.equal(gate({ isContentSign: true, sharedIdentity: false, accounts: TWO }), true);
+const A = 'a'.repeat(64), B = 'b'.repeat(64), C = 'c'.repeat(64);
+
+test('escape offers the other account on a single-login host', async () => {
+  const r = await evaluate({ accounts: [A, B], signer: A });
+  assert.equal(r.show, true);
+  assert.deepEqual(r.list.map((x) => x.pubkey), [B]);
+});
+
+test('escape is hidden with a single account in the keystore', async () => {
+  // Nothing to switch to.
+  const r = await evaluate({ accounts: [A], signer: A });
+  assert.equal(r.show, false);
+  assert.deepEqual(r.list, []);
+});
+
+test('escape is hidden when the switcher already offers every other account', async () => {
+  // Shared host, both accounts authorized. The switcher can reach B, so offering it again
+  // under a second action that also cancels the request would be strictly worse.
+  const r = await evaluate({ accounts: [A, B], signer: A, switcher: [B] });
+  assert.equal(r.show, false);
+  assert.deepEqual(r.list, []);
+});
+
+test('escape offers the THIRD account the switcher cannot reach', async () => {
+  // The reported bug. Three accounts, two signed in on the host, and the one the user wants
+  // is the third. The switcher is scoped to accounts already authorized here, so it only
+  // offers B — and the escape used to be suppressed entirely on shared hosts, leaving no
+  // path to C at all.
+  const r = await evaluate({ accounts: [A, B, C], signer: A, switcher: [B] });
+  assert.equal(r.show, true);
+  assert.deepEqual(r.list.map((x) => x.pubkey), [C], 'C must be reachable');
+});
+
+test('the two lists never overlap', async () => {
+  // One account offered twice under two different actions — one of which cancels the
+  // request and one of which does not — is a worse prompt than either alone.
+  const r = await evaluate({ accounts: [A, B, C], signer: A, switcher: [B] });
+  for (const acct of r.list) {
+    assert.ok(acct.pubkey !== B, 'switcher account leaked into the escape list');
+  }
+});
+
+test('the account being shown is never offered', async () => {
+  // Detaching to re-pick the identity already on screen is a no-op with extra steps.
+  const r = await evaluate({ accounts: [A, B, C], signer: A });
+  assert.ok(!r.list.some((x) => x.pubkey === A));
+  assert.deepEqual(r.list.map((x) => x.pubkey).sort(), [B, C].sort());
+});
+
+test('the globally-active account sorts first and is tagged', async () => {
+  // With eight accounts the likeliest pick must not be buried, and an unexplained top row
+  // reads as arbitrary — hence both the sort and the flag the UI renders.
+  const r = await evaluate({ accounts: [A, B, C], signer: A, active: C });
+  assert.equal(r.list[0].pubkey, C);
+  assert.equal(r.list[0].active, true);
+  assert.equal(r.list[1].active, false);
+});
+
+test('escape is hidden when the request is not a content sign', async () => {
+  // Payments and getPublicKey both land here. A payment names the wallet, not a signing
+  // identity, so "wrong account" has no meaning there; getPublicKey gets the real switcher.
+  const r = await evaluate({ accounts: [A, B], signer: A, isContentSign: false });
+  assert.equal(r.show, false);
+});
+
+test('the gate carries no shared-host or account-count term of its own', async () => {
+  // Both are implied by the list being non-empty. Re-adding !sharedIdentity is what caused
+  // the reported bug: it suppressed the escape on exactly the hosts whose switcher is
+  // scoped, so a third account became unreachable.
+  const src = liftGate();
+  assert.ok(!/sharedIdentity/.test(src), 'gate must not re-exclude shared hosts');
+  assert.ok(!/accounts\.length/.test(src), 'account count is implied by the list');
+  assert.match(src, /escapeAccounts\.length > 0/);
 });
 
 test('the gate does not consult the binding or the author stamp', () => {
-  // This is the breadth guarantee, and it is the whole fix. Both pins were tried and
-  // both were wrong, because the case that matters most has NO pin to detect: the client
-  // is displaying account A, Sidecar's active account is B, there is no binding and no
-  // author stamp. None of that is observable from the extension — it cannot see the
-  // client's UI. The prompt simply names the wrong identity and the user is the only one
-  // who can tell.
+  // Two earlier cuts tried to detect that the account was "pinned" and both were wrong,
+  // because the case that matters most has NO pin to observe: the client shows account A
+  // while Sidecar's active account is B. Sidecar cannot see the client's UI.
   //
   // Asserted against the gate's source, not its result, because a value-level test can't
   // distinguish "ignores the binding" from "the binding happened to be set".
@@ -95,31 +195,25 @@ test('the gate does not consult the binding or the author stamp', () => {
   assert.ok(!/authorSwitched/.test(src), 'gate must not depend on a client author stamp');
 });
 
-test('hint is hidden with a single account in the keystore', () => {
-  // Nothing to log in as.
-  assert.equal(gate({ isContentSign: true, sharedIdentity: false, accounts: [{ pubkey: PK_A }] }), false);
-});
-
-test('hint is hidden on a shared-identity host', () => {
-  // 2+ accounts have logged in here, so the real switcher is already on screen and the
-  // user can just pick — telling them to cancel and reconnect would be worse advice.
-  assert.equal(gate({ isContentSign: true, sharedIdentity: true, accounts: TWO }), false);
-});
-
-test('hint is hidden when the request is not a content sign', () => {
-  // Payments and getPublicKey both land here. A payment names the wallet, not a signing
-  // identity, so "wrong account" has no meaning on that screen; getPublicKey already
-  // gets the real switcher.
-  assert.equal(gate({ isContentSign: false, sharedIdentity: false, accounts: TWO }), false);
-});
-
 test('relay auth is excluded via isContentSign, not a separate term', () => {
-  // isContentSign is (signEvent && !isRelayAuth) || encrypt, so a kind 22242 auth event
-  // can never reach the hint. Asserting that implication rather than passing the
-  // impossible isContentSign+isRelayAuth pair an earlier version of this test used.
+  // isContentSign is (signEvent && !isRelayAuth) || encrypt, so a kind 22242 auth event can
+  // never reach the escape.
   const m = background.match(/const isContentSign =\n([\s\S]*?);\n/);
   assert.ok(m, 'could not find isContentSign');
   assert.match(m[1], /method === 'signEvent' && !isRelayAuth/);
+});
+
+test('the offered list is built from every account, not the authorized set', () => {
+  // The account the user wants is the one that ISN'T authorized on this host yet.
+  const m = background.match(/const escapeAccounts = (st\.accounts|otherAccounts)/);
+  assert.ok(m);
+  assert.equal(m[1], 'st.accounts');
+});
+
+test('the switcher subtraction is derived from otherAccounts itself', () => {
+  // Not from a re-derived `sharedIdentity ? authorizedPool : []`, which would drift out of
+  // step with the switcher's own filter and silently re-open the overlap.
+  assert.match(background, /const offeredInSwitcher = new Set\(\(otherAccounts \|\| \[\]\)\.map\(\(a\) => a\.pubkey\)\)/);
 });
 
 // ---------------------------------------------------------------------------

@@ -457,10 +457,10 @@
       <button class="approval-switch-toggle hidden" id="approval-switch-toggle">Sign in with a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
 
-      <!-- "Wrong account?" hint. Shown on a content sign when the user holds more than
-           one account and the switcher above is hidden (only one account has logged in
-           here), so the prompt names an identity they may not have picked and has no
-           control to change it.
+      <!-- "Wrong account?" escape. Shown on a content sign whenever there is an account
+           the switcher above cannot offer — either because no switcher is showing, or
+           because it is scoped to the accounts already signed in on this host and the one
+           the user wants is not among them.
            Collapsed, because with eight accounts an always-open list buries the account
            capsule this screen exists to show.
            Picking a row DETACHES the host and makes that account active, then rejects —
