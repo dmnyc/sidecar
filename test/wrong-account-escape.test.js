@@ -303,7 +303,7 @@ test('detach needs the PIN when the keystore is locked', () => {
 
 const COPY_TITLE = 'Not the right account?';
 const COPY_TOGGLE = 'Detach and use another identity.';
-const COPY_LEDE = 'Picks who this site uses next, everywhere in Sidecar. Cancels this request — sign out and back in on ';
+const COPY_LEDE = 'Cancels this request and makes that account active.';
 
 test('both surfaces carry the hint, the toggle and the list', () => {
   assert.match(sidepanelHtml, /id="approval-wrong-acct"/);
@@ -331,19 +331,57 @@ test('both surfaces use the same title and toggle copy, word for word', () => {
 });
 
 test('both surfaces use the same lede copy, word for word', () => {
-  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    assert.ok(src.includes(COPY_LEDE), label + ' lede');
+  // Exact equality on the extracted literal, not `includes`. A substring check passed when
+  // one surface's lede grew an extra sentence, which is precisely the drift it was meant to
+  // catch — parity claims have to be pinned at both ends of the string.
+  const LEDE_RE = [
+    ['sidepanel.js', sidepanelJs, /className: 'wrong-acct-lede', textContent: '([^']*)'/],
+    ['prompt.js', promptJs, /lede\.textContent = '([^']*)';/],
+  ];
+  for (const [label, src, re] of LEDE_RE) {
+    const m = src.match(re);
+    assert.ok(m, 'could not extract the lede literal from ' + label);
+    assert.equal(m[1], COPY_LEDE, label + ' lede must match exactly');
   }
 });
 
-test('the lede says the account change is global', () => {
-  // detach + setActive moves the GLOBAL active account, not just this site's. That is the
-  // coherent thing to do, but a silent global state change from a signing prompt is how you
-  // get a confused report a month later.
+test('the lede carries both facts the user cannot learn afterwards', () => {
+  // That it cancels, and that the switch is app-wide rather than just this site. Everything
+  // else was cut — three lines of lede in a sidebar was too much.
   for (const src of [sidepanelJs, promptJs]) {
-    assert.match(src, /everywhere in Sidecar/);
     assert.match(src, /Cancels this request/);
+    assert.match(src, /makes that account active/);
   }
+});
+
+test('the lede does not pre-announce the reconnect instruction', () => {
+  // It arrives as a toast the moment detach settles, with the account name filled in —
+  // which the lede can't do. Saying it twice is what made this three lines deep.
+  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
+    const fn = src.match(/function buildWrongAcctList\([\s\S]*?\n {2}\}/)[0];
+    const lede = fn.match(/wrong-acct-lede[\s\S]*?;/)[0];
+    assert.ok(!/sign out/i.test(lede), label + ': reconnect instruction belongs in the toast');
+  }
+});
+
+test('a settled detach toasts the reconnect instruction in Sidecar', () => {
+  // The background throws the same instruction as the signing error, but that goes to the
+  // CLIENT. A client that swallows signing errors would leave the user with no next step.
+  const fn = sidepanelJs.match(/async function decideApproval\(action, opts\) \{[\s\S]*?\n {2}\}/)[0];
+  const blk = fn.match(/if \(action === 'detach'\) \{[\s\S]*?\n {4}\}/g) || [];
+  const toastBlk = blk.find((b) => /toast\(/.test(b));
+  assert.ok(toastBlk, 'decideApproval should toast after a detach');
+  assert.match(toastBlk, /Sign out of/);
+  assert.match(toastBlk, /back in as/);
+  assert.match(toastBlk, /detachPubkey/, 'should name the account that was picked');
+});
+
+test('the detach toast reads the same as the Settings route', () => {
+  // switchSiteModal already toasts this. Two wordings for one outcome is how the same fix
+  // starts looking like two different features.
+  const settings = sidepanelJs.match(/toast\('Detached\. Sign out of ' \+ host[^;]*;/);
+  assert.ok(settings, 'could not find switchSiteModal toast');
+  assert.match(sidepanelJs, /'Detached\. Sign out of ' \+ data\.host \+ ' and back in as ' \+/);
 });
 
 test('the copy never promises to sign as the other account', () => {

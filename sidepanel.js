@@ -10515,16 +10515,13 @@
   function buildWrongAcctList(data, accts) {
     const list = $('approval-wrong-acct-list');
     list.innerHTML = '';
-    // Says "everywhere in Sidecar" because detach + setActive moves the GLOBAL active
-    // account, not just this site's. That's the coherent thing to do — it's the two steps
-    // the user would take by hand — but a silent global state change from a signing prompt
-    // is how you get a confused bug report a month later.
-    list.append(
-      h('p', {
-        className: 'wrong-acct-lede',
-        textContent: 'Picks who this site uses next, everywhere in Sidecar. Cancels this request — sign out and back in on ' + (data.host || 'the site') + '.',
-      })
-    );
+    // Only the two things the user can't learn afterwards: that this cancels, and that the
+    // switch is app-wide rather than just this site. "Makes that account active" carries
+    // the second one in Sidecar's own vocabulary, tying to the ACTIVE tag on the row below.
+    // The reconnect instruction is deliberately NOT here — it lands as a toast the moment
+    // the detach settles, with the account name filled in, which this can't do. Three lines
+    // of lede in a sidebar to pre-announce it was too much.
+    list.append(h('p', { className: 'wrong-acct-lede', textContent: 'Cancels this request and makes that account active.' }));
     accts.forEach((a) => {
       const row = h('button', { className: 'acct-row' });
       const av = document.createElement('span');
@@ -10781,6 +10778,18 @@
       await bg({ type: 'SIDECAR_PROMPT_RESULT_BATCH', ids: groupIds, action, extra });
     } else {
       await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
+    }
+    // Detach settled: say what to do next, in Sidecar. The background throws the same
+    // instruction as the signing error, but that goes to the CLIENT — a client that
+    // swallows signing errors would leave the user with no next step at all. Same string
+    // as switchSiteModal's, so the Settings route and this one read identically.
+    if (action === 'detach') {
+      const picked = (data.allAccounts || []).find((a) => a.pubkey === (opts && opts.detachPubkey));
+      toast(
+        'Detached. Sign out of ' + data.host + ' and back in as ' +
+          ((picked && picked.name) || 'that account') + '.',
+        'success'
+      );
     }
     $('approval-pin').value = '';
     // Leave pendingApproval set so refreshApproval() knows an approval was up:

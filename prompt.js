@@ -647,8 +647,10 @@
     els.wrongAcctList.innerHTML = '';
     const lede = document.createElement('p');
     lede.className = 'wrong-acct-lede';
-    lede.textContent =
-      'Picks who this site uses next, everywhere in Sidecar. Cancels this request — sign out and back in on ' + (data.host || 'the site') + '.';
+    // Copy asserted identical to the panel's — see buildWrongAcctList in sidepanel.js for
+    // why the reconnect instruction isn't here. This window closes on the decision, so it
+    // has no toast of its own; the client's error is the only channel either way.
+    lede.textContent = 'Cancels this request and makes that account active.';
     els.wrongAcctList.append(lede);
     accts.forEach((a) => {
       const row = document.createElement('button');
