@@ -2149,8 +2149,15 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* Top-aligned + scrollable so a long event preview never pushes the buttons
    out of view (the .screen default centers vertically). */
 /* inline approval — a centered card over a dimmed backdrop (backdrop tap = reject) */
+/* Above .modal-overlay (100) and .acct-menu (90), so a signing approval is never
+   buried under the notifications list or the composer. It used to sit at 50 and lose
+   to both, which meant a request could silently time out behind a modal the user was
+   reading — the code comment in showApproval() claimed "on top of whatever's showing"
+   while the CSS put it underneath.
+   Still BELOW .lightning-layer (150, pointer-events:none) and .toasts (200): those
+   are transient feedback that should stay visible, and neither can swallow a click. */
 .approval-overlay {
-  position: fixed; inset: 0; z-index: 50;
+  position: fixed; inset: 0; z-index: 120;
   display: flex; align-items: center; justify-content: center; padding: 18px;
   background: rgba(8, 2, 20, 0.72); backdrop-filter: blur(3px);
 }

@@ -10480,8 +10480,22 @@
     // a switch the user already picked.
     if (pendingApproval.chosenPubkey == null) pendingApproval.chosenPubkey = data.activePubkey;
     closeAcctMenu();
-    // Overlay on top of whatever's showing — don't hide the base view.
+    // A signing approval outranks anything else on screen. An open modal — the
+    // notifications list, the composer, settings — used to cover it: .modal-overlay
+    // is z-index 100 and this was 50, so the request sat hidden and silently timed
+    // out while the user read something else. The CSS now puts this at 120, but
+    // leaving a modal open underneath is still a trap: dismissing the approval would
+    // reveal a stale modal the user had forgotten, and the approval's own backdrop
+    // click would land on it.
+    //
+    // Non-destructive: both draft-bearing modals persist on close (the composer via
+    // its onClose -> persistDraft, page comments on every keystroke), so nothing the
+    // user typed is lost.
+    // Show FIRST, then close the modal. The reverse order leaves the panel briefly
+    // uncovered between the two calls, which lets a deferred renderMain() (see
+    // panelIsCovered) fire in the gap and delays the approval by a frame.
     show($('view-approval'));
+    if (document.documentElement.classList.contains('modal-open')) closeModal();
 
     const payment = isPaymentApproval(data);
     $('approval-host').textContent = data.host;
