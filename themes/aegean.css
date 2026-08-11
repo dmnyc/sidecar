@@ -37,11 +37,18 @@
      every checkbox, mentions, and chosen buttons. Terracotta here made the
      checkboxes read as errors. Terracotta lives in --warn, where it belongs. */
   --orange: #1565C0;
-  /* brand — sun-bleached stone for money, so gold still reads as gold across all
-     four themes, but pitched warm-neutral rather than yellow against white */
+  /* --amber stays metallic: it is what the amber half of the relax countdown reads, and
+     amber has to mean amber even here.
+     --gold does NOT. It drives the UI accents — the active-account check, row borders,
+     tips, the "note is live" banner — and gold on whitewash reads as mustard and pulls
+     warm against a cool room. That call was already made for the wallet card, scoped to
+     it; this promotes it to the whole theme, which is what the scope should have been.
+     It is also a legibility win: #9C7A1C was 4.07:1 on white, under AA. Cobalt is 7.19:1.
+     --accent-rgb follows, so every translucent wash goes cobalt with it. */
   --amber: #B8912F;
-  --gold: #9C7A1C;
-  --gold-soft: rgba(156, 122, 28, 0.5);
+  --gold: var(--purple);
+  --gold-soft: rgba(var(--border-rgb), 0.42);
+  --accent-rgb: var(--border-rgb);
   /* Cobalt takes the accent slot the dark themes fill with purple: deep sea for the
      strong tone, door-blue for the lighter. 6.77:1 and 5.40:1 on the ground. */
   --purple: #0B57A4;
@@ -81,6 +88,14 @@
      washes out to near-invisible; cobalt instead. --pending-sub is left alone — the
      default is --muted, which clears AA on this theme's surfaces. */
   --pending-text: #0B4F94;
+
+  /* Small accent pills (reload banner, "grant" on a host row). Their default gradient
+     hardcodes gold at the first and last stop with --gold in the middle, so a themed
+     --gold alone would have left them gold-cobalt-gold. */
+  --btn-accent-top: #2A7BD4;
+  --btn-accent-mid: #1565C0;
+  --btn-accent-bot: #0B4F94;
+  --btn-accent-text: #FFFFFF;
 
   /* ink — blue-black; neutral grey looks dirty against whitewash */
   --text: #14232E;
@@ -160,17 +175,9 @@
   color: var(--text);
 }
 
-/* The wallet card is the one surface where the theme gets to be itself. Money is
-   gold in the other three and --gold still means gold here for badges, but on
-   whitewash a gold number reads as mustard and the card was pulling warm against a
-   cool room. Scoping --gold to the card turns the number, the chart line and its
-   gradient blue in one move — the chart draws from that variable inline. Both
-   balance displays share one colour, as they must. */
-[data-theme="aegean"] .wallet-card,
-[data-theme="aegean"] .pinned-balance {
-  --gold: var(--purple);
-  --gold-soft: rgba(var(--border-rgb), 0.42);
-}
+/* The wallet card used to scope --gold to cobalt on its own, because a gold balance read
+   as mustard on whitewash. --gold is cobalt theme-wide now, so this block was doing
+   nothing and is gone. The chart still picks it up — it draws from that variable inline. */
 [data-theme="aegean"] .wallet-balance,
 [data-theme="aegean"] .pinned-balance-amt {
   color: var(--purple);

@@ -150,24 +150,39 @@ const hex = (rgb) => '#' + rgb.map((v) => Math.round(v).toString(16).padStart(2,
 // 1.30:1. Comparing the raw rgba against the surface would have shown a healthy ratio and
 // missed it entirely — the blend is the whole defect.
 function flatten(expr, backdrop, themeVars) {
-  const v = resolveRaw(expr, themeVars);
-  const m = String(v).match(/^rgba?\(([^)]+)\)$/);
-  if (!m) return v;
-  const parts = m[1].split(',').map((x) => x.trim());
-  let rgb;
-  let alpha;
-  if (parts.length === 4 && !parts[0].startsWith('var(')) {
-    rgb = parts.slice(0, 3).map(Number);
-    alpha = Number(parts[3]);
-  } else {
-    // rgba(var(--x-rgb), a) — the channel triple lives in its own variable.
-    const triple = resolveRaw(parts[0], themeVars);
-    rgb = String(triple).split(',').map((x) => Number(x.trim()));
-    alpha = Number(parts[parts.length - 1]);
+  const v = String(resolveRaw(expr, themeVars)).trim();
+  if (!/^rgba?\(/.test(v)) return v;
+  // Paren-aware, not /\(([^)]+)\)/: the channel triple can itself be a var(), and
+  // `rgba(var(--accent-rgb), 0.12)` closed the naive match at var's own paren and
+  // silently produced NaN instead of failing loudly.
+  const open = v.indexOf('(');
+  const inner = v.slice(open + 1, matchParen(v, open));
+  const parts = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of inner) {
+    if (ch === '(') { depth++; cur += ch; }
+    else if (ch === ')') { depth--; cur += ch; }
+    else if (ch === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; }
+    else cur += ch;
   }
+  parts.push(cur.trim());
+
+  let rgb;
+  if (parts.length >= 4) {
+    rgb = parts.slice(0, 3).map(Number);
+  } else {
+    rgb = String(resolveRaw(parts[0], themeVars)).split(',').map((x) => Number(x.trim()));
+  }
+  const alpha = Number(parts[parts.length - 1]);
+  assert.ok(
+    rgb.length === 3 && rgb.every((c) => Number.isFinite(c)) && Number.isFinite(alpha),
+    'could not parse color "' + v + '"'
+  );
   const bg = toRgb(backdrop);
-  return hex(rgb.map((c, i) => alpha * c + (1 - alpha) * bg[i]));
+  return hex(rgb.map((c, k) => alpha * c + (1 - alpha) * bg[k]));
 }
+
 
 // ---- the rules under test --------------------------------------------------------------
 
@@ -272,7 +287,7 @@ test('the ring is an inset shadow, not a border', () => {
 //                       point — see the note under FLOORS.
 
 const AA_NORMAL = 4.5;
-const INK = ['--text', '--text-2', '--muted', '--faint'];
+const INK = ['--text', '--text-2', '--muted', '--faint', '--gold'];
 const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 
 // Worst-surface floors as measured. Raise these when a theme's ink improves; do not lower
@@ -283,12 +298,16 @@ const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 //   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone)
 // --faint is used for the lowest-emphasis labels; if it ever carries something a user has
 // to read, it needs darkening first, per theme.
+//   art-deco --gold  1.67:1   — and --gold is a `color:` in 35 rules. Same class of defect
+//                              as the pending sub-label, theme-wide. Gold ink on a cream
+//                              card cannot be made to work by adjusting either one; it
+//                              needs a decision about what Art Deco's accent ink IS.
 const FLOORS = {
-  aegean: { '--muted': 4.55, '--faint': 2.85 },
-  'art-deco': { '--muted': 3.65, '--faint': 2.30 },
-  brownstone: { '--muted': 6.20, '--faint': 3.50 },
-  'film-noir': { '--muted': 4.45, '--faint': 2.25 },
-  speakeasy: { '--muted': 5.20, '--faint': 3.00 },
+  aegean: { '--muted': 4.55, '--faint': 2.85, '--gold': 6.00 },
+  'art-deco': { '--muted': 3.65, '--faint': 2.30, '--gold': 1.65 },
+  brownstone: { '--muted': 6.20, '--faint': 3.50, '--gold': 8.60 },
+  'film-noir': { '--muted': 4.45, '--faint': 2.25, '--gold': 7.85 },
+  speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
 };
 
 for (const theme of THEMES) {
@@ -311,7 +330,7 @@ for (const theme of THEMES) {
   test(`secondary ink has not slipped in ${theme.name}`, () => {
     const floors = FLOORS[theme.name];
     assert.ok(floors, 'no recorded floors for theme ' + theme.name + ' — add them');
-    for (const ink of ['--muted', '--faint']) {
+    for (const ink of ['--muted', '--faint', '--gold']) {
       const fg = resolve('var(' + ink + ')', theme.vars);
       const worst = Math.min(
         ...SURFACES.map((s) => contrast(fg, resolve('var(' + s + ')', theme.vars)))
@@ -360,7 +379,11 @@ test('INK and SURFACES name real tokens in every theme', () => {
 // unchanged and the two light themes supply their own. This checks the composited result,
 // which is the only way the alpha fault shows up at all.
 
-const PENDING_WASH = 'rgba(203, 161, 78, 0.12)';
+// Read out of the rule, not restated. It was a hardcoded rgba(203, 161, 78, 0.12) when
+// this test was written and is now rgba(var(--accent-rgb), 0.12) so themes can move it —
+// a literal here would have gone on cheerfully testing a gold backdrop that no theme
+// renders any more.
+const PENDING_WASH = rule(css, '.acct-row-pending').match(/background:\s*([^;]+?)(?:\s*!important)?;/)[1].trim();
 
 for (const theme of THEMES) {
   test(`pending confirm is readable in ${theme.name}`, () => {
@@ -410,4 +433,64 @@ test('no text color anywhere resolves to a translucent token', () => {
     }
   }
   assert.deepEqual(offenders, [], 'translucent text colors:\n  ' + offenders.join('\n  '));
+});
+
+// ---------------------------------------------------------------------------
+// Accent plumbing
+// ---------------------------------------------------------------------------
+
+test('Aegean drives its accent washes off its own palette, not the gold literal', () => {
+  // The two have to move together. Recoloring --gold alone gave the reported screenshot:
+  // a cobalt check mark sitting on a Speakeasy-gold row highlight, because the wash was a
+  // hardcoded literal that no theme could reach.
+  const t = THEMES.find((x) => x.name === 'aegean');
+  assert.ok(t, 'missing aegean');
+  const wash = String(resolveRaw('var(--accent-rgb)', t.vars)).replace(/\s/g, '');
+  const border = String(resolveRaw('var(--border-rgb)', t.vars)).replace(/\s/g, '');
+  assert.ok(t.vars['--accent-rgb'], 'aegean must set --accent-rgb or its washes stay gold');
+  assert.equal(wash, border, 'aegean --accent-rgb should follow its own cobalt --border-rgb');
+  assert.equal(
+    resolve('var(--gold)', t.vars),
+    resolve('var(--purple)', t.vars),
+    'aegean --gold should be its cobalt accent, not a metallic'
+  );
+});
+
+test('the relax countdown keeps amber, whatever a theme does to --gold', () => {
+  // Green -> amber is a traffic light. Aegean's --gold is cobalt now, and this rule read
+  // --gold, so the "under a minute left" warning turned blue and the progression stopped
+  // meaning anything. --amber is metallic in every theme; --gold is not.
+  const body = rule(css, '.relax-status-dot.low');
+  assert.match(body, /background: var\(--amber\)/, 'must read --amber');
+  assert.ok(!/var\(--gold\)/.test(body), 'must not read --gold');
+});
+
+test('accent pills survive a themed --gold', () => {
+  // Their gradient hardcodes gold at the first and last stop with --gold in the middle,
+  // so a theme that recolors --gold alone gets gold-cobalt-gold.
+  for (const selector of ['.reload-banner-btn', '.host-perm-grant-btn']) {
+    const body = rule(css, selector);
+    assert.match(body, /var\(--btn-accent-mid/, selector + ' mid stop must be themeable');
+    assert.match(body, /var\(--btn-accent-top/, selector + ' top stop must be themeable');
+    assert.match(body, /var\(--btn-accent-bot/, selector + ' bottom stop must be themeable');
+    assert.match(body, /color: var\(--btn-accent-text/, selector + ' label must be themeable');
+  }
+});
+
+test('no stray Speakeasy gold is baked into a themed value', () => {
+  // 15 rules hardcoded rgba(203, 161, 78, x) for accent washes, so a theme could recolor
+  // --gold and still show Speakeasy's gold everywhere a wash appeared — which is what the
+  // Aegean account list was doing. They read --accent-rgb now. What may still be literal:
+  //   - the :root defaults themselves
+  //   - a var(--x, <literal>) fallback, which a theme overrides by setting --x
+  //   - the relax-glow amber, which is semantic and must not follow the theme
+  const offenders = [];
+  css.split('\n').forEach((line, i) => {
+    if (!line.includes('rgba(203, 161, 78')) return;
+    if (/^\s*--[a-z-]+:/.test(line)) return;            // a :root default
+    if (/var\(--[a-z-]+,\s*rgba\(203/.test(line)) return; // themeable via its own token
+    if (line.includes('--relax-glow')) return;          // semantic amber
+    offenders.push(i + 1 + ': ' + line.trim());
+  });
+  assert.deepEqual(offenders, [], 'unthemeable gold literals:\n  ' + offenders.join('\n  '));
 });
