@@ -1,0 +1,190 @@
+/* ============================================================
+   Sidecar — Bauhaus Theme
+   Whitewashed walls, black rule lines, primary geometry.
+   Quarter-circles and squares run as the background pattern.
+   ============================================================ */
+
+/* Every value here was measured before it was written down, because this palette has two
+   traps in it and both have already shipped as bugs elsewhere in the app.
+   See test/theme-contrast.test.js, which resolves these var() chains and checks the ratios.
+
+   TRAP 1 — the literal Bauhaus triad is not a UI palette. Bauhaus red on Bauhaus blue is
+   1.30:1: identical luminance, indistinguishable as a fill/label pair or as two adjacent
+   states. That is the same defect that got the Blackjack theme scrapped. So the working
+   pair here is blue + orange, which separate by luminance as well as hue.
+
+   TRAP 2 — one warm token cannot do both jobs on a cream ground. Measured on #FDF3E7:
+       bright orange #F5811F   as text 2.38:1   as a fill w/ dark label 6.37:1
+       dark   orange #A8480A   as text 5.33:1   as a fill w/ dark label 2.85:1
+       Bauhaus yellow          as text 1.36:1   (unusable as ink at all)
+   So the warm accent is split in two: --amber is the bright one and is fill-only,
+   --gold is the dark one and is the only warm value allowed to carry text. Art Deco is
+   the theme that does NOT make this split, and its --gold measures 1.67:1 as text while
+   being a `color:` in 35 rules. */
+
+[data-theme="bauhaus"] {
+  color-scheme: light;
+
+  /* Surfaces — whitewashed plaster, warm rather than blue-white. The ground is the
+     wall; cards are the paper pinned to it, so the card top is pure white and only the
+     bottom carries the warmth. */
+  --bg: #FDF3E7;
+  --bg-2: #F5E9D8;
+  --velvet-1: #FFFFFF;
+  --velvet-2: #F7ECDC;
+  --velvet-1-rgb: 255, 255, 255;
+  --av-from: #FFFFFF;
+  --av-to: #F5E9D8;
+  --banner-accent: #F5E9D8;
+
+  /* Rule lines are BLACK, not tinted. That is the whole Bauhaus drawing convention, and
+     it is why --border-rgb is the ink here rather than an accent hue — unlike Aegean,
+     where the borders are cobalt. --accent-rgb is set separately below so the row
+     highlights can still be blue; the two are deliberately different variables. */
+  --border: rgba(29, 29, 43, 0.14);
+  --border-strong: rgba(29, 29, 43, 0.28);
+  --border-rgb: 29, 29, 43;
+  --well-rgb: 245, 233, 216;
+
+  /* Red earns its place as the destructive/warning colour, which is the one job it
+     measures well in: 5.28:1 as text on the ground. It is never paired with the blue. */
+  --warn: #C4232F;
+  --warn-rgb: 196, 35, 47;
+  --success: #2E6B45;
+  --success-rgb: 46, 107, 69;
+
+  /* --orange holds the BLUE. Read that twice — it is not a mistake.
+     This token drives accent-color on every checkbox and the chosen-button fill, so it
+     has to be the theme's action colour, and the action colour here is blue. Aegean does
+     exactly the same thing for the same reason; its comment records that terracotta in
+     this slot "made the checkboxes read as errors". The warm values live in --amber and
+     --gold below. */
+  --orange: #0B62E4;
+
+  /* The warm pair, split by role (see TRAP 2 at the top).
+     --amber is the bright one: it is what the amber half of the relax countdown renders,
+     which is a dot and never text, so brightness is free there.
+     --gold is the dark one: money, warm labels, anything that has to be READ. */
+  --amber: #F5811F;
+  --gold: #A8480A;
+  /* Ring/hairline accent — ink, matching the black rule lines rather than the gold this
+     token is named for. */
+  --gold-soft: rgba(29, 29, 43, 0.30);
+
+  /* Translucent accent washes: row highlights, hover fills, tip cards. Blue, so a
+     selected row reads as selected rather than as a smudge of the border colour. This is
+     why it is not simply var(--border-rgb) the way Aegean sets it. */
+  --accent-rgb: 11, 98, 228;
+
+  /* Blue takes the accent slot the dark themes fill with purple. 4.93:1 as ink on the
+     ground for the lighter tone, 6.78:1 for the deeper one. */
+  --purple: #0A4FB8;
+  --lav: #0B62E4;
+
+  --hover-soft: rgba(29, 29, 43, 0.05);
+  --hover-medium: rgba(29, 29, 43, 0.09);
+  --hover-faint: rgba(29, 29, 43, 0.035);
+  --mention-bg: rgba(11, 98, 228, 0.14);
+  /* Neutral ink-grey, not blue — the scrollbar is furniture, not an accent. */
+  --scroll-thumb: linear-gradient(180deg, #C6C4CC, #DEDCE2);
+  --scroll-thumb-hover: #B0AEB8;
+
+  /* Primary action — flat Bauhaus blue with a white label. 5.41:1 at the mid stop,
+     4.56:1 at the lightest and 7.44:1 at the darkest, so it clears AA across the whole
+     gradient rather than only in the middle. */
+  --btn-primary-top: #1470F0;
+  --btn-primary-mid: #0B62E4;
+  --btn-primary-bot: #0A4FB8;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: rgba(11, 98, 228, 0.30);
+
+  /* "Trust this site" — bright orange with the ink label. The complement of the blue
+     Allow button directly above it, which is the point: two actions of different weight
+     should not be two shades of one hue. 7.87 / 6.37 / 5.18:1 down the ramp. */
+  --btn-lav-top: #FF9A3C;
+  --btn-lav-mid: #F5811F;
+  --btn-lav-bot: #E0710F;
+  --btn-lav-text: #1D1D2B;
+  --btn-lav-ring: rgba(29, 29, 43, 0.22);
+  --btn-lav-shadow: rgba(245, 129, 31, 0.30);
+
+  /* Quiet buttons stay paper — the way back should not compete with either action. */
+  --btn-secondary-top: #FFFFFF;
+  --btn-secondary-bot: #F2E7D5;
+
+  /* Pending confirm. --pending-sub is left unset: the default is --muted, which measures
+     6.60:1 on the ground here and clears AA on the pending wash. */
+  --pending-text: #0A4FB8;
+
+  /* Small accent pills (reload banner, "grant" on a host row). Their default gradient
+     hardcodes gold at the first and last stop with --gold in the middle, so a theme that
+     recolours --gold alone gets gold-orange-gold. Blue, matching the primary. */
+  --btn-accent-top: #1470F0;
+  --btn-accent-mid: #0B62E4;
+  --btn-accent-bot: #0A4FB8;
+  --btn-accent-text: #FFFFFF;
+
+  /* Ink — blue-black rather than neutral grey, so it sits warm against the plaster.
+     --faint clears AA at 4.70:1 on the ground and 4.41:1 on the card. That is deliberate
+     and this is the first theme where it is true: the other five run 2.25–3.53:1 there,
+     a gap recorded in test/theme-contrast.test.js. Not inherited. */
+  --text: #1D1D2B;
+  --text-2: #33333F;
+  --muted: #5A5560;
+  --faint: #6B6572;
+  --red: #C4232F;
+
+  --shadow: 0 10px 30px rgba(29, 29, 43, 0.10);
+  --shadow-sm: 0 6px 18px rgba(29, 29, 43, 0.08);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding a dark-theme literal. */
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(11, 98, 228, 0.20);
+  --card-wash: rgba(11, 98, 228, 0.09);
+  /* Bright fill behind an active chip or the relax countdown. */
+  --accent-fill: var(--lav);
+  --glow: var(--lav);
+
+  /* The composer balloon. Flat primary blue with a white label — 5.41:1. Aegean had to
+     go lighter and take a dark label because its blue was dimmer against whitewash; this
+     one is bright enough to keep white, which is the flatter and more Bauhaus result. */
+  --balloon-bg: #0B62E4;
+  --balloon-bg-hover: #1470F0;
+  --balloon-text: #FFFFFF;
+
+  /* The compose button is the warm note in a cool room, same role gold plays in the dark
+     themes. Bright orange, and the quill keeps its default near-black at 6.37:1 on the
+     darker stop, so --fab-icon stays unset. */
+  --fab-bg: linear-gradient(160deg, #FF9A3C, #F5811F);
+
+  /* Floating shadows are tuned for dark themes; half-opacity black under a button
+     sitting on plaster reads as grime. */
+  --float-shadow: rgba(29, 29, 43, 0.18);
+  --float-shadow-strong: rgba(29, 29, 43, 0.26);
+}
+
+/* The "+" badge carries near-black text on a coloured disc in the dark themes. */
+[data-theme="bauhaus"] .add-account-badge {
+  color: var(--velvet-1);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="bauhaus"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+
+/* Outgoing transactions in the theme's red. Direction is carried by the arrow glyph as
+   well as the colour — necessary here, because red against the blue used elsewhere is
+   1.30:1 and colour alone could not be the distinction. */
+[data-theme="bauhaus"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+
+[data-theme="bauhaus"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}

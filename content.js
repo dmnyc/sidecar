@@ -418,8 +418,13 @@
   // speakeasy. (Background intentionally exposes only showPayButton to content
   // scripts, so the theme is read directly from storage, not via messaging.)
   let cardTheme = 'speakeasy';
+  // Keyed off one set rather than a chain of !==. The chain form silently dropped any
+  // theme nobody remembered to add here, and the card then rendered in the wrong palette
+  // with no error anywhere — see the THEME_VARS table below, which it must stay in step
+  // with.
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus']);
   function setCardTheme(t) {
-    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'brownstone' && t !== 'art-deco' && t !== 'aegean') return;
+    if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
     cardTheme = t;
     if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
@@ -546,6 +551,34 @@
         CARD_WARN: 'color:#A8432A',
         CARD_SUCCESS: 'color:#4F6B3A',
         CARD_PAY_SHADOW: 'rgba(21,101,192,0.32)'
+      },
+      /* Bauhaus — plaster, black rule lines, primary geometry. Mirrors
+         themes/bauhaus.css; the card carries its own copy because it renders in the
+         page's shadow DOM with no access to the extension's stylesheets.
+         Two values do NOT follow the theme file's naming and both are deliberate:
+         CARD_GOLD is the theme's dark orange, the only warm value that clears AA as
+         text on plaster (5.33:1) — the bright orange is 2.38:1 and fill-only. The pay
+         button is blue with a white label, because the near-black the dark themes use
+         is unreadable on it. */
+      bauhaus: {
+        CARD_COLOR: 'color:#1D1D2B',
+        CARD_BORDER: 'rgba(29,29,43,0.28)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(11,98,228,0.09),transparent 58%),linear-gradient(165deg,#FFFFFF,#F7ECDC)',
+        CARD_MUTED: 'color:#5A5560',
+        CARD_GOLD: 'color:#A8480A',
+        CARD_TEXT_2: 'color:#33333F',
+        CARD_LAV: '#0B62E4',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#1470F0,#0B62E4 52%,#0A4FB8)',
+        CARD_CANCEL_BG: 'rgba(11,98,228,0.10)',
+        CARD_TEXT: '#1D1D2B',
+        CARD_BORDER_FAINT: 'rgba(29,29,43,0.14)',
+        CARD_TOGGLE_OFF: 'rgba(29,29,43,0.25)',
+        CARD_TRACK: '#0B62E4',
+        CARD_THUMB_OFF: '#5A5560',
+        CARD_WARN: 'color:#C4232F',
+        CARD_SUCCESS: 'color:#2E6B45',
+        CARD_PAY_SHADOW: 'rgba(11,98,228,0.30)'
       }
     };
 
@@ -707,11 +740,12 @@
     const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
       Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
     // The wordmark's lettering is baked in as speakeasy's lavender (#BDA1FF), fine
-    // on speakeasy/noir's dark cards but illegible on deco's light one — recolor
+    // on speakeasy/noir's dark cards but illegible on a light one — recolor
     // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
-    // Both light themes need it recoloured; the baked lavender vanishes on marble
-    // and eggshell alike.
-    const lightCard = cardTheme === 'art-deco' || cardTheme === 'aegean';
+    // Every light theme needs it recoloured; the baked lavender vanishes on marble,
+    // eggshell and plaster alike.
+    const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus']);
+    const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
       '<style>' + cardCss + '</style>' +

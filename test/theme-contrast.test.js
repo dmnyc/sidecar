@@ -308,6 +308,7 @@ const FLOORS = {
   brownstone: { '--muted': 6.20, '--faint': 3.50, '--gold': 8.60 },
   'film-noir': { '--muted': 4.45, '--faint': 2.25, '--gold': 7.85 },
   speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
+  bauhaus: { '--muted': 6.00, '--faint': 4.65, '--gold': 4.80 },
 };
 
 for (const theme of THEMES) {

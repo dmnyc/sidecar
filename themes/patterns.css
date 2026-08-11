@@ -82,4 +82,18 @@ body {
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
-
+/* Bauhaus — quarter-discs, circles and rings on a 4x4 grid. Curves only, no squares:
+   Brownstone shipped with a coffer tile and then swapped it out because it "sat too close
+   to Aegean's meander — both are orthogonal hard-edged geometry, so they read as the same
+   idea however they are scaled." A Bauhaus grid of squares would walk into exactly that.
+   The arcs are the whole silhouette. Drawn in the theme ink at very low opacity, so it
+   reads as the plaster's texture rather than as wallpaper. */
+[data-theme="bauhaus"] body {
+  background-image:
+    url(bauhaus-pattern.svg),
+    radial-gradient(1000px 460px at 50% -10%, rgba(11, 98, 228, 0.10), transparent 62%),
+    radial-gradient(780px 460px at 118% 112%, rgba(245, 129, 31, 0.08), transparent 55%),
+    linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
+  background-size: 480px, auto, auto, auto;
+  background-position: center, 0% 0%, 0% 0%, 0% 0%;
+}
