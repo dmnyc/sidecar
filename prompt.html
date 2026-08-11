@@ -335,9 +335,15 @@
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px var(--btn-shadow, rgba(234, 119, 47, 0.28));
     }
     .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    /* Mirrors .lav-btn in styles.css — see there for why the stops and label are
+       variables, and why the ring is an inset shadow rather than a border. */
     .lav-btn {
-      background: linear-gradient(180deg, #cebfff, var(--lav) 58%, var(--purple)); color: #190a33;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px rgba(var(--border-rgb), 0.24);
+      background: linear-gradient(180deg, var(--btn-lav-top, #cebfff), var(--btn-lav-mid, var(--lav)) 58%, var(--btn-lav-bot, var(--purple)));
+      color: var(--btn-lav-text, #190a33);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        inset 0 0 0 1px var(--btn-lav-ring, transparent),
+        0 8px 22px var(--btn-lav-shadow, rgba(var(--border-rgb), 0.24));
     }
     .lav-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
     .secondary {

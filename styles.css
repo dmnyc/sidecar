@@ -405,11 +405,22 @@ button { cursor: pointer; }
   letter-spacing: 0.01em;
   transition: transform 0.12s, box-shadow 0.15s, filter 0.15s, border-color 0.15s;
 }
-/* filled secondary button — theme-adaptive (gold in dark themes, bronze in light) */
+/* "Trust this site" — the filled companion to .primary.
+   Themeable for the same reason .primary is: the fill is built from --lav / --purple,
+   which every theme overrides, while the label was a hardcoded near-black. Wherever a
+   theme lands those dark the label went dark-on-dark — illegible in Aegean (--lav
+   #1565C0 cobalt) and Art Deco (#7A5A18 bronze). Both light themes now supply a light
+   fill and keep the dark label.
+   The ring is an INSET SHADOW, not a border: the shared rule above sets border: none,
+   and a real border here would make this button 2px taller than the Allow button
+   directly above it. */
 .lav-btn {
-  background: linear-gradient(180deg, #cebfff, var(--lav) 58%, var(--purple));
-  color: #190a33;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px rgba(167, 139, 250, 0.24);
+  background: linear-gradient(180deg, var(--btn-lav-top, #cebfff), var(--btn-lav-mid, var(--lav)) 58%, var(--btn-lav-bot, var(--purple)));
+  color: var(--btn-lav-text, #190a33);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 0 0 1px var(--btn-lav-ring, transparent),
+    0 8px 22px var(--btn-lav-shadow, rgba(167, 139, 250, 0.24));
 }
 .lav-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
 .lav-btn:active { transform: translateY(0); }

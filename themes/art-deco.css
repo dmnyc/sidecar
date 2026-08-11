@@ -50,6 +50,16 @@
   --btn-primary-bot: #A5853A;
   --btn-shadow: rgba(201, 170, 86, 0.35);
 
+  /* "Trust this site" — pale parchment rather than a lighter gold. A lighter gold sat
+     too close to the champagne primary above it; this reads as the quieter action while
+     staying warm, and carries the dark label the old bronze --lav could not. */
+  --btn-lav-top: #F6EEDA;
+  --btn-lav-mid: #EBE0C4;
+  --btn-lav-bot: #DDCFAB;
+  --btn-lav-text: #2a2a2a;
+  --btn-lav-ring: rgba(139, 115, 85, 0.34);
+  --btn-lav-shadow: rgba(139, 115, 85, 0.20);
+
   /* ink */
   --text: #2a2a2a;
   --text-2: #4a4a4a;

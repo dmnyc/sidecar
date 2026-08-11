@@ -55,6 +55,17 @@
   --btn-primary-bot: #0B4F94;
   --btn-shadow: rgba(21, 101, 192, 0.32);
 
+  /* "Trust this site" — sea-light blue, a few shades up from the cobalt door so the two
+     actions can't be mistaken for each other: Allow is the saturated fill with a white
+     label, Trust the pale one with a dark label. The old rule put a near-black label on
+     the full cobalt --lav and it was barely readable. */
+  --btn-lav-top: #DCEBFA;
+  --btn-lav-mid: #BFD9F2;
+  --btn-lav-bot: #A3C7E9;
+  --btn-lav-text: #14232E;
+  --btn-lav-ring: rgba(11, 87, 164, 0.28);
+  --btn-lav-shadow: rgba(21, 101, 192, 0.18);
+
   /* ink — blue-black; neutral grey looks dirty against whitewash */
   --text: #14232E;
   --text-2: #2C3E4C;
