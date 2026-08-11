@@ -12,13 +12,18 @@
      plaster in sea light, so the ground is neutral-cool and the cards are plain
      white. */
   --bg: #F7F8F8;
-  --bg-2: #EDF1F4;
+  /* Sea-light blue on the secondary surfaces and the card bottoms, the same family as
+     the "Trust this site" fill below. The ground and the card TOPS stay whitewash — the
+     theme is plaster in sea light, and tinting those too turned the whole panel blue
+     rather than lighting it. Costs a little contrast on every ink sitting on a card;
+     see --faint below, which had to come down to pay for it. */
+  --bg-2: #E2ECF8;
   --velvet-1: #FFFFFF;
-  --velvet-2: #F4F7F9;
+  --velvet-2: #E8F1FC;
   --velvet-1-rgb: 255, 255, 255;
   --av-from: #FFFFFF;
   --av-to: #EDF1F4;
-  --banner-accent: #EDF1F4;
+  --banner-accent: #E2ECF8;
   --border: rgba(11, 87, 164, 0.16);
   --border-strong: rgba(11, 87, 164, 0.30);
   --border-rgb: 11, 87, 164;
@@ -45,8 +50,8 @@
   --hover-medium: rgba(11, 87, 164, 0.10);
   --hover-faint: rgba(11, 87, 164, 0.04);
   --mention-bg: rgba(21, 101, 192, 0.14);
-  --scroll-thumb: linear-gradient(180deg, #CBD8E2, #DDE6ED);
-  --scroll-thumb-hover: #B4C6D4;
+  --scroll-thumb: linear-gradient(180deg, #BFD9F2, #DCEBFA);
+  --scroll-thumb-hover: #A3C7E9;
 
   /* primary button — the cobalt door, not gold. Gold on white read as mustard, and
      blue is what the eye expects to be the action in this palette. */
@@ -66,11 +71,22 @@
   --btn-lav-ring: rgba(11, 87, 164, 0.28);
   --btn-lav-shadow: rgba(21, 101, 192, 0.18);
 
+  /* Quiet buttons (Cancel, Manage, and friends) take the top of the same blue ramp —
+     paler than "Trust this site" so the ordering still reads: filled cobalt is the
+     action, mid blue is the deliberate one, pale blue is the way back. */
+  --btn-secondary-top: #F5FAFE;
+  --btn-secondary-bot: #DCEBFA;
+
   /* ink — blue-black; neutral grey looks dirty against whitewash */
   --text: #14232E;
   --text-2: #2C3E4C;
   --muted: #5A6B78;
-  --faint: #8B99A5;
+  /* Darkened with the surface tint below. The card bottoms used to be near-white
+     (#F4F7F9); sea-light blue is darker, and every ink on them loses a little contrast.
+     --faint was the only one with no headroom left — 2.71:1 on the old card, which is
+     under AA already. Darkening it here more than pays for the tint: 3.05:1 on the new
+     card, better than before on every surface. */
+  --faint: #7C8C99;
   --red: #A8432A;
 
   --shadow: 0 10px 30px rgba(11, 42, 66, 0.10);

@@ -432,9 +432,12 @@ button { cursor: pointer; }
 }
 .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .primary:active { transform: translateY(0); }
+/* Its own hooks rather than reading --velvet-* directly: a theme that wants its quiet
+   buttons tinted differently from its cards can say so without dragging every card, menu
+   and well along with it. Defaults are the old values, so the dark themes are unchanged. */
 .secondary {
-  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
-  color: var(--text);
+  background: linear-gradient(180deg, var(--btn-secondary-top, var(--velvet-1)), var(--btn-secondary-bot, var(--velvet-2)));
+  color: var(--btn-secondary-text, var(--text));
   border: 1px solid var(--border);
   box-shadow: var(--sheen);
 }

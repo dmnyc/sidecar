@@ -346,9 +346,10 @@
         0 8px 22px var(--btn-lav-shadow, rgba(var(--border-rgb), 0.24));
     }
     .lav-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
+    /* Mirrors .secondary in styles.css — see there for why these are separate hooks. */
     .secondary {
-      background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
-      color: var(--text); border: 1px solid var(--border); box-shadow: var(--sheen);
+      background: linear-gradient(180deg, var(--btn-secondary-top, var(--velvet-1)), var(--btn-secondary-bot, var(--velvet-2)));
+      color: var(--btn-secondary-text, var(--text)); border: 1px solid var(--border); box-shadow: var(--sheen);
     }
     .secondary:hover { border-color: var(--gold-soft); }
     .ghost { background: transparent; color: var(--muted); }

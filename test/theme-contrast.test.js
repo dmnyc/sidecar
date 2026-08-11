@@ -1,6 +1,7 @@
 'use strict';
 
-// WCAG contrast for the two filled buttons on the approval prompt, in every theme.
+// WCAG contrast for theme colors: the filled buttons on the approval prompt, and every ink
+// against every surface, in all five themes.
 //
 // Why this exists: "Trust this site" (.lav-btn) hardcoded a near-black label over a
 // gradient whose mid and bottom stops come from --lav / --purple — variables every theme
@@ -174,7 +175,7 @@ test('prompt.html and styles.css declare the same themeable hooks', () => {
   // The popup window has its own copy of these rules. A theme sets one set of variables, so
   // if the two rules read different ones the same theme renders differently depending on
   // whether the side panel happened to be open.
-  for (const selector of ['.lav-btn']) {
+  for (const selector of ['.lav-btn', '.secondary']) {
     const a = new Set(outerVars(rule(css, selector)).map((v) => splitVar(v)[0]));
     const b = new Set(outerVars(rule(promptHtml, selector)).map((v) => splitVar(v)[0]));
     assert.deepEqual([...a].sort(), [...b].sort(), selector + ' hooks differ between surfaces');
@@ -200,4 +201,96 @@ test('the ring is an inset shadow, not a border', () => {
   const body = rule(css, '.lav-btn');
   assert.ok(!/(^|[^-])border:/.test(body), '.lav-btn must not set a border');
   assert.match(body, /inset 0 0 0 1px var\(--btn-lav-ring/);
+});
+
+// ---------------------------------------------------------------------------
+// Ink against surfaces
+// ---------------------------------------------------------------------------
+//
+// Added when Aegean's card bottoms were tinted sea-light blue. The card top stays white,
+// so the tint made the bottom DARKER, and every ink sitting on a card lost a little
+// contrast. That is the same class of change as the .lav-btn bug — a fill moving out from
+// under a label that used to be fine — so it needs the same kind of guard.
+//
+// Two tiers, because the four ink tokens are not one thing:
+//
+//   --text / --text-2   body copy. Hard AA floor of 4.5:1, met in every theme with a wide
+//                       margin (worst is Art Deco --text-2 at 6.03:1).
+//
+//   --muted / --faint   recorded floors, NOT an AA assertion. Neither clears 4.5:1 in every
+//                       theme today: Art Deco --muted is 3.68:1, and --faint runs 2.28–3.53
+//                       across all five. Lifting every theme's ink is a design decision and
+//                       not a test's call to make, so these record where things stand and
+//                       fail on further slippage. The numbers being visible here is half the
+//                       point — see the note under FLOORS.
+
+const AA_NORMAL = 4.5;
+const INK = ['--text', '--text-2', '--muted', '--faint'];
+const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
+
+// Worst-surface floors as measured. Raise these when a theme's ink improves; do not lower
+// one to make a change pass — that is the failure this file exists to make visible.
+//
+// KNOWN BELOW AA (pre-existing, not introduced by any change here):
+//   art-deco --muted 3.68:1  — secondary body text under the 4.5 floor
+//   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone)
+// --faint is used for the lowest-emphasis labels; if it ever carries something a user has
+// to read, it needs darkening first, per theme.
+const FLOORS = {
+  aegean: { '--muted': 4.55, '--faint': 2.85 },
+  'art-deco': { '--muted': 3.65, '--faint': 2.30 },
+  brownstone: { '--muted': 6.20, '--faint': 3.50 },
+  'film-noir': { '--muted': 4.45, '--faint': 2.25 },
+  speakeasy: { '--muted': 5.20, '--faint': 3.00 },
+};
+
+for (const theme of THEMES) {
+  test(`body ink clears AA on every surface in ${theme.name}`, () => {
+    for (const ink of ['--text', '--text-2']) {
+      const fg = resolve('var(' + ink + ')', theme.vars);
+      assert.ok(/^#[0-9a-f]{3,6}$/i.test(fg), `${theme.name}: ${ink} resolved to "${fg}"`);
+      for (const surface of SURFACES) {
+        const bg = resolve('var(' + surface + ')', theme.vars);
+        assert.ok(/^#[0-9a-f]{3,6}$/i.test(bg), `${theme.name}: ${surface} resolved to "${bg}"`);
+        const r = contrast(fg, bg);
+        assert.ok(
+          r >= AA_NORMAL,
+          `${theme.name}: ${ink} (${fg}) on ${surface} (${bg}) is ${r.toFixed(2)}:1, needs >= ${AA_NORMAL}`
+        );
+      }
+    }
+  });
+
+  test(`secondary ink has not slipped in ${theme.name}`, () => {
+    const floors = FLOORS[theme.name];
+    assert.ok(floors, 'no recorded floors for theme ' + theme.name + ' — add them');
+    for (const ink of ['--muted', '--faint']) {
+      const fg = resolve('var(' + ink + ')', theme.vars);
+      const worst = Math.min(
+        ...SURFACES.map((s) => contrast(fg, resolve('var(' + s + ')', theme.vars)))
+      );
+      assert.ok(
+        worst >= floors[ink] - 0.005,
+        `${theme.name}: ${ink} (${fg}) worst surface is ${worst.toFixed(2)}:1, floor is ${floors[ink]}`
+      );
+    }
+  });
+}
+
+test('every theme has recorded floors', () => {
+  // A new theme must be measured, not silently skipped.
+  for (const theme of THEMES) assert.ok(FLOORS[theme.name], 'missing floors for ' + theme.name);
+  for (const name of Object.keys(FLOORS)) {
+    assert.ok(THEMES.some((t) => t.name === name), 'floors recorded for missing theme ' + name);
+  }
+});
+
+test('INK and SURFACES name real tokens in every theme', () => {
+  // A typo would make the loops above assert nothing at all.
+  for (const theme of THEMES) {
+    for (const v of INK.concat(SURFACES)) {
+      const c = resolve('var(' + v + ')', theme.vars);
+      assert.ok(/^#[0-9a-f]{3,6}$/i.test(c), `${theme.name}: ${v} did not resolve to a hex color`);
+    }
+  }
 });
