@@ -16,6 +16,9 @@
     account: $('account'),
     switchToggle: $('switch-toggle'),
     switchMenu: $('switch-menu'),
+    wrongAcct: $('wrong-acct'),
+    wrongAcctToggle: $('wrong-acct-toggle'),
+    wrongAcctList: $('wrong-acct-list'),
     unlock: $('unlock'),
     pin: $('pin'),
     error: $('error'),
@@ -383,6 +386,7 @@
     const verb = isPayment ? 'wants to send a Lightning payment' : 'wants to ' + (METHOD_LABELS[data.method] || data.method);
     els.ask.textContent = verb;
     buildAccountCapsule();
+    buildWrongAcct();
     renderPreview();
 
     // Decrypt-burst note: a client loading a DM inbox fires many decrypt requests
@@ -618,6 +622,67 @@
     });
   }
 
+  // "Wrong account?" escape — the popup half of renderWrongAcctEscape in sidepanel.js.
+  // Offers the accounts the switcher above can't reach; the two lists are disjoint by
+  // construction in background.js. Keep the two surfaces in step; the lede copy is
+  // asserted identical in both by the tests.
+  function buildWrongAcct() {
+    if (!els.wrongAcct || !els.wrongAcctToggle || !els.wrongAcctList) return;
+    els.wrongAcctList.innerHTML = '';
+    els.wrongAcctList.classList.add('hidden');
+    els.wrongAcctToggle.setAttribute('aria-expanded', 'false');
+    const accts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
+    els.wrongAcct.classList.toggle('hidden', !data.wrongAccountEscape || !accts.length);
+    els.wrongAcctToggle.onclick = () => {
+      if (els.wrongAcctList.classList.contains('hidden')) {
+        buildWrongAcctList(accts);
+        els.wrongAcctList.classList.remove('hidden');
+        els.wrongAcctToggle.setAttribute('aria-expanded', 'true');
+      } else {
+        els.wrongAcctList.classList.add('hidden');
+        els.wrongAcctToggle.setAttribute('aria-expanded', 'false');
+      }
+    };
+  }
+
+  function buildWrongAcctList(accts) {
+    els.wrongAcctList.innerHTML = '';
+    const lede = document.createElement('p');
+    lede.className = 'wrong-acct-lede';
+    // Copy asserted identical to the panel's — see buildWrongAcctList in sidepanel.js for
+    // why the reconnect instruction isn't here. This window closes on the decision, so it
+    // has no toast of its own; the client's error is the only channel either way.
+    lede.textContent = 'Cancels this request and makes the selected account active.';
+    els.wrongAcctList.append(lede);
+    accts.forEach((a) => {
+      const row = document.createElement('button');
+      row.className = 'switch-row';
+      const av = document.createElement('img');
+      av.className = 'switch-row-av';
+      av.referrerPolicy = 'no-referrer';
+      av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
+      av.src = a.picture || 'icons/avatar-default.svg';
+      const info = document.createElement('div');
+      info.className = 'switch-row-info';
+      const name = document.createElement('div');
+      name.className = 'switch-row-name';
+      name.textContent = a.name || shortNpub(a.npub);
+      const np = document.createElement('div');
+      np.className = 'switch-row-npub';
+      np.textContent = shortNpub(a.npub);
+      info.append(name, np);
+      row.append(av, info);
+      if (a.active) {
+        const tag = document.createElement('span');
+        tag.className = 'wrong-acct-tag';
+        tag.textContent = 'Active';
+        row.append(tag);
+      }
+      row.addEventListener('click', () => decide('detach', { detachPubkey: a.pubkey }));
+      els.wrongAcctList.append(row);
+    });
+  }
+
   // Disable Allow once + Trust this site while a destructive overwrite is
   // unacknowledged. Reject is never gated — the safe way out must stay reachable.
   function setLocked(locked) {
@@ -630,8 +695,9 @@
   async function decide(action, opts) {
     els.error.textContent = '';
     els.pinError.textContent = '';
-    // Unlock first if needed (Allow once / Trust / Relax / Pay only).
-    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
+    // Unlock first if needed. 'detach' is included even though it never signs — see
+    // decideApproval in sidepanel.js. Reject stays ungated.
+    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {
       const pin = els.pin.value;
       if (!pin) {
         els.pinError.textContent = 'Enter your PIN.';
@@ -669,6 +735,11 @@
     // reaches here, so declining the payment can never enable the setting.
     if (data.offerAutoZap > 0 && els.autozapOfferBox.checked) {
       extra = Object.assign({}, extra, { enableAutoZap: true });
+    }
+    // "Wrong account" escape: carry the account to make active. The background detaches
+    // and then throws, so this never signs.
+    if (action === 'detach') {
+      extra = Object.assign({}, extra, { detachPubkey: (opts && opts.detachPubkey) || '' });
     }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {

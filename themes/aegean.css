@@ -12,13 +12,18 @@
      plaster in sea light, so the ground is neutral-cool and the cards are plain
      white. */
   --bg: #F7F8F8;
-  --bg-2: #EDF1F4;
+  /* Sea-light blue on the secondary surfaces and the card bottoms, the same family as
+     the "Trust this site" fill below. The ground and the card TOPS stay whitewash — the
+     theme is plaster in sea light, and tinting those too turned the whole panel blue
+     rather than lighting it. Costs a little contrast on every ink sitting on a card;
+     see --faint below, which had to come down to pay for it. */
+  --bg-2: #E2ECF8;
   --velvet-1: #FFFFFF;
-  --velvet-2: #F4F7F9;
+  --velvet-2: #E8F1FC;
   --velvet-1-rgb: 255, 255, 255;
   --av-from: #FFFFFF;
   --av-to: #EDF1F4;
-  --banner-accent: #EDF1F4;
+  --banner-accent: #E2ECF8;
   --border: rgba(11, 87, 164, 0.16);
   --border-strong: rgba(11, 87, 164, 0.30);
   --border-rgb: 11, 87, 164;
@@ -32,11 +37,18 @@
      every checkbox, mentions, and chosen buttons. Terracotta here made the
      checkboxes read as errors. Terracotta lives in --warn, where it belongs. */
   --orange: #1565C0;
-  /* brand — sun-bleached stone for money, so gold still reads as gold across all
-     four themes, but pitched warm-neutral rather than yellow against white */
+  /* --amber stays metallic: it is what the amber half of the relax countdown reads, and
+     amber has to mean amber even here.
+     --gold does NOT. It drives the UI accents — the active-account check, row borders,
+     tips, the "note is live" banner — and gold on whitewash reads as mustard and pulls
+     warm against a cool room. That call was already made for the wallet card, scoped to
+     it; this promotes it to the whole theme, which is what the scope should have been.
+     It is also a legibility win: #9C7A1C was 4.07:1 on white, under AA. Cobalt is 7.19:1.
+     --accent-rgb follows, so every translucent wash goes cobalt with it. */
   --amber: #B8912F;
-  --gold: #9C7A1C;
-  --gold-soft: rgba(156, 122, 28, 0.5);
+  --gold: var(--purple);
+  --gold-soft: rgba(var(--border-rgb), 0.42);
+  --accent-rgb: var(--border-rgb);
   /* Cobalt takes the accent slot the dark themes fill with purple: deep sea for the
      strong tone, door-blue for the lighter. 6.77:1 and 5.40:1 on the ground. */
   --purple: #0B57A4;
@@ -45,8 +57,8 @@
   --hover-medium: rgba(11, 87, 164, 0.10);
   --hover-faint: rgba(11, 87, 164, 0.04);
   --mention-bg: rgba(21, 101, 192, 0.14);
-  --scroll-thumb: linear-gradient(180deg, #CBD8E2, #DDE6ED);
-  --scroll-thumb-hover: #B4C6D4;
+  --scroll-thumb: linear-gradient(180deg, #BFD9F2, #DCEBFA);
+  --scroll-thumb-hover: #A3C7E9;
 
   /* primary button — the cobalt door, not gold. Gold on white read as mustard, and
      blue is what the eye expects to be the action in this palette. */
@@ -55,11 +67,46 @@
   --btn-primary-bot: #0B4F94;
   --btn-shadow: rgba(21, 101, 192, 0.32);
 
+  /* "Trust this site" — sea-light blue, a few shades up from the cobalt door so the two
+     actions can't be mistaken for each other: Allow is the saturated fill with a white
+     label, Trust the pale one with a dark label. The old rule put a near-black label on
+     the full cobalt --lav and it was barely readable. */
+  --btn-lav-top: #DCEBFA;
+  --btn-lav-mid: #BFD9F2;
+  --btn-lav-bot: #A3C7E9;
+  --btn-lav-text: #14232E;
+  --btn-lav-ring: rgba(11, 87, 164, 0.28);
+  --btn-lav-shadow: rgba(21, 101, 192, 0.18);
+
+  /* Quiet buttons (Cancel, Manage, and friends) take the top of the same blue ramp —
+     paler than "Trust this site" so the ordering still reads: filled cobalt is the
+     action, mid blue is the deliberate one, pale blue is the way back. */
+  --btn-secondary-top: #F5FAFE;
+  --btn-secondary-bot: #DCEBFA;
+
+  /* Pending confirm. The default title is --gold on a gold wash, which over whitewash
+     washes out to near-invisible; cobalt instead. --pending-sub is left alone — the
+     default is --muted, which clears AA on this theme's surfaces. */
+  --pending-text: #0B4F94;
+
+  /* Small accent pills (reload banner, "grant" on a host row). Their default gradient
+     hardcodes gold at the first and last stop with --gold in the middle, so a themed
+     --gold alone would have left them gold-cobalt-gold. */
+  --btn-accent-top: #2A7BD4;
+  --btn-accent-mid: #1565C0;
+  --btn-accent-bot: #0B4F94;
+  --btn-accent-text: #FFFFFF;
+
   /* ink — blue-black; neutral grey looks dirty against whitewash */
   --text: #14232E;
   --text-2: #2C3E4C;
   --muted: #5A6B78;
-  --faint: #8B99A5;
+  /* Darkened with the surface tint below. The card bottoms used to be near-white
+     (#F4F7F9); sea-light blue is darker, and every ink on them loses a little contrast.
+     --faint was the only one with no headroom left — 2.71:1 on the old card, which is
+     under AA already. Darkening it here more than pays for the tint: 3.05:1 on the new
+     card, better than before on every surface. */
+  --faint: #7C8C99;
   --red: #A8432A;
 
   --shadow: 0 10px 30px rgba(11, 42, 66, 0.10);
@@ -128,17 +175,9 @@
   color: var(--text);
 }
 
-/* The wallet card is the one surface where the theme gets to be itself. Money is
-   gold in the other three and --gold still means gold here for badges, but on
-   whitewash a gold number reads as mustard and the card was pulling warm against a
-   cool room. Scoping --gold to the card turns the number, the chart line and its
-   gradient blue in one move — the chart draws from that variable inline. Both
-   balance displays share one colour, as they must. */
-[data-theme="aegean"] .wallet-card,
-[data-theme="aegean"] .pinned-balance {
-  --gold: var(--purple);
-  --gold-soft: rgba(var(--border-rgb), 0.42);
-}
+/* The wallet card used to scope --gold to cobalt on its own, because a gold balance read
+   as mustard on whitewash. --gold is cobalt theme-wide now, so this block was doing
+   nothing and is gone. The chart still picks it up — it draws from that variable inline. */
 [data-theme="aegean"] .wallet-balance,
 [data-theme="aegean"] .pinned-balance-amt {
   color: var(--purple);

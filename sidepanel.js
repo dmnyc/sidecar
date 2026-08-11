@@ -10472,6 +10472,77 @@
     });
   }
 
+  // "Wrong account?" escape. Offers exactly the accounts the switcher above cannot: it
+  // appears only once 2+ accounts have logged in on this host, and even then it is scoped
+  // to those accounts, so a user whose intended identity is a third one has no control at
+  // all. This is that control. See the gate in background.js — the two lists are disjoint
+  // by construction, so this never repeats a row the switcher already offers.
+  //
+  // Picking a row detaches the host and makes that account active — the same primitive as
+  // Settings -> Sites -> "Use <account>", reachable from the moment the problem is
+  // actually discovered instead of three levels into Settings.
+  //
+  // Shown generously (see the gate in background.js — any content sign with 2+ accounts).
+  // Sidecar can't see the client's UI, so it can't tell a correct prompt from a wrong one;
+  // only the user can.
+  function renderWrongAcctEscape(data) {
+    const hint = $('approval-wrong-acct');
+    const toggle = $('approval-wrong-acct-toggle');
+    const list = $('approval-wrong-acct-list');
+    if (!hint || !toggle || !list) return;
+    // Collapse on every render, not just the first: the panel re-shows the approval on
+    // queue advance and unlock, and an expanded list left over from the previous request
+    // would be offering to detach a different host.
+    list.innerHTML = '';
+    hide(list);
+    toggle.setAttribute('aria-expanded', 'false');
+    const accts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
+    if (!data.wrongAccountEscape || !accts.length) {
+      hide(hint);
+      return;
+    }
+    show(hint);
+    toggle.onclick = () => {
+      if (list.classList.contains('hidden')) {
+        buildWrongAcctList(data, accts);
+        show(list);
+        toggle.setAttribute('aria-expanded', 'true');
+      } else {
+        hide(list);
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    };
+  }
+
+  function buildWrongAcctList(data, accts) {
+    const list = $('approval-wrong-acct-list');
+    list.innerHTML = '';
+    // Only the two things the user can't learn afterwards: that this cancels, and that the
+    // switch is app-wide rather than just this site. "Makes the selected account active"
+    // carries the second in Sidecar's own vocabulary, tying to the ACTIVE tag on the row
+    // below.
+    // The reconnect instruction is deliberately NOT here — it lands as a toast the moment
+    // the detach settles, with the account name filled in, which this can't do. Three lines
+    // of lede in a sidebar to pre-announce it was too much.
+    list.append(h('p', { className: 'wrong-acct-lede', textContent: 'Cancels this request and makes the selected account active.' }));
+    accts.forEach((a) => {
+      const row = h('button', { className: 'acct-row' });
+      const av = document.createElement('span');
+      av.className = 'acct-row-av';
+      applyAvatar(av, a);
+      row.append(
+        av,
+        h('div', { className: 'acct-row-info' }, [
+          h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
+          h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
+        ])
+      );
+      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: 'Active' }));
+      row.addEventListener('click', () => decideApproval('detach', { detachPubkey: a.pubkey }));
+      list.append(row);
+    });
+  }
+
   function showApproval() {
     if (!pendingApproval) return;
     const data = pendingApproval.data;
@@ -10504,6 +10575,7 @@
       : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
 
     renderApprovalAccountCapsule(data);
+    renderWrongAcctEscape(data);
 
     // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
     // "who's posting" choice explicit; relabel the switcher for signing context.
@@ -10645,8 +10717,12 @@
     const pinErr = $('approval-pin-error');
     err.textContent = '';
     pinErr.textContent = '';
-    // Unlock first if needed (Allow once / Trust / Relax only).
-    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax')) {
+    // Unlock first if needed. 'detach' is in here even though it never signs: it clears
+    // the site binding and moves the GLOBAL active account, and without it a locked prompt
+    // would be the one surface that can change persistent state with no authentication —
+    // reachable by anyone at an unattended browser who can make a site ask for a
+    // signature. Reject stays ungated; the safe way out must never need a PIN.
+    if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {
       const pin = $('approval-pin').value;
       if (!pin) {
         pinErr.textContent = 'Enter your PIN.';
@@ -10678,6 +10754,11 @@
       // Merge, don't assign — other flags share this object (see prompt.js).
       extra = Object.assign({}, extra, { budgetSats, perPaymentSats: 0 });
     }
+    // "Wrong account" escape: carry the account to make active. The background detaches
+    // and then throws, so this never signs.
+    if (action === 'detach') {
+      extra = Object.assign({}, extra, { detachPubkey: (opts && opts.detachPubkey) || '' });
+    }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {
       extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
@@ -10700,6 +10781,18 @@
       await bg({ type: 'SIDECAR_PROMPT_RESULT_BATCH', ids: groupIds, action, extra });
     } else {
       await bg({ type: 'SIDECAR_PROMPT_RESULT', id, action, extra });
+    }
+    // Detach settled: say what to do next, in Sidecar. The background throws the same
+    // instruction as the signing error, but that goes to the CLIENT — a client that
+    // swallows signing errors would leave the user with no next step at all. Same string
+    // as switchSiteModal's, so the Settings route and this one read identically.
+    if (action === 'detach') {
+      const picked = (data.allAccounts || []).find((a) => a.pubkey === (opts && opts.detachPubkey));
+      toast(
+        'Detached. Sign out of ' + data.host + ' and back in as ' +
+          ((picked && picked.name) || 'that account') + '.',
+        'success'
+      );
     }
     $('approval-pin').value = '';
     // Leave pendingApproval set so refreshApproval() knows an approval was up:

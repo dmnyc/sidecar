@@ -38,6 +38,10 @@
   --orange: #ea772f;
   --amber: #f4a64b;
   --gold: #cba14e;
+  /* Channel triple behind every translucent accent wash (row highlights, hover fills,
+     tip cards). It used to be the literal 203, 161, 78 in 15 places, which meant a theme
+     could restyle --gold and still show Speakeasy's gold everywhere a wash appeared. */
+  --accent-rgb: 203, 161, 78;
   --gold-soft: rgba(203, 161, 78, 0.5);
   --purple: #a78bfa;
   --lav: #bda1ff;
@@ -405,11 +409,22 @@ button { cursor: pointer; }
   letter-spacing: 0.01em;
   transition: transform 0.12s, box-shadow 0.15s, filter 0.15s, border-color 0.15s;
 }
-/* filled secondary button — theme-adaptive (gold in dark themes, bronze in light) */
+/* "Trust this site" — the filled companion to .primary.
+   Themeable for the same reason .primary is: the fill is built from --lav / --purple,
+   which every theme overrides, while the label was a hardcoded near-black. Wherever a
+   theme lands those dark the label went dark-on-dark — illegible in Aegean (--lav
+   #1565C0 cobalt) and Art Deco (#7A5A18 bronze). Both light themes now supply a light
+   fill and keep the dark label.
+   The ring is an INSET SHADOW, not a border: the shared rule above sets border: none,
+   and a real border here would make this button 2px taller than the Allow button
+   directly above it. */
 .lav-btn {
-  background: linear-gradient(180deg, #cebfff, var(--lav) 58%, var(--purple));
-  color: #190a33;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px rgba(167, 139, 250, 0.24);
+  background: linear-gradient(180deg, var(--btn-lav-top, #cebfff), var(--btn-lav-mid, var(--lav)) 58%, var(--btn-lav-bot, var(--purple)));
+  color: var(--btn-lav-text, #190a33);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 0 0 1px var(--btn-lav-ring, transparent),
+    0 8px 22px var(--btn-lav-shadow, rgba(167, 139, 250, 0.24));
 }
 .lav-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
 .lav-btn:active { transform: translateY(0); }
@@ -421,13 +436,16 @@ button { cursor: pointer; }
 }
 .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .primary:active { transform: translateY(0); }
+/* Its own hooks rather than reading --velvet-* directly: a theme that wants its quiet
+   buttons tinted differently from its cards can say so without dragging every card, menu
+   and well along with it. Defaults are the old values, so the dark themes are unchanged. */
 .secondary {
-  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
-  color: var(--text);
+  background: linear-gradient(180deg, var(--btn-secondary-top, var(--velvet-1)), var(--btn-secondary-bot, var(--velvet-2)));
+  color: var(--btn-secondary-text, var(--text));
   border: 1px solid var(--border);
   box-shadow: var(--sheen);
 }
-.secondary:hover { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 3px rgba(203, 161, 78, 0.1); }
+.secondary:hover { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 3px rgba(var(--accent-rgb), 0.1); }
 .secondary.chosen { border-color: var(--orange); color: var(--orange); }
 .ghost { background: transparent; color: var(--muted); }
 .ghost:hover { color: var(--text); }
@@ -441,7 +459,7 @@ button { cursor: pointer; }
 .setting.danger-zone { margin-top: 30px; padding-top: 22px; border-top: 1px solid rgba(240, 86, 107, 0.3); }
 .setting.danger-zone h3 { color: var(--red); }
 .setting.danger-zone .danger { margin-top: 8px; }
-button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0.4); }
+button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.4); }
 
 .icon-btn {
   background: transparent;
@@ -546,10 +564,19 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   padding: 9px 10px; border-radius: 10px;
 }
 .acct-row:hover { background: var(--hover-medium); }
-.acct-row.active { background: rgba(203, 161, 78, 0.08); }
-.acct-row-pending { background: rgba(203, 161, 78, 0.12) !important; border-left: 2px solid var(--gold); }
-.acct-row-pending .acct-row-name { color: var(--gold); }
-.acct-row-pending .acct-row-npub { color: var(--gold-soft); }
+.acct-row.active { background: rgba(var(--accent-rgb), 0.08); }
+.acct-row-pending { background: rgba(var(--accent-rgb), 0.12) !important; border-left: 2px solid var(--gold); }
+/* Pending confirm ("Set as active?" / "Tap again to confirm").
+   The sub-label used --gold-soft, which is a 50%-ALPHA token meant for borders. As a text
+   color it blends toward whatever is behind it, so it can't be reasoned about from the
+   declaration: 1.30:1 on Art Deco's cream card (reported as unreadable, and it was) but
+   also only 2.49–3.07:1 in all three DARK themes, which is under AA everywhere. So the
+   default is --muted, the token that exists for secondary text, and the gold accent is
+   carried by the title alone — which also restores the hierarchy the two colors were
+   supposed to express. Themes with a --muted of their own that doesn't clear AA here
+   override --pending-sub. */
+.acct-row-pending .acct-row-name { color: var(--pending-text, var(--gold)); }
+.acct-row-pending .acct-row-npub { color: var(--pending-sub, var(--muted)); }
 .acct-row-av {
   width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
   background: linear-gradient(180deg, var(--av-from), var(--av-to)); border: 1px solid var(--border);
@@ -706,7 +733,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .welcome-mark { position: relative; width: 76px; height: 76px; margin: 6px auto 16px; display: flex; align-items: center; justify-content: center; }
 .welcome-mark::before {
   content: ''; position: absolute; inset: -18px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(203, 161, 78, 0.32), transparent 66%);
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.32), transparent 66%);
 }
 .welcome-mark img { position: relative; width: 58px; height: auto; display: block; filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.55)); }
 .welcome-title { font-family: var(--font-display); font-weight: 700; font-size: 27px; margin: 0 0 8px; color: var(--text); }
@@ -716,7 +743,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   display: flex; align-items: center; gap: 9px; text-align: left;
   max-width: 300px; margin: 18px auto 0; padding: 10px 13px;
   border: 1px solid var(--gold-soft); border-radius: 12px;
-  background: rgba(203, 161, 78, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
   color: var(--text-2); font-size: 12px; line-height: 1.45; text-wrap: pretty;
 }
 .welcome-tip svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--gold); }
@@ -728,7 +755,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
   text-align: left;
   margin: 10px 14px 0; padding: 11px 30px 12px 13px;
   border: 1px solid var(--gold-soft); border-radius: 12px;
-  background: rgba(203, 161, 78, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
   text-wrap: pretty;
 }
 .switch-tip-title {
@@ -944,7 +971,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .item.item-pending { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft); }
 .item.item-pending .item-label { color: var(--gold); }
-.item.item-pending .item-sub { color: var(--gold-soft); }
+/* Same pending sub-label, on the settings-style rows. See .acct-row-pending above. */
+.item.item-pending .item-sub { color: var(--pending-sub, var(--muted)); }
 /* budget rows: wrap the "X of Y sats left today" line at spaces, not mid-word */
 .wallet-budgets .item-sub { word-break: normal; overflow-wrap: anywhere; }
 
@@ -1080,7 +1108,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .recovery-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .recovery-badge { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; }
 .recovery-badge.cur { background: rgba(96, 165, 250, 0.16); color: #7cb0ff; }
-.recovery-badge.rec { background: rgba(203, 161, 78, 0.16); color: var(--gold); }
+.recovery-badge.rec { background: rgba(var(--accent-rgb), 0.16); color: var(--gold); }
 .recovery-confirm { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 4px; }
 .restore-list { margin: 4px 0 10px; padding-left: 20px; color: var(--text); }
 .restore-list li { margin: 3px 0; }
@@ -1631,7 +1659,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
 }
-.wallet-refresh:hover { color: var(--gold); background: rgba(203, 161, 78, 0.12); }
+.wallet-refresh:hover { color: var(--gold); background: rgba(var(--accent-rgb), 0.12); }
 .wallet-refresh:active svg { transform: rotate(-180deg); }
 .wallet-refresh svg { width: 16px; height: 16px; transition: transform 0.3s ease; }
 .wallet-eye {
@@ -1639,7 +1667,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
 }
-.wallet-eye:hover { color: var(--gold); background: rgba(203, 161, 78, 0.12); }
+.wallet-eye:hover { color: var(--gold); background: rgba(var(--accent-rgb), 0.12); }
 .wallet-eye svg { width: 16px; height: 16px; }
 .wallet-bal-label { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
 .wallet-balance {
@@ -1877,7 +1905,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .post-banner {
   display: flex; align-items: center; gap: 10px;
   margin: 10px 16px 0; padding: 10px 12px; border-radius: 10px;
-  background: linear-gradient(180deg, rgba(203, 161, 78, 0.16), rgba(203, 161, 78, 0.08));
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.08));
   border: 1px solid var(--gold-soft);
 }
 .post-banner-msg { font-size: 13px; color: var(--text); }
@@ -1908,9 +1936,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   flex: 1; justify-content: center;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer;
-  background: linear-gradient(180deg, #e2b968, var(--gold) 60%, #b7863a);
-  color: #1c1206; font-weight: 600; font-size: 13px; white-space: nowrap;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 12px rgba(203, 161, 78, 0.22);
+  background: linear-gradient(180deg, var(--btn-accent-top, #e2b968), var(--btn-accent-mid, var(--gold)) 60%, var(--btn-accent-bot, #b7863a));
+  color: var(--btn-accent-text, #1c1206); font-weight: 600; font-size: 13px; white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 12px rgba(var(--accent-rgb), 0.22);
   transition: filter 0.15s, transform 0.12s;
 }
 .reload-banner-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
@@ -1942,8 +1970,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .host-perm-grant-btn {
   flex-shrink: 0; margin-left: auto; cursor: pointer; white-space: nowrap;
   padding: 6px 12px; border-radius: 8px; border: none;
-  background: linear-gradient(180deg, #e2b968, var(--gold) 60%, #b7863a);
-  color: #1c1206; font-weight: 600; font-size: 12.5px;
+  background: linear-gradient(180deg, var(--btn-accent-top, #e2b968), var(--btn-accent-mid, var(--gold)) 60%, var(--btn-accent-bot, #b7863a));
+  color: var(--btn-accent-text, #1c1206); font-weight: 600; font-size: 12.5px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
   transition: filter 0.15s;
 }
@@ -2308,13 +2336,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .pin-reminder-warn { color: var(--gold); font-weight: 600; }
 .shared-note {
   margin: 2px 0 14px; padding: 9px 11px; border-radius: 9px;
-  background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft);
+  background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft);
   color: var(--text-2); font-size: 12px; line-height: 1.45; text-align: left;
 }
 /* one-time explainer for multi-account (shared-identity) signing */
 .shared-headsup {
   margin: 2px 0 14px; padding: 11px 12px; border-radius: 10px;
-  background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft); text-align: left;
+  background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft); text-align: left;
 }
 .shared-headsup-title {
   display: flex; align-items: center; gap: 7px;
@@ -2324,7 +2352,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .shared-headsup-body { margin: 0 0 10px; color: var(--text-2); font-size: 12px; line-height: 1.45; }
 .shared-headsup-btn {
   display: block; width: 100%; padding: 8px; border-radius: 8px; cursor: pointer;
-  background: rgba(203, 161, 78, 0.16); border: 1px solid var(--gold-soft);
+  background: rgba(var(--accent-rgb), 0.16); border: 1px solid var(--gold-soft);
   color: var(--gold); font-weight: 600; font-size: 12.5px;
 }
 .shared-headsup-btn:hover { filter: brightness(1.12); }
@@ -2346,6 +2374,39 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border: 1px solid var(--border-strong); border-radius: 14px;
   padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
 }
+/* "Wrong account?" hint (see renderWrongAcctEscape in sidepanel.js). Matches
+   .trust-nudge, the other advisory line on this screen — muted, so it doesn't compete
+   with the destructive banner or read as something being wrong. */
+.approval-wrong-acct {
+  font-size: 12.5px; line-height: 1.45; color: var(--muted);
+  text-align: center; margin: -6px 0 14px;
+}
+.approval-wrong-acct strong { display: block; color: var(--text); font-weight: 600; }
+/* Reads as a link, not a button — it sits above the real action row and must not look
+   like a fourth choice competing with Allow / Trust / Reject. Secondary color, not --lav:
+   at accent weight it pulled the eye away from the account capsule directly above, which
+   is the thing the user actually needs to read on this screen. The underline carries the
+   affordance on its own, and hover brings it up to full text color. */
+.approval-wrong-acct-toggle {
+  background: none; border: none; padding: 2px 4px; cursor: pointer;
+  font: inherit; color: var(--muted); text-decoration: underline;
+}
+.approval-wrong-acct-toggle:hover { color: var(--text); }
+/* Borrows the switch-menu shell so the expanded list reads as the same kind of thing as
+   the account switcher above it. */
+.approval-wrong-acct-list {
+  text-align: left; margin: 8px 0 0; padding: 6px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--sheen);
+}
+.wrong-acct-lede { margin: 2px 6px 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
+/* "Active" marker on the globally-active account, which sorts first. Without it the
+   top row looks arbitrary rather than like the obvious pick. */
+.wrong-acct-tag {
+  margin-left: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); white-space: nowrap;
+}
+
 .approval-as {
   font-size: 10.5px; color: var(--muted); margin-bottom: 8px;
   text-transform: uppercase; letter-spacing: 0.22em; text-align: center;
@@ -2411,7 +2472,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   animation: relax-pulse 1.6s ease-out infinite;
 }
 .relax-status-dot.low {
-  background: var(--gold); --relax-glow: rgba(203, 161, 78, 0.5); /* amber — under a minute left */
+  /* --amber, NOT --gold: this is the amber half of a green -> amber countdown, so it has
+     to stay amber even in a theme whose --gold is cobalt. Reading --gold here turned the
+     "under a minute" warning blue and killed the traffic-light reading entirely. */
+  background: var(--amber); --relax-glow: rgba(203, 161, 78, 0.5);
 }
 .relax-status-x {
   width: 22px; height: 22px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;

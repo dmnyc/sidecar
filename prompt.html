@@ -255,6 +255,31 @@
       border: 1px solid var(--border-strong); border-radius: 14px;
       padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
     }
+    /* "Wrong account?" hint — mirrors .approval-wrong-acct in styles.css. Same muted
+       weight as .trust-nudge, which is the other advisory line on this screen; it must
+       not compete with the destructive banner or read as something being wrong. */
+    .wrong-acct {
+      font-size: 12.5px; line-height: 1.45; color: var(--muted);
+      text-align: center; margin: -8px 0 14px;
+    }
+    .wrong-acct strong { display: block; color: var(--text); font-weight: 600; }
+    /* Reads as a link, not a button — see .approval-wrong-acct-toggle in styles.css for
+       why this is --muted rather than the --lav accent. */
+    .wrong-acct-toggle {
+      background: none; border: none; padding: 2px 4px; cursor: pointer;
+      font: inherit; color: var(--muted); text-decoration: underline;
+    }
+    .wrong-acct-toggle:hover { color: var(--text); }
+    .wrong-acct-list {
+      text-align: left; margin: 8px 0 0; padding: 6px;
+      background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+      border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--sheen);
+    }
+    .wrong-acct-lede { margin: 2px 6px 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
+    .wrong-acct-tag {
+      margin-left: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--muted); white-space: nowrap;
+    }
     .switch-row {
       display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
       background: transparent; border: none; cursor: pointer; color: var(--text);
@@ -310,14 +335,21 @@
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px var(--btn-shadow, rgba(234, 119, 47, 0.28));
     }
     .primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    /* Mirrors .lav-btn in styles.css — see there for why the stops and label are
+       variables, and why the ring is an inset shadow rather than a border. */
     .lav-btn {
-      background: linear-gradient(180deg, #cebfff, var(--lav) 58%, var(--purple)); color: #190a33;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px rgba(var(--border-rgb), 0.24);
+      background: linear-gradient(180deg, var(--btn-lav-top, #cebfff), var(--btn-lav-mid, var(--lav)) 58%, var(--btn-lav-bot, var(--purple)));
+      color: var(--btn-lav-text, #190a33);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        inset 0 0 0 1px var(--btn-lav-ring, transparent),
+        0 8px 22px var(--btn-lav-shadow, rgba(var(--border-rgb), 0.24));
     }
     .lav-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
+    /* Mirrors .secondary in styles.css — see there for why these are separate hooks. */
     .secondary {
-      background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
-      color: var(--text); border: 1px solid var(--border); box-shadow: var(--sheen);
+      background: linear-gradient(180deg, var(--btn-secondary-top, var(--velvet-1)), var(--btn-secondary-bot, var(--velvet-2)));
+      color: var(--btn-secondary-text, var(--text)); border: 1px solid var(--border); box-shadow: var(--sheen);
     }
     .secondary:hover { border-color: var(--gold-soft); }
     .ghost { background: transparent; color: var(--muted); }
@@ -354,6 +386,14 @@
     <div class="account" id="account"></div>
     <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
+    <!-- "Wrong account?" escape — mirrors #approval-wrong-acct in sidepanel.html. Shown
+         on a content sign whenever an account exists that the switcher above can't offer.
+         Copy must stay in step with the panel's. -->
+    <div class="wrong-acct hidden" id="wrong-acct">
+      <strong>Not the right account?</strong>
+      <button class="wrong-acct-toggle" id="wrong-acct-toggle" aria-expanded="false">Detach and use another identity.</button>
+      <div class="wrong-acct-list hidden" id="wrong-acct-list"></div>
+    </div>
 
     <div id="preview" class="card hidden"></div>
 

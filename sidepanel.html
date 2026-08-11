@@ -457,6 +457,22 @@
       <button class="approval-switch-toggle hidden" id="approval-switch-toggle">Sign in with a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
 
+      <!-- "Wrong account?" escape. Shown on a content sign whenever there is an account
+           the switcher above cannot offer — either because no switcher is showing, or
+           because it is scoped to the accounts already signed in on this host and the one
+           the user wants is not among them.
+           Collapsed, because with eight accounts an always-open list buries the account
+           capsule this screen exists to show.
+           Picking a row DETACHES the host and makes that account active, then rejects —
+           the same primitive as Settings -> Sites -> "Use <account>", so both routes leave
+           identical state. See the 'detach' branch in background.js for why signing this
+           request as a different account would be worse than failing it. -->
+      <div class="approval-wrong-acct hidden" id="approval-wrong-acct">
+        <strong>Not the right account?</strong>
+        <button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle" aria-expanded="false">Detach and use another identity.</button>
+        <div class="approval-wrong-acct-list hidden" id="approval-wrong-acct-list"></div>
+      </div>
+
       <div id="approval-preview" class="card hidden"></div>
 
       <div id="approval-unlock" class="hidden stack">
