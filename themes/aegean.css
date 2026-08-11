@@ -77,6 +77,11 @@
   --btn-secondary-top: #F5FAFE;
   --btn-secondary-bot: #DCEBFA;
 
+  /* Pending confirm. The default title is --gold on a gold wash, which over whitewash
+     washes out to near-invisible; cobalt instead. --pending-sub is left alone — the
+     default is --muted, which clears AA on this theme's surfaces. */
+  --pending-text: #0B4F94;
+
   /* ink — blue-black; neutral grey looks dirty against whitewash */
   --text: #14232E;
   --text-2: #2C3E4C;

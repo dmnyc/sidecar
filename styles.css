@@ -562,8 +562,17 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(203, 161, 78, 0
 .acct-row:hover { background: var(--hover-medium); }
 .acct-row.active { background: rgba(203, 161, 78, 0.08); }
 .acct-row-pending { background: rgba(203, 161, 78, 0.12) !important; border-left: 2px solid var(--gold); }
-.acct-row-pending .acct-row-name { color: var(--gold); }
-.acct-row-pending .acct-row-npub { color: var(--gold-soft); }
+/* Pending confirm ("Set as active?" / "Tap again to confirm").
+   The sub-label used --gold-soft, which is a 50%-ALPHA token meant for borders. As a text
+   color it blends toward whatever is behind it, so it can't be reasoned about from the
+   declaration: 1.30:1 on Art Deco's cream card (reported as unreadable, and it was) but
+   also only 2.49–3.07:1 in all three DARK themes, which is under AA everywhere. So the
+   default is --muted, the token that exists for secondary text, and the gold accent is
+   carried by the title alone — which also restores the hierarchy the two colors were
+   supposed to express. Themes with a --muted of their own that doesn't clear AA here
+   override --pending-sub. */
+.acct-row-pending .acct-row-name { color: var(--pending-text, var(--gold)); }
+.acct-row-pending .acct-row-npub { color: var(--pending-sub, var(--muted)); }
 .acct-row-av {
   width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
   background: linear-gradient(180deg, var(--av-from), var(--av-to)); border: 1px solid var(--border);
@@ -958,7 +967,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .item.item-pending { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft); }
 .item.item-pending .item-label { color: var(--gold); }
-.item.item-pending .item-sub { color: var(--gold-soft); }
+/* Same pending sub-label, on the settings-style rows. See .acct-row-pending above. */
+.item.item-pending .item-sub { color: var(--pending-sub, var(--muted)); }
 /* budget rows: wrap the "X of Y sats left today" line at spaces, not mid-word */
 .wallet-budgets .item-sub { word-break: normal; overflow-wrap: anywhere; }
 

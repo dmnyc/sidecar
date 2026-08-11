@@ -60,6 +60,13 @@
   --btn-lav-ring: rgba(139, 115, 85, 0.34);
   --btn-lav-shadow: rgba(139, 115, 85, 0.20);
 
+  /* Pending confirm. The gold default sat at 1.68:1 for the title against this theme's
+     cream card. Dark bronze instead — same hue family, without the wash. --pending-sub is
+     overridden too because this theme's --muted is itself only 3.68:1, so inheriting the
+     new default would still miss AA here. */
+  --pending-text: #4A3410;
+  --pending-sub: #6E4E14;
+
   /* ink */
   --text: #2a2a2a;
   --text-2: #4a4a4a;

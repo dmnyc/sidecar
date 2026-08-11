@@ -95,6 +95,19 @@ function splitVar(v) {
   return [inner.trim(), null];
 }
 
+// Resolves var() chains WITHOUT the trailing-token trim resolve() does, so an
+// `rgba(203, 161, 78, 0.5)` or a bare `203, 161, 78` channel triple survives intact.
+function resolveRaw(expr, themeVars) {
+  const e = String(expr).trim();
+  if (e.startsWith('var(')) {
+    const [name, fallback] = splitVar(e);
+    if (themeVars[name] != null) return resolveRaw(themeVars[name], themeVars);
+    if (rootVars[name] != null) return resolveRaw(rootVars[name], themeVars);
+    return fallback != null ? resolveRaw(fallback, themeVars) : null;
+  }
+  return e;
+}
+
 function resolve(expr, themeVars) {
   const e = String(expr).trim();
   if (e.startsWith('var(')) {
@@ -120,6 +133,40 @@ function luminance(hex) {
 function contrast(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
+}
+
+function toRgb(hex) {
+  const c = hex.replace('#', '');
+  const f = c.length === 3 ? c.split('').map((x) => x + x).join('') : c;
+  return [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16));
+}
+
+const hex = (rgb) => '#' + rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+// Composite an rgba() over an opaque backdrop. This exists because the bug it caught was
+// precisely an alpha token used where an opaque one belonged: --gold-soft is 50% alpha,
+// designed for borders, and as a TEXT color it blends toward the surface behind it. On a
+// dark card that still leaves usable contrast; on Art Deco's cream card it measured
+// 1.30:1. Comparing the raw rgba against the surface would have shown a healthy ratio and
+// missed it entirely — the blend is the whole defect.
+function flatten(expr, backdrop, themeVars) {
+  const v = resolveRaw(expr, themeVars);
+  const m = String(v).match(/^rgba?\(([^)]+)\)$/);
+  if (!m) return v;
+  const parts = m[1].split(',').map((x) => x.trim());
+  let rgb;
+  let alpha;
+  if (parts.length === 4 && !parts[0].startsWith('var(')) {
+    rgb = parts.slice(0, 3).map(Number);
+    alpha = Number(parts[3]);
+  } else {
+    // rgba(var(--x-rgb), a) — the channel triple lives in its own variable.
+    const triple = resolveRaw(parts[0], themeVars);
+    rgb = String(triple).split(',').map((x) => Number(x.trim()));
+    alpha = Number(parts[parts.length - 1]);
+  }
+  const bg = toRgb(backdrop);
+  return hex(rgb.map((c, i) => alpha * c + (1 - alpha) * bg[i]));
 }
 
 // ---- the rules under test --------------------------------------------------------------
@@ -293,4 +340,74 @@ test('INK and SURFACES name real tokens in every theme', () => {
       assert.ok(/^#[0-9a-f]{3,6}$/i.test(c), `${theme.name}: ${v} did not resolve to a hex color`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// Pending-confirm state
+// ---------------------------------------------------------------------------
+//
+// Reported as unreadable in Art Deco: "Set as active?" / "Tap again to confirm". Two
+// separate faults in one component, and neither is visible by reading the CSS.
+//
+//   .acct-row-pending .acct-row-name   --gold on a gold wash        1.68:1
+//   .acct-row-pending .acct-row-npub   --gold-soft, 50% ALPHA       1.30:1
+//
+// The row's own background is a hardcoded rgba(203, 161, 78, 0.12) — the same wash in
+// every theme, subtle over a dark card and subtle over cream, so it was never the problem
+// on its own. The problem is gold ink on it, and an alpha token used as ink.
+//
+// Both text colors are now themeable with the gold as fallback, so the dark themes are
+// unchanged and the two light themes supply their own. This checks the composited result,
+// which is the only way the alpha fault shows up at all.
+
+const PENDING_WASH = 'rgba(203, 161, 78, 0.12)';
+
+for (const theme of THEMES) {
+  test(`pending confirm is readable in ${theme.name}`, () => {
+    const card = resolve('var(--velvet-1)', theme.vars);
+    const wash = flatten(PENDING_WASH, card, theme.vars);
+
+    const title = flatten(rule(css, '.acct-row-pending .acct-row-name').match(/color:\s*([^;]+);/)[1], wash, theme.vars);
+    const sub = flatten(rule(css, '.acct-row-pending .acct-row-npub').match(/color:\s*([^;]+);/)[1], wash, theme.vars);
+
+    const tr = contrast(title, wash);
+    const sr = contrast(sub, wash);
+    assert.ok(tr >= AA_NORMAL, `${theme.name}: pending title (${title}) on ${wash} is ${tr.toFixed(2)}:1, needs >= ${AA_NORMAL}`);
+    assert.ok(sr >= AA_NORMAL, `${theme.name}: pending sub (${sub}) on ${wash} is ${sr.toFixed(2)}:1, needs >= ${AA_NORMAL}`);
+
+    // The sub-label must stay the quieter of the two, or the fix has flattened the
+    // hierarchy the color was carrying in the first place.
+    assert.ok(sr <= tr, `${theme.name}: pending sub (${sr.toFixed(2)}) should not out-contrast the title (${tr.toFixed(2)})`);
+  });
+
+  test(`the item-row pending sub-label is readable in ${theme.name}`, () => {
+    // Same label on the settings-style rows, which have no wash — it sits on the card.
+    const expr = rule(css, '.item.item-pending .item-sub').match(/color:\s*([^;]+);/)[1];
+    for (const surface of ['--velvet-1', '--velvet-2']) {
+      const bg = resolve('var(' + surface + ')', theme.vars);
+      const fg = flatten(expr, bg, theme.vars);
+      const r = contrast(fg, bg);
+      assert.ok(r >= AA_NORMAL, `${theme.name}: item pending sub (${fg}) on ${surface} (${bg}) is ${r.toFixed(2)}:1, needs >= ${AA_NORMAL}`);
+    }
+  });
+}
+
+test('no text color anywhere resolves to a translucent token', () => {
+  // The root cause, stated directly. --gold-soft and friends are border/shadow tokens; a
+  // `color:` that lands on one inherits the surface behind it and cannot be reasoned about
+  // from the declaration alone. Scanning all of styles.css rather than the two known rules,
+  // because the next one will be somewhere else.
+  const offenders = [];
+  for (const m of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    const selector = m[1].trim().split('\n').pop().trim();
+    for (const d of m[2].matchAll(/(?:^|;)\s*color:\s*([^;]+)/g)) {
+      for (const theme of THEMES) {
+        const v = resolveRaw(d[1].trim(), theme.vars);
+        if (/^rgba\(/.test(String(v)) && !/,\s*1\s*\)$/.test(String(v))) {
+          offenders.push(`${selector} -> ${d[1].trim()} = ${v} (${theme.name})`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], 'translucent text colors:\n  ' + offenders.join('\n  '));
 });
