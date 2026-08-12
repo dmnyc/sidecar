@@ -369,7 +369,7 @@
       return;
     }
     data = resp.data;
-    // Match the panel's theme. All five stylesheets are already linked in
+    // Match the panel's theme. All six stylesheets are already linked in
     // prompt.html; they key off [data-theme], which nothing here used to set — so
     // this window always rendered Speakeasy regardless of what the panel was wearing.
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
