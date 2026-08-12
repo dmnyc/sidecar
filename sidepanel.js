@@ -1652,6 +1652,18 @@
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
+  // Relay set for reading an account's replaceable events (kind:3, kind:0, etc.).
+  // The user's configured relays may not carry the freshest copy — NIP-65 declared
+  // read relays often do, and purplepag.es aggregates kind:0/3/10002 as a fallback.
+  // Without these, a stale or empty kind:3 on a configured relay can hide a healthy
+  // 1000+ follow list that the account's NIP-65 relays do have.
+  async function readRelayUrls(pubkey) {
+    const configured = await relayUrls(false);
+    const nip65 = await getNip65(pubkey);
+    const declared = nip65 ? nip65.read : [];
+    return [...new Set([...configured, ...declared, 'wss://purplepag.es'])];
+  }
+
   // Derive the public key (hex) from a pasted nsec/hex secret, locally, so the
   // import modal can preview which account it belongs to before saving. The raw
   // secret is already in the panel's input; this only computes the public half.
@@ -4654,14 +4666,17 @@
     if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
     let count = null;
     try {
-      const ev = await getPool().get(await relayUrls(false), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
+      const ev = await getPool().get(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
       if (ev) {
         const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
         count = set.size;
         // Free ride: we already have this account's real follow list, so seed the
         // overwrite baseline from it. Without this a fresh install can't warn about a
         // wipe until after it has signed a kind:3 itself. Fire-and-forget.
-        seedBaseline(pubkey, ev);
+        // Skip when the event has zero p-tags: that is usually a stale wipe or a
+        // brand-new account, and seeding it would set a zero baseline that makes a
+        // future real wipe look like no change at all.
+        if (set.size > 0) seedBaseline(pubkey, ev);
       } else {
         count = 0;
       }
@@ -4752,7 +4767,7 @@
     if (!state.activePubkey) return [];
     followListInflight = (async () => {
     try {
-      const relays = await relayUrls(false);
+      const relays = await readRelayUrls(state.activePubkey);
       // maxWait bounds each relay's own connect+EOSE wait individually (they
       // run in parallel) instead of racing the WHOLE fetch against an external
       // timeout — the previous approach discarded every result the moment the
