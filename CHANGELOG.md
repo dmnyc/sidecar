@@ -7,6 +7,30 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.8.0] — 2026-08-12
+
+### Added
+- **Sixth theme: Bauhaus.** Flat planes of primary color, black rule lines, and a Futura-lineage display face — the school's own geometric sans. White walls instead of cream keep it unmistakably separate from Art Deco. In Settings → Theme. (#170)
+- **Every theme now has its own display font.** Each of the six themes is set in a typeface from a different category — Playfair (Didone serif), Oswald (condensed grotesque), Bitter (slab serif), Josefin Sans (1920s geometric), Cinzel (Roman caps), Jost (Futura geometric). The theme picker reads as a type specimen: each card shows its name in the face you'd get by choosing it. (#170)
+- **A distinct icon per event kind in Recent activity.** Reactions, zaps, reposts, mentions and replies each carry their own glyph instead of sharing a single feather. (#164)
+- **"Wrong account?" escape on the signing prompt.** When a site is signed in with more than one of your accounts, the approval prompt says so and lets you switch — without closing the prompt, losing the request, or reloading the page. (#169)
+
+### Fixed
+- **A signing approval now outranks any open modal.** With notifications, the composer, or settings open, a signing request could be hidden behind the modal — invisible and impossible to reject. The approval overlay now closes any open modal before showing itself. (#168)
+- **A signing request the sleeping service worker never received is retried.** The MV3 service worker can be evicted mid-message; the request now reaches the signer on a second attempt instead of hanging. (#167)
+- **Relay connections are no longer exhausted.** A connection leak could leave the wallet and publisher unable to reach any relay until a reload; publish failures now say something useful instead of reporting success. (#166)
+- **The panel no longer repaints behind an open overlay.** A deferred render was firing through the modal, causing a flash of stale account names behind the approval prompt. (#165)
+- **One NWC pool per client — the wallet no longer dies until a reload.** (#162)
+- **Copied secrets are cleared from the clipboard after 60 seconds.** An exported nsec or ncryptsec left on the clipboard is now removed automatically. (#163)
+- **Wallet view no longer flashes on zap; the composer background is stable across theme switches.** (#161)
+- **Drag-to-reorder works at the top and bottom of the list.** (#160)
+- **Relax exclusion is looser for replaceable kinds.** App-settings syncs, DM inbox loads and other background work that the user didn't initiate no longer prompt during a relax window, while notes, reactions and DMs still confirm. (#160)
+
+### Changed
+- **Art Deco contrast fixed.** The gold accent ink was 1.67:1 as text on cream — the lightning address, the relax countdown, and the About links were effectively unreadable. The bright metallic is now fill-only; a deep bronze carries all text at 5.23:1. (#170)
+- **Film Noir background reworked.** The Victorian filigree tile is replaced by venetian-blind stripes — the genre's own signature, rendered as one resolution-independent gradient. (#170)
+- **Relax countdown dots are visible on light themes.** Both dot colors were tuned for dark surfaces and measured 1.28–1.74:1 on light theme status bars — invisible. Each light theme now uses its own success and warning values. (#170)
+
 ## [1.7.0] — 2026-07-29
 
 ### Added
