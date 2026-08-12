@@ -7,6 +7,11 @@
 [data-theme="film-noir"] {
   color-scheme: dark;
 
+  /* Oswald — the condensed grotesque of a 1940s one-sheet. Every other theme's display
+     face has generous width; this one is narrow and vertical, which is the whole point
+     of a noir title card and reads as nothing else in the picker. */
+  --font-display: 'Oswald', 'Haettenschweiler', 'Arial Narrow', var(--font-ui);
+
   /* surfaces */
   --bg: #0a0a0a;
   --bg-2: #111111;

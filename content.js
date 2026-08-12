@@ -552,33 +552,38 @@
         CARD_SUCCESS: 'color:#4F6B3A',
         CARD_PAY_SHADOW: 'rgba(21,101,192,0.32)'
       },
-      /* Bauhaus — plaster, black rule lines, primary geometry. Mirrors
+      /* Bauhaus — plaster, black rule lines, flat planes of primary. Mirrors
          themes/bauhaus.css; the card carries its own copy because it renders in the
-         page's shadow DOM with no access to the extension's stylesheets.
+         page's shadow DOM with no access to the extension's stylesheets. (Its font is
+         the system stack at the top of CARD_CSS, so the theme's display face does not
+         reach here and nothing about that needs mirroring.)
          Two values do NOT follow the theme file's naming and both are deliberate:
-         CARD_GOLD is the theme's dark orange, the only warm value that clears AA as
-         text on plaster (5.33:1) — the bright orange is 2.38:1 and fill-only. The pay
-         button is blue with a white label, because the near-black the dark themes use
-         is unreadable on it. */
+         CARD_GOLD is the theme's --balance-ink, NOT its --gold. Its one use in CARD_CSS
+         is the amount at 42px/800, which is WCAG large text at 3.0:1 — so it takes the
+         loud orange (3.79:1 on this card) for the same reason the side panel's balance
+         does, and would fail the 4.5:1 bar --gold has to clear. If CARD_GOLD ever gains
+         a second, smaller use, it needs splitting the way styles.css split the two.
+         CARD_PAY_BG is a flat fill rather than the three-stop ramp every other theme
+         uses here, matching the flat buttons in the theme file. */
       bauhaus: {
-        CARD_COLOR: 'color:#1D1D2B',
-        CARD_BORDER: 'rgba(29,29,43,0.28)',
-        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(11,98,228,0.09),transparent 58%),linear-gradient(165deg,#FFFFFF,#F7ECDC)',
-        CARD_MUTED: 'color:#5A5560',
-        CARD_GOLD: 'color:#A8480A',
-        CARD_TEXT_2: 'color:#33333F',
-        CARD_LAV: '#0B62E4',
+        CARD_COLOR: 'color:#111111',
+        CARD_BORDER: 'rgba(17,17,17,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(0,87,255,0.08),transparent 58%),linear-gradient(165deg,#FFFFFF,#F7F7F3)',
+        CARD_MUTED: 'color:#55555F',
+        CARD_GOLD: 'color:#E1552B',
+        CARD_TEXT_2: 'color:#33333A',
+        CARD_LAV: '#0057FF',
         CARD_PAY_TEXT: 'color:#FFFFFF',
-        CARD_PAY_BG: 'linear-gradient(180deg,#1470F0,#0B62E4 52%,#0A4FB8)',
-        CARD_CANCEL_BG: 'rgba(11,98,228,0.10)',
-        CARD_TEXT: '#1D1D2B',
-        CARD_BORDER_FAINT: 'rgba(29,29,43,0.14)',
-        CARD_TOGGLE_OFF: 'rgba(29,29,43,0.25)',
-        CARD_TRACK: '#0B62E4',
-        CARD_THUMB_OFF: '#5A5560',
-        CARD_WARN: 'color:#C4232F',
-        CARD_SUCCESS: 'color:#2E6B45',
-        CARD_PAY_SHADOW: 'rgba(11,98,228,0.30)'
+        CARD_PAY_BG: '#0057FF',
+        CARD_CANCEL_BG: 'rgba(0,87,255,0.10)',
+        CARD_TEXT: '#111111',
+        CARD_BORDER_FAINT: 'rgba(17,17,17,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(17,17,17,0.25)',
+        CARD_TRACK: '#0057FF',
+        CARD_THUMB_OFF: '#55555F',
+        CARD_WARN: 'color:#C9161C',
+        CARD_SUCCESS: 'color:#1F6B3F',
+        CARD_PAY_SHADOW: 'rgba(0,87,255,0.30)'
       }
     };
 

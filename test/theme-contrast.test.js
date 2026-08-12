@@ -295,16 +295,24 @@ const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 //
 // KNOWN BELOW AA (pre-existing, not introduced by any change here):
 //   art-deco --muted 3.68:1  — secondary body text under the 4.5 floor
-//   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone)
+//   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone), except bauhaus
 // --faint is used for the lowest-emphasis labels; if it ever carries something a user has
 // to read, it needs darkening first, per theme.
-//   art-deco --gold  1.67:1   — and --gold is a `color:` in 35 rules. Same class of defect
-//                              as the pending sub-label, theme-wide. Gold ink on a cream
-//                              card cannot be made to work by adjusting either one; it
-//                              needs a decision about what Art Deco's accent ink IS.
+//
+// RESOLVED: art-deco --gold was 1.67:1 while being a `color:` in 25 rules, and this file
+// said it "needs a decision about what Art Deco's accent ink IS". The decision was to
+// split the token the way Bauhaus does — the bright metallic #C5A059 is now fill-only
+// and pinned into --accent-fill / --fab-bg / --btn-accent-mid / --balloon-bg-hover /
+// --glow, and --gold is a deep bronze at 5.23:1. --orange (2.21, @mentions) and --red
+// (2.81, 16 rules) were the same defect in the same theme and moved with it.
+//
+// Note on art-deco --muted/--faint: they are NOT fixable the way the others were. To
+// clear 4.5:1 on --velvet-2 (#DED4C0) a neutral grey has to be about #5A5A5A, which is
+// barely lighter than --text-2 (#4a4a4a) — so the cream palette cannot carry a legible
+// three-level grey hierarchy at all. That is a surface problem, not an ink problem.
 const FLOORS = {
   aegean: { '--muted': 4.55, '--faint': 2.85, '--gold': 6.00 },
-  'art-deco': { '--muted': 3.65, '--faint': 2.30, '--gold': 1.65 },
+  'art-deco': { '--muted': 3.65, '--faint': 2.30, '--gold': 5.20 },
   brownstone: { '--muted': 6.20, '--faint': 3.50, '--gold': 8.60 },
   'film-noir': { '--muted': 4.45, '--faint': 2.25, '--gold': 7.85 },
   speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
@@ -461,9 +469,61 @@ test('the relax countdown keeps amber, whatever a theme does to --gold', () => {
   // Green -> amber is a traffic light. Aegean's --gold is cobalt now, and this rule read
   // --gold, so the "under a minute left" warning turned blue and the progression stopped
   // meaning anything. --amber is metallic in every theme; --gold is not.
+  //
+  // The rule is now themeable (--relax-dot-low) because the shared defaults are tuned for
+  // a dark surface and vanish on a light one — see the dot test below. The fallback still
+  // has to be --amber so the dark themes are unaffected, and no theme may point the token
+  // at its --gold, which is the original defect one indirection further out.
   const body = rule(css, '.relax-status-dot.low');
-  assert.match(body, /background: var\(--amber\)/, 'must read --amber');
+  assert.match(body, /background: var\(--relax-dot-low, var\(--amber\)\)/, 'must fall back to --amber');
   assert.ok(!/var\(--gold\)/.test(body), 'must not read --gold');
+
+  for (const theme of THEMES) {
+    if (!theme.vars['--relax-dot-low']) continue;
+    const low = resolve('var(--relax-dot-low)', theme.vars);
+    const gold = resolve('var(--gold)', theme.vars);
+    assert.notEqual(
+      low.toLowerCase(),
+      gold.toLowerCase(),
+      `${theme.name}: --relax-dot-low resolved to --gold (${low}) — the traffic light stops meaning anything`
+    );
+  }
+});
+
+test('both relax countdown dots are visible on every theme status bar', () => {
+  // The reported bug: the dot defaults (#4ade80 and --amber) are tuned for a dark
+  // surface and measured 1.28-1.74:1 on the three light themes' status bars. A dot is a
+  // non-text indicator, so the bar is WCAG 1.4.11's 3.0:1, not 4.5.
+  //
+  // The status bar is linear-gradient(--velvet-1 -> --velvet-2), so both stops count —
+  // the dot sits at the top but the pulse ring reaches the lower one.
+  const okBody = rule(css, '.relax-status-dot');
+  const lowBody = rule(css, '.relax-status-dot.low');
+  const okDefault = /var\(--relax-dot-ok, (#[0-9a-f]{3,6})\)/i.exec(okBody);
+  assert.ok(okDefault, '.relax-status-dot must read --relax-dot-ok with a literal fallback');
+
+  for (const theme of THEMES) {
+    const ok = theme.vars['--relax-dot-ok']
+      ? resolve('var(--relax-dot-ok)', theme.vars)
+      : okDefault[1];
+    const low = theme.vars['--relax-dot-low']
+      ? resolve('var(--relax-dot-low)', theme.vars)
+      : resolve('var(--amber)', theme.vars);
+
+    for (const [name, fg] of [['ok', ok], ['low', low]]) {
+      assert.ok(/^#[0-9a-f]{3,6}$/i.test(fg), `${theme.name}: ${name} dot resolved to "${fg}"`);
+      for (const surface of ['--velvet-1', '--velvet-2']) {
+        const bg = resolve('var(' + surface + ')', theme.vars);
+        const r = contrast(fg, bg);
+        assert.ok(
+          r >= 3.0,
+          `${theme.name}: ${name} dot (${fg}) on ${surface} (${bg}) is ${r.toFixed(2)}:1, needs >= 3.0`
+        );
+      }
+    }
+  }
+  // Guard the rule that made lowBody themeable in the first place.
+  assert.match(lowBody, /--relax-glow: color-mix/, 'the .low glow must follow its dot color');
 });
 
 test('accent pills survive a themed --gold', () => {

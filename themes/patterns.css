@@ -15,17 +15,25 @@ body {
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
-/* Film Noir — Black-on-black velvet Victorian filigree. A public-domain seamless
-   ornament tile (victorian-noir.png, 498x635), recolored to a near-black shade
-   (#141414) so the filigree reads as a subtle velvet texture over the field.
-   background-size sets how small/closely the medallions repeat; the top light is
-   faint so it complements the pattern instead of washing it out. */
+/* Film Noir — vertical stripes of alternating opacity: light through a venetian blind,
+   which is the genre's own signature and reads as nothing else in the set.
+   This replaces a Victorian filigree tile (victorian-noir.png), which was ornament
+   borrowed from the same century as Brownstone rather than from noir itself.
+   No image at all now — it is one repeating-linear-gradient, so the stripes are
+   resolution-independent and cost nothing to ship. The png is left in the repo but is
+   no longer referenced by anything; see the note in the session if it should go.
+   36px pitch: at panel width that is about a dozen bands, wide enough to read as slats
+   rather than as corduroy. The light band is 3.2% white — enough to see against #0a0a0a,
+   low enough that body text over it never changes contrast measurably. The top light
+   and base gradient are unchanged; they are what make the field read as one hard light
+   source, which is the other half of the reference. */
 [data-theme="film-noir"] body {
   background-image:
-    url(victorian-noir.png),
+    repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.032) 0 18px,
+      transparent 18px 36px),
     radial-gradient(900px 380px at 50% -10%, rgba(140, 140, 140, 0.045), transparent 60%),
     linear-gradient(180deg, #0c0c0c 0%, var(--bg) 45%);
-  background-size: 80px, auto, auto;
   background-position: center, 0% 0%, 0% 0%;
 }
 
@@ -91,9 +99,15 @@ body {
 [data-theme="bauhaus"] body {
   background-image:
     url(bauhaus-pattern.svg),
-    radial-gradient(1000px 460px at 50% -10%, rgba(11, 98, 228, 0.10), transparent 62%),
-    radial-gradient(780px 460px at 118% 112%, rgba(245, 129, 31, 0.08), transparent 55%),
+    radial-gradient(1000px 460px at 50% -10%, rgba(0, 87, 255, 0.06), transparent 62%),
+    radial-gradient(780px 460px at 118% 112%, rgba(255, 212, 0, 0.09), transparent 55%),
     linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
-  background-size: 480px, auto, auto, auto;
+  /* 320px, not the 480px this shipped at first. The panel is ~400px wide, so a 480px
+     tile shows barely one repeat: the motifs stop reading as a grid and become a few
+     large arbitrary color fields, which is the "loud wallpaper" failure recorded in the
+     Aegean block above. At 320px the repeat is visible and it reads as texture — which
+     is also the more Bauhaus result, since the grid is the point. The washes came down
+     with it for the same reason. */
+  background-size: 320px, auto, auto, auto;
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }

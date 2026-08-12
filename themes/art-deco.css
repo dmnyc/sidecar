@@ -7,6 +7,15 @@
 [data-theme="art-deco"] {
   color-scheme: light;
 
+  /* Josefin Sans — a 1920s geometric with a very small x-height and long extenders, the
+     elongated look of deco lettering. It shares the geometric category with Bauhaus's
+     Jost, which is the one overlap in the set and is tolerable only because the two are
+     drawn at opposite weights: Josefin is delicate and vertically stretched, Jost is
+     solid and squarely proportioned. Poiret One is the more literal deco face and was
+     the first choice, but it ships one weight (400) — the display slot is set at 700 in
+     most rules, so it would have rendered as a synthetic bold everywhere. */
+  --font-display: 'Josefin Sans', 'Century Gothic', var(--font-ui);
+
   /* surfaces */
   --bg: #F0EAD6;
   --bg-2: #E8E0D0;
@@ -25,11 +34,43 @@
   --success: #2f7d52;
   --success-rgb: 47, 125, 82;
 
-  /* brand - bronze/gold */
-  --orange: #B8860B;
+  /* brand - bronze/gold
+     SPLIT BY ROLE. Until now one bright gold (#C5A059) was both the metallic fill AND
+     the ink, and as ink it measured 1.67-2.04:1 on these four cream surfaces while being
+     a `color:` in 25 rules — the lightning address, the relax countdown, the account
+     check, the About links. test/theme-contrast.test.js recorded it as a known defect
+     and said it "needs a decision about what Art Deco's accent ink IS". This is that
+     decision, and it is the same one Bauhaus makes: gold on cream cannot be read, so the
+     bright metallic becomes fill-only and a deep bronze becomes the ink.
+
+       --amber  #D4AF37  fill only, already — 0 `color:` rules anywhere. 1.43:1, fine.
+       --gold   #6B4E1C  the ink now. 5.23:1 worst surface.
+       #C5A059           still the metallic, but pinned into the fill tokens below
+                         rather than reached through --gold, so every filled surface
+                         (FAB, accent pills, relax button, balloon hover, chips) looks
+                         exactly as it did.
+
+     --orange had the identical dual role: `accent-color` on four checkboxes, and the
+     color of @mentions in three, at 2.21-2.70:1. Now a burnt bronze at 4.65:1 — kept off
+     --gold's hue so a mention still reads as a different thing from a gold label.
+     --red was 2.81-3.43:1 across 16 `color:` rules; now 4.73:1. */
+  --orange: #8A4A18;
   --amber: #D4AF37;
-  --gold: #C5A059;
+  --gold: #6B4E1C;
   --gold-soft: rgba(197, 160, 89, 0.5);
+
+  /* The metallic, pinned. Each of these otherwise falls back to var(--gold) in
+     styles.css, so darkening the ink above would have dragged every gold FILL down with
+     it. Values are the old --gold exactly — this is a no-op visually and exists purely
+     to decouple the two roles. */
+  --accent-fill: #C5A059;
+  --balloon-bg-hover: #C5A059;
+  --btn-accent-mid: #C5A059;
+  --glow: #C5A059;
+  /* Not a plain token — the shared rule's fallback is a whole gradient whose second stop
+     is var(--gold), so it has to be restated rather than pointed at. Same two stops the
+     default produced before the ink moved. */
+  --fab-bg: linear-gradient(160deg, #f4b860, #C5A059);
   /* De-purpled: deco is an eggshell-and-bronze theme, and two lavenders left over
      from Speakeasy were the only cool notes in it. Names kept — they're shared with
      the other themes and used in ~46 places — but the values are bronze here.
@@ -37,6 +78,12 @@
      purple was 6.27:1 on the eggshell, now 6.31; lav was 4.93:1, now 5.28. */
   --purple: #6E4E14;
   --lav: #7A5A18;
+  /* Relax countdown dot — 1.28:1 and 1.55:1 against this cream with the shared defaults,
+     the worst of any theme. --warn is this palette's burnt amber, so the traffic-light
+     reading survives the move. 3.70:1 / 3.97:1 worst surface. */
+  --relax-dot-ok: var(--success);
+  --relax-dot-low: var(--warn);
+
   --hover-soft: rgba(197, 160, 89, 0.08);
   --hover-medium: rgba(197, 160, 89, 0.12);
   --hover-faint: rgba(197, 160, 89, 0.06);
@@ -72,7 +119,10 @@
   --text-2: #4a4a4a;
   --muted: #6a6a6a;
   --faint: #8a8a8a;
-  --red: #c06060;
+  /* 2.81-3.43:1 before, across 16 `color:` rules. Darkened to a deco lacquer red at
+     4.73:1 worst surface rather than lightened, because everything else on this cream
+     is dark ink. */
+  --red: #9A3A2E;
 
   /* shadows */
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.15);

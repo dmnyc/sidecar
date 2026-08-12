@@ -7,6 +7,13 @@
 [data-theme="brownstone"] {
   color-scheme: dark;
 
+  /* Bitter — a slab serif, for the sturdy 19th-century New York the theme is named for.
+     Slab rather than another Didone specifically to stay off Speakeasy: the two are the
+     closest pair in the set (both dark, both warm), so they could not also share a
+     serif category. Bitter's square slabs carry no stroke contrast at all; Playfair is
+     nothing but stroke contrast. */
+  --font-display: 'Bitter', Rockwell, Georgia, serif;
+
   /* surfaces — the stone in shadow. Brown-black rather than neutral black; a grey
      base under a warm palette reads as dirt, not stone. */
   --bg: #120C0A;
