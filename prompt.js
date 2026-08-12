@@ -369,12 +369,12 @@
       return;
     }
     data = resp.data;
-    // Match the panel's theme. All five stylesheets are already linked in
+    // Match the panel's theme. All six stylesheets are already linked in
     // prompt.html; they key off [data-theme], which nothing here used to set — so
     // this window always rendered Speakeasy regardless of what the panel was wearing.
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
     // than writing an arbitrary string into the DOM.
-    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean'];
+    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus'];
     document.documentElement.setAttribute(
       'data-theme',
       THEMES.includes(data.theme) ? data.theme : 'speakeasy'

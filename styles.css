@@ -38,6 +38,12 @@
   --orange: #ea772f;
   --amber: #f4a64b;
   --gold: #cba14e;
+  /* The wallet balance, split out of --gold so a theme can make the number louder than
+     the ink. --gold is a `color:` in 39 rules, most of them small text that has to clear
+     4.5:1; the balance is 40px/700 (24px/700 compact and pinned), which is WCAG large
+     text at 3.0:1. Those are different budgets, so a single token could only ever serve
+     the stricter one. Defaults to --gold, so a theme that ignores it looks as it did. */
+  --balance-ink: var(--gold);
   /* Channel triple behind every translucent accent wash (row highlights, hover fills,
      tip cards). It used to be the literal 203, 161, 78 in 15 places, which meant a theme
      could restyle --gold and still show Speakeasy's gold everywhere a wash appeared. */
@@ -1504,7 +1510,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .pinned-balance-actions, .pinned-balance-tools { display: flex; align-items: center; gap: 6px; }
 .pinned-balance-amt-wrap { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
-.pinned-balance-amt { font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; }
+.pinned-balance-amt { font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--balance-ink); font-variant-numeric: tabular-nums; line-height: 1; }
 .pinned-balance-btn {
   width: 30px; height: 30px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
   background: var(--hover-soft); border: 1px solid var(--border-strong); color: var(--muted);
@@ -1671,7 +1677,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .wallet-eye svg { width: 16px; height: 16px; }
 .wallet-bal-label { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
 .wallet-balance {
-  font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; color: var(--gold);
+  font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; color: var(--balance-ink);
   margin: 6px 0 4px; transition: font-size 0.2s ease;
   /* Keep Playfair's oldstyle figures, but nudge the numerals up so their
      descenders (3/4/7…) don't make the number look like it sags. */
@@ -2466,16 +2472,32 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .relax-status-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
 .relax-status-who #relax-status-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .relax-status-sep { color: var(--faint); }
+/* Both dot colors are tokens because the literals below are tuned for a DARK surface and
+   disappear on a light one. Measured against the status bar (velvet-1 -> velvet-2), where
+   a non-text indicator needs 3.0:1:
+       green #4ade80   speakeasy 9.6  film-noir 10.0  brownstone 10.5
+                       aegean    1.7  art-deco   1.3  bauhaus     1.7
+       --amber         speakeasy 8.3  film-noir  8.8  brownstone 11.2
+                       aegean    3.0  art-deco   1.6  bauhaus     1.4
+   So the three light themes each set --relax-dot-ok / --relax-dot-low; the fallbacks here
+   are the original values, which is why the three dark themes are untouched.
+   The glow is derived rather than given its own token: it was always the dot color at 50%
+   alpha, and stating it twice is how the two drifted out of sync before (the .low glow
+   below was still Speakeasy's gold in every theme). color-mix is safe at this project's
+   floors — manifest.json requires Chrome 114 / Firefox 128, it shipped in 111 / 113. */
 .relax-status-dot {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-  background: #4ade80; --relax-glow: rgba(74, 222, 128, 0.5); /* green — plenty of time */
+  background: var(--relax-dot-ok, #4ade80); /* green — plenty of time */
+  --relax-glow: color-mix(in srgb, var(--relax-dot-ok, #4ade80) 50%, transparent);
   animation: relax-pulse 1.6s ease-out infinite;
 }
 .relax-status-dot.low {
-  /* --amber, NOT --gold: this is the amber half of a green -> amber countdown, so it has
-     to stay amber even in a theme whose --gold is cobalt. Reading --gold here turned the
-     "under a minute" warning blue and killed the traffic-light reading entirely. */
-  background: var(--amber); --relax-glow: rgba(203, 161, 78, 0.5);
+  /* The amber half of a green -> amber countdown. It must not read --gold: in a theme
+     whose --gold is cobalt that turned the "under a minute" warning blue and killed the
+     traffic-light reading entirely. Light themes point --relax-dot-low at their own
+     warm warning value for the same reason — never at their accent. */
+  background: var(--relax-dot-low, var(--amber));
+  --relax-glow: color-mix(in srgb, var(--relax-dot-low, var(--amber)) 50%, transparent);
 }
 .relax-status-x {
   width: 22px; height: 22px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
@@ -2537,8 +2559,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   box-shadow: 0 0 0 2px var(--gold-soft);
 }
 
+/* Set in the card's OWN theme display face, not the active one — each button carries
+   data-theme, so it matches that theme's block and inherits its --font-display along
+   with its palette. The picker is therefore a type specimen: you read each theme's
+   name in the face you would get by choosing it. */
 .theme-name {
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.01em;
 }

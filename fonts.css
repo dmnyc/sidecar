@@ -1,6 +1,22 @@
 /* Sidecar typography — bundled OFL webfonts (no external requests).
-   Playfair Display: high-contrast display serif (the cocktail-menu voice).
-   Manrope: refined geometric sans for UI/body. */
+   Manrope is the UI/body face in every theme and never changes.
+
+   Each theme sets its own --font-display, because a palette alone was not carrying the
+   themes apart — Bauhaus in particular read as Art Deco while both were set in Playfair.
+   The six are drawn from six different categories on purpose, the same rule the
+   background tiles follow (see themes/patterns.css, where a coffer tile was dropped for
+   sitting too close to Aegean's meander). Two faces of the same category read as the
+   same idea however they are colored:
+
+     Speakeasy   Playfair Display   high-contrast Didone serif   cocktail menu
+     Film Noir   Oswald             condensed grotesque          1940s poster
+     Brownstone  Bitter             slab serif                   19th-c. New York
+     Art Deco    Josefin Sans       1920s geometric sans         deco lettering
+     Aegean      Cinzel             Roman inscriptional caps     classical stone
+     Bauhaus     Jost               Futura-lineage geometric     the school's own
+
+   All six are variable fonts, so each is ONE file spanning 400-700 rather than a static
+   face per weight — about 26KB apiece. */
 
 @font-face {
   font-family: 'Playfair Display';
@@ -44,4 +60,44 @@
   font-weight: 700;
   font-display: swap;
   src: url('fonts/manrope-700.woff2') format('woff2');
+}
+
+/* The five per-theme display faces. The `font-weight` RANGE on each is what tells the
+   browser it may interpolate across the variable axis; declaring a single value would
+   make it synthesise a fake bold instead — which is visible, and worst on the two
+   lightest faces here (Josefin Sans and Cinzel). */
+@font-face {
+  font-family: 'Jost';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/jost-var.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/oswald-var.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Bitter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/bitter-var.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Josefin Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/josefin-sans-var.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/cinzel-var.woff2') format('woff2-variations');
 }

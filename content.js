@@ -418,8 +418,13 @@
   // speakeasy. (Background intentionally exposes only showPayButton to content
   // scripts, so the theme is read directly from storage, not via messaging.)
   let cardTheme = 'speakeasy';
+  // Keyed off one set rather than a chain of !==. The chain form silently dropped any
+  // theme nobody remembered to add here, and the card then rendered in the wrong palette
+  // with no error anywhere — see the THEME_VARS table below, which it must stay in step
+  // with.
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus']);
   function setCardTheme(t) {
-    if (t !== 'speakeasy' && t !== 'film-noir' && t !== 'brownstone' && t !== 'art-deco' && t !== 'aegean') return;
+    if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
     cardTheme = t;
     if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
@@ -546,6 +551,39 @@
         CARD_WARN: 'color:#A8432A',
         CARD_SUCCESS: 'color:#4F6B3A',
         CARD_PAY_SHADOW: 'rgba(21,101,192,0.32)'
+      },
+      /* Bauhaus — plaster, black rule lines, flat planes of primary. Mirrors
+         themes/bauhaus.css; the card carries its own copy because it renders in the
+         page's shadow DOM with no access to the extension's stylesheets. (Its font is
+         the system stack at the top of CARD_CSS, so the theme's display face does not
+         reach here and nothing about that needs mirroring.)
+         Two values do NOT follow the theme file's naming and both are deliberate:
+         CARD_GOLD is the theme's --balance-ink, NOT its --gold. Its one use in CARD_CSS
+         is the amount at 42px/800, which is WCAG large text at 3.0:1 — so it takes the
+         loud orange (3.79:1 on this card) for the same reason the side panel's balance
+         does, and would fail the 4.5:1 bar --gold has to clear. If CARD_GOLD ever gains
+         a second, smaller use, it needs splitting the way styles.css split the two.
+         CARD_PAY_BG is a flat fill rather than the three-stop ramp every other theme
+         uses here, matching the flat buttons in the theme file. */
+      bauhaus: {
+        CARD_COLOR: 'color:#111111',
+        CARD_BORDER: 'rgba(17,17,17,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(0,87,255,0.08),transparent 58%),linear-gradient(165deg,#FFFFFF,#F7F7F3)',
+        CARD_MUTED: 'color:#55555F',
+        CARD_GOLD: 'color:#E1552B',
+        CARD_TEXT_2: 'color:#33333A',
+        CARD_LAV: '#0057FF',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: '#0057FF',
+        CARD_CANCEL_BG: 'rgba(0,87,255,0.10)',
+        CARD_TEXT: '#111111',
+        CARD_BORDER_FAINT: 'rgba(17,17,17,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(17,17,17,0.25)',
+        CARD_TRACK: '#0057FF',
+        CARD_THUMB_OFF: '#55555F',
+        CARD_WARN: 'color:#C9161C',
+        CARD_SUCCESS: 'color:#1F6B3F',
+        CARD_PAY_SHADOW: 'rgba(0,87,255,0.30)'
       }
     };
 
@@ -707,11 +745,12 @@
     const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
       Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
     // The wordmark's lettering is baked in as speakeasy's lavender (#BDA1FF), fine
-    // on speakeasy/noir's dark cards but illegible on deco's light one — recolor
+    // on speakeasy/noir's dark cards but illegible on a light one — recolor
     // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
-    // Both light themes need it recoloured; the baked lavender vanishes on marble
-    // and eggshell alike.
-    const lightCard = cardTheme === 'art-deco' || cardTheme === 'aegean';
+    // Every light theme needs it recoloured; the baked lavender vanishes on marble,
+    // eggshell and plaster alike.
+    const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus']);
+    const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
       '<style>' + cardCss + '</style>' +

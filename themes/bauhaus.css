@@ -1,0 +1,300 @@
+/* ============================================================
+   Sidecar — Bauhaus Theme
+   White walls, black rule lines, flat planes of primary color.
+   Quarter-circles and rings run as the background pattern.
+   ============================================================ */
+
+/* Every value here was measured before it was written down. See
+   test/theme-contrast.test.js, which resolves these var() chains and checks the ratios.
+
+   THE FIRST PASS OF THIS THEME WAS WRONG, and the reason is worth keeping. It used a
+   cream ground (#FDF3E7) with orange accents, which put it a hair from Art Deco's cream
+   (#F0EAD6) and gold — two themes reading as siblings, because the ground is most of the
+   visual field and orange sits in gold's hue family. The orange was chosen for contrast
+   headroom on cream, which turned out to be solving a problem the cream had caused:
+
+       on cream #FDF3E7    on white #FFFFFF
+   blue     5.03                5.52
+   red      4.62                5.07
+
+   A white ground buys about 1.2:1 across the board, so the palette can be LOUDER and
+   still measure better. That is the whole correction — orange is gone, the ground is
+   near-neutral plaster rather than cream, and the accents are the three primaries.
+
+   TRAP 1 — the primaries do not all separate from each other. Measured:
+       blue / red      1.09:1     unusable as a pair, at any size
+       blue / yellow   3.85:1
+       yellow / red    3.54:1
+   Red and blue may never be a fill/label pair or two adjacent states. Yellow is the only
+   safe mediator between them. This is the same defect that scrapped the Blackjack theme,
+   and it is worse here than the 1.30:1 the first pass recorded.
+
+   TRAP 2 — yellow cannot be ink, and does not need to be. Measured on white:
+       yellow #FFD400   as text 1.43:1   as a fill w/ black label 13.19:1
+   That is not a compromise, it is how Bauhaus actually used yellow: a plane with black
+   type on it, never a tinted letterform. So the warm accent stays split by role, the way
+   the first pass split its orange — but now both halves are the same hue. --amber is the
+   full-strength yellow and is FILL-ONLY; --gold is its dark end and is the only warm
+   value allowed to carry text. Art Deco is the theme that does NOT make this split, and
+   its --gold measures 1.67:1 as text while being a `color:` in 39 rules. */
+
+[data-theme="bauhaus"] {
+  color-scheme: light;
+
+  /* Jost — Futura lineage, the geometric sans this school actually produced. Playfair's
+     bracketed serifs and vertical stress are the exact drawing convention Bauhaus was
+     reacting against, so the palette alone could not carry the theme. This is the first
+     theme to override a font token; it works because themes/*.css loads after styles.css
+     and [data-theme] matches the same element :root does, so the later rule wins. */
+  --font-display: 'Jost', 'Futura', 'Century Gothic', var(--font-ui);
+
+  /* Surfaces — whitewashed plaster, near-neutral. The 4-point spread between channels
+     is deliberate and is what separates this from Art Deco's cream, which drops 26
+     points of blue. The ground is the wall; cards are white paper pinned to it. */
+  --bg: #F4F4F0;
+  --bg-2: #EAEAE4;
+  --velvet-1: #FFFFFF;
+  --velvet-2: #F7F7F3;
+  --velvet-1-rgb: 255, 255, 255;
+  --av-from: #FFFFFF;
+  --av-to: #EAEAE4;
+  --banner-accent: #EAEAE4;
+
+  /* Rule lines are BLACK, not tinted. That is the whole Bauhaus drawing convention, and
+     it is why --border-rgb is the ink here rather than an accent hue — unlike Aegean,
+     where the borders are cobalt. --accent-rgb is set separately below so the row
+     highlights can still be blue; the two are deliberately different variables. */
+  --border: rgba(17, 17, 17, 0.16);
+  --border-strong: rgba(17, 17, 17, 0.30);
+  --border-rgb: 17, 17, 17;
+  --well-rgb: 234, 234, 228;
+
+  /* Red is a full third primary here, not just the destructive color — it fills the
+     compose button and appears in the pattern. #C9161C rather than a brighter #D81F26
+     because the brighter one measures 4.20:1 on --bg-2 and fails AA on exactly one of
+     the four surfaces; this clears all four (4.81 / 5.27 / 5.81 / 5.51). */
+  --warn: #C9161C;
+  --warn-rgb: 201, 22, 28;
+  --success: #1F6B3F;
+  --success-rgb: 31, 107, 63;
+
+  /* --orange holds the BLUE. Read that twice — it is not a mistake.
+     This token drives accent-color on every checkbox and the chosen-button fill, so it
+     has to be the theme's action color, and the action color here is blue. Aegean does
+     exactly the same thing for the same reason; its comment records that terracotta in
+     this slot "made the checkboxes read as errors". The warm values live in --amber and
+     --gold below. */
+  --orange: #0057FF;
+
+  /* THE WARM VALUES ARE ONE FAMILY AT THREE STOPS, split strictly by contrast budget.
+     Every warm thing in this theme is yellow-to-orange; nothing is gold, and nothing is
+     brown. Which stop a rule gets is decided by how big its text is, not by taste:
+
+       --amber        #FFD400  fill only, never text        1.43:1 as ink — unusable
+       --balance-ink  #E1552B  large text only (>=18.66/700) 3.79:1 — clears 3.0, not 4.5
+       --gold         #B33D18  all remaining text            5.84:1 — clears 4.5 anywhere
+
+     --gold was a dark ochre (#7A5C00) in the first pass of this palette, which measured
+     fine and looked wrong: it is the one value in the theme that belonged to no other
+     value, so the lightning address and the relax countdown still read as leftover gold
+     from Art Deco. It is now the dark end of the balance orange, so the warm family is
+     one hue you can trace from the compose button down to a 12px label.
+     Caveat worth knowing: at this darkness the orange lands within 1.00:1 of --warn
+     (#C9161C) by luminance, so warm ink and a warning separate by hue alone. That was
+     already true of the ochre (1.08:1) and is not a regression, but it is the reason
+     neither one may ever become a fill behind the other. */
+  --amber: #FFD400;
+  --gold: #B33D18;
+  /* Ring/hairline accent — ink, matching the black rule lines rather than the gold this
+     token is named for. */
+  --gold-soft: rgba(17, 17, 17, 0.30);
+
+  /* The wallet balance — the bright stop of the warm family above, and also the compose
+     button and this theme's own card in the picker. It is a separate token from --gold
+     purely because of size: the balance is 40px/700 (24px/700 pinned and compact), which
+     is WCAG large text at 3.0:1, and this clears that on all three surfaces the number
+     renders on — 3.79:1 on the card, 3.53:1 on its lower stop, 3.37:1 through the blue
+     card wash. It would fail the 4.5:1 bar on every one of them, which is why the 12-13px
+     labels take --gold's darker stop instead of this.
+     Sampled from the reference posters: the same orange that sits against navy and sage
+     there. It is a red-orange rather than a marigold by necessity, not taste — marigold
+     #F2A81D measures 1.67–2.02:1 here and cannot carry a number at any size. */
+  --balance-ink: #E1552B;
+
+  /* Translucent accent washes: row highlights, hover fills, tip cards. Blue, so a
+     selected row reads as selected rather than as a smudge of the border color. This is
+     why it is not simply var(--border-rgb) the way Aegean sets it. */
+  --accent-rgb: 0, 87, 255;
+
+  /* Blue takes the accent slot the dark themes fill with purple. 5.00:1 as ink on the
+     ground for the lighter tone, 7.22:1 for the deeper one. */
+  --purple: #0043C8;
+  --lav: #0057FF;
+
+  /* Relax countdown dot. The shared rule's defaults are a mint green and --amber, which
+     measure 1.74:1 and 1.43:1 on this theme's white status bar — invisible. Green stays
+     green via --success (6.50:1), and the amber half becomes the balance orange (3.79:1)
+     rather than --warn's red, so the countdown still reads green -> amber -> and not
+     green -> already-failed. */
+  --relax-dot-ok: var(--success);
+  --relax-dot-low: var(--balance-ink);
+
+  --hover-soft: rgba(17, 17, 17, 0.05);
+  --hover-medium: rgba(17, 17, 17, 0.09);
+  --hover-faint: rgba(17, 17, 17, 0.035);
+  --mention-bg: rgba(0, 87, 255, 0.14);
+  /* Neutral ink-grey, not blue — the scrollbar is furniture, not an accent. */
+  --scroll-thumb: linear-gradient(180deg, #C4C4BE, #DCDCD6);
+  --scroll-thumb-hover: #AEAEA8;
+
+  /* FLAT FILLS, not ramps. Every other theme runs a three-stop vertical gradient on its
+     buttons; this one sets all three stops to the same value, because a shaded plane is
+     the one thing this design language does not do. It also removes a whole class of
+     bug: the contrast test checks the mid stop at 4.5 and the outer stops at 3.0
+     precisely because a gradient can be legible in the middle and not at the edges. A
+     flat fill is the same number everywhere — 5.52:1 white on blue. */
+  --btn-primary-top: #0057FF;
+  --btn-primary-mid: #0057FF;
+  --btn-primary-bot: #0057FF;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: rgba(0, 87, 255, 0.30);
+
+  /* "Trust this site" — a flat yellow plane with black type, at 13.19:1 the highest-
+     contrast control in any theme. It sits directly below the blue Allow button, and the
+     point is that two actions of different weight are two different colors rather than
+     two shades of one. Yellow rather than red for the reason in TRAP 1: red against that
+     blue is 1.09:1, so the two buttons would have collided. */
+  --btn-lav-top: #FFD400;
+  --btn-lav-mid: #FFD400;
+  --btn-lav-bot: #FFD400;
+  --btn-lav-text: #111111;
+  --btn-lav-ring: rgba(17, 17, 17, 0.24);
+  --btn-lav-shadow: rgba(255, 212, 0, 0.38);
+
+  /* Quiet buttons stay paper — the way back should not compete with either action. */
+  --btn-secondary-top: #FFFFFF;
+  --btn-secondary-bot: #F0F0EA;
+
+  /* Pending confirm. --pending-sub is left unset: the default is --muted, which measures
+     6.68:1 on the ground here and clears AA on the pending wash. */
+  --pending-text: #0043C8;
+
+  /* Small accent pills (reload banner, "grant" on a host row). Their default gradient
+     hardcodes gold at the first and last stop with --gold in the middle, so a theme that
+     recolors --gold alone gets gold-ochre-gold. Flat blue, matching the primary. */
+  --btn-accent-top: #0057FF;
+  --btn-accent-mid: #0057FF;
+  --btn-accent-bot: #0057FF;
+  --btn-accent-text: #FFFFFF;
+
+  /* Ink — near-black rather than a tinted grey, because the walls are near-neutral and a
+     blue-black would fight the blue accent at small sizes. --faint clears AA at 5.31:1 on
+     the ground and 4.84:1 on the darkest surface. That is deliberate and this is still
+     the only theme where it is true: the other five run 2.25–3.53:1 there, a gap recorded
+     in test/theme-contrast.test.js. Not inherited. */
+  --text: #111111;
+  --text-2: #33333A;
+  --muted: #55555F;
+  --faint: #64646E;
+  --red: #C9161C;
+
+  --shadow: 0 10px 30px rgba(17, 17, 17, 0.10);
+  --shadow-sm: 0 6px 18px rgba(17, 17, 17, 0.08);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding a dark-theme literal. */
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(0, 87, 255, 0.22);
+  --card-wash: rgba(0, 87, 255, 0.08);
+  /* Bright fill behind an active chip or the relax countdown. */
+  --accent-fill: var(--lav);
+  --glow: var(--lav);
+
+  /* The composer balloon. Flat primary blue with a white label — 5.52:1. Aegean had to
+     go lighter and take a dark label because its blue was dimmer against whitewash; this
+     one is bright enough to keep white, which is the flatter and more Bauhaus result. */
+  --balloon-bg: #0057FF;
+  --balloon-bg-hover: #1A6BFF;
+  --balloon-text: #FFFFFF;
+
+  /* The compose button is the balance orange — flat, no gradient. Same value as the
+     balance and the picker card, so the theme has exactly one loud warm color rather
+     than an orange and a red doing similar jobs. Red is left to mean only "destructive",
+     which is the job it measures best at.
+     The quill is white, not the theme ink: black on this orange measured 4.98:1 and read
+     as a heavy mark on a bright plane. White at 3.79:1 clears the 3.0 non-text bar and
+     matches the label on the blue primary, so the two action buttons share a label color. */
+  --fab-bg: #E1552B;
+  --fab-icon: #FFFFFF;
+
+  /* Floating shadows are tuned for dark themes; half-opacity black under a button
+     sitting on plaster reads as grime. */
+  --float-shadow: rgba(17, 17, 17, 0.18);
+  --float-shadow-strong: rgba(17, 17, 17, 0.26);
+}
+
+/* Display type is set in caps and tracked out. Jost's lowercase runs narrow with a
+   small x-height, which reads as timid at heading sizes; the caps are where a geometric
+   face of this lineage is actually drawn to work, and it matches the school's own
+   posters. Applied to the display slot rather than per-heading so every surface picks it
+   up — sidepanel, popup, welcome, wallets and help all share these class names. */
+[data-theme="bauhaus"] .welcome-title,
+[data-theme="bauhaus"] .profile-name,
+[data-theme="bauhaus"] .tabview h2,
+[data-theme="bauhaus"] .aa-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* This theme's own card in the theme picker, in the balance orange — so the one loud
+   warm value in the theme is the same value everywhere it appears, rather than the card
+   being red and the balance orange.
+   Written as [data-theme="bauhaus"].theme-card rather than as a plain `color:` in the
+   block above, and the distinction is load-bearing: that block matches BOTH <html> (when
+   this theme is active) and this button (always, since every card carries its own
+   data-theme). A bare `color:` there would repaint the entire app's default text.
+   Scoping it to the card also keeps the picker's one rule intact — each card previews
+   its own theme, so only this card turns orange, in every theme.
+
+   CONTRAST NOTE: this is the one ink in the theme that does not clear AA. The label is
+   14px/700 on the card's white, which is not WCAG large text (that needs 18.66px bold),
+   so the bar is 4.5:1 and #E1552B measures 3.79:1. It clears the 3.0:1 large-text bar
+   the balance is held to, which is why the same value is fine at 40px and marginal here.
+   Deliberate and specified; see the note beside --balance-ink for why the orange cannot
+   simply be darkened without ceasing to be the balance color. */
+[data-theme="bauhaus"].theme-card {
+  color: var(--balance-ink);
+}
+
+/* ...and its selected ring, which otherwise comes from the shared .theme-card.active
+   rule as --gold / --gold-soft. In this theme those are the dark ochre and a flat ink
+   wash, so selecting Bauhaus drew an olive-brown outline around an orange label. */
+[data-theme="bauhaus"].theme-card.active {
+  border-color: var(--balance-ink);
+  box-shadow: 0 0 0 2px rgba(225, 85, 43, 0.32);
+}
+
+/* The "+" badge carries near-black text on a colored disc in the dark themes. */
+[data-theme="bauhaus"] .add-account-badge {
+  color: var(--velvet-1);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="bauhaus"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+
+/* Outgoing transactions in the theme's red. Direction is carried by the arrow glyph as
+   well as the color — necessary here, because red against the blue used elsewhere is
+   1.09:1 and color alone could not be the distinction. */
+[data-theme="bauhaus"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+
+[data-theme="bauhaus"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}

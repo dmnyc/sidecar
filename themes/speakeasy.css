@@ -7,6 +7,12 @@
 [data-theme="speakeasy"] {
   color-scheme: dark;
 
+  /* Playfair Display — stated explicitly rather than left to inherit the :root default.
+     Now that all six themes name a display face, a theme that stays silent looks like
+     an oversight instead of a choice, and the next theme added would have no example of
+     the pattern to copy. This is also still the :root value, so nothing changes here. */
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+
   /* surfaces */
   --bg: #0a0118;
   --bg-2: #140428;

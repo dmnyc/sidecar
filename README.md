@@ -180,6 +180,7 @@ dedicated, named support for:
 - Inspired by [Nostr Build Shack](https://apps.apple.com/us/app/nostr-build-shack/id6752591477) by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
 - Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf), [Alby](https://github.com/getAlby/lightning-browser-extension) extension, and [Amber](https://github.com/greenart7c3/Amber) by [greenart7c3](https://github.com/greenart7c3) — the OG reliable signers most of Nostr grew up with
 - Global @-mention search is powered by the [nostrarchives-api](https://github.com/barrydeen/nostrarchives-api) by [barrydeen](https://github.com/barrydeen)
+- The Bauhaus theme is a tribute to the [Bauhaus school](https://en.wikipedia.org/wiki/Bauhaus) (1919–1933) — its principles of geometric clarity, primary color, and type as architecture echo in the author's own logo at [dmnyc.net](https://dmnyc.net)
 
 ## Author
 

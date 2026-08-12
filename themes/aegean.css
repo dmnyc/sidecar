@@ -7,6 +7,12 @@
 [data-theme="aegean"] {
   color-scheme: light;
 
+  /* Cinzel — Roman inscriptional capitals, cut from the same classical stone the
+     meander pattern comes from. It has no true lowercase (the lowercase glyphs are
+     small caps), so headings here read as carved regardless of how they are typed,
+     which is why it needs no text-transform of its own. */
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+
   /* surfaces — whitewash, not beige. An earlier pass used warm marble here and the
      whole theme went muddy olive under the pattern; the reference is lime-washed
      plaster in sea light, so the ground is neutral-cool and the cards are plain
@@ -53,6 +59,12 @@
      strong tone, door-blue for the lighter. 6.77:1 and 5.40:1 on the ground. */
   --purple: #0B57A4;
   --lav: #1565C0;
+  /* Relax countdown dot — 1.74:1 and 2.95:1 on this whitewash with the shared defaults.
+     The amber was the near miss of the three light themes, which is exactly the kind that
+     ships: visible enough in a screenshot, not against a window. 6.01:1 / 6.00:1 now. */
+  --relax-dot-ok: var(--success);
+  --relax-dot-low: var(--warn);
+
   --hover-soft: rgba(11, 87, 164, 0.06);
   --hover-medium: rgba(11, 87, 164, 0.10);
   --hover-faint: rgba(11, 87, 164, 0.04);

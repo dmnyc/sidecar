@@ -1,0 +1,29 @@
+<!-- Sidecar — Bauhaus background pattern.
+     Quarter-discs, circles and rings on a 4x4 grid of 120px cells, so the 480x480 tile
+     repeats seamlessly: every motif is wholly contained in its own cell and nothing
+     crosses an edge.
+     CURVES ONLY, no squares. Brownstone shipped with a coffer tile and then swapped it
+     out because it "sat too close to Aegean's meander: both are orthogonal hard-edged
+     geometry, so they read as the same idea however they are scaled." A Bauhaus grid of
+     squares would walk into exactly that. The arcs are the whole silhouette.
+
+     The planes are colored now rather than all-ink, which is the correction that came
+     with the palette: an all-ink tile under a cream ground was most of why this theme
+     read as Art Deco. Per-shape opacity, NOT one group value, because the four inks are
+     nowhere near equal in luminance — yellow at the ink's 5% is invisible on plaster and
+     needs roughly two and a half times as much to register at all. Each value below is
+     the one where that plane sits at the same apparent weight as the others.
+     The tile is drawn at 480 but rendered at 320 (see patterns.css) so the repeat is
+     visible at panel width; the geometry is authored large to keep the arcs exact. -->
+<svg width="480" height="480" viewBox="0 0 480 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0,0 L120,0 A120,120 0 0 1 0,120 Z" fill="#0057FF" opacity="0.05"/>
+  <circle cx="180" cy="60" r="53" fill="none" stroke="#111111" stroke-width="14" opacity="0.05"/>
+  <path d="M360,120 L240,120 A120,120 0 0 1 360,0 Z" fill="#FFD400" opacity="0.13"/>
+  <path d="M240,120 L240,240 A120,120 0 0 1 120,120 Z" fill="#111111" opacity="0.05"/>
+  <circle cx="420" cy="180" r="60" fill="#C9161C" opacity="0.05"/>
+  <circle cx="60" cy="300" r="60" fill="#FFD400" opacity="0.13"/>
+  <path d="M240,360 L240,240 A120,120 0 0 1 360,360 Z" fill="#0057FF" opacity="0.05"/>
+  <path d="M360,240 L480,240 A120,120 0 0 1 360,360 Z" fill="#111111" opacity="0.05"/>
+  <path d="M120,480 L0,480 A120,120 0 0 1 120,360 Z" fill="#C9161C" opacity="0.05"/>
+  <circle cx="300" cy="420" r="53" fill="none" stroke="#0057FF" stroke-width="14" opacity="0.05"/>
+</svg>
