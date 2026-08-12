@@ -25,6 +25,7 @@ Update that section alongside this file as part of every release.
 - **Wallet view no longer flashes on zap; the composer background is stable across theme switches.** (#161)
 - **Drag-to-reorder works at the top and bottom of the list.** (#160)
 - **Relax exclusion is looser for replaceable kinds.** App-settings syncs, DM inbox loads and other background work that the user didn't initiate no longer prompt during a relax window, while notes, reactions and DMs still confirm. (#160)
+- **Follow count and @-mention list now read the account's NIP-65 relays.** The profile's follow count and the follow list behind @-mentions were querying only the user's configured relays, missing the healthy kind:3 that lives on NIP-65 declared relays when a configured relay holds a stale or wiped copy. The same gap let a zero-follow event seed the destructive-guard baseline, which would have suppressed the wipe warning for the next real kind:3. (#172)
 
 ### Changed
 - **Art Deco contrast fixed.** The gold accent ink was 1.67:1 as text on cream — the lightning address, the relax countdown, and the About links were effectively unreadable. The bright metallic is now fill-only; a deep bronze carries all text at 5.23:1. (#170)

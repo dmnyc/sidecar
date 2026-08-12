@@ -359,6 +359,7 @@
         <li><strong>Relay and wallet reliability.</strong> A connection leak that could leave the wallet and publisher dead until a reload is fixed, and a signing request lost to a sleeping service worker is retried instead of hanging.</li>
         <li><strong>Copied secrets self-destruct.</strong> An exported key left on the clipboard is cleared after 60 seconds.</li>
         <li><strong>Distinct activity icons.</strong> Reactions, zaps, reposts and mentions each carry their own glyph in Recent activity.</li>
+        <li><strong>Your follow count reads the right relays.</strong> The profile's follow count and the list behind @-mentions were missing a healthy kind:3 that lives on your NIP-65 declared relays, reading zero when a configured relay held a stale copy. The same fix stops a zero-follow event from seeding the wipe-detection baseline that protects you.</li>
       </ul>
       <p class="whatsnew-version">Version 1.7.0</p>
       <ul class="whatsnew-list">
