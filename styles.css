@@ -496,6 +496,19 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: linear-gradient(180deg, rgba(var(--velvet-1-rgb), 0.5), transparent);
   box-shadow: var(--sheen);
 }
+/* The settings screen has 16 sections. Its topbar carries the only close button, so
+   it has to stay reachable while scrolling — otherwise exiting means scrolling all the
+   way back up.
+
+   Two things have to be true for the sticky to work: (1) the section itself has to be
+   a fixed-height column so its child .content becomes the scroll container, and (2)
+   the topbar has to be position:sticky inside that column. Without (1) the whole
+   section scrolls as one block in the viewport and sticky does nothing — which is what
+   shipped the first time, because #view-main has this layout but #view-settings never
+   did. Scoped here rather than added to the shared .topbar rule so the main view's
+   topbar (which has its own sticky behavior via the wallet card) is unaffected. */
+#view-settings { display: flex; flex-direction: column; height: 100vh; }
+#view-settings .topbar { position: sticky; top: 0; z-index: 5; flex-shrink: 0; }
 .brand { display: flex; align-items: center; }
 .brand-logo-sm { height: 24px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
 
