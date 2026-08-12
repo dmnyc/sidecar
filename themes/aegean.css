@@ -59,10 +59,11 @@
      strong tone, door-blue for the lighter. 6.77:1 and 5.40:1 on the ground. */
   --purple: #0B57A4;
   --lav: #1565C0;
-  /* Relax countdown dot — 1.74:1 and 2.95:1 on this whitewash with the shared defaults.
-     The amber was the near miss of the three light themes, which is exactly the kind that
-     ships: visible enough in a screenshot, not against a window. 6.01:1 / 6.00:1 now. */
-  --relax-dot-ok: var(--success);
+  /* Relax countdown dot. The shared default (#4ade80) measured 1.74:1 on this whitewash;
+     --success (#4F6B3A) was the first fix and read as muddy — darker than it needs to be,
+     since a 7px indicator only has to clear 3.0:1, not the 4.5 a label does. #1A9943
+     clears 3.24:1 on the blue card-bottom surface and reads as green, not olive. */
+  --relax-dot-ok: #1A9943;
   --relax-dot-low: var(--warn);
 
   --hover-soft: rgba(11, 87, 164, 0.06);

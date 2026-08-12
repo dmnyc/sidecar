@@ -131,12 +131,12 @@
   --purple: #0043C8;
   --lav: #0057FF;
 
-  /* Relax countdown dot. The shared rule's defaults are a mint green and --amber, which
-     measure 1.74:1 and 1.43:1 on this theme's white status bar — invisible. Green stays
-     green via --success (6.50:1), and the amber half becomes the balance orange (3.79:1)
-     rather than --warn's red, so the countdown still reads green -> amber -> and not
-     green -> already-failed. */
-  --relax-dot-ok: var(--success);
+  /* Relax countdown dot. The shared default (#4ade80) measured 1.74:1 on this white
+     status bar; --success (#1F6B3F) was the first fix and was too dark — muddy on a
+     bright plane. #16A34A clears 3.07:1 on both surfaces and reads as a clear green.
+     The low state is the balance orange (3.79:1) rather than --warn's red, so the
+     countdown reads green -> amber -> and not green -> already-failed. */
+  --relax-dot-ok: #16A34A;
   --relax-dot-low: var(--balance-ink);
 
   --hover-soft: rgba(17, 17, 17, 0.05);
