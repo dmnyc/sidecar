@@ -448,6 +448,72 @@ body {
 .helpnav-pages a { color: var(--gold); }
 .helpnav-pages a:hover { color: var(--amber); }
 
+/* ===== TOC dropdown (in-nav on the help page) ===== */
+
+.toc-dropdown {
+  position: relative;
+}
+.toc-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 280px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(167, 139, 250, 0.06);
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.toc-toggle:hover { border-color: rgba(167, 139, 250, 0.3); }
+.toc-toggle[aria-expanded="true"] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+  background: rgba(10, 1, 24, 0.97);
+}
+.toc-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toc-chevron {
+  width: 14px; height: 14px;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+.toc-toggle[aria-expanded="true"] .toc-chevron { transform: rotate(180deg); }
+.toc-menu[hidden] { display: none; }
+.toc-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 280px;
+  background: rgba(10, 1, 24, 0.98);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.toc-menu a {
+  display: block;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+.toc-menu a:hover { background: rgba(167, 139, 250, 0.10); color: var(--text-2); }
+.toc-menu a.active { color: var(--gold); font-weight: 600; }
+
 @media (max-width: 780px) {
   .helpnav { padding: 10px 14px; gap: 10px; }
   .helpnav-burger {
@@ -485,44 +551,10 @@ body {
   .helpnav-guide { padding: 11px 12px; font-size: 15px; border-radius: 10px; }
 }
 
-/* The guide page carries nine section links plus two page links — about 1220px of
-   row. Below that .helpnav-links wrapped to a second line while the burger was
-   still hidden at 780px, leaving a ~440px window where the nav looked broken
-   (reported 2026-08-04). Give the guide its own, earlier breakpoint.
-   Scoped with :has() rather than a body class so it applies to exactly the nav
-   that has the long link row — welcome.html and wallets.html carry only a "Guide"
-   back-link and keep the roomier 780px. */
-@media (min-width: 781px) and (max-width: 1100px) {
-  .helpnav:has(.helpnav-links) { padding: 10px 14px; gap: 10px; }
-  .helpnav:has(.helpnav-links) .helpnav-burger {
-    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-    margin-left: auto; flex-shrink: 0;
-    min-height: 38px; padding: 0 9px 0 11px;
-    color: var(--muted); background: none; border: none; border-radius: 9px; cursor: pointer;
-  }
-  .helpnav:has(.helpnav-links) .helpnav-burger-text {
-    font-family: var(--font-ui); font-size: 14px; font-weight: 600; letter-spacing: 0.01em;
-  }
-  .helpnav:has(.helpnav-links) .helpnav-burger:hover { color: var(--text-2); background: rgba(167, 139, 250, 0.10); }
-  .helpnav:has(.helpnav-links) .helpnav-burger svg { width: 22px; height: 22px; }
-  .helpnav:has(.helpnav-links) .helpnav-menu {
-    display: none;
-    position: absolute; top: 100%; left: 0; right: 0;
-    flex-direction: column; align-items: stretch;
-    flex: none; gap: 2px; padding: 6px 10px 12px;
-    background: rgba(10, 1, 24, 0.97);
-    border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(10px);
-  }
-  .helpnav:has(.helpnav-links) .helpnav-toggle:checked ~ .helpnav-menu { display: flex; }
-  .helpnav:has(.helpnav-links) .helpnav-links,
-  .helpnav:has(.helpnav-links) .helpnav-pages {
-    display: flex; flex-direction: column; align-items: stretch;
-    flex: none; gap: 2px; margin: 0; padding: 0; border: none;
-  }
-  .helpnav:has(.helpnav-links) .helpnav-links a,
-  .helpnav:has(.helpnav-links) .helpnav-pages a { padding: 11px 12px; font-size: 15px; border-radius: 10px; }
-}
+/* The guide page now carries only two page links in its nav (section links
+   moved to the in-page TOC dropdown), so the old :has(.helpnav-links)
+   breakpoint for the long link row is no longer needed. The 780px burger
+   breakpoint above handles narrow screens for all three help pages. */
 
 /* Host-permission gate — Firefox users can decline site access in the install
    prompt; without it no app below can see the signer. Hidden whenever granted

@@ -480,6 +480,35 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .icon-btn.sm { font-size: 14px; padding: 5px 6px; }
 .icon-btn svg { width: 19px; height: 19px; display: block; }
 .icon-btn.sm svg { width: 16px; height: 16px; }
+/* Settings close: give it a resting background + border so it reads as a
+   dismissable view, not a toolbar icon that only appears on hover. */
+.icon-btn.settings-close {
+  border: 1px solid var(--border);
+  background: var(--velvet-2);
+  color: var(--text);
+}
+.icon-btn.settings-close:hover {
+  border-color: var(--border-strong);
+  background: var(--hover-medium);
+}
+#settings-logo { cursor: pointer; }
+.account-stat-add-link {
+  border: none;
+  background: transparent;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.account-stat-help {
+  width: 13px; height: 13px;
+  flex-shrink: 0;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.account-stat-help:hover { color: var(--gold); }
 /* 4px, not 2: with five icons the hover pills were close enough to touch and the
    row read as one undifferentiated strip. Wider than this and they stop reading
    as a set. */
@@ -848,11 +877,22 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .grip-handle:active { cursor: grabbing; }
 .item:hover .grip-handle { opacity: 0.65; }
 .item.dragging { opacity: 0.4; transform: scale(0.98); }
-/* 2px so the line is unmistakable — a 1px border-color swap (what the hover uses)
-   was too subtle to see at a glance, especially on the top and bottom edges where
-   the indicator is the only feedback that a drop will land. */
-.item.drag-over-top { border-top: 2px solid var(--gold); }
-.item.drag-over-bottom { border-bottom: 2px solid var(--gold); }
+/* Drop indicator: a gold insertion bar with a glow that sits in the gap between
+   rows. Pseudo-elements reach into the gap via negative margin so the bar reads
+   as "insert here" between items, not as a border on one item's edge. */
+.item.drag-over-top::before,
+.item.drag-over-bottom::after {
+  content: '';
+  position: absolute;
+  left: 6px; right: 6px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.6);
+}
+.item.drag-over-top::before { top: -6px; }
+.item.drag-over-bottom::after { bottom: -6px; }
+.item { position: relative; }
 .item-active {
   border-color: var(--gold-soft);
   box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft), 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -862,6 +902,159 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .item-sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); word-break: break-all; margin-top: 2px; }
 .item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .active-check { width: 18px; height: 18px; color: var(--gold); flex-shrink: 0; }
+
+/* Collapsible stats drawer beneath the active account row */
+.account-stats {
+  margin: -2px 0 8px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(var(--accent-rgb), 0.08), transparent 65%),
+    linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--gold-soft);
+  box-shadow: var(--sheen);
+  transition: border-color 0.15s;
+}
+.account-stats-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.account-stats-toggle:hover { color: var(--text); }
+.account-stats-chevron {
+  width: 14px; height: 14px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+.account-stats.collapsed .account-stats-body { display: none; }
+.account-stats-body { padding: 0 0 4px; }
+
+/* Top row: numeric stat blocks */
+.account-stat-grid {
+  display: flex;
+  gap: 1px;
+  margin: 0 8px 6px;
+  background: var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.account-stat-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px 8px;
+  background: var(--velvet-2);
+}
+.account-stat-block-ic {
+  width: 14px; height: 14px;
+  color: var(--muted);
+  margin-bottom: 1px;
+}
+.account-stat-num {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+.account-stat-loading {
+  color: var(--muted);
+}
+.account-stat-block-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Identity rows: icon + label + value, full width */
+.account-stat-ids {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 14px;
+}
+.account-stat-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+.account-stat-ic {
+  width: 14px; height: 14px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.account-stat-id-label {
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+  width: 56px;
+}
+.account-stat-id-val {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.account-stat-id-val .nip05-badge { display: inline-flex; flex-shrink: 0; }
+.account-stat-id-val .nip05-badge svg { width: 12px; height: 12px; }
+/* Wallet status badges with colored check/X */
+.wallet-status {
+  gap: 10px;
+  white-space: normal;
+}
+.wallet-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.wallet-badge svg { width: 11px; height: 11px; flex-shrink: 0; }
+.stat-mini-ok { color: var(--success); }
+.stat-mini-no { color: var(--warn); }
+.stat-mini-ok, .stat-mini-no { width: 11px; height: 11px; flex-shrink: 0; }
+.account-stat-dim { color: var(--muted) !important; font-weight: 400 !important; }
+
+/* Profile link */
+.account-stats-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: calc(100% - 20px);
+  margin: 6px 10px 4px;
+  padding: 7px;
+  border: none;
+  background: transparent;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.account-stats-link svg { width: 12px; height: 12px; }
+.account-stats-link:hover { background: rgba(var(--accent-rgb), 0.1); }
 
 /* notification bell button + unread badge */
 .notif-bell { position: relative; }
@@ -1071,6 +1264,33 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .setting { margin-bottom: 24px; }
 .toggle-row { display: flex; align-items: center; gap: 9px; cursor: pointer; color: var(--text); font-size: 14px; }
 .toggle-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
+
+/* iOS-style toggle switch */
+.switch-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; }
+.switch { position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 2; }
+.switch-track {
+  position: absolute; inset: 0;
+  background: var(--border-strong, rgba(167, 139, 250, 0.25));
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+.switch-track::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+}
+.switch input:checked ~ .switch-track { background: var(--gold); }
+.switch input:checked ~ .switch-track::after { transform: translateX(16px); }
+
+/* Bootstrap relays section */
+.switch-label { margin-bottom: 10px; }
+.relay-section-body { transition: opacity 0.2s ease; }
+.relay-section-body.dimmed { opacity: 0.35; pointer-events: none; }
 #autozap-max-row { margin-top: 10px; }
 .autozap-max-input { width: 90px; text-align: right; padding: 6px 9px; }
 

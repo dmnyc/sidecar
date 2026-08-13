@@ -13,6 +13,8 @@ html { scroll-behavior: smooth; }
 /* Standalone-page top nav (.helpnav*) now lives in welcome.css, shared by
    help, welcome, and wallets so all three carry the same bar. */
 
+/* ===== Table of contents dropdown (in-nav, styled in welcome.css) ===== */
+
 /* ===== Guide sections ===== */
 
 .guide-section {

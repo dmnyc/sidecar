@@ -254,8 +254,8 @@
   <!-- ===== Settings (opened from the gear icon) ===== -->
   <section id="view-settings" class="hidden">
     <header class="topbar">
-      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
-      <button id="settings-close" class="icon-btn" title="Close">
+      <div class="brand"><img id="settings-logo" class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <button id="settings-close" class="icon-btn settings-close" title="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </header>
@@ -392,12 +392,21 @@
       </div>
 
       <div class="setting">
-        <h3>Relays</h3>
-        <p class="hint">Returned to apps via <code>getRelays()</code>.</p>
-        <div id="relay-list" class="list"></div>
-        <div class="row-actions">
-          <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
-          <button class="secondary" id="relay-add">Add</button>
+        <h3>Bootstrap relays</h3>
+        <p class="hint">Used to discover your relay list on first load. Once you've published a relay list from the <strong>Profile</strong> tab, these take a back seat.</p>
+        <label class="switch-label">
+          <span>NIP-65 only</span>
+          <span class="switch">
+            <input type="checkbox" id="nip65-only-toggle" />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+        <div id="relay-section-body" class="relay-section-body">
+          <div id="relay-list" class="list"></div>
+          <div class="row-actions">
+            <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
+            <button class="secondary" id="relay-add">Add</button>
+          </div>
         </div>
       </div>
 
