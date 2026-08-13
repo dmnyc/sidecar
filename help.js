@@ -1,5 +1,5 @@
 // Sidecar — Help & guides page.
-// Highlights the current section in the sticky nav as the reader scrolls.
+// TOC dropdown: open/close, highlight current section on scroll, update label.
 
 (() => {
   'use strict';
@@ -15,18 +15,53 @@
     changelogLink.href = 'https://github.com/dmnyc/sidecar/blob/v' + build.version + '/CHANGELOG.md';
   }
 
-  const links = Array.from(document.querySelectorAll('#helpnav-links a'));
-  if (!links.length) return;
+  const toggle = document.getElementById('toc-toggle');
+  const menu = document.getElementById('toc-menu');
+  const label = document.getElementById('toc-label');
+  if (!toggle || !menu) return;
 
+  const links = Array.from(menu.querySelectorAll('a'));
   const sections = links
     .map((a) => document.getElementById(a.getAttribute('href').slice(1)))
     .filter(Boolean);
 
-  function setActive(id) {
-    links.forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+  // Open/close the dropdown.
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = menu.hasAttribute('hidden') === false;
+    if (open) close();
+    else open_();
+  });
+
+  function open_() {
+    menu.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+  }
+  function close() {
+    menu.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
   }
 
-  // Track which sections are in view; the topmost visible one wins.
+  // Close on outside click.
+  document.addEventListener('click', (e) => {
+    if (!menu.hidden && !menu.contains(e.target) && !toggle.contains(e.target)) close();
+  });
+
+  // Close on escape.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+
+  // Close after navigating.
+  links.forEach((a) => a.addEventListener('click', () => close()));
+
+  // Highlight the current section and update the dropdown label.
+  function setActive(id) {
+    links.forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+    const active = links.find((a) => a.getAttribute('href') === '#' + id);
+    if (label && active) label.textContent = active.textContent;
+  }
+
   const visible = new Set();
   const observer = new IntersectionObserver(
     (entries) => {

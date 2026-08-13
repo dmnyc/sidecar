@@ -21,13 +21,12 @@
     <a class="helpnav-brand" href="#top" title="Back to top">
       <img src="icons/sidecar-logo.svg" alt="Sidecar">
     </a>
-    <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
-    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu">
-      <span class="helpnav-burger-text">Menu</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-    </label>
-    <div class="helpnav-menu">
-      <div class="helpnav-links" id="helpnav-links">
+    <div class="toc-dropdown">
+      <button class="toc-toggle" id="toc-toggle" aria-expanded="false">
+        <span class="toc-label" id="toc-label">Jump to section</span>
+        <svg class="toc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="toc-menu" id="toc-menu" hidden>
         <a href="#basics">The basics</a>
         <a href="#accounts">Accounts</a>
         <a href="#pairing">How sites pair</a>
@@ -35,13 +34,15 @@
         <a href="#clients">Clients compared</a>
         <a href="#relax">Relax mode</a>
         <a href="#erasing">Erasing data</a>
+        <a href="#nip05">NIP-05</a>
+        <a href="#lightning-address">Lightning address</a>
         <a href="#wallet">Wallet</a>
         <a href="#whats-new">What's new</a>
       </div>
-      <div class="helpnav-pages">
-        <a href="welcome.html">Nostr apps</a>
-        <a href="wallets.html">Wallets</a>
-      </div>
+    </div>
+    <div class="helpnav-pages">
+      <a href="welcome.html">Nostr apps</a>
+      <a href="wallets.html">Wallets</a>
     </div>
   </nav>
 
@@ -338,6 +339,38 @@
       connection.</p>
       <p>If you don't have a wallet that speaks NWC yet, the wallet directory below has
       good options for every taste, custodial to self-custodial.</p>
+    </section>
+
+    <!-- ===== NIP-05 ===== -->
+    <section class="guide-section" id="nip05">
+      <h2>NIP-05</h2>
+      <p>A NIP-05 is a verified handle that looks like an email —
+      <em>name@domain.org</em> — but isn't one. It lets Nostr clients confirm that
+      you control the pubkey you claim, by checking a small file your domain serves
+      at a well-known address. Clients that support NIP-05 show a verified badge
+      next to your name, and some use it to help people find you by your handle
+      instead of pasting an npub.</p>
+      <p>You don't need your own server to get one. Many Nostr clients and services
+      offer free or paid NIP-05 identifiers — check your favorite client's settings,
+      or look for a provider. Once you have one, paste it into your profile (the
+      <em>nip05</em> field) and publish from Sidecar's Profile tab.</p>
+      <p>If your NIP-05 uses <em>_</em> as the local part (<em>_@domain.org</em>),
+      it verifies your domain without exposing a username — Sidecar shows just the
+      domain.</p>
+    </section>
+
+    <!-- ===== Lightning address ===== -->
+    <section class="guide-section" id="lightning-address">
+      <h2>Lightning address</h2>
+      <p>A Lightning address (also called a LNURL or <em>lud16</em> address) is a
+      human-readable handle — <em>name@wallet.tld</em> — that anyone can send
+      Bitcoin Lightning payments to without scanning a QR code or copying an
+      invoice. Most Lightning wallet providers issue one when you create an
+      account. If you connect an NWC wallet in Sidecar, your wallet may already
+      have one; check your wallet's settings, then add it to your profile so
+      clients can offer a zap button next to your posts. See the
+      <a href="wallets.html">wallet directory</a> for providers that support
+      Nostr Wallet Connect.</p>
     </section>
 
     <!-- ===== What's new ===== -->

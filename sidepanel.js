@@ -94,6 +94,9 @@
     repeat: '<polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>',
     heart: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>',
     zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
+    wallet: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>',
+    'help-circle': '<circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+    'badge-check': '<path d="M18.9 14.9Q22 12 18.9 9.1Q19.1 4.9 14.9 5.1Q12 2 9.1 5.1Q4.9 4.9 5.1 9.1Q2 12 5.1 14.9Q4.9 19.1 9.1 18.9Q12 22 14.9 18.9Q19.1 19.1 18.9 14.9Z"></path><polyline points="9 12 11 14 15.5 9"></polyline>',
     'user-check': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline>',
     'user-x': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line>',
     'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>',
@@ -1441,6 +1444,10 @@
     hide($('view-settings'));
     show($('view-main'));
   });
+  $('settings-logo').addEventListener('click', () => {
+    hide($('view-settings'));
+    show($('view-main'));
+  });
 
   // One-time tip shown on the first account switch: sites keep the identity
   // they logged in with, so users switching to post elsewhere need to know the
@@ -1657,11 +1664,32 @@
   // read relays often do, and purplepag.es aggregates kind:0/3/10002 as a fallback.
   // Without these, a stale or empty kind:3 on a configured relay can hide a healthy
   // 1000+ follow list that the account's NIP-65 relays do have.
+  //
+  // When nip65Only is on, configured/Settings relays are excluded — the account's
+  // declared relays are the source of truth. The configured set still seeds the
+  // initial NIP-65 fetch (via getNip65's own relayUrls call), but once the list is
+  // loaded it doesn't participate in any further reads. purplepag.es stays as a
+  // read-only aggregator regardless.
   async function readRelayUrls(pubkey) {
-    const configured = await relayUrls(false);
     const nip65 = await getNip65(pubkey);
     const declared = nip65 ? nip65.read : [];
-    return [...new Set([...configured, ...declared, 'wss://purplepag.es'])];
+    // Always include purplepag.es — it's a read-only aggregator, not a relay the
+    // user publishes to, so it can't serve stale data the way a gossip relay can.
+    const base = [...declared, 'wss://purplepag.es'];
+    // If the account has no NIP-65 list yet, fall back to configured regardless —
+    // a brand-new account has nothing else.
+    if (!declared.length) {
+      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      // Fail closed: when nip65Only is on and the list is empty (whether genuinely
+      // absent or because the fetch failed), do NOT fall back to bootstrap relays.
+      // The user explicitly opted out of them; a silent fallback would be the wrong
+      // failure direction for a privacy feature.
+      if (settings && settings.nip65Only) return [...new Set(base)];
+      return [...new Set([...base, ...(await relayUrls(false))])];
+    }
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    if (settings && settings.nip65Only) return [...new Set(base)];
+    return [...new Set([...base, ...(await relayUrls(false))])];
   }
 
   // Derive the public key (hex) from a pasted nsec/hex secret, locally, so the
@@ -1701,6 +1729,9 @@
   // the profile screen's refresh button clears it alongside _profileCache — declared
   // here rather than beside its function so both caches sit together.
   const followCountCache = new Map(); // pubkey -> number|null
+  // Whether the collapsible stats drawer under the active account row is open.
+  // Defaults open so a single-account panel isn't sparse; the user can collapse it.
+  let accountStatsExpanded = true;
   function cacheProfile(pubkey, content) {
     const c = content || {};
     const rec = {
@@ -1755,12 +1786,14 @@
     if (!pubkey) return null;
     if (nip65Cache.has(pubkey)) return nip65Cache.get(pubkey);
     let parsed = null;
+    let gotEvent = false;
     try {
       const ev = await Promise.race([
         poolGet(await relayUrls(false), { kinds: [10002], authors: [pubkey] }),
         new Promise((res) => setTimeout(() => res(null), 6000)),
       ]);
       if (ev) {
+        gotEvent = true;
         const read = [], write = [];
         ev.tags.forEach((t) => {
           if (t[0] !== 'r' || !t[1]) return;
@@ -1772,7 +1805,11 @@
         if (read.length || write.length) parsed = { read, write };
       }
     } catch (_) {}
-    nip65Cache.set(pubkey, parsed);
+    // Only cache when we received a real event (including an event with no
+    // relay tags — that's a genuine "no NIP-65 list"). A timeout or network
+    // error leaves the cache cold so the next call retries instead of locking
+    // in a null that readRelayUrls/postRelays would treat as "no list."
+    if (gotEvent) nip65Cache.set(pubkey, parsed);
     return parsed;
   }
 
@@ -1784,11 +1821,21 @@
   // web-of-trust, or simply stop resolving, the note goes nowhere even though a
   // perfectly good relay is configured a few lines away. Publishing to both means a
   // note still lands, and still lands where the account claims to write.
-  // publishNip65() already targets a union for the same reason.
+  //
+  // The nip65Only toggle is a knowing exception: a user who declares their relay list
+  // and enables it accepts the trade-off (publish reaches fewer relays, and a lapsed
+  // write relay means the note goes nowhere). Fail closed: when the toggle is on and
+  // the NIP-65 list is unknown (fetch failed or genuinely absent), publish to declared
+  // relays only — an empty set, which the downstream "no relays reachable" error path
+  // will surface. Never silently fall back to bootstrap relays the user opted out of.
   async function postRelays() {
     const n = await getNip65(state.activePubkey);
-    const configured = await relayUrls(true);
-    return [...new Set([...(n ? n.write : []), ...configured])];
+    const declared = n ? n.write : [];
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    if (settings && settings.nip65Only) return [...new Set(declared)];
+    // No NIP-65 list → fall back to configured so a fresh account can still publish.
+    if (!declared.length) return relayUrls(true);
+    return [...new Set([...declared, ...(await relayUrls(true))])];
   }
 
   // A relay that could not be reached is NOT a successful publish. SimplePool.publish()
@@ -2961,7 +3008,14 @@
 
     const list = $('account-list');
     list.innerHTML = '';
-    state.accounts.forEach((a) => list.appendChild(accountRow(a)));
+    state.accounts.forEach((a) => {
+      list.appendChild(accountRow(a));
+      // Stats drawer sits right beneath the active account row, inside the
+      // list but not draggable (no .item class, no draggable attr).
+      if (a.pubkey === state.activePubkey) {
+        list.appendChild(buildAccountStats(a.pubkey));
+      }
+    });
     makeSortable(list);
 
     // Lazily pull name + picture from kind:0 for accounts that still lack a real
@@ -3041,10 +3095,14 @@
     listEl.addEventListener('drop', async (e) => {
       e.preventDefault();
       if (!dragged) return;
+      // Capture the stats drawer before moving the row, so it follows on reorder.
+      const drawer = dragged.nextElementSibling;
+      const hasDrawer = drawer && drawer.classList.contains('account-stats');
       const drop = highlightAt(e.clientY);
       if (drop) {
         if (drop.pos === 'before') listEl.insertBefore(dragged, drop.target);
         else listEl.insertBefore(dragged, drop.target.nextSibling);
+        if (hasDrawer) listEl.insertBefore(drawer, dragged.nextSibling);
       }
       listEl.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach((el) => {
         el.classList.remove('drag-over-top', 'drag-over-bottom');
@@ -3125,6 +3183,191 @@
 
     row.append(main, actions);
     return row;
+  }
+
+  // Collapsible stats drawer that sits beneath the active account row. A
+  // prominent numeric top row (Following, Notifications, Relays) sits above
+  // full-width identity rows (NIP-05, Lightning, Wallet) so long values have
+  // room. Lazily loads on first expand; placeholder dots while in flight.
+  function buildAccountStats(pubkey) {
+    const drawer = document.createElement('div');
+    drawer.className = 'account-stats' + (accountStatsExpanded ? '' : ' collapsed');
+
+    const header = document.createElement('button');
+    header.className = 'account-stats-toggle';
+    const chev = icon('chevron-down');
+    chev.classList.add('account-stats-chevron');
+    if (!accountStatsExpanded) chev.style.transform = 'rotate(-90deg)';
+    header.append(chev, document.createTextNode('Overview'));
+    header.addEventListener('click', () => {
+      accountStatsExpanded = !accountStatsExpanded;
+      drawer.classList.toggle('collapsed', !accountStatsExpanded);
+      chev.style.transform = accountStatsExpanded ? '' : 'rotate(-90deg)';
+      if (accountStatsExpanded && !drawer.dataset.loaded) loadStats();
+    });
+
+    const body = document.createElement('div');
+    body.className = 'account-stats-body';
+
+    function placeholder() {
+      const dots = document.createElement('span');
+      dots.className = 'account-stat-loading';
+      dots.textContent = '…';
+      return dots;
+    }
+
+    // Top row: three numeric stat blocks, each with its own icon.
+    const followNum = placeholder();
+    const notifNum = placeholder();
+    const relayNum = placeholder();
+    function statBlock(iconName, numEl, label) {
+      const ic = icon(iconName);
+      ic.classList.add('account-stat-block-ic');
+      return h('div', { className: 'account-stat-block' }, [
+        ic,
+        numEl,
+        h('span', { className: 'account-stat-block-label', textContent: label }),
+      ]);
+    }
+    const topRow = h('div', { className: 'account-stat-grid' }, [
+      statBlock('users', followNum, 'Following'),
+      statBlock('bell', notifNum, 'Alerts'),
+      statBlock('wifi', relayNum, 'Relays'),
+    ]);
+
+    // Full-width identity rows, each led by a themed icon.
+    function idRow(iconName, label, valueEl) {
+      const ic = icon(iconName);
+      ic.classList.add('account-stat-ic');
+      return h('div', { className: 'account-stat-id' }, [
+        ic,
+        h('span', { className: 'account-stat-id-label', textContent: label }),
+        valueEl,
+      ]);
+    }
+
+    const nip05Val = h('div', { className: 'account-stat-id-val' });
+    const lud16Val = h('div', { className: 'account-stat-id-val' });
+    // Wallet row holds two mini status badges (connected / backed up).
+    const walletVal = h('div', { className: 'account-stat-id-val wallet-status' });
+
+    const idSection = h('div', { className: 'account-stat-ids' }, [
+      idRow('badge-check', 'NIP-05', nip05Val),
+      idRow('zap', 'Lightning', lud16Val),
+      idRow('wallet', 'Wallet', walletVal),
+    ]);
+
+    // Profile link.
+    const profileLink = h('button', { className: 'account-stats-link' }, [
+      document.createTextNode('View full profile'),
+      icon('arrow-up-right'),
+    ]);
+    profileLink.addEventListener('click', () => {
+      const tab = document.querySelector('.tab[data-tab="profile"]');
+      if (tab) tab.click();
+    });
+
+    body.append(topRow, idSection, profileLink);
+    drawer.append(header, body);
+
+    async function loadStats() {
+      drawer.dataset.loaded = '1';
+
+      // Numeric stats.
+      getFollowCount(pubkey).then((n) => {
+        followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+        followNum.classList.add('account-stat-num');
+      });
+
+      const unseen = notifUnseenCount(pubkey);
+      notifNum.textContent = unseen > 0 ? String(unseen) : '0';
+      notifNum.classList.add('account-stat-num');
+      if (!unseen) notifNum.classList.add('account-stat-dim');
+
+      getNip65(pubkey).then((nip65) => {
+        const count = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
+        relayNum.textContent = String(count);
+        relayNum.classList.add('account-stat-num');
+        if (!count) relayNum.classList.add('account-stat-dim');
+      });
+
+      // Identity stats — need the profile.
+      const rec = await getProfile(pubkey);
+      const content = rec && rec.content ? rec.content : {};
+
+      if (content.nip05) {
+        // Per NIP-05, a local part of "_" means the user is verified at the
+        // domain without exposing a handle. Display the bare domain.
+        const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
+        const badge = h('span', { className: 'nip05-badge' });
+        nip05Val.append(badge, document.createTextNode(nip05));
+        verifyNip05(content.nip05, pubkey).then((ok) => {
+          badge.classList.add(ok ? 'nip05-ok' : 'nip05-bad');
+          badge.title = ok ? 'Verified' : "Couldn't verify";
+          badge.append(icon(ok ? 'check' : 'alert'));
+        });
+      } else {
+        const help = icon('help-circle');
+        help.classList.add('account-stat-help');
+        help.title = 'What is a NIP-05?';
+        help.addEventListener('click', () => openExtensionPage('help.html', '#nip05'));
+        nip05Val.append(help, document.createTextNode('Not set'));
+        nip05Val.classList.add('account-stat-dim');
+      }
+
+      if (content.lud16) {
+        const ok = icon('check');
+        ok.classList.add('stat-mini-ok');
+        lud16Val.append(ok, document.createTextNode(content.lud16));
+      } else {
+        const help = icon('help-circle');
+        help.classList.add('account-stat-help');
+        help.title = 'What is a Lightning address?';
+        help.addEventListener('click', () => openExtensionPage('help.html', '#lightning-address'));
+        lud16Val.append(help, document.createTextNode('Not set'));
+        lud16Val.classList.add('account-stat-dim');
+      }
+
+      // Wallet: two mini badges — connected and backed up — each with a
+      // colored check or X so the state reads at a glance.
+      call({ type: 'SIDECAR_GET_NWC' }).then(async ({ connection }) => {
+        if (!connection) {
+          const link = h('button', { className: 'account-stat-add-link', textContent: 'Add wallet →' });
+          link.addEventListener('click', () => {
+            const tab = document.querySelector('.tab[data-tab="wallet"]');
+            if (tab) tab.click();
+          });
+          walletVal.appendChild(link);
+          return;
+        }
+        // Connected gets a green check.
+        const connIc = icon('check');
+        connIc.classList.add('stat-mini-ok');
+        walletVal.appendChild(h('span', { className: 'wallet-badge' }, [connIc, document.createTextNode('Connected')]));
+        // Backup status — green check if current, orange X if missing/stale.
+        let backupOk = null;
+        try {
+          const backup = await nwcBackupState();
+          backupOk = backup.state === 'current';
+        } catch (_) {}
+        if (backupOk === true) {
+          const ic = icon('check');
+          ic.classList.add('stat-mini-ok');
+          walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Backed up')]));
+        } else if (backupOk === false) {
+          const ic = icon('x');
+          ic.classList.add('stat-mini-no');
+          walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Not backed up')]));
+        }
+      }).catch(() => {
+        walletVal.textContent = '—';
+        walletVal.classList.add('account-stat-dim');
+      });
+    }
+
+    if (accountStatsExpanded) loadStats();
+
+    return drawer;
   }
 
   function iconButton(title, name, onClick) {
@@ -3921,6 +4164,9 @@
     }
     fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
     $('zapflash-toggle').checked = settings.zapFlash !== false; // default on
+    $('nip65-only-toggle').checked = settings.nip65Only === true; // default off
+    const relayBody = $('relay-section-body');
+    if (relayBody) relayBody.classList.toggle('dimmed', settings.nip65Only === true);
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
     $('autozap-max').value = String(azMax);
@@ -7199,6 +7445,11 @@
         status.textContent = 'Published ✓';
         status.classList.add('done');
         toast('Relay list published', 'success');
+        // Offer to switch to NIP-65-only mode if bootstrap relays are still active.
+        const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+        if (settings && !settings.nip65Only) {
+          maybeOfferNip65Only();
+        }
       } catch (e) {
         err.textContent = e.message;
         toast(e.message, 'error');
@@ -7217,6 +7468,34 @@
         status.textContent = 'Could not load your current relay list.';
         renderRows();
       });
+  }
+
+  // After the user publishes a NIP-65 relay list, offer to stop using Sidecar's
+  // bootstrap relays. The user's declared relays are now the source of truth;
+  // the bootstrap set only added noise (and stale data, as the follow-count bug
+  // showed). A one-time confirmation modal — not a silent settings change.
+  let nip65OnlyNudged = false;
+  function maybeOfferNip65Only() {
+    if (nip65OnlyNudged) return;
+    nip65OnlyNudged = true;
+    openModal((modal) => {
+      modal.append(
+        h('div', { className: 'setup-modal' }, [
+          h('h3', { textContent: 'Switch to your relay list?' }),
+          h('p', { className: 'hint', textContent:
+            'You’ve published a relay list (NIP-65). Sidecar can now read and publish through those relays exclusively, leaving the bootstrap relays behind. They’ll stay in Settings if you ever need them again.'
+          }),
+          h('div', { className: 'row-actions' }, [
+            h('button', { className: 'secondary', textContent: 'Not now', onclick: closeModal }),
+            h('button', { className: 'primary', textContent: 'Use my relays only', onclick: async () => {
+              await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nip65Only: true } });
+              closeModal();
+              toast('Now using your NIP-65 relays only', 'success');
+            }}),
+          ]),
+        ])
+      );
+    });
   }
 
   // ---- Follow-list recovery (Powered by Mutable — ported from github.com/dmnyc/mutable) ----
@@ -9910,6 +10189,14 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { zapFlash: e.target.checked } });
     // Show the thing you just switched on, so the setting explains itself.
     if (zapFlash) lightningStrike();
+  });
+
+  // NIP-65 only — exclude Sidecar's configured relays from reads and publishes
+  // once the account has a declared relay list. The configured set still seeds
+  // the initial NIP-65 fetch; this toggle governs everything after that.
+  $('nip65-only-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nip65Only: e.target.checked } });
+    $('relay-section-body')?.classList.toggle('dimmed', e.target.checked);
   });
 
   // Pinned balance bar — left: Send/Receive (wallet modals); right: hide balances
