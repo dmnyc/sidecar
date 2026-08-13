@@ -452,6 +452,7 @@ body {
 
 .toc-dropdown {
   position: relative;
+  margin-left: 6px;
 }
 .toc-toggle {
   display: inline-flex;
@@ -564,7 +565,7 @@ body {
   .helpnav:has(.toc-dropdown) { padding: 8px 12px; gap: 8px; }
   .helpnav:has(.toc-dropdown) .toc-toggle { width: auto; max-width: 160px; padding: 5px 10px; font-size: 12px; }
   .helpnav:has(.toc-dropdown) .toc-menu { width: 240px; }
-  .helpnav:has(.toc-dropdown) .helpnav-pages { gap: 2px; margin-left: auto; padding-left: 8px; }
+  .helpnav:has(.toc-dropdown) .helpnav-pages { flex-direction: row; gap: 2px; margin-left: auto; padding-left: 8px; border: none; }
   .helpnav:has(.toc-dropdown) .helpnav-pages a { padding: 4px 8px; font-size: 12px; }
 }
 
