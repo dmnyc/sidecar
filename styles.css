@@ -504,11 +504,26 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .account-stat-help {
   width: 13px; height: 13px;
   flex-shrink: 0;
-  cursor: pointer;
   color: var(--muted);
   transition: color 0.15s;
 }
-.account-stat-help:hover { color: var(--gold); }
+/* "Not set" + (?) as one target — the whole phrase is clickable, not just the glyph. */
+.account-stat-notset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.account-stat-notset:hover,
+.account-stat-notset:hover .account-stat-help { color: var(--gold); }
 /* 4px, not 2: with five icons the hover pills were close enough to touch and the
    row read as one undifferentiated strip. Wider than this and they stop reading
    as a set. */
@@ -2053,6 +2068,20 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* Secondary, not primary: "Connect wallet" above owns the primary weight on this
    screen, and two filled buttons would compete for the same decision. */
 .wallet-quickstart .secondary { display: block; width: 100%; }
+/* Rizful reads as the first option via border weight and an accent ring — NOT a
+   background tint. Overriding .secondary's background drops the themeable
+   --btn-secondary-top/bot gradient, which broke the text/surface pairing on the
+   light themes (Art Deco, Aegean, Bauhaus). Border + ring layer on top of
+   whatever surface the theme supplies, so contrast is never affected. */
+.wallet-quickstart-primary {
+  border-color: var(--gold-soft);
+  box-shadow: var(--sheen), 0 0 0 2px rgba(var(--accent-rgb), 0.14);
+}
+.wallet-quickstart-primary:hover {
+  border-color: var(--gold);
+  box-shadow: var(--sheen), 0 0 0 3px rgba(var(--accent-rgb), 0.22);
+}
+.wallet-quickstart-browse { margin-top: 10px; }
 /* Separates the restore block from the quick-start card. Matches the spacing the
    restore block gets from its own container. */
 .quickstart-or { margin-top: 20px; }

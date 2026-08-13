@@ -3246,6 +3246,17 @@
       ]);
     }
 
+    // "Not set" + a (?) glyph as ONE clickable target — a bare icon is a small
+    // tap area, and the phrase is the part the eye lands on.
+    function notSetLink(title, hash) {
+      const btn = h('button', { className: 'account-stat-notset', title });
+      const ic = icon('help-circle');
+      ic.classList.add('account-stat-help');
+      btn.append(ic, document.createTextNode('Not set'));
+      btn.addEventListener('click', () => openExtensionPage('help.html', hash));
+      return btn;
+    }
+
     const nip05Val = h('div', { className: 'account-stat-id-val' });
     const lud16Val = h('div', { className: 'account-stat-id-val' });
     // Wallet row holds two mini status badges (connected / backed up).
@@ -3307,12 +3318,7 @@
           badge.append(icon(ok ? 'check' : 'alert'));
         });
       } else {
-        const help = icon('help-circle');
-        help.classList.add('account-stat-help');
-        help.title = 'What is a NIP-05?';
-        help.addEventListener('click', () => openExtensionPage('help.html', '#nip05'));
-        nip05Val.append(help, document.createTextNode('Not set'));
-        nip05Val.classList.add('account-stat-dim');
+        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
       }
 
       if (content.lud16) {
@@ -3320,12 +3326,7 @@
         ok.classList.add('stat-mini-ok');
         lud16Val.append(ok, document.createTextNode(content.lud16));
       } else {
-        const help = icon('help-circle');
-        help.classList.add('account-stat-help');
-        help.title = 'What is a Lightning address?';
-        help.addEventListener('click', () => openExtensionPage('help.html', '#lightning-address'));
-        lud16Val.append(help, document.createTextNode('Not set'));
-        lud16Val.classList.add('account-stat-dim');
+        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
       }
 
       // Wallet: two mini badges — connected and backed up — each with a
@@ -8890,24 +8891,17 @@
       className: 'hint compact',
       textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
     }));
-    const quickBtn = h('button', { className: 'secondary', textContent: 'Quick start with Rizful' });
+    // Rizful carries the recommended tint — it's the one-minute path for someone
+    // with no wallet at all. The directory link sits in the same card as a
+    // co-equal second choice rather than a footnote below it, so "I'd rather pick
+    // my own" is visible at the same moment as "just set one up for me".
+    const quickBtn = h('button', { className: 'secondary wallet-quickstart-primary', textContent: 'Quick start with Rizful' });
     quickBtn.addEventListener('click', rizfulQuickStartModal);
     quick.append(quickBtn);
+    const browseBtn = h('button', { className: 'secondary wallet-quickstart-browse', textContent: 'Browse all wallets' });
+    browseBtn.addEventListener('click', () => openExtensionPage('wallets.html'));
+    quick.append(browseBtn);
     view.append(quick);
-
-    // Reads as the continuation of the quick-start block above rather than a
-    // consolation prize, so it's framed as more options rather than "you must not
-    // have one".
-    const find = h('a', {
-      className: 'explore-link wallet-find-link',
-      href: '#',
-      textContent: 'More Lightning wallet options →',
-    });
-    find.addEventListener('click', (e) => {
-      e.preventDefault();
-      openExtensionPage('wallets.html');
-    });
-    view.append(find);
   }
 
   async function renderWalletConnected(view) {
