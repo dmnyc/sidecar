@@ -554,7 +554,19 @@ body {
 /* The guide page now carries only two page links in its nav (section links
    moved to the in-page TOC dropdown), so the old :has(.helpnav-links)
    breakpoint for the long link row is no longer needed. The 780px burger
-   breakpoint above handles narrow screens for all three help pages. */
+   breakpoint above handles narrow screens for welcome.html and wallets.html.
+   The guide page (help.html) has no burger — its TOC dropdown + page links
+   are always inline — so it needs its own scoped mobile rule below. */
+
+/* Help.html mobile: the TOC pill and page links share the nav bar without
+   a burger. Shrink the pill and let the page links stay inline. */
+@media (max-width: 780px) {
+  .helpnav:has(.toc-dropdown) { padding: 8px 12px; gap: 8px; }
+  .helpnav:has(.toc-dropdown) .toc-toggle { width: auto; max-width: 160px; padding: 5px 10px; font-size: 12px; }
+  .helpnav:has(.toc-dropdown) .toc-menu { width: 240px; }
+  .helpnav:has(.toc-dropdown) .helpnav-pages { gap: 2px; margin-left: auto; padding-left: 8px; }
+  .helpnav:has(.toc-dropdown) .helpnav-pages a { padding: 4px 8px; font-size: 12px; }
+}
 
 /* Host-permission gate — Firefox users can decline site access in the install
    prompt; without it no app below can see the signer. Hidden whenever granted

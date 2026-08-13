@@ -1678,7 +1678,15 @@
     const base = [...declared, 'wss://purplepag.es'];
     // If the account has no NIP-65 list yet, fall back to configured regardless —
     // a brand-new account has nothing else.
-    if (!declared.length) return [...new Set([...base, ...(await relayUrls(false))])];
+    if (!declared.length) {
+      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      // Fail closed: when nip65Only is on and the list is empty (whether genuinely
+      // absent or because the fetch failed), do NOT fall back to bootstrap relays.
+      // The user explicitly opted out of them; a silent fallback would be the wrong
+      // failure direction for a privacy feature.
+      if (settings && settings.nip65Only) return [...new Set(base)];
+      return [...new Set([...base, ...(await relayUrls(false))])];
+    }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     if (settings && settings.nip65Only) return [...new Set(base)];
     return [...new Set([...base, ...(await relayUrls(false))])];
@@ -1778,12 +1786,14 @@
     if (!pubkey) return null;
     if (nip65Cache.has(pubkey)) return nip65Cache.get(pubkey);
     let parsed = null;
+    let gotEvent = false;
     try {
       const ev = await Promise.race([
         poolGet(await relayUrls(false), { kinds: [10002], authors: [pubkey] }),
         new Promise((res) => setTimeout(() => res(null), 6000)),
       ]);
       if (ev) {
+        gotEvent = true;
         const read = [], write = [];
         ev.tags.forEach((t) => {
           if (t[0] !== 'r' || !t[1]) return;
@@ -1795,7 +1805,11 @@
         if (read.length || write.length) parsed = { read, write };
       }
     } catch (_) {}
-    nip65Cache.set(pubkey, parsed);
+    // Only cache when we received a real event (including an event with no
+    // relay tags — that's a genuine "no NIP-65 list"). A timeout or network
+    // error leaves the cache cold so the next call retries instead of locking
+    // in a null that readRelayUrls/postRelays would treat as "no list."
+    if (gotEvent) nip65Cache.set(pubkey, parsed);
     return parsed;
   }
 
@@ -1807,14 +1821,20 @@
   // web-of-trust, or simply stop resolving, the note goes nowhere even though a
   // perfectly good relay is configured a few lines away. Publishing to both means a
   // note still lands, and still lands where the account claims to write.
-  // publishNip65() already targets a union for the same reason.
+  //
+  // The nip65Only toggle is a knowing exception: a user who declares their relay list
+  // and enables it accepts the trade-off (publish reaches fewer relays, and a lapsed
+  // write relay means the note goes nowhere). Fail closed: when the toggle is on and
+  // the NIP-65 list is unknown (fetch failed or genuinely absent), publish to declared
+  // relays only — an empty set, which the downstream "no relays reachable" error path
+  // will surface. Never silently fall back to bootstrap relays the user opted out of.
   async function postRelays() {
     const n = await getNip65(state.activePubkey);
     const declared = n ? n.write : [];
-    // No NIP-65 list → fall back to configured so a fresh account can still publish.
-    if (!declared.length) return relayUrls(true);
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     if (settings && settings.nip65Only) return [...new Set(declared)];
+    // No NIP-65 list → fall back to configured so a fresh account can still publish.
+    if (!declared.length) return relayUrls(true);
     return [...new Set([...declared, ...(await relayUrls(true))])];
   }
 

@@ -393,7 +393,8 @@
 
       <div class="setting">
         <h3>Bootstrap relays</h3>
-        <p class="hint">Used to discover your relay list on first load. Once you've published a relay list from the <strong>Profile</strong> tab, these take a back seat.</p>
+        <p class="hint">Used to discover your relay list on first load, and as a fallback if it can't be reached. Once you've published a relay list from the <strong>Profile</strong> tab, these take a back seat.</p>
+        <p class="hint">When NIP-65 only is on, these relays are excluded from all reads and publishes — except the initial discovery fetch itself, which still queries them once per session to find your relay list. Sites calling <code>getRelays()</code> still see the bootstrap set regardless.</p>
         <label class="switch-label">
           <span>NIP-65 only</span>
           <span class="switch">
