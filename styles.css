@@ -663,10 +663,14 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
 /* nsec import preview — confirm the account a pasted key belongs to */
 
-/* Import modal: read the key from the backup sheet instead of typing it. Two
-   equal-width secondary actions, so neither reads as the submit button. */
-.scan-qr-row { display: flex; gap: 8px; margin-top: 10px; }
-.scan-qr-row button { flex: 1; min-width: 0; }
+/* Import modal: read the key from the backup sheet instead of typing it. Stacked,
+   not side by side — "Scan with camera" wrapped to two lines at panel width, which
+   left the pair looking cramped and unequal. Icon + label, matching .add-actions. */
+.scan-qr-row { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.scan-qr-row button {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px;
+}
+.scan-qr-row button svg { width: 17px; height: 17px; flex-shrink: 0; }
 .scan-qr-hint { margin-top: 6px; }
 
 /* scan-qr.html — the standalone scanner popup. The camera can't be opened from the

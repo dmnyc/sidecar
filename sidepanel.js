@@ -3686,9 +3686,22 @@
       // restoring doesn't mean transcribing 63 bech32 characters by hand. Fills the
       // field above and fires its input event, so the existing validation, ncryptsec
       // detection and profile preview all run exactly as if it had been typed.
-      const camBtn = h('button', { className: 'secondary hidden', type: 'button', textContent: 'Scan with camera' });
-      const fileBtn = h('button', { className: 'secondary', type: 'button', textContent: 'Choose file' });
+      // Stacked rather than side by side: "Scan with camera" wrapped to two lines in
+      // a ~360px panel, which made the pair look cramped and unequal. Icon + label
+      // matches the Generate/Import buttons on the Accounts tab (.add-actions).
+      const camBtn = h('button', { className: 'secondary hidden', type: 'button' }, [
+        icon('qr'),
+        h('span', { textContent: 'Scan with camera' }),
+      ]);
+      const fileBtn = h('button', { className: 'secondary', type: 'button' }, [
+        icon('file-text'),
+        h('span', { textContent: 'Choose file' }),
+      ]);
       const scanRow = h('div', { className: 'scan-qr-row' }, [camBtn, fileBtn]);
+      // Labels live in their own spans: assigning textContent to the button would
+      // remove the icon along with the text.
+      const camLabel = camBtn.querySelector('span');
+      const fileLabel = fileBtn.querySelector('span');
 
       camBtn.classList.remove('hidden');
       const scanHint = h('div', {
@@ -3714,14 +3727,14 @@
       async function readFile(file) {
         err.textContent = '';
         fileBtn.disabled = true;
-        fileBtn.textContent = 'Reading…';
+        fileLabel.textContent = 'Reading…';
         try {
           accept(await secretFromFile(file), /pdf/i.test(file.type || '') ? 'PDF' : 'image');
         } catch (e) {
           err.textContent = e.message;
         }
         fileBtn.disabled = false;
-        fileBtn.textContent = 'Choose file';
+        fileLabel.textContent = 'Choose file';
       }
 
       fileBtn.addEventListener('click', () => scanFile.click());
@@ -3743,12 +3756,12 @@
         err.textContent = '';
         if (stopCamera) stopCamera(); // a re-click replaces the previous poll
         camBtn.disabled = true;
-        camBtn.textContent = 'Scanning…';
+        camLabel.textContent = 'Scanning…';
         try {
           await call({ type: 'SIDECAR_OPEN_QR_SCANNER' });
         } catch (_) {
           camBtn.disabled = false;
-          camBtn.textContent = 'Scan with camera';
+          camLabel.textContent = 'Scan with camera';
           err.textContent = "Couldn't open the scanner window.";
           return;
         }
@@ -3773,7 +3786,7 @@
           clearInterval(timer);
           stopCamera = null;
           camBtn.disabled = false;
-          camBtn.textContent = 'Scan with camera';
+          camLabel.textContent = 'Scan with camera';
         };
       });
 
