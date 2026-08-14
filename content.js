@@ -154,6 +154,11 @@
   let dismissedInvoice = '';
   let escHandler = null;
   let cardControls = null; // { invoice, setPaid, setError } for the live card
+  // How long a payment may sit in flight before the card offers a way out. Well
+  // short of the ~42s worst case in background.js (pay_invoice's 30s REQUEST_TIMEOUT
+  // plus CONFIRM_GRACE_MS), but long enough that a healthy payment — which usually
+  // resolves in a few seconds, or by the 8s lookup_invoice poll — never shows it.
+  const SLOW_PAY_MS = 15000;
 
   function invoiceSats(bolt11) {
     const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(bolt11);
@@ -399,6 +404,12 @@
     '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
     '.cancel:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
     '.card.busy .cancel{display:none;}' +
+    // "Stop waiting" — only after a payment has been in flight long enough to look
+    // stuck (see SLOW_PAY_MS). Deliberately not offered before that, and never as
+    // "Cancel": the NWC request is already published and the wallet may still pay it.
+    '.stopwait{display:none;margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
+    '.stopwait:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
+    '.card.busy.slow .stopwait{display:block;}' +
     '.card.busy .tg{opacity:.4;pointer-events:none;}' +
     '.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:14px;' +
     'border-top:1px solid {CARD_BORDER_FAINT};cursor:pointer;}' +
@@ -699,6 +710,9 @@
   }
 
   function removeCard() {
+    if (cardControls && cardControls.cleanup) {
+      try { cardControls.cleanup(); } catch (_) {}
+    }
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
     cardHost = null;
     shownInvoice = '';
@@ -767,6 +781,7 @@
       '<span class="pay-label">Pay with Sidecar</span></button>' +
       '<div class="pay-status" hidden></div>' +
       '<button class="cancel" type="button">Not now</button>' +
+      '<button class="stopwait" type="button">Stop waiting</button>' +
       (offerRow ||
         '') +
       '<label class="tg"><span class="tg-label">Don\'t show this prompt again</span>' +
@@ -790,6 +805,12 @@
     // back or re-tap. The background reports the outcome via 'paid' / 'payfailed'.
     const label = s.querySelector('.pay-label');
     const status = s.querySelector('.pay-status');
+    let slowTimer = null;
+    function clearSlow() {
+      clearTimeout(slowTimer);
+      slowTimer = null;
+      card.classList.remove('slow');
+    }
     function setSending(isAuto) {
       sending = true;
       card.classList.add('busy'); // dims + disables Not now / the toggle
@@ -802,8 +823,23 @@
       status.textContent = isAuto
         ? 'Inside your auto-zap limits, so Sidecar is paying this without asking.'
         : 'Confirming with your wallet. This can take a few seconds.';
+      // A stuck payment can otherwise hold this card for ~42s (pay_invoice's 30s
+      // timeout plus the 12s confirm grace in background.js), with Not now hidden
+      // the whole time. Once it's clearly slow, offer a way out — and say plainly
+      // that leaving does not stop the payment, because it can't: the request is
+      // already published and the wallet may still settle it.
+      clearSlow();
+      slowTimer = setTimeout(() => {
+        slowTimer = null;
+        card.classList.add('slow');
+        status.className = 'pay-status';
+        status.textContent =
+          'This is taking longer than usual. Your wallet may still complete it — ' +
+          'Sidecar will flash the page and log it if it does.';
+      }, SLOW_PAY_MS);
     }
     function setPaid() {
+      clearSlow();
       payBtn.classList.remove('pending');
       payBtn.classList.add('done');
       payBtn.disabled = true;
@@ -812,6 +848,7 @@
     }
     function setError(detail) {
       sending = false;
+      clearSlow();
       card.classList.remove('busy'); // re-enable Not now / the toggle for retry
       payBtn.classList.remove('pending', 'done');
       payBtn.disabled = false;
@@ -820,7 +857,10 @@
       status.className = 'pay-status err';
       status.textContent = detail || 'Payment failed. Please try again.';
     }
-    cardControls = { invoice: invoice, setPaid: setPaid, setError: setError };
+    // cleanup is called by removeCard so a pending slow-payment timer can't fire
+    // against a detached card (the card can be torn down by 'paid' or a rescan,
+    // not just by setPaid / setError / Stop waiting).
+    cardControls = { invoice: invoice, setPaid: setPaid, setError: setError, cleanup: clearSlow };
 
     const azBox = s.querySelector('.tg-autozap-input');
     if (azBox) {
@@ -845,6 +885,15 @@
       }
     });
     s.querySelector('.cancel').addEventListener('click', dismiss);
+    // Bypasses the `sending` guard on purpose — this is the one escape from an
+    // in-flight payment, and it only exists after SLOW_PAY_MS. It closes the card;
+    // it does not and cannot cancel the payment. Esc and the overlay still respect
+    // the guard, so leaving takes a deliberate click on this button.
+    s.querySelector('.stopwait').addEventListener('click', () => {
+      clearSlow();
+      dismissedInvoice = invoice;
+      removeCard();
+    });
     ov.addEventListener('click', (e) => {
       if (e.target === ov) dismiss();
     });

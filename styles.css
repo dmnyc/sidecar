@@ -504,11 +504,26 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .account-stat-help {
   width: 13px; height: 13px;
   flex-shrink: 0;
-  cursor: pointer;
   color: var(--muted);
   transition: color 0.15s;
 }
-.account-stat-help:hover { color: var(--gold); }
+/* "Not set" + (?) as one target — the whole phrase is clickable, not just the glyph. */
+.account-stat-notset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.account-stat-notset:hover,
+.account-stat-notset:hover .account-stat-help { color: var(--gold); }
 /* 4px, not 2: with five icons the hover pills were close enough to touch and the
    row read as one undifferentiated strip. Wider than this and they stop reading
    as a set. */
@@ -647,6 +662,30 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .acct-row.foot:hover .add-account-badge { background: var(--lav); }
 
 /* nsec import preview — confirm the account a pasted key belongs to */
+
+/* Import modal: read the key from the backup sheet instead of typing it. Stacked,
+   not side by side — "Scan with camera" wrapped to two lines at panel width, which
+   left the pair looking cramped and unequal. Icon + label, matching .add-actions. */
+.scan-qr-row { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.scan-qr-row button {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px;
+}
+.scan-qr-row button svg { width: 17px; height: 17px; flex-shrink: 0; }
+.scan-qr-hint { margin-top: 6px; }
+
+/* scan-qr.html — the standalone scanner popup. The camera can't be opened from the
+   side panel (MV3 suppresses the permission prompt there), so it lives in its own
+   window. Mirrored preview: an unmirrored self-view makes aiming a held sheet feel
+   backwards. */
+.scanq-body { margin: 0; }
+.scanq { padding: 18px 20px 20px; text-align: center; }
+.scanq h3 { margin: 12px 0 6px; }
+.scanq-video {
+  display: block; width: 100%; max-height: 320px; margin: 12px 0 4px;
+  border-radius: 12px; border: 1px solid var(--gold-soft);
+  background: #000; object-fit: cover; transform: scaleX(-1);
+}
+.scanq-err { color: var(--warn); }
 
 .import-preview {
   display: flex; align-items: center; gap: 11px; padding: 10px 12px; margin-top: 8px;
@@ -1034,6 +1073,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .stat-mini-no { color: var(--warn); }
 .stat-mini-ok, .stat-mini-no { width: 11px; height: 11px; flex-shrink: 0; }
 .account-stat-dim { color: var(--muted) !important; font-weight: 400 !important; }
+/* A zero that IS a fault (NIP-65 only on, nothing declared) — keeps the bold weight
+   a dimmed zero drops, so it reads as a problem rather than an empty count. */
+.account-stat-warn { color: var(--warn) !important; }
 
 /* Profile link */
 .account-stats-link {
@@ -1289,6 +1331,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* Bootstrap relays section */
 .switch-label { margin-bottom: 10px; }
+/* Names the account the per-account toggle applies to; quieter than the label. */
+.switch-scope { font-weight: 400; color: var(--muted); }
 .relay-section-body { transition: opacity 0.2s ease; }
 .relay-section-body.dimmed { opacity: 0.35; pointer-events: none; }
 #autozap-max-row { margin-top: 10px; }
@@ -2053,6 +2097,20 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* Secondary, not primary: "Connect wallet" above owns the primary weight on this
    screen, and two filled buttons would compete for the same decision. */
 .wallet-quickstart .secondary { display: block; width: 100%; }
+/* Rizful reads as the first option via border weight and an accent ring — NOT a
+   background tint. Overriding .secondary's background drops the themeable
+   --btn-secondary-top/bot gradient, which broke the text/surface pairing on the
+   light themes (Art Deco, Aegean, Bauhaus). Border + ring layer on top of
+   whatever surface the theme supplies, so contrast is never affected. */
+.wallet-quickstart-primary {
+  border-color: var(--gold-soft);
+  box-shadow: var(--sheen), 0 0 0 2px rgba(var(--accent-rgb), 0.14);
+}
+.wallet-quickstart-primary:hover {
+  border-color: var(--gold);
+  box-shadow: var(--sheen), 0 0 0 3px rgba(var(--accent-rgb), 0.22);
+}
+.wallet-quickstart-browse { margin-top: 10px; }
 /* Separates the restore block from the quick-start card. Matches the spacing the
    restore block gets from its own container. */
 .quickstart-or { margin-top: 20px; }

@@ -23,6 +23,18 @@ const APPS = [
     desc: 'A polished multi-protocol client — groups, DMs, and smart relay routing built in.',
   },
   {
+    name: 'Circl',
+    url: 'https://mycircl.xyz',
+    domain: 'mycircl.xyz',
+    cat: 'social',
+    // Their own circl-logo.svg — transparent, so it takes the framed treatment
+    // (32px inside the 46px velvet wrap) rather than flush. Their
+    // apple-touch-icon fills 98% of its frame, so flush cropped the rounded
+    // corners into the logo.
+    icon: 'icons/apps/circl.svg',
+    desc: 'A client built to keep in touch with your circle. No algorithm. No noise.',
+  },
+  {
     name: 'Flotilla',
     url: 'https://flotilla.social',
     domain: 'flotilla.social',
@@ -226,6 +238,10 @@ const APPS = [
     url: 'https://www.satslist.shop',
     domain: 'satslist.shop',
     cat: 'commerce',
+    // Official mark, supplied by SatsList. Full-bleed dark tile, so it takes
+    // flush rather than the velvet frame.
+    icon: 'icons/apps/satslist.jpg',
+    flush: true,
     desc: 'Bitcoin-only classifieds — post a listing and buy or sell over Lightning.',
   },
   {
@@ -247,6 +263,14 @@ const APPS = [
     url: 'https://nostrarchives.com',
     domain: 'nostrarchives.com',
     cat: 'tools',
+    // Their favicon is Vercel's default triangle, so mirror the mark they
+    // actually use on nostrarchives.com: Lucide's `radio` glyph in white on a
+    // rounded gradient tile. Their tile is `bg-gradient-to-tr from-neon-pink/30
+    // via-neon-blue/40 to-neon-green/30` (#ff5ecd / #5ed0ff / #7dffb0) over a
+    // #03030a page, so the stops below are those three composited down to
+    // opaque — same result, no alpha to blend against Sidecar's velvet.
+    logo: `<svg viewBox="0 0 46 46" width="100%" height="100%" aria-hidden="true" style="display:block"><defs><linearGradient id="na-tile" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4f1e44"/><stop offset=".5" stop-color="#27556c"/><stop offset="1" stop-color="#284f3c"/></linearGradient></defs><rect width="46" height="46" rx="10" fill="url(#na-tile)"/><g transform="translate(11 11)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.247 7.761a6 6 0 0 1 0 8.478"/><path d="M19.075 4.933a10 10 0 0 1 0 14.134"/><path d="M4.925 19.067a10 10 0 0 1 0-14.134"/><path d="M7.753 16.239a6 6 0 0 1 0-8.478"/><circle cx="12" cy="12" r="2"/></g></svg>`,
+    flush: true,
     desc: 'Full-text search across Nostr’s history — find profiles and notes going back years.',
   },
   {

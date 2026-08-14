@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scan your backup sheet</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+</head>
+<body class="scanq-body">
+  <!-- Runs in its own popup window, not the side panel: MV3 side panels can't
+       surface the camera permission prompt, because there's no address bar to
+       anchor it to. A normal extension window can. -->
+  <div class="scanq">
+    <div class="brand-lg">
+      <img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" />
+    </div>
+    <h3 id="scanq-title">Scan your backup sheet</h3>
+    <p class="hint" id="scanq-status">Starting the camera…</p>
+    <video id="scanq-video" class="scanq-video" muted playsinline></video>
+    <div class="actions">
+      <button class="ghost" id="scanq-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+  <script src="jsqr.js"></script>
+  <script src="scan-qr.js"></script>
+</body>
+</html>

@@ -1647,9 +1647,13 @@
   }
 
   // ---- relay pool (fetch + publish) ----
+  // enableReconnect: nostr-tools defaults it to false, which means a socket dropped
+  // while the panel sat idle is never reopened — the same latent bug the NWC client
+  // had. The panel is long-lived, so this pool is exactly where it bites: a composer
+  // publish or profile fetch after the laptop wakes would go into a dead socket.
   let _pool = null;
   function getPool() {
-    if (!_pool) _pool = new NT.SimplePool();
+    if (!_pool) _pool = new NT.SimplePool({ enableReconnect: true });
     return _pool;
   }
   const poolGet = (relays, filter) => getPool().get(relays, filter);
@@ -1659,14 +1663,27 @@
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
+  // Is NIP-65-only mode on for THIS account? Per account, not global, because the
+  // mode fails closed: one flag governing every account would leave an account with
+  // no published relay list unable to read or publish at all.
+  async function nip65OnlyFor(pubkey) {
+    if (!pubkey) return false;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      return !!(s && s.nip65OnlyBy && s.nip65OnlyBy[pubkey]);
+    } catch (_) {
+      return false; // can't read the setting → behave as if off, which keeps bootstrap
+    }
+  }
+
   // Relay set for reading an account's replaceable events (kind:3, kind:0, etc.).
   // The user's configured relays may not carry the freshest copy — NIP-65 declared
   // read relays often do, and purplepag.es aggregates kind:0/3/10002 as a fallback.
   // Without these, a stale or empty kind:3 on a configured relay can hide a healthy
   // 1000+ follow list that the account's NIP-65 relays do have.
   //
-  // When nip65Only is on, configured/Settings relays are excluded — the account's
-  // declared relays are the source of truth. The configured set still seeds the
+  // With NIP-65 only on for the account, configured/Settings relays are excluded —
+  // the declared relays are the source of truth. The configured set still seeds the
   // initial NIP-65 fetch (via getNip65's own relayUrls call), but once the list is
   // loaded it doesn't participate in any further reads. purplepag.es stays as a
   // read-only aggregator regardless.
@@ -1676,19 +1693,11 @@
     // Always include purplepag.es — it's a read-only aggregator, not a relay the
     // user publishes to, so it can't serve stale data the way a gossip relay can.
     const base = [...declared, 'wss://purplepag.es'];
-    // If the account has no NIP-65 list yet, fall back to configured regardless —
-    // a brand-new account has nothing else.
-    if (!declared.length) {
-      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-      // Fail closed: when nip65Only is on and the list is empty (whether genuinely
-      // absent or because the fetch failed), do NOT fall back to bootstrap relays.
-      // The user explicitly opted out of them; a silent fallback would be the wrong
-      // failure direction for a privacy feature.
-      if (settings && settings.nip65Only) return [...new Set(base)];
-      return [...new Set([...base, ...(await relayUrls(false))])];
-    }
-    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    if (settings && settings.nip65Only) return [...new Set(base)];
+    // Fail closed when this account opted out of bootstrap relays: an empty list
+    // (genuinely absent, or a fetch that failed) must NOT silently fall back to the
+    // relays the user excluded — that's the wrong failure direction for a privacy
+    // setting. Per account, so a second account without a relay list is unaffected.
+    if (await nip65OnlyFor(pubkey)) return [...new Set(base)];
     return [...new Set([...base, ...(await relayUrls(false))])];
   }
 
@@ -1831,8 +1840,7 @@
   async function postRelays() {
     const n = await getNip65(state.activePubkey);
     const declared = n ? n.write : [];
-    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    if (settings && settings.nip65Only) return [...new Set(declared)];
+    if (await nip65OnlyFor(state.activePubkey)) return [...new Set(declared)];
     // No NIP-65 list → fall back to configured so a fresh account can still publish.
     if (!declared.length) return relayUrls(true);
     return [...new Set([...declared, ...(await relayUrls(true))])];
@@ -3220,19 +3228,25 @@
     const followNum = placeholder();
     const notifNum = placeholder();
     const relayNum = placeholder();
+    // The relay label is variable, unlike the other two: the number is meaningless
+    // without saying WHICH set it counts, so loadStats() rewrites it below.
+    const relayLabel = h('span', { className: 'account-stat-block-label', textContent: 'Relays' });
     function statBlock(iconName, numEl, label) {
       const ic = icon(iconName);
       ic.classList.add('account-stat-block-ic');
       return h('div', { className: 'account-stat-block' }, [
         ic,
         numEl,
-        h('span', { className: 'account-stat-block-label', textContent: label }),
+        typeof label === 'string'
+          ? h('span', { className: 'account-stat-block-label', textContent: label })
+          : label,
       ]);
     }
+    const relayBlock = statBlock('wifi', relayNum, relayLabel);
     const topRow = h('div', { className: 'account-stat-grid' }, [
       statBlock('users', followNum, 'Following'),
       statBlock('bell', notifNum, 'Alerts'),
-      statBlock('wifi', relayNum, 'Relays'),
+      relayBlock,
     ]);
 
     // Full-width identity rows, each led by a themed icon.
@@ -3244,6 +3258,17 @@
         h('span', { className: 'account-stat-id-label', textContent: label }),
         valueEl,
       ]);
+    }
+
+    // "Not set" + a (?) glyph as ONE clickable target — a bare icon is a small
+    // tap area, and the phrase is the part the eye lands on.
+    function notSetLink(title, hash) {
+      const btn = h('button', { className: 'account-stat-notset', title });
+      const ic = icon('help-circle');
+      ic.classList.add('account-stat-help');
+      btn.append(ic, document.createTextNode('Not set'));
+      btn.addEventListener('click', () => openExtensionPage('help.html', hash));
+      return btn;
     }
 
     const nip05Val = h('div', { className: 'account-stat-id-val' });
@@ -3284,11 +3309,42 @@
       notifNum.classList.add('account-stat-num');
       if (!unseen) notifNum.classList.add('account-stat-dim');
 
-      getNip65(pubkey).then((nip65) => {
-        const count = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
+      // This number has to say WHICH relays, because it was misleading in both
+      // directions when it didn't. It counted only the declared NIP-65 set, so an
+      // account that had never published a relay list showed 0 while happily reading
+      // and writing through the bootstrap relays — 0 reads as broken. And a user with
+      // a declared list saw a count that didn't match the one in Settings, with
+      // nothing on either screen saying they measure different sets.
+      Promise.all([getNip65(pubkey), nip65OnlyFor(pubkey)]).then(async ([nip65, only]) => {
+        const declared = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
+        let count = declared;
+        let label = 'Relays';
+        let warn = false;
+        if (!declared) {
+          if (only) {
+            // Fail-closed with nothing declared: this account genuinely cannot
+            // publish. 0 is accurate here, but it's a fault to flag, not a neutral
+            // zero to dim — the same failure the per-account fix was about.
+            warn = true;
+            relayBlock.title =
+              'NIP-65 only is on for this account, but it has no published relay list — ' +
+              'it can’t publish. Publish a relay list from the Profile tab, or turn the ' +
+              'setting off in Settings.';
+          } else {
+            // Bootstrap relays are what this account is actually using. Naming them
+            // keeps the number honest instead of silently reporting a different set.
+            count = (await relayUrls(false)).length;
+            label = 'Bootstrap';
+            relayBlock.title =
+              'Using Sidecar’s bootstrap relays. Publish a relay list from the Profile ' +
+              'tab to use your own.';
+          }
+        }
         relayNum.textContent = String(count);
         relayNum.classList.add('account-stat-num');
-        if (!count) relayNum.classList.add('account-stat-dim');
+        if (warn) relayNum.classList.add('account-stat-warn');
+        else if (!count) relayNum.classList.add('account-stat-dim');
+        relayLabel.textContent = label;
       });
 
       // Identity stats — need the profile.
@@ -3307,12 +3363,7 @@
           badge.append(icon(ok ? 'check' : 'alert'));
         });
       } else {
-        const help = icon('help-circle');
-        help.classList.add('account-stat-help');
-        help.title = 'What is a NIP-05?';
-        help.addEventListener('click', () => openExtensionPage('help.html', '#nip05'));
-        nip05Val.append(help, document.createTextNode('Not set'));
-        nip05Val.classList.add('account-stat-dim');
+        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
       }
 
       if (content.lud16) {
@@ -3320,12 +3371,7 @@
         ok.classList.add('stat-mini-ok');
         lud16Val.append(ok, document.createTextNode(content.lud16));
       } else {
-        const help = icon('help-circle');
-        help.classList.add('account-stat-help');
-        help.title = 'What is a Lightning address?';
-        help.addEventListener('click', () => openExtensionPage('help.html', '#lightning-address'));
-        lud16Val.append(help, document.createTextNode('Not set'));
-        lud16Val.classList.add('account-stat-dim');
+        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
       }
 
       // Wallet: two mini badges — connected and backed up — each with a
@@ -3504,7 +3550,21 @@
           // A brand-new key has no profile yet — once they've backed it up, run a
           // short setup wizard (name → photo → bio), which publishes what they
           // fill in and lands them on the Profile tab to complete the rest.
-          onDone: () => profileSetupWizard(gen.pubkey),
+          //
+          // The backup sheet is offered AFTER the wizard, not here: it prints the
+          // display name in its TO line, so a sheet taken before the profile exists
+          // is addressed to "THE BEARER OF THIS SHEET" forever.
+          //
+          // This keeps gen.nsec reachable in the closure for the wizard's duration
+          // rather than only the reveal modal's. Considered and accepted: JS strings
+          // can't be zeroed, the panel already holds the key for the reveal, and the
+          // alternative is a PIN step-up moments after the user set the PIN. It ends
+          // when generateAccount's frame is collected.
+          onDone: () =>
+            profileSetupWizard(gen.pubkey, () => {
+              const acct = (state.accounts || []).find((a) => a.pubkey === gen.pubkey);
+              backupSheetPromptModal(gen.nsec, acct || null);
+            }),
         });
       }
     } catch (e) {
@@ -3525,7 +3585,138 @@
     return NT.nip19.nsecEncode(sk);
   }
 
+  // ---- reading a key out of a QR image (the printable backup sheet) ----
+  // jsqr.js is ~250KB, so it is injected on first use rather than loaded with the
+  // panel. It's a packaged extension resource, so a plain <script> is same-origin
+  // and passes MV3's CSP; background.js does the equivalent with importScripts.
+  let _jsqrPromise = null;
+  function ensurePanelJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    if (_jsqrPromise) return _jsqrPromise;
+    _jsqrPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'jsqr.js';
+      s.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error('QR reader failed to load')));
+      s.onerror = () => { _jsqrPromise = null; reject(new Error('QR reader failed to load')); };
+      document.head.appendChild(s);
+    });
+    return _jsqrPromise;
+  }
+
+  // Pull an nsec or ncryptsec out of decoded QR text. Liberal about a `nostr:`
+  // prefix; validation is left to the import field, which already does it.
+  function extractSecretFromText(text) {
+    const m = /(?:nostr:)?((?:nsec|ncryptsec)1[a-z0-9]{20,})/i.exec(String(text || ''));
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  // Decode `file` at one scale. Separated so callers can retry at a larger size:
+  // a phone photo of the whole sheet puts the QR in a fraction of the frame, and
+  // downscaling too far erases the modules.
+  async function decodeQrAtScale(jsQR, bmp, maxEdge) {
+    const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+    const w = Math.max(1, Math.round(bmp.width * scale));
+    const h = Math.max(1, Math.round(bmp.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bmp, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+    // attemptBoth also catches a photo of a screen showing an inverted render.
+    const res = jsQR(data, w, h, { inversionAttempts: 'attemptBoth' });
+    return res && res.data ? res.data : '';
+  }
+
+  // Read a key straight out of the backup-sheet PDF. No rasterizing: the sheet
+  // draws the nsec as a real text literal (that's what makes it selectable), so it
+  // is present verbatim in the content stream. Far more reliable than decoding a
+  // picture of the page, and the obvious thing to try when you kept the PDF —
+  // which the sheet now tells you is fine.
+  async function secretFromPdfFile(file) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    // latin1: one byte per code unit, so byte offsets survive the conversion.
+    const asText = (bytes) => {
+      let s = '';
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      return s;
+    };
+    const raw = asText(buf);
+    let secret = extractSecretFromText(raw);
+    if (secret) return secret;
+
+    // Sidecar's own sheets are uncompressed, but a PDF re-saved by another tool
+    // will have Flate-compressed streams. Inflate each one and look again.
+    if (typeof DecompressionStream === 'function') {
+      const re = /stream\r?\n/g;
+      let m;
+      while ((m = re.exec(raw))) {
+        const start = m.index + m[0].length;
+        let end = raw.indexOf('endstream', start);
+        if (end === -1) continue;
+        // Back off the EOL that precedes `endstream`. DecompressionStream rejects
+        // trailing bytes after a complete zlib stream, so including that newline
+        // fails every inflate — which is exactly the bug this comment replaces.
+        while (end > start && (buf[end - 1] === 0x0a || buf[end - 1] === 0x0d)) end--;
+        try {
+          const slice = buf.subarray(start, end);
+          const inflated = await new Response(
+            new Blob([slice]).stream().pipeThrough(new DecompressionStream('deflate'))
+          ).arrayBuffer();
+          secret = extractSecretFromText(asText(new Uint8Array(inflated)));
+          if (secret) return secret;
+        } catch (_) { /* not a Flate stream, or truncated — try the next */ }
+      }
+    }
+    throw new Error("No key found in that PDF — is it a Sidecar backup sheet?");
+  }
+
+  // Read a key from an image of the backup sheet. Entirely local — the image is a
+  // plaintext key and never leaves the extension.
+  async function secretFromImageFile(file) {
+    if (!file) throw new Error('No image to read');
+    if (file.type && !/^image\//.test(file.type)) throw new Error('That file is not an image');
+    const jsQR = await ensurePanelJsQR();
+    let bmp;
+    try {
+      bmp = await createImageBitmap(file);
+    } catch (_) {
+      throw new Error("Couldn't read that image");
+    }
+    try {
+      // Ascending sizes: the small pass is fast and usually enough for a tight
+      // crop of the code; the larger ones rescue a photo of the full page.
+      for (const edge of [1400, 2400, 4000]) {
+        const text = await decodeQrAtScale(jsQR, bmp, edge);
+        if (!text) continue;
+        const secret = extractSecretFromText(text);
+        if (secret) return secret;
+        // A QR was found but holds something else — an npub, a URL, a wallet
+        // string. Say so rather than reporting "no code found".
+        throw new Error('That QR code is not a private key');
+      }
+      throw new Error('No QR code found in that image');
+    } finally {
+      if (bmp.close) bmp.close();
+    }
+  }
+
+  // Route on what the user actually picked, so the PDF and a photo of it both work.
+  function secretFromFile(file) {
+    if (!file) throw new Error('No file to read');
+    const isPdf = /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
+    return isPdf ? secretFromPdfFile(file) : secretFromImageFile(file);
+  }
+
   function importAccountModal() {
+    // Held outside the builder so the close handler below can stop the camera on
+    // ANY exit — Save, Cancel, the X, Esc. A MediaStream left running keeps the
+    // camera light on after the modal is gone, which looks like the extension
+    // watching you.
+    let stopCamera = null;
     openModal((modal) => {
       modal.append(h('h3', { textContent: 'Import account' }));
       const err = h('div', { className: 'error' });
@@ -3535,6 +3726,125 @@
         placeholder: 'nsec1…, ncryptsec1…, or 64-char hex',
       });
       modal.append(h('label', { textContent: 'Private key' }), secretInput);
+
+      // Read the key from a photo or scan of the printable backup sheet, so
+      // restoring doesn't mean transcribing 63 bech32 characters by hand. Fills the
+      // field above and fires its input event, so the existing validation, ncryptsec
+      // detection and profile preview all run exactly as if it had been typed.
+      // Stacked rather than side by side: "Scan with camera" wrapped to two lines in
+      // a ~360px panel, which made the pair look cramped and unequal. Icon + label
+      // matches the Generate/Import buttons on the Accounts tab (.add-actions).
+      const camBtn = h('button', { className: 'secondary hidden', type: 'button' }, [
+        icon('qr'),
+        h('span', { textContent: 'Scan with camera' }),
+      ]);
+      const fileBtn = h('button', { className: 'secondary', type: 'button' }, [
+        icon('file-text'),
+        h('span', { textContent: 'Choose file' }),
+      ]);
+      const scanRow = h('div', { className: 'scan-qr-row' }, [camBtn, fileBtn]);
+      // Labels live in their own spans: assigning textContent to the button would
+      // remove the icon along with the text.
+      const camLabel = camBtn.querySelector('span');
+      const fileLabel = fileBtn.querySelector('span');
+
+      camBtn.classList.remove('hidden');
+      const scanHint = h('div', {
+        className: 'hint compact scan-qr-hint',
+        // Leads with the PDF because it's the most reliable path and the one people
+        // are most likely to have — the sheet tells them keeping the file is fine.
+        textContent: 'Choose your backup sheet — the PDF, a photo, or a scan. You can paste an image here too.',
+      });
+      const scanFile = document.createElement('input');
+      scanFile.type = 'file';
+      // The PDF matters as much as the image: the sheet tells people keeping the
+      // file is fine, so uploading it is the obvious move — refusing it was a gap.
+      scanFile.accept = 'application/pdf,image/*';
+      scanFile.style.display = 'none';
+
+      function accept(secret, how) {
+        secretInput.value = secret;
+        // Drive the existing pipeline rather than duplicating any of it.
+        secretInput.dispatchEvent(new Event('input'));
+        toast('Key read from ' + how, 'success');
+      }
+
+      async function readFile(file) {
+        err.textContent = '';
+        fileBtn.disabled = true;
+        fileLabel.textContent = 'Reading…';
+        try {
+          accept(await secretFromFile(file), /pdf/i.test(file.type || '') ? 'PDF' : 'image');
+        } catch (e) {
+          err.textContent = e.message;
+        }
+        fileBtn.disabled = false;
+        fileLabel.textContent = 'Choose file';
+      }
+
+      fileBtn.addEventListener('click', () => scanFile.click());
+      scanFile.addEventListener('change', () => {
+        const f = scanFile.files && scanFile.files[0];
+        scanFile.value = ''; // let the same file be picked again after a failure
+        if (f) readFile(f);
+      });
+
+      // The scan runs in its own popup window (scan-qr.html), not here: MV3 side
+      // panels can't surface the camera permission prompt, so getUserMedia rejects
+      // in this surface immediately. That window hands the key to the service worker,
+      // which parks it for exactly one claim.
+      //
+      // Polling rather than an event: the panel doesn't own the window (the scanner
+      // closes itself), so there's no id to hang windows.onRemoved on. A short poll
+      // that stops on the first hit is simpler than tracking it.
+      camBtn.addEventListener('click', async () => {
+        err.textContent = '';
+        if (stopCamera) stopCamera(); // a re-click replaces the previous poll
+        camBtn.disabled = true;
+        camLabel.textContent = 'Scanning…';
+        try {
+          await call({ type: 'SIDECAR_OPEN_QR_SCANNER' });
+        } catch (_) {
+          camBtn.disabled = false;
+          camLabel.textContent = 'Scan with camera';
+          err.textContent = "Couldn't open the scanner window.";
+          return;
+        }
+        let tries = 0;
+        const MAX = 180; // ~90s at 500ms, matching the worker's parked-value TTL
+        const timer = setInterval(async () => {
+          if (++tries > MAX) return stopCamera && stopCamera();
+          let value = null;
+          try {
+            value = (await call({ type: 'SIDECAR_QR_SECRET_CLAIM' })).value;
+          } catch (_) {
+            return; // worker momentarily asleep; keep polling
+          }
+          if (!value) return;
+          if (stopCamera) stopCamera();
+          accept(value, 'camera');
+        }, 500);
+        // Assigned to stopCamera so the modal's close handler tears the poll down as
+        // well — otherwise it keeps running after the modal is gone, and a late claim
+        // would consume the one-shot key with nowhere to put it.
+        stopCamera = () => {
+          clearInterval(timer);
+          stopCamera = null;
+          camBtn.disabled = false;
+          camLabel.textContent = 'Scan with camera';
+        };
+      });
+
+      // Paste a screenshot straight in — the common case when the sheet was
+      // photographed on a phone and sent over.
+      modal.addEventListener('paste', (e) => {
+        const items = (e.clipboardData && e.clipboardData.files) || [];
+        const f = [...items].find((x) => /^image\//.test(x.type) || /pdf/i.test(x.type));
+        if (!f) return;
+        e.preventDefault();
+        readFile(f);
+      });
+      modal.append(scanRow, scanHint, scanFile);
 
       // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
       // to decrypt — shown only once the pasted value looks like one.
@@ -3631,7 +3941,8 @@
       cancel.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [save, cancel]));
       setTimeout(() => secretInput.focus(), 50);
-    });
+    },
+    () => { if (stopCamera) { stopCamera(); stopCamera = null; } });
   }
 
   function accountMenuModal(a) {
@@ -3815,6 +4126,61 @@
   // the post-generate "back this up now" flow (a brand-new key has no
   // ncryptsec-export use case yet). Backing up an *existing* account's key
   // goes through keyBackupModal instead, which offers both nsec and ncryptsec.
+  // Download the printable backup sheet (see pdf-backup.js) for one account.
+  // Generated entirely in the panel — the nsec never leaves the extension, and no
+  // network call is involved.
+  function downloadBackupSheet(nsec, account) {
+    try {
+      const npub = (account && account.npub) || (nsec ? NT.nip19.npubEncode(NT.nip19.decode(nsec).data) : '');
+      const blob = window.SidecarBackupPdf.build({
+        nsec,
+        npub,
+        // Only present for an existing account; a key made seconds ago has no
+        // profile yet, and the sheet falls back to "THE BEARER OF THIS SHEET".
+        name: account && account.name ? displayName(account) : '',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = window.SidecarBackupPdf.filename(npub);
+      a.click();
+      URL.revokeObjectURL(url);
+      // Addresses the file rather than the printed sheet. Keeping the PDF is fine —
+      // a password manager or an encrypted drive is a good home for it. What isn't
+      // fine is leaving it in ~/Downloads or mailing it to yourself, so say that
+      // rather than telling people to delete something they may want to keep.
+      toast('Downloaded — store it safely, never by email', 'success');
+      return true;
+    } catch (e) {
+      toast("Couldn't create the backup sheet", 'error');
+      return false;
+    }
+  }
+
+  // Offered once, after the setup wizard, so the sheet carries their name.
+  // Dismissible: the key is already stored, so gating anything here would be
+  // theatre. Copy is deliberately two lines — this renders in a ~360px panel,
+  // and a wall of text in a small rectangle just gets clicked past.
+  function backupSheetPromptModal(nsec, account) {
+    openModal((modal) => {
+      const grab = h('button', { className: 'primary', textContent: 'Download' });
+      grab.addEventListener('click', () => {
+        downloadBackupSheet(nsec, account);
+        closeModal();
+      });
+      const skip = h('button', { className: 'ghost', textContent: 'Not now' });
+      skip.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Print a backup sheet' }),
+        h('p', {
+          className: 'hint',
+          textContent: 'One page with your key and a QR code. Print it, or keep the file somewhere safe.',
+        }),
+        h('div', { className: 'actions' }, [grab, skip])
+      );
+    });
+  }
+
   function nsecModal(opts) {
     let stop = null;
     openModal(
@@ -3822,6 +4188,11 @@
         const body = h('div', {});
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
+
+        // No sheet button here on purpose. At account creation there is no profile
+        // yet, and the sheet prints the display name — one taken now is addressed to
+        // "THE BEARER OF THIS SHEET" permanently. It's offered after the setup
+        // wizard instead (see generateAccount), and from Profile → Backup & restore.
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
@@ -3935,32 +4306,43 @@
   }
 
   // PIN-gated step-up, then the tabbed nsec/ncryptsec backup view below.
-  function backupKeyModal(a) {
+  // opts.sheetOnly: the caller wants the printable sheet, so the PIN gate hands the
+  // revealed nsec straight to the download instead of putting it on screen. Same
+  // gate either way — the sheet is the key in another wrapper.
+  function backupKeyModal(a, opts) {
+    const sheetOnly = !!(opts && opts.sheetOnly);
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Reveal' });
+      const goLabel = sheetOnly ? 'Download sheet' : 'Reveal';
+      const go = h('button', { className: 'primary', textContent: goLabel });
       go.addEventListener('click', async () => {
         err.textContent = '';
         if (!pin.value) return (err.textContent = 'Enter your PIN.');
         go.disabled = true;
-        go.textContent = 'Revealing…';
+        go.textContent = sheetOnly ? 'Preparing…' : 'Revealing…';
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
           closeModal();
-          setTimeout(() => keyBackupModal(a, r.nsec), 0);
+          if (sheetOnly) downloadBackupSheet(r.nsec, a);
+          else setTimeout(() => keyBackupModal(a, r.nsec), 0);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
-          go.textContent = 'Reveal';
+          go.textContent = goLabel;
           toast(e.message, 'error');
         }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Back up private key' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the key for ' + displayName(a) + '.' }),
+        h('h3', { textContent: sheetOnly ? 'Download key sheet' : 'Back up private key' }),
+        h('p', {
+          className: 'hint',
+          textContent: sheetOnly
+            ? 'Enter your PIN to build a printable backup sheet for ' + displayName(a) + '.'
+            : 'Enter your PIN to reveal the key for ' + displayName(a) + '.',
+        }),
         h('label', { textContent: 'PIN' }),
         pin,
         err,
@@ -4064,6 +4446,18 @@
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
 
+        // Also offered here, so someone who came to look at the key can leave with
+        // the printable copy instead of reaching for a screenshot.
+        const sheet = h('button', { className: 'secondary', textContent: 'Download backup sheet' });
+        sheet.addEventListener('click', () => {
+          downloadBackupSheet(nsec, a);
+          // RESTART the 30s auto-hide rather than cancelling it. Cancelling would
+          // leave the nsec on screen indefinitely, trading shoulder-surfing
+          // protection for the convenience of one click; restarting gives a full
+          // fresh window without ever removing the guard.
+          if (tabNsec.classList.contains('active')) showNsecTab();
+        });
+
         modal.append(
           h('h3', { textContent: 'Back up private key' }),
           h('p', {
@@ -4072,7 +4466,7 @@
           }),
           h('div', { className: 'modal-tabs' }, [tabNsec, tabNcrypt]),
           body,
-          h('div', { className: 'actions' }, [done])
+          h('div', { className: 'actions' }, [sheet, done])
         );
 
         showNsecTab();
@@ -4164,9 +4558,17 @@
     }
     fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
     $('zapflash-toggle').checked = settings.zapFlash !== false; // default on
-    $('nip65-only-toggle').checked = settings.nip65Only === true; // default off
+    // Per account: reflects the ACTIVE account, and the label below names it so the
+    // scope is unmistakable when more than one account exists.
+    const nip65Only = await nip65OnlyFor(state.activePubkey);
+    $('nip65-only-toggle').checked = nip65Only;
     const relayBody = $('relay-section-body');
-    if (relayBody) relayBody.classList.toggle('dimmed', settings.nip65Only === true);
+    if (relayBody) relayBody.classList.toggle('dimmed', nip65Only);
+    const nip65Scope = $('nip65-only-scope');
+    if (nip65Scope) {
+      const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey);
+      nip65Scope.textContent = acct ? 'for ' + displayName(acct) : '';
+    }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
     $('autozap-max').value = String(azMax);
@@ -6657,7 +7059,9 @@
   // Finish, "I'll do this later", the X, or the backdrop — runs `commit` once
   // (guarded), which publishes BEFORE closing so the profile never flashes the
   // interim auto-generated cocktail name.
-  function profileSetupWizard(newPubkey) {
+  // onDone runs after the wizard commits, whichever way it exits (finish, "later",
+  // or the X) — commit() is the single exit for all three.
+  function profileSetupWizard(newPubkey, onDone) {
     const draft = { display_name: '', picture: '', about: '' };
     const STEPS = 3;
     let step = 1;
@@ -6696,6 +7100,9 @@
       renderMain();
       closeModal();
       if (hasContent && targetOk) toast('Profile saved', 'success');
+      // Deferred a tick for the same reason nsecModal defers: closeModal clears
+      // #modal right after this returns, and onDone opens another modal.
+      if (onDone) setTimeout(onDone, 0);
     }
 
     openModal(
@@ -7446,9 +7853,8 @@
         status.classList.add('done');
         toast('Relay list published', 'success');
         // Offer to switch to NIP-65-only mode if bootstrap relays are still active.
-        const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-        if (settings && !settings.nip65Only) {
-          maybeOfferNip65Only();
+        if (!(await nip65OnlyFor(active.pubkey))) {
+          maybeOfferNip65Only(active.pubkey);
         }
       } catch (e) {
         err.textContent = e.message;
@@ -7474,10 +7880,13 @@
   // bootstrap relays. The user's declared relays are now the source of truth;
   // the bootstrap set only added noise (and stale data, as the follow-count bug
   // showed). A one-time confirmation modal — not a silent settings change.
-  let nip65OnlyNudged = false;
-  function maybeOfferNip65Only() {
-    if (nip65OnlyNudged) return;
-    nip65OnlyNudged = true;
+  //
+  // Tracked per pubkey, because the setting is per account: declining for one
+  // identity must not silently swallow the offer for the next one you publish from.
+  const nip65OnlyNudged = new Set();
+  function maybeOfferNip65Only(pubkey) {
+    if (!pubkey || nip65OnlyNudged.has(pubkey)) return;
+    nip65OnlyNudged.add(pubkey);
     openModal((modal) => {
       modal.append(
         h('div', { className: 'setup-modal' }, [
@@ -7488,7 +7897,9 @@
           h('div', { className: 'row-actions' }, [
             h('button', { className: 'secondary', textContent: 'Not now', onclick: closeModal }),
             h('button', { className: 'primary', textContent: 'Use my relays only', onclick: async () => {
-              await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nip65Only: true } });
+              // `pubkey`, not state.activePubkey — the account whose list was just
+              // published is the one this applies to, even if the active one changed.
+              await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey, on: true });
               closeModal();
               toast('Now using your NIP-65 relays only', 'success');
             }}),
@@ -7820,6 +8231,27 @@
       exportBtn.disabled = false;
     });
 
+    // The printable key sheet. Deliberately in its own block below the JSON export
+    // with its own heading and warning: that file contains no secret and is safe to
+    // click, this one IS the key. Two lookalike buttons side by side would invite
+    // exactly the mistake that matters most here.
+    const sheetWrap = h('div', { className: 'export-block' });
+    sheetWrap.append(
+      h('h3', { textContent: 'Printable key sheet' }),
+      h('p', {
+        className: 'hint',
+        textContent:
+          'A one-page sheet with your secret key as text and a QR, made to be printed and kept somewhere safe. Unlike the file above, this IS your key — never send it by email or chat.',
+      })
+    );
+    const sheetBtn = h('button', { className: 'secondary', textContent: 'Download key sheet' });
+    sheetBtn.addEventListener('click', () => {
+      // Same step-up PIN gate as revealing the nsec anywhere else — the sheet is
+      // the key in another wrapper, so it can't be a cheaper way to get at it.
+      backupKeyModal(active, { sheetOnly: true });
+    });
+    sheetWrap.append(sheetBtn);
+
     const importBtn = h('button', { className: 'secondary', textContent: 'Restore from file' });
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -7839,7 +8271,7 @@
     });
 
     exportWrap.append(exportBtn, importBtn, fileInput);
-    setting.append(exportWrap);
+    setting.append(exportWrap, sheetWrap);
 
     // Follow-list recovery — scan relays for an older kind:3 and republish it.
     const recoveryWrap = h('div', { className: 'export-block recovery-block' });
@@ -8890,24 +9322,17 @@
       className: 'hint compact',
       textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
     }));
-    const quickBtn = h('button', { className: 'secondary', textContent: 'Quick start with Rizful' });
+    // Rizful carries the recommended tint — it's the one-minute path for someone
+    // with no wallet at all. The directory link sits in the same card as a
+    // co-equal second choice rather than a footnote below it, so "I'd rather pick
+    // my own" is visible at the same moment as "just set one up for me".
+    const quickBtn = h('button', { className: 'secondary wallet-quickstart-primary', textContent: 'Quick start with Rizful' });
     quickBtn.addEventListener('click', rizfulQuickStartModal);
     quick.append(quickBtn);
+    const browseBtn = h('button', { className: 'secondary wallet-quickstart-browse', textContent: 'Browse all wallets' });
+    browseBtn.addEventListener('click', () => openExtensionPage('wallets.html'));
+    quick.append(browseBtn);
     view.append(quick);
-
-    // Reads as the continuation of the quick-start block above rather than a
-    // consolation prize, so it's framed as more options rather than "you must not
-    // have one".
-    const find = h('a', {
-      className: 'explore-link wallet-find-link',
-      href: '#',
-      textContent: 'More Lightning wallet options →',
-    });
-    find.addEventListener('click', (e) => {
-      e.preventDefault();
-      openExtensionPage('wallets.html');
-    });
-    view.append(find);
   }
 
   async function renderWalletConnected(view) {
@@ -9169,8 +9594,12 @@
         // Name the cause when the client could work it out (#120): a relay that's
         // down reads as a Sidecar failure otherwise. Kept short — this sits under
         // the balance in a narrow panel; the full sentence goes in the toast.
-        unit.textContent = e && e.relayDown ? 'wallet relay unreachable' : 'balance unavailable';
-        if (e && (e.relayDown || e.walletSilent)) toast(e.message, 'error');
+        unit.textContent = e && e.relayDown
+          ? 'wallet relay unreachable'
+          : e && e.staleSocket
+            ? 'connection lost — retry'
+            : 'balance unavailable';
+        if (e && (e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
       }
     }
     bal.classList.remove('loading');
@@ -10195,7 +10624,7 @@
   // once the account has a declared relay list. The configured set still seeds
   // the initial NIP-65 fetch; this toggle governs everything after that.
   $('nip65-only-toggle').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nip65Only: e.target.checked } });
+    await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: e.target.checked });
     $('relay-section-body')?.classList.toggle('dimmed', e.target.checked);
   });
 
