@@ -1647,9 +1647,13 @@
   }
 
   // ---- relay pool (fetch + publish) ----
+  // enableReconnect: nostr-tools defaults it to false, which means a socket dropped
+  // while the panel sat idle is never reopened — the same latent bug the NWC client
+  // had. The panel is long-lived, so this pool is exactly where it bites: a composer
+  // publish or profile fetch after the laptop wakes would go into a dead socket.
   let _pool = null;
   function getPool() {
-    if (!_pool) _pool = new NT.SimplePool();
+    if (!_pool) _pool = new NT.SimplePool({ enableReconnect: true });
     return _pool;
   }
   const poolGet = (relays, filter) => getPool().get(relays, filter);
@@ -9537,8 +9541,12 @@
         // Name the cause when the client could work it out (#120): a relay that's
         // down reads as a Sidecar failure otherwise. Kept short — this sits under
         // the balance in a narrow panel; the full sentence goes in the toast.
-        unit.textContent = e && e.relayDown ? 'wallet relay unreachable' : 'balance unavailable';
-        if (e && (e.relayDown || e.walletSilent)) toast(e.message, 'error');
+        unit.textContent = e && e.relayDown
+          ? 'wallet relay unreachable'
+          : e && e.staleSocket
+            ? 'connection lost — retry'
+            : 'balance unavailable';
+        if (e && (e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
       }
     }
     bal.classList.remove('loading');

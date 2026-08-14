@@ -77,7 +77,16 @@
     // most a couple of clients are alive at once and the validation probes are
     // short-lived.
     let _pool = null;
-    const pool = () => (_pool || (_pool = new NT.SimplePool()));
+    // enableReconnect, because nostr-tools defaults it to FALSE: without it,
+    // handleHardClose closes every subscription and never reopens, so one dropped
+    // socket leaves this client permanently dead. Every later request then publishes
+    // into a corpse and waits out the full REQUEST_TIMEOUT — which is how a healthy
+    // relay got reported as "the relay looks down".
+    //
+    // Not a complete fix on its own: reconnect backoff starts at 10s and the kind:23195
+    // reply is ephemeral, so a request already in flight is still lost. It keeps a
+    // long-lived client healthy; getSwNwc's invalidation handles the in-flight case.
+    const pool = () => (_pool || (_pool = new NT.SimplePool({ enableReconnect: true })));
     let closed = false;
 
     const encrypt = (text) => NT.nip04.encrypt(sk, walletPubkey, text);
@@ -104,6 +113,10 @@
           );
           let settled = false;
           let timer = null;
+          // Whether any relay accepted the request event. Distinguishes "nobody heard
+          // us" (a dead local socket) from "we were heard and nothing came back"
+          // (a quiet wallet) when the timeout fires.
+          let published = false;
           // nostr-tools ≥2.20 subscriptions take a single filter object, not an array.
           const sub = pool().subscribeMany(
             [relay],
@@ -143,6 +156,15 @@
               const host = (() => { try { return new URL(relay).host; } catch (_) { return relay; } })();
               err = new Error("Can't reach your wallet's relay (" + host + ") — the relay looks down, not Sidecar.");
               err.relayDown = true;
+            } else if (!published) {
+              // Third case, and the one that produced a false accusation: the relay
+              // answers a fresh probe, but OUR socket never accepted the publish — a
+              // connection that died while idle. Blaming the relay or the wallet is
+              // wrong; the honest answer is that the link went stale and a retry
+              // (which now builds a new client — see closeSwNwc in payAndConfirm)
+              // will work.
+              err = new Error('Lost the connection to your wallet — please try again.');
+              err.staleSocket = true;
             } else {
               err = new Error("Your wallet didn't respond in time — it may be offline or not running.");
               err.walletSilent = true;
@@ -153,6 +175,7 @@
           }, timeoutMs || REQUEST_TIMEOUT);
           try {
             await Promise.any(pool().publish([relay], reqEvent));
+            published = true;
           } catch (_) {
             /* if no relay accepted, the timeout will reject — with a probed message */
           }
