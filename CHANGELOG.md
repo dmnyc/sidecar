@@ -7,6 +7,27 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.9.0] — 2026-08-14
+
+### Added
+- **A printable backup sheet for a new key.** After you've set a name, picture and bio, Sidecar offers a one-page PDF holding the key it just generated — styled as an old-fashioned telegram, set in Courier, generated entirely in the browser with no library and no network call. The nsec is on it twice: as selectable text you can copy, and as a QR you can scan back in. A serial derived from the npub (`NP-AEH2ZW-CQ4NWX`) lets you tell one sheet from another, and match a sheet to an identity, without revealing anything secret. The tinted paper stock is an optional content group set to off for printing, so it looks like a telegram on screen without flooding a printer with ink; the border carries the color instead. Dismissible — it interrupts once, at the only moment the key is new and unsaved. (#175)
+- **Import a key by scanning the backup sheet.** Four ways in, because the sheet is only useful if it reads back: upload a photo or screenshot of it, upload the PDF itself, paste an image straight from the clipboard, or scan the sheet live with your camera. The camera runs in its own popup window rather than the side panel — a side panel can't surface a camera permission prompt, so the button there would have failed silently forever. Decoding happens locally; nothing is uploaded. (#182, #183)
+- **Account overview.** A collapsible drawer under the active account showing what's actually configured for it: following count, unread alerts, relay count, NIP-05, Lightning address, and whether a wallet is connected *and* backed up. Each unset field links to the part of the guide that explains what it is and why you'd want it, rather than just reporting a blank. (#173)
+- **Bootstrap relays can be turned off, per account.** Sidecar seeds a small default relay set so a brand-new key can reach the network at all. Once you've published your own relay list from the Profile tab, Sidecar offers to stop using the defaults for that account and read and publish only through the relays you declared. Set per account, not globally — see below for why that distinction is load-bearing. (#173, #186)
+- **A way out of a payment that looks stuck.** A zap that hasn't confirmed after 15 seconds now offers to stop waiting, instead of leaving you watching a spinner for the full timeout. Stopping only stops *watching*: the payment is still in flight, and the card says so rather than claiming it failed. (#180)
+- **`relay-doctor`, a NIP-65 auditor for the command line.** Checks a relay set for liveness and for whether it will actually deliver — a relay that accepts your connection but refuses your events, or serves reads but not writes, looks healthy in every client and quietly costs you posts. Reports healthy / gated / auth-gated / not-serving / down per relay, plus size and mailbox-deliverability advisories. No dependencies, and it never handles a private key. Documented in `docs/relay-doctor.md`.
+- **Three additions to the app directory** — Circl, SatsList's official mark, and a proper tile for Nostr Archives.
+
+### Fixed
+- **The wallet no longer dies on a dropped connection.** The NWC client cached a pool whose socket had closed, and nostr-tools defaults `enableReconnect` to false, so once that socket died the client reused the corpse forever — every payment and balance check failed until the service worker happened to be evicted and rebuilt it. Recovery was accidental, which is why it read as intermittent. Reconnect is now on, and a request that publishes nothing is named as a lost connection rather than a silent wallet. (#178, #185)
+- **NIP-65 only was a single global switch, and it fails closed.** With it on, publishing uses only the account's declared write relays and never falls back to the defaults — correct for an account that has published a relay list, and fatal for one that hasn't. Turning it on for one identity left every other identity with an empty publish set, unable to post at all, deterministically, until it came back off. Now stored per account. (#186)
+- **The overview's relay count didn't say which relays it counted.** It reported only the declared NIP-65 set, so an account that had never published a relay list showed `0` while reading and writing perfectly well through the bootstrap relays — and `0` reads as broken, not as "using defaults." An account that *had* published saw a number that didn't match Settings, with nothing on either screen explaining that the two measure different sets. The count now names its source, and the one case where zero is genuinely a fault is flagged as one. (#186)
+
+### Changed
+- **The help guide's navigation is a dropdown.** The section list had grown long enough to push the guide's actual content below the fold. Sections now collapse into a menu in the guide's own visual style, with Nostr apps and Wallets kept outside it as the two destinations people arrive looking for. (#173)
+- **The wallet quick-start points at the wallet directory.** With no wallet connected, the route to the full list of options was buried below the Rizful quick-start; it now sits in the same card. (#173)
+- **Store packages no longer carry `docs/`.** Release guides, store descriptions and internal notes were being zipped into the uploaded build.
+
 ## [1.8.0] — 2026-08-12
 
 ### Added
