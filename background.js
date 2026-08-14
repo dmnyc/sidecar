@@ -1310,6 +1310,20 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 // ============================================================================
 // The NWC client runs here in the SW (it only needs NostrTools + WebSocket), so
 // WebLN works whether or not the side panel is open.
+// ---- scanned key: one-shot hand-off from the QR window ----
+//
+// MV3 side panels can't surface the camera permission prompt (no address bar to
+// anchor it to), so the scan runs in its own popup window and hands the key back
+// through here. Parked rather than broadcast: runtime.sendMessage with no target
+// reaches every extension context, and an nsec shouldn't depend on ours being the
+// only listener.
+//
+// Module-level and never persisted on purpose — writing it to storage would leave
+// a key recoverable from disk or surviving a crash, which is the whole thing we're
+// avoiding. Time-boxed so an unclaimed scan (window closed, user walked away)
+// can't sit in memory; the panel polls and claims it exactly once.
+const QR_SECRET_TTL_MS = 90000;
+let qrSecret = null; // { value, at } | null
 let swNwc = null; // { client, pubkey }
 async function getSwNwc(pubkey) {
   if (swNwc && swNwc.pubkey === pubkey) return swNwc.client;
@@ -2053,6 +2067,7 @@ async function lockKeystore(auto = false) {
   await KS.lock();
   SIGNER.clearCache();
   closeSwNwc();
+  qrSecret = null; // a scanned key must not outlive the unlocked session
   chrome.alarms.clear(AUTO_LOCK_ALARM);
   // A lock ends any active relax window: the keys are gone, so auto-approving
   // signs makes no sense, and idle auto-lock is exactly the "walked away" case
@@ -2500,6 +2515,39 @@ async function handleControl(message, sendResponse) {
         const kept = all.filter((e) => e.pubkey !== me);
         await sset({ [ACTIVITY_KEY]: kept });
         result = [];
+        break;
+      }
+      // ---- QR scan hand-off (see the qrSecret notes above) ----
+      case 'SIDECAR_OPEN_QR_SCANNER': {
+        // Its own window, NOT the shared approval popup — reusing popupWindowId
+        // would let a scan and a signing prompt evict each other.
+        await new Promise((res) => {
+          chrome.windows.create(
+            { url: chrome.runtime.getURL('scan-qr.html'), type: 'popup', width: 420, height: 560, focused: true },
+            () => { void chrome.runtime.lastError; res(); }
+          );
+        });
+        result = { ok: true };
+        break;
+      }
+      case 'SIDECAR_QR_SECRET':
+        // Parked here rather than broadcast: sendMessage with no target fans out to
+        // every extension context, and an nsec must not rely on ours being the only
+        // listener. Rejected unless it decodes as a key.
+        if (typeof message.value === 'string' && /^(nsec|ncryptsec)1[a-z0-9]{20,}$/i.test(message.value.trim())) {
+          qrSecret = { value: message.value.trim().toLowerCase(), at: Date.now() };
+          result = { ok: true };
+        } else {
+          result = { ok: false };
+        }
+        break;
+      case 'SIDECAR_QR_SECRET_CLAIM': {
+        // Single-use AND time-boxed: read out, then clear unconditionally, so a
+        // stale value can never be claimed twice.
+        const parked = qrSecret;
+        qrSecret = null;
+        const fresh = parked && Date.now() - parked.at <= QR_SECRET_TTL_MS;
+        result = { value: fresh ? parked.value : null };
         break;
       }
       case 'SIDECAR_SET_NWC':

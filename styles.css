@@ -668,13 +668,20 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .scan-qr-row { display: flex; gap: 8px; margin-top: 10px; }
 .scan-qr-row button { flex: 1; min-width: 0; }
 .scan-qr-hint { margin-top: 6px; }
-/* Live camera preview. Capped so it can't push the Save button off a short panel,
-   and mirrored — an unmirrored self-view makes aiming a held sheet feel backwards. */
-.scan-qr-video {
-  display: block; width: 100%; max-height: 200px; margin-top: 10px;
+
+/* scan-qr.html — the standalone scanner popup. The camera can't be opened from the
+   side panel (MV3 suppresses the permission prompt there), so it lives in its own
+   window. Mirrored preview: an unmirrored self-view makes aiming a held sheet feel
+   backwards. */
+.scanq-body { margin: 0; }
+.scanq { padding: 18px 20px 20px; text-align: center; }
+.scanq h3 { margin: 12px 0 6px; }
+.scanq-video {
+  display: block; width: 100%; max-height: 320px; margin: 12px 0 4px;
   border-radius: 12px; border: 1px solid var(--gold-soft);
   background: #000; object-fit: cover; transform: scaleX(-1);
 }
+.scanq-err { color: var(--warn); }
 
 .import-preview {
   display: flex; align-items: center; gap: 11px; padding: 10px 12px; margin-top: 8px;

@@ -3666,71 +3666,6 @@
     return isPdf ? secretFromPdfFile(file) : secretFromImageFile(file);
   }
 
-  // Live camera scan — hold the printed sheet up to the webcam. Returns a stop()
-  // that the caller MUST invoke: leaving a MediaStream open keeps the camera light
-  // on after the modal is gone, which reads as the extension spying.
-  function startQrCamera(videoEl, onFound, onError) {
-    let stream = null;
-    let timer = null;
-    let stopped = false;
-    const canvas = document.createElement('canvas');
-
-    function stop() {
-      stopped = true;
-      clearInterval(timer);
-      timer = null;
-      if (stream) {
-        stream.getTracks().forEach((t) => { try { t.stop(); } catch (_) {} });
-        stream = null;
-      }
-      try { videoEl.srcObject = null; } catch (_) {}
-    }
-
-    (async () => {
-      let jsQR;
-      try {
-        jsQR = await ensurePanelJsQR();
-        // `environment` is a hint, not a requirement — a laptop only has a front
-        // camera and must still work, so this is not an exact constraint.
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
-        });
-      } catch (e) {
-        // Denied, no camera, or blocked by the surface we're rendered in. Say so
-        // and let the file path carry the user — never leave them stuck here.
-        onError(
-          e && e.name === 'NotAllowedError'
-            ? 'Camera access was blocked. Use "Choose file" instead.'
-            : 'No camera available here. Use "Choose file" instead.'
-        );
-        return;
-      }
-      if (stopped) return stop(); // modal closed while we were asking
-      videoEl.srcObject = stream;
-      try { await videoEl.play(); } catch (_) {}
-
-      timer = setInterval(() => {
-        if (stopped) return;
-        const w = videoEl.videoWidth;
-        const h = videoEl.videoHeight;
-        if (!w || !h) return; // first frames arrive before dimensions are known
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(videoEl, 0, 0, w, h);
-        const { data } = ctx.getImageData(0, 0, w, h);
-        const res = jsQR(data, w, h, { inversionAttempts: 'dontInvert' });
-        if (!res || !res.data) return;
-        const secret = extractSecretFromText(res.data);
-        if (!secret) return; // some other QR wandered into frame — keep looking
-        stop();
-        onFound(secret);
-      }, 250);
-    })();
-
-    return stop;
-  }
-
   function importAccountModal() {
     // Held outside the builder so the close handler below can stop the camera on
     // ANY exit — Save, Cancel, the X, Esc. A MediaStream left running keeps the
@@ -3755,32 +3690,13 @@
       const fileBtn = h('button', { className: 'secondary', type: 'button', textContent: 'Choose file' });
       const scanRow = h('div', { className: 'scan-qr-row' }, [camBtn, fileBtn]);
 
-      // The camera button starts hidden and is only revealed where it can actually
-      // work. Chrome and Firefox suppress the camera permission prompt in a side
-      // panel / sidebar — there's no address bar to anchor it to — so getUserMedia
-      // rejects immediately there. Offering a button that always fails is worse than
-      // not offering one, so ask the Permissions API first and stay hidden on
-      // 'denied'. Where the surface does allow it, the button appears.
-      (async () => {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-        try {
-          const st = await navigator.permissions.query({ name: 'camera' });
-          if (st.state === 'denied') return;
-        } catch (_) {
-          // No Permissions API, or 'camera' unsupported as a descriptor. Show the
-          // button and let the graceful getUserMedia failure handle it.
-        }
-        camBtn.classList.remove('hidden');
-      })();
+      camBtn.classList.remove('hidden');
       const scanHint = h('div', {
         className: 'hint compact scan-qr-hint',
-        // Leads with the PDF because it's the reliable path and the one people have:
-        // the sheet tells them keeping the file is fine. The camera is mentioned only
-        // by its button, which is hidden where the surface won't allow it.
+        // Leads with the PDF because it's the most reliable path and the one people
+        // are most likely to have — the sheet tells them keeping the file is fine.
         textContent: 'Choose your backup sheet — the PDF, a photo, or a scan. You can paste an image here too.',
       });
-      const video = h('video', { className: 'scan-qr-video hidden', muted: true, playsInline: true });
-      video.muted = true;
       const scanFile = document.createElement('input');
       scanFile.type = 'file';
       // The PDF matters as much as the image: the sheet tells people keeping the
@@ -3815,35 +3731,50 @@
         if (f) readFile(f);
       });
 
-      camBtn.addEventListener('click', () => {
+      // The scan runs in its own popup window (scan-qr.html), not here: MV3 side
+      // panels can't surface the camera permission prompt, so getUserMedia rejects
+      // in this surface immediately. That window hands the key to the service worker,
+      // which parks it for exactly one claim.
+      //
+      // Polling rather than an event: the panel doesn't own the window (the scanner
+      // closes itself), so there's no id to hang windows.onRemoved on. A short poll
+      // that stops on the first hit is simpler than tracking it.
+      camBtn.addEventListener('click', async () => {
         err.textContent = '';
-        if (stopCamera) { // already running — treat as cancel
-          stopCamera();
-          stopCamera = null;
-          video.classList.add('hidden');
+        if (stopCamera) stopCamera(); // a re-click replaces the previous poll
+        camBtn.disabled = true;
+        camBtn.textContent = 'Scanning…';
+        try {
+          await call({ type: 'SIDECAR_OPEN_QR_SCANNER' });
+        } catch (_) {
+          camBtn.disabled = false;
           camBtn.textContent = 'Scan with camera';
+          err.textContent = "Couldn't open the scanner window.";
           return;
         }
-        video.classList.remove('hidden');
-        camBtn.textContent = 'Stop camera';
-        stopCamera = startQrCamera(
-          video,
-          (secret) => {
-            stopCamera = null;
-            video.classList.add('hidden');
-            camBtn.textContent = 'Scan with camera';
-            accept(secret, 'camera');
-          },
-          (msg) => {
-            stopCamera = null;
-            video.classList.add('hidden');
-            // It failed once here, so it will fail every time in this surface —
-            // hide the button rather than inviting a second identical failure.
-            camBtn.classList.add('hidden');
-            camBtn.textContent = 'Scan with camera';
-            err.textContent = msg;
+        let tries = 0;
+        const MAX = 180; // ~90s at 500ms, matching the worker's parked-value TTL
+        const timer = setInterval(async () => {
+          if (++tries > MAX) return stopCamera && stopCamera();
+          let value = null;
+          try {
+            value = (await call({ type: 'SIDECAR_QR_SECRET_CLAIM' })).value;
+          } catch (_) {
+            return; // worker momentarily asleep; keep polling
           }
-        );
+          if (!value) return;
+          if (stopCamera) stopCamera();
+          accept(value, 'camera');
+        }, 500);
+        // Assigned to stopCamera so the modal's close handler tears the poll down as
+        // well — otherwise it keeps running after the modal is gone, and a late claim
+        // would consume the one-shot key with nowhere to put it.
+        stopCamera = () => {
+          clearInterval(timer);
+          stopCamera = null;
+          camBtn.disabled = false;
+          camBtn.textContent = 'Scan with camera';
+        };
       });
 
       // Paste a screenshot straight in — the common case when the sheet was
@@ -3855,7 +3786,7 @@
         e.preventDefault();
         readFile(f);
       });
-      modal.append(scanRow, scanHint, video, scanFile);
+      modal.append(scanRow, scanHint, scanFile);
 
       // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
       // to decrypt — shown only once the pasted value looks like one.
