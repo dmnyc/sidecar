@@ -3505,7 +3505,21 @@
           // A brand-new key has no profile yet — once they've backed it up, run a
           // short setup wizard (name → photo → bio), which publishes what they
           // fill in and lands them on the Profile tab to complete the rest.
-          onDone: () => profileSetupWizard(gen.pubkey),
+          //
+          // The backup sheet is offered AFTER the wizard, not here: it prints the
+          // display name in its TO line, so a sheet taken before the profile exists
+          // is addressed to "THE BEARER OF THIS SHEET" forever.
+          //
+          // This keeps gen.nsec reachable in the closure for the wizard's duration
+          // rather than only the reveal modal's. Considered and accepted: JS strings
+          // can't be zeroed, the panel already holds the key for the reveal, and the
+          // alternative is a PIN step-up moments after the user set the PIN. It ends
+          // when generateAccount's frame is collected.
+          onDone: () =>
+            profileSetupWizard(gen.pubkey, () => {
+              const acct = (state.accounts || []).find((a) => a.pubkey === gen.pubkey);
+              backupSheetPromptModal(gen.nsec, acct || null);
+            }),
         });
       }
     } catch (e) {
@@ -3816,6 +3830,61 @@
   // the post-generate "back this up now" flow (a brand-new key has no
   // ncryptsec-export use case yet). Backing up an *existing* account's key
   // goes through keyBackupModal instead, which offers both nsec and ncryptsec.
+  // Download the printable backup sheet (see pdf-backup.js) for one account.
+  // Generated entirely in the panel — the nsec never leaves the extension, and no
+  // network call is involved.
+  function downloadBackupSheet(nsec, account) {
+    try {
+      const npub = (account && account.npub) || (nsec ? NT.nip19.npubEncode(NT.nip19.decode(nsec).data) : '');
+      const blob = window.SidecarBackupPdf.build({
+        nsec,
+        npub,
+        // Only present for an existing account; a key made seconds ago has no
+        // profile yet, and the sheet falls back to "THE BEARER OF THIS SHEET".
+        name: account && account.name ? displayName(account) : '',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = window.SidecarBackupPdf.filename(npub);
+      a.click();
+      URL.revokeObjectURL(url);
+      // Every warning on the sheet addresses the printed paper. This one addresses
+      // the file: it lands in ~/Downloads as a plaintext key, in a folder that is
+      // routinely cloud-synced, indexed and backed up — exactly what the sheet
+      // itself tells you not to do with it.
+      toast('Downloaded — print it, then delete the file', 'success');
+      return true;
+    } catch (e) {
+      toast("Couldn't create the backup sheet", 'error');
+      return false;
+    }
+  }
+
+  // Offered once, after the setup wizard, so the sheet carries their name.
+  // Dismissible: the key is already stored, so gating anything here would be
+  // theatre. Copy is deliberately two lines — this renders in a ~360px panel,
+  // and a wall of text in a small rectangle just gets clicked past.
+  function backupSheetPromptModal(nsec, account) {
+    openModal((modal) => {
+      const grab = h('button', { className: 'primary', textContent: 'Download' });
+      grab.addEventListener('click', () => {
+        downloadBackupSheet(nsec, account);
+        closeModal();
+      });
+      const skip = h('button', { className: 'ghost', textContent: 'Not now' });
+      skip.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Print a backup sheet' }),
+        h('p', {
+          className: 'hint',
+          textContent: 'One page with your key and a QR code. Print it, then delete the file.',
+        }),
+        h('div', { className: 'actions' }, [grab, skip])
+      );
+    });
+  }
+
   function nsecModal(opts) {
     let stop = null;
     openModal(
@@ -3823,6 +3892,11 @@
         const body = h('div', {});
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
+
+        // No sheet button here on purpose. At account creation there is no profile
+        // yet, and the sheet prints the display name — one taken now is addressed to
+        // "THE BEARER OF THIS SHEET" permanently. It's offered after the setup
+        // wizard instead (see generateAccount), and from Profile → Backup & restore.
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
@@ -3936,32 +4010,43 @@
   }
 
   // PIN-gated step-up, then the tabbed nsec/ncryptsec backup view below.
-  function backupKeyModal(a) {
+  // opts.sheetOnly: the caller wants the printable sheet, so the PIN gate hands the
+  // revealed nsec straight to the download instead of putting it on screen. Same
+  // gate either way — the sheet is the key in another wrapper.
+  function backupKeyModal(a, opts) {
+    const sheetOnly = !!(opts && opts.sheetOnly);
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Reveal' });
+      const goLabel = sheetOnly ? 'Download sheet' : 'Reveal';
+      const go = h('button', { className: 'primary', textContent: goLabel });
       go.addEventListener('click', async () => {
         err.textContent = '';
         if (!pin.value) return (err.textContent = 'Enter your PIN.');
         go.disabled = true;
-        go.textContent = 'Revealing…';
+        go.textContent = sheetOnly ? 'Preparing…' : 'Revealing…';
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
           closeModal();
-          setTimeout(() => keyBackupModal(a, r.nsec), 0);
+          if (sheetOnly) downloadBackupSheet(r.nsec, a);
+          else setTimeout(() => keyBackupModal(a, r.nsec), 0);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
-          go.textContent = 'Reveal';
+          go.textContent = goLabel;
           toast(e.message, 'error');
         }
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Back up private key' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the key for ' + displayName(a) + '.' }),
+        h('h3', { textContent: sheetOnly ? 'Download key sheet' : 'Back up private key' }),
+        h('p', {
+          className: 'hint',
+          textContent: sheetOnly
+            ? 'Enter your PIN to build a printable backup sheet for ' + displayName(a) + '.'
+            : 'Enter your PIN to reveal the key for ' + displayName(a) + '.',
+        }),
         h('label', { textContent: 'PIN' }),
         pin,
         err,
@@ -4065,6 +4150,18 @@
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
 
+        // Also offered here, so someone who came to look at the key can leave with
+        // the printable copy instead of reaching for a screenshot.
+        const sheet = h('button', { className: 'secondary', textContent: 'Download backup sheet' });
+        sheet.addEventListener('click', () => {
+          downloadBackupSheet(nsec, a);
+          // RESTART the 30s auto-hide rather than cancelling it. Cancelling would
+          // leave the nsec on screen indefinitely, trading shoulder-surfing
+          // protection for the convenience of one click; restarting gives a full
+          // fresh window without ever removing the guard.
+          if (tabNsec.classList.contains('active')) showNsecTab();
+        });
+
         modal.append(
           h('h3', { textContent: 'Back up private key' }),
           h('p', {
@@ -4073,7 +4170,7 @@
           }),
           h('div', { className: 'modal-tabs' }, [tabNsec, tabNcrypt]),
           body,
-          h('div', { className: 'actions' }, [done])
+          h('div', { className: 'actions' }, [sheet, done])
         );
 
         showNsecTab();
@@ -6658,7 +6755,9 @@
   // Finish, "I'll do this later", the X, or the backdrop — runs `commit` once
   // (guarded), which publishes BEFORE closing so the profile never flashes the
   // interim auto-generated cocktail name.
-  function profileSetupWizard(newPubkey) {
+  // onDone runs after the wizard commits, whichever way it exits (finish, "later",
+  // or the X) — commit() is the single exit for all three.
+  function profileSetupWizard(newPubkey, onDone) {
     const draft = { display_name: '', picture: '', about: '' };
     const STEPS = 3;
     let step = 1;
@@ -6697,6 +6796,9 @@
       renderMain();
       closeModal();
       if (hasContent && targetOk) toast('Profile saved', 'success');
+      // Deferred a tick for the same reason nsecModal defers: closeModal clears
+      // #modal right after this returns, and onDone opens another modal.
+      if (onDone) setTimeout(onDone, 0);
     }
 
     openModal(
@@ -7821,6 +7923,27 @@
       exportBtn.disabled = false;
     });
 
+    // The printable key sheet. Deliberately in its own block below the JSON export
+    // with its own heading and warning: that file contains no secret and is safe to
+    // click, this one IS the key. Two lookalike buttons side by side would invite
+    // exactly the mistake that matters most here.
+    const sheetWrap = h('div', { className: 'export-block' });
+    sheetWrap.append(
+      h('h3', { textContent: 'Printable key sheet' }),
+      h('p', {
+        className: 'hint',
+        textContent:
+          'A one-page sheet with your secret key as text and a QR, made to be printed and stored offline. Unlike the file above, this IS your key — print it, then delete the download.',
+      })
+    );
+    const sheetBtn = h('button', { className: 'secondary', textContent: 'Download key sheet' });
+    sheetBtn.addEventListener('click', () => {
+      // Same step-up PIN gate as revealing the nsec anywhere else — the sheet is
+      // the key in another wrapper, so it can't be a cheaper way to get at it.
+      backupKeyModal(active, { sheetOnly: true });
+    });
+    sheetWrap.append(sheetBtn);
+
     const importBtn = h('button', { className: 'secondary', textContent: 'Restore from file' });
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -7840,7 +7963,7 @@
     });
 
     exportWrap.append(exportBtn, importBtn, fileInput);
-    setting.append(exportWrap);
+    setting.append(exportWrap, sheetWrap);
 
     // Follow-list recovery — scan relays for an older kind:3 and republish it.
     const recoveryWrap = h('div', { className: 'export-block recovery-block' });
