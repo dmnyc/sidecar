@@ -3751,12 +3751,33 @@
       // restoring doesn't mean transcribing 63 bech32 characters by hand. Fills the
       // field above and fires its input event, so the existing validation, ncryptsec
       // detection and profile preview all run exactly as if it had been typed.
-      const camBtn = h('button', { className: 'secondary', type: 'button', textContent: 'Scan with camera' });
+      const camBtn = h('button', { className: 'secondary hidden', type: 'button', textContent: 'Scan with camera' });
       const fileBtn = h('button', { className: 'secondary', type: 'button', textContent: 'Choose file' });
       const scanRow = h('div', { className: 'scan-qr-row' }, [camBtn, fileBtn]);
+
+      // The camera button starts hidden and is only revealed where it can actually
+      // work. Chrome and Firefox suppress the camera permission prompt in a side
+      // panel / sidebar — there's no address bar to anchor it to — so getUserMedia
+      // rejects immediately there. Offering a button that always fails is worse than
+      // not offering one, so ask the Permissions API first and stay hidden on
+      // 'denied'. Where the surface does allow it, the button appears.
+      (async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+        try {
+          const st = await navigator.permissions.query({ name: 'camera' });
+          if (st.state === 'denied') return;
+        } catch (_) {
+          // No Permissions API, or 'camera' unsupported as a descriptor. Show the
+          // button and let the graceful getUserMedia failure handle it.
+        }
+        camBtn.classList.remove('hidden');
+      })();
       const scanHint = h('div', {
         className: 'hint compact scan-qr-hint',
-        textContent: 'Hold your backup sheet to the camera, or choose the PDF, a photo or a scan. You can paste an image here too.',
+        // Leads with the PDF because it's the reliable path and the one people have:
+        // the sheet tells them keeping the file is fine. The camera is mentioned only
+        // by its button, which is hidden where the surface won't allow it.
+        textContent: 'Choose your backup sheet — the PDF, a photo, or a scan. You can paste an image here too.',
       });
       const video = h('video', { className: 'scan-qr-video hidden', muted: true, playsInline: true });
       video.muted = true;
@@ -3816,6 +3837,9 @@
           (msg) => {
             stopCamera = null;
             video.classList.add('hidden');
+            // It failed once here, so it will fail every time in this surface —
+            // hide the button rather than inviting a second identical failure.
+            camBtn.classList.add('hidden');
             camBtn.textContent = 'Scan with camera';
             err.textContent = msg;
           }
