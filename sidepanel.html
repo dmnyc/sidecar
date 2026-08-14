@@ -394,9 +394,11 @@
       <div class="setting">
         <h3>Bootstrap relays</h3>
         <p class="hint">Used to discover your relay list on first load, and as a fallback if it can't be reached. Once you've published a relay list from the <strong>Profile</strong> tab, these take a back seat.</p>
-        <p class="hint">When NIP-65 only is on, these relays are excluded from all reads and publishes — except the initial discovery fetch itself, which still queries them once per session to find your relay list. Sites calling <code>getRelays()</code> still see the bootstrap set regardless.</p>
+        <p class="hint">NIP-65 only is set <strong>per account</strong>. When it's on for an account, these relays are excluded from its reads and publishes — except the initial discovery fetch, which still queries them once per session to find that account's relay list. Sites calling <code>getRelays()</code> still see the bootstrap set regardless.</p>
         <label class="switch-label">
-          <span>NIP-65 only</span>
+          <!-- Per account: the scope span names the active account, so with more than
+               one it's clear this isn't a global switch. -->
+          <span>NIP-65 only <span class="switch-scope" id="nip65-only-scope"></span></span>
           <span class="switch">
             <input type="checkbox" id="nip65-only-toggle" />
             <span class="switch-track"></span>
