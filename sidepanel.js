@@ -3499,14 +3499,22 @@
       if (gen && gen.nsec) {
         nsecModal({
           nsec: gen.nsec,
-          offerSheet: true,
           title: 'Back up your new key',
           intro:
-            'Sidecar generated a new account. This nsec is the only way to recover it — save it now, or download a printable backup sheet. You can view it again later behind your PIN.',
+            'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
           // A brand-new key has no profile yet — once they've backed it up, run a
           // short setup wizard (name → photo → bio), which publishes what they
           // fill in and lands them on the Profile tab to complete the rest.
-          onDone: () => profileSetupWizard(gen.pubkey),
+          //
+          // The backup sheet is offered AFTER the wizard, not here: it prints the
+          // display name in its TO line, so a sheet taken before the profile exists
+          // is addressed to "THE BEARER OF THIS SHEET" forever. The nsec is still in
+          // this closure by then, so the offer costs no PIN prompt.
+          onDone: () =>
+            profileSetupWizard(gen.pubkey, () => {
+              const acct = (state.accounts || []).find((a) => a.pubkey === gen.pubkey);
+              backupSheetPromptModal(gen.nsec, acct || null);
+            }),
         });
       }
     } catch (e) {
@@ -3844,6 +3852,30 @@
     }
   }
 
+  // Offered once, after the setup wizard, so the sheet carries their name.
+  // Dismissible: the key is already stored, so gating anything here would be
+  // theatre. Copy is deliberately two lines — this renders in a ~360px panel,
+  // and a wall of text in a small rectangle just gets clicked past.
+  function backupSheetPromptModal(nsec, account) {
+    openModal((modal) => {
+      const grab = h('button', { className: 'primary', textContent: 'Download' });
+      grab.addEventListener('click', () => {
+        downloadBackupSheet(nsec, account);
+        closeModal();
+      });
+      const skip = h('button', { className: 'ghost', textContent: 'Not now' });
+      skip.addEventListener('click', closeModal);
+      modal.append(
+        h('h3', { textContent: 'Print a backup sheet' }),
+        h('p', {
+          className: 'hint',
+          textContent: 'One page with your key and a QR code. The only way back if you forget your PIN.',
+        }),
+        h('div', { className: 'actions' }, [grab, skip])
+      );
+    });
+  }
+
   function nsecModal(opts) {
     let stop = null;
     openModal(
@@ -3852,28 +3884,15 @@
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
 
-        const actions = [];
-        // The printable sheet is the durable artifact this screen was missing: the
-        // only other ways off this modal are the clipboard (cleared after 60s) and a
-        // screenshot. Offered for an nsec only — an ncryptsec sheet would be useless
-        // without the separate password, which is the thing people forget.
-        if (opts.offerSheet && (opts.secret || opts.nsec)) {
-          const sheet = h('button', { className: 'secondary', textContent: 'Download backup sheet' });
-          sheet.addEventListener('click', () => {
-            // The reveal's 30s timer would close this modal mid-decision. Cancel it
-            // once the user commits to the download and let them close deliberately.
-            if (stop) { stop(); stop = null; }
-            downloadBackupSheet(opts.secret || opts.nsec, opts.account);
-          });
-          actions.push(sheet);
-        }
-        actions.push(done);
-
+        // No sheet button here on purpose. At account creation there is no profile
+        // yet, and the sheet prints the display name — one taken now is addressed to
+        // "THE BEARER OF THIS SHEET" permanently. It's offered after the setup
+        // wizard instead (see generateAccount), and from Profile → Backup & restore.
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
           body,
-          h('div', { className: 'actions' }, actions)
+          h('div', { className: 'actions' }, [done])
         );
         stop = renderSecretReveal(body, {
           secret: opts.secret || opts.nsec,
@@ -6723,7 +6742,9 @@
   // Finish, "I'll do this later", the X, or the backdrop — runs `commit` once
   // (guarded), which publishes BEFORE closing so the profile never flashes the
   // interim auto-generated cocktail name.
-  function profileSetupWizard(newPubkey) {
+  // onDone runs after the wizard commits, whichever way it exits (finish, "later",
+  // or the X) — commit() is the single exit for all three.
+  function profileSetupWizard(newPubkey, onDone) {
     const draft = { display_name: '', picture: '', about: '' };
     const STEPS = 3;
     let step = 1;
@@ -6762,6 +6783,9 @@
       renderMain();
       closeModal();
       if (hasContent && targetOk) toast('Profile saved', 'success');
+      // Deferred a tick for the same reason nsecModal defers: closeModal clears
+      // #modal right after this returns, and onDone opens another modal.
+      if (onDone) setTimeout(onDone, 0);
     }
 
     openModal(
