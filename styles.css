@@ -663,6 +663,11 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
 /* nsec import preview — confirm the account a pasted key belongs to */
 
+/* "Read from image" in the import modal — a secondary action under the key field,
+   full width so it reads as an alternative to typing rather than a submit. */
+.scan-qr-btn { display: block; width: 100%; margin-top: 10px; }
+.scan-qr-hint { margin-top: 6px; }
+
 .import-preview {
   display: flex; align-items: center; gap: 11px; padding: 10px 12px; margin-top: 8px;
   border: 1px solid var(--gold-soft); border-radius: 12px;

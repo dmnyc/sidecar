@@ -366,6 +366,9 @@
     c.stroke(...INK).width(1).rect(qrX - 6, y - 6, qrSize + 12, qrSize + 12, 'S');
     drawQr(c, nsec, qrX, y, qrSize);
     y += qrSize + 16;
+    // This caption is now honest: Sidecar's own import reads a photo of this code
+    // (Import account -> Read from image), so "scan to restore" is an instruction
+    // the app can actually honor rather than a hope about other clients.
     c.fill(...BRONZE).centered(y, 'SCAN TO RESTORE - THIS CODE IS THE KEY', 7, 'F1');
 
     // ---- warnings, in plain sentences on purpose

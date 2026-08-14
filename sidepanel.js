@@ -3540,6 +3540,79 @@
     return NT.nip19.nsecEncode(sk);
   }
 
+  // ---- reading a key out of a QR image (the printable backup sheet) ----
+  // jsqr.js is ~250KB, so it is injected on first use rather than loaded with the
+  // panel. It's a packaged extension resource, so a plain <script> is same-origin
+  // and passes MV3's CSP; background.js does the equivalent with importScripts.
+  let _jsqrPromise = null;
+  function ensurePanelJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    if (_jsqrPromise) return _jsqrPromise;
+    _jsqrPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'jsqr.js';
+      s.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error('QR reader failed to load')));
+      s.onerror = () => { _jsqrPromise = null; reject(new Error('QR reader failed to load')); };
+      document.head.appendChild(s);
+    });
+    return _jsqrPromise;
+  }
+
+  // Pull an nsec or ncryptsec out of decoded QR text. Liberal about a `nostr:`
+  // prefix; validation is left to the import field, which already does it.
+  function extractSecretFromText(text) {
+    const m = /(?:nostr:)?((?:nsec|ncryptsec)1[a-z0-9]{20,})/i.exec(String(text || ''));
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  // Decode `file` at one scale. Separated so callers can retry at a larger size:
+  // a phone photo of the whole sheet puts the QR in a fraction of the frame, and
+  // downscaling too far erases the modules.
+  async function decodeQrAtScale(jsQR, bmp, maxEdge) {
+    const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+    const w = Math.max(1, Math.round(bmp.width * scale));
+    const h = Math.max(1, Math.round(bmp.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bmp, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+    // attemptBoth also catches a photo of a screen showing an inverted render.
+    const res = jsQR(data, w, h, { inversionAttempts: 'attemptBoth' });
+    return res && res.data ? res.data : '';
+  }
+
+  // Read a key from an image of the backup sheet. Entirely local — the image is a
+  // plaintext key and never leaves the extension.
+  async function secretFromImageFile(file) {
+    if (!file) throw new Error('No image to read');
+    if (file.type && !/^image\//.test(file.type)) throw new Error('That file is not an image');
+    const jsQR = await ensurePanelJsQR();
+    let bmp;
+    try {
+      bmp = await createImageBitmap(file);
+    } catch (_) {
+      throw new Error("Couldn't read that image");
+    }
+    try {
+      // Ascending sizes: the small pass is fast and usually enough for a tight
+      // crop of the code; the larger ones rescue a photo of the full page.
+      for (const edge of [1400, 2400, 4000]) {
+        const text = await decodeQrAtScale(jsQR, bmp, edge);
+        if (!text) continue;
+        const secret = extractSecretFromText(text);
+        if (secret) return secret;
+        // A QR was found but holds something else — an npub, a URL, a wallet
+        // string. Say so rather than reporting "no code found".
+        throw new Error('That QR code is not a private key');
+      }
+      throw new Error('No QR code found in that image');
+    } finally {
+      if (bmp.close) bmp.close();
+    }
+  }
+
   function importAccountModal() {
     openModal((modal) => {
       modal.append(h('h3', { textContent: 'Import account' }));
@@ -3550,6 +3623,51 @@
         placeholder: 'nsec1…, ncryptsec1…, or 64-char hex',
       });
       modal.append(h('label', { textContent: 'Private key' }), secretInput);
+
+      // Read the key from a photo or scan of the printable backup sheet, so
+      // restoring doesn't mean transcribing 63 bech32 characters by hand. Fills the
+      // field above and fires its input event, so the existing validation, ncryptsec
+      // detection and profile preview all run exactly as if it had been typed.
+      const scanBtn = h('button', { className: 'secondary scan-qr-btn', type: 'button', textContent: 'Read from image' });
+      const scanHint = h('div', { className: 'hint compact scan-qr-hint', textContent: 'A photo or scan of your backup sheet. You can also paste an image here.' });
+      const scanFile = document.createElement('input');
+      scanFile.type = 'file';
+      scanFile.accept = 'image/*';
+      scanFile.style.display = 'none';
+
+      async function readImage(file) {
+        err.textContent = '';
+        scanBtn.disabled = true;
+        scanBtn.textContent = 'Reading…';
+        try {
+          const secret = await secretFromImageFile(file);
+          secretInput.value = secret;
+          // Drive the existing pipeline rather than duplicating any of it.
+          secretInput.dispatchEvent(new Event('input'));
+          toast('Key read from image', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+        }
+        scanBtn.disabled = false;
+        scanBtn.textContent = 'Read from image';
+      }
+
+      scanBtn.addEventListener('click', () => scanFile.click());
+      scanFile.addEventListener('change', () => {
+        const f = scanFile.files && scanFile.files[0];
+        scanFile.value = ''; // let the same file be picked again after a failure
+        if (f) readImage(f);
+      });
+      // Paste a screenshot straight in — the common case when the sheet was
+      // photographed on a phone and sent over.
+      modal.addEventListener('paste', (e) => {
+        const items = (e.clipboardData && e.clipboardData.files) || [];
+        const img = [...items].find((f) => /^image\//.test(f.type));
+        if (!img) return;
+        e.preventDefault();
+        readImage(img);
+      });
+      modal.append(scanBtn, scanHint, scanFile);
 
       // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
       // to decrypt — shown only once the pasted value looks like one.
