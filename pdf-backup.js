@@ -32,6 +32,10 @@
       .replace(/[“”]/g, '"')
       .replace(/[–—]/g, '-')
       .replace(/…/g, '...')
+      // Decompose then drop combining marks, so "André" prints ANDRE rather than
+      // ANDR. Bech32 is pure ASCII, so this is a no-op for the nsec and npub.
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/[^\x20-\x7E]/g, '');
   }
   // Escape the three characters that terminate or nest a PDF literal string.
@@ -191,7 +195,10 @@
     qr.addData(String(value));
     qr.make();
     const count = qr.getModuleCount();
-    const quiet = 2;
+    // 4 modules is the spec's recommended quiet zone. A clean render decodes at 2,
+    // but the real case is a creased sheet under a phone camera at an angle, where
+    // the extra margin is what lets the scanner find the finder patterns.
+    const quiet = 4;
     const scale = size / (count + quiet * 2);
     const origin = { x: x + quiet * scale, y: yTop + quiet * scale };
     // Explicit white backing. Costs nothing to print (printers lay down no white
@@ -304,7 +311,10 @@
     c.fill(...BRONZE).text(colX[0], y, 'TO', 6.5, 'F1');
     // At account creation there is no profile yet — nsecModal runs before the setup
     // wizard — so the name is only available when printing for an existing account.
-    const to = (opts.name || '').trim();
+    // Test what will ACTUALLY print, not what was passed in. A name written wholly
+    // in a non-Latin script survives this check but is emptied by ascii() inside
+    // text(), which printed a blank TO line instead of falling back.
+    const to = ascii(opts.name || '').trim();
     c.fill(...INK).text(colX[0] + 26, y, to ? to.toUpperCase() : 'THE BEARER OF THIS SHEET', 9, 'F2');
     y += 13;
     c.fill(...BRONZE).text(colX[0], y, 'FROM', 6.5, 'F1');
