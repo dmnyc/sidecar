@@ -3224,19 +3224,25 @@
     const followNum = placeholder();
     const notifNum = placeholder();
     const relayNum = placeholder();
+    // The relay label is variable, unlike the other two: the number is meaningless
+    // without saying WHICH set it counts, so loadStats() rewrites it below.
+    const relayLabel = h('span', { className: 'account-stat-block-label', textContent: 'Relays' });
     function statBlock(iconName, numEl, label) {
       const ic = icon(iconName);
       ic.classList.add('account-stat-block-ic');
       return h('div', { className: 'account-stat-block' }, [
         ic,
         numEl,
-        h('span', { className: 'account-stat-block-label', textContent: label }),
+        typeof label === 'string'
+          ? h('span', { className: 'account-stat-block-label', textContent: label })
+          : label,
       ]);
     }
+    const relayBlock = statBlock('wifi', relayNum, relayLabel);
     const topRow = h('div', { className: 'account-stat-grid' }, [
       statBlock('users', followNum, 'Following'),
       statBlock('bell', notifNum, 'Alerts'),
-      statBlock('wifi', relayNum, 'Relays'),
+      relayBlock,
     ]);
 
     // Full-width identity rows, each led by a themed icon.
@@ -3299,11 +3305,42 @@
       notifNum.classList.add('account-stat-num');
       if (!unseen) notifNum.classList.add('account-stat-dim');
 
-      getNip65(pubkey).then((nip65) => {
-        const count = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
+      // This number has to say WHICH relays, because it was misleading in both
+      // directions when it didn't. It counted only the declared NIP-65 set, so an
+      // account that had never published a relay list showed 0 while happily reading
+      // and writing through the bootstrap relays — 0 reads as broken. And a user with
+      // a declared list saw a count that didn't match the one in Settings, with
+      // nothing on either screen saying they measure different sets.
+      Promise.all([getNip65(pubkey), nip65OnlyFor(pubkey)]).then(async ([nip65, only]) => {
+        const declared = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
+        let count = declared;
+        let label = 'Relays';
+        let warn = false;
+        if (!declared) {
+          if (only) {
+            // Fail-closed with nothing declared: this account genuinely cannot
+            // publish. 0 is accurate here, but it's a fault to flag, not a neutral
+            // zero to dim — the same failure the per-account fix was about.
+            warn = true;
+            relayBlock.title =
+              'NIP-65 only is on for this account, but it has no published relay list — ' +
+              'it can’t publish. Publish a relay list from the Profile tab, or turn the ' +
+              'setting off in Settings.';
+          } else {
+            // Bootstrap relays are what this account is actually using. Naming them
+            // keeps the number honest instead of silently reporting a different set.
+            count = (await relayUrls(false)).length;
+            label = 'Bootstrap';
+            relayBlock.title =
+              'Using Sidecar’s bootstrap relays. Publish a relay list from the Profile ' +
+              'tab to use your own.';
+          }
+        }
         relayNum.textContent = String(count);
         relayNum.classList.add('account-stat-num');
-        if (!count) relayNum.classList.add('account-stat-dim');
+        if (warn) relayNum.classList.add('account-stat-warn');
+        else if (!count) relayNum.classList.add('account-stat-dim');
+        relayLabel.textContent = label;
       });
 
       // Identity stats — need the profile.
