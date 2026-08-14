@@ -282,7 +282,7 @@
     y += markH + 20;
     c.fill(...INK).trackedCentered(y, 'SIDECAR TELEGRAPH COMPANY', 15, 'F2', 2.2);
     y += 16;
-    c.fill(...BRONZE).trackedCentered(y, 'KEY CUSTODY DIVISION', 8, 'F1', 1.6);
+    c.fill(...INK).trackedCentered(y, 'KEY CUSTODY DIVISION', 8, 'F1', 1.6);
     y += 14;
     c.stroke(...BRONZE).width(1).line(M + 22, y, PAGE_W - M - 22, y);
     y += 3;
@@ -291,7 +291,7 @@
     // ---- the form strip a real blank carried across the top
     y += 20;
     const colX = [M + 22, M + 190, M + 350];
-    c.fill(...BRONZE);
+    c.fill(...INK);
     c.text(colX[0], y, 'CLASS OF SERVICE', 6.5, 'F1');
     c.text(colX[1], y, 'SERIAL', 6.5, 'F1');
     c.text(colX[2], y, 'FILED (UTC)', 6.5, 'F1');
@@ -308,7 +308,7 @@
 
     // ---- addressing
     y += 18;
-    c.fill(...BRONZE).text(colX[0], y, 'TO', 6.5, 'F1');
+    c.fill(...INK).text(colX[0], y, 'TO', 6.5, 'F1');
     // At account creation there is no profile yet — nsecModal runs before the setup
     // wizard — so the name is only available when printing for an existing account.
     // Test what will ACTUALLY print, not what was passed in. A name written wholly
@@ -317,21 +317,21 @@
     const to = ascii(opts.name || '').trim();
     c.fill(...INK).text(colX[0] + 26, y, to ? to.toUpperCase() : 'THE BEARER OF THIS SHEET', 9, 'F2');
     y += 13;
-    c.fill(...BRONZE).text(colX[0], y, 'FROM', 6.5, 'F1');
+    c.fill(...INK).text(colX[0], y, 'FROM', 6.5, 'F1');
     c.fill(...INK).text(colX[0] + 26, y, 'SIDECAR SIGNER, YOUR OWN DEVICE', 9, 'F2');
     y += 13;
     // KEY, not NPUB: the value on this line already begins "npub1", so an NPUB label
     // prints the same word twice on one line. "PUBLIC KEY" would be more precise but
     // overruns the 26pt label gutter TO and FROM share — and the value self-identifies
     // anyway, with the secret half explicitly labelled on the box below.
-    c.fill(...BRONZE).text(colX[0], y, 'KEY', 6.5, 'F1');
+    c.fill(...INK).text(colX[0], y, 'KEY', 6.5, 'F1');
     c.fill(...INK).text(colX[0] + 26, y, npub, 7.4, 'F1');
     y += 10;
     c.stroke(...BRONZE).width(0.5).line(M + 22, y, PAGE_W - M - 22, y);
 
     // ---- message (the conceit lives here and nowhere else)
     y += 20;
-    c.fill(...BRONZE).trackedCentered(y, 'M E S S A G E', 7.5, 'F1', 1.2);
+    c.fill(...INK).trackedCentered(y, 'M E S S A G E', 7.5, 'F1', 1.2);
     y += 18;
     c.fill(...INK);
     // STOP on the closing line only. Telegrams used it because punctuation cost
@@ -354,7 +354,7 @@
     // Not "SELECTABLE TEXT": that describes the PDF, but this label prints, and on
     // paper it's nonsense. "COPY IT EXACTLY" is true in both media — select-and-copy
     // on screen, transcribe carefully from the page.
-    c.fill(...BRONZE).text(M + 30, y + 12, 'SECRET KEY (NSEC) - COPY IT EXACTLY', 6.5, 'F1');
+    c.fill(...INK).text(M + 30, y + 12, 'SECRET KEY (NSEC) - COPY IT EXACTLY', 6.5, 'F1');
     // 8.2pt Courier keeps all 63 bech32 characters on one unbroken line: a wrapped
     // key invites a transcription error at the one moment that must not go wrong.
     c.fill(...INK).text(M + 30, y + 31, nsec, 8.2, 'F2');
@@ -369,7 +369,7 @@
     // This caption is now honest: Sidecar's own import reads a photo of this code
     // (Import account -> Read from image), so "scan to restore" is an instruction
     // the app can actually honor rather than a hope about other clients.
-    c.fill(...BRONZE).centered(y, 'SCAN TO RESTORE - THIS CODE IS THE KEY', 7, 'F1');
+    c.fill(...INK).centered(y, 'SCAN TO RESTORE - THIS CODE IS THE KEY', 7, 'F1');
 
     // ---- warnings, in plain sentences on purpose
     y += 26;
@@ -393,7 +393,7 @@
     // ---- footer
     const footY = PAGE_H - M - 22;
     c.stroke(...BRONZE).width(0.5).line(M + 22, footY - 12, PAGE_W - M - 22, footY - 12);
-    c.fill(...BRONZE).text(colX[0], footY, 'SIDECAR - A CLASSY NOSTR SIGNER', 7, 'F1');
+    c.fill(...INK).text(colX[0], footY, 'SIDECAR - A CLASSY NOSTR SIGNER', 7, 'F1');
     const site = 'sidecar.top';
     c.text(PAGE_W - M - 22 - textWidth(site, 7), footY, site, 7, 'F1');
 
