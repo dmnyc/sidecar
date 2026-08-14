@@ -382,6 +382,17 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.9.0</p>
+      <ul class="whatsnew-list">
+        <li><strong>A printable backup sheet for a new key.</strong> Create a key and Sidecar offers you a one-page PDF of it, styled as an old-fashioned telegram. Your nsec is on it as text you can copy and as a QR you can scan back in, alongside a serial number that lets you tell one sheet from another without revealing anything secret. Print it and store it where you keep passports. It's built on your own machine — nothing is sent anywhere.</li>
+        <li><strong>Import a key by scanning that sheet.</strong> Four ways in: upload a photo of the sheet, upload the PDF itself, paste an image from your clipboard, or scan it live with your camera. Everything is decoded on your machine.</li>
+        <li><strong>Account overview.</strong> A drawer under your account showing what's actually set up for it — who you follow, unread alerts, your relays, your NIP-05 and Lightning address, and whether your wallet is connected <em>and</em> backed up. Anything missing links to the part of this guide that explains it.</li>
+        <li><strong>Your relays, if you want them.</strong> Sidecar starts you on a small default set so a brand-new key can reach the network. Once you publish your own relay list, it offers to step back and use only yours — for that account, so a second identity that hasn't published one yet still works.</li>
+        <li><strong>A way out of a stuck payment.</strong> A zap that hasn't confirmed after 15 seconds now offers to stop waiting instead of leaving you on a spinner. It stops the waiting, not the payment, and says so.</li>
+        <li><strong>The wallet survives a dropped connection.</strong> If the connection to your wallet died, Sidecar kept reusing it — every payment and balance check failed until something else happened to reset it, which is why it felt random. It now reconnects.</li>
+        <li><strong>A shorter help menu.</strong> The section list had grown long enough to push the guide itself off the screen; it's a dropdown now.</li>
+        <li><strong>New apps in the directory</strong> — Circl, plus proper icons for SatsList and Nostr Archives.</li>
+      </ul>
       <p class="whatsnew-version">Version 1.8.0</p>
       <ul class="whatsnew-list">
         <li><strong>New theme: Bauhaus.</strong> Flat planes of primary color, black rule lines, and a Futura-lineage display face — the school's own geometric sans. White walls keep it unmistakably separate from Art Deco. Six themes now, in Settings → Theme.</li>
