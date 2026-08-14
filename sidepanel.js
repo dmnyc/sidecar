@@ -3583,6 +3583,52 @@
     return res && res.data ? res.data : '';
   }
 
+  // Read a key straight out of the backup-sheet PDF. No rasterizing: the sheet
+  // draws the nsec as a real text literal (that's what makes it selectable), so it
+  // is present verbatim in the content stream. Far more reliable than decoding a
+  // picture of the page, and the obvious thing to try when you kept the PDF —
+  // which the sheet now tells you is fine.
+  async function secretFromPdfFile(file) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    // latin1: one byte per code unit, so byte offsets survive the conversion.
+    const asText = (bytes) => {
+      let s = '';
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      return s;
+    };
+    const raw = asText(buf);
+    let secret = extractSecretFromText(raw);
+    if (secret) return secret;
+
+    // Sidecar's own sheets are uncompressed, but a PDF re-saved by another tool
+    // will have Flate-compressed streams. Inflate each one and look again.
+    if (typeof DecompressionStream === 'function') {
+      const re = /stream\r?\n/g;
+      let m;
+      while ((m = re.exec(raw))) {
+        const start = m.index + m[0].length;
+        let end = raw.indexOf('endstream', start);
+        if (end === -1) continue;
+        // Back off the EOL that precedes `endstream`. DecompressionStream rejects
+        // trailing bytes after a complete zlib stream, so including that newline
+        // fails every inflate — which is exactly the bug this comment replaces.
+        while (end > start && (buf[end - 1] === 0x0a || buf[end - 1] === 0x0d)) end--;
+        try {
+          const slice = buf.subarray(start, end);
+          const inflated = await new Response(
+            new Blob([slice]).stream().pipeThrough(new DecompressionStream('deflate'))
+          ).arrayBuffer();
+          secret = extractSecretFromText(asText(new Uint8Array(inflated)));
+          if (secret) return secret;
+        } catch (_) { /* not a Flate stream, or truncated — try the next */ }
+      }
+    }
+    throw new Error("No key found in that PDF — is it a Sidecar backup sheet?");
+  }
+
   // Read a key from an image of the backup sheet. Entirely local — the image is a
   // plaintext key and never leaves the extension.
   async function secretFromImageFile(file) {
@@ -3613,7 +3659,84 @@
     }
   }
 
+  // Route on what the user actually picked, so the PDF and a photo of it both work.
+  function secretFromFile(file) {
+    if (!file) throw new Error('No file to read');
+    const isPdf = /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
+    return isPdf ? secretFromPdfFile(file) : secretFromImageFile(file);
+  }
+
+  // Live camera scan — hold the printed sheet up to the webcam. Returns a stop()
+  // that the caller MUST invoke: leaving a MediaStream open keeps the camera light
+  // on after the modal is gone, which reads as the extension spying.
+  function startQrCamera(videoEl, onFound, onError) {
+    let stream = null;
+    let timer = null;
+    let stopped = false;
+    const canvas = document.createElement('canvas');
+
+    function stop() {
+      stopped = true;
+      clearInterval(timer);
+      timer = null;
+      if (stream) {
+        stream.getTracks().forEach((t) => { try { t.stop(); } catch (_) {} });
+        stream = null;
+      }
+      try { videoEl.srcObject = null; } catch (_) {}
+    }
+
+    (async () => {
+      let jsQR;
+      try {
+        jsQR = await ensurePanelJsQR();
+        // `environment` is a hint, not a requirement — a laptop only has a front
+        // camera and must still work, so this is not an exact constraint.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
+        });
+      } catch (e) {
+        // Denied, no camera, or blocked by the surface we're rendered in. Say so
+        // and let the file path carry the user — never leave them stuck here.
+        onError(
+          e && e.name === 'NotAllowedError'
+            ? 'Camera access was blocked. Use "Choose file" instead.'
+            : 'No camera available here. Use "Choose file" instead.'
+        );
+        return;
+      }
+      if (stopped) return stop(); // modal closed while we were asking
+      videoEl.srcObject = stream;
+      try { await videoEl.play(); } catch (_) {}
+
+      timer = setInterval(() => {
+        if (stopped) return;
+        const w = videoEl.videoWidth;
+        const h = videoEl.videoHeight;
+        if (!w || !h) return; // first frames arrive before dimensions are known
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(videoEl, 0, 0, w, h);
+        const { data } = ctx.getImageData(0, 0, w, h);
+        const res = jsQR(data, w, h, { inversionAttempts: 'dontInvert' });
+        if (!res || !res.data) return;
+        const secret = extractSecretFromText(res.data);
+        if (!secret) return; // some other QR wandered into frame — keep looking
+        stop();
+        onFound(secret);
+      }, 250);
+    })();
+
+    return stop;
+  }
+
   function importAccountModal() {
+    // Held outside the builder so the close handler below can stop the camera on
+    // ANY exit — Save, Cancel, the X, Esc. A MediaStream left running keeps the
+    // camera light on after the modal is gone, which looks like the extension
+    // watching you.
+    let stopCamera = null;
     openModal((modal) => {
       modal.append(h('h3', { textContent: 'Import account' }));
       const err = h('div', { className: 'error' });
@@ -3628,46 +3751,87 @@
       // restoring doesn't mean transcribing 63 bech32 characters by hand. Fills the
       // field above and fires its input event, so the existing validation, ncryptsec
       // detection and profile preview all run exactly as if it had been typed.
-      const scanBtn = h('button', { className: 'secondary scan-qr-btn', type: 'button', textContent: 'Read from image' });
-      const scanHint = h('div', { className: 'hint compact scan-qr-hint', textContent: 'A photo or scan of your backup sheet. You can also paste an image here.' });
+      const camBtn = h('button', { className: 'secondary', type: 'button', textContent: 'Scan with camera' });
+      const fileBtn = h('button', { className: 'secondary', type: 'button', textContent: 'Choose file' });
+      const scanRow = h('div', { className: 'scan-qr-row' }, [camBtn, fileBtn]);
+      const scanHint = h('div', {
+        className: 'hint compact scan-qr-hint',
+        textContent: 'Hold your backup sheet to the camera, or choose the PDF, a photo or a scan. You can paste an image here too.',
+      });
+      const video = h('video', { className: 'scan-qr-video hidden', muted: true, playsInline: true });
+      video.muted = true;
       const scanFile = document.createElement('input');
       scanFile.type = 'file';
-      scanFile.accept = 'image/*';
+      // The PDF matters as much as the image: the sheet tells people keeping the
+      // file is fine, so uploading it is the obvious move — refusing it was a gap.
+      scanFile.accept = 'application/pdf,image/*';
       scanFile.style.display = 'none';
 
-      async function readImage(file) {
+      function accept(secret, how) {
+        secretInput.value = secret;
+        // Drive the existing pipeline rather than duplicating any of it.
+        secretInput.dispatchEvent(new Event('input'));
+        toast('Key read from ' + how, 'success');
+      }
+
+      async function readFile(file) {
         err.textContent = '';
-        scanBtn.disabled = true;
-        scanBtn.textContent = 'Reading…';
+        fileBtn.disabled = true;
+        fileBtn.textContent = 'Reading…';
         try {
-          const secret = await secretFromImageFile(file);
-          secretInput.value = secret;
-          // Drive the existing pipeline rather than duplicating any of it.
-          secretInput.dispatchEvent(new Event('input'));
-          toast('Key read from image', 'success');
+          accept(await secretFromFile(file), /pdf/i.test(file.type || '') ? 'PDF' : 'image');
         } catch (e) {
           err.textContent = e.message;
         }
-        scanBtn.disabled = false;
-        scanBtn.textContent = 'Read from image';
+        fileBtn.disabled = false;
+        fileBtn.textContent = 'Choose file';
       }
 
-      scanBtn.addEventListener('click', () => scanFile.click());
+      fileBtn.addEventListener('click', () => scanFile.click());
       scanFile.addEventListener('change', () => {
         const f = scanFile.files && scanFile.files[0];
         scanFile.value = ''; // let the same file be picked again after a failure
-        if (f) readImage(f);
+        if (f) readFile(f);
       });
+
+      camBtn.addEventListener('click', () => {
+        err.textContent = '';
+        if (stopCamera) { // already running — treat as cancel
+          stopCamera();
+          stopCamera = null;
+          video.classList.add('hidden');
+          camBtn.textContent = 'Scan with camera';
+          return;
+        }
+        video.classList.remove('hidden');
+        camBtn.textContent = 'Stop camera';
+        stopCamera = startQrCamera(
+          video,
+          (secret) => {
+            stopCamera = null;
+            video.classList.add('hidden');
+            camBtn.textContent = 'Scan with camera';
+            accept(secret, 'camera');
+          },
+          (msg) => {
+            stopCamera = null;
+            video.classList.add('hidden');
+            camBtn.textContent = 'Scan with camera';
+            err.textContent = msg;
+          }
+        );
+      });
+
       // Paste a screenshot straight in — the common case when the sheet was
       // photographed on a phone and sent over.
       modal.addEventListener('paste', (e) => {
         const items = (e.clipboardData && e.clipboardData.files) || [];
-        const img = [...items].find((f) => /^image\//.test(f.type));
-        if (!img) return;
+        const f = [...items].find((x) => /^image\//.test(x.type) || /pdf/i.test(x.type));
+        if (!f) return;
         e.preventDefault();
-        readImage(img);
+        readFile(f);
       });
-      modal.append(scanBtn, scanHint, scanFile);
+      modal.append(scanRow, scanHint, video, scanFile);
 
       // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
       // to decrypt — shown only once the pasted value looks like one.
@@ -3764,7 +3928,8 @@
       cancel.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [save, cancel]));
       setTimeout(() => secretInput.focus(), 50);
-    });
+    },
+    () => { if (stopCamera) { stopCamera(); stopCamera = null; } });
   }
 
   function accountMenuModal(a) {

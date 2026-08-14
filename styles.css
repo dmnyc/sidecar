@@ -663,10 +663,18 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
 /* nsec import preview — confirm the account a pasted key belongs to */
 
-/* "Read from image" in the import modal — a secondary action under the key field,
-   full width so it reads as an alternative to typing rather than a submit. */
-.scan-qr-btn { display: block; width: 100%; margin-top: 10px; }
+/* Import modal: read the key from the backup sheet instead of typing it. Two
+   equal-width secondary actions, so neither reads as the submit button. */
+.scan-qr-row { display: flex; gap: 8px; margin-top: 10px; }
+.scan-qr-row button { flex: 1; min-width: 0; }
 .scan-qr-hint { margin-top: 6px; }
+/* Live camera preview. Capped so it can't push the Save button off a short panel,
+   and mirrored — an unmirrored self-view makes aiming a held sheet feel backwards. */
+.scan-qr-video {
+  display: block; width: 100%; max-height: 200px; margin-top: 10px;
+  border-radius: 12px; border: 1px solid var(--gold-soft);
+  background: #000; object-fit: cover; transform: scaleX(-1);
+}
 
 .import-preview {
   display: flex; align-items: center; gap: 11px; padding: 10px 12px; margin-top: 8px;
