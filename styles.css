@@ -1073,6 +1073,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .stat-mini-no { color: var(--warn); }
 .stat-mini-ok, .stat-mini-no { width: 11px; height: 11px; flex-shrink: 0; }
 .account-stat-dim { color: var(--muted) !important; font-weight: 400 !important; }
+/* A zero that IS a fault (NIP-65 only on, nothing declared) — keeps the bold weight
+   a dimmed zero drops, so it reads as a problem rather than an empty count. */
+.account-stat-warn { color: var(--warn) !important; }
 
 /* Profile link */
 .account-stats-link {
@@ -1328,6 +1331,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* Bootstrap relays section */
 .switch-label { margin-bottom: 10px; }
+/* Names the account the per-account toggle applies to; quieter than the label. */
+.switch-scope { font-weight: 400; color: var(--muted); }
 .relay-section-body { transition: opacity 0.2s ease; }
 .relay-section-body.dimmed { opacity: 0.35; pointer-events: none; }
 #autozap-max-row { margin-top: 10px; }

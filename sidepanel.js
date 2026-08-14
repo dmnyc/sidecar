@@ -1663,14 +1663,27 @@
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
+  // Is NIP-65-only mode on for THIS account? Per account, not global, because the
+  // mode fails closed: one flag governing every account would leave an account with
+  // no published relay list unable to read or publish at all.
+  async function nip65OnlyFor(pubkey) {
+    if (!pubkey) return false;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      return !!(s && s.nip65OnlyBy && s.nip65OnlyBy[pubkey]);
+    } catch (_) {
+      return false; // can't read the setting → behave as if off, which keeps bootstrap
+    }
+  }
+
   // Relay set for reading an account's replaceable events (kind:3, kind:0, etc.).
   // The user's configured relays may not carry the freshest copy — NIP-65 declared
   // read relays often do, and purplepag.es aggregates kind:0/3/10002 as a fallback.
   // Without these, a stale or empty kind:3 on a configured relay can hide a healthy
   // 1000+ follow list that the account's NIP-65 relays do have.
   //
-  // When nip65Only is on, configured/Settings relays are excluded — the account's
-  // declared relays are the source of truth. The configured set still seeds the
+  // With NIP-65 only on for the account, configured/Settings relays are excluded —
+  // the declared relays are the source of truth. The configured set still seeds the
   // initial NIP-65 fetch (via getNip65's own relayUrls call), but once the list is
   // loaded it doesn't participate in any further reads. purplepag.es stays as a
   // read-only aggregator regardless.
@@ -1680,19 +1693,11 @@
     // Always include purplepag.es — it's a read-only aggregator, not a relay the
     // user publishes to, so it can't serve stale data the way a gossip relay can.
     const base = [...declared, 'wss://purplepag.es'];
-    // If the account has no NIP-65 list yet, fall back to configured regardless —
-    // a brand-new account has nothing else.
-    if (!declared.length) {
-      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-      // Fail closed: when nip65Only is on and the list is empty (whether genuinely
-      // absent or because the fetch failed), do NOT fall back to bootstrap relays.
-      // The user explicitly opted out of them; a silent fallback would be the wrong
-      // failure direction for a privacy feature.
-      if (settings && settings.nip65Only) return [...new Set(base)];
-      return [...new Set([...base, ...(await relayUrls(false))])];
-    }
-    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    if (settings && settings.nip65Only) return [...new Set(base)];
+    // Fail closed when this account opted out of bootstrap relays: an empty list
+    // (genuinely absent, or a fetch that failed) must NOT silently fall back to the
+    // relays the user excluded — that's the wrong failure direction for a privacy
+    // setting. Per account, so a second account without a relay list is unaffected.
+    if (await nip65OnlyFor(pubkey)) return [...new Set(base)];
     return [...new Set([...base, ...(await relayUrls(false))])];
   }
 
@@ -1835,8 +1840,7 @@
   async function postRelays() {
     const n = await getNip65(state.activePubkey);
     const declared = n ? n.write : [];
-    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    if (settings && settings.nip65Only) return [...new Set(declared)];
+    if (await nip65OnlyFor(state.activePubkey)) return [...new Set(declared)];
     // No NIP-65 list → fall back to configured so a fresh account can still publish.
     if (!declared.length) return relayUrls(true);
     return [...new Set([...declared, ...(await relayUrls(true))])];
@@ -3224,19 +3228,25 @@
     const followNum = placeholder();
     const notifNum = placeholder();
     const relayNum = placeholder();
+    // The relay label is variable, unlike the other two: the number is meaningless
+    // without saying WHICH set it counts, so loadStats() rewrites it below.
+    const relayLabel = h('span', { className: 'account-stat-block-label', textContent: 'Relays' });
     function statBlock(iconName, numEl, label) {
       const ic = icon(iconName);
       ic.classList.add('account-stat-block-ic');
       return h('div', { className: 'account-stat-block' }, [
         ic,
         numEl,
-        h('span', { className: 'account-stat-block-label', textContent: label }),
+        typeof label === 'string'
+          ? h('span', { className: 'account-stat-block-label', textContent: label })
+          : label,
       ]);
     }
+    const relayBlock = statBlock('wifi', relayNum, relayLabel);
     const topRow = h('div', { className: 'account-stat-grid' }, [
       statBlock('users', followNum, 'Following'),
       statBlock('bell', notifNum, 'Alerts'),
-      statBlock('wifi', relayNum, 'Relays'),
+      relayBlock,
     ]);
 
     // Full-width identity rows, each led by a themed icon.
@@ -3299,11 +3309,42 @@
       notifNum.classList.add('account-stat-num');
       if (!unseen) notifNum.classList.add('account-stat-dim');
 
-      getNip65(pubkey).then((nip65) => {
-        const count = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
+      // This number has to say WHICH relays, because it was misleading in both
+      // directions when it didn't. It counted only the declared NIP-65 set, so an
+      // account that had never published a relay list showed 0 while happily reading
+      // and writing through the bootstrap relays — 0 reads as broken. And a user with
+      // a declared list saw a count that didn't match the one in Settings, with
+      // nothing on either screen saying they measure different sets.
+      Promise.all([getNip65(pubkey), nip65OnlyFor(pubkey)]).then(async ([nip65, only]) => {
+        const declared = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
+        let count = declared;
+        let label = 'Relays';
+        let warn = false;
+        if (!declared) {
+          if (only) {
+            // Fail-closed with nothing declared: this account genuinely cannot
+            // publish. 0 is accurate here, but it's a fault to flag, not a neutral
+            // zero to dim — the same failure the per-account fix was about.
+            warn = true;
+            relayBlock.title =
+              'NIP-65 only is on for this account, but it has no published relay list — ' +
+              'it can’t publish. Publish a relay list from the Profile tab, or turn the ' +
+              'setting off in Settings.';
+          } else {
+            // Bootstrap relays are what this account is actually using. Naming them
+            // keeps the number honest instead of silently reporting a different set.
+            count = (await relayUrls(false)).length;
+            label = 'Bootstrap';
+            relayBlock.title =
+              'Using Sidecar’s bootstrap relays. Publish a relay list from the Profile ' +
+              'tab to use your own.';
+          }
+        }
         relayNum.textContent = String(count);
         relayNum.classList.add('account-stat-num');
-        if (!count) relayNum.classList.add('account-stat-dim');
+        if (warn) relayNum.classList.add('account-stat-warn');
+        else if (!count) relayNum.classList.add('account-stat-dim');
+        relayLabel.textContent = label;
       });
 
       // Identity stats — need the profile.
@@ -4517,9 +4558,17 @@
     }
     fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
     $('zapflash-toggle').checked = settings.zapFlash !== false; // default on
-    $('nip65-only-toggle').checked = settings.nip65Only === true; // default off
+    // Per account: reflects the ACTIVE account, and the label below names it so the
+    // scope is unmistakable when more than one account exists.
+    const nip65Only = await nip65OnlyFor(state.activePubkey);
+    $('nip65-only-toggle').checked = nip65Only;
     const relayBody = $('relay-section-body');
-    if (relayBody) relayBody.classList.toggle('dimmed', settings.nip65Only === true);
+    if (relayBody) relayBody.classList.toggle('dimmed', nip65Only);
+    const nip65Scope = $('nip65-only-scope');
+    if (nip65Scope) {
+      const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey);
+      nip65Scope.textContent = acct ? 'for ' + displayName(acct) : '';
+    }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
     $('autozap-max').value = String(azMax);
@@ -7804,9 +7853,8 @@
         status.classList.add('done');
         toast('Relay list published', 'success');
         // Offer to switch to NIP-65-only mode if bootstrap relays are still active.
-        const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-        if (settings && !settings.nip65Only) {
-          maybeOfferNip65Only();
+        if (!(await nip65OnlyFor(active.pubkey))) {
+          maybeOfferNip65Only(active.pubkey);
         }
       } catch (e) {
         err.textContent = e.message;
@@ -7832,10 +7880,13 @@
   // bootstrap relays. The user's declared relays are now the source of truth;
   // the bootstrap set only added noise (and stale data, as the follow-count bug
   // showed). A one-time confirmation modal — not a silent settings change.
-  let nip65OnlyNudged = false;
-  function maybeOfferNip65Only() {
-    if (nip65OnlyNudged) return;
-    nip65OnlyNudged = true;
+  //
+  // Tracked per pubkey, because the setting is per account: declining for one
+  // identity must not silently swallow the offer for the next one you publish from.
+  const nip65OnlyNudged = new Set();
+  function maybeOfferNip65Only(pubkey) {
+    if (!pubkey || nip65OnlyNudged.has(pubkey)) return;
+    nip65OnlyNudged.add(pubkey);
     openModal((modal) => {
       modal.append(
         h('div', { className: 'setup-modal' }, [
@@ -7846,7 +7897,9 @@
           h('div', { className: 'row-actions' }, [
             h('button', { className: 'secondary', textContent: 'Not now', onclick: closeModal }),
             h('button', { className: 'primary', textContent: 'Use my relays only', onclick: async () => {
-              await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nip65Only: true } });
+              // `pubkey`, not state.activePubkey — the account whose list was just
+              // published is the one this applies to, even if the active one changed.
+              await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey, on: true });
               closeModal();
               toast('Now using your NIP-65 relays only', 'success');
             }}),
@@ -10571,7 +10624,7 @@
   // once the account has a declared relay list. The configured set still seeds
   // the initial NIP-65 fetch; this toggle governs everything after that.
   $('nip65-only-toggle').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nip65Only: e.target.checked } });
+    await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: e.target.checked });
     $('relay-section-body')?.classList.toggle('dimmed', e.target.checked);
   });
 

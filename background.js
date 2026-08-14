@@ -2426,6 +2426,23 @@ async function handleControl(message, sendResponse) {
         result = { ...resolveSettings(raw), autoLockDefaulted: !('autoLockMinutes' in raw) };
         break;
       }
+      // NIP-65-only is PER ACCOUNT, so it lives in a pubkey-keyed map rather than as a
+      // flag on the settings object. Merged here rather than in the panel because
+      // SIDECAR_SET_SETTINGS merges shallowly — a panel sending the whole map would
+      // clobber other accounts' values, and two panels racing would lose one.
+      //
+      // It has to be per account because the setting fails closed: an account with no
+      // published relay list gets an empty publish set. One global flag would silently
+      // stop a second account from posting at all.
+      case 'SIDECAR_SET_NIP65_ONLY': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.nip65OnlyBy || {}) };
+        if (message.on) map[message.pubkey] = true;
+        else delete map[message.pubkey];
+        await sset({ sidecar_settings: { ...prev, nip65OnlyBy: map } });
+        result = { ok: true };
+        break;
+      }
       case 'SIDECAR_SET_SETTINGS': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const merged = { ...prev, ...message.settings };
