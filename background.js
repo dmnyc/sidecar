@@ -1717,6 +1717,19 @@ async function payAndConfirm(c, invoice) {
     dlog('error', 'pay', 'reporting failure; wallet never confirmed a settlement', {
       error: (first.err && first.err.message) || 'unknown',
     });
+    // Drop the cached client so the NEXT attempt builds a fresh socket.
+    //
+    // This is the actual fix for the reported failure. getSwNwc caches on pubkey with
+    // no health check, and the only invalidations were lock / SET_NWC / CLEAR_NWC — so
+    // a dead socket was reused forever and every retry burned the full 30s timeout.
+    // Recovery only happened by accident, when the service worker was evicted and
+    // cleared the module-level cache; that's why "it worked after I waited".
+    //
+    // Safe here: we've already exhausted pay_invoice AND the lookup_invoice grace
+    // window, so nothing is in flight on this client. Only reached on an
+    // indeterminate outcome — a walletDenied answer returns above and keeps the
+    // working connection, since the wallet plainly reached us.
+    closeSwNwc();
     throw first.err || (second.kind === 'error' ? second.err : new Error('Payment status unknown'));
   } finally {
     stop = true;

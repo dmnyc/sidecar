@@ -41,12 +41,13 @@ const CONN = 'nostr+walletconnect://' + WALLET_PK + '?relay=' + encodeURICompone
 // Builds a context with a fake nostr-tools whose SimplePool records every
 // construction and close, so the test can see how many pools exist and which
 // relays each one shut.
-function harness({ respond, probeOpens = true } = {}) {
+function harness({ respond, probeOpens = true, publishFails = false } = {}) {
   const pools = [];
   const sockets = [];
 
   class FakePool {
-    constructor() {
+    constructor(opts) {
+      this.opts = opts || null;
       this.id = pools.length;
       this.closedRelays = [];
       this.subs = [];
@@ -65,7 +66,7 @@ function harness({ respond, probeOpens = true } = {}) {
       return sub;
     }
     publish(relays, ev) {
-      const dead = relays.some((r) => this.closedRelays.includes(r));
+      const dead = relays.some((r) => this.closedRelays.includes(r)) || publishFails;
       this.published.push({ ev, dead });
       return dead ? [Promise.reject(new Error('relay closed'))] : [Promise.resolve('ok')];
     }
@@ -213,6 +214,39 @@ test('a timeout with a reachable relay blames the wallet', async () => {
   );
 });
 
+test('a reachable relay that never accepted the publish blames the CONNECTION', async () => {
+  // The third case, and the one that produced a false accusation in the field: the
+  // relay answers a fresh probe, but our own socket died while idle so the request
+  // was never accepted. Reported as the wallet being quiet, it sent the user to
+  // check a wallet that was fine; reported as the relay being down, it accused a
+  // healthy relay.
+  const h = harness({ probeOpens: true, publishFails: true });
+  const c = h.makeClient(CONN);
+  await assert.rejects(
+    () => c.lookupInvoice({ payment_hash: 'x' }, 1),
+    (err) => {
+      assert.match(err.message, /lost the connection/i);
+      assert.equal(err.staleSocket, true);
+      assert.ok(!err.relayDown, 'must not accuse the relay — the probe reached it');
+      assert.ok(!err.walletSilent, 'must not accuse the wallet — it was never asked');
+      assert.ok(!err.walletDenied, 'still indeterminate for spends');
+      return true;
+    }
+  );
+});
+
+test('an unreachable relay still blames the relay even when the publish fails', async () => {
+  // Ordering guard: a dead relay ALSO fails to accept the publish, so the staleSocket
+  // branch must not shadow relayDown. The probe is the stronger signal and wins.
+  const h = harness({ probeOpens: false, publishFails: true });
+  const c = h.makeClient(CONN);
+  await assert.rejects(() => c.lookupInvoice({ payment_hash: 'x' }, 1), (err) => {
+    assert.equal(err.relayDown, true);
+    assert.ok(!err.staleSocket);
+    return true;
+  });
+});
+
 test('neither timeout claims the money stayed put', async () => {
   // The rejection contract: only walletDenied means no money moved. A caller that
   // spends must still verify with lookup_invoice after either of these.
@@ -275,4 +309,17 @@ test('the notification handle close() does not close the client', () => {
 test('the client-level close is not shadowed', () => {
   assert.match(source, /let subClosed = false;/,
     'the notification subscription must not reuse the name `closed`');
+});
+
+test('the pool is built with reconnect ENABLED', async () => {
+  // The root cause of the reported dead-socket failure: nostr-tools defaults
+  // enableReconnect to false, so handleHardClose closed every subscription and never
+  // reopened. One dropped socket left the client permanently dead, and every later
+  // request burned the full timeout publishing into a corpse. Recovery only happened
+  // by accident, when the service worker was evicted and cleared the cache.
+  const h = harness({ probeOpens: true });
+  const c = h.makeClient(CONN);
+  await h.touch(c);
+  assert.equal(h.pools.length, 1);
+  assert.equal(h.pools[0].opts && h.pools[0].opts.enableReconnect, true);
 });
