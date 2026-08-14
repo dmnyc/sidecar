@@ -3849,11 +3849,11 @@
       a.download = window.SidecarBackupPdf.filename(npub);
       a.click();
       URL.revokeObjectURL(url);
-      // Every warning on the sheet addresses the printed paper. This one addresses
-      // the file: it lands in ~/Downloads as a plaintext key, in a folder that is
-      // routinely cloud-synced, indexed and backed up — exactly what the sheet
-      // itself tells you not to do with it.
-      toast('Downloaded — print it, then delete the file', 'success');
+      // Addresses the file rather than the printed sheet. Keeping the PDF is fine —
+      // a password manager or an encrypted drive is a good home for it. What isn't
+      // fine is leaving it in ~/Downloads or mailing it to yourself, so say that
+      // rather than telling people to delete something they may want to keep.
+      toast('Downloaded — store it safely, never by email', 'success');
       return true;
     } catch (e) {
       toast("Couldn't create the backup sheet", 'error');
@@ -3878,7 +3878,7 @@
         h('h3', { textContent: 'Print a backup sheet' }),
         h('p', {
           className: 'hint',
-          textContent: 'One page with your key and a QR code. Print it, then delete the file.',
+          textContent: 'One page with your key and a QR code. Print it, or keep the file somewhere safe.',
         }),
         h('div', { className: 'actions' }, [grab, skip])
       );
@@ -7933,7 +7933,7 @@
       h('p', {
         className: 'hint',
         textContent:
-          'A one-page sheet with your secret key as text and a QR, made to be printed and stored offline. Unlike the file above, this IS your key — print it, then delete the download.',
+          'A one-page sheet with your secret key as text and a QR, made to be printed and kept somewhere safe. Unlike the file above, this IS your key — never send it by email or chat.',
       })
     );
     const sheetBtn = h('button', { className: 'secondary', textContent: 'Download key sheet' });

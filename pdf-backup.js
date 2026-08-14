@@ -351,7 +351,10 @@
     const boxH = 44;
     c.fill(1, 1, 1).rect(M + 22, y, PAGE_W - (M + 22) * 2, boxH);
     c.stroke(...INK).width(1).rect(M + 22, y, PAGE_W - (M + 22) * 2, boxH, 'S');
-    c.fill(...BRONZE).text(M + 30, y + 12, 'SECRET KEY (NSEC) - SELECTABLE TEXT, COPY IT EXACTLY', 6.5, 'F1');
+    // Not "SELECTABLE TEXT": that describes the PDF, but this label prints, and on
+    // paper it's nonsense. "COPY IT EXACTLY" is true in both media — select-and-copy
+    // on screen, transcribe carefully from the page.
+    c.fill(...BRONZE).text(M + 30, y + 12, 'SECRET KEY (NSEC) - COPY IT EXACTLY', 6.5, 'F1');
     // 8.2pt Courier keeps all 63 bech32 characters on one unbroken line: a wrapped
     // key invites a transcription error at the one moment that must not go wrong.
     c.fill(...INK).text(M + 30, y + 31, nsec, 8.2, 'F2');
@@ -375,9 +378,13 @@
       'Anyone who photographs or copies this sheet becomes you on Nostr.',
       'It cannot be undone or revoked. Treat it like cash.',
       '',
+      // Not "store it offline / anywhere that syncs is a copy you don't control":
+      // a password manager or an encrypted drive syncs and is a perfectly good home
+      // for this. The thing that actually loses keys is sending them somewhere with
+      // no protection at all, so name that instead of banning sync wholesale.
       'Sidecar erases every key on this device after 21 wrong PIN attempts.',
-      'If that happens, this sheet is the only way back. Store it offline -',
-      "anywhere that syncs is a copy you don't control.",
+      'If that happens, this sheet is the only way back. Keep the paper',
+      'somewhere safe, and never send this key by email or chat.',
     ]) { if (l) c.text(colX[0], y, l, 8.6, 'F1'); y += 12; }
 
     // ---- footer
