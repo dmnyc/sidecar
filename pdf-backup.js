@@ -79,7 +79,22 @@
         }
         return api;
       },
+      // A rectangular ring (outer minus inner), painted with the even-odd rule so the
+      // middle stays untouched. Filling a solid rect and covering it with white would
+      // paint over whatever is beneath — which for the paper band means erasing the
+      // optional-content tint on screen.
+      ring(x, yTop, w, h, inset) {
+        ops.push(`${x} ${PAGE_H - yTop - h} ${w} ${h} re`);
+        ops.push(`${x + inset} ${PAGE_H - yTop - h + inset} ${w - inset * 2} ${h - inset * 2} re`);
+        ops.push('f*');
+        return api;
+      },
       raw(s) { ops.push(s); return api; },
+      // Optional content: everything between these is tagged with an OCG whose usage
+      // dictionary turns it off for printing. Viewers show it; renderers that honor
+      // /PrintState drop it. See PAPER_OCG in build().
+      beginOptional(tag) { ops.push(`/OC /${tag} BDC`); return api; },
+      endOptional() { ops.push('EMC'); return api; },
       toString() { return ops.join('\n'); },
     };
     return api;
@@ -88,9 +103,12 @@
   // Assemble the object graph, xref table and trailer. Offsets are computed on
   // ENCODED BYTES, not string length, so a stray multi-byte character can't slide
   // the xref and corrupt the file.
+  // 1.5, not 1.4: optional content groups (the non-printing page tint) were
+  // introduced in 1.5, and a reader that only understands 1.4 must ignore the
+  // /OCProperties graph rather than misread it.
   function assemble(objects) {
     const enc = new TextEncoder();
-    const parts = ['%PDF-1.4\n'];
+    const parts = ['%PDF-1.5\n'];
     let bytes = enc.encode(parts[0]).length;
     const offsets = [];
     objects.forEach((body, i) => {
@@ -176,6 +194,9 @@
     const quiet = 2;
     const scale = size / (count + quiet * 2);
     const origin = { x: x + quiet * scale, y: yTop + quiet * scale };
+    // Explicit white backing. Costs nothing to print (printers lay down no white
+    // toner) but guarantees the quiet zone stays light if this is ever run on
+    // tinted stock, which is what scanners need to lock on.
     c.fill(1, 1, 1).rect(x, yTop, size, size);
     c.fill(0.11, 0.09, 0.07);
     for (let r = 0; r < count; r++) {
@@ -223,10 +244,29 @@
     const c = content();
     const M = 40; // page margin
 
-    // Paper, then the double rule that frames every telegram blank.
+    // Paper, in two layers, because a full-bleed tint is a ~7% halftone screen over
+    // every square inch on a mono laser — real toner and visible mottling on the one
+    // artifact meant to sit in a drawer for years.
+    //
+    // 1. The BORDER BAND always prints. It's ~5% of the page rather than 100%, so the
+    //    sheet still reads as warm stock on plain white paper at a twentieth of the ink.
+    // 2. The FULL-PAGE fill is wrapped in an optional content group whose usage
+    //    dictionary sets /PrintState /OFF. Viewers show a fully cream page; renderers
+    //    that honor optional content drop it and print only the band.
+    //
+    // Support for /PrintState is uneven (Acrobat honors it, many hardware RIPs ignore
+    // usage dictionaries), so this is built to degrade well rather than to be relied
+    // on: if it's ignored the sheet simply prints fully tinted, which is merely the
+    // ink cost, not a broken document.
+    c.beginOptional('MC0');
     c.fill(...PAPER).rect(0, 0, PAGE_W, PAGE_H);
+    c.endOptional();
+
+    const BAND = 12; // width of the printing tint band, between the two frame rules
+    c.fill(...PAPER).ring(M, M, PAGE_W - M * 2, PAGE_H - M * 2, BAND);
+
     c.stroke(...INK).width(2).rect(M, M, PAGE_W - M * 2, PAGE_H - M * 2, 'S');
-    c.width(0.6).rect(M + 5, M + 5, PAGE_W - (M + 5) * 2, PAGE_H - (M + 5) * 2, 'S');
+    c.width(0.6).rect(M + BAND, M + BAND, PAGE_W - (M + BAND) * 2, PAGE_H - (M + BAND) * 2, 'S');
 
     // ---- letterhead
     let y = M + 20;
@@ -341,14 +381,23 @@
     const stream = c.toString();
     const streamBytes = new TextEncoder().encode(stream).length;
     const font = (name) => `<< /Type /Font /Subtype /Type1 /BaseFont /${name} /Encoding /WinAnsiEncoding >>`;
+    // Object 7 is the optional content group holding the full-page tint.
+    //   /Usage      declares what it is FOR (view yes, print no)
+    //   /D /AS      is what actually applies that usage automatically per event —
+    //               a /Usage dictionary alone is only advisory and readers ignore it
+    //   /D /ON      leaves the group visible in the default configuration
     return assemble([
-      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [7 0 R] ' +
+        '/D << /ON [7 0 R] /Order [] ' +
+        '/AS [ << /Event /Print /Category [/Print] /OCGs [7 0 R] >> ] >> >> >>',
       '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +
-        '/Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>',
+        '/Resources << /Font << /F1 5 0 R /F2 6 0 R >> /Properties << /MC0 7 0 R >> >> /Contents 4 0 R >>',
       `<< /Length ${streamBytes} >>\nstream\n${stream}\nendstream`,
       font('Courier'),
       font('Courier-Bold'),
+      '<< /Type /OCG /Name (Paper tint) /Usage << /View << /ViewState /ON >> ' +
+        '/Print << /PrintState /OFF >> >> >>',
     ]);
   }
 
