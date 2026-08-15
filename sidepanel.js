@@ -3572,13 +3572,62 @@
     }
   }
 
+  // ---- NIP-49 in a worker ----
+  // scrypt at N=2^16 (nip49's default) is a second or more of memory-hard JS —
+  // on the main thread that froze the whole panel, countdowns and buttons
+  // included, every time a sheet minted or an import decrypted. nip49-worker.js
+  // importScripts the same vendored bundle (the hash-pinned file itself never
+  // changes), so the work happens off-thread and the panel stays live. Fails
+  // closed to the synchronous call if workers aren't available or the worker
+  // script fails to load: a frozen panel for a second beats a broken backup path.
+  let nip49Worker = null;
+  let nip49WorkerBroken = false;
+  let nip49Seq = 0;
+  const nip49Pending = new Map();
+  function nip49(op, args) {
+    const sync = () =>
+      (op === 'decrypt' ? window.SidecarNip49.decrypt : window.SidecarNip49.encrypt).apply(null, args);
+    if (nip49WorkerBroken || typeof Worker !== 'function') return Promise.resolve().then(sync);
+    try {
+      if (!nip49Worker) {
+        nip49Worker = new Worker(chrome.runtime.getURL('nip49-worker.js'));
+        nip49Worker.onmessage = (e) => {
+          const { id, ok, result, error } = e.data || {};
+          const settle = nip49Pending.get(id);
+          if (!settle) return;
+          nip49Pending.delete(id);
+          if (ok) settle.resolve(result);
+          else settle.reject(new Error(error || 'NIP-49 worker failed'));
+        };
+        nip49Worker.onerror = () => {
+          // A packaging miss or a load failure: settle everything waiting and
+          // go synchronous from now on, rather than leaving promises that will
+          // never resolve.
+          nip49WorkerBroken = true;
+          for (const [id, settle] of nip49Pending) {
+            nip49Pending.delete(id);
+            settle.reject(new Error('NIP-49 worker failed'));
+          }
+        };
+      }
+    } catch (_) {
+      return Promise.resolve().then(sync);
+    }
+    return new Promise((resolve, reject) => {
+      const id = ++nip49Seq;
+      nip49Pending.set(id, { resolve, reject });
+      nip49Worker.postMessage({ id, op, args });
+    });
+  }
+
   // Decrypt a NIP-49 ncryptsec string to an nsec, so the rest of the import path
   // (SIDECAR_ADD_ACCOUNT, decodeSecret) never has to know ncryptsec exists. Throws
-  // a friendly message on a bad password or malformed string.
-  function decryptNcryptsec(ncryptsec, password) {
+  // a friendly message on a bad password or malformed string. Off-thread: the
+  // scrypt inside is the worker's whole reason to exist (see nip49()).
+  async function decryptNcryptsec(ncryptsec, password) {
     let sk;
     try {
-      sk = window.SidecarNip49.decrypt(ncryptsec, password);
+      sk = await nip49('decrypt', [ncryptsec, password]);
     } catch (_) {
       throw new Error('Incorrect password, or not a valid ncryptsec key.');
     }
@@ -3878,7 +3927,10 @@
         if (isNcryptsec) {
           if (!cryptPass.value) return preview.classList.add('hidden');
           try {
-            pubkey = pubkeyFromSecret(decryptNcryptsec(raw, cryptPass.value));
+            // Awaited: this runs on the debounced password field, and each
+            // keystroke re-runs a full N=2^16 scrypt — off-thread it can overlap
+            // the next keystroke's run, with previewSeq sorting the winner.
+            pubkey = pubkeyFromSecret(await decryptNcryptsec(raw, cryptPass.value));
           } catch (_) {
             preview.classList.add('hidden');
             return;
@@ -3924,10 +3976,15 @@
       const save = h('button', { className: 'primary', textContent: 'Import account' });
       save.addEventListener('click', async () => {
         err.textContent = '';
+        // Busy through the decrypt: a ncryptsec import runs the same scrypt as
+        // a sheet mint, and with the panel no longer frozen mid-click, an idle
+        // button invites a second one.
+        save.disabled = true;
+        save.textContent = 'Importing…';
         try {
           const raw = secretInput.value.trim();
           if (!raw) throw new Error('Enter an nsec, ncryptsec, or hex private key.');
-          const secret = /^ncryptsec1/i.test(raw) ? decryptNcryptsec(raw, cryptPass.value) : raw;
+          const secret = /^ncryptsec1/i.test(raw) ? await decryptNcryptsec(raw, cryptPass.value) : raw;
           await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
           closeModal();
           await refresh();
@@ -3936,6 +3993,8 @@
           err.textContent = e.message;
           toast(e.message, 'error');
         }
+        save.disabled = false;
+        save.textContent = 'Import account';
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
@@ -4254,7 +4313,10 @@
     return {
       validate,
       block,
-      collect: (nsec, errEl) => {
+      // Async: the NIP-49 mint is a second-plus of scrypt, off-thread via the
+      // worker, so the modal's "Preparing…" state is real feedback rather than a
+      // label the frozen panel could never paint.
+      collect: async (nsec, errEl) => {
         if (!pass.value || pass.value.length < 8) {
           errEl.textContent = 'Use a password of at least 8 characters.';
           return null;
@@ -4264,7 +4326,7 @@
           return null;
         }
         try {
-          return window.SidecarNip49.encrypt(NT.nip19.decode(nsec).data, pass.value);
+          return await nip49('encrypt', [NT.nip19.decode(nsec).data, pass.value]);
         } catch (_) {
           errEl.textContent = 'Could not encrypt the key.';
           return null;
@@ -4455,7 +4517,7 @@
           // back to the account list to start over.
           let nc = '';
           if (enc) {
-            nc = enc.collect(r.nsec, err);
+            nc = await enc.collect(r.nsec, err);
             if (nc === null) {
               go.disabled = !enc.validate();
               go.textContent = goLabel;
@@ -4542,20 +4604,23 @@
           ncPass2 = pass2;
           ncErr = err;
           const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
-          go.addEventListener('click', () => {
+          go.addEventListener('click', async () => {
             err.textContent = '';
             if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
             if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
-            let ncryptsec;
+            go.disabled = true;
+            go.textContent = 'Encrypting…';
             try {
-              const sk = NT.nip19.decode(nsec).data;
-              ncryptsec = window.SidecarNip49.encrypt(sk, pass.value);
+              const ncryptsec = await nip49('encrypt', [NT.nip19.decode(nsec).data, pass.value]);
+              currentNcryptsec = ncryptsec;
+              revealNcryptsec(); // rebuilds the body, taking the form (and its button) with it
             } catch (e) {
               err.textContent = 'Could not encrypt the key.';
-              return;
+              // Restore through the pair's own validator, not blindly: the
+              // button's enabled state belongs to the passwords, not to this click.
+              go.disabled = !validatePair();
+              go.textContent = 'Encrypt & show';
             }
-            currentNcryptsec = ncryptsec;
-            revealNcryptsec();
           });
           body.append(
             h('p', {
@@ -4572,7 +4637,8 @@
           );
           // Live length/match feedback (green check / red x) on the export
           // password pair, same as PIN creation/change; gates the button.
-          attachPinValidation(pass, pass2, go);
+          // validatePair is what the go handler's error path restores through.
+          const validatePair = attachPinValidation(pass, pass2, go);
         }
 
         // The ncryptsec reveal, factored out so the sheet button can re-run it:
@@ -4626,17 +4692,19 @@
             ? 'Download encrypted sheet'
             : 'Download backup sheet';
         }
-        sheet.addEventListener('click', () => {
+        sheet.addEventListener('click', async () => {
           if (!tabNcrypt.classList.contains('active')) {
-            downloadBackupSheet(nsec, a);
+            await downloadBackupSheet(nsec, a);
             // RESTART the 30s auto-hide rather than cancelling it. Cancelling
             // would leave the nsec on screen indefinitely; restarting gives a
-            // full fresh window without removing the guard.
+            // full fresh window without removing the guard. After the save, not
+            // before: the fresh window should start when the user is back, not
+            // while a file picker holds their attention.
             showNsecTab();
             return;
           }
           if (currentNcryptsec) {
-            downloadBackupSheet(nsec, a, currentNcryptsec);
+            await downloadBackupSheet(nsec, a, currentNcryptsec);
             // Same restart, for the revealed ncryptsec.
             revealNcryptsec();
             return;
@@ -4647,17 +4715,22 @@
           // those who also want to see it.
           if (!ncPass.value || ncPass.value.length < 8) return (ncErr.textContent = 'Use a password of at least 8 characters.');
           if (ncPass.value !== ncPass2.value) return (ncErr.textContent = 'Passwords do not match.');
-          let ncryptsec;
+          // Busy through the mint and the save: the scrypt is a second-plus even
+          // off-thread, and with the panel live again a second click would queue
+          // a second download.
+          sheet.disabled = true;
+          sheet.textContent = 'Preparing…';
           try {
-            ncryptsec = window.SidecarNip49.encrypt(NT.nip19.decode(nsec).data, ncPass.value);
+            const ncryptsec = await nip49('encrypt', [NT.nip19.decode(nsec).data, ncPass.value]);
+            // Deliberately NOT stored in currentNcryptsec: that would arm the
+            // reveal-restart branch above, and a second click would then put the
+            // ncryptsec on screen — the one thing this path's user declined.
+            await downloadBackupSheet(nsec, a, ncryptsec);
           } catch (e) {
             ncErr.textContent = 'Could not encrypt the key.';
-            return;
           }
-          // Deliberately NOT stored in currentNcryptsec: that would arm the
-          // reveal-restart branch above, and a second click would then put the
-          // ncryptsec on screen — the one thing this path's user declined.
-          downloadBackupSheet(nsec, a, ncryptsec);
+          sheet.disabled = false;
+          syncSheetLabel();
         });
 
         modal.append(
