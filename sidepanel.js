@@ -4157,11 +4157,33 @@
     return 'downloaded';
   }
 
+  // The invitation's four faces (pdf-backup.js embeds them). Same-origin reads of
+  // files the extension ships, cached for the panel's lifetime so a second sheet
+  // costs nothing. Any failure returns null and the PDF falls back to the
+  // standard-14 Times trio — an uglier sheet still beats no sheet, and the plain
+  // telegram never wanted these fonts in the first place.
+  let sheetFontCache = null;
+  async function sheetFonts() {
+    if (sheetFontCache !== null) return sheetFontCache;
+    const read = async (f) => new Uint8Array(await (await fetch(`fonts/${f}`)).arrayBuffer());
+    try {
+      sheetFontCache = {
+        script: await read('pinyon-script.ttf'),
+        text: await read('ebgaramond-regular.ttf'),
+        textItalic: await read('ebgaramond-italic.ttf'),
+        display: await read('playfair-500.ttf'),
+      };
+    } catch (e) {
+      sheetFontCache = null; // stays null; `!== null` above re-fetches next time
+    }
+    return sheetFontCache;
+  }
+
   // Download the printable backup sheet (see pdf-backup.js) for one account.
   // Generated entirely in the panel — the nsec never leaves the extension, and no
-  // network call is involved. `ncryptsec` (optional) adds the encrypted second
-  // page; the password behind it never reaches this function's inputs, let
-  // alone the PDF.
+  // network call is involved. `ncryptsec` (optional) asks for the encrypted
+  // masquerade sheet instead of the plain telegram; the password behind it never
+  // reaches this function's inputs, let alone the PDF.
   async function downloadBackupSheet(nsec, account, ncryptsec) {
     try {
       const npub = (account && account.npub) || (nsec ? NT.nip19.npubEncode(NT.nip19.decode(nsec).data) : '');
@@ -4172,6 +4194,7 @@
         // profile yet, and the sheet falls back to "THE BEARER OF THIS SHEET".
         name: account && account.name ? displayName(account) : '',
         ncryptsec: ncryptsec || '',
+        fonts: ncryptsec ? await sheetFonts() : null,
       });
       const how = await saveFile(blob, window.SidecarBackupPdf.filename(npub));
       if (how === 'cancelled') return true; // changed their mind; nothing to report
@@ -4187,31 +4210,31 @@
     }
   }
 
-  // Controls for the backup sheet's optional encrypted page (audit #195): a
-  // checkbox that reveals an export-password pair. Returns { block, collect } —
-  // collect(nsec, errEl) gives '' when unchecked, the ncryptsec on success, or
-  // null with errEl filled when the password pair is invalid. The password is
-  // used once, in-panel, and dropped — same discipline as the ncryptsec tab in
-  // keyBackupModal, which this deliberately mirrors.
+  // Password fields for the encrypted backup sheet (audit #195), shown only when
+  // the Profile page's "Encrypt the sheet" toggle sent the user here — the choice
+  // was made before the PIN gate, so there is no second checkbox inside it.
+  // Returns { block, collect } — collect(nsec, errEl) gives the ncryptsec on
+  // success, or null with errEl filled when the password pair is invalid. The
+  // password is used once, in-panel, and dropped — same discipline as the
+  // ncryptsec tab in keyBackupModal, which this deliberately mirrors.
   function encryptedPageControls() {
-    const tick = h('input', { type: 'checkbox' });
-    const row = h('label', { className: 'toggle-row' }, [
-      tick,
-      h('span', { textContent: 'Add an encrypted page (needs a password)' }),
-    ]);
     const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
     const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
-    const fields = h('div', { className: 'hidden' }, [
-      h('label', { textContent: 'Password' }),
-      pass,
-      h('label', { textContent: 'Confirm password' }),
-      pass2,
-    ]);
-    tick.addEventListener('change', () => fields.classList.toggle('hidden', !tick.checked));
     return {
-      block: h('div', {}, [row, fields]),
+      block: h('div', {}, [
+        h('label', { textContent: 'Password' }),
+        pass,
+        h('label', { textContent: 'Confirm password' }),
+        pass2,
+        // The two secrets get conflated the moment both are called passwords:
+        // the PIN unlocks Sidecar on this device, this one travels with the
+        // paper and is the only way back into the printed sheet.
+        h('p', {
+          className: 'hint',
+          textContent: 'This unlocks the printed sheet. It is not your Sidecar PIN.',
+        }),
+      ]),
       collect: (nsec, errEl) => {
-        if (!tick.checked) return '';
         if (!pass.value || pass.value.length < 8) {
           errEl.textContent = 'Use a password of at least 8 characters.';
           return null;
@@ -4234,17 +4257,17 @@
   // Dismissible: the key is already stored, so gating anything here would be
   // theatre. Copy is deliberately two lines — this renders in a ~360px panel,
   // and a wall of text in a small rectangle just gets clicked past.
+  //
+  // Plain sheet only, on purpose. This is a minute into the user's first
+  // session, and almost nobody has heard of an ncryptsec — the encrypted sheet
+  // is offered later, from Profile → Backup & restore, by people who know what
+  // they're opting into.
   function backupSheetPromptModal(nsec, account) {
     openModal((modal) => {
-      const enc = encryptedPageControls();
-      const err = h('div', { className: 'error' });
       const grab = h('button', { className: 'primary', textContent: 'Download' });
       grab.addEventListener('click', () => {
-        err.textContent = '';
-        const nc = enc.collect(nsec, err);
-        if (nc === null) return; // invalid password pair — modal stays up, message shown
         closeModal();
-        downloadBackupSheet(nsec, account, nc);
+        downloadBackupSheet(nsec, account);
       });
       const skip = h('button', { className: 'ghost', textContent: 'Not now' });
       skip.addEventListener('click', closeModal);
@@ -4254,8 +4277,6 @@
           className: 'hint',
           textContent: 'One page with your key and a QR code. Print it, or keep the file somewhere safe.',
         }),
-        enc.block,
-        err,
         h('div', { className: 'actions' }, [grab, skip])
       );
     });
@@ -4389,17 +4410,17 @@
   // opts.sheetOnly: the caller wants the printable sheet, so the PIN gate hands the
   // revealed nsec straight to the download instead of putting it on screen. Same
   // gate either way — the sheet is the key in another wrapper.
+  // opts.encrypted (sheetOnly only): the Profile page's toggle asked for the
+  // masquerade sheet, so the export-password pair rides this same flow — the
+  // user is already here with their PIN out.
   function backupKeyModal(a, opts) {
     const sheetOnly = !!(opts && opts.sheetOnly);
+    const encrypted = sheetOnly && !!(opts && opts.encrypted);
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      // sheetOnly: the optional encrypted second page rides this same flow —
-      // the user is already here with their PIN out, one checkbox is the whole
-      // added ceremony. (The plain Reveal path never sees this; its follow-up
-      // keyBackupModal has its own ncryptsec tab.)
-      const enc = sheetOnly ? encryptedPageControls() : null;
-      const goLabel = sheetOnly ? 'Download sheet' : 'Reveal';
+      const enc = encrypted ? encryptedPageControls() : null;
+      const goLabel = encrypted ? 'Download encrypted sheet' : sheetOnly ? 'Download sheet' : 'Reveal';
       const go = h('button', { className: 'primary', textContent: goLabel });
       go.addEventListener('click', async () => {
         err.textContent = '';
@@ -4470,15 +4491,7 @@
       (modal) => {
         const body = h('div', { className: 'key-backup-body' });
 
-        // The last ncryptsec the ncryptsec tab produced, if any. The sheet button
-        // below prints the encrypted second page only when that tab is the active
-        // one — i.e. the user just chose a password and is looking at the result —
-        // so a sheet from the nsec tab never carries a page encrypted under a
-        // password from a previous visit to the other tab.
-        let currentNcryptsec = null;
-
         function showNsecTab() {
-          currentNcryptsec = null;
           stop();
           stopReveal = renderSecretReveal(body, {
             secret: nsec,
@@ -4491,7 +4504,6 @@
 
         function showNcryptsecTab() {
           stop();
-          currentNcryptsec = null;
           body.innerHTML = '';
           const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
           const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
@@ -4509,7 +4521,6 @@
               err.textContent = 'Could not encrypt the key.';
               return;
             }
-            currentNcryptsec = ncryptsec;
             stopReveal = renderSecretReveal(body, {
               secret: ncryptsec,
               noun: 'ncryptsec',
@@ -4555,11 +4566,13 @@
         done.addEventListener('click', closeModal);
 
         // Also offered here, so someone who came to look at the key can leave with
-        // the printable copy instead of reaching for a screenshot.
+        // the printable copy instead of reaching for a screenshot. Always the
+        // plain sheet, whichever tab is showing: minting an ncryptsec here would
+        // mean a second password form under an already-revealed key, and the
+        // encrypted sheet has its own home on the Profile page.
         const sheet = h('button', { className: 'secondary', textContent: 'Download backup sheet' });
         sheet.addEventListener('click', () => {
-          const ncActive = tabNcrypt.classList.contains('active');
-          downloadBackupSheet(nsec, a, ncActive ? currentNcryptsec : '');
+          downloadBackupSheet(nsec, a);
           // RESTART the 30s auto-hide rather than cancelling it. Cancelling would
           // leave the nsec on screen indefinitely, trading shoulder-surfing
           // protection for the convenience of one click; restarting gives a full
@@ -8353,13 +8366,34 @@
           'A one-page sheet with your secret key as text and a QR, made to be printed and kept somewhere safe. Unlike the file above, this IS your key — never send it by email or chat.',
       })
     );
+    // The encrypted variant lives HERE, not in the day-one prompts: by the time
+    // someone is browsing Profile → Backup & restore they know what a backup is
+    // and can weigh "useless without the password" for themselves. The hint is
+    // hidden until the toggle is on, so the default path reads exactly as before.
+    const encTick = h('input', { type: 'checkbox' });
+    const encHint = h('p', {
+      className: 'hint hidden',
+      textContent:
+        'The sheet prints a masked version of your key: a photo or copy of it alone is useless. Restoring needs the password you choose and a NIP-49-capable app — Sidecar accepts it on import. Forget the password and the sheet cannot recover your account.',
+    });
+    encTick.addEventListener('change', () => {
+      encHint.classList.toggle('hidden', !encTick.checked);
+      sheetBtn.textContent = encTick.checked ? 'Download encrypted sheet' : 'Download key sheet';
+    });
     const sheetBtn = h('button', { className: 'secondary', textContent: 'Download key sheet' });
     sheetBtn.addEventListener('click', () => {
       // Same step-up PIN gate as revealing the nsec anywhere else — the sheet is
       // the key in another wrapper, so it can't be a cheaper way to get at it.
-      backupKeyModal(active, { sheetOnly: true });
+      backupKeyModal(active, { sheetOnly: true, encrypted: encTick.checked });
     });
-    sheetWrap.append(sheetBtn);
+    sheetWrap.append(
+      h('label', { className: 'toggle-row' }, [
+        encTick,
+        h('span', { textContent: 'Encrypt the sheet with a password' }),
+      ]),
+      encHint,
+      sheetBtn
+    );
 
     const importBtn = h('button', { className: 'secondary', textContent: 'Restore from file' });
     const fileInput = document.createElement('input');
