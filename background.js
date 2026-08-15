@@ -2718,13 +2718,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Page RPC from content script.
-  if (message.type === 'SIDECAR_NOSTR_RPC') {
-    handleNostrRpc(message.method, message.params, message.host, sendResponse, originWindowId);
-    return true;
-  }
-  if (message.type === 'SIDECAR_WEBLN_RPC') {
-    handleWeblnRpc(message.method, message.params, message.host, sendResponse, originWindowId);
+  // Page RPC from content script. The host MUST come from the sender's own URL,
+  // never from the message body — the same rule the payment/card handlers below
+  // state. content.js does send its own location.host today, but if a future
+  // content-script refactor ever forwards a page-influenced host, trusting the
+  // body here would let a page act under another host's trust tier, relax
+  // window, or decrypt grant. Derive it; ignore the body field.
+  if (message.type === 'SIDECAR_NOSTR_RPC' || message.type === 'SIDECAR_WEBLN_RPC') {
+    let rpcHost = '';
+    try { rpcHost = new URL((sender && sender.url) || '').host; } catch (_) {}
+    const fn = message.type === 'SIDECAR_NOSTR_RPC' ? handleNostrRpc : handleWeblnRpc;
+    fn(message.method, message.params, rpcHost, sendResponse, originWindowId);
     return true;
   }
   // "Pay with Sidecar" pill clicked on a page.
