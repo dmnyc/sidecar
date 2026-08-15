@@ -399,6 +399,16 @@
       els.decryptNote.classList.remove('hidden');
     }
 
+    // Same honesty for WebLN reads: one Allow covers this site's balance/info/
+    // invoice reads for the rest of the session (until Sidecar locks), not just
+    // the request in front of you. Sites legitimately poll the balance, so a
+    // once-per-read prompt would be noise — but the broader grant must be said.
+    if (data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice') {
+      els.decryptNote.textContent =
+        'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';
+      els.decryptNote.classList.remove('hidden');
+    }
+
     // Shared-identity confirm: this host is signed in with more than one of your
     // accounts, so make the "who's posting" choice explicit and relabel the
     // switcher for the signing (not login) context. This confirms on EVERY
