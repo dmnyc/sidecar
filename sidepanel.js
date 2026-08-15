@@ -4548,6 +4548,7 @@
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
+    $('na-toggle').checked = settings.nostrArchives === true; // default off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
@@ -5337,8 +5338,21 @@
   // Global username search + bulk metadata, used to (A) find people to @mention
   // who aren't in your follow list and (B) resolve follow-list names the relays
   // didn't return. Best-effort: any error or rate-limit falls back to relay data.
-  // See docs/username-search-plan.md. Approved endpoints only.
+  // Approved endpoints only.
+  //
+  // OPT-IN (Settings → "Use the Nostr Archives name index", default off). Both
+  // endpoints disclose something the relays never see together: suggest sends
+  // what you're typing in the composer, metadata sends your follow list in
+  // 500-pubkey chunks — a new centralized observer that can correlate sessions
+  // by IP. That trade is the user's call, so without the setting both return
+  // empty and mention search stays relay-only. Reads storage directly rather
+  // than via call() so autocomplete keystrokes can't wake the service worker.
   const NA_BASE = 'https://api.nostrarchives.com';
+  function naEnabled() {
+    return new Promise((resolve) =>
+      chrome.storage.local.get('sidecar_settings', (r) =>
+        resolve(((r && r.sidecar_settings) || {}).nostrArchives === true)));
+  }
   const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
   let naCooldownUntil = 0; // epoch ms; a 429 backs us off until this time
   const naAvailable = () => Date.now() >= naCooldownUntil;
@@ -5351,6 +5365,7 @@
   // Global username search → [{pubkey, name, picture}]. Returns [] on any failure.
   async function naSuggest(query) {
     if (!query || query.length < 2 || !naAvailable()) return [];
+    if (!(await naEnabled())) return [];
     try {
       const resp = await fetch(NA_BASE + '/v1/search/suggest?q=' + encodeURIComponent(query) + '&limit=8', {
         signal: AbortSignal.timeout(5000),
@@ -5375,6 +5390,7 @@
     const out = new Map();
     const ids = [...new Set((pubkeys || []).filter(isHex64).map((p) => p.toLowerCase()))];
     if (!ids.length || !naAvailable()) return out;
+    if (!(await naEnabled())) return out;
     for (let i = 0; i < ids.length; i += 500) {
       const chunk = ids.slice(i, i + 500);
       try {
@@ -10600,6 +10616,10 @@
 
   $('datasync-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { confirmDataSync: e.target.checked } });
+  });
+
+  $('na-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: e.target.checked } });
   });
 
   $('pinbalance-toggle').addEventListener('change', async (e) => {
