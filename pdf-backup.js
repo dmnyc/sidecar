@@ -245,6 +245,13 @@
   function build(opts) {
     const nsec = ascii(opts.nsec);
     const npub = ascii(opts.npub);
+    // Optional second page: the same key as a NIP-49 ncryptsec, password-
+    // encrypted with the vendored encryptor. A sheet carrying BOTH pages still
+    // restores the account from page 1 alone, but a photocopy or photo of THIS
+    // page alone is useless without the password — which is deliberately not
+    // printed anywhere. The caller collects the password interactively; an
+    // empty/absent value just means the one-page sheet, as before.
+    const ncryptsec = opts.ncryptsec ? ascii(opts.ncryptsec) : '';
     const when = opts.date instanceof Date ? opts.date : new Date();
     const stamp = when.toISOString().slice(0, 16).replace('T', '  ');
 
@@ -398,27 +405,149 @@
     c.text(PAGE_W - M - 22 - textWidth(site, 7), footY, site, 7, 'F1');
 
     // ---- object graph
+    // 1 catalog, 2 pages, 3 page-1, 4 page-1 contents, 5/6 fonts, 7 the OCG —
+    // then, only when an ncryptsec was provided, 8 page-2 and 9 its contents.
+    // The numbering stays put for the one-page sheet, so nothing downstream
+    // (or in the tests) sees object references move.
     const stream = c.toString();
     const streamBytes = new TextEncoder().encode(stream).length;
     const font = (name) => `<< /Type /Font /Subtype /Type1 /BaseFont /${name} /Encoding /WinAnsiEncoding >>`;
-    // Object 7 is the optional content group holding the full-page tint.
-    //   /Usage      declares what it is FOR (view yes, print no)
-    //   /D /AS      is what actually applies that usage automatically per event —
-    //               a /Usage dictionary alone is only advisory and readers ignore it
-    //   /D /ON      leaves the group visible in the default configuration
-    return assemble([
+    const pageRes = '/Resources << /Font << /F1 5 0 R /F2 6 0 R >> /Properties << /MC0 7 0 R >> >>';
+    const objects = [
+      // Object 7 is the optional content group holding the full-page tint.
+      //   /Usage      declares what it is FOR (view yes, print no)
+      //   /D /AS      is what actually applies that usage automatically per event —
+      //               a /Usage dictionary alone is only advisory and readers ignore it
+      //   /D /ON      leaves the group visible in the default configuration
       '<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [7 0 R] ' +
         '/D << /ON [7 0 R] /Order [] ' +
         '/AS [ << /Event /Print /Category [/Print] /OCGs [7 0 R] >> ] >> >> >>',
-      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      `<< /Type /Pages /Kids [3 0 R${ncryptsec ? ' 8 0 R' : ''}] /Count ${ncryptsec ? 2 : 1} >>`,
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +
-        '/Resources << /Font << /F1 5 0 R /F2 6 0 R >> /Properties << /MC0 7 0 R >> >> /Contents 4 0 R >>',
+        pageRes + ' /Contents 4 0 R >>',
       `<< /Length ${streamBytes} >>\nstream\n${stream}\nendstream`,
       font('Courier'),
       font('Courier-Bold'),
       '<< /Type /OCG /Name (Paper tint) /Usage << /View << /ViewState /ON >> ' +
         '/Print << /PrintState /OFF >> >> >>',
-    ]);
+    ];
+    if (ncryptsec) {
+      const c2 = content();
+      drawEncryptedPage(c2, { ncryptsec, npub, stamp });
+      const s2 = c2.toString();
+      const s2Bytes = new TextEncoder().encode(s2).length;
+      objects.push(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +
+          pageRes + ' /Contents 9 0 R >>',
+        `<< /Length ${s2Bytes} >>\nstream\n${s2}\nendstream`
+      );
+    }
+    return assemble(objects);
+  }
+
+  // ---------------------------------------------------------------- page 2
+
+  // The encrypted copy: same frame and letterhead, but everything below the
+  // form strip exists to say one thing — this page is not the key by itself.
+  // Mirrors page 1's structure deliberately (same margins, same bands, same
+  // type sizes) so the pair reads as one document, not a bolted-on appendix.
+  function drawEncryptedPage(c, opts) {
+    const ncryptsec = opts.ncryptsec;
+    const M = 40;
+
+    c.beginOptional('MC0');
+    c.fill(...PAPER).rect(0, 0, PAGE_W, PAGE_H);
+    c.endOptional();
+    const BAND = 12;
+    c.fill(...PAPER).ring(M, M, PAGE_W - M * 2, PAGE_H - M * 2, BAND);
+    c.stroke(...INK).width(2).rect(M, M, PAGE_W - M * 2, PAGE_H - M * 2, 'S');
+    c.width(0.6).rect(M + BAND, M + BAND, PAGE_W - (M + BAND) * 2, PAGE_H - (M + BAND) * 2, 'S');
+
+    // ---- letterhead (as page 1)
+    let y = M + 20;
+    const markH = 30;
+    drawMark(c, (PAGE_W - MARK_VIEWBOX.w * (markH / MARK_VIEWBOX.h)) / 2, y, markH);
+    y += markH + 20;
+    c.fill(...INK).trackedCentered(y, 'SIDECAR TELEGRAPH COMPANY', 15, 'F2', 2.2);
+    y += 16;
+    c.fill(...INK).trackedCentered(y, 'KEY CUSTODY DIVISION', 8, 'F1', 1.6);
+    y += 14;
+    c.stroke(...BRONZE).width(1).line(M + 22, y, PAGE_W - M - 22, y);
+    y += 3;
+    c.width(0.5).line(M + 22, y, PAGE_W - M - 22, y);
+
+    // ---- form strip: ENCRYPTED, not PERMANENT — the class of service line is
+    // what a thumbnail or folded sheet shows first, so it's where "this one is
+    // different" belongs.
+    y += 20;
+    const colX = [M + 22, M + 190, M + 350];
+    c.fill(...INK);
+    c.text(colX[0], y, 'CLASS OF SERVICE', 6.5, 'F1');
+    c.text(colX[1], y, 'SERIAL', 6.5, 'F1');
+    c.text(colX[2], y, 'FILED (UTC)', 6.5, 'F1');
+    y += 11;
+    c.fill(...INK);
+    c.text(colX[0], y, 'ENCRYPTED RECORD', 9, 'F2');
+    c.text(colX[1], y, serialFor(opts.npub), 9, 'F2');
+    c.text(colX[2], y, opts.stamp, 9, 'F2');
+    y += 9;
+    c.stroke(...INK).width(0.5).line(M + 22, y, PAGE_W - M - 22, y);
+
+    // ---- message
+    y += 20;
+    c.fill(...INK).trackedCentered(y, 'M E S S A G E', 7.5, 'F1', 1.2);
+    y += 18;
+    c.fill(...INK);
+    for (const l of [
+      'THIS PAGE HOLDS THE SAME KEY, ENCRYPTED.',
+      'IT CANNOT BE USED WITHOUT ITS PASSWORD.',
+      'THE PASSWORD IS NOT PRINTED HERE. STOP',
+    ]) { c.text(colX[0], y, l, 9.5, 'F2'); y += 14; }
+
+    // ---- QR — the primary restore path for this page, so it gets the room
+    // page 1 spent on the key box and warnings.
+    y += 10;
+    const qrSize = 200;
+    const qrX = (PAGE_W - qrSize) / 2;
+    c.stroke(...INK).width(1).rect(qrX - 6, y - 6, qrSize + 12, qrSize + 12, 'S');
+    drawQr(c, ncryptsec, qrX, y, qrSize);
+    y += qrSize + 16;
+    c.fill(...INK).centered(y, 'SCAN TO RESTORE - NEEDS ITS PASSWORD', 7, 'F1');
+
+    // ---- the encrypted key, in a box, as selectable text
+    y += 20;
+    const boxH = 52;
+    c.fill(1, 1, 1).rect(M + 22, y, PAGE_W - (M + 22) * 2, boxH);
+    c.stroke(...INK).width(1).rect(M + 22, y, PAGE_W - (M + 22) * 2, boxH, 'S');
+    c.fill(...INK).text(M + 30, y + 12, 'ENCRYPTED KEY (NCRYPTSEC) - COPY IT EXACTLY', 6.5, 'F1');
+    // ~118 bech32 characters: split once near the middle at full 8pt rather
+    // than shrinking the type, so transcription stays readable. The split is
+    // mid-string on a character boundary — bech32 has no delimiters, and both
+    // halves together are the value.
+    const mid = Math.ceil(ncryptsec.length / 2);
+    c.fill(...INK).text(M + 30, y + 28, ncryptsec.slice(0, mid), 8, 'F2');
+    c.text(M + 30, y + 40, ncryptsec.slice(mid), 8, 'F2');
+    y += boxH + 22;
+
+    // ---- warnings, in plain sentences on purpose (as page 1)
+    y += 8;
+    c.stroke(...INK).width(0.5).line(M + 22, y, PAGE_W - M - 22, y);
+    y += 16;
+    c.fill(...INK).text(colX[0], y, 'Keep these apart', 10, 'F2');
+    y += 15;
+    for (const l of [
+      'Anyone holding this page AND its password becomes you on Nostr.',
+      'Keep the password somewhere separate, like a password manager.',
+      'A photo of page 1 is enough to steal the account. A photo of this',
+      'page is just noise until the password is typed too.',
+    ]) { c.text(colX[0], y, l, 8.6, 'F1'); y += 12; }
+
+    // ---- footer (as page 1)
+    const footY = PAGE_H - M - 22;
+    c.stroke(...BRONZE).width(0.5).line(M + 22, footY - 12, PAGE_W - M - 22, footY - 12);
+    c.fill(...INK).text(colX[0], footY, 'SIDECAR - A CLASSY NOSTR SIGNER', 7, 'F1');
+    const site = 'sidecar.top';
+    c.text(PAGE_W - M - 22 - textWidth(site, 7), footY, site, 7, 'F1');
   }
 
   // Filename mirrors the vault export's convention (sidecar-backup-<npub12>.json).
