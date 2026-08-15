@@ -99,8 +99,10 @@ test('with ncryptsec the PDF is a different one-page sheet, and only that sheet'
   // guest's name is set in, /F8 the Garamond italic of the body.
   const flat = [...page.matchAll(/\((.*?)\) Tj/g)].map((m) => m[1]).join('');
   assert.ok(flat.includes('SAVEYOURKEY'), 'the save-the-date display line is set');
-  // The particulars strip is just the issue date now — no serial, no banner.
-  assert.ok(flat.includes('1970-01-01'), 'the date is set');
+  // The particulars strip is just the issue moment now — no serial, no banner.
+  // Flattened (spaces are never drawn, only advanced), so the time and zone
+  // assert too.
+  assert.ok(flat.includes('1970-01-0100:00UTC'), 'the date, time, and zone are set');
   assert.ok(!flat.includes('SERIAL'), 'the serial is not');
   // The guest's address line under the script name: abbreviated, but showing
   // both halves so the sheet can still be eyeballed against the account list.
@@ -145,8 +147,19 @@ test('ncryptsec without fonts still prints: the Times trio stands in', () => {
   assert.ok(!t.includes(NSEC), 'and the either/or property holds all the same');
 });
 
-test('xref offsets point at the actual object headers, in every layout', () => {
-  // Plain telegram (10 objects), invitation with embedded faces (18), and the
+test('the two variants download under different names', () => {
+  const Pdf = load();
+  const plain = Pdf.filename(NPUB);
+  const enc = Pdf.filename(NPUB, NC);
+  // A shared name would let one file pose as the other in a Downloads folder,
+  // where they are indistinguishable until opened — and only one of them is
+  // the account in the clear.
+  assert.notEqual(plain, enc);
+  assert.equal(plain, 'sidecar-key-npub1aaaaaaa.pdf');
+  assert.equal(enc, 'sidecar-encrypted-key-npub1aaaaaaa.pdf');
+});
+
+test('xref offsets point at the actual object headers, in every layout', () => {  // Plain telegram (10 objects), invitation with embedded faces (18), and the
   // Times fallback (10) — the binary font streams must advance the xref cursor
   // by their byte length, which the shim's one-'B'-per-byte view checks.
   for (const opts of [{}, { ncryptsec: NC, fonts: FONTS }, { ncryptsec: NC }]) {

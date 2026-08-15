@@ -965,9 +965,12 @@
 
     // ---- the date, centered where the telegram had its form strip. An
     // invitation states its occasion, it doesn't itemize — so no serial, no
-    // "ENCRYPTED RECORD" banner, just the day it was issued.
+    // "ENCRYPTED RECORD" banner, just when it was issued. The hour, not only
+    // the day, is what tells two sheets apart when one was printed under each
+    // of two passwords; and the zone rides inline ("UTC") because there is no
+    // column label here to declare it, as the telegram's FILED field has.
     y += 20;
-    set(y, opts.stamp.slice(0, 10), F.roman, 7, 1.4);
+    set(y, opts.stamp + ' UTC', F.roman, 7, 1.4);
 
     // ---- the invitation's body
     y += 20;
@@ -1047,9 +1050,14 @@
     txt(PAGE_W - M - 30 - widthIn(F.roman, site, 10), footY, site, 10, F.roman);
   }
 
-  // Filename mirrors the vault export's convention (sidecar-backup-<npub12>.json).
-  function filename(npub) {
-    return 'sidecar-key-' + ascii(npub).slice(0, 12) + '.pdf';
+  // Filenames mirror the vault export's convention (sidecar-backup-<npub12>.json).
+  // The two variants must never share one: side by side in a Downloads folder
+  // they are indistinguishable until opened, and the difference is the whole
+  // point — the encrypted sheet is safe to keep, the plain one is the account
+  // in the clear. The variant word sits before the npub so both names stay
+  // prefix-adjacent and still sort together per account.
+  function filename(npub, ncryptsec) {
+    return (ncryptsec ? 'sidecar-encrypted-key-' : 'sidecar-key-') + ascii(npub).slice(0, 12) + '.pdf';
   }
 
   root.SidecarBackupPdf = { build, filename };

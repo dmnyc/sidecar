@@ -2316,7 +2316,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* Buttons/text appended directly to .modal stretch full-width because .modal
    itself is a flex column (see below); this wrapper needs the same layout so
    its contents (box, copy/QR buttons, warning, form fields) match that. */
-.key-backup-body { display: flex; flex-direction: column; gap: 9px; min-height: 0; }
+.key-backup-body { display: flex; flex-direction: column; gap: 9px; }
+/* Deliberately no min-height: 0 here (scroll panes like .notif-scroll need it;
+   this body never scrolls). The modal is a max-height flex column, and a flex
+   item with min-height 0 can be squeezed below its content height: open the QR
+   and the 240px canvas plus the hints paint right over the action buttons —
+   overflow is visible, and because the shrink made the total "fit", no
+   scrollbar appears to say anything is buried. Left at the default, an
+   over-tall body instead pushes the modal itself into scrolling. */
 
 /* revealed secret (nsec / ncryptsec / NWC) reveal: full-width, evenly-stacked
    action buttons so Copy and Show-QR align instead of sizing to their labels. */

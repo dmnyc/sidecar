@@ -4196,7 +4196,7 @@
         ncryptsec: ncryptsec || '',
         fonts: ncryptsec ? await sheetFonts() : null,
       });
-      const how = await saveFile(blob, window.SidecarBackupPdf.filename(npub));
+      const how = await saveFile(blob, window.SidecarBackupPdf.filename(npub, ncryptsec));
       if (how === 'cancelled') return true; // changed their mind; nothing to report
       // Addresses the file rather than the printed sheet. Keeping the PDF is fine —
       // a password manager or an encrypted drive is a good home for it. What isn't
@@ -4217,23 +4217,43 @@
   // success, or null with errEl filled when the password pair is invalid. The
   // password is used once, in-panel, and dropped — same discipline as the
   // ncryptsec tab in keyBackupModal, which this deliberately mirrors.
-  function encryptedPageControls() {
+  function encryptedPageControls(goBtn) {
     const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
     const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+    const block = h('div', {}, [
+      // Said up front, because the field looks like a login field: this is
+      // not where an existing password gets entered, it's where a new one is
+      // coined, for this sheet alone.
+      h('p', {
+        className: 'hint',
+        textContent: 'This password is unique to the sheet — choose a new one, not one you use anywhere else.',
+      }),
+      h('label', { textContent: 'Set a password' }),
+      pass,
+      h('label', { textContent: 'Confirm password' }),
+      pass2,
+      // The two secrets get conflated the moment both are called passwords:
+      // the PIN unlocks Sidecar on this device, this one travels with the
+      // paper and is the only way back into the printed sheet.
+      h('p', {
+        className: 'hint',
+        textContent: 'This unlocks the printed sheet. It is not your Sidecar PIN.',
+      }),
+    ]);
+    // Live check/x feedback on the pair, same as the ncryptsec tab and PIN
+    // creation, gating the go button: it starts disabled and opens only when
+    // the pair is long enough and matching. The returned validate is for the
+    // click handler's error paths, which must not blindly re-enable the button
+    // while the pair stands invalid.
+    // AFTER the block is assembled, not before: addPinIndicator wraps each
+    // input in place, and on a detached input the wrap never travels — building
+    // the block afterwards moves the inputs out of their wraps, orphaning the
+    // checkmarks exactly where they're wanted. (The ncryptsec tab never hit
+    // this because it validates after body.append.)
+    const validate = attachPinValidation(pass, pass2, goBtn);
     return {
-      block: h('div', {}, [
-        h('label', { textContent: 'Password' }),
-        pass,
-        h('label', { textContent: 'Confirm password' }),
-        pass2,
-        // The two secrets get conflated the moment both are called passwords:
-        // the PIN unlocks Sidecar on this device, this one travels with the
-        // paper and is the only way back into the printed sheet.
-        h('p', {
-          className: 'hint',
-          textContent: 'This unlocks the printed sheet. It is not your Sidecar PIN.',
-        }),
-      ]),
+      validate,
+      block,
       collect: (nsec, errEl) => {
         if (!pass.value || pass.value.length < 8) {
           errEl.textContent = 'Use a password of at least 8 characters.';
@@ -4419,9 +4439,10 @@
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const enc = encrypted ? encryptedPageControls() : null;
       const goLabel = encrypted ? 'Download encrypted sheet' : sheetOnly ? 'Download sheet' : 'Reveal';
       const go = h('button', { className: 'primary', textContent: goLabel });
+      // Built after go because the password pair gates it.
+      const enc = encrypted ? encryptedPageControls(go) : null;
       go.addEventListener('click', async () => {
         err.textContent = '';
         if (!pin.value) return (err.textContent = 'Enter your PIN.');
@@ -4436,7 +4457,7 @@
           if (enc) {
             nc = enc.collect(r.nsec, err);
             if (nc === null) {
-              go.disabled = false;
+              go.disabled = !enc.validate();
               go.textContent = goLabel;
               return;
             }
@@ -4446,7 +4467,7 @@
           else setTimeout(() => keyBackupModal(a, r.nsec), 0);
         } catch (e) {
           err.textContent = e.message;
-          go.disabled = false;
+          go.disabled = enc ? !enc.validate() : false;
           go.textContent = goLabel;
           toast(e.message, 'error');
         }
@@ -4483,6 +4504,15 @@
   // to share one timer across both.
   function keyBackupModal(a, nsec) {
     let stopReveal = null;
+    // The ncryptsec minted on the ncryptsec tab THIS visit — the only one the
+    // sheet button may print, and cleared on every tab switch: the password
+    // form resets with it, and a sheet printed later must never carry a secret
+    // encrypted under a password nobody is looking at anymore.
+    let currentNcryptsec = null;
+    // The ncryptsec tab's password form, reachable from the sheet button: with
+    // the form still up, a sheet click completes the form's job — validate,
+    // mint, print — without the reveal.
+    let ncPass = null, ncPass2 = null, ncErr = null;
     function stop() {
       if (stopReveal) { stopReveal(); stopReveal = null; }
     }
@@ -4508,6 +4538,9 @@
           const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
           const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
           const err = h('div', { className: 'error' });
+          ncPass = pass;
+          ncPass2 = pass2;
+          ncErr = err;
           const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
           go.addEventListener('click', () => {
             err.textContent = '';
@@ -4521,13 +4554,8 @@
               err.textContent = 'Could not encrypt the key.';
               return;
             }
-            stopReveal = renderSecretReveal(body, {
-              secret: ncryptsec,
-              noun: 'ncryptsec',
-              warnText: 'Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.',
-              qrHint: 'Scan to import into another NIP-49-compatible app.',
-              onExpire: closeModal,
-            });
+            currentNcryptsec = ncryptsec;
+            revealNcryptsec();
           });
           body.append(
             h('p', {
@@ -4547,37 +4575,89 @@
           attachPinValidation(pass, pass2, go);
         }
 
+        // The ncryptsec reveal, factored out so the sheet button can re-run it:
+        // a fresh renderSecretReveal is a fresh 30s window, the same restart the
+        // nsec tab's sheet click gets.
+        function revealNcryptsec() {
+          stop();
+          stopReveal = renderSecretReveal(body, {
+            secret: currentNcryptsec,
+            noun: 'ncryptsec',
+            warnText: 'Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.',
+            qrHint: 'Scan to import into another NIP-49-compatible app.',
+            onExpire: closeModal,
+          });
+        }
+
         const tabNsec = h('button', { className: 'modal-tab active', textContent: 'nsec' });
         const tabNcrypt = h('button', { className: 'modal-tab', textContent: 'ncryptsec' });
         tabNsec.addEventListener('click', () => {
           if (tabNsec.classList.contains('active')) return;
           tabNsec.classList.add('active');
           tabNcrypt.classList.remove('active');
+          currentNcryptsec = null;
           showNsecTab();
+          syncSheetLabel();
         });
         tabNcrypt.addEventListener('click', () => {
           if (tabNcrypt.classList.contains('active')) return;
           tabNcrypt.classList.add('active');
           tabNsec.classList.remove('active');
+          currentNcryptsec = null;
           showNcryptsecTab();
+          syncSheetLabel();
         });
 
         const done = h('button', { className: 'primary', textContent: "I've saved it" });
         done.addEventListener('click', closeModal);
 
         // Also offered here, so someone who came to look at the key can leave with
-        // the printable copy instead of reaching for a screenshot. Always the
-        // plain sheet, whichever tab is showing: minting an ncryptsec here would
-        // mean a second password form under an already-revealed key, and the
-        // encrypted sheet has its own home on the Profile page.
+        // the printable copy instead of reaching for a screenshot. Tab-aware: the
+        // nsec tab prints the telegram; the ncryptsec tab prints the masquerade
+        // page — from the typed password if the form is still up (the sheet goes
+        // straight to paper, no reveal: the whole point of this variant is a
+        // backup the secret never has to hit the screen for), or from the
+        // ncryptsec already revealed. Never the plain sheet from this tab — being
+        // here is a statement of intent, and honoring it is how the right version
+        // gets printed from here as from the Profile page.
         const sheet = h('button', { className: 'secondary', textContent: 'Download backup sheet' });
+        function syncSheetLabel() {
+          sheet.textContent = tabNcrypt.classList.contains('active')
+            ? 'Download encrypted sheet'
+            : 'Download backup sheet';
+        }
         sheet.addEventListener('click', () => {
-          downloadBackupSheet(nsec, a);
-          // RESTART the 30s auto-hide rather than cancelling it. Cancelling would
-          // leave the nsec on screen indefinitely, trading shoulder-surfing
-          // protection for the convenience of one click; restarting gives a full
-          // fresh window without ever removing the guard.
-          if (tabNsec.classList.contains('active')) showNsecTab();
+          if (!tabNcrypt.classList.contains('active')) {
+            downloadBackupSheet(nsec, a);
+            // RESTART the 30s auto-hide rather than cancelling it. Cancelling
+            // would leave the nsec on screen indefinitely; restarting gives a
+            // full fresh window without removing the guard.
+            showNsecTab();
+            return;
+          }
+          if (currentNcryptsec) {
+            downloadBackupSheet(nsec, a, currentNcryptsec);
+            // Same restart, for the revealed ncryptsec.
+            revealNcryptsec();
+            return;
+          }
+          // Password form still up: validate the typed pair (the form's own
+          // checks, so the only messages here are the honest ones — too short,
+          // mismatch), mint, print. "Encrypt & show" stays the other exit, for
+          // those who also want to see it.
+          if (!ncPass.value || ncPass.value.length < 8) return (ncErr.textContent = 'Use a password of at least 8 characters.');
+          if (ncPass.value !== ncPass2.value) return (ncErr.textContent = 'Passwords do not match.');
+          let ncryptsec;
+          try {
+            ncryptsec = window.SidecarNip49.encrypt(NT.nip19.decode(nsec).data, ncPass.value);
+          } catch (e) {
+            ncErr.textContent = 'Could not encrypt the key.';
+            return;
+          }
+          // Deliberately NOT stored in currentNcryptsec: that would arm the
+          // reveal-restart branch above, and a second click would then put the
+          // ncryptsec on screen — the one thing this path's user declined.
+          downloadBackupSheet(nsec, a, ncryptsec);
         });
 
         modal.append(
