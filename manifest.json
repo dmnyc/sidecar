@@ -61,6 +61,7 @@
       "all_frames": false
     }
   ],
+  "externally_connectable": {},
   "browser_specific_settings": {
     "gecko": {
       "id": "sidecar@sidecar.top",
