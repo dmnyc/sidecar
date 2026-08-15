@@ -73,6 +73,10 @@ build_zip() {
     } else {
       delete m.side_panel;
       delete m.minimum_chrome_version;
+      // externally_connectable is Chrome-schema only (Firefox never supported
+      // it and defaults to deny anyway); drop it so the AMO validator does not
+      // flag an unrecognized manifest key in the Firefox zip.
+      delete m.externally_connectable;
       // sidePanel is a Chrome-only permission; drop it so the AMO
       // validator does not flag an unrecognized permission in the Firefox zip.
       if (Array.isArray(m.permissions)) {
