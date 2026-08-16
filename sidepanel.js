@@ -5947,10 +5947,14 @@
     let last = 0;
     let used = 0;
     let truncated = false;
+    // Set after a block-level item: the next text run's leading whitespace
+    // would render under pre-wrap as a blank line stacked on the item's margin.
+    let skipLead = false;
     let m;
     PREVIEW_RE.lastIndex = 0;
     const pushText = (s) => {
       if (!s || truncated) return;
+      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
       if (used + s.length > maxLen) {
         container.append(document.createTextNode(s.slice(0, Math.max(0, maxLen - used)) + '…'));
         truncated = true;
@@ -5958,6 +5962,18 @@
         container.append(document.createTextNode(s));
         used += s.length;
       }
+    };
+    // Media and the quote box are block-level and carry their own margins, so
+    // the newlines an author puts around the ref are padding on top of that —
+    // pre-wrap renders each one as a full empty line between the prose and the
+    // block. Trim the whitespace off the text node before the block and out of
+    // the run after it; the block's margin is the separation. Mentions and
+    // plain links stay inline, which is why only this path trims.
+    const pushBlock = (el) => {
+      const tail = container.lastChild;
+      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
+      container.append(el);
+      skipLead = true;
     };
     while ((m = PREVIEW_RE.exec(text)) !== null) {
       if (m.index > last) pushText(text.slice(last, m.index));
@@ -5971,13 +5987,13 @@
           im.className = 'note-media';
           im.referrerPolicy = 'no-referrer';
           im.src = url;
-          container.append(im);
+          pushBlock(im);
         } else if (VID_EXT.test(url)) {
           const v = document.createElement('video');
           v.className = 'note-media';
           v.controls = true;
           v.src = url;
-          container.append(v);
+          pushBlock(v);
         } else {
           const a = document.createElement('a');
           a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
@@ -6004,7 +6020,7 @@
           a.target = '_blank'; a.rel = 'noreferrer noopener';
           a.textContent = 'quoted note…';
           quotes.push({ el: a, bech });
-          container.append(a);
+          pushBlock(a);
         }
       }
       last = PREVIEW_RE.lastIndex;
@@ -6522,9 +6538,22 @@
     const mentions = [];
     const embeds = [];
     let last = 0;
+    let skipLead = false; // see pushBlock in renderNoteText
     let m;
     PREVIEW_RE.lastIndex = 0;
-    const flushText = (s) => { if (s) container.append(document.createTextNode(s)); };
+    const flushText = (s) => {
+      if (!s) return;
+      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
+      container.append(document.createTextNode(s));
+    };
+    // Same pre-wrap blank-line problem as renderNoteText, for this pane's own
+    // block items: embed cards, link cards, media.
+    const pushBlock = (el) => {
+      const tail = container.lastChild;
+      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
+      container.append(el);
+      skipLead = true;
+    };
     while ((m = PREVIEW_RE.exec(text)) !== null) {
       if (m.index > last) flushText(text.slice(last, m.index));
       if (m[1]) {
@@ -6534,13 +6563,13 @@
           im.className = 'note-media';
           im.referrerPolicy = 'no-referrer';
           im.src = url;
-          container.append(im);
+          pushBlock(im);
         } else if (VID_EXT.test(url)) {
           const v = document.createElement('video');
           v.className = 'note-media';
           v.controls = true;
           v.src = url;
-          container.append(v);
+          pushBlock(v);
         } else {
           const a = document.createElement('a');
           a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
@@ -6550,7 +6579,7 @@
             const card = document.createElement('a');
             card.className = 'link-card loading';
             card.textContent = 'Loading preview…';
-            container.append(card);
+            pushBlock(card);
             fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
           }
         }
@@ -6566,7 +6595,7 @@
         } else if (d && (d.type === 'note' || d.type === 'nevent' || d.type === 'naddr')) {
           const card = h('div', { className: 'note-embed loading', textContent: 'Loading nostr event…' });
           embeds.push({ el: card, ref: embedRef(d) });
-          container.append(card);
+          pushBlock(card);
         } else {
           flushText(bech);
         }

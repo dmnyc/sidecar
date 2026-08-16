@@ -90,3 +90,89 @@ test('firstQuoteImage skips non-image URLs and returns null when there are none'
   assert.equal(ctx.firstQuoteImage(''), null);
   assert.equal(ctx.firstQuoteImage(null), null);
 });
+
+// ---- renderNoteText glue whitespace ------------------------------------------------
+// The renderer's containers (.embed-body / .preview-body) are white-space:
+// pre-wrap, so every \n the author put around a block-level item (media, the
+// quote box) rendered as a full empty line stacked on the item's own margins —
+// the "extra space between items" in the composer preview. pushBlock trims the
+// whitespace off the text node before a block and out of the run after it;
+// inline refs (mentions, plain links) keep their separating spaces, and
+// paragraph breaks inside one prose run survive. The real renderNoteText runs
+// here against a minimal DOM shim; nip19.decode is stubbed to null so every
+// nostr ref takes the quote-inline branch.
+
+function makeContainer() {
+  const kids = [];
+  return { kids, append: (...k) => { kids.push(...k); }, get lastChild() { return kids[kids.length - 1] || null; } };
+}
+
+const rctx = {
+  Node: { TEXT_NODE: 3 },
+  document: {
+    createElement: (tag) => ({ nodeType: 1, tag }),
+    createTextNode: (textContent) => ({ nodeType: 3, textContent }),
+  },
+  h: (tag) => ({ nodeType: 1, tag }),
+  NT: { nip19: { decode: () => null } },
+  resolveMentions: () => {},
+  resolveQuotePreviews: () => {},
+};
+vm.createContext(rctx);
+vm.runInContext(
+  lift(/const IMG_EXT = [^;]+;/, 'IMG_EXT') + '\n' +
+  lift(/const VID_EXT = [^;]+;/, 'VID_EXT') + '\n' +
+  lift(/const PREVIEW_RE = [^;]+;/, 'PREVIEW_RE') + '\n' +
+  lift(/  function renderNoteText\(container, text, maxLen\) \{[\s\S]*?\n  \}/, 'renderNoteText') + '\n' +
+  'globalThis.renderNoteText = renderNoteText;',
+  rctx
+);
+
+const NEVENT = 'nostr:nevent1' + 'q'.repeat(60);
+const render = (text) => {
+  const c = makeContainer();
+  rctx.renderNoteText(c, text, 280);
+  return c.kids;
+};
+
+test('newlines around a quote box and media render as no text nodes at all', () => {
+  // The screenshot case: prose, nested quote ref, badge image URL, newline
+  // separators. Before the fix this produced two blank lines (one after the
+  // prose, one between the quote box and the image) on top of the margins.
+  const kids = render('Badge Master\n\n' + NEVENT + ' \nhttps://blossom.example.com/badge.png');
+  assert.equal(kids.length, 3);
+  assert.equal(kids[0].nodeType, 3);
+  assert.equal(kids[0].textContent, 'Badge Master'); // trailing \n\n trimmed
+  assert.equal(kids[1].tag, 'a');
+  assert.equal(kids[1].className, 'quote-inline loading');
+  assert.equal(kids[2].tag, 'img');
+  assert.ok(!kids.some((k) => k.nodeType === 3 && !k.textContent.trim()), 'no whitespace-only text nodes');
+});
+
+test('glue between two block items disappears entirely', () => {
+  const kids = render(NEVENT + ' \nhttps://blossom.example.com/x.jpg');
+  assert.equal(kids.length, 2);
+  assert.equal(kids[0].tag, 'a');
+  assert.equal(kids[1].tag, 'img');
+});
+
+test('trailing whitespace after a final block item is dropped', () => {
+  const kids = render('words\n' + NEVENT + '\n\n');
+  assert.equal(kids.length, 2);
+  assert.equal(kids[0].textContent, 'words');
+  assert.equal(kids[1].tag, 'a');
+});
+
+test('spaces around inline links are kept — words must not glue to the link', () => {
+  const kids = render('see https://example.com/page now');
+  assert.equal(kids.length, 3);
+  assert.equal(kids[0].textContent, 'see ');
+  assert.equal(kids[1].tag, 'a');
+  assert.equal(kids[2].textContent, ' now');
+});
+
+test('paragraph breaks inside a prose run survive — that is the author\'s structure', () => {
+  const kids = render('one\n\ntwo');
+  assert.equal(kids.length, 1);
+  assert.equal(kids[0].textContent, 'one\n\ntwo');
+});
