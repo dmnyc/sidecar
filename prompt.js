@@ -407,6 +407,10 @@
       els.decryptNote.textContent =
         'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';
       els.decryptNote.classList.remove('hidden');
+      // The grant covers the session, so the button can't claim "once" — label
+      // and note must agree. A pure unlock later in init() still relabels to
+      // "Unlock & continue", which is also right (there's nothing to allow).
+      els.allow.textContent = 'Allow this session';
     }
 
     // Shared-identity confirm: this host is signed in with more than one of your

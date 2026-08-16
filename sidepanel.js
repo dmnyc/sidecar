@@ -11400,7 +11400,13 @@
         allow.textContent = 'Unlock & continue';
         hide(trust);
       } else {
-        allow.textContent = 'Allow once';
+        // WebLN reads grant the rest of the session (the consent note under the
+        // preview says so) — the button can't claim "once" when it means "until
+        // Sidecar locks". Mirrors the payment relabel just above.
+        allow.textContent =
+          data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice'
+            ? 'Allow this session'
+            : 'Allow once';
         show(trust);
       }
     }
