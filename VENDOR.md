@@ -51,7 +51,10 @@ The build is verified against the NIP-49 spec test vector
 ## Updating
 
 1. Edit the version pins at the top of `scripts/update-vendor.sh`.
-2. Run the script; review the diff of the regenerated bundles.
+2. Run the script. With new pins it refuses the resulting hash change on the
+   first run (leaving the tree untouched) — re-run it with
+   `--accept-hash-change` to write the new bundles and hashes, then review
+   the diff of the regenerated bundles.
 3. Update the version/hash table above to match `scripts/vendor-hashes.sha256`.
 4. Commit the bundles, the hash file, and this table together — CI fails if
    the files and the hash file ever disagree.

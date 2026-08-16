@@ -1320,8 +1320,10 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 //
 // Module-level and never persisted on purpose — writing it to storage would leave
 // a key recoverable from disk or surviving a crash, which is the whole thing we're
-// avoiding. Time-boxed so an unclaimed scan (window closed, user walked away)
-// can't sit in memory; the panel polls and claims it exactly once.
+// avoiding. Single-use (claim clears it), cleared on lock, and TTL-checked at claim
+// time. An unclaimed scan (window closed, user walked away) does sit in SW memory
+// until the worker is evicted — no timer runs while idle — which is the accepted
+// trade for not keeping an alarm alive for a 90-second hand-off.
 const QR_SECRET_TTL_MS = 90000;
 let qrSecret = null; // { value, at } | null
 let swNwc = null; // { client, pubkey }

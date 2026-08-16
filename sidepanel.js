@@ -4960,6 +4960,10 @@
       row.append(h('div', { className: 'item-actions' }, [rm]));
       rlist.append(row);
     });
+    // Same ws:// advisory as the Profile tab's NIP-65 editor, and for the same
+    // reason: warn, don't reject — local and Tor relays are legitimate ws:// users.
+    // Toggled here rather than in the Add handler so removals clear it too.
+    $('relay-ws-warn').classList.toggle('hidden', !Object.keys(relays).some((url) => url.startsWith('ws://')));
   }
 
   // Currencies offered for the fiat leg of the balance display. One list feeds BOTH
@@ -5992,6 +5996,8 @@
           const v = document.createElement('video');
           v.className = 'note-media';
           v.controls = true;
+          // Same host-privacy reason the img branch gives: no referrer to media hosts.
+          v.referrerPolicy = 'no-referrer';
           v.src = url;
           pushBlock(v);
         } else {
@@ -6568,6 +6574,8 @@
           const v = document.createElement('video');
           v.className = 'note-media';
           v.controls = true;
+          // Same host-privacy reason the img branch gives: no referrer to media hosts.
+          v.referrerPolicy = 'no-referrer';
           v.src = url;
           pushBlock(v);
         } else {
@@ -7886,8 +7894,11 @@
 
   // ---- wallet (NWC) backup to relays — NIP-78, encrypted to self ----
   // Mirrors zap.cooking: the connection string is a spendable secret, so it is
-  // encrypted to the account's own key (NIP-44, NIP-04 fallback) and stored as a
-  // replaceable kind:30078 record that can be restored on another device.
+  // encrypted to the account's own key with NIP-44 and stored as a replaceable
+  // kind:30078 record that can be restored on another device. NIP-04 only, never
+  // written (deprecated crypto; the follow/mute-list backup keeps its fallback for
+  // the 65KB-event cap, which doesn't apply to a ~200-char string) — old NIP-04
+  // backups are still READ (see nwcBackupState).
   const NWC_BACKUP_DTAG = 'sidecar:nwc-backup';
 
   // Compare the backup against the wallet actually connected — don't just detect
@@ -7950,14 +7961,16 @@
   async function backupNwcToRelays() {
     const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
     if (!connection) throw new Error('No wallet connected to back up');
-    let ciphertext, algo;
+    // No NIP-04 fallback: this is a spendable secret, and silently downgrading the
+    // encryption because the first attempt errored is the wrong failure mode — let
+    // the caller surface the error instead.
+    let ciphertext;
     try {
       ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: connection, nip: 44 });
-      algo = 'nip44';
-    } catch (_) {
-      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: connection, nip: 4 });
-      algo = 'nip04';
+    } catch (e) {
+      throw new Error('Could not encrypt the backup (NIP-44): ' + (e && e.message ? e.message : 'unknown error'));
     }
+    const algo = 'nip44';
     const event = {
       kind: 30078,
       created_at: Math.floor(Date.now() / 1000),
@@ -8343,7 +8356,12 @@
     let relayList = [];
 
     function updateWarn() {
-      if (!relayList.some((r) => r.write)) {
+      // ws:// first: it's the one of these three that leaks plaintext to the network,
+      // and it can arrive from a PUBLISHED list as easily as from the input below —
+      // this check covers both, which is why it doesn't live in the Add handler.
+      if (relayList.some((r) => r.url.startsWith('ws://'))) {
+        warn.textContent = 'A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.';
+      } else if (!relayList.some((r) => r.write)) {
         warn.textContent = 'No write relays selected — other apps may not find your new notes.';
       } else if (!relayList.some((r) => r.read)) {
         warn.textContent = 'No read relays selected — you may not see replies or mentions here.';
@@ -9503,6 +9521,18 @@
       });
     } catch (_) { return false; }
   }
+  // A ws:// relay in an NWC string means every wallet command and response —
+  // including pay requests — crosses that hop in cleartext. Legitimate for a wallet
+  // on localhost or behind Tor, so warn in the console rather than reject.
+  function warnIfInsecureNwcRelay(connection) {
+    try {
+      const q = connection.split('?')[1];
+      if (!q) return;
+      if (new URLSearchParams(q).getAll('relay').some((r) => String(r).trim().startsWith('ws://'))) {
+        console.warn('Sidecar: this NWC connection uses an unencrypted ws:// relay — wallet commands will cross that hop in cleartext.');
+      }
+    } catch (_) {}
+  }
   async function getLightningAddress() {
     try {
       const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
@@ -9717,6 +9747,7 @@
     if (!nwcUri.startsWith('nostr+walletconnect://')) {
       throw new Error('Rizful did not return a wallet connection.');
     }
+    warnIfInsecureNwcRelay(nwcUri);
     const addr = data && typeof data.lightning_address === 'string' ? data.lightning_address.trim() : '';
     return { nwcUri, lightningAddress: addr && addr.includes('@') ? addr : parseNwcLud16(nwcUri) };
   }
@@ -9845,6 +9876,7 @@
       primalNotice.classList.add('hidden');
       if (!conn) return (err.textContent = 'Paste a connection string.');
       if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = "That doesn't look like an NWC string.");
+      warnIfInsecureNwcRelay(conn);
       if (isPrimalNwc(conn)) {
         err.textContent = '';
         primalNotice.classList.remove('hidden');
