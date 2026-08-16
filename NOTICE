@@ -1,0 +1,14 @@
+Sidecar
+Copyright (c) Sidecar contributors
+
+This product includes software developed by third parties:
+
+jsqr.js is a byte-exact copy of dist/jsQR.js from the jsQR package
+(jsqr@1.4.0, https://github.com/cozmo/jsQR), Copyright the jsQR authors,
+licensed under the Apache License, Version 2.0. The bundle itself carries
+no license header — it is vendored byte-exact (its SHA-256 is pinned in
+scripts/vendor-hashes.sha256), so this file is the attribution notice.
+Apache-2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+The other vendored bundles and their licenses are listed in VENDOR.md
+(nostr-tools and nip49: Unlicense; qrcode-generator: MIT).

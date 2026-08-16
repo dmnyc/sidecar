@@ -421,6 +421,9 @@
             <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
             <button class="secondary" id="relay-add">Add</button>
           </div>
+          <!-- Shown while any bootstrap relay is ws:// — same advisory as the
+               Profile tab's NIP-65 editor. Hidden by renderSettings. -->
+          <p class="hint warn hidden" id="relay-ws-warn">A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.</p>
         </div>
       </div>
 

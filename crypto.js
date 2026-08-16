@@ -2,8 +2,10 @@
 //
 // Derives an AES-GCM key from the user's PIN/passphrase via PBKDF2, and uses it to
 // encrypt/decrypt the 32-byte nostr private keys (and the NWC connection string) at
-// rest. The derived CryptoKey is non-extractable and never leaves WebCrypto; only the
-// decrypted private-key bytes are sensitive in-memory material.
+// rest. The derived CryptoKey is deliberately extractable: it is raw-exported into
+// memory-only chrome.storage.session so an unlocked key survives service-worker
+// eviction without ever touching disk (see deriveKey below). Nothing encrypted with
+// it is written anywhere but chrome.storage.local.
 //
 // Loaded as a classic script: in the service worker via importScripts('crypto.js')
 // (attaches to `self`), in pages via <script src="crypto.js"> (attaches to `window`).

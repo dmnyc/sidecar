@@ -27,10 +27,11 @@ function lift(pattern, label) {
 }
 
 // Build a context with a stubbed fetch. `respond` returns { ok, status, json, text }.
-function harness(respond) {
+// `warn` receives console.warn output from the lifted code (the ws:// relay advisory).
+function harness(respond, warn = () => {}) {
   const calls = [];
   const ctx = {
-    console,
+    console: { warn },
     // A vm context inherits no globals. parseNwcLud16 uses URLSearchParams, and
     // without it here its try/catch swallows a ReferenceError and returns null —
     // which looks exactly like "this URI has no lud16".
@@ -51,6 +52,7 @@ function harness(respond) {
   vm.runInContext(
     lift(/const RIZFUL_ORIGIN = [\s\S]*?const RIZFUL_EXCHANGE_URL = [^\n]+/, 'Rizful URLs') + '\n' +
     lift(/function parseNwcLud16\(connection\)\s*\{[\s\S]*?\n  \}/, 'parseNwcLud16') + '\n' +
+    lift(/function warnIfInsecureNwcRelay\(connection\)\s*\{[\s\S]*?\n  \}/, 'warnIfInsecureNwcRelay') + '\n' +
     lift(/async function rizfulExchangeCode\(code, pubkey\)\s*\{[\s\S]*?\n  \}/, 'rizfulExchangeCode') + '\n' +
     'globalThis.rizfulExchangeCode = rizfulExchangeCode;' +
     'globalThis.RIZFUL_EXCHANGE_URL = RIZFUL_EXCHANGE_URL;',
@@ -163,4 +165,24 @@ test('no address anywhere is not an error — the wallet still connects', async 
 test('the exchange endpoint is on rizful.com over https', async () => {
   const { ctx } = harness(() => ({ json: { nwc_uri: NWC } }));
   assert.match(ctx.RIZFUL_EXCHANGE_URL, /^https:\/\/rizful\.com\//);
+});
+
+// ---- ws:// relay advisory -------------------------------------------------------
+// Warn, don't refuse: a ws:// relay is legitimate for a wallet on localhost or
+// behind Tor, but the user should be able to find the warning in the console.
+
+test('a ws:// relay in the returned URI logs the cleartext warning', async () => {
+  const warns = [];
+  const insecure = 'nostr+walletconnect://abc123?relay=ws%3A%2F%2Frelay.example&secret=deadbeef';
+  const { ctx } = harness(() => ({ json: { nwc_uri: insecure } }), (m) => warns.push(m));
+  await ctx.rizfulExchangeCode('CODE-1', PUBKEY);
+  assert.equal(warns.length, 1);
+  assert.match(warns[0], /ws:\/\/ relay/);
+});
+
+test('a wss:// relay stays quiet — the warning is only for cleartext', async () => {
+  const warns = [];
+  const { ctx } = harness(() => ({ json: { nwc_uri: NWC } }), (m) => warns.push(m));
+  await ctx.rizfulExchangeCode('CODE-1', PUBKEY);
+  assert.equal(warns.length, 0);
 });
