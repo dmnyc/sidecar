@@ -11136,8 +11136,17 @@
     const note = $('approval-consent-note');
     if (!note) return;
     if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      note.textContent =
+      let text =
         'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+      // Audit K4: decrypt is the sharpest edge of the Trust tier — a trusted site
+      // silently reads every future DM until revoked. Only while the Trust button
+      // is visible in showApproval (pure-unlock and shared-identity hide it;
+      // decrypts never batch). Identical condition and sentence as prompt.js —
+      // keep the two surfaces in step.
+      if (!(data.needUnlock && !data.needApproval) && !data.sharedIdentity) {
+        text += ' Trust this site and it can read your messages without asking, until you revoke.';
+      }
+      note.textContent = text;
     } else if (data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice') {
       note.textContent =
         'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';

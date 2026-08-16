@@ -394,8 +394,19 @@
     // decrypting, so the signer isn't hammered with one prompt per message — be
     // upfront that "Allow" here is broader than a single message.
     if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      els.decryptNote.textContent =
+      let text =
         'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+      // Audit K4: decrypt is the sharpest edge of the Trust tier — a trusted site
+      // silently reads every future DM until revoked. Say so on the one screen
+      // where both choices sit side by side, but only while the Trust button is
+      // actually visible (the pure-unlock and shared-identity paths below hide
+      // it; naming a button that isn't there is its own confusion). Identical
+      // condition and sentence as the sidepanel's renderConsentNote — keep the
+      // two surfaces in step.
+      if (!(data.needUnlock && !data.needApproval) && !data.sharedIdentity) {
+        text += ' Trust this site and it can read your messages without asking, until you revoke.';
+      }
+      els.decryptNote.textContent = text;
       els.decryptNote.classList.remove('hidden');
     }
 
