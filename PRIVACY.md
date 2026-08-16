@@ -63,12 +63,14 @@ Sidecar only talks to services **you choose**:
   otherwise fall back to **nostr.build**. Only the media you choose to attach is
   sent.
 - **@-mention search** — when you type `@` in the composer to mention someone,
-  Sidecar searches your follows locally. If the **Nostr Archives** name index is
-  enabled in Settings (off by default), it also queries that search API so you
-  can find any Nostr user by name, and sends it the public keys of people you
-  follow to resolve names your relays didn't return — so that service sees both
-  what you type and who you follow. Only the mention-search text and those
-  public keys are sent.
+  Sidecar searches your follows locally. The first time you search a name, it
+  offers to also query the **Nostr Archives** name index so you can find any
+  Nostr user by name; nothing is sent there until you agree, and you can change
+  or revoke that answer later in Settings ("Use the Nostr Archives name index").
+  While it is on, Sidecar sends the index the mention-search text and the public
+  keys of people you follow (to resolve names your relays didn't return) — so
+  that service sees both what you type and who you follow. Only that text and
+  those public keys are sent.
 
 Sidecar does not send any of this data to the developer. The services above are
 the only ones it contacts — those you configure (relays, wallet) or invoke by a

@@ -1326,10 +1326,10 @@
     closeSearch();
   }
 
-  function renderSearchResults(items, loading) {
+  function renderSearchResults(items, loading, askEl) {
     const box = $('search-results');
     searchResults = items;
-    if (!items.length && !loading) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+    if (!items.length && !loading && !askEl) { box.innerHTML = ''; box.classList.add('hidden'); return; }
     if (searchIndex >= items.length) searchIndex = items.length - 1;
     box.classList.remove('hidden');
     box.innerHTML = '';
@@ -1347,9 +1347,10 @@
         h('span', { textContent: items.length ? 'Searching more…' : 'Searching Nostr…' }),
       ]));
     }
+    if (askEl) box.append(askEl);
   }
 
-  function updateSearchAc() {
+  async function updateSearchAc() {
     const raw = $('search-input').value.trim();
     // An identifier resolves on Enter; there is nothing to suggest for it. Same
     // for a complete NIP-05 — that's a lookup, not a search.
@@ -1363,13 +1364,14 @@
 
     let follows = [];
     let globals = [];
-    let globalPending = naAvailable();
+    let globalPending = false;
+    let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
     const paint = () => {
       if (seq !== searchAcSeq) return;
       const seen = new Set(follows.map((c) => c.pubkey));
       const merged = follows.slice();
       for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-      renderSearchResults(merged.slice(0, 8), globalPending);
+      renderSearchResults(merged.slice(0, 8), globalPending, askEl);
     };
 
     const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
@@ -1383,7 +1385,15 @@
       }).catch(() => {});
     }
 
-    if (globalPending) {
+    // The global slot is tri-state too (see the NA block): decided-on searches,
+    // decided-off shows nothing, never-asked shows the one-time ask where the
+    // spinner would be. Answering re-enters here with the decision written.
+    if (!naAvailable()) return;
+    const na = await naSetting();
+    if (seq !== searchAcSeq) return;
+    if (na === true) {
+      globalPending = true;
+      paint();
       if (searchAcTimer) clearTimeout(searchAcTimer);
       searchAcTimer = setTimeout(async () => {
         const res = await naSuggest(raw);
@@ -1392,6 +1402,9 @@
         globalPending = false;
         paint();
       }, 250);
+    } else if (na !== false) {
+      askEl = naAskEl((on) => { naDecide(on).then(updateSearchAc); });
+      paint();
     }
   }
 
@@ -4548,7 +4561,7 @@
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
-    $('na-toggle').checked = settings.nostrArchives === true; // default off (privacy: follow-list disclosure)
+    $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
@@ -5340,18 +5353,45 @@
   // didn't return. Best-effort: any error or rate-limit falls back to relay data.
   // Approved endpoints only.
   //
-  // OPT-IN (Settings → "Use the Nostr Archives name index", default off). Both
-  // endpoints disclose something the relays never see together: suggest sends
-  // what you're typing in the composer, metadata sends your follow list in
-  // 500-pubkey chunks — a new centralized observer that can correlate sessions
-  // by IP. That trade is the user's call, so without the setting both return
-  // empty and mention search stays relay-only. Reads storage directly rather
-  // than via call() so autocomplete keystrokes can't wake the service worker.
+  // OPT-IN, asked ONCE on first use (#194). Both endpoints disclose something the
+  // relays never see together: suggest sends what you're typing in the composer,
+  // metadata sends your follow list in 500-pubkey chunks — a new centralized
+  // observer that can correlate sessions by IP. That trade is the user's call, so
+  // the first time a name search would fire, the dropdown carries a one-time ask
+  // (see naAskEl) instead of the spinner; either answer is remembered, and the
+  // Settings toggle ("Use the Nostr Archives name index") is the only way back.
+  // Tri-state: undefined = never asked, true/false = decided. Reads storage
+  // directly rather than via call() so autocomplete keystrokes can't wake the SW.
   const NA_BASE = 'https://api.nostrarchives.com';
-  function naEnabled() {
+  function naSetting() {
     return new Promise((resolve) =>
       chrome.storage.local.get('sidecar_settings', (r) =>
-        resolve(((r && r.sidecar_settings) || {}).nostrArchives === true)));
+        resolve(((r && r.sidecar_settings) || {}).nostrArchives)));
+  }
+  async function naEnabled() { return (await naSetting()) === true; }
+  // Either button on the ask writes the decision — a click may wake the service
+  // worker, unlike the read above.
+  async function naDecide(on) {
+    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: on } }); } catch (_) {}
+  }
+  // The ask itself, rendered where the search spinner would sit in whichever
+  // surface fired first — the composer's @-mention dropdown or the topbar search
+  // box. mousedown + preventDefault like the result rows: a plain click would
+  // blur the composer first and close the dropdown before the decision lands.
+  // onDecided(on) re-runs the host surface's update, which now sees a decision.
+  function naAskEl(onDecided) {
+    const row = h('div', { className: 'na-ask' });
+    row.append(h('p', {
+      className: 'na-ask-text',
+      textContent: 'Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.',
+    }));
+    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: 'Search everyone' });
+    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: 'Just my follows' });
+    const pick = (on) => (e) => { e.preventDefault(); e.stopPropagation(); onDecided(on); };
+    yes.addEventListener('mousedown', pick(true));
+    no.addEventListener('mousedown', pick(false));
+    row.append(h('div', { className: 'na-ask-actions' }, [yes, no]));
+    return row;
   }
   const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
   let naCooldownUntil = 0; // epoch ms; a 429 backs us off until this time
@@ -6362,9 +6402,11 @@
 
     // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
     // and keeps the dropdown open even when there are no local matches yet.
-    function renderAcResults(items, ctx, loading) {
+    // `askEl` is the one-time Nostr Archives ask standing in for that footer
+    // while the setting is unset (see the NA block).
+    function renderAcResults(items, ctx, loading, askEl) {
       acResults = items;
-      if (!acResults.length && !loading) { closeAcDropdown(); return; }
+      if (!acResults.length && !loading && !askEl) { closeAcDropdown(); return; }
       acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
       if (!acDropdown) {
         acDropdown = h('div', { className: 'ac-dropdown' });
@@ -6390,6 +6432,7 @@
           h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
         ]));
       }
+      if (askEl) acDropdown.append(askEl);
     }
 
     // Two async sources feed the dropdown: your follow list (instant from
@@ -6407,28 +6450,36 @@
       const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
       let followMatches = [];
       let globals = [];
-      let globalPending = willSearchGlobal;
+      let globalPending = false;
+      let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
       const paint = () => {
         if (seq !== acSeq) return;
         const seen = new Set(followMatches.map((c) => c.pubkey));
         const merged = followMatches.slice();
         for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-        renderAcResults(merged.slice(0, 8), ctx, globalPending);
+        renderAcResults(merged.slice(0, 8), ctx, globalPending, askEl);
       };
 
       // Follows: use the cache synchronously if present; otherwise load in the
       // background and repaint when ready (no await here).
       const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
       if (cached) followMatches = matchFollows(cached);
-      paint(); // instant feedback: local matches (maybe none) + spinner if searching
+      paint(); // instant feedback: local matches (maybe none)
       if (!cached) {
         getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
       }
 
       // Global search across all of Nostr so you can tag people you don't
       // follow. Debounced; best-effort — a failure/rate-limit just clears the
-      // spinner and leaves the follow matches.
-      if (willSearchGlobal) {
+      // spinner and leaves the follow matches. With the Nostr Archives setting
+      // still unset, the spinner's slot carries the one-time ask instead;
+      // answering it re-enters here with the decision written.
+      if (!willSearchGlobal) return;
+      const na = await naSetting();
+      if (seq !== acSeq) return;
+      if (na === true) {
+        globalPending = true;
+        paint();
         if (acSuggestTimer) clearTimeout(acSuggestTimer);
         acSuggestTimer = setTimeout(async () => {
           const res = await naSuggest(ctx.query);
@@ -6437,6 +6488,9 @@
           globalPending = false;
           paint();
         }, 250);
+      } else if (na !== false) {
+        askEl = naAskEl((on) => { naDecide(on).then(updateAcDropdown); });
+        paint();
       }
     }
 
