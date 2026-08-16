@@ -601,11 +601,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 .search-close { flex-shrink: 0; }
-/* Scope chip: users = your follows only (muted), globe = every Nostr name via
-   the Nostr Archives index (gold = on). Click toggles; turning global on runs
-   the one-time ask. */
+/* Scope chip: users = your follows only, globe = every Nostr name via the
+   Nostr Archives index. The glyph carries the distinction; it keeps the
+   standard icon-button color like the rest of the row. */
 .search-mode { flex-shrink: 0; }
-.search-mode.global { color: var(--gold); }
 /* Suggestion list. Reuses .ac-item/.ac-loading from the composer's @-mention
    dropdown, but sits in flow rather than absolutely positioned — the search bar
    is already a drop-down, so a second floating layer would just clip. */

@@ -1230,9 +1230,7 @@
   function paintSearchModeIcon() {
     naSetting().then((on) => {
       const btn = $('search-mode');
-      const global = on === true;
-      btn.classList.toggle('global', global);
-      btn.replaceChildren(icon(global ? 'globe' : 'users'));
+      btn.replaceChildren(icon(on === true ? 'globe' : 'users'));
       const title = global
         ? 'Searching every Nostr name (Nostr Archives index) — click to search only your follows'
         : 'Searching only your follows — click to also search every Nostr name';
