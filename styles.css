@@ -601,6 +601,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 .search-close { flex-shrink: 0; }
+/* Scope chip: users = your follows only, globe = every Nostr name via the
+   Nostr Archives index. The glyph carries the distinction; it keeps the
+   standard icon-button color like the rest of the row. */
+.search-mode { flex-shrink: 0; }
 /* Suggestion list. Reuses .ac-item/.ac-loading from the composer's @-mention
    dropdown, but sits in flow rather than absolutely positioned — the search bar
    is already a drop-down, so a second floating layer would just clip. */
@@ -1656,6 +1660,30 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .ac-loading { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
 .ac-spinner { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--lav); animation: ac-spin 0.7s linear infinite; }
 @keyframes ac-spin { to { transform: rotate(360deg); } }
+
+/* One-time Nostr Archives ask, rendered at the TOP of either autocomplete
+   surface (composer dropdown, topbar search results) — first, because both
+   boxes cap their height and scroll, and an ask appended after the rows sank
+   below the fold the moment results rendered, withdrawn from view unread.
+   Divider below only when result rows follow it — with no rows the ask is the
+   whole box. */
+.na-ask { padding: 9px 12px 10px; }
+.na-ask:not(:last-child) { border-bottom: 1px solid var(--border); }
+.na-ask-text { margin: 0 0 8px; font-size: 12px; line-height: 1.45; color: var(--muted); text-align: left; }
+.na-ask-actions { display: flex; gap: 6px; }
+/* Yes carries the accent (it's the more interesting answer and the one the
+   disclosure is about), No stays quiet — a coin-flip styling would make
+   "Just my follows" look like the reluctant fallback rather than a real choice.
+   --accent-fill / --btn-primary-text so light themes restyle it like every
+   other accent button. */
+.na-ask-actions button {
+  flex: 1; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 600; white-space: nowrap;
+  transition: filter 0.12s;
+}
+.na-ask-actions button:hover { filter: brightness(1.08); }
+.na-ask-yes { background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold)); color: var(--btn-primary-text, #1a0d33); }
+.na-ask-no { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); }
 .compose-preview {
   min-height: 120px; max-height: 46vh; overflow-y: auto;
   border: 1px solid var(--border); border-radius: 10px; padding: 12px;
