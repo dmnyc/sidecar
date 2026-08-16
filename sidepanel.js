@@ -11125,6 +11125,29 @@
     acct.parentNode.insertBefore(note, acct);
   }
 
+  // Scope-of-consent note: some Allows are broader than the single request on
+  // screen. A decrypt Allow covers a burst for about a minute (so a client can
+  // load an inbox without a prompt per message), and a WebLN-read Allow covers
+  // the rest of the session (the gate lives in background.js). The popup says
+  // this under its preview card; the panel's approval card must say it too —
+  // approvals render in BOTH surfaces, and only the popup had the notes. Wording
+  // matches prompt.js exactly so the two never drift into different stories.
+  function renderConsentNote(data) {
+    const note = $('approval-consent-note');
+    if (!note) return;
+    if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
+      note.textContent =
+        'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+    } else if (data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice') {
+      note.textContent =
+        'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';
+    } else {
+      hide(note);
+      return;
+    }
+    show(note);
+  }
+
   // Disable/enable the approval prompt's Allow once + Trust this site while a
   // destructive overwrite is unacknowledged. Reject is deliberately left alone — the
   // safe way out must never be gated. The class on the footer dims the pair so they
@@ -11316,6 +11339,9 @@
     renderSharedNote(data);
 
     renderApprovalPreview(data);
+
+    // After the preview so the note sits just under it, mirroring prompt.html.
+    renderConsentNote(data);
 
     $('approval-error').textContent = '';
     $('approval-pin-error').textContent = '';
