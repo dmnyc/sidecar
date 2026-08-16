@@ -3669,18 +3669,50 @@
     });
   }
 
+  // Read the scrypt logn byte out of an ncryptsec WITHOUT decrypting — a partial
+  // bech32 read of the first two payload bytes (version, logn). Returns null when
+  // the string doesn't decode that far; full validity stays nip49.decrypt's job.
+  const NCRYPTSEC_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  function ncryptsecLogn(ncryptsec) {
+    const s = String(ncryptsec || '');
+    const sep = s.lastIndexOf('1');
+    if (sep < 1) return null;
+    let acc = 0, bits = 0;
+    for (const ch of s.slice(sep + 1)) {
+      const v = NCRYPTSEC_CHARSET.indexOf(ch);
+      if (v < 0) return null;
+      acc = (acc << 5) | v;
+      bits += 5;
+      if (bits >= 16) return (acc >> (bits - 16)) & 0xff; // second byte = logn
+    }
+    return null;
+  }
+
   // Decrypt a NIP-49 ncryptsec string to an nsec, so the rest of the import path
   // (SIDECAR_ADD_ACCOUNT, decodeSecret) never has to know ncryptsec exists. Throws
   // a friendly message on a bad password or malformed string. Off-thread: the
   // scrypt inside is the worker's whole reason to exist (see nip49()).
   async function decryptNcryptsec(ncryptsec, password) {
+    // Cost-byte pre-check. nip49.js is a hash-pinned vendored build, so the bound
+    // can't live inside decrypt() — but logn is just a byte in the pasted string,
+    // and a crafted one (24 → 16GB of scrypt) burns that memory in the worker
+    // before the AEAD ever gets a chance to reject the key: off-thread saved the
+    // panel's responsiveness, not the browser from an OOM. NIP-49's own table
+    // tops out at 22 (4GiB); > 20 (1GiB) matches no known client, and real keys
+    // are 16–18. A null (undecodable here) falls through — nip49.decrypt is
+    // still the validity gate, this only caps the work we'll attempt.
+    if (ncryptsecLogn(ncryptsec) > 20) {
+      throw new Error('Incorrect password, or not a valid ncryptsec key.');
+    }
     let sk;
     try {
       sk = await nip49('decrypt', [ncryptsec, password]);
+      // nsecEncode inside the try too: a decrypt that returns wrong-length bytes
+      // would otherwise throw nostr-tools' raw error at the user.
+      return NT.nip19.nsecEncode(sk);
     } catch (_) {
       throw new Error('Incorrect password, or not a valid ncryptsec key.');
     }
-    return NT.nip19.nsecEncode(sk);
   }
 
   // ---- reading a key out of a QR image (the printable backup sheet) ----
@@ -10856,6 +10888,11 @@
       throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
     }
     const cb = new URL(meta.callback);
+    // The callback URL is chosen by whoever runs the lightning-address domain —
+    // an http:// one sends the payment request (and its amount/comment) in
+    // cleartext and is trivially swapped by a MITM. LNURL-pay callbacks are
+    // https in practice, so refuse anything else.
+    if (cb.protocol !== 'https:') throw new Error('Lightning address returned an insecure callback URL');
     cb.searchParams.set('amount', String(msats));
     if (comment && meta.commentAllowed > 0) cb.searchParams.set('comment', comment.slice(0, meta.commentAllowed));
     const res = await (await fetch(cb.toString())).json();

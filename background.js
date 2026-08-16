@@ -1990,7 +1990,14 @@ function ensureJsQR() {
 }
 async function invoiceFromQrImage(srcUrl) {
   if (!srcUrl) throw new Error('No image to read');
-  const blob = await (await fetch(srcUrl)).blob();
+  // The SW fetch is CORS-exempt, so the right-clicked image URL passes the same
+  // SSRF guard as every other server-side fetch (see safeFetchUrl). Without this,
+  // a crafted image URL pointing at an internal service turns "decode this QR"
+  // into a private-network probe. A URL the guard rejects fails the pay, exactly
+  // like any other unreadable QR.
+  const safe = safeFetchUrl(srcUrl);
+  if (!safe) throw new Error('Not a readable image URL');
+  const blob = await (await fetch(safe)).blob();
   const bmp = await createImageBitmap(blob);
   const canvas = new OffscreenCanvas(bmp.width, bmp.height);
   const ctx = canvas.getContext('2d');
