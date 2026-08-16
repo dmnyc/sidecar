@@ -5943,13 +5943,18 @@
   // further down the note can't leak past the ellipsis.
   function renderNoteText(container, text, maxLen) {
     const mentions = [];
+    const quotes = [];
     let last = 0;
     let used = 0;
     let truncated = false;
+    // Set after a block-level item: the next text run's leading whitespace
+    // would render under pre-wrap as a blank line stacked on the item's margin.
+    let skipLead = false;
     let m;
     PREVIEW_RE.lastIndex = 0;
     const pushText = (s) => {
       if (!s || truncated) return;
+      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
       if (used + s.length > maxLen) {
         container.append(document.createTextNode(s.slice(0, Math.max(0, maxLen - used)) + '…'));
         truncated = true;
@@ -5957,6 +5962,18 @@
         container.append(document.createTextNode(s));
         used += s.length;
       }
+    };
+    // Media and the quote box are block-level and carry their own margins, so
+    // the newlines an author puts around the ref are padding on top of that —
+    // pre-wrap renders each one as a full empty line between the prose and the
+    // block. Trim the whitespace off the text node before the block and out of
+    // the run after it; the block's margin is the separation. Mentions and
+    // plain links stay inline, which is why only this path trims.
+    const pushBlock = (el) => {
+      const tail = container.lastChild;
+      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
+      container.append(el);
+      skipLead = true;
     };
     while ((m = PREVIEW_RE.exec(text)) !== null) {
       if (m.index > last) pushText(text.slice(last, m.index));
@@ -5970,13 +5987,13 @@
           im.className = 'note-media';
           im.referrerPolicy = 'no-referrer';
           im.src = url;
-          container.append(im);
+          pushBlock(im);
         } else if (VID_EXT.test(url)) {
           const v = document.createElement('video');
           v.className = 'note-media';
           v.controls = true;
           v.src = url;
-          container.append(v);
+          pushBlock(v);
         } else {
           const a = document.createElement('a');
           a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
@@ -5993,19 +6010,108 @@
           if (pubkey) mentions.push({ el: span, pubkey });
           container.append(span);
         } else {
-          // Nested note/nevent/naddr ref — link out rather than recurse into
-          // another embed card inside this one.
+          // Nested note/nevent/naddr ref — one level down only: a truncated
+          // link-out preview (see resolveQuotePreviews), never a second full
+          // embed card. Quoting a note that quotes a note is common, and the
+          // old plain "quoted note" link showed nothing of what's inside.
           const a = document.createElement('a');
+          a.className = 'quote-inline loading';
           a.href = 'https://njump.me/' + bech;
           a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = 'quoted note';
-          container.append(a);
+          a.textContent = 'quoted note…';
+          quotes.push({ el: a, bech });
+          pushBlock(a);
         }
       }
       last = PREVIEW_RE.lastIndex;
     }
     if (last < text.length) pushText(text.slice(last));
     resolveMentions(mentions);
+    resolveQuotePreviews(quotes);
+  }
+
+  // Fill the one-level-down quote previews renderNoteText collects: fetch the
+  // quoted event and show @author + a snippet. Deliberately NOT renderEmbedCard
+  // — this stays read-only and shallow, and quoteSnippet strips nested refs, so
+  // a quote-of-a-quote-of-a-quote can't fan out into more fetches.
+  async function resolveQuotePreviews(quotes) {
+    for (const { el, bech } of quotes) {
+      let d = null;
+      try { d = NT.nip19.decode(bech); } catch (_) {}
+      const ref = d ? embedRef(d) : null;
+      let ev = null;
+      if (ref) {
+        try {
+          const relays = [...new Set([...(await relayUrls(false)), ...(ref.relays || [])])];
+          ev = await Promise.race([
+            poolGet(relays, ref.filter),
+            new Promise((r) => setTimeout(() => r(null), 6000)),
+          ]);
+        } catch (_) {}
+      }
+      el.classList.remove('loading');
+      if (!ev) {
+        el.textContent = 'quoted note'; // not found — today's plain link-out
+        continue;
+      }
+      const who = h('span', {
+        className: 'mention',
+        textContent: '@' + shortNpub(NT.nip19.npubEncode(ev.pubkey)),
+      });
+      // The text lives in its own clamped element (the <a> can't clamp once it
+      // also holds a thumbnail), media gets a small thumb below it, and an
+      // invoice becomes a quiet caption under everything — it's metadata about
+      // the note, not prose, and inline it read as a sentence placed above the
+      // image it follows in the content (zap receipts are image + invoice and
+      // nothing else).
+      const content = String(ev.content || '');
+      const hasInvoice = /\bln(?:bc|tb)[0-9a-z]+\b/i.test(content);
+      const text = h('div', { className: 'quote-inline-text' }, [who]);
+      const snip = quoteSnippet(content);
+      const img = firstQuoteImage(content);
+      if (snip) text.append(document.createTextNode(' ' + snip));
+      else if (!img && !hasInvoice) text.append(document.createTextNode(' (no text)'));
+      const kids = [text];
+      if (img) {
+        const im = document.createElement('img');
+        im.className = 'quote-inline-thumb';
+        im.referrerPolicy = 'no-referrer';
+        im.src = img;
+        im.onerror = () => im.remove();
+        kids.push(im);
+      }
+      if (hasInvoice) kids.push(h('div', { className: 'quote-inline-meta', textContent: '⚡ invoice' }));
+      el.replaceChildren(...kids);
+      fetchPreviewProfile(ev.pubkey).then((p) => {
+        if (p && p.name) who.textContent = '@' + p.name;
+      });
+    }
+  }
+
+  // Snippet text for a nested quote: plain text only. nostr entity refs and bare
+  // URLs are stripped rather than rendered — a 63-char nevent or a long link
+  // would otherwise be the entire snippet — and a BOLT11 invoice is stripped
+  // outright too: the raw string is hundreds of characters of bech32 no human
+  // can read, and resolveQuotePreviews shows a quiet "⚡ invoice" caption for
+  // the whole note instead of a marker pretending to be prose. Returns '' when
+  // nothing readable remains; the caller decides the placeholder.
+  function quoteSnippet(text) {
+    const s = String(text || '')
+      .replace(/(?:nostr:)?(?:npub1|nprofile1|note1|nevent1|naddr1)[0-9a-z]+/gi, '')
+      .replace(/ln(?:bc|tb)[0-9a-z]+/gi, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!s) return '';
+    return s.length > 140 ? s.slice(0, 140).trimEnd() + '…' : s;
+  }
+
+  // First image URL in a nested quote's content, for the small thumbnail.
+  // Video stays out of the interim preview — a playable element inside a link
+  // inside an embed is a tangle, and posters aren't in the content string.
+  function firstQuoteImage(text) {
+    const urls = String(text || '').match(/https?:\/\/[^\s]+/g) || [];
+    return urls.find((u) => IMG_EXT.test(u)) || null;
   }
 
   function renderAbout(container, text) {
@@ -6432,9 +6538,22 @@
     const mentions = [];
     const embeds = [];
     let last = 0;
+    let skipLead = false; // see pushBlock in renderNoteText
     let m;
     PREVIEW_RE.lastIndex = 0;
-    const flushText = (s) => { if (s) container.append(document.createTextNode(s)); };
+    const flushText = (s) => {
+      if (!s) return;
+      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
+      container.append(document.createTextNode(s));
+    };
+    // Same pre-wrap blank-line problem as renderNoteText, for this pane's own
+    // block items: embed cards, link cards, media.
+    const pushBlock = (el) => {
+      const tail = container.lastChild;
+      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
+      container.append(el);
+      skipLead = true;
+    };
     while ((m = PREVIEW_RE.exec(text)) !== null) {
       if (m.index > last) flushText(text.slice(last, m.index));
       if (m[1]) {
@@ -6444,13 +6563,13 @@
           im.className = 'note-media';
           im.referrerPolicy = 'no-referrer';
           im.src = url;
-          container.append(im);
+          pushBlock(im);
         } else if (VID_EXT.test(url)) {
           const v = document.createElement('video');
           v.className = 'note-media';
           v.controls = true;
           v.src = url;
-          container.append(v);
+          pushBlock(v);
         } else {
           const a = document.createElement('a');
           a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
@@ -6460,7 +6579,7 @@
             const card = document.createElement('a');
             card.className = 'link-card loading';
             card.textContent = 'Loading preview…';
-            container.append(card);
+            pushBlock(card);
             fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
           }
         }
@@ -6476,7 +6595,7 @@
         } else if (d && (d.type === 'note' || d.type === 'nevent' || d.type === 'naddr')) {
           const card = h('div', { className: 'note-embed loading', textContent: 'Loading nostr event…' });
           embeds.push({ el: card, ref: embedRef(d) });
-          container.append(card);
+          pushBlock(card);
         } else {
           flushText(bech);
         }

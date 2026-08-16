@@ -1702,6 +1702,37 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: linear-gradient(150deg, var(--velvet-1), var(--velvet-2));
 }
 .note-embed.loading, .note-embed.embed-missing { color: var(--faint); font-size: 12px; }
+/* Truncated preview of a quote inside a quoted note (renderNoteText →
+   resolveQuotePreviews) — one level down only, never a second full embed card.
+   Reads as an inset excerpt: hairline left rule + well fill, the text clamped
+   to two lines (quoteSnippet's hard cap is the backstop, this is the visual
+   cut) with an optional small thumbnail under it and an optional invoice
+   caption under everything — a quoted zap receipt is an image and an invoice
+   and nothing else, and the invoice is metadata about the note, not prose, so
+   it captions below rather than sitting in the text line above the image it
+   follows in the content.
+   It IS a link out to njump, styled like .link-card: inherit color, no
+   underline — the snippet is for reading, the click is the escape hatch. */
+.quote-inline {
+  display: block; margin: 6px 0 2px; padding: 7px 10px;
+  border-left: 2px solid var(--border-strong); border-radius: 0 8px 8px 0;
+  background: rgba(var(--well-rgb), 0.4);
+  font-size: 12px; line-height: 1.45; color: var(--text-2);
+  text-decoration: none;
+}
+.quote-inline-text {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.quote-inline-thumb {
+  display: block; margin-top: 6px; max-width: 100%; max-height: 64px;
+  object-fit: cover; border-radius: 6px; border: 1px solid var(--border);
+}
+/* Gold at invoice weight is the wallet's "this is money" color; here it's a
+   quiet attribute line, so --muted — the caption says the note CONTAINS an
+   invoice, it isn't asking for payment. */
+.quote-inline-meta { margin-top: 6px; color: var(--muted); font-size: 11.5px; }
+.quote-inline:hover { border-left-color: var(--gold-soft); color: var(--text); }
+.quote-inline.loading { color: var(--faint); }
 .embed-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .embed-av { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); border: 1px solid var(--border); }
 .embed-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
