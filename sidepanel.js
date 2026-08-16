@@ -1216,8 +1216,44 @@
     $('search-bar').classList.remove('hidden');
     $('search-btn').setAttribute('aria-expanded', 'true');
     setSearchStatus('');
+    paintSearchModeIcon();
     $('search-input').focus();
   }
+
+  // Scope chip next to the search input: shows whether a name search runs
+  // locally (your follows, users icon) or globally (Nostr Archives index,
+  // globe icon), and is the always-available way to flip it. Unset counts as
+  // local — nothing is sent while it's unset, so that's the honest display.
+  // Clicking toward global shows the same one-time ask the dropdown shows,
+  // because that click is the disclosure moment; clicking back to local is
+  // immediate — that direction only ever withholds data.
+  function paintSearchModeIcon() {
+    naSetting().then((on) => {
+      const btn = $('search-mode');
+      const global = on === true;
+      btn.classList.toggle('global', global);
+      btn.replaceChildren(icon(global ? 'globe' : 'users'));
+      const title = global
+        ? 'Searching every Nostr name (Nostr Archives index) — click to search only your follows'
+        : 'Searching only your follows — click to also search every Nostr name';
+      btn.title = title;
+      btn.setAttribute('aria-label', title);
+    });
+  }
+  $('search-mode').addEventListener('click', async () => {
+    if ((await naSetting()) === true) {
+      await naDecide(false);
+      paintSearchModeIcon();
+      updateSearchAc();
+      return;
+    }
+    renderSearchResults([], false, naAskEl((decided) => {
+      naDecide(decided).then(() => {
+        paintSearchModeIcon();
+        updateSearchAc();
+      });
+    }));
+  });
 
   // A NIP-19 string, with or without a nostr: prefix or a web wrapper pasted
   // around it (njump.me/npub1…, primal.net/p/npub1… and friends all end in the
@@ -10707,6 +10743,7 @@
 
   $('na-toggle').addEventListener('change', async (e) => {
     naSetSettingMemo(e.target.checked); // keep this document's ask/gate in sync with the write
+    paintSearchModeIcon(); // the scope chip shows the same answer
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: e.target.checked } });
   });
 
