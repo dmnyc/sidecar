@@ -505,6 +505,13 @@
 
       <div id="approval-preview" class="card hidden"></div>
 
+      <!-- Scope-of-consent note: some Allows cover more than the request on screen —
+           a decrypt burst covers about a minute, a WebLN read covers the session.
+           Same element, placement (just under the preview card), and wording as the
+           popup's #decrypt-note; approvals render in BOTH surfaces and must tell the
+           same story. Toggled by renderConsentNote in sidepanel.js. -->
+      <div id="approval-consent-note" class="shared-note hidden"></div>
+
       <div id="approval-unlock" class="hidden stack">
         <label for="approval-pin">Enter your PIN to unlock</label>
         <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />

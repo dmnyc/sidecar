@@ -1355,9 +1355,30 @@ function invoiceSats(bolt11) {
   return Math.round(Number(digits) * FACTOR[mult]);
 }
 
-// Open an unlock-only popup for low-risk wallet reads when the keystore is locked.
-async function weblnUnlockGate(host, method, pubkey, originWindowId) {
-  if (!KS.isLocked()) return;
+// ---- WebLN read consent ----
+// Balance, node info, and invoice creation used to run with NO consent moment
+// whenever the keystore was unlocked: the old gate only checked unlock, so any
+// page — including one never approved at any tier — could silently read the
+// wallet balance, and the first call bound the host to the account, so no prompt
+// could ever appear later either. Reads now ask once per (host, account) and the
+// approval is remembered for the rest of the session. Session storage (not a
+// Map, not local): survives SW eviction, dies with the browser, and lockKeystore
+// clears it — an unlock is not consent to spend the whole session's reads.
+// Trusted sites stay silent, matching how the tier treats every other method.
+const WEBLN_READ_METHODS = new Set(['getInfo', 'getBalance', 'makeInvoice']);
+const WEBLN_READ_GRANT_KEY = 'sidecar_webln_read_grants';
+async function hasWeblnReadGrant(host, pubkey) {
+  const m = (await sgetSession(WEBLN_READ_GRANT_KEY))[WEBLN_READ_GRANT_KEY] || {};
+  return !!m[host + '|' + pubkey];
+}
+async function grantWeblnRead(host, pubkey) {
+  const m = (await sgetSession(WEBLN_READ_GRANT_KEY))[WEBLN_READ_GRANT_KEY] || {};
+  m[host + '|' + pubkey] = 1;
+  await ssetSession({ [WEBLN_READ_GRANT_KEY]: m });
+}
+async function weblnReadGate(host, method, pubkey, originWindowId) {
+  if ((await PERMS.getLevel(pubkey, host)) === 'trusted') return;
+  if (await hasWeblnReadGrant(host, pubkey)) return;
   const st = await KS.getState();
   const acct = st.accounts.find((a) => a.pubkey === pubkey);
   const decision = await openPrompt({
@@ -1366,12 +1387,14 @@ async function weblnUnlockGate(host, method, pubkey, originWindowId) {
     method: 'webln.' + method,
     npub: self.NostrTools.nip19.npubEncode(pubkey),
     accountName: (acct && acct.name) || '',
-        accountPicture: (acct && acct.picture) || '',
-    needUnlock: true,
-    needApproval: false,
+    accountPicture: (acct && acct.picture) || '',
+    needUnlock: KS.isLocked(),
+    needApproval: true,
   }, originWindowId);
   if (decision.action === 'reject') throw new Error('You rejected this request');
+  if (decision.action === 'trust') await PERMS.setLevel(pubkey, host, 'trusted');
   if (KS.isLocked()) throw new Error('Keystore is locked');
+  await grantWeblnRead(host, pubkey);
 }
 
 async function handleWeblnRpc(method, params, host, sendResponse, originWindowId) {
@@ -1402,7 +1425,7 @@ async function handleWeblnRpc(method, params, host, sendResponse, originWindowId
 
     let result;
     if (method === 'getInfo') {
-      await weblnUnlockGate(host, method, pubkey, originWindowId);
+      await weblnReadGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const info = (await c.getInfo()) || {};
       result = {
@@ -1411,12 +1434,12 @@ async function handleWeblnRpc(method, params, host, sendResponse, originWindowId
         supports: ['lightning'],
       };
     } else if (method === 'getBalance') {
-      await weblnUnlockGate(host, method, pubkey, originWindowId);
+      await weblnReadGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const b = await c.getBalance();
       result = { balance: msatToSat(b && b.balance), currency: 'sats' };
     } else if (method === 'makeInvoice') {
-      await weblnUnlockGate(host, method, pubkey, originWindowId);
+      await weblnReadGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const sats = parseInt(params && params.amount, 10);
       if (!sats || sats < 1) throw new Error('A positive amount is required to make an invoice');
@@ -2098,6 +2121,10 @@ async function lockKeystore(auto = false) {
   // Same reasoning for pending zap requests: they authorize a payment to go out with
   // no prompt, so a locked keystore must not leave any of them spendable.
   ZAPREQ.clear().catch(() => {});
+  // And the WebLN read grants: they are consent to query the wallet, which only
+  // means anything while unlocked. Clearing them means the next balance read
+  // after a re-unlock asks again.
+  chrome.storage.session.remove(WEBLN_READ_GRANT_KEY, () => void chrome.runtime.lastError);
   // Tell any open panel/popup to drop to the unlock screen immediately — otherwise
   // it keeps showing whatever was open (e.g. the composer) and only discovers the
   // lock on its next action, which then fails with a "locked" error. `auto` marks an
