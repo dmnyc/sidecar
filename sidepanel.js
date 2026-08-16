@@ -5332,6 +5332,49 @@
       renderSites();
     }
 
+    // "Forget all sites" — the bulk sibling of each row's "Forget site". Audit
+    // M6/S2: the bindings, tiers, shared-identity history, and the site rows of
+    // the log are otherwise permanent (and the site maps uncapped), so this is
+    // the one-step way out. Two-tap inline confirm like the row-level forget,
+    // and the confirm names tiers and Recent activity because those are things
+    // people set up or read on purpose and wouldn't expect a bare "forget" to
+    // touch. Rebuilt on every render: a live re-render mid-confirm collapses it
+    // back to the resting button, which loses nothing (no typed input) and keeps
+    // this a single code path.
+    const forgetWrap = $('sites-forget-all-wrap');
+    forgetWrap.innerHTML = '';
+    if (hosts.length) {
+      show(forgetWrap);
+      const buildForgetAll = () => {
+        forgetWrap.innerHTML = '';
+        const btn = h('button', { className: 'ghost', textContent: 'Forget all sites' });
+        btn.addEventListener('click', () => {
+          forgetWrap.innerHTML = '';
+          const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
+          const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+          no.addEventListener('click', buildForgetAll);
+          yes.addEventListener('click', async () => {
+            await call({ type: 'SIDECAR_FORGET_ALL_SITES' });
+            sitesShownN = 0;
+            logShownN = 0;
+            renderActivity();
+          });
+          forgetWrap.append(
+            h('span', {
+              className: 'confirm-msg',
+              textContent: 'Forget every site? Pairings, permission tiers, and Recent activity are erased.',
+            }),
+            yes,
+            no
+          );
+        });
+        forgetWrap.append(btn);
+      };
+      buildForgetAll();
+    } else {
+      hide(forgetWrap);
+    }
+
     const list = $('activity-list');
     const activityFilter = $('activity-filter');
     const more = $('activity-more');

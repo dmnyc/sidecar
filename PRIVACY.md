@@ -1,6 +1,6 @@
 # Sidecar Privacy Policy
 
-_Last updated: 2026-07-09_
+_Last updated: 2026-08-16_
 
 Sidecar is a browser extension that acts as a Nostr signer (NIP-07) and a
 Lightning wallet client (Nostr Wallet Connect / NIP-47). It is designed so that
@@ -36,6 +36,16 @@ storage. None of it is transmitted to the developer.
 - **Local activity log** — a capped, on-device history of signing/permission
   events, shown in the Activity tab. It never leaves your device and can be
   cleared at any time.
+- **Site records** — for each site you use: which of your accounts it signs in
+  as, its permission tier (ask / read-only / trusted), and which of your
+  accounts have signed in there. Kept so a returning site doesn't re-ask who
+  you are. These persist until you erase them — "Forget site" per site, or
+  "Forget all sites" in the Activity tab, which also clears the activity log.
+- **Unsent drafts and payment notes** — compose drafts you haven't published,
+  and the counterparties and notes of payments you've made, are stored locally
+  so they survive restarts. Unlike your keys, these are **not encrypted at
+  rest**: someone with access to your device's browser profile data could read
+  them. Forgetting sites or clearing the activity log does not erase drafts.
 
 There is **no account recovery**: if you forget your PIN/passphrase, your data
 cannot be recovered. Back up your nsecs.

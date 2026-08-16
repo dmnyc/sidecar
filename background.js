@@ -2532,6 +2532,19 @@ async function handleControl(message, sendResponse) {
         await clearSiteAccount(message.host);
         result = true;
         break;
+      case 'SIDECAR_FORGET_ALL_SITES':
+        // The bulk "Forget all sites" (Activity tab) — one sweep of every
+        // host↔identity record that pane exists to show: permission tiers for
+        // every account, account bindings, shared-identity history, and the site
+        // rows of the activity log (audit M6/S2 — otherwise these are permanent,
+        // and the site maps are uncapped). Accounts, keys, wallets, and compose
+        // drafts are not touched; the next visit to any site starts from a clean
+        // ask. The log is cleared for ALL accounts, unlike the per-account Clear
+        // history button, because every row in it is a site record.
+        await PERMS.clearAll();
+        await sset({ [SITE_ACCTS_KEY]: {}, [SITE_AUTHZ_KEY]: {}, [ACTIVITY_KEY]: [] });
+        result = true;
+        break;
       // The page-invoice card asks before it appears: is this invoice simply the one
       // for a zap the user already authorized here? Jumble and other Bitcoin Connect
       // clients render a QR rather than calling window.webln, so the card — not the
