@@ -1347,7 +1347,9 @@
         h('span', { textContent: items.length ? 'Searching more…' : 'Searching Nostr…' }),
       ]));
     }
-    if (askEl) box.append(askEl);
+    // Above the results, same as the composer dropdown: this box caps and scrolls
+    // too, and an appended ask vanished under the fold once matches rendered.
+    if (askEl) box.prepend(askEl);
   }
 
   async function updateSearchAc() {
@@ -6453,7 +6455,10 @@
           h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
         ]));
       }
-      if (askEl) acDropdown.append(askEl);
+      // The ask goes ABOVE the results: the box caps at 200px and scrolls, and
+      // appended last it landed below the fold as soon as matches rendered —
+      // withdrawn from view exactly when results populated, unread.
+      if (askEl) acDropdown.prepend(askEl);
     }
 
     // Two async sources feed the dropdown: your follow list (instant from

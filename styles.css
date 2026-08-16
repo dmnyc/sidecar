@@ -1657,11 +1657,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .ac-spinner { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--lav); animation: ac-spin 0.7s linear infinite; }
 @keyframes ac-spin { to { transform: rotate(360deg); } }
 
-/* One-time Nostr Archives ask, rendered in the spinner's slot of either
-   autocomplete surface (composer dropdown, topbar search results). Divider on
-   top only when result rows precede it — with no rows it's the whole box. */
+/* One-time Nostr Archives ask, rendered at the TOP of either autocomplete
+   surface (composer dropdown, topbar search results) — first, because both
+   boxes cap their height and scroll, and an ask appended after the rows sank
+   below the fold the moment results rendered, withdrawn from view unread.
+   Divider below only when result rows follow it — with no rows the ask is the
+   whole box. */
 .na-ask { padding: 9px 12px 10px; }
-.na-ask:not(:first-child) { border-top: 1px solid var(--border); }
+.na-ask:not(:last-child) { border-bottom: 1px solid var(--border); }
 .na-ask-text { margin: 0 0 8px; font-size: 12px; line-height: 1.45; color: var(--muted); text-align: left; }
 .na-ask-actions { display: flex; gap: 6px; }
 /* Yes carries the accent (it's the more interesting answer and the one the
