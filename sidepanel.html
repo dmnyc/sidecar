@@ -191,6 +191,11 @@
           <input type="text" class="filter-input hidden" id="sites-filter" placeholder="Filter by site…" />
           <div id="sites-list" class="list flat"></div>
           <button class="ghost show-more-btn hidden" id="sites-more">Show more</button>
+          <!-- Bulk sibling of each row's "Forget site": erase every site record at
+               once — account pairings, permission tiers, shared-identity history,
+               and the site rows in Recent activity. Built by renderActivity only
+               while any site exists; two-tap inline confirm like the row-level one. -->
+          <div class="row-actions" id="sites-forget-all-wrap"></div>
         </div>
         <div class="setting activity-pane hidden" id="activity-pane-log">
           <input type="text" class="filter-input hidden" id="activity-filter" placeholder="Filter by site…" />

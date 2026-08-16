@@ -77,6 +77,13 @@
     return rootMap;
   }
 
+  // Drop every account's permission set at once — the bulk "Forget all sites"
+  // (Activity tab). Written as an empty map rather than a removal so loadRoot's
+  // shape ({ pubkey: { host: … } }) survives untouched.
+  async function clearAll() {
+    await set({ [PERM_KEY]: {} });
+  }
+
   // 'allow' | 'reject' | 'ask' for a (host, method) given its tier.
   function statusForLevel(level, method) {
     switch (level) {
@@ -102,6 +109,7 @@
     setLevel,
     removeHost,
     clearAccount,
+    clearAll,
     getPermissionStatus,
     getAll: accountMap,
   };
