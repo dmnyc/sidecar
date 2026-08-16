@@ -5360,18 +5360,35 @@
   // the first time a name search would fire, the dropdown carries a one-time ask
   // (see naAskEl) instead of the spinner; either answer is remembered, and the
   // Settings toggle ("Use the Nostr Archives name index") is the only way back.
-  // Tri-state: undefined = never asked, true/false = decided. Reads storage
-  // directly rather than via call() so autocomplete keystrokes can't wake the SW.
+  // Tri-state: undefined = never asked, true/false = decided. The first read
+  // hits storage directly rather than via call() so autocomplete keystrokes
+  // can't wake the SW; after that it's memoized (see below).
   const NA_BASE = 'https://api.nostrarchives.com';
+  // Tri-state memo. Reading storage on every keystroke left a gap where the
+  // ask blinked out of the dropdown — and with no follow matches the box
+  // closed outright for the duration of the read. With the memo the ask paints
+  // in the same frame as the follow matches. Every writer updates the memo too
+  // (naDecide, the Settings toggle listener), and both live in this document,
+  // so it cannot drift from what's stored.
+  let naSettingMemo;
+  let naSettingLoaded = false;
   function naSetting() {
+    if (naSettingLoaded) return Promise.resolve(naSettingMemo);
     return new Promise((resolve) =>
-      chrome.storage.local.get('sidecar_settings', (r) =>
-        resolve(((r && r.sidecar_settings) || {}).nostrArchives)));
+      chrome.storage.local.get('sidecar_settings', (r) => {
+        naSettingLoaded = true;
+        naSettingMemo = ((r && r.sidecar_settings) || {}).nostrArchives;
+        resolve(naSettingMemo);
+      }));
   }
+  function naSetSettingMemo(on) { naSettingLoaded = true; naSettingMemo = on; }
   async function naEnabled() { return (await naSetting()) === true; }
   // Either button on the ask writes the decision — a click may wake the service
-  // worker, unlike the read above.
+  // worker, unlike the read above. The memo is set first, optimistically: if
+  // the write somehow fails, showing the ask again right after a deliberate
+  // "Just my follows" would be worse than re-asking next session.
   async function naDecide(on) {
+    naSetSettingMemo(on);
     try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: on } }); } catch (_) {}
   }
   // The ask itself, rendered where the search spinner would sit in whichever
@@ -5381,6 +5398,10 @@
   // onDecided(on) re-runs the host surface's update, which now sees a decision.
   function naAskEl(onDecided) {
     const row = h('div', { className: 'na-ask' });
+    // The whole ask swallows mousedown, not just its buttons: a mousedown on
+    // the paragraph is still a focus grab that blurs the composer, and its
+    // blur handler closes the dropdown — withdrawing a question mid-read.
+    row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
       textContent: 'Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.',
@@ -6509,7 +6530,14 @@
       } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
     });
 
-    editor.addEventListener('blur', () => setTimeout(closeAcDropdown, 150));
+    // A pending one-time ask is a consent question, not search chrome: focus
+    // moving away (a click elsewhere in the panel, another window) must not
+    // withdraw it before it's answered. Escape still dismisses, and an
+    // unanswered ask simply returns on the next @-keystroke.
+    editor.addEventListener('blur', () => setTimeout(() => {
+      if (acDropdown && acDropdown.querySelector('.na-ask')) return;
+      closeAcDropdown();
+    }, 150));
 
     return {
       wrap,
@@ -10673,6 +10701,7 @@
   });
 
   $('na-toggle').addEventListener('change', async (e) => {
+    naSetSettingMemo(e.target.checked); // keep this document's ask/gate in sync with the write
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: e.target.checked } });
   });
 
