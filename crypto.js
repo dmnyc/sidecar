@@ -58,7 +58,8 @@
     };
   }
 
-  // Derive a non-extractable AES-GCM key from a PIN/passphrase and a KDF descriptor.
+  // Derive the AES-GCM key from a PIN/passphrase and a KDF descriptor.
+  // Deliberately extractable — see the file header and the flag below.
   async function deriveKey(pin, kdf) {
     const baseKey = await subtle.importKey('raw', utf8(pin), 'PBKDF2', false, ['deriveKey']);
     return subtle.deriveKey(
