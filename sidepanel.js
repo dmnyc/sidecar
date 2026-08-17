@@ -1638,6 +1638,11 @@
       if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
+      // Same deal for Accounts: the overview's stats (wallet connected/backed-up
+      // badges especially) are whatever renderMain() last drew. Without this a
+      // wallet disconnected on the Wallet tab still read "Connected" here until
+      // some unrelated action re-rendered the panel.
+      else if (name === 'accounts') renderMain();
       renderPinnedBalanceBar(); // show on non-wallet tabs, hide on Wallet
     });
   });
@@ -4573,9 +4578,13 @@
   // opts.sheetOnly: the caller wants the printable sheet, so the PIN gate hands the
   // revealed nsec straight to the download instead of putting it on screen. Same
   // gate either way — the sheet is the key in another wrapper.
-  // opts.encrypted (sheetOnly only): the Profile page's toggle asked for the
-  // masquerade sheet, so the export-password pair rides this same flow — the
-  // user is already here with their PIN out.
+  // opts.encrypted (sheetOnly only): the masquerade sheet, so the export-password
+  // pair rides this same flow — the user is already here with their PIN out.
+  // Both callers now use the full flow (the Profile page's standalone sheet entry
+  // went away once the modal itself offered every sheet variant), so these opts
+  // currently have no caller — kept because the direct-to-print path is a working
+  // variant we may re-expose, and removing it would take encryptedPageControls
+  // with it.
   function backupKeyModal(a, opts) {
     const sheetOnly = !!(opts && opts.sheetOnly);
     const encrypted = sheetOnly && !!(opts && opts.encrypted);
@@ -8846,62 +8855,44 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later.',
+          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later. This file holds your data only, never your secret key — for the key itself, back it up below.',
       })
     );
-    const exportBtn = h('button', { className: 'secondary', textContent: 'Download backup file' });
+    const exportBtn = h('button', { className: 'secondary', textContent: 'Download data backup' });
     exportBtn.addEventListener('click', async () => {
       exportBtn.disabled = true;
       try {
         await exportBundle(active);
-        toast('Backup file downloaded', 'success');
+        toast('Data backup downloaded (no secret key)', 'success');
       } catch (e) {
         toast(e.message, 'error');
       }
       exportBtn.disabled = false;
     });
 
-    // The printable key sheet. Deliberately in its own block below the JSON export
-    // with its own heading and warning: that file contains no secret and is safe to
+    // The key itself. Deliberately in its own block below the JSON export with
+    // its own heading and warning: that file contains no secret and is safe to
     // click, this one IS the key. Two lookalike buttons side by side would invite
     // exactly the mistake that matters most here.
-    const sheetWrap = h('div', { className: 'export-block' });
-    sheetWrap.append(
-      h('h3', { textContent: 'Printable key sheet' }),
+    const keyBackupWrap = h('div', { className: 'export-block' });
+    keyBackupWrap.append(
+      h('h3', { textContent: 'Private key backup' }),
       h('p', {
         className: 'hint',
         textContent:
-          'A one-page sheet with your secret key as text and a QR, made to be printed and kept somewhere safe. Unlike the file above, this IS your key — never send it by email or chat.',
+          'Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.',
       })
     );
-    // The encrypted variant lives HERE, not in the day-one prompts: by the time
-    // someone is browsing Profile → Backup & restore they know what a backup is
-    // and can weigh "useless without the password" for themselves. The hint is
-    // hidden until the toggle is on, so the default path reads exactly as before.
-    const encTick = h('input', { type: 'checkbox' });
-    const encHint = h('p', {
-      className: 'hint hidden',
-      textContent:
-        'The sheet prints a masked version of your key: a photo or copy of it alone is useless. Restoring needs the password you choose and a NIP-49-capable app — Sidecar accepts it on import. Forget the password and the sheet cannot recover your account.',
-    });
-    encTick.addEventListener('change', () => {
-      encHint.classList.toggle('hidden', !encTick.checked);
-      sheetBtn.textContent = encTick.checked ? 'Download encrypted sheet' : 'Download key sheet';
-    });
-    const sheetBtn = h('button', { className: 'secondary', textContent: 'Download key sheet' });
-    sheetBtn.addEventListener('click', () => {
-      // Same step-up PIN gate as revealing the nsec anywhere else — the sheet is
-      // the key in another wrapper, so it can't be a cheaper way to get at it.
-      backupKeyModal(active, { sheetOnly: true, encrypted: encTick.checked });
-    });
-    sheetWrap.append(
-      h('label', { className: 'toggle-row' }, [
-        encTick,
-        h('span', { textContent: 'Encrypt the sheet with a password' }),
-      ]),
-      encHint,
-      sheetBtn
-    );
+    // The Accounts screen's "Back up private key" entry, mirrored here — Backup &
+    // restore is where someone backing everything up should find the key export,
+    // not only via the account row's menu. Same modal, same PIN step-up, so there
+    // is exactly one key-backup flow to reason about. The printable sheet is an
+    // action INSIDE the modal (plain from the nsec tab, encrypted masquerade from
+    // the ncryptsec tab — printable straight from the typed password), which is
+    // why this block carries no sheet button or encrypt toggle of its own.
+    const keyBtn = h('button', { className: 'secondary', textContent: 'Back up private key' });
+    keyBtn.addEventListener('click', () => backupKeyModal(active));
+    keyBackupWrap.append(keyBtn);
 
     const importBtn = h('button', { className: 'secondary', textContent: 'Restore from file' });
     const fileInput = document.createElement('input');
@@ -8922,7 +8913,7 @@
     });
 
     exportWrap.append(exportBtn, importBtn, fileInput);
-    setting.append(exportWrap, sheetWrap);
+    setting.append(exportWrap, keyBackupWrap);
 
     // Follow-list recovery — scan relays for an older kind:3 and republish it.
     const recoveryWrap = h('div', { className: 'export-block recovery-block' });
