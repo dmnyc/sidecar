@@ -202,6 +202,56 @@ async function logActivity(entry) {
   await sset({ [ACTIVITY_KEY]: cur });
 }
 
+// ---- encrypted local stores (drafts, payment metadata) — audit M5/S1 ----
+// These two used to sit in chrome.storage.local as plaintext anyone with the
+// profile could read. They now live as { v: 1, enc: {iv, ct} } envelopes sealed
+// with the keystore's notes key (see keystore.js — one blob that changePin
+// re-wraps). All reads and writes route through here, so the panel never touches
+// key material, and while LOCKED the answer is simply "nothing" — the composer
+// and wallet history are unreachable locked anyway, and a locked fallback to the
+// legacy plaintext would keep the exposure this exists to close.
+const CRYPTO = self.SidecarCrypto;
+const SECRET_STORES = {
+  drafts: { v1: 'sidecar_drafts_enc', legacy: 'sidecar_compose_drafts' },
+  paymeta: { v1: 'sidecar_pay_meta_enc', legacy: 'sidecar_pay_meta' },
+};
+async function secretGet(name) {
+  const cfg = SECRET_STORES[name];
+  if (!cfg) throw new Error('Unknown secret store');
+  if (KS.isLocked()) return null;
+  const key = await KS.getNotesKey();
+  if (!key) return null;
+  const rec = (await sget(cfg.v1))[cfg.v1];
+  if (rec && rec.enc) {
+    try {
+      return JSON.parse(await CRYPTO.decryptString(key, rec.enc));
+    } catch (_) {
+      // Corrupt envelope: never delete it (a future build may recover it), but a
+      // still-present legacy copy means the migration's remove never landed —
+      // fall back to it rather than showing the user an empty draft over data
+      // that still exists. Data beats the exposure edge case here.
+      const legacy = (await sget(cfg.legacy))[cfg.legacy];
+      if (legacy && Object.keys(legacy).length) return legacy;
+      return null;
+    }
+  }
+  // No envelope yet: migrate the legacy plaintext exactly once — the encrypted
+  // copy is written (and confirmed) BEFORE the plaintext is removed.
+  const legacy = (await sget(cfg.legacy))[cfg.legacy];
+  if (!legacy || !Object.keys(legacy).length) return {};
+  await secretPut(name, legacy);
+  await chrome.storage.local.remove(cfg.legacy);
+  return legacy;
+}
+async function secretPut(name, value) {
+  const cfg = SECRET_STORES[name];
+  if (!cfg) throw new Error('Unknown secret store');
+  if (KS.isLocked()) throw new Error('Sidecar is locked');
+  const key = await KS.getNotesKey();
+  const enc = await CRYPTO.encryptString(key, JSON.stringify(value || {}));
+  await sset({ [cfg.v1]: { v: 1, enc } });
+}
+
 // ---- debug log (dev builds only) ----
 // An in-memory ring buffer for the dev bug button's debug panel — separate
 // from the user-facing Activity log above (which tracks signed events/
@@ -2596,6 +2646,15 @@ async function handleControl(message, sendResponse) {
         result = [];
         break;
       }
+      // Encrypted local stores (drafts, pay-meta). Extension-page only by virtue
+      // of the sender gate — a web page must never read or plant either.
+      case 'SIDECAR_SECRET_GET':
+        result = await secretGet(message.store);
+        break;
+      case 'SIDECAR_SECRET_SET':
+        await secretPut(message.store, message.value);
+        result = true;
+        break;
       // ---- QR scan hand-off (see the qrSecret notes above) ----
       case 'SIDECAR_OPEN_QR_SCANNER': {
         // Its own window, NOT the shared approval popup — reusing popupWindowId

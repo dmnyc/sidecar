@@ -200,7 +200,39 @@
     for (const bytes of unlocked.values()) C.wipe(bytes);
     unlocked.clear();
     derivedKey = null;
+    notesKey = null;
     await sessClear();
+  }
+
+  // ---- notes key: envelope key for the encrypted local stores (drafts, pay-meta) ----
+  // A random 32-byte key, stored ONLY wrapped under the current derived key.
+  // background.js seals those stores with it, so a PIN change re-wraps one small
+  // blob instead of re-encrypting every draft — and there is exactly one place
+  // (changePin below) where the old derived key dies, which is where the re-wrap
+  // lives, in the same storage write as the re-keyed vault. Miss that one spot
+  // and every draft and payment note becomes ciphertext nobody can open.
+  const NOTES_KEY = 'sidecar_notes_key';
+  let notesKey = null;
+  async function getNotesKey() {
+    if (notesKey) return notesKey;
+    if (!derivedKey) return null; // locked: no envelope operations at all
+    const rec = (await get(NOTES_KEY))[NOTES_KEY];
+    if (rec && rec.enc) {
+      // A corrupt/undecryptable wrap must PROPAGATE, not be replaced — generating
+      // a fresh key here would orphan the wrapped one and silently destroy every
+      // draft it still protects. Callers catch and treat the store as unreadable.
+      const raw = await C.decryptBytes(derivedKey, rec.enc);
+      notesKey = await C.importKeyRaw(C.bytesToBase64(raw));
+      C.wipe(raw);
+      return notesKey;
+    }
+    // First use: generate and wrap. Its own single write, so there is no
+    // partial-write window to close here.
+    const raw = C.randomBytes(32);
+    notesKey = await C.importKeyRaw(C.bytesToBase64(raw));
+    await set({ [NOTES_KEY]: { v: 1, enc: await C.encryptBytes(derivedKey, raw) } });
+    C.wipe(raw);
+    return notesKey;
   }
 
   // Verify a PIN without changing lock state — used to "step up" before sensitive
@@ -420,7 +452,18 @@
     }
     store.kdf = kdf;
     store.verifier = await C.makeVerifier(newKey);
-    await set({ [STORE_KEY]: store });
+    // Re-wrap the notes key (drafts/pay-meta envelope) while oldKey is still in
+    // hand, and land it in the SAME write as the re-keyed vault — two writes
+    // would leave a window where the vault survived a crash but the notes key
+    // didn't, taking every draft and payment note with it.
+    const write = { [STORE_KEY]: store };
+    const notesRec = (await get(NOTES_KEY))[NOTES_KEY];
+    if (notesRec && notesRec.enc) {
+      const raw = await C.decryptBytes(oldKey, notesRec.enc);
+      write[NOTES_KEY] = { v: 1, enc: await C.encryptBytes(newKey, raw) };
+      C.wipe(raw);
+    }
+    await set(write);
     derivedKey = newKey; // stay unlocked
     await persistSession(newKey);
     return getState();
@@ -497,6 +540,11 @@
     // derived key and rewrites the whole store. Losing this write, or interleaving
     // it with another, is how a vault ends up keyed to a PIN nobody has.
     changePin: serialized(changePin),
+    // Envelope key for the encrypted local stores (drafts/pay-meta); null when
+    // locked. Never a raw export — callers get the CryptoKey itself. Serialized:
+    // its first-use wrap-write must not interleave with changePin's re-wrap, or a
+    // wrap keyed to the old PIN could land after the vault moved to the new one.
+    getNotesKey: serialized(getNotesKey),
     // expose the derived key getter for sibling modules (e.g. NWC string encryption)
     _getDerivedKey: () => derivedKey,
   };

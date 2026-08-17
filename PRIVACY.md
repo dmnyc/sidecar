@@ -43,9 +43,12 @@ storage. None of it is transmitted to the developer.
   "Forget all sites" in the Activity tab, which also clears the activity log.
 - **Unsent drafts and payment notes** — compose drafts you haven't published,
   and the counterparties and notes of payments you've made, are stored locally
-  so they survive restarts. Unlike your keys, these are **not encrypted at
-  rest**: someone with access to your device's browser profile data could read
-  them. Forgetting sites or clearing the activity log does not erase drafts.
+  so they survive restarts, **encrypted at rest** under the same PIN-derived
+  key that protects your keys: readable only while Sidecar is unlocked, and
+  unreadable from the browser profile alone. Drafts saved by an earlier
+  version are migrated to the encrypted store on first access after update
+  (the old plaintext copy is removed once the encrypted one is written).
+  Forgetting sites or clearing the activity log does not erase drafts.
 
 There is **no account recovery**: if you forget your PIN/passphrase, your data
 cannot be recovered. Back up your nsecs.
