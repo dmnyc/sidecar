@@ -3430,8 +3430,8 @@
 
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.
-      call({ type: 'SIDECAR_GET_NWC' }).then(async ({ connection }) => {
-        if (!connection) {
+      call({ type: 'SIDECAR_NWC_META' }).then(async ({ has }) => {
+        if (!has) {
           const link = h('button', { className: 'account-stat-add-link', textContent: 'Add wallet →' });
           link.addEventListener('click', () => {
             const tab = document.querySelector('.tab[data-tab="wallet"]');
@@ -5656,8 +5656,8 @@
   async function maybeSuggestLud16(container, active, content) {
     let walletAddr = null;
     try {
-      const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
-      walletAddr = connection ? parseNwcLud16(connection) : null;
+      const { lud16 } = await call({ type: 'SIDECAR_NWC_META' });
+      walletAddr = lud16 || null;
     } catch (_) {}
     if (!walletAddr) return; // no wallet address to sync
     if (state.activePubkey !== active.pubkey) return; // account switched during await
@@ -7980,20 +7980,20 @@
   async function nwcBackupState() {
     const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
     if (!ev) return { state: 'none' };
-    let connection = '';
-    try {
-      connection = (await call({ type: 'SIDECAR_GET_NWC' })).connection || '';
-    } catch (_) {}
-    if (!connection) return { state: 'unknown', at: ev.created_at };
+    // Presence comes from the metadata view; the decrypt-and-compare runs in the
+    // service worker (SIDECAR_NWC_BACKUP_MATCHES) so the raw connection string
+    // never crosses to a page just to be compared against the backup.
+    let has = false;
+    try { has = !!(await call({ type: 'SIDECAR_NWC_META' })).has; } catch (_) {}
+    if (!has) return { state: 'unknown', at: ev.created_at };
     try {
       const scheme = (ev.tags.find((x) => x[0] === 'encryption') || [])[1];
-      const backed = await call({
-        type: 'SIDECAR_OWNER_DECRYPT',
+      const { matches } = await call({
+        type: 'SIDECAR_NWC_BACKUP_MATCHES',
         ciphertext: ev.content,
         nip: scheme === 'nip04' ? 4 : 44,
       });
-      const same = String(backed || '').trim() === connection.trim();
-      return { state: same ? 'current' : 'stale', at: ev.created_at };
+      return { state: matches ? 'current' : 'stale', at: ev.created_at };
     } catch (_) {
       return { state: 'unknown', at: ev.created_at };
     }
@@ -8017,18 +8017,10 @@
   };
 
   async function backupNwcToRelays() {
-    const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
-    if (!connection) throw new Error('No wallet connected to back up');
-    // No NIP-04 fallback: this is a spendable secret, and silently downgrading the
-    // encryption because the first attempt errored is the wrong failure mode — let
-    // the caller surface the error instead.
-    let ciphertext;
-    try {
-      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext: connection, nip: 44 });
-    } catch (e) {
-      throw new Error('Could not encrypt the backup (NIP-44): ' + (e && e.message ? e.message : 'unknown error'));
-    }
-    const algo = 'nip44';
+    // The encryption runs in the service worker against the stored string, so
+    // the raw connection never crosses to a page just to be re-encrypted. No
+    // NIP-04 fallback there either — see the worker-side rationale.
+    const { ciphertext, algo } = await call({ type: 'SIDECAR_NWC_BACKUP_CIPHERTEXT' });
     const event = {
       kind: 30078,
       created_at: Math.floor(Date.now() / 1000),
@@ -9575,9 +9567,8 @@
   }
   async function getLightningAddress() {
     try {
-      const { connection } = await call({ type: 'SIDECAR_GET_NWC' });
-      const fromNwc = connection && parseNwcLud16(connection);
-      if (fromNwc) return fromNwc;
+      const { lud16 } = await call({ type: 'SIDECAR_NWC_META' });
+      if (lud16) return lud16;
     } catch (_) {}
     try {
       const { content } = await fetchActiveProfile();

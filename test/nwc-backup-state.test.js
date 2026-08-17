@@ -32,7 +32,10 @@ const CONN = 'nostr+walletconnect://b889ff5b1513b641e2a139f661a661364979c5beee91
 const OTHER = 'nostr+walletconnect://a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90?relay=wss%3A%2F%2Frelay.other&secret=0f0e0d0c0b0a09080706050403020100';
 
 // Builds a context where fetchBackupEvent and call() are stubs, so the state
-// machine is exercised without relays or a keystore.
+// machine is exercised without relays or a keystore. The stubs mirror the
+// service worker's side of the contract: presence comes from SIDECAR_NWC_META,
+// and SIDECAR_NWC_BACKUP_MATCHES does the decrypt-and-compare worker-side, so
+// only the boolean ever crosses back.
 function harness({ event, connection, decrypt, getNwcThrows }) {
   const calls = [];
   const ctx = {
@@ -41,13 +44,16 @@ function harness({ event, connection, decrypt, getNwcThrows }) {
     fetchBackupEvent: async () => (event === undefined ? null : event),
     call: async (msg) => {
       calls.push(msg);
-      if (msg.type === 'SIDECAR_GET_NWC') {
+      if (msg.type === 'SIDECAR_NWC_META') {
         if (getNwcThrows) throw new Error('locked');
-        return { connection };
+        return { has: !!connection };
       }
-      if (msg.type === 'SIDECAR_OWNER_DECRYPT') {
-        if (typeof decrypt === 'function') return decrypt(msg);
-        return decrypt;
+      if (msg.type === 'SIDECAR_NWC_BACKUP_MATCHES') {
+        const backed = typeof decrypt === 'function' ? decrypt(msg) : decrypt;
+        return {
+          has: !!connection,
+          matches: !!connection && String(backed || '').trim() === String(connection).trim(),
+        };
       }
       throw new Error('unexpected call ' + msg.type);
     },
@@ -145,7 +151,7 @@ test('a same-wallet string differing only in query order reports "stale"', async
 test('an nip04 tag decrypts with nip 4, not 44', async () => {
   const { ctx, calls } = harness({ event: evt('C', 'nip04'), connection: CONN, decrypt: CONN });
   await ctx.nwcBackupState();
-  const dec = calls.find((c) => c.type === 'SIDECAR_OWNER_DECRYPT');
+  const dec = calls.find((c) => c.type === 'SIDECAR_NWC_BACKUP_MATCHES');
   assert.equal(dec.nip, 4, 'older backups were NIP-04 and must stay readable');
 });
 
@@ -153,15 +159,29 @@ test('nip44 is used for a nip44 tag and for a missing tag', async () => {
   for (const algo of ['nip44', undefined]) {
     const { ctx, calls } = harness({ event: evt('C', algo), connection: CONN, decrypt: CONN });
     await ctx.nwcBackupState();
-    assert.equal(calls.find((c) => c.type === 'SIDECAR_OWNER_DECRYPT').nip, 44,
+    assert.equal(calls.find((c) => c.type === 'SIDECAR_NWC_BACKUP_MATCHES').nip, 44,
       'algo tag ' + String(algo));
   }
 });
 
-test('the ciphertext handed to decrypt is the event content', async () => {
+test('the ciphertext handed to the comparison is the event content', async () => {
   const { ctx, calls } = harness({ event: evt('ABC123', 'nip44'), connection: CONN, decrypt: CONN });
   await ctx.nwcBackupState();
-  assert.equal(calls.find((c) => c.type === 'SIDECAR_OWNER_DECRYPT').ciphertext, 'ABC123');
+  assert.equal(calls.find((c) => c.type === 'SIDECAR_NWC_BACKUP_MATCHES').ciphertext, 'ABC123');
+});
+
+// ---- raw-string containment ----------------------------------------------------
+
+test('the raw connection string is never requested by the panel — compare runs worker-side', async () => {
+  // The whole point of moving decrypt-and-compare into the service worker: the
+  // string never crosses a message boundary for this check. If a refactor
+  // reintroduces a raw-string fetch here, it has to come with a reason.
+  const { ctx, calls } = harness({ event: evt(), connection: CONN, decrypt: CONN });
+  await ctx.nwcBackupState();
+  assert.ok(!calls.some((c) => c.type === 'SIDECAR_GET_NWC' || c.type === 'SIDECAR_REVEAL_NWC'));
+  for (const c of calls) {
+    assert.ok(!('connection' in c) && !('plaintext' in c), 'call carried key material: ' + c.type);
+  }
 });
 
 // ---- the labels ----------------------------------------------------------------

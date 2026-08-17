@@ -2693,14 +2693,70 @@ async function handleControl(message, sendResponse) {
         closeSwNwc(); // rebuild against the new connection on next use
         result = { ok: true };
         break;
-      case 'SIDECAR_GET_NWC':
+      case 'SIDECAR_GET_NWC': {
+        // The raw connection string, for building the in-memory wallet client.
+        // The side panel is the one legitimate consumer — it ends up holding the
+        // parsed secret inside that client no matter what, so restricting by
+        // sender buys nothing there — but no OTHER extension page has any reason
+        // to see the string: display code uses SIDECAR_NWC_META, backup code uses
+        // the SIDECAR_NWC_BACKUP_* helpers below, and human-visible export goes
+        // through SIDECAR_REVEAL_NWC's PIN step-up.
+        if (typeof sender.url !== 'string' || sender.url !== chrome.runtime.getURL('sidepanel.html')) {
+          throw new Error('Not allowed from this context');
+        }
         result = { connection: await KS.getNwc(message.pubkey) };
         break;
+      }
       case 'SIDECAR_REVEAL_NWC': {
         // Export the raw connection string — always step-up PIN, even while
         // unlocked. Locked + verified PIN unlocks (see stepUpPin).
         await stepUpPin(message.pin);
         result = { connection: await KS.getNwc(message.pubkey) };
+        break;
+      }
+      case 'SIDECAR_NWC_META': {
+        // Metadata-only view of the stored connection: presence + lightning
+        // address. Never returns the string itself (see SIDECAR_GET_NWC above).
+        const connection = await KS.getNwc(message.pubkey);
+        let lud16 = null;
+        if (connection) {
+          try {
+            const q = connection.split('?')[1];
+            const v = q && new URLSearchParams(q).get('lud16');
+            lud16 = v && v.includes('@') ? v.trim() : null;
+          } catch (_) {}
+        }
+        result = { has: !!connection, lud16 };
+        break;
+      }
+      case 'SIDECAR_NWC_BACKUP_CIPHERTEXT': {
+        // Relay backup, step 1: encrypt the stored connection to its own account.
+        // Runs here so the raw string never crosses to a page just to be
+        // re-encrypted. NIP-44 only, no NIP-04 fallback: this is a spendable
+        // secret, and silently downgrading the encryption because the first
+        // attempt errored is the wrong failure mode — let the caller surface
+        // the error instead.
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        const pk = await KS.getActivePubkey();
+        const connection = await KS.getNwc(pk);
+        if (!connection) throw new Error('No wallet connected to back up');
+        result = {
+          ciphertext: await SIGNER.perform('nip44.encrypt', { pubkey: pk, plaintext: connection }, await KS.getPrivkey(pk), pk),
+          algo: 'nip44',
+        };
+        break;
+      }
+      case 'SIDECAR_NWC_BACKUP_MATCHES': {
+        // Relay backup, step 2: does a backup ciphertext decrypt to the stored
+        // connection? Compared here so the string stays in the worker. `has`
+        // lets the caller distinguish "no local wallet" (unknown) from a real
+        // mismatch (stale).
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        const pk = await KS.getActivePubkey();
+        const m = message.nip === 4 ? 'nip04.decrypt' : 'nip44.decrypt';
+        const backed = await SIGNER.perform(m, { pubkey: pk, ciphertext: message.ciphertext }, await KS.getPrivkey(pk), pk);
+        const connection = await KS.getNwc(pk);
+        result = { has: !!connection, matches: !!connection && String(backed || '').trim() === connection.trim() };
         break;
       }
       case 'SIDECAR_HAS_NWC':
