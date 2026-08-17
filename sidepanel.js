@@ -7073,31 +7073,37 @@
     };
   }
 
-  // ---- composer draft autosave (per account, in chrome.storage.local) ----
+  // ---- composer draft autosave (per account, encrypted at rest) ----
+  // Routed through the background's secret store (audit M5/S1): the draft text
+  // never sits in chrome.storage.local as plaintext. Read-modify-write of the
+  // whole map, same shape the old direct-storage version had — the 400ms save
+  // debounce is the only concurrency limiter either way.
   function loadComposeDraft(pubkey) {
-    return new Promise((res) => {
-      chrome.storage.local.get('sidecar_compose_drafts', (r) => {
-        const all = (r && r.sidecar_compose_drafts) || {};
-        res(all[pubkey] || null);
-      });
-    });
+    return call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })
+      .then((all) => (all && all[pubkey]) || null)
+      .catch(() => null);
   }
   function saveComposeDraft(pubkey, draft) {
     const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
-    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
-      const all = (r && r.sidecar_compose_drafts) || {};
+    (async () => {
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
       if (hasContent) all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
       else delete all[pubkey];
-      chrome.storage.local.set({ sidecar_compose_drafts: all });
+      await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    })().catch(() => {
+      // Swallowed on purpose: the one realistic failure is Sidecar locking
+      // between keystrokes — every pre-lock keystroke was already saved, and the
+      // editor in memory still holds the text. A rejected save must not spam the
+      // console for a draft nobody is typing into anymore.
     });
   }
-  function clearComposeDraft(pubkey) {
-    chrome.storage.local.get('sidecar_compose_drafts', (r) => {
-      const all = (r && r.sidecar_compose_drafts) || {};
-      if (!all[pubkey]) return;
+  async function clearComposeDraft(pubkey) {
+    try {
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+      if (!(pubkey in all)) return;
       delete all[pubkey];
-      chrome.storage.local.set({ sidecar_compose_drafts: all });
-    });
+      await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    } catch (_) {}
   }
 
   // The review window before something irreversible goes out, shared by the note
@@ -10279,19 +10285,19 @@
   // Locally-recorded payment metadata (counterparty/comment/fee), keyed by the
   // BOLT11 invoice. NWC's list_transactions doesn't carry who we paid, so for
   // lightning-address sends we stash the address here and match it back by
-  // invoice when rendering history. Capped to the most recent entries.
-  const PAY_META_KEY = 'sidecar_pay_meta';
+  // invoice when rendering history. Capped to the most recent entries. Encrypted
+  // at rest via the background's secret store (audit M5/S1) — counterparties and
+  // user-typed comments are no one else's business, including anyone holding the
+  // profile on disk.
   function getPayMeta() {
-    return new Promise((res) => {
-      try {
-        chrome.storage.local.get(PAY_META_KEY, (o) => res((o && o[PAY_META_KEY]) || {}));
-      } catch (_) { res({}); }
-    });
+    return call({ type: 'SIDECAR_SECRET_GET', store: 'paymeta' })
+      .then((m) => m || {})
+      .catch(() => ({}));
   }
   async function savePayMeta(invoice, meta) {
     if (!invoice) return;
     try {
-      const all = await getPayMeta();
+      const all = (await getPayMeta()) || {};
       all[invoice] = Object.assign({}, all[invoice], meta, { ts: Date.now() });
       const keys = Object.keys(all);
       if (keys.length > 300) {
@@ -10300,7 +10306,7 @@
           .slice(0, keys.length - 300)
           .forEach((k) => delete all[k]);
       }
-      chrome.storage.local.set({ [PAY_META_KEY]: all });
+      await call({ type: 'SIDECAR_SECRET_SET', store: 'paymeta', value: all });
     } catch (_) {}
   }
 
