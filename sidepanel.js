@@ -4474,7 +4474,7 @@
   //
   // Plain sheet only, on purpose. This is a minute into the user's first
   // session, and almost nobody has heard of an ncryptsec — the encrypted sheet
-  // is offered later, from Profile → Backup & restore, by people who know what
+  // is offered later, from Profile → Data backup, by people who know what
   // they're opting into.
   function backupSheetPromptModal(nsec, account) {
     openModal((modal) => {
@@ -4507,7 +4507,7 @@
         // No sheet button here on purpose. At account creation there is no profile
         // yet, and the sheet prints the display name — one taken now is addressed to
         // "THE BEARER OF THIS SHEET" permanently. It's offered after the setup
-        // wizard instead (see generateAccount), and from Profile → Backup & restore.
+        // wizard instead (see generateAccount), and from Profile → Data backup.
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
@@ -8889,8 +8889,8 @@
   function renderBackupSection(view, active) {
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
-      h('h3', { textContent: 'Backup & restore' }),
-      h('p', { className: 'hint', textContent: 'Stored on your relays as a NIP-78 record, encrypted to your own key (NIP-44, or NIP-04 for very large lists).' })
+      h('h3', { textContent: 'Data backup' }),
+      h('p', { className: 'hint', textContent: 'Your profile, follows, and mute list — data only, never your secret key — stored on your relays as an encrypted record you can restore here (NIP-78, NIP-44; NIP-04 for very large lists), or saved to a file below.' })
     );
     const list = h('div', { className: 'list flat' });
     BACKUP_TYPES.forEach((t) => {
@@ -8926,7 +8926,7 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later. This file holds your data only, never your secret key — for the key itself, back it up below.',
+          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later. This file holds no secret key.',
       })
     );
     const exportBtn = h('button', { className: 'secondary', textContent: 'Download data backup' });
@@ -8954,8 +8954,8 @@
           'Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.',
       })
     );
-    // The Accounts screen's "Back up private key" entry, mirrored here — Backup &
-    // restore is where someone backing everything up should find the key export,
+    // The Accounts screen's "Back up private key" entry, mirrored here — the backup
+    // screen is where someone backing everything up should find the key export,
     // not only via the account row's menu. Same modal, same PIN step-up, so there
     // is exactly one key-backup flow to reason about. The printable sheet is an
     // action INSIDE the modal (plain from the nsec tab, encrypted masquerade from
