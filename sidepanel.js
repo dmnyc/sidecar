@@ -2133,6 +2133,52 @@
     return out;
   }
 
+  // NIP-18 `q` tags for the event references in a note's body, plus the pubkeys of the
+  // quoted authors (the caller p-tags them — see doPublish).
+  //
+  // A bech32 reference in the content is not, on its own, a quote: without the `q` tag
+  // the note goes out as plain text with a 210-character string in the middle of it.
+  // Clients key quote rendering off `q`, the quoted author is never notified, and
+  // Sidecar's OWN notification list does exactly that (notificationKind's hasQ, which
+  // is how "quoted your note" is told apart from a reply) — so a quote composed here
+  // didn't read as a quote even in Sidecar.
+  //
+  // note/nevent quote by event id; naddr quotes by "kind:pubkey:d" coordinate, since an
+  // addressable event's id changes with every edit.
+  const BODY_REF_RE = /nostr:(note1[0-9a-z]+|nevent1[0-9a-z]+|naddr1[0-9a-z]+)/g;
+  function quoteTags(content) {
+    const tags = [];
+    const authors = [];
+    const seen = new Set();
+    let m;
+    BODY_REF_RE.lastIndex = 0;
+    while ((m = BODY_REF_RE.exec(String(content || ''))) !== null) {
+      let d = null;
+      try { d = NT.nip19.decode(m[1]); } catch (_) { continue; } // malformed ref — skip it, don't fail the post
+      let value = null;
+      let relay = '';
+      let author = '';
+      if (d.type === 'note') {
+        value = d.data;
+      } else if (d.type === 'nevent') {
+        value = d.data.id;
+        relay = (d.data.relays || [])[0] || '';
+        author = d.data.author || '';
+      } else if (d.type === 'naddr') {
+        value = d.data.kind + ':' + d.data.pubkey + ':' + d.data.identifier;
+        relay = (d.data.relays || [])[0] || '';
+        author = d.data.pubkey || '';
+      }
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      // Positional tag, so an author can only be given if the relay slot is filled —
+      // with an empty string when there's no hint, which is what other clients emit.
+      tags.push(author ? ['q', value, relay, author] : relay ? ['q', value, relay] : ['q', value]);
+      if (author) authors.push(author);
+    }
+    return { tags, authors };
+  }
+
   // `includeClientTag` comes from the same Settings toggle that governs notes, so
   // the switch means what it says rather than covering only kind 1. Verified that
   // Jumble renders it: ReplyNote and NotePage both mount <ClientTag> with no kind
@@ -4428,7 +4474,7 @@
   //
   // Plain sheet only, on purpose. This is a minute into the user's first
   // session, and almost nobody has heard of an ncryptsec — the encrypted sheet
-  // is offered later, from Profile → Backup & restore, by people who know what
+  // is offered later, from Profile → Data backup, by people who know what
   // they're opting into.
   function backupSheetPromptModal(nsec, account) {
     openModal((modal) => {
@@ -4461,7 +4507,7 @@
         // No sheet button here on purpose. At account creation there is no profile
         // yet, and the sheet prints the display name — one taken now is addressed to
         // "THE BEARER OF THIS SHEET" permanently. It's offered after the setup
-        // wizard instead (see generateAccount), and from Profile → Backup & restore.
+        // wizard instead (see generateAccount), and from Profile → Data backup.
         modal.append(
           h('h3', { textContent: opts.title }),
           opts.intro ? h('p', { className: 'hint', textContent: opts.intro }) : document.createTextNode(''),
@@ -5242,6 +5288,27 @@
   }
 
   function activityRow(e) {
+    // A request Sidecar refused on shape (see normalizeSignEventParams in
+    // background.js) never reached the key, so it must not borrow METHOD_META's
+    // "Signed …" wording — that would describe a signature that doesn't exist. The
+    // reason is on the row and the shape fingerprint is on hover: this is the record
+    // that was missing when the original "unrecognized kind" report came in with no
+    // payload to look at.
+    if (e.rejected) {
+      const row = h('div', { className: 'item activity-item' });
+      const iconBox = h('div', { className: 'act-icon' });
+      iconBox.appendChild(icon('alert'));
+      const main = h('div', { className: 'item-main' }, [
+        h('div', { className: 'item-label', textContent: 'Refused an unreadable signing request' }),
+        h('div', { className: 'item-sub', textContent: (e.host || '') + ' · ' + relTime(e.ts) }),
+        h('div', { className: 'item-sub', textContent: String(e.rejected).replace(/^signEvent: /, '') }),
+      ]);
+      if (e.shape) {
+        row.title = Object.keys(e.shape).map((k) => k + ': ' + e.shape[k]).join('\n');
+      }
+      row.append(iconBox, main);
+      return row;
+    }
     const meta = METHOD_META[e.method] || { icon: 'feather', label: () => e.method };
     const row = h('div', { className: 'item activity-item' });
     const iconBox = h('div', { className: 'act-icon' });
@@ -7226,9 +7293,21 @@
       // Shared with the page-comment path — see mentionPTags. Was inline here, which
       // is how comments ended up shipping without it.
       const pTags = mentionPTags(content);
+      // A body reference makes this a NIP-18 quote — see quoteTags. The quoted author
+      // gets a `p` tag as well (that's what turns the quote into a notification for
+      // them), without duplicating an @mention of the same person.
+      const quotes = quoteTags(content);
+      const seenP = new Set(pTags.map((t) => t[1]));
+      for (const pk of quotes.authors) {
+        if (seenP.has(pk)) continue;
+        seenP.add(pk);
+        pTags.push(['p', pk]);
+      }
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-      const tags = settings && settings.showClientTag === false ? [...pTags] : [CLIENT_TAG.slice(), ...pTags];
+      const tags = settings && settings.showClientTag === false
+        ? [...pTags, ...quotes.tags]
+        : [CLIENT_TAG.slice(), ...pTags, ...quotes.tags];
       const event = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
@@ -8810,8 +8889,8 @@
   function renderBackupSection(view, active) {
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
-      h('h3', { textContent: 'Backup & restore' }),
-      h('p', { className: 'hint', textContent: 'Stored on your relays as a NIP-78 record, encrypted to your own key (NIP-44, or NIP-04 for very large lists).' })
+      h('h3', { textContent: 'Data backup' }),
+      h('p', { className: 'hint', textContent: 'Your profile, follows, and mute list — data only, never your secret key — stored on your relays as an encrypted record you can restore here (NIP-78, NIP-44; NIP-04 for very large lists), or saved to a file below.' })
     );
     const list = h('div', { className: 'list flat' });
     BACKUP_TYPES.forEach((t) => {
@@ -8847,7 +8926,7 @@
       h('p', {
         className: 'hint',
         textContent:
-          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later. This file holds your data only, never your secret key — for the key itself, back it up below.',
+          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later. This file holds no secret key.',
       })
     );
     const exportBtn = h('button', { className: 'secondary', textContent: 'Download data backup' });
@@ -8875,8 +8954,8 @@
           'Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.',
       })
     );
-    // The Accounts screen's "Back up private key" entry, mirrored here — Backup &
-    // restore is where someone backing everything up should find the key export,
+    // The Accounts screen's "Back up private key" entry, mirrored here — the backup
+    // screen is where someone backing everything up should find the key export,
     // not only via the account row's menu. Same modal, same PIN step-up, so there
     // is exactly one key-backup flow to reason about. The printable sheet is an
     // action INSIDE the modal (plain from the nsec tab, encrypted masquerade from
@@ -11545,6 +11624,18 @@
     if (kind == null) return null;
     return APPROVAL_KIND_WARNINGS[kind] || (!APPROVAL_KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
   }
+  // A request we can't read as an event at all — no integer kind, so there is nothing
+  // to label, no tag count, and no content to preview. normalizeSignEventParams in
+  // background.js now rejects these at the RPC boundary, so this should be
+  // unreachable; it stays because the failure it replaces was a signing card showing a
+  // bare "—" where the event should be, with Allow looking as ordinary as ever. If one
+  // ever gets through again, say so on the card instead of showing a blank.
+  // Duplicated verbatim in prompt.js — same words on both approval surfaces.
+  const APPROVAL_UNREADABLE_WARNING =
+    "Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.";
+  function approvalKindUnreadable(ev) {
+    return !Number.isInteger(ev && ev.kind);
+  }
 
   // The renderable note text for an event: kind:1 → its content; kind 6/16 reposts →
   // the embedded original event's content (a repost's content field is that event's
@@ -11674,9 +11765,10 @@
       if (data.memo) box.append(row('Memo', String(data.memo)));
     } else if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
-      box.append(row('Kind', approvalKindLabel(ev.kind)));
+      const unreadable = approvalKindUnreadable(ev);
+      box.append(row('Kind', unreadable ? 'Unreadable' : approvalKindLabel(ev.kind)));
       if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
-      const warning = approvalKindWarning(ev.kind);
+      const warning = unreadable ? APPROVAL_UNREADABLE_WARNING : approvalKindWarning(ev.kind);
       if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
       // Destructive replaceable overwrite (see replaceable-baseline.js) — louder than
       // the kind warning above, because this one is about losing data you already have.
@@ -11719,7 +11811,9 @@
           ])
         );
       }
-      if (ev.content) appendEventContent(box, ev);
+      // Unreadable: show the payload even with no content field, because the JSON view
+      // is then the only description of what's being signed.
+      if (ev.content || unreadable) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(peerRow('From', data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {

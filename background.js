@@ -888,6 +888,108 @@ function isNip42AuthEvent(ev) {
   return true;
 }
 
+// ---- signEvent request shape ----
+// NIP-07 says signEvent takes an event template, and pages get that wrong in ways
+// that used to surface at the worst possible moment. A page that sent the event as a
+// JSON string, positionally in an array, or not at all produced an approval card
+// reading "Kind —" with no tag count and no content preview — nothing for the user to
+// judge — and then, AFTER they approved, nostr-tools threw "can't serialize event with
+// wrong or missing properties" from inside the signer. The site reported an opaque
+// failure and the user went and posted from another client.
+//
+// So the shape is settled here, before anything is queued. A prompt that cannot say
+// what it is signing is worse than a refusal.
+//
+// Liberal about three unambiguous mistakes, because the alternative is a dead end for
+// something we can read perfectly well:
+//   - the event may arrive as params.event, as params itself, or as a JSON string
+//     (pages ported from NIP-46, where params is [json], do this);
+//   - a numeric-string kind ("1") is coerced to a number. This one is the quiet
+//     hazard: it LABELS correctly by accident (object keys stringify, so
+//     APPROVAL_KIND_LABELS["1"] hits) while silently taking the wrong branch in every
+//     kind check we make — COALESCE_KINDS.has, RELAX.neverRelaxes, the 9734 zap test,
+//     isNip42AuthEvent's 22242, and BASELINE's TRACKED.has. That last one is the
+//     destructive-overwrite guard, so a kind:"3" follow-list wipe would skip its
+//     warning entirely;
+//   - absent created_at / tags / content are filled in, never overwritten. A client
+//     that deliberately backdates an event keeps its timestamp.
+//
+// Anything still unreadable throws, with a message the page can show its user.
+//
+// Returns a fresh { event } — the object that gets queued, previewed, AND signed, so
+// the approval card and the signature can never describe different events. Junk keys
+// the page sent alongside are dropped (nothing downstream reads them for signEvent).
+function normalizeTagValue(v) {
+  if (v == null) return ''; // ['p', pk, undefined] → an empty relay hint, which is what it meant
+  if (typeof v === 'string') return v;
+  if (typeof v === 'boolean') return String(v);
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  return null; // objects/arrays have no sane string form — better to refuse than sign "[object Object]"
+}
+function normalizeSignEventParams(params) {
+  let ev = params && (params.event || params);
+  if (typeof ev === 'string') {
+    try { ev = JSON.parse(ev); } catch (_) {
+      throw new Error("signEvent: the event isn't valid JSON");
+    }
+  }
+  if (!ev || typeof ev !== 'object' || Array.isArray(ev)) {
+    throw new Error('signEvent: expected an event object (NIP-07 signEvent takes one event)');
+  }
+  const rawKind = typeof ev.kind === 'string' && /^\d+$/.test(ev.kind.trim()) ? Number(ev.kind.trim()) : ev.kind;
+  if (!Number.isInteger(rawKind) || rawKind < 0) {
+    throw new Error('signEvent: event.kind must be a non-negative integer');
+  }
+  const rawTags = ev.tags == null ? [] : ev.tags;
+  if (!Array.isArray(rawTags)) throw new Error('signEvent: event.tags must be an array');
+  const tags = [];
+  for (const t of rawTags) {
+    if (!Array.isArray(t)) throw new Error('signEvent: every entry in event.tags must be an array');
+    const out = [];
+    for (const v of t) {
+      const s = normalizeTagValue(v);
+      if (s === null) throw new Error('signEvent: tag values must be strings');
+      out.push(s);
+    }
+    tags.push(out);
+  }
+  if (ev.content != null && typeof ev.content !== 'string') {
+    throw new Error('signEvent: event.content must be a string');
+  }
+  const created_at = ev.created_at == null ? Math.floor(Date.now() / 1000) : ev.created_at;
+  if (!Number.isInteger(created_at)) {
+    throw new Error('signEvent: event.created_at must be a Unix timestamp in seconds');
+  }
+  // Spread first so a client-stamped pubkey (the applesauce author hint read below)
+  // survives, then overwrite with the normalized fields.
+  return { event: Object.assign({}, ev, { kind: rawKind, tags, content: ev.content == null ? '' : ev.content, created_at }) };
+}
+
+// A shape fingerprint for a REFUSED request, recorded to Activity so a recurrence
+// documents itself. The original report of this failure arrived with no payload to
+// look at, because a refusal left no trace anywhere: the page got the error and
+// Sidecar remembered nothing (dlog is dev-builds only).
+//
+// Types and structure ONLY. No content, no tag values, no pubkeys — we refused to sign
+// this thing, so keeping a copy of it would be the wrong trade. The kind value is the
+// one exception: a bare event kind identifies nobody and is the single most useful
+// field for working out which client sent it.
+function describeSignEventShape(params) {
+  const shapeOf = (v) =>
+    v === undefined ? 'missing' : v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v;
+  const out = { params: shapeOf(params), event: shapeOf(params && params.event) };
+  const ev = params && (params.event || params);
+  if (ev && typeof ev === 'object' && !Array.isArray(ev)) {
+    out.kind = shapeOf(ev.kind);
+    out.tags = shapeOf(ev.tags);
+    out.content = shapeOf(ev.content);
+    out.created_at = shapeOf(ev.created_at);
+    if (typeof ev.kind === 'number') out.kindValue = ev.kind;
+    else if (typeof ev.kind === 'string' && ev.kind.length <= 12) out.kindValue = ev.kind;
+  }
+  return out;
+}
+
 async function handleNostrRpc(method, params, host, sendResponse, originWindowId) {
   try {
     if (!host) throw new Error('Missing host');
@@ -897,8 +999,22 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     let signKind = null;
     let signEvent = null;
     if (method === 'signEvent') {
-      signEvent = params && (params.event || params);
-      signKind = signEvent && signEvent.kind;
+      // Throws on an unreadable event — before the queue, the prompt, and the key.
+      try {
+        params = normalizeSignEventParams(params);
+      } catch (e) {
+        // Leave a trace before rethrowing. `rejected` marks a request Sidecar itself
+        // refused on shape; it is NOT a user rejection (those aren't logged — nothing
+        // reached the key, and the user already knows they said no).
+        const shape = describeSignEventShape(params);
+        dlog('warn', 'bg', 'Refused an unreadable signEvent', { host, reason: e.message, shape });
+        try {
+          await logActivity({ ts: Date.now(), host, method, kind: null, rejected: e.message, shape });
+        } catch (_) { /* bookkeeping must not change the answer the page gets */ }
+        throw e;
+      }
+      signEvent = params.event;
+      signKind = signEvent.kind; // guaranteed an integer from here down
     }
 
     // The identity this request signs as. getPublicKey is a login: it

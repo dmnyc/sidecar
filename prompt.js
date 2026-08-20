@@ -119,6 +119,18 @@
     if (kind == null) return null;
     return KIND_WARNINGS[kind] || (!KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
   }
+  // A request we can't read as an event at all — no integer kind, so there is nothing
+  // to label, no tag count, and no content to preview. normalizeSignEventParams in
+  // background.js now rejects these at the RPC boundary, so this should be
+  // unreachable; it stays because the failure it replaces was a signing card showing a
+  // bare "—" where the event should be, with Allow looking as ordinary as ever. If one
+  // ever gets through again, say so on the card instead of showing a blank.
+  // Duplicated verbatim in sidepanel.js — same words on both approval surfaces.
+  const UNREADABLE_WARNING =
+    "Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.";
+  function kindUnreadable(ev) {
+    return !Number.isInteger(ev && ev.kind);
+  }
 
   // The renderable note text for an event: kind:1 → its content; kind 6/16 reposts →
   // the embedded original event's content (a repost's content field is that event's
@@ -259,11 +271,12 @@
     }
     if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
+      const unreadable = kindUnreadable(ev);
       const rows = [];
-      rows.push(row('Kind', kindLabel(ev.kind)));
+      rows.push(row('Kind', unreadable ? 'Unreadable' : kindLabel(ev.kind)));
       if (Array.isArray(ev.tags)) rows.push(row('Tags', String(ev.tags.length)));
       els.preview.innerHTML = rows.join('');
-      const warning = kindWarning(ev.kind);
+      const warning = unreadable ? UNREADABLE_WARNING : kindWarning(ev.kind);
       if (warning) {
         const warn = document.createElement('div');
         warn.className = 'kind-warn';
@@ -325,7 +338,9 @@
         els.preview.appendChild(box);
         setLocked(true);
       }
-      if (ev.content) appendEventContent(els.preview, ev);
+      // Unreadable: show the payload even with no content field, because the JSON view
+      // is then the only description of what's being signed.
+      if (ev.content || unreadable) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       els.preview.innerHTML = row('From', peerLabel());
