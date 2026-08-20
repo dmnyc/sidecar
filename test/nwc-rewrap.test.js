@@ -124,13 +124,29 @@ test('every account is re-wrapped, not just the active one', async () => {
   assert.equal(await KS.getNwc(b.pubkey), CONN2);
 });
 
-test('the ciphertext actually changed (a no-op write would pass the above by luck)', async () => {
+// Under the key-slot layout a PIN change moves the wrap around the DEK and
+// nothing else, so the NWC ciphertext is EXPECTED to stay byte-identical. That is
+// the property that makes the whole class of "which payloads did changePin
+// remember?" bugs impossible, so it is worth asserting directly rather than just
+// observing that the string still decrypts.
+test('a PIN change moves the slot wrap and leaves payload ciphertext alone', async () => {
   const { pubkey } = await KS.generateAccount('one');
   await KS.setNwc(pubkey, CONN);
-  const before = (await storageGet(NWC_KEY))[pubkey];
+  const beforeNwc = (await storageGet(NWC_KEY))[pubkey];
+  const beforeSlot = (await storageGet('sidecar_keystore')).slots.find((s) => s.type === 'pin');
+  const beforeAcct = (await storageGet('sidecar_keystore')).accounts[pubkey].enc;
+
   await KS.changePin(PIN, PIN2);
-  const after = (await storageGet(NWC_KEY))[pubkey];
-  assert.notEqual(before.ct, after.ct, 're-wrapped under a different key');
+
+  const afterNwc = (await storageGet(NWC_KEY))[pubkey];
+  const afterSlot = (await storageGet('sidecar_keystore')).slots.find((s) => s.type === 'pin');
+  const afterAcct = (await storageGet('sidecar_keystore')).accounts[pubkey].enc;
+
+  assert.notEqual(beforeSlot.wrapped.ct, afterSlot.wrapped.ct, 'the DEK wrap must be re-sealed');
+  assert.notEqual(beforeSlot.kdf.salt, afterSlot.kdf.salt, 'a new PIN gets a fresh KDF salt');
+  assert.equal(afterNwc.ct, beforeNwc.ct, 'payload ciphertext must NOT be rewritten');
+  assert.equal(afterAcct.ct, beforeAcct.ct, 'account ciphertext must NOT be rewritten either');
+  assert.equal(await KS.getNwc(pubkey), CONN, 'and it still reads back');
 });
 
 test('two PIN changes in a row stay readable', async () => {
