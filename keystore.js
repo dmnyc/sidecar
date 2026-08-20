@@ -388,17 +388,43 @@
     all[pk] = await C.encryptString(derivedKey, connectionString);
     await set({ [NWC_KEY]: all });
   }
+  // A record that won't decrypt is gone for good — the key that sealed it no
+  // longer exists. That is recoverable (re-pair from the wallet app) but only if
+  // we say so: a raw OperationError from deep inside the wallet client tells the
+  // user nothing they can act on.
+  function unreadableNwc() {
+    const err = new Error('Wallet connection could not be decrypted. Reconnect your wallet.');
+    err.code = 'NWC_UNREADABLE';
+    return err;
+  }
+
   async function getNwc(pubkey) {
     requireUnlocked();
     const pk = pubkey || (await getActivePubkey());
     const all = await loadNwcStore();
     if (!all[pk]) return null;
-    return C.decryptString(derivedKey, all[pk]);
+    try {
+      return await C.decryptString(derivedKey, all[pk]);
+    } catch (_) {
+      throw unreadableNwc();
+    }
   }
+  // Presence AND readability. Every caller of this is a gate in front of an
+  // operation that needs the string, so a record we can't open is not a wallet
+  // as far as they're concerned — answering "yes" sends them into a failure they
+  // can't interpret. While locked, presence is the only question we can answer,
+  // which is fine: those paths unlock before they get any further.
   async function hasNwc(pubkey) {
     const pk = pubkey || (await getActivePubkey());
     const all = await loadNwcStore();
-    return !!all[pk];
+    if (!all[pk]) return false;
+    if (isLocked()) return true;
+    try {
+      await C.decryptString(derivedKey, all[pk]);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
   async function clearNwc(pubkey) {
     const pk = pubkey || (await getActivePubkey());
@@ -463,6 +489,28 @@
       write[NOTES_KEY] = { v: 1, enc: await C.encryptBytes(newKey, raw) };
       C.wipe(raw);
     }
+    // Same story for the NWC connection strings, which live in their own storage
+    // key but are sealed under this same derived key. Missing them is not
+    // hypothetical — it shipped, and a PIN change silently left every stored
+    // wallet connection as ciphertext under a key nobody had any more, while
+    // presence checks kept reporting a connected wallet.
+    const nwcAll = await loadNwcStore();
+    let nwcRewrapped = false;
+    for (const [pk, rec] of Object.entries(nwcAll)) {
+      let conn;
+      try {
+        conn = await C.decryptString(oldKey, rec);
+      } catch (_) {
+        // Already unreadable — sealed under a PIN from before this fix. Leave the
+        // record exactly as found. It can't be recovered, but deleting a user's
+        // data on their behalf during an unrelated operation is the wrong
+        // instinct even when that data is provably unopenable.
+        continue;
+      }
+      nwcAll[pk] = await C.encryptString(newKey, conn);
+      nwcRewrapped = true;
+    }
+    if (nwcRewrapped) write[NWC_KEY] = nwcAll;
     await set(write);
     derivedKey = newKey; // stay unlocked
     await persistSession(newKey);

@@ -2727,7 +2727,19 @@ async function handleControl(message, sender, sendResponse) {
       case 'SIDECAR_NWC_META': {
         // Metadata-only view of the stored connection: presence + lightning
         // address. Never returns the string itself (see SIDECAR_GET_NWC above).
-        const connection = await KS.getNwc(message.pubkey);
+        // An undecryptable record reports as no wallet rather than throwing: this
+        // is the display path, and the useful answer for someone whose connection
+        // was lost to the pre-fix PIN change is the "connect a wallet" affordance,
+        // which re-pairing overwrites cleanly. `unreadable` distinguishes it from
+        // a genuinely empty slot for anything that wants to say so.
+        let connection = null;
+        let unreadable = false;
+        try {
+          connection = await KS.getNwc(message.pubkey);
+        } catch (e) {
+          if (e && e.code === 'NWC_UNREADABLE') unreadable = true;
+          else throw e;
+        }
         let lud16 = null;
         if (connection) {
           try {
@@ -2736,7 +2748,7 @@ async function handleControl(message, sender, sendResponse) {
             lud16 = v && v.includes('@') ? v.trim() : null;
           } catch (_) {}
         }
-        result = { has: !!connection, lud16 };
+        result = { has: !!connection, unreadable, lud16 };
         break;
       }
       case 'SIDECAR_NWC_BACKUP_CIPHERTEXT': {
