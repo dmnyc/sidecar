@@ -5,13 +5,25 @@
 // in-memory map of decrypted private keys that exists only while unlocked. Decrypted
 // keys never touch disk; they are wiped on lock / browser restart / SW death.
 //
-// Storage layout:
+// Storage layout (v2 — key slots):
 //   sidecar_keystore = {
-//     version, kdf:{name,hash,iterations,salt},
+//     version: 2,
+//     slots: [ { type:'pin', kdf:{...}, wrapped:{iv,ct} }, … ],
 //     accounts: { <pubkeyHex>: { pubkey, label, enc:{iv,ct}, createdAt } },
-//     verifier: { iv, ct }              // AES-GCM of a known constant (PIN check)
+//     verifier: { iv, ct }              // AES-GCM of a known constant
 //   }
 //   sidecar_active_pubkey = <pubkeyHex>
+//
+// Everything at rest is encrypted under one random data key, the DEK. Slots wrap
+// the DEK — one per unlock factor — so adding a factor, removing one, or changing
+// the PIN re-wraps 32 bytes and no account ciphertext ever moves.
+//
+// v1 had no DEK: the PIN-derived key encrypted every payload directly, which made
+// each payload its own re-wrap site that changePin had to remember. It missed the
+// NWC connection strings, and a PIN change silently turned every stored wallet
+// into ciphertext under a key nobody had any more. That is the failure mode this
+// layout removes structurally rather than by remembering harder. v1 stores are
+// migrated in one write on the next successful unlock (see migrateToSlots).
 
 (function (root) {
   'use strict';
@@ -31,7 +43,7 @@
   }
 
   // ---- in-memory unlocked state (module scope; gone when SW is killed) ----
-  let derivedKey = null;                 // non-extractable AES-GCM CryptoKey, held while unlocked
+  let dek = null;                 // non-extractable AES-GCM CryptoKey, held while unlocked
   let unlocked = new Map();              // pubkeyHex -> Uint8Array(32) private key
 
   // ---- promisified chrome.storage.local ----
@@ -63,7 +75,7 @@
   // Rebuild the in-memory unlocked state from storage.session after a SW restart.
   // No-op if already loaded in this worker, or if there's no live session (locked).
   async function ensureLoaded() {
-    if (derivedKey) return;
+    if (dek) return;
     const sess = await sessGet();
     if (!sess || !sess.k) return;
     const store = await loadStore();
@@ -77,7 +89,7 @@
     for (const acct of Object.values(store.accounts)) {
       map.set(acct.pubkey, await C.decryptBytes(key, acct.enc));
     }
-    derivedKey = key;
+    dek = key;
     unlocked = map;
   }
 
@@ -114,6 +126,57 @@
     return (await get(STORE_KEY))[STORE_KEY] || null;
   }
 
+  // ---- key slots -----------------------------------------------------------
+  //
+  // A slot is one way to get at the DEK: a KEK (key-encrypting key) derived from
+  // some factor, plus the DEK sealed under it. The DEK itself is random and never
+  // derived from anything, so factors can be added and removed without touching a
+  // byte of account ciphertext.
+  //
+  // The wrap IS the check for that factor: AES-GCM's tag fails on the wrong KEK,
+  // so a bad PIN is a failed unwrap rather than a separate comparison. The
+  // verifier survives for a different job — confirming that a DEK restored from
+  // storage.session after a service-worker restart still belongs to this store.
+
+  const SLOT_PIN = 'pin';
+  // Backup of the pre-migration v1 store, kept for exactly one unlock cycle so a
+  // migration that somehow produced a store this build can't read is recoverable
+  // by hand rather than being the end of the vault. Cleared on the first unlock
+  // that isn't itself the migration.
+  const V1_BACKUP_KEY = 'sidecar_keystore_v1_backup';
+
+  function pinSlot(store) {
+    return (store.slots || []).find((s) => s.type === SLOT_PIN) || null;
+  }
+
+  // Seal `dekKey` under a KEK derived from `pin`. Returns a slot record.
+  async function makePinSlot(dekKey, pin, kdfOverride) {
+    const kdf = kdfOverride || C.newKdf();
+    const kek = await C.deriveKey(pin, kdf);
+    const raw = C.base64ToBytes(await C.exportKeyRaw(dekKey));
+    const wrapped = await C.encryptBytes(kek, raw);
+    C.wipe(raw);
+    return { type: SLOT_PIN, kdf, wrapped };
+  }
+
+  // Unwrap the DEK using `pin`. Returns null when the PIN is wrong — the AES-GCM
+  // tag failing on the wrap is exactly that signal, and is not an error worth
+  // propagating.
+  async function openWithPin(store, pin) {
+    const slot = pinSlot(store);
+    if (!slot) return null;
+    const kek = await C.deriveKey(pin, slot.kdf);
+    let raw;
+    try {
+      raw = await C.decryptBytes(kek, slot.wrapped);
+    } catch (_) {
+      return null;
+    }
+    const key = await C.importKeyRaw(C.bytesToBase64(raw));
+    C.wipe(raw);
+    return key;
+  }
+
   // ---- public API ----
 
   async function isInitialized() {
@@ -121,7 +184,7 @@
   }
 
   function isLocked() {
-    return derivedKey === null;
+    return dek === null;
   }
 
   // Safe metadata for the UI — works locked or unlocked, never exposes secrets.
@@ -164,64 +227,172 @@
   async function initialize(pin) {
     if (await isInitialized()) throw new Error('Keystore already initialized');
     assertPinStrength(pin);
-    const kdf = C.newKdf();
-    derivedKey = await C.deriveKey(pin, kdf);
+    const key = await C.importKeyRaw(C.bytesToBase64(C.randomBytes(32)));
     const store = {
-      version: 1,
-      kdf,
+      version: 2,
+      slots: [await makePinSlot(key, pin)],
       accounts: {},
-      verifier: await C.makeVerifier(derivedKey),
+      verifier: await C.makeVerifier(key),
     };
     await set({ [STORE_KEY]: store });
+    dek = key;
     unlocked = new Map();
-    await persistSession(derivedKey);
+    await persistSession(key);
     return getState();
   }
 
-  // Derive the key from `pin`, verify it, and decrypt every account into memory.
+  // ---- v1 → v2 migration ---------------------------------------------------
+  //
+  // Mints a DEK, re-encrypts every payload under it, and wraps the DEK in a PIN
+  // slot reusing the store's existing KDF (same PIN, same parameters — there is no
+  // reason to make the user's PIN do more work here).
+  //
+  // Two properties carry the whole thing, because the cost of getting this wrong
+  // is every private key in the vault:
+  //
+  //   Atomic. One set() carrying the store, the notes key, and the NWC records
+  //   together. A crash lands wholly v1 or wholly v2, never half — a half-migrated
+  //   store is precisely the state nothing could recover from.
+  //
+  //   Verified before it is trusted. Every account is decrypted back out of the
+  //   NEW ciphertext with the NEW key and compared byte-for-byte against what came
+  //   out of the old one. A single mismatch aborts and leaves the v1 store exactly
+  //   as it was. Writing first and discovering the problem later is not an option
+  //   available to us.
+  //
+  // Returns the migrated store plus the DEK. Throws rather than writing anything
+  // if it cannot satisfy itself that the result is readable.
+  async function migrateToSlots(store, oldKey, pin, plaintexts) {
+    const key = await C.importKeyRaw(C.bytesToBase64(C.randomBytes(32)));
+    const next = {
+      version: 2,
+      slots: [await makePinSlot(key, pin, store.kdf)],
+      accounts: {},
+      verifier: await C.makeVerifier(key),
+    };
+    if (store.order) next.order = store.order.slice();
+
+    for (const [pubkey, acct] of Object.entries(store.accounts)) {
+      const bytes = plaintexts.get(pubkey);
+      if (!bytes) throw new Error('Keystore migration aborted: account ' + pubkey.slice(0, 8) + ' did not decrypt');
+      const enc = await C.encryptBytes(key, bytes);
+      // Read it straight back. An account that does not survive the round trip is
+      // an account we would be destroying.
+      const check = await C.decryptBytes(key, enc);
+      if (check.length !== bytes.length || !check.every((b, i) => b === bytes[i])) {
+        C.wipe(check);
+        throw new Error('Keystore migration aborted: account ' + pubkey.slice(0, 8) + ' failed to round-trip');
+      }
+      C.wipe(check);
+      next.accounts[pubkey] = Object.assign({}, acct, { enc });
+    }
+
+    const write = { [STORE_KEY]: next, [V1_BACKUP_KEY]: store };
+
+    // The notes key and the NWC records are sealed under the same old key and move
+    // in the same write. These are the exact payloads v1 made it possible to
+    // forget; here they are unmissable, because forgetting one means it is not in
+    // the write at all and the migration is visibly incomplete.
+    const notesRec = (await get(NOTES_KEY))[NOTES_KEY];
+    if (notesRec && notesRec.enc) {
+      const raw = await C.decryptBytes(oldKey, notesRec.enc);
+      write[NOTES_KEY] = { v: 1, enc: await C.encryptBytes(key, raw) };
+      C.wipe(raw);
+    }
+    const nwcAll = await loadNwcStore();
+    let nwcMoved = false;
+    for (const [pk, rec] of Object.entries(nwcAll)) {
+      let conn;
+      try {
+        conn = await C.decryptString(oldKey, rec);
+      } catch (_) {
+        // Already unreadable before we arrived — a connection orphaned by a PIN
+        // change under the old layout. Carried across untouched: it cannot be
+        // recovered, and quietly dropping user data during a migration they did
+        // not ask for is the wrong instinct.
+        continue;
+      }
+      nwcAll[pk] = await C.encryptString(key, conn);
+      nwcMoved = true;
+    }
+    if (nwcMoved) write[NWC_KEY] = nwcAll;
+
+    await set(write);
+    return key;
+  }
+
+  // Unwrap the DEK with `pin`, then decrypt every account into memory. Migrates a
+  // v1 store on the way through, which is the only moment we hold both the old
+  // key and the user's PIN.
   async function unlock(pin) {
     const store = await loadStore();
     if (!store) throw new Error('Keystore not initialized');
-    const key = await C.deriveKey(pin, store.kdf);
-    if (!(await C.checkVerifier(key, store.verifier))) {
-      throw new Error('Incorrect PIN');
-    }
+
+    let key;
+    let migrated = false;
     const map = new Map();
-    for (const acct of Object.values(store.accounts)) {
-      map.set(acct.pubkey, await C.decryptBytes(key, acct.enc));
+
+    if (store.version >= 2) {
+      key = await openWithPin(store, pin);
+      if (!key) throw new Error('Incorrect PIN');
+      for (const acct of Object.values(store.accounts)) {
+        map.set(acct.pubkey, await C.decryptBytes(key, acct.enc));
+      }
+    } else {
+      // v1: the PIN-derived key is the payload key.
+      const oldKey = await C.deriveKey(pin, store.kdf);
+      if (!(await C.checkVerifier(oldKey, store.verifier))) {
+        throw new Error('Incorrect PIN');
+      }
+      for (const acct of Object.values(store.accounts)) {
+        map.set(acct.pubkey, await C.decryptBytes(oldKey, acct.enc));
+      }
+      key = await migrateToSlots(store, oldKey, pin, map);
+      migrated = true;
     }
-    derivedKey = key;
+
+    dek = key;
     unlocked = map;
     await persistSession(key);
+    // The v1 backup has served its purpose once a later unlock has read the
+    // migrated store successfully. Not on the migrating unlock itself — that one
+    // is still running on keys it just minted.
+    if (!migrated) {
+      const backup = (await get(V1_BACKUP_KEY))[V1_BACKUP_KEY];
+      if (backup) await new Promise((res) => chrome.storage.local.remove(V1_BACKUP_KEY, res));
+    }
     return getState();
   }
 
   async function lock() {
     for (const bytes of unlocked.values()) C.wipe(bytes);
     unlocked.clear();
-    derivedKey = null;
+    dek = null;
     notesKey = null;
     await sessClear();
   }
 
   // ---- notes key: envelope key for the encrypted local stores (drafts, pay-meta) ----
-  // A random 32-byte key, stored ONLY wrapped under the current derived key.
-  // background.js seals those stores with it, so a PIN change re-wraps one small
-  // blob instead of re-encrypting every draft — and there is exactly one place
-  // (changePin below) where the old derived key dies, which is where the re-wrap
-  // lives, in the same storage write as the re-keyed vault. Miss that one spot
-  // and every draft and payment note becomes ciphertext nobody can open.
+  // A random 32-byte key, stored ONLY wrapped under the DEK. background.js seals
+  // those stores with it, so drafts never have to be re-encrypted when an unlock
+  // factor changes.
+  //
+  // This is the same indirection the slots give the vault, discovered earlier and
+  // applied to one subsystem: a random key, wrapped once. Under v2 the DEK makes it
+  // redundant — drafts could hang off the DEK directly — but collapsing the two is
+  // another at-rest migration for no user-visible gain, so it stays. The wrap now
+  // only moves during the v1 migration; a PIN change no longer touches it at all.
   const NOTES_KEY = 'sidecar_notes_key';
   let notesKey = null;
   async function getNotesKey() {
     if (notesKey) return notesKey;
-    if (!derivedKey) return null; // locked: no envelope operations at all
+    if (!dek) return null; // locked: no envelope operations at all
     const rec = (await get(NOTES_KEY))[NOTES_KEY];
     if (rec && rec.enc) {
       // A corrupt/undecryptable wrap must PROPAGATE, not be replaced — generating
       // a fresh key here would orphan the wrapped one and silently destroy every
       // draft it still protects. Callers catch and treat the store as unreadable.
-      const raw = await C.decryptBytes(derivedKey, rec.enc);
+      const raw = await C.decryptBytes(dek, rec.enc);
       notesKey = await C.importKeyRaw(C.bytesToBase64(raw));
       C.wipe(raw);
       return notesKey;
@@ -230,7 +401,7 @@
     // partial-write window to close here.
     const raw = C.randomBytes(32);
     notesKey = await C.importKeyRaw(C.bytesToBase64(raw));
-    await set({ [NOTES_KEY]: { v: 1, enc: await C.encryptBytes(derivedKey, raw) } });
+    await set({ [NOTES_KEY]: { v: 1, enc: await C.encryptBytes(dek, raw) } });
     C.wipe(raw);
     return notesKey;
   }
@@ -240,6 +411,7 @@
   async function verifyPin(pin) {
     const store = await loadStore();
     if (!store) return false;
+    if (store.version >= 2) return (await openWithPin(store, pin)) !== null;
     const key = await C.deriveKey(pin, store.kdf);
     return C.checkVerifier(key, store.verifier);
   }
@@ -265,7 +437,7 @@
       pubkey,
       name: name || '',
       picture: '',
-      enc: await C.encryptBytes(derivedKey, privBytes),
+      enc: await C.encryptBytes(dek, privBytes),
       createdAt: Date.now(),
     };
     if (!store.order) store.order = Object.keys(store.accounts).filter(pk => pk !== pubkey);
@@ -385,7 +557,7 @@
     const pk = pubkey || (await getActivePubkey());
     if (!pk) throw new Error('No active account');
     const all = await loadNwcStore();
-    all[pk] = await C.encryptString(derivedKey, connectionString);
+    all[pk] = await C.encryptString(dek, connectionString);
     await set({ [NWC_KEY]: all });
   }
   // A record that won't decrypt is gone for good — the key that sealed it no
@@ -404,7 +576,7 @@
     const all = await loadNwcStore();
     if (!all[pk]) return null;
     try {
-      return await C.decryptString(derivedKey, all[pk]);
+      return await C.decryptString(dek, all[pk]);
     } catch (_) {
       throw unreadableNwc();
     }
@@ -420,7 +592,7 @@
     if (!all[pk]) return false;
     if (isLocked()) return true;
     try {
-      await C.decryptString(derivedKey, all[pk]);
+      await C.decryptString(dek, all[pk]);
       return true;
     } catch (_) {
       return false;
@@ -462,58 +634,48 @@
     return root.NostrTools.finalizeEvent(event, await getPrivkey(pk));
   }
 
-  // Re-wrap every account (and the verifier) under a new PIN.
+  // Change the PIN.
+  //
+  // Under v2 this re-wraps the DEK and touches nothing else — 32 bytes move, no
+  // account ciphertext is rewritten, and there is no list of payloads to remember.
+  // That list is what v1 got wrong: three of its four entries were re-wrapped and
+  // the fourth, the NWC connections, was not, so a PIN change quietly destroyed
+  // every stored wallet. There is no equivalent mistake available here.
+  //
+  // A v1 store migrates rather than being re-keyed in place. This is the other
+  // moment we hold both the old key and a PIN, and re-keying it as v1 would just
+  // preserve the shape that made that loss possible.
   async function changePin(oldPin, newPin) {
     const store = await loadStore();
     if (!store) throw new Error('Keystore not initialized');
     assertPinStrength(newPin);
+
+    if (store.version >= 2) {
+      const key = await openWithPin(store, oldPin);
+      if (!key) throw new Error('Incorrect current PIN');
+      // Replace only the PIN slot; any other factor keeps its own wrap of the
+      // same unchanged DEK and goes on working.
+      store.slots = (store.slots || []).filter((s) => s.type !== SLOT_PIN);
+      store.slots.unshift(await makePinSlot(key, newPin));
+      await set({ [STORE_KEY]: store });
+      dek = key; // the DEK never changed, only the wrap around it
+      await persistSession(key);
+      return getState();
+    }
+
     const oldKey = await C.deriveKey(oldPin, store.kdf);
     if (!(await C.checkVerifier(oldKey, store.verifier))) throw new Error('Incorrect current PIN');
-    const kdf = C.newKdf();
-    const newKey = await C.deriveKey(newPin, kdf);
+    const plaintexts = new Map();
     for (const acct of Object.values(store.accounts)) {
-      const bytes = await C.decryptBytes(oldKey, acct.enc);
-      acct.enc = await C.encryptBytes(newKey, bytes);
-      C.wipe(bytes);
+      plaintexts.set(acct.pubkey, await C.decryptBytes(oldKey, acct.enc));
     }
-    store.kdf = kdf;
-    store.verifier = await C.makeVerifier(newKey);
-    // Re-wrap the notes key (drafts/pay-meta envelope) while oldKey is still in
-    // hand, and land it in the SAME write as the re-keyed vault — two writes
-    // would leave a window where the vault survived a crash but the notes key
-    // didn't, taking every draft and payment note with it.
-    const write = { [STORE_KEY]: store };
-    const notesRec = (await get(NOTES_KEY))[NOTES_KEY];
-    if (notesRec && notesRec.enc) {
-      const raw = await C.decryptBytes(oldKey, notesRec.enc);
-      write[NOTES_KEY] = { v: 1, enc: await C.encryptBytes(newKey, raw) };
-      C.wipe(raw);
-    }
-    // Same story for the NWC connection strings, which live in their own storage
-    // key but are sealed under this same derived key. Missing them is not
-    // hypothetical — it shipped, and a PIN change silently left every stored
-    // wallet connection as ciphertext under a key nobody had any more, while
-    // presence checks kept reporting a connected wallet.
-    const nwcAll = await loadNwcStore();
-    let nwcRewrapped = false;
-    for (const [pk, rec] of Object.entries(nwcAll)) {
-      let conn;
-      try {
-        conn = await C.decryptString(oldKey, rec);
-      } catch (_) {
-        // Already unreadable — sealed under a PIN from before this fix. Leave the
-        // record exactly as found. It can't be recovered, but deleting a user's
-        // data on their behalf during an unrelated operation is the wrong
-        // instinct even when that data is provably unopenable.
-        continue;
-      }
-      nwcAll[pk] = await C.encryptString(newKey, conn);
-      nwcRewrapped = true;
-    }
-    if (nwcRewrapped) write[NWC_KEY] = nwcAll;
-    await set(write);
-    derivedKey = newKey; // stay unlocked
-    await persistSession(newKey);
+    const key = await migrateToSlots(store, oldKey, newPin, plaintexts);
+    // Those were decrypted only to be re-sealed. The live copies, if this keystore
+    // is unlocked, are in `unlocked` and are unaffected — the private keys did not
+    // change, only what encrypts them.
+    for (const bytes of plaintexts.values()) C.wipe(bytes);
+    dek = key; // stay unlocked
+    await persistSession(key);
     return getState();
   }
 
@@ -594,6 +756,6 @@
     // wrap keyed to the old PIN could land after the vault moved to the new one.
     getNotesKey: serialized(getNotesKey),
     // expose the derived key getter for sibling modules (e.g. NWC string encryption)
-    _getDerivedKey: () => derivedKey,
+    _getDek: () => dek,
   };
 })(typeof self !== 'undefined' ? self : this);
