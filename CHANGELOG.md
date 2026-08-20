@@ -7,7 +7,9 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
-## [1.9.0] — 2026-08-17
+## [1.9.1] — 2026-08-19
+
+*1.9.0 was packaged and tagged but never released; everything below ships here instead.*
 
 ### Added
 - **A printable backup sheet for a new key.** After you've set a name, picture and bio, Sidecar offers a one-page PDF holding the key it just generated — styled as an old-fashioned telegram, set in Courier, generated entirely in the browser with no library and no network call. The nsec is on it twice: as selectable text you can copy, and as a QR you can scan back in. A serial derived from the npub (`NP-AEH2ZW-CQ4NWX`) lets you tell one sheet from another, and match a sheet to an identity, without revealing anything secret. The tinted paper stock is an optional content group set to off for printing, so it looks like a telegram on screen without flooding a printer with ink; the border carries the color instead. Dismissible — it interrupts once, at the only moment the key is new and unsaved. (#175)

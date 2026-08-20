@@ -2288,7 +2288,11 @@ async function stepUpPin(pin) {
   });
 }
 
-async function handleControl(message, sendResponse) {
+// `sender` is load-bearing: SIDECAR_GET_NWC gates on it. It has to be threaded
+// through from the listener — this function is a top-level declaration, so it
+// does NOT close over the listener's `sender`, and reading one here without a
+// parameter is a ReferenceError, not an undefined.
+async function handleControl(message, sender, sendResponse) {
   try {
     await KS.ensureLoaded(); // reflect a session unlock that survived SW restart
     let result;
@@ -2701,7 +2705,13 @@ async function handleControl(message, sendResponse) {
         // to see the string: display code uses SIDECAR_NWC_META, backup code uses
         // the SIDECAR_NWC_BACKUP_* helpers below, and human-visible export goes
         // through SIDECAR_REVEAL_NWC's PIN step-up.
-        if (typeof sender.url !== 'string' || sender.url !== chrome.runtime.getURL('sidepanel.html')) {
+        // Read `sender` defensively rather than `typeof sender.url`: typeof only
+        // makes a BARE undeclared name safe, so the property access was itself a
+        // ReferenceError whenever sender was missing — which is how this gate
+        // spent 1.9.0 rejecting the side panel too.
+        const senderUrl = sender ? sender.url : null;
+        const from = typeof senderUrl === 'string' ? senderUrl : '';
+        if (from !== chrome.runtime.getURL('sidepanel.html')) {
           throw new Error('Not allowed from this context');
         }
         result = { connection: await KS.getNwc(message.pubkey) };
@@ -3021,6 +3031,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // Everything else is a keystore/config control message.
-  handleControl(message, sendResponse);
+  handleControl(message, sender, sendResponse);
   return true;
 });
