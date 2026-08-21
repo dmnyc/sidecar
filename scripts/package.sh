@@ -36,6 +36,11 @@ fi
 
 SHORT=$(git rev-parse --short "${TAG}^{commit}")
 VERSION_NO_V="${TAG#v}"
+# The tag's own commit date, used to stamp every file in the zip. Derived from the
+# tag rather than "now" so the build is a function of the tag alone, and forced to
+# UTC so it does not depend on the packager's timezone. `touch -t` format, which
+# both BSD and GNU touch accept — BSD's -d rejects git's ISO offset.
+SOURCE_DATE=$(TZ=UTC git log -1 --format=%cd --date=format-local:'%Y%m%d%H%M.%S' "${TAG}^{commit}")
 
 STAGE="$(mktemp -d)/sidecar"
 mkdir -p "${STAGE}"
@@ -87,7 +92,14 @@ build_zip() {
     fs.writeFileSync(file, JSON.stringify(m, null, 2) + "\n");
   ' "${STAGE}/manifest.json" "${target}"
   rm -f "${ROOT}/${out}"
-  ( cd "${STAGE}" && zip -rqX "${ROOT}/${out}" . -x ".*" )
+  # Deterministic output. Every file is stamped with the tag's commit date and
+  # entries are added in sorted order, so the same tag always produces the same
+  # bytes on any machine. That turns the published SHA-256 into something a
+  # reviewer can reproduce and check, instead of "extract both and trust the
+  # diff" — which matters now that AMO requires a source submission alongside
+  # every upload (see REVIEWERS.md).
+  find "${STAGE}" -exec touch -t "${SOURCE_DATE}" {} +
+  ( cd "${STAGE}" && find . -type f ! -name '.*' | LC_ALL=C sort | zip -qXD "${ROOT}/${out}" -@ )
   local files sha
   files=$(unzip -Z1 "${ROOT}/${out}" | grep -vc '/$')
   sha=$(shasum -a 256 "${ROOT}/${out}" | awk '{print $1}')
