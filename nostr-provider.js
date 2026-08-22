@@ -25,6 +25,51 @@
     };
   } catch (_) {}
 
+  // Notice an invoice the page copies to the clipboard.
+  //
+  // A zap modal that shows only a QR and a "Copy invoice" button puts the
+  // invoice nowhere the DOM scanner can reach — it exists as path geometry
+  // inside the QR and as a closure variable, never as text. Copying it is also
+  // the plainest statement of intent available: a QR merely appearing is
+  // passive, whereas pressing Copy means "I want to pay this".
+  //
+  // This wraps the WRITE, and Sidecar never reads the clipboard. Reading would
+  // need a permission Sidecar deliberately does not hold, and would mean seeing
+  // everything the user copies anywhere, on any page. Wrapping the write means
+  // only ever seeing what the page itself puts there, at the moment it does,
+  // and nothing that is not a BOLT11 is forwarded.
+  //
+  // navigator.clipboard.write(ClipboardItem[]) is deliberately left alone.
+  // Pulling text out of a ClipboardItem means consuming a blob the page may
+  // still need, and breaking somebody's copy button to gain a convenience is
+  // the wrong trade. Copy buttons overwhelmingly use writeText.
+  try {
+    const clip = navigator.clipboard;
+    const COPIED_INVOICE_RE = /ln(?:bc|tb)[0-9][a-z0-9]{40,}/i;
+    if (clip && typeof clip.writeText === 'function') {
+      const original = clip.writeText;
+      Object.defineProperty(clip, 'writeText', {
+        configurable: true,
+        writable: true,
+        value: function writeText(text) {
+          // Observe, then hand over untouched. Anything thrown while looking is
+          // swallowed: a copy button must keep working whether or not Sidecar
+          // understands what is on it.
+          try {
+            const m = COPIED_INVOICE_RE.exec(String(text == null ? '' : text));
+            if (m) {
+              window.postMessage(
+                { ext: 'sidecar', kind: 'copied-invoice', invoice: m[0].toLowerCase() },
+                '*'
+              );
+            }
+          } catch (_) {}
+          return original.apply(clip, arguments);
+        },
+      });
+    }
+  } catch (_) {}
+
   let idCounter = 0;
   const pending = new Map();
 
