@@ -194,6 +194,17 @@ const APPS = [
     desc: 'A two-player word game with Lightning stakes — challenge friends and zap your way to victory.',
   },
   {
+    name: 'NostrHub',
+    url: 'https://nostrhub.io',
+    domain: 'nostrhub.io',
+    cat: 'tools',
+    // Their apple-touch-icon is a transparent logo, not a full-bleed tile — its
+    // corners sample at alpha 0 — so it takes the framed treatment rather than
+    // flush, the same call as Circl.
+    icon: 'https://nostrhub.io/apple-touch-icon.png',
+    desc: 'Where developers draft and discuss NIPs, the open specs Nostr itself is built from.',
+  },
+  {
     name: 'Mutable',
     url: 'https://mutable.top',
     domain: 'mutable.top',
