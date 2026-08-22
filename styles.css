@@ -2078,6 +2078,51 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .tx-d-val.copyable:hover { color: var(--lav); }
 .tx-d-val.copied { color: var(--success); }
 .send-comment { width: 100%; margin-top: 8px; }
+.send-comment:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Recipient card in the Send form — what a lightning address resolved to, and
+   on what terms. Every string in here is written by the recipient's server, so
+   the box is fixed-width with wrapping and clamped text: it reports, it does not
+   get to lay out the dialog. */
+.ln-recipient {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(var(--border-rgb), 0.08);
+}
+.ln-recipient.checking { border-style: dashed; }
+.ln-recipient-status { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+/* A failed lookup states the fact on the first line and what to do on the
+   second, quieter one. The failure is usually the address being wrong, not
+   anything alarming, so it stays legible rather than shouting in red. */
+.ln-recipient.failed { border-color: var(--border-strong); }
+.ln-recipient-fail-title {
+  display: block; color: var(--text); font-size: 13px; margin-bottom: 3px;
+  overflow-wrap: anywhere;
+}
+.ln-recipient.failed .ln-recipient-status { color: var(--muted); }
+.ln-recipient-head { display: flex; align-items: center; gap: 10px; }
+.ln-recipient-avatar {
+  width: 32px; height: 32px; flex: 0 0 32px;
+  border-radius: 50%; object-fit: cover; background: var(--velvet-2);
+}
+.ln-recipient-who { display: flex; flex-direction: column; min-width: 0; }
+.ln-recipient-name {
+  color: var(--text); font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ln-recipient-limits { color: var(--gold); font-size: 12px; font-family: var(--font-mono); }
+.ln-recipient-desc {
+  color: var(--muted); font-size: 12px; line-height: 1.5; margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.ln-recipient-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ln-recipient-tag {
+  color: var(--muted); font-size: 11px;
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
+}
 .recv-out { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 16px; }
 .recv-qr { background: #fff; border-radius: 12px; padding: 10px; width: 220px; height: 220px; }
 .modal-qr { display: block; margin: 4px auto 2px; }

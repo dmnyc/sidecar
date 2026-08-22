@@ -10873,12 +10873,121 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
 
+      // The recipient card: who the address resolved to, and on what terms.
+      const card = h('div', { className: 'ln-recipient hidden' });
+      const commentDefault = comment.placeholder;
+      let resolved = null;      // params for the address currently in the card
+      let resolveSeq = 0;       // guards against a slow lookup landing after a newer one
+      let debounce = null;
+
+      function resetCard() {
+        resolved = null;
+        card.textContent = '';
+        card.classList.add('hidden');
+        card.classList.remove('checking', 'failed');
+        comment.disabled = false;
+        comment.maxLength = 280;
+        comment.placeholder = commentDefault;
+      }
+
+      function renderCard(p) {
+        card.textContent = '';
+        card.classList.remove('hidden', 'checking', 'failed');
+        const head = h('div', { className: 'ln-recipient-head' });
+        if (p.image) {
+          head.append(h('img', { className: 'ln-recipient-avatar', src: p.image, alt: '' }));
+        }
+        const who = h('div', { className: 'ln-recipient-who' });
+        // textContent throughout — every string here came from the recipient's server.
+        who.append(h('span', { className: 'ln-recipient-name', textContent: p.identifier || p.addr }));
+        const limits = p.minSats === p.maxSats
+          ? fmtSats(p.minSats) + ' sats only'
+          : fmtSats(p.minSats) + ' to ' + fmtSats(p.maxSats) + ' sats';
+        who.append(h('span', { className: 'ln-recipient-limits', textContent: limits }));
+        head.append(who);
+        card.append(head);
+        if (p.description) {
+          card.append(h('p', { className: 'ln-recipient-desc', textContent: p.description }));
+        }
+        const tags = h('div', { className: 'ln-recipient-tags' });
+        tags.append(h('span', {
+          className: 'ln-recipient-tag',
+          textContent: p.commentAllowed ? 'Comments up to ' + p.commentAllowed : 'No comments',
+        }));
+        if (p.zappable) tags.append(h('span', { className: 'ln-recipient-tag', textContent: 'Zappable' }));
+        card.append(tags);
+
+        // Match the comment field to what this recipient will actually accept,
+        // rather than letting someone write 280 characters that get truncated or
+        // dropped without explanation.
+        if (p.commentAllowed) {
+          comment.disabled = false;
+          comment.maxLength = p.commentAllowed;
+          comment.placeholder = commentDefault;
+        } else {
+          comment.disabled = true;
+          comment.value = '';
+          comment.placeholder = 'This wallet does not accept comments';
+        }
+      }
+
+      async function lookup(addr) {
+        const seq = ++resolveSeq;
+        card.textContent = '';
+        card.classList.remove('hidden', 'failed');
+        card.classList.add('checking');
+        card.append(h('span', { className: 'ln-recipient-status', textContent: 'Checking ' + addr + '…' }));
+        try {
+          const p = await lnAddressParams(addr);
+          if (seq !== resolveSeq) return; // a newer address is being checked
+          resolved = { ...p, addr };
+          renderCard(resolved);
+        } catch (e) {
+          if (seq !== resolveSeq) return;
+          resolved = null;
+          card.textContent = '';
+          card.classList.remove('checking');
+          card.classList.add('failed');
+          // Last line of defence. Every throw above is written to be read aloud,
+          // but anything unforeseen (a parser, a platform error) would arrive
+          // here as jargon, and jargon in a payment dialog reads as a fault in
+          // Sidecar rather than a fact about the address.
+          const raw = (e && e.message) || '';
+          const speakable = raw && raw.length <= 90 && !/[{}<>]|JSON|token|undefined|TypeError/i.test(raw);
+          card.append(h('span', {
+            className: 'ln-recipient-fail-title',
+            textContent: speakable ? raw : "Couldn't check that address",
+          }));
+          card.append(h('span', {
+            className: 'ln-recipient-status',
+            textContent: 'Check the spelling, or paste an invoice instead.',
+          }));
+        }
+      }
+
       // Auto-detect: only a lightning address needs an amount (invoices carry it).
       function detect() {
         const v = input.value.replace(/^lightning:/i, '').trim();
-        const needsAmount = isLnAddress(v) && !isLnInvoice(v);
-        amount.classList.toggle('hidden', !needsAmount);
-        amountLabel.classList.toggle('hidden', !needsAmount);
+        const isAddr = isLnAddress(v) && !isLnInvoice(v);
+        amount.classList.toggle('hidden', !isAddr);
+        amountLabel.classList.toggle('hidden', !isAddr);
+
+        if (debounce) { clearTimeout(debounce); debounce = null; }
+        if (!isAddr) { resolveSeq++; resetCard(); return; }
+        if (resolved && resolved.addr === v) return; // already showing this one
+
+        resetCard();
+        // Debounced, and only once the address is complete enough to be real.
+        // Every lookup is a request to a stranger's server announcing an intent
+        // to pay them, so this must not fire on each keystroke of a half-typed
+        // domain — that would hand a trail to every typo along the way.
+        //
+        // isLnAddress is deliberately not reused for the gate: it accepts a
+        // one-character TLD, which is right for deciding whether to show the
+        // amount field and wrong for deciding whether to make a request. Pausing
+        // mid-word should not send anything to `breez.t`.
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)) return;
+        debounce = setTimeout(() => lookup(v), 600);
       }
       input.addEventListener('input', detect);
 
@@ -10896,6 +11005,14 @@
           } else if (isLnAddress(val)) {
             const sats = parseInt(amount.value, 10);
             if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+            // Check against the limits we already fetched, so an out-of-range
+            // amount is caught here rather than after a round trip. The server
+            // still enforces its own at invoice time — this only saves the trip.
+            if (resolved && resolved.addr === val && (sats < resolved.minSats || sats > resolved.maxSats)) {
+              return (err.textContent = resolved.minSats === resolved.maxSats
+                ? 'This address only accepts ' + fmtSats(resolved.minSats) + ' sats.'
+                : 'Amount must be between ' + fmtSats(resolved.minSats) + ' and ' + fmtSats(resolved.maxSats) + ' sats.');
+            }
             address = val;
             pay.disabled = true;
             pay.textContent = 'Paying…';
@@ -10935,6 +11052,7 @@
       modal.append(
         h('h3', { textContent: 'Send' }),
         input,
+        card,
         amountLabel,
         amount,
         comment,
@@ -11139,12 +11257,97 @@
     });
   }
 
+  // ---- LNURL-pay resolution -------------------------------------------------
+  //
+  // Everything below the fetch is attacker-controlled: the domain owner writes
+  // the description, the identifier, the image, and the limits. It is rendered
+  // with textContent only, never markup, and every field is clamped to a size
+  // that cannot push the rest of the form off screen. A recipient does not get
+  // to redesign the send dialog.
+
+  const LN_DESC_MAX = 200;      // characters of description we will show
+  const LN_IMAGE_MAX = 200000;  // characters of base64 — roughly 150KB decoded
+
+  // Pull the human-readable parts out of LNURL-pay's `metadata`, which is a
+  // JSON-encoded array of [mimeType, value] pairs.
+  function parseLnMetadata(raw) {
+    const out = { description: '', identifier: '', image: '' };
+    let entries;
+    try { entries = JSON.parse(raw); } catch (_) { return out; }
+    if (!Array.isArray(entries)) return out;
+    for (const entry of entries) {
+      if (!Array.isArray(entry) || entry.length < 2) continue;
+      const [type, value] = entry;
+      if (typeof type !== 'string' || typeof value !== 'string') continue;
+      // Collapse whitespace: a description full of newlines would otherwise
+      // stretch the dialog to whatever height the recipient felt like.
+      if (type === 'text/plain' && !out.description) {
+        out.description = value.replace(/\s+/g, ' ').trim().slice(0, LN_DESC_MAX);
+      } else if ((type === 'text/identifier' || type === 'text/email') && !out.identifier) {
+        out.identifier = value.replace(/\s+/g, '').slice(0, 128);
+      } else if (!out.image && /^image\/(png|jpeg);base64$/.test(type) && value.length <= LN_IMAGE_MAX) {
+        // Only the two types LUD-06 defines, and only as a data: URI, so it can
+        // never become a request back to the recipient's server.
+        if (/^[A-Za-z0-9+/=]+$/.test(value)) out.image = 'data:' + type.split(';')[0] + ';base64,' + value;
+      }
+    }
+    return out;
+  }
+
+  // Fetch a lightning address's pay parameters. Separate from the invoice call
+  // so the Send form can show the recipient's terms before anyone commits to an
+  // amount — previously min/max were only discovered by having a payment
+  // rejected, after the amount was already typed.
+  async function lnAddressParams(addr) {
+    const [name, domain] = String(addr || '').split('@');
+    if (!name || !domain) throw new Error('That does not look like a lightning address');
+
+    // Each failure gets its own sentence, because they mean different things to
+    // whoever is standing there with an address they expected to work: the
+    // domain is unreachable, or it is reachable and simply has no such address,
+    // or it answered with something that is not a lightning address at all.
+    // What must never surface is the underlying parser complaining about a
+    // DOCTYPE, which is what a 404 HTML page produces and tells the user nothing.
+    let res;
+    try {
+      res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name);
+    } catch (_) {
+      throw new Error("Couldn't reach " + domain);
+    }
+    if (!res.ok) throw new Error(domain + ' has no lightning address for ' + name);
+    let meta;
+    try {
+      meta = await res.json();
+    } catch (_) {
+      // A web page where a lightning address should be. Same thing, from the
+      // user's side, as the address not existing.
+      throw new Error(domain + ' has no lightning address for ' + name);
+    }
+    if (!meta || meta.tag !== 'payRequest' || !meta.callback) {
+      throw new Error(domain + ' answered, but not with a lightning address');
+    }
+    const minMsat = Number(meta.minSendable);
+    const maxMsat = Number(meta.maxSendable);
+    if (!Number.isFinite(minMsat) || !Number.isFinite(maxMsat) || minMsat < 0 || maxMsat < minMsat) {
+      throw new Error(domain + ' returned payment limits that make no sense');
+    }
+    const comment = Number(meta.commentAllowed);
+    return {
+      meta,
+      minSats: Math.ceil(minMsat / 1000),
+      maxSats: Math.floor(maxMsat / 1000),
+      commentAllowed: Number.isFinite(comment) && comment > 0 ? Math.min(comment, 1000) : 0,
+      zappable: !!(meta.allowsNostr && meta.nostrPubkey),
+      ...parseLnMetadata(meta.metadata),
+    };
+  }
+
   // Resolve a lightning address (user@domain) to a BOLT11 invoice via LNURL-pay.
   async function lnAddressToInvoice(addr, msats, comment) {
-    const [name, domain] = addr.split('@');
-    if (!name || !domain) throw new Error('Invalid lightning address');
-    const meta = await (await fetch('https://' + domain + '/.well-known/lnurlp/' + name)).json();
-    if (meta.tag !== 'payRequest' || !meta.callback) throw new Error('Not a valid lightning address');
+    // Re-fetched rather than reusing whatever the form previewed: the preview
+    // may be minutes old, and the limits it showed are not the ones that will be
+    // enforced. The server's answer at payment time is the only one that counts.
+    const { meta } = await lnAddressParams(addr);
     if (msats < meta.minSendable || msats > meta.maxSendable) {
       throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
     }
