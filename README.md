@@ -24,6 +24,10 @@ Connect) and a composer for posting notes directly from the panel.
 >
 > — [Hollywood stuntman & make-up artist](https://jumble.social/notes/nevent1qvzqqqqqqypzpqh68q0mpzgpvuv6aphzvdndvcshrgk9tgpcerhn0c5zshl7ptshqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzp7uu04hygk8uk0at69k3wm89hdeecgethaxkfhfa74n9gnuz260xtatdyk), on Nostr
 
+> "I just upgraded my browser signing extension to #Sidecar - you should too! So many excellent features."
+>
+> — [Bfgreen](https://jumble.social/notes/nevent1qvzqqqqqqypzqry7tctlhh64tm6pmteu8gvkwjwgfruu0yvkduc04e0ycpyqapctqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqlejyv5h6x6dyhsea8hkf8mkp7rmgf3maav0uppm046mzwe6vp4p9tlkws), on Nostr
+
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Generating a new key runs a quick guided setup (name, photo, bio). Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
