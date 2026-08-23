@@ -321,21 +321,29 @@
     0 0 0.62em color-mix(in srgb, #e01b06 42%, transparent);
 }
 
-/* OPTICAL CENTERING. styles.css nudges .wallet-balance UP by 0.08em so Playfair's
-   oldstyle figures — which have real descenders on 3, 4, 7 — stop looking like
-   they sag. This face needs the opposite correction, not zero: its figures are
-   lining and sit entirely on the baseline, so the only ink below the baseline in
-   a balance is the comma. That makes the ink top-heavy inside a line box that the
-   layout centers correctly, and the number reads high. Most obvious in the pinned
-   bar, where the eye has the Send/Hide buttons right beside it as a reference.
+/* OPTICAL CENTERING, arrived at twice. styles.css nudges .wallet-balance UP by
+   0.08em so Playfair's oldstyle figures — which have real descenders on 3, 4, 7 —
+   stop looking like they sag. This face is lining, so that correction is wrong
+   here, but zero is not right either.
 
-   0.07em down, picked by rendering 0 / 0.04 / 0.07 / 0.10 against a center guide
-   and against Speakeasy's bar: at 0 the guide passes well below the digits'
-   middle, at 0.07 it runs through it. em-based, so it holds at the card's 40px,
-   the collapsed card's 24px and the pinned bar's 24px alike. */
+   The first attempt was +0.07em (down), judged by eye against a guide at the
+   bar's centre. That was measuring the wrong thing: the guide comparison took in
+   the whole ink block including the comma's descender, and pushing the DIGITS
+   down to centre THAT put the figure visibly low — which is what it looked like
+   in the panel.
+
+   Measured properly, the number is the centre of the digits' own block
+   (baseline minus half the cap height, from canvas metrics) against the centre of
+   the bar. At +0.07em Nixie sat +2.46px against a six-theme spread of -2.67 to
+   +0.82 — the lowest of the seven by a wide margin. -0.03em puts its ink centre
+   within a fraction of dead centre, which lands it mid-pack: below Brownstone
+   (-1.09) and Bauhaus (-1.07), above Film Noir (+0.64) and Speakeasy (+0.82).
+
+   em-based, so one value serves the card's 40px, the collapsed card's 24px and
+   the pinned bar's 24px alike. */
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
-  transform: translateY(0.07em);
+  transform: translateY(-0.03em);
 }
 /* inline-block so the figure is a box of its own rather than a card-wide line:
    the cage is a mask on this element, and the padding it needs to hold the bloom
@@ -538,8 +546,9 @@
 
    Top level, NOT nested inside [data-theme="nixie"]: an @keyframes inside a
    style rule is invalid and gets dropped, which took the whole animation with
-   it. The name is theme-specific and only .nixie-strike references it, so
-   there is nothing to scope. */
+   it. The keyframe name stays theme-specific; the CLASS it hangs off (.bal-glyph)
+   is shared, because sidepanel.js emits the same hook for every theme and each
+   theme decides what a glyph's arrival looks like. */
 @keyframes nixie-strike {
   0%, 11% { opacity: 0.06; text-shadow: none; }
   14% { opacity: 0.85; text-shadow: 0 0 0.24em color-mix(in srgb, #ff5a1e 48%, transparent); }
@@ -580,14 +589,14 @@
    works, and any explicit curve rewrites it. Duration and delay come per-glyph
    from paintBalanceEl (sidepanel.js), which also decides WHEN a figure has
    earned a strike. */
-[data-theme="nixie"] .nixie-strike {
+[data-theme="nixie"] .bal-glyph {
   animation: nixie-strike var(--strike-dur, 1080ms) var(--strike-delay, 0ms) both;
 }
 
 /* Decorative, and it flashes — honor the OS setting by landing on the final
    state. */
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="nixie"] .nixie-strike,
+  [data-theme="nixie"] .bal-glyph,
   [data-theme="nixie"] .balances-hidden .wallet-balance::after,
   [data-theme="nixie"] .balances-hidden .pinned-balance-amt::after { animation: none; }
 }

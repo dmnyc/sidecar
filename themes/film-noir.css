@@ -94,3 +94,33 @@
 [data-theme="film-noir"] .pinned-balance-amt {
   color: #cba14e;
 }
+
+/* ---- balance animation: the projector catches -----------------------------
+   Not a per-glyph reveal: a projector flickers the whole frame at once, so the
+   figure arrives together and the stagger is almost nil (8ms a glyph, just
+   enough that the flutter is not perfectly synchronised). The flicker is the
+   lamp finding its arc — dark, over-bright, dark, settle — and the 1px vertical
+   kick on the second frame is the film weaving in the gate.
+
+   Brightness rather than colour, because this theme has no colour to play with.
+   Whole-figure motion is the reason translateY is on the glyph and not the
+   element: the element carries the layout, and a jittering figure must not be
+   able to move the label under it. */
+@keyframes noir-projector {
+  0% { opacity: 0.1; filter: brightness(0.6); }
+  12% { opacity: 1; filter: brightness(1.7); transform: translateY(-1px); }
+  22% { opacity: 0.28; filter: brightness(0.7); transform: translateY(0); }
+  38% { opacity: 1; filter: brightness(1.35); }
+  52% { opacity: 0.55; filter: brightness(0.85); transform: translateY(1px); }
+  68% { opacity: 1; filter: brightness(1.15); transform: translateY(0); }
+  84% { opacity: 0.86; }
+  100% { opacity: 1; filter: brightness(1); transform: translateY(0); }
+}
+[data-theme="film-noir"] .bal-glyph {
+  display: inline-block;
+  animation: noir-projector 560ms steps(1, end) calc(var(--i) * 8ms) both;
+  animation-timing-function: linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="film-noir"] .bal-glyph { animation: none; }
+}

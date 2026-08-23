@@ -443,6 +443,11 @@
   let state = null;
   let hideBalances = false;
   let pinBalanceBar = false;
+  // Off by default: the balance animations are part of what each theme IS, so they
+  // ship on. This is the escape hatch for someone who wants them gone without
+  // turning motion down system-wide (which the theme files already honor on their
+  // own, via prefers-reduced-motion).
+  let reduceBalanceMotion = false;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
   let _firstPostSeenPubkeys = null;
@@ -635,6 +640,11 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     hideBalances = !!(settings && settings.hideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
+    reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
+    // A class on <html> rather than a JS check for the one animation that is pure
+    // CSS: the hidden-balance discs strike from their ::after existing at all
+    // (themes/nixie.css), so no paint call ever runs to gate.
+    document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     zapFlash = !(settings && settings.zapFlash === false); // default on
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
@@ -4982,6 +4992,7 @@
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
+    $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
     if (fiatSel && !fiatSel.options.length) {
@@ -9490,25 +9501,21 @@
     return { text: fmtSats(sats), unit: 'sats', sym: '', sats };
   }
 
-  // Per-glyph timing for the Nixie strike, from apogee's digit-cycle.ts.
-  // Deterministic and keyed on the glyph's position rather than random: a repaint
-  // mid-animation can't re-roll a glyph's beat and restart it, and the pattern is
-  // reproducible when tuning it. The two primes give a long-period sequence — no
-  // two adjacent glyphs share a beat, so the figure lights raggedly, the way a row
-  // of tubes does, instead of sweeping left to right (which is what the first
-  // pass's flat 60ms-per-glyph stagger did).
+  // Ragged per-glyph timing, from apogee's digit-cycle.ts. Deterministic and keyed
+  // on the glyph's position rather than random: a repaint mid-animation can't
+  // re-roll a glyph's beat and restart it, and the pattern is reproducible when
+  // tuning it. The two primes give a long-period sequence — no two adjacent glyphs
+  // share a beat, so a figure lights raggedly instead of sweeping left to right
+  // (which is what the first pass's flat 60ms-per-glyph stagger did).
   //
-  // Longer than apogee's 620-980ms, because this theme's keyframes carry a longer
-  // settle at the end (see themes/nixie.css — apogee's version stops rather
-  // than lands). The keyframe positions of the STUTTER were pulled in by the same
-  // ratio, so the opening flicker keeps its wall-clock rhythm and only the tail
-  // gets the extra time. The delay spread is wider for the same reason: it stops
-  // the whole figure from finishing at once.
+  // Only Nixie reads these two; a theme whose animation wants an even stagger uses
+  // --i and --n instead (see paintBalanceEl). Longer than apogee's 620-980ms
+  // because Nixie's keyframes carry a longer settle at the end.
   const STRIKE_DELAY_MOD_MS = 300;
   const STRIKE_DUR_BASE_MS = 900;
   const STRIKE_DUR_STEPS = 5;
   const STRIKE_DUR_STEP_MS = 90;
-  const strikeBeat = (i) => ({
+  const glyphBeat = (i) => ({
     delay: (i * 37) % STRIKE_DELAY_MOD_MS,
     duration: STRIKE_DUR_BASE_MS + ((i * 53) % STRIKE_DUR_STEPS) * STRIKE_DUR_STEP_MS,
   });
@@ -9547,29 +9554,37 @@
     // record and never be repainted.
     if (prev === key && el.textContent === (parts.sym || '') + parts.text) return;
 
-    // In Nixie the figure strikes like a nixie tube igniting: each glyph is
-    // its own span so it can carry a beat, and the animation lives in the theme
-    // (themes/nixie.css), which also disables itself under
-    // prefers-reduced-motion. Every other theme gets a plain text node exactly
-    // as before — the effect is opt-in by theme, not imposed on everyone.
+    // A figure that is genuinely new arrives one glyph at a time, so each theme can
+    // animate it in its own idiom — a nixie tube striking, a projector flickering,
+    // a split-flap board turning over. The animation itself lives in the theme
+    // file, keyed off .bal-glyph, and each theme also disables it under
+    // prefers-reduced-motion. This code stays ignorant of which theme is active:
+    // it publishes the position of each glyph and lets the CSS decide what that
+    // means.
     //
-    // `prev !== key` is what makes a real balance change re-strike: a new element
+    //   --i  this glyph's index, --n the total. Enough for a stagger, a
+    //        centre-out reveal, or alternating directions.
+    //   --strike-delay / --strike-dur  the ragged beat above, which only Nixie
+    //        uses. Emitted for every theme because it is two custom properties,
+    //        not two DOM nodes, and a theme that ignores them pays nothing.
+    //
+    // `prev !== key` is what makes a real balance change re-animate: a new element
     // (nothing recorded) or a number that moved both qualify, while a denomination
     // toggle keeps the same sats and only repaints.
-    const nixie = document.documentElement.getAttribute('data-theme') === 'nixie';
-    const strike = nixie && key != null && prev !== key;
+    const animate = key != null && prev !== key && !reduceBalanceMotion;
     paintedSats.set(el, key);
 
     el.textContent = '';
     if (parts.sym) el.append(h('span', { className: symClass, textContent: parts.sym }));
-    if (strike) {
-      // Separators come along for the ride so the whole figure strikes as one sign.
-      Array.from(parts.text).forEach((ch, i) => {
-        const { delay, duration } = strikeBeat(i);
+    if (animate) {
+      // Separators come along for the ride so the whole figure reads as one sign.
+      const glyphs = Array.from(parts.text);
+      glyphs.forEach((ch, i) => {
+        const { delay, duration } = glyphBeat(i);
         el.append(h('span', {
-          className: 'nixie-strike',
+          className: 'bal-glyph',
           textContent: ch,
-          style: `--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
+          style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
         }));
       });
     } else {
@@ -11670,6 +11685,17 @@
     pinBalanceBar = e.target.checked;
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: e.target.checked } });
     syncPinControls();
+  });
+
+  $('reducemotion-toggle').addEventListener('change', async (e) => {
+    reduceBalanceMotion = e.target.checked;
+    document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reduceBalanceMotion: e.target.checked } });
+    // Repaint so the change is visible now rather than at the next balance: turning
+    // it on collapses the figure back to a plain text node, turning it off gives the
+    // next arrival its animation. restrikeBalances clears the paint record, which is
+    // what lets an unchanged number be re-rendered at all.
+    restrikeBalances();
   });
 
   $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));

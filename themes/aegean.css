@@ -195,3 +195,41 @@
 [data-theme="aegean"] .pinned-balance-amt {
   color: var(--purple);
 }
+
+/* ---- balance animation: sand dissolving in --------------------------------
+   The figure arrives the way a shape does on a wet beach: grains first, then
+   coalescence. Each glyph is masked by a 3px grid of dots and the dots grow from
+   nothing until they merge, so what you see is a granular fill rather than a
+   fade — a plain opacity ramp on whitewash looks like a rendering delay. A
+   little blur early keeps the grains from reading as a halftone print.
+
+   --sand is registered so it can be interpolated at all; an unregistered custom
+   property animates discretely and the glyph would pop in mid-way. Its
+   initial-value is past full coverage, which is also the fallback: if a browser
+   does not support @property, or the animation never runs, the mask is fully
+   open and the figure is simply visible. Nothing can leave it masked.
+
+   Chiselled stone was here first — scale-and-settle, one blow per glyph. It read
+   as mechanical next to the rest of the theme, which is sea and whitewash rather
+   than monument. */
+@property --sand {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 160%;
+}
+@keyframes aegean-sand {
+  0% { --sand: 0%; opacity: 0; filter: blur(1.6px); }
+  35% { opacity: 1; filter: blur(0.8px); }
+  100% { --sand: 160%; opacity: 1; filter: blur(0); }
+}
+[data-theme="aegean"] .bal-glyph {
+  display: inline-block;
+  --sand: 160%;
+  mask-image: radial-gradient(circle at 50% 50%, #fff var(--sand), transparent calc(var(--sand) + 34%));
+  mask-size: 3px 3px;
+  mask-repeat: repeat;
+  animation: aegean-sand 660ms ease-out calc(min(var(--i), 8) * 68ms) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="aegean"] .bal-glyph { animation: none; }
+}

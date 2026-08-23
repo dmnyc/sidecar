@@ -87,3 +87,28 @@
   background: var(--mention-bg);
   color: var(--text);
 }
+
+/* ---- balance animation: the gaslight comes up -----------------------------
+   A mantle does not switch on, it swells: the glow arrives before the figure is
+   fully legible, overshoots, and settles. Slow and warm, with a small upward
+   drift so the light reads as rising off the glass rather than fading in place.
+
+   Deliberately unlike Nixie's stutter, which is the same reference century away:
+   a gas flame has no failed strikes, so nothing here goes backwards. */
+@keyframes brownstone-gaslight {
+  0% { opacity: 0; transform: translateY(0.08em); text-shadow: none; }
+  45% {
+    opacity: 0.85;
+    transform: translateY(0.02em);
+    text-shadow: 0 0 0.5em rgba(224, 169, 74, 0.55), 0 0 1.1em rgba(180, 100, 58, 0.4);
+  }
+  75% { opacity: 1; text-shadow: 0 0 0.3em rgba(224, 169, 74, 0.3); }
+  100% { opacity: 1; transform: translateY(0); text-shadow: none; }
+}
+[data-theme="brownstone"] .bal-glyph {
+  display: inline-block;
+  animation: brownstone-gaslight 820ms ease-out calc(min(var(--i), 8) * 70ms) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="brownstone"] .bal-glyph { animation: none; }
+}

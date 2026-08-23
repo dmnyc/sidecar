@@ -1833,6 +1833,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .balances-hidden .wallet-fiat-sym,
 .balances-hidden .pinned-fiat-sym { display: none; }
+/* The Reduce motion setting (sidepanel.js) stops the balance from being painted as
+   per-glyph spans, which turns off every theme's arrival animation at the source.
+   The hidden-balance discs are the exception: their strike comes from the ::after
+   existing at all, so there is no paint call to gate and it has to be turned off
+   here. Type selector included so this outranks the theme rule that sets it. */
+html.reduce-balance-motion .balances-hidden .wallet-balance::after,
+html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animation: none; }
 
 /* Pinned wallet balance bar — above the nav on every tab when enabled. Left:
    Send/Receive (open the wallet's own modals); center: balance; right: hide
