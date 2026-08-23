@@ -274,8 +274,14 @@
    The two balance selectors are named alongside .nixie-num, which nothing
    applied: this treatment is what makes these numerals look lit between strikes,
    and without it the figure only glowed while the animation was on screen.
-   .nixie-num stays as the hook for any other figure that wants the same. */
+   .nixie-num stays as the hook for any other figure that wants the same — the
+   countdown rings took it, and they are the theme's clock: a tube counting down
+   is the one place the strike every second is not an affectation. They carry the
+   cage too, with the balance selectors below — same tube, same screen. The ring
+   is not a rival fence: it is the case around the tube, 46px out from the digit,
+   while the cage lives at the cathode surface. */
 [data-theme="nixie"] .nixie-num,
+[data-theme="nixie"] .countdown-num,
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
   color: var(--balance-ink);
@@ -303,6 +309,7 @@
    red that layer used to provide now comes from --card-wash, which is where the
    light in the photographs is anyway: on the surface, not in the glyph. */
 [data-theme="nixie"] .nixie-num,
+[data-theme="nixie"] .countdown-num,
 [data-theme="nixie"] .wallet-balance {
   text-shadow:
     0 0 0.05em rgba(255, 246, 230, 0.5),
@@ -321,21 +328,29 @@
     0 0 0.62em color-mix(in srgb, #e01b06 42%, transparent);
 }
 
-/* OPTICAL CENTERING. styles.css nudges .wallet-balance UP by 0.08em so Playfair's
-   oldstyle figures — which have real descenders on 3, 4, 7 — stop looking like
-   they sag. This face needs the opposite correction, not zero: its figures are
-   lining and sit entirely on the baseline, so the only ink below the baseline in
-   a balance is the comma. That makes the ink top-heavy inside a line box that the
-   layout centers correctly, and the number reads high. Most obvious in the pinned
-   bar, where the eye has the Send/Hide buttons right beside it as a reference.
+/* OPTICAL CENTERING, arrived at twice. styles.css nudges .wallet-balance UP by
+   0.08em so Playfair's oldstyle figures — which have real descenders on 3, 4, 7 —
+   stop looking like they sag. This face is lining, so that correction is wrong
+   here, but zero is not right either.
 
-   0.07em down, picked by rendering 0 / 0.04 / 0.07 / 0.10 against a center guide
-   and against Speakeasy's bar: at 0 the guide passes well below the digits'
-   middle, at 0.07 it runs through it. em-based, so it holds at the card's 40px,
-   the collapsed card's 24px and the pinned bar's 24px alike. */
+   The first attempt was +0.07em (down), judged by eye against a guide at the
+   bar's centre. That was measuring the wrong thing: the guide comparison took in
+   the whole ink block including the comma's descender, and pushing the DIGITS
+   down to centre THAT put the figure visibly low — which is what it looked like
+   in the panel.
+
+   Measured properly, the number is the centre of the digits' own block
+   (baseline minus half the cap height, from canvas metrics) against the centre of
+   the bar. At +0.07em Nixie sat +2.46px against a six-theme spread of -2.67 to
+   +0.82 — the lowest of the seven by a wide margin. -0.03em puts its ink centre
+   within a fraction of dead centre, which lands it mid-pack: below Brownstone
+   (-1.09) and Bauhaus (-1.07), above Film Noir (+0.64) and Speakeasy (+0.82).
+
+   em-based, so one value serves the card's 40px, the collapsed card's 24px and
+   the pinned bar's 24px alike. */
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
-  transform: translateY(0.07em);
+  transform: translateY(-0.03em);
 }
 /* inline-block so the figure is a box of its own rather than a card-wide line:
    the cage is a mask on this element, and the padding it needs to hold the bloom
@@ -407,6 +422,20 @@
    Apple keyword set (`xor` for exclude) with its own layer-ordering behavior, and
    if it composited the other way round it would render the balance as wire-shaped
    slivers: an unreadable number is far worse than a missing texture. */
+/* The countdown number sits behind the same screen, and is the easy case: it is
+   position: absolute with inset: 0 (styles.css), so its border box — the mask's
+   painting area — is the whole 92px wrap (56px for the unlock ring), with the
+   figure flex-centered inside. The 0.8em bloom never reaches that edge, so none
+   of the padding compensation below applies; the mask simply covers more
+   transparent area, which excludes nothing visible.
+
+   The tile stays the shared em size — the countdown's 28px and 19px figures get
+   the same tile-to-figure ratio as the pinned bar's 24px, so all the smaller
+   readouts read as one family next to the hero's 40px. A fixed 18x8px tile (the
+   hero's pitch, one physical screen for every tube) was tried and rejected:
+   hexagons half a 19px digit tall stop reading as a screen and start reading
+   as texture. */
+[data-theme="nixie"] .countdown-num,
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
   mask-image: linear-gradient(#fff, #fff), var(--cage);
@@ -474,6 +503,45 @@
   animation: nixie-strike 1040ms both;
 }
 
+/* The card's stroke matches the theme's buttons: warm, because in this theme a
+   lit edge is how anything interactive is outlined. Left to the shared rules it
+   took --border (steel) and, when selected, --gold plus --gold-soft — a pale
+   peach line inside a steel ring, which is the one thing in the picker that did
+   not look like the theme it is advertising. Selected is the discharge itself
+   rather than the reflection, since a chosen card should read as lit. */
+.theme-card[data-theme="nixie"] { border-color: rgba(255, 118, 50, 0.42); }
+.theme-card[data-theme="nixie"]:hover { border-color: rgba(255, 118, 50, 0.62); }
+.theme-card[data-theme="nixie"].active {
+  border-color: #ff7632;
+  box-shadow: 0 0 0 2px rgba(240, 48, 12, 0.26), 0 0 16px rgba(240, 48, 12, 0.18);
+}
+
+/* The theme picker is a type specimen — each card carries its own data-theme, so
+   you read every theme's name in the face and palette you would get by choosing
+   it. This one goes further and shows the READOUT, since that is the thing the
+   theme is about: the card's label takes the balance figure's ink and its bloom,
+   at the size that treatment needs to register. Same four-layer stack as the
+   figure rather than a second recipe, so the two can't drift apart.
+
+   Not the cage as well. It was tried, and at label size the mesh eats too much of
+   a five-letter word: the balance is a display, but this is a control, and it has
+   to stay a word you can read at a glance.
+
+   Only the ink and the bloom live here. The 20px that this treatment needed to
+   register turned out to be right for every card, so the size and the pinned
+   line-height moved to the shared .theme-name rule in styles.css. */
+/* No ancestor scope on this one, deliberately: the card carries data-theme itself,
+   which is both how it matches this file's variables and why it has to look right
+   while some OTHER theme is the active one. */
+.theme-card[data-theme="nixie"] .theme-name {
+  color: var(--balance-ink);
+  text-shadow:
+    0 0 0.05em rgba(255, 246, 230, 0.5),
+    0 0 0.16em color-mix(in srgb, #ff6a24 58%, transparent),
+    0 0 0.42em color-mix(in srgb, #f0300c 62%, transparent),
+    0 0 0.8em color-mix(in srgb, #e01b06 46%, transparent);
+}
+
 /* The shared 5s glow pulse on an incoming payment (.balance-bump) is off here.
    The tube re-striking IS the announcement in this theme, so the pulse is
    redundant — and worse than redundant: it animates text-shadow on the balance
@@ -499,8 +567,9 @@
 
    Top level, NOT nested inside [data-theme="nixie"]: an @keyframes inside a
    style rule is invalid and gets dropped, which took the whole animation with
-   it. The name is theme-specific and only .nixie-strike references it, so
-   there is nothing to scope. */
+   it. The keyframe name stays theme-specific; the CLASS it hangs off (.bal-glyph)
+   is shared, because sidepanel.js emits the same hook for every theme and each
+   theme decides what a glyph's arrival looks like. */
 @keyframes nixie-strike {
   0%, 11% { opacity: 0.06; text-shadow: none; }
   14% { opacity: 0.85; text-shadow: 0 0 0.24em color-mix(in srgb, #ff5a1e 48%, transparent); }
@@ -541,14 +610,40 @@
    works, and any explicit curve rewrites it. Duration and delay come per-glyph
    from paintBalanceEl (sidepanel.js), which also decides WHEN a figure has
    earned a strike. */
-[data-theme="nixie"] .nixie-strike {
+[data-theme="nixie"] .bal-glyph.bal-in {
   animation: nixie-strike var(--strike-dur, 1080ms) var(--strike-delay, 0ms) both;
 }
 
 /* Decorative, and it flashes — honor the OS setting by landing on the final
    state. */
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="nixie"] .nixie-strike,
+  [data-theme="nixie"] .bal-glyph.bal-in,
   [data-theme="nixie"] .balances-hidden .wallet-balance::after,
   [data-theme="nixie"] .balances-hidden .pinned-balance-amt::after { animation: none; }
+}
+
+/* The ring is a nixie ring: grey glass carrying a neon discharge. The colour
+   story is the buttons' — the shared --gold (#ffd2ab here, pale peach) lit the
+   corner of the modal like a plastic kitchen timer, and this theme has no
+   bright surfaces — so the ring itself stays grey the way the Post button does.
+   But grey alone is dead glass, and everything in this theme that is ON is
+   emitting. So the arc — the lit part, the part that is counting — carries the
+   same discharge the digits do (white-hot core, orange, red wash, stacked as
+   drop-shadows because the arc is a stroke, not a glyph), while the track it
+   burns down is unlit glass, one step deeper into the button's gradient so
+   the arc reads even before the glow reaches it. The numeral inside is still
+   the brightest thing on screen; the arc glows at maybe half its intensity,
+   furniture that is on without competing. */
+[data-theme="nixie"] .countdown-ring { overflow: visible; }
+[data-theme="nixie"] .countdown-ring .ring-track { stroke: var(--btn-primary-mid); }
+[data-theme="nixie"] .countdown-ring .ring-fill {
+  stroke: var(--btn-primary-top);
+  /* drop-shadow, unlike text-shadow, is a space-separated list — commas make
+     the whole declaration invalid, and the arc quietly stays dark. The
+     outermost wash is 12px, which spills past the svg viewport, hence
+     overflow: visible above. */
+  filter:
+    drop-shadow(0 0 2px rgba(255, 246, 230, 0.45))
+    drop-shadow(0 0 5px rgba(255, 106, 36, 0.55))
+    drop-shadow(0 0 12px rgba(240, 48, 12, 0.45));
 }

@@ -87,3 +87,69 @@
   background: var(--mention-bg);
   color: var(--text);
 }
+
+/* ---- balance animation: the flame in the mantle ---------------------------
+   A gaslamp does not glow steadily, it gutters: the flame wanders, the light
+   swells and drops, and it never quite goes out. So the figure arrives by
+   flickering up rather than fading in — the swell this replaces was smooth, which
+   is what an electric lamp on a dimmer does.
+
+   Irregular on purpose. The keyframe stops are at uneven positions and the
+   brightness never repeats a value, because anything periodic reads as a pulse
+   instead of a flame. It bottoms out around 0.6 rather than 0, for the same
+   reason: a guttering flame dims, it does not blink.
+
+   Each glyph runs at its own rate — duration grows with --i — so the digits
+   drift out of phase with each other, the way separate mantles do. That, plus the
+   stagger, is what stops seven flames from flickering in lockstep. The wander is
+   tiny (thousandths of an em) and it lands back at zero: a figure that moves is
+   a figure you cannot read.
+
+   Deliberately not Nixie's stutter, which is the same century away: gas has no
+   failed strikes and no hard edges, so every step here is a ramp. */
+@keyframes brownstone-flame {
+  0% { opacity: 0; transform: translate(0, 0.06em); text-shadow: none; }
+  8% {
+    opacity: 0.88;
+    text-shadow: 0 0 0.55em rgba(240, 196, 107, 0.55), 0 0 1.2em rgba(180, 100, 58, 0.34);
+  }
+  15% {
+    opacity: 0.62;
+    transform: translate(-0.006em, 0.012em);
+    text-shadow: 0 0 0.3em rgba(224, 169, 74, 0.38);
+  }
+  22% {
+    opacity: 1;
+    text-shadow: 0 0 0.72em rgba(255, 205, 130, 0.6), 0 0 1.45em rgba(180, 100, 58, 0.4);
+  }
+  31% {
+    opacity: 0.71;
+    transform: translate(0.005em, 0.004em);
+    text-shadow: 0 0 0.38em rgba(224, 169, 74, 0.42);
+  }
+  39% { opacity: 0.96; text-shadow: 0 0 0.62em rgba(255, 205, 130, 0.5); }
+  48% {
+    opacity: 0.66;
+    transform: translate(-0.004em, 0.008em);
+    text-shadow: 0 0 0.34em rgba(224, 169, 74, 0.36);
+  }
+  58% {
+    opacity: 1;
+    text-shadow: 0 0 0.68em rgba(255, 205, 130, 0.52), 0 0 1.3em rgba(180, 100, 58, 0.32);
+  }
+  69% { opacity: 0.79; transform: translate(0.003em, 0); }
+  79% { opacity: 0.97; text-shadow: 0 0 0.5em rgba(240, 196, 107, 0.42); }
+  89% { opacity: 0.87; text-shadow: 0 0 0.34em rgba(224, 169, 74, 0.26); }
+  100% { opacity: 1; transform: translate(0, 0); text-shadow: none; }
+}
+[data-theme="brownstone"] .bal-glyph { display: inline-block; }
+[data-theme="brownstone"] .bal-glyph.bal-in {
+  animation-name: brownstone-flame;
+  animation-duration: calc(980ms + var(--i) * 47ms);
+  animation-delay: calc(min(var(--i), 8) * 58ms);
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="brownstone"] .bal-glyph.bal-in { animation: none; }
+}

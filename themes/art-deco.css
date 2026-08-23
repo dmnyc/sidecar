@@ -171,3 +171,38 @@
   color: var(--orange);
   background: rgba(184, 134, 11, 0.12);
 }
+
+/* ---- balance animation: the figures rise ----------------------------------
+   Deco numbers belong on something mechanical that moves in one direction: an
+   elevator indicator, a marquee, a station board. Each glyph rises into place
+   from below its own box, clipped at the bottom edge so it emerges from a line
+   rather than sliding across the card, with a small overshoot and settle where
+   it meets the stop.
+
+   A split-flap turn was here first (rotateX on a hinge at the top edge). It was
+   handsome but it read as a left-to-right sweep, because that is what a staggered
+   row of flaps does; the rise reads as one movement.
+
+   There is no clip, and there was: clip-path applies in the element's own
+   coordinate space, so it travels WITH the transform and hides nothing. Clipping
+   the parent instead would trim ascenders and, in the pinned bar, the figure
+   itself. So the travel is short enough not to collide with the unit label below,
+   and the opacity ramp runs late — the glyph is still faint while it is furthest
+   from home, which does the same job the clip was meant to do.
+
+   Light theme, so this is motion alone: no glow, which would not read on eggshell
+   anyway. */
+@keyframes deco-rise {
+  0% { transform: translateY(0.5em); opacity: 0; }
+  55% { opacity: 1; }
+  76% { transform: translateY(-0.06em); }
+  100% { transform: translateY(0); opacity: 1; }
+}
+[data-theme="art-deco"] .bal-glyph { display: inline-block; }
+[data-theme="art-deco"] .bal-glyph.bal-in {
+  animation: deco-rise 460ms cubic-bezier(0.26, 0.72, 0.24, 1)
+             calc(min(var(--i), 8) * 58ms) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="art-deco"] .bal-glyph.bal-in { animation: none; }
+}

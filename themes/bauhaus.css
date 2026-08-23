@@ -298,3 +298,49 @@
   background: var(--mention-bg);
   color: var(--text);
 }
+
+/* ---- balance animation: assembled on the grid -----------------------------
+   No fade, no glow: elements arrive at their position on the grid and stop,
+   which is the whole argument of the school. Alternate glyphs come from above
+   and below so the figure assembles from both directions at once rather than
+   sweeping, and each one carries a single frame of primary colour on the way in
+   — blue from above, red from below — resolving to the ink as it lands.
+
+   nth-child parity is the direction switch. A fiat figure puts its currency
+   symbol in a span first, which flips the parity of the whole run; that changes
+   which glyphs come from where and nothing else, so it is not worth guarding. */
+@keyframes bauhaus-drop {
+  0% { transform: translateY(-0.55em); opacity: 0; color: #0057FF; }
+  60% { opacity: 1; }
+  70% { transform: translateY(0.06em); color: #0057FF; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes bauhaus-rise {
+  0% { transform: translateY(0.55em); opacity: 0; color: #E1552B; }
+  60% { opacity: 1; }
+  70% { transform: translateY(-0.06em); color: #E1552B; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+[data-theme="bauhaus"] .bal-glyph { display: inline-block; }
+[data-theme="bauhaus"] .bal-glyph.bal-in {
+  animation: bauhaus-drop 340ms cubic-bezier(0.16, 0.9, 0.2, 1)
+             calc(min(var(--i), 8) * 46ms) both;
+}
+[data-theme="bauhaus"] .bal-glyph.bal-in:nth-child(even) {
+  animation-name: bauhaus-rise;
+}
+
+/* The separator stays blue, always — not just while the figure is arriving. A
+   thousands comma is not a number, it is the mark that groups them, and giving a
+   structural element its own colour is the most Bauhaus thing in the theme. It is
+   also why the glyphs are split even when nothing animates: a comma that was blue
+   for 300ms after a balance change and black the rest of the time would read as a
+   glitch rather than a decision.
+   The separator takes the drop, so it arrives blue from above and stays blue,
+   rather than flashing red on the way in because it happened to land on an even
+   index. */
+[data-theme="bauhaus"] .bal-sep { color: #0057FF; }
+[data-theme="bauhaus"] .bal-glyph.bal-in.bal-sep { animation-name: bauhaus-drop; }
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="bauhaus"] .bal-glyph.bal-in { animation: none; }
+}

@@ -443,6 +443,11 @@
   let state = null;
   let hideBalances = false;
   let pinBalanceBar = false;
+  // Off by default: the balance animations are part of what each theme IS, so they
+  // ship on. This is the escape hatch for someone who wants them gone without
+  // turning motion down system-wide (which the theme files already honor on their
+  // own, via prefers-reduced-motion).
+  let reduceBalanceMotion = false;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
   let _firstPostSeenPubkeys = null;
@@ -635,6 +640,11 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     hideBalances = !!(settings && settings.hideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
+    reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
+    // A class on <html> rather than a JS check for the one animation that is pure
+    // CSS: the hidden-balance discs strike from their ::after existing at all
+    // (themes/nixie.css), so no paint call ever runs to gate.
+    document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     zapFlash = !(settings && settings.zapFlash === false); // default on
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
@@ -771,7 +781,8 @@
     ring.innerHTML =
       '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
       '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
-    const num = h('div', { className: 'countdown-num', textContent: String(left) });
+    const num = h('div', { className: 'countdown-num' });
+    paintCountdownNum(num, left);
     const wrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
     const cap = remaining != null
       ? unlockNotice(remaining)
@@ -791,7 +802,7 @@
         pin.focus();
         return;
       }
-      num.textContent = String(left);
+      paintCountdownNum(num, left);
       fill.setAttribute('stroke-dashoffset', String(C * (1 - left / total)));
     }, 1000);
   }
@@ -1637,6 +1648,21 @@
       const name = tab.dataset.tab;
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-' + name));
+      // Every tab shares ONE scroll container, so the offset from the tab you just
+      // left carries into the tab you arrive at. With a long account list that is
+      // very visible: scroll down, tap "View full profile" (which clicks this tab
+      // for you), and the Profile screen opens partway down — at Relays, or
+      // wherever that pixel height happens to land — with no indication that
+      // anything is above it.
+      //
+      // Reset only on a tab CHANGE. Re-renders of the tab you are already on
+      // (an account switch, a settings change) deliberately keep your place, and
+      // those paths call the render functions directly rather than coming through
+      // here. Scoped to view-main because the profile editor has a .content of its
+      // own, and instant rather than smooth: you are arriving somewhere new, so
+      // animating the outgoing content is just noise.
+      const scroller = $('view-main').querySelector('.content');
+      if (scroller) scroller.scrollTop = 0;
       if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
@@ -3096,6 +3122,10 @@
       if (acc) acc.classList.add('active');
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-accounts'));
+      // The only view change that does not go through the tab handler, so it needs
+      // the same scroll reset for the same reason (see there).
+      const scroller = $('view-main').querySelector('.content');
+      if (scroller) scroller.scrollTop = 0;
     }
 
     // persistent header chip (current account)
@@ -4963,6 +4993,7 @@
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
+    $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
     if (fiatSel && !fiatSel.options.length) {
@@ -7213,7 +7244,8 @@
       '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
       '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
       'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
-    const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
+    const num = h('div', { className: 'countdown-num' });
+    paintCountdownNum(num, remaining);
     const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
 
     // Same identity strip as the editor — who's posting shouldn't be ambiguous right
@@ -7253,7 +7285,7 @@
     const fill = ring.querySelector('.ring-fill');
     timer = setInterval(() => {
       remaining -= 1;
-      num.textContent = String(Math.max(remaining, 0));
+      paintCountdownNum(num, remaining);
       fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
       if (remaining <= 0) fire();
     }, 1000);
@@ -9471,25 +9503,21 @@
     return { text: fmtSats(sats), unit: 'sats', sym: '', sats };
   }
 
-  // Per-glyph timing for the Nixie strike, from apogee's digit-cycle.ts.
-  // Deterministic and keyed on the glyph's position rather than random: a repaint
-  // mid-animation can't re-roll a glyph's beat and restart it, and the pattern is
-  // reproducible when tuning it. The two primes give a long-period sequence — no
-  // two adjacent glyphs share a beat, so the figure lights raggedly, the way a row
-  // of tubes does, instead of sweeping left to right (which is what the first
-  // pass's flat 60ms-per-glyph stagger did).
+  // Ragged per-glyph timing, from apogee's digit-cycle.ts. Deterministic and keyed
+  // on the glyph's position rather than random: a repaint mid-animation can't
+  // re-roll a glyph's beat and restart it, and the pattern is reproducible when
+  // tuning it. The two primes give a long-period sequence — no two adjacent glyphs
+  // share a beat, so a figure lights raggedly instead of sweeping left to right
+  // (which is what the first pass's flat 60ms-per-glyph stagger did).
   //
-  // Longer than apogee's 620-980ms, because this theme's keyframes carry a longer
-  // settle at the end (see themes/nixie.css — apogee's version stops rather
-  // than lands). The keyframe positions of the STUTTER were pulled in by the same
-  // ratio, so the opening flicker keeps its wall-clock rhythm and only the tail
-  // gets the extra time. The delay spread is wider for the same reason: it stops
-  // the whole figure from finishing at once.
+  // Only Nixie reads these two; a theme whose animation wants an even stagger uses
+  // --i and --n instead (see splitGlyphs). Longer than apogee's 620-980ms
+  // because Nixie's keyframes carry a longer settle at the end.
   const STRIKE_DELAY_MOD_MS = 300;
   const STRIKE_DUR_BASE_MS = 900;
   const STRIKE_DUR_STEPS = 5;
   const STRIKE_DUR_STEP_MS = 90;
-  const strikeBeat = (i) => ({
+  const glyphBeat = (i) => ({
     delay: (i * 37) % STRIKE_DELAY_MOD_MS,
     duration: STRIKE_DUR_BASE_MS + ((i * 53) % STRIKE_DUR_STEPS) * STRIKE_DUR_STEP_MS,
   });
@@ -9528,34 +9556,71 @@
     // record and never be repainted.
     if (prev === key && el.textContent === (parts.sym || '') + parts.text) return;
 
-    // In Nixie the figure strikes like a nixie tube igniting: each glyph is
-    // its own span so it can carry a beat, and the animation lives in the theme
-    // (themes/nixie.css), which also disables itself under
-    // prefers-reduced-motion. Every other theme gets a plain text node exactly
-    // as before — the effect is opt-in by theme, not imposed on everyone.
-    //
-    // `prev !== key` is what makes a real balance change re-strike: a new element
+    // The figure is always split (see splitGlyphs below for the class contract).
+    // `prev !== key` is what makes a real balance change re-animate: a new element
     // (nothing recorded) or a number that moved both qualify, while a denomination
     // toggle keeps the same sats and only repaints.
-    const nixie = document.documentElement.getAttribute('data-theme') === 'nixie';
-    const strike = nixie && key != null && prev !== key;
+    const animate = key != null && prev !== key && !reduceBalanceMotion;
     paintedSats.set(el, key);
 
     el.textContent = '';
     if (parts.sym) el.append(h('span', { className: symClass, textContent: parts.sym }));
-    if (strike) {
-      // Separators come along for the ride so the whole figure strikes as one sign.
-      Array.from(parts.text).forEach((ch, i) => {
-        const { delay, duration } = strikeBeat(i);
-        el.append(h('span', {
-          className: 'nixie-strike',
-          textContent: ch,
-          style: `--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
-        }));
-      });
-    } else {
-      el.append(document.createTextNode(parts.text));
-    }
+    splitGlyphs(el, parts.text, () => animate);
+  }
+
+  // Build a figure one glyph at a time, so the active theme can style and animate
+  // it in its own idiom — a nixie tube striking, a projector flickering, a
+  // split-flap board turning over, a comma held in the theme's second colour.
+  // All of that lives in the theme file; this code stays ignorant of which theme
+  // is active and just publishes what it knows about each glyph:
+  //
+  //   .bal-glyph  every glyph, always.
+  //   .bal-sep    the ones that are not digits — the thousands separator, the
+  //               decimal point. A theme that wants to treat punctuation
+  //               differently cannot ask CSS "is this a comma", so it is said
+  //               here.
+  //   .bal-in     only on an arrival that has earned an animation. Splitting and
+  //               animating used to be the same decision, which meant any
+  //               per-glyph STYLING vanished on a repaint that did not animate —
+  //               a denomination toggle, or Reduce motion — and a permanently
+  //               coloured comma would have flickered in and out of existence.
+  //   --i / --n   this glyph's index and the total. Enough for a stagger, a
+  //               centre-out reveal, or alternating directions.
+  //   --strike-delay / --strike-dur  the ragged beat above, which only Nixie
+  //               uses. Emitted for every theme because it is two custom
+  //               properties, not two DOM nodes.
+  //
+  // The balances and the countdown rings share this; the theme rules key off the
+  // classes, not off where the figure hangs.
+  function splitGlyphs(el, text, strike) {
+    el.textContent = '';
+    const glyphs = Array.from(text);
+    glyphs.forEach((ch, i) => {
+      const { delay, duration } = glyphBeat(i);
+      el.append(h('span', {
+        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep') + (strike(i) ? ' bal-in' : ''),
+        textContent: ch,
+        style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
+      }));
+    });
+  }
+
+  // Paint a countdown ring's number in the theme's hand, with the same arrival
+  // animation the balance gets on the digits that CHANGE as it counts — a tube
+  // re-strikes when what it displays changes, and a countdown is the one place in
+  // the panel where that happens every second. Only the digits that actually
+  // moved strike ("15" → "14" re-lights the 4, not the 1), compared right-aligned
+  // so units line up with units when the figure loses a digit; the first paint
+  // on a fresh element strikes everything, because the number is arriving.
+  // Reduce motion (settings) keeps the figure plain, and the OS-level
+  // prefers-reduced-motion overrides in each theme file are the second gate.
+  function paintCountdownNum(el, n) {
+    const text = String(Math.max(n, 0));
+    const fresh = !el.querySelector('.bal-glyph');
+    const prev = el.textContent;
+    const off = prev.length - text.length;
+    splitGlyphs(el, text, (i) =>
+      !reduceBalanceMotion && (fresh || prev.charAt(off + i) !== text.charAt(i)));
   }
 
   // Force both balance surfaces to strike on their next paint, whatever figure they
@@ -11651,6 +11716,17 @@
     pinBalanceBar = e.target.checked;
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: e.target.checked } });
     syncPinControls();
+  });
+
+  $('reducemotion-toggle').addEventListener('change', async (e) => {
+    reduceBalanceMotion = e.target.checked;
+    document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reduceBalanceMotion: e.target.checked } });
+    // Repaint so the change is visible now rather than at the next balance: turning
+    // it on collapses the figure back to a plain text node, turning it off gives the
+    // next arrival its animation. restrikeBalances clears the paint record, which is
+    // what lets an unchanged number be re-rendered at all.
+    restrikeBalances();
   });
 
   $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));

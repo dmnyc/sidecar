@@ -58,3 +58,33 @@
   /* pattern */
   --pattern-opacity: 1;
 }
+
+/* ---- balance animation: the slot opens ------------------------------------
+   A speakeasy shows you what it has through a slot in the door, one look at a
+   time. Each glyph is uncovered by a left-to-right wipe while sliding out from
+   behind its own edge, so the figure is revealed rather than faded in — the
+   panel sliding back, not a lamp coming up.
+
+   clip-path needs a box to clip, hence inline-block on the glyph. The stagger is
+   capped at eight glyphs so a long fiat figure does not take half a second
+   longer to open than a short sats one.
+
+   The bottom inset is negative because the clip box is the glyph's border box,
+   which line-height 1 holds at 1em — and Playfair's oldstyle figures descend
+   ~0.15em below that (the 3/4/7/9 tails, the comma). fill-mode both parks the
+   glyphs on the 100% keyframe for good, so an inset(0) resting state was
+   cropping them; the clip has to stay open past the ink, at both ends of the
+   wipe, or the glyphs land cropped. */
+@keyframes speakeasy-slot {
+  0% { clip-path: inset(0 0 -0.3em 100%); transform: translateX(-0.16em); opacity: 0; }
+  40% { opacity: 1; }
+  100% { clip-path: inset(0 0 -0.3em 0); transform: translateX(0); opacity: 1; }
+}
+[data-theme="speakeasy"] .bal-glyph { display: inline-block; }
+[data-theme="speakeasy"] .bal-glyph.bal-in {
+  animation: speakeasy-slot 420ms cubic-bezier(0.22, 0.7, 0.2, 1)
+             calc(min(var(--i), 8) * 55ms) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="speakeasy"] .bal-glyph.bal-in { animation: none; }
+}

@@ -79,15 +79,36 @@ body {
    different silhouettes. */
 [data-theme="brownstone"] body {
   background-image:
+    /* The vignette is FIRST, which means on top — including on top of the masonry.
+       That is the whole point: a gaslamp does not light a wall evenly, it lights
+       the part of the wall it is near. The courses are legible where the light
+       falls and sink into the dark a few feet away, which is what makes the tile
+       read as brick rather than as wallpaper. Anchored to the lamp, not the
+       centre. */
+    radial-gradient(115% 92% at 20% 4%, transparent 18%, rgba(0, 0, 0, 0.42) 56%, rgba(0, 0, 0, 0.76) 100%),
     url(brownstone-pattern.svg),
-    radial-gradient(1000px 460px at 50% -10%, rgba(224, 169, 74, 0.075), transparent 60%),
-    radial-gradient(720px 440px at 116% 110%, rgba(180, 100, 58, 0.075), transparent 55%),
-    linear-gradient(168deg, #1B1310 0%, var(--bg) 60%);
-  background-size: 150px, auto, auto, auto;
+    /* The lamp itself: a small, hot pool with a steep falloff, set off to one side
+       the way a lamp is mounted. Three stops rather than two so the core stays
+       bright while the haze around it goes soft — a single stop reads as a flat
+       wash, which is what the two 7.5% gradients this replaces were doing. */
+    radial-gradient(300px 275px at 20% 4%, rgba(255, 198, 120, 0.30), rgba(216, 148, 76, 0.12) 40%, transparent 64%),
+    /* A second lamp further down the street, dimmer and hazier. The reference
+       photo has a row of them receding into fog, and one distant glow is what
+       keeps the panel from looking like a single spotlight in a void. */
+    radial-gradient(250px 235px at 86% 70%, rgba(232, 158, 78, 0.055), transparent 58%),
+    linear-gradient(168deg, #1B1310 0%, var(--bg) 55%);
+  background-size: auto, 150px, auto, auto, auto;
   /* Centre the tile so it's symmetric in the panel rather than clipped at the left
      edge. Only the pattern layer moves; the gradients stay anchored. Film Noir does
      the same. */
-  background-position: center, 0% 0%, 0% 0%, 0% 0%;
+  background-position: 0% 0%, center, 0% 0%, 0% 0%, 0% 0%;
+  /* Restated because styles.css sets `background-repeat: repeat, no-repeat,
+     no-repeat, no-repeat` on body — four values, written when every theme had four
+     layers with the TILE first. This theme now has five and the tile is second, so
+     the shared list handed it `no-repeat` and the masonry rendered as one lonely
+     150px square in the middle of the panel. Any theme that changes its layer
+     count has to say this for itself. */
+  background-repeat: no-repeat, repeat, no-repeat, no-repeat, no-repeat;
 }
 
 /* Bauhaus — quarter-discs, circles and rings on a 4x4 grid. Curves only, no squares:

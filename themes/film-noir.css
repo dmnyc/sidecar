@@ -94,3 +94,48 @@
 [data-theme="film-noir"] .pinned-balance-amt {
   color: #cba14e;
 }
+
+/* ---- balance animation: the projector catches -----------------------------
+   Not a per-glyph reveal: a projector flickers the whole frame at once, so the
+   figure arrives together and the stagger is almost nil (8ms a glyph, just
+   enough that the flutter is not perfectly synchronised). The flicker is the
+   lamp finding its arc — dark, over-bright, dark, settle — and the 1px vertical
+   kick on the second frame is the film weaving in the gate.
+
+   Running nearly a second now rather than half of one. The stop count went up with
+   it, and had to: stretching the original ten stops over the longer window slowed
+   every flutter to the point where it read as a pulse. A projector's flicker rate
+   does not change when the reel runs longer, so the events stay about 60ms apart
+   and there are simply more of them — hard at the start, settling toward the end
+   as the lamp finds its arc.
+
+   Brightness rather than colour, because this theme has no colour to play with.
+   Whole-figure motion is the reason translateY is on the glyph and not the
+   element: the element carries the layout, and a jittering figure must not be
+   able to move the label under it. */
+@keyframes noir-projector {
+  0% { opacity: 0.08; filter: brightness(0.55); }
+  6% { opacity: 1; filter: brightness(1.75); transform: translateY(-1px); }
+  11% { opacity: 0.22; filter: brightness(0.65); transform: translateY(0); }
+  17% { opacity: 1; filter: brightness(1.4); }
+  23% { opacity: 0.44; filter: brightness(0.8); transform: translateY(1px); }
+  29% { opacity: 1; filter: brightness(1.25); transform: translateY(0); }
+  35% { opacity: 0.6; filter: brightness(0.85); }
+  41% { opacity: 1; filter: brightness(1.3); transform: translateY(-1px); }
+  47% { opacity: 0.52; filter: brightness(0.78); transform: translateY(0); }
+  54% { opacity: 1; filter: brightness(1.18); }
+  61% { opacity: 0.7; filter: brightness(0.9); }
+  68% { opacity: 1; filter: brightness(1.22); transform: translateY(1px); }
+  75% { opacity: 0.82; filter: brightness(0.95); transform: translateY(0); }
+  82% { opacity: 1; filter: brightness(1.12); }
+  89% { opacity: 0.9; }
+  95% { opacity: 1; filter: brightness(1.05); }
+  100% { opacity: 1; filter: brightness(1); transform: translateY(0); }
+}
+[data-theme="film-noir"] .bal-glyph { display: inline-block; }
+[data-theme="film-noir"] .bal-glyph.bal-in {
+  animation: noir-projector 940ms linear calc(var(--i) * 10ms) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="film-noir"] .bal-glyph.bal-in { animation: none; }
+}
