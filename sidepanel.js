@@ -931,6 +931,13 @@
     if (a) showNotifModal(a);
   });
 
+  // Bookmarks lives in the topbar's content group (bell, search, comment),
+  // not as a tab: it's a list you dip into, not a surface you keep open.
+  $('bookmarks-btn').addEventListener('click', () => {
+    if (!state?.activePubkey) return;
+    renderBookmarks();
+  });
+
   // In-progress comment text, keyed by account + target URL. Clicking the overlay
   // dismisses the modal, and losing a half-written comment to a stray click is
   // infuriating in a panel this narrow.
@@ -2406,7 +2413,13 @@
     if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
     if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
     if (diff < 7 * 86400) return Math.floor(diff / 86400) + 'd ago';
-    return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    // Beyond a week it's a date, and a date without a year reads as this year —
+    // "Mar 4" on something from 2024 is a quiet lie. Year only when it differs.
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric',
+      year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+    });
   }
 
   function notifLabel(ev) {
@@ -8005,7 +8018,283 @@
     state = await call({ type: 'SIDECAR_GET_STATE' });
   }
 
-  // ---- NIP-78 encrypted backup/restore (profile / follows / mute) ----
+  // ---- Bookmarks (topbar icon → modal): the account's bookmark lists, as other clients wrote them ----
+  // NIP-51 keeps bookmarks in two shapes: kind 10003 is the flat list every
+  // client agrees on, and kind 30001 is one replaceable event per named
+  // category (its d-tag). Sidecar writes none of them — this modal reads what
+  // the account's clients published, groups by category where categories
+  // exist, and removes an entry by republishing the owning list without that
+  // e-tag. Rows hand off to the preferred web client: Sidecar is the signer,
+  // not the reader.
+  const HEX_ID = /^[0-9a-f]{64}$/;
+  const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'live chat' };
+
+  // Every bookmark list event, raw, for bookmarkSections to shape.
+  async function fetchBookmarkLists() {
+    return getPool().querySync(
+      await readRelayUrls(state.activePubkey),
+      { kinds: [10003, 30001], authors: [state.activePubkey] },
+      { maxWait: 6000 }
+    );
+  }
+
+  // Pure: raw kind 10003/30001 events → ordered sections. The flat 10003 comes
+  // first (it's what clients without categories write), then one section per
+  // 30001 d-tag, by name. Replaceable events arrive as copies; newest
+  // created_at per key wins, the same rule loadMuteList applies to kind 10000.
+  // Lifted into test/bookmark-sections.test.js.
+  function bookmarkSections(evs) {
+    const latest = new Map();
+    for (const ev of evs || []) {
+      const d = ev.kind === 10003 ? '' : (ev.tags.find((t) => t[0] === 'd') || [])[1] || '';
+      const key = (ev.kind === 10003 ? 'F|' : 'C|') + d;
+      const cur = latest.get(key);
+      if (!cur || ev.created_at >= cur.created_at) latest.set(key, ev);
+    }
+    const sections = [];
+    const flat = latest.get('F|');
+    if (flat) sections.push({ title: '', ev: flat });
+    [...latest.entries()]
+      .filter(([k]) => k[0] === 'C')
+      .sort((a, b) => a[0].slice(2).localeCompare(b[0].slice(2)))
+      .forEach(([k, ev]) => sections.push({ title: k.slice(2), ev }));
+    return sections;
+  }
+
+  // The bookmarked events themselves. Relays cap ids per filter, so ids go out
+  // in chunks; whichever relay answers first for an id is fine — same id,
+  // same event. A row whose event never comes back still renders (and can
+  // still be opened by id or removed); it just shows no preview.
+  async function fetchEventsByIds(ids) {
+    const relays = await readRelayUrls(state.activePubkey);
+    const found = new Map();
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 64) chunks.push(ids.slice(i, i + 64));
+    await Promise.all(chunks.map(async (chunk) => {
+      try {
+        const evs = await getPool().querySync(relays, { ids: chunk }, { maxWait: 5000 });
+        (evs || []).forEach((ev) => { if (!found.has(ev.id)) found.set(ev.id, ev); });
+      } catch (_) {}
+    }));
+    return found;
+  }
+
+  // Opened from the topbar icon: a full-height modal (modal-sheet) that paints
+  // at full size immediately, spinner or cached rows inside — the sheet is the
+  // modal, not something content has to grow into. A modal closed mid-fetch
+  // leaves its DOM merely hidden, so "gone" is the overlay check, not
+  // isConnected.
+  function renderBookmarks() {
+    if (!state?.activePubkey) return;
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+      const x = h('button', { className: 'modal-x', title: 'Close' });
+      x.appendChild(icon('x'));
+      x.addEventListener('click', closeModal);
+      const scroll = h('div', { className: 'bm-scroll' });
+      modal.append(x, h('h3', { textContent: 'Bookmarks' }), scroll);
+      const gone = () => $('modal-overlay').classList.contains('hidden');
+      if (_bmCache.pubkey === state.activePubkey && _bmCache.evs) {
+        fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
+        // Quiet refresh behind the cached rows: the screen only moves when the
+        // relays actually say something different, and never while a removal
+        // confirm is on screen (a swap there would eat the user's tap).
+        refreshBookmarks().then((changed) => {
+          if (changed && !gone() && !scroll.querySelector('.del-confirm')) {
+            fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
+          }
+        });
+      } else {
+        scroll.append(h('div', { className: 'recv-waiting' }, [
+          h('span', { className: 'recv-spinner' }),
+          h('span', { textContent: 'Reading your relays…' }),
+        ]));
+        refreshBookmarks().then(() => {
+          if (!gone()) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
+        });
+      }
+    });
+  }
+
+  // Session cache per account: the modal opens instantly from the last fetch,
+  // and a background refresh keeps it honest. Signatures compare which list
+  // events exist (id + created_at) and which bookmark ids resolved, so an
+  // unchanged refresh costs nothing on screen.
+  const _bmCache = { pubkey: null, evs: null, events: null };
+  const bmListsSig = (evs) => (evs || []).map((e) => e.id + ':' + e.created_at).sort().join('|');
+  const bmFoundSig = (events) => [...(events || new Map()).keys()].sort().join(',');
+  async function refreshBookmarks() {
+    const pubkey = state.activePubkey;
+    let evs;
+    try {
+      evs = await fetchBookmarkLists();
+    } catch (_) {
+      return false;
+    }
+    const ids = [];
+    const seen = new Set();
+    bookmarkSections(evs).forEach((s) => s.ev.tags.forEach((t) => {
+      const id = t && t[0] === 'e' && t[1];
+      if (HEX_ID.test(id || '') && !seen.has(id)) { seen.add(id); ids.push(id); }
+    }));
+    const events = await fetchEventsByIds(ids);
+    const changed = _bmCache.pubkey !== pubkey ||
+      bmListsSig(_bmCache.evs) !== bmListsSig(evs) ||
+      bmFoundSig(_bmCache.events) !== bmFoundSig(events);
+    _bmCache.pubkey = pubkey;
+    _bmCache.evs = evs;
+    _bmCache.events = events;
+    return changed;
+  }
+
+  async function fillBookmarks(scroll, gone, evs, events) {
+    // The scroll container is cleared rather than appended to: the quiet
+    // refresh re-runs this on a scroll that already holds rows (and the first
+    // run replaces the spinner), and a second .bm-list under the first would
+    // duplicate every bookmark.
+    scroll.textContent = '';
+    // Sections: the flat list first (what clients without categories write),
+    // then categories by name. A list with no e-tags renders nothing — no
+    // entries to show, none to remove.
+    const sections = bookmarkSections(evs);
+
+    const empty = () => {
+      scroll.textContent = '';
+      scroll.append(h('p', {
+        className: 'hint',
+        textContent: 'No bookmarks yet. Bookmark a note from any Nostr client and it shows up here.',
+      }));
+    };
+    if (!sections.length) return empty();
+
+    // Profiles for the authors (getProfile is cached, so repeat authors are
+    // cheap and a cached reopen resolves instantly).
+    const authors = [...new Set([...events.values()].map((e) => e.pubkey))];
+    const profiles = new Map(await Promise.all(authors.map(async (pk) => [pk, await getProfile(pk)])));
+    if (gone()) return;
+
+    const list = h('div', { className: 'bm-list' });
+    scroll.append(list);
+
+    // One bookmark: the referenced event's author and a snippet, opening in
+    // the preferred web client, removable by republishing the owning list.
+    // `missing` rows (the relays no longer return the event) still render —
+    // dimmed, sorted below the found ones — because they remain bookmarks:
+    // openable by id, and removable.
+    const buildRow = (id, parent, missing) => {
+      const ref = missing ? null : events.get(id);
+      const prof = ref ? profiles.get(ref.pubkey) : null;
+      let npub = '';
+      if (ref) { try { npub = NT.nip19.npubEncode(ref.pubkey); } catch (_) {} }
+      const item = h('div', { className: 'bm-item' + (missing ? ' bm-missing' : ''), title: 'Open in your web client' });
+      const main = h('div', { className: 'bm-main' }, [
+        h('div', { className: 'bm-head' }, [
+          avatarEl({ picture: prof && prof.picture, npub }, 'bm-av'),
+          h('div', { className: 'bm-name', textContent: (prof && prof.name) || (npub ? shortNpub(npub) : 'Unknown author') }),
+        ]),
+        h('div', {
+          className: 'bm-snippet',
+          textContent: missing
+            ? id.slice(0, 8) + '…' + id.slice(-6)
+            : quoteSnippet(ref.content) || '“' + (BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind) + '”',
+        }),
+        h('div', {
+          className: 'bm-meta',
+          textContent: missing ? 'not found on your relays' : (BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind) + ' · ' + relativeTime(ref.created_at),
+        }),
+      ]);
+      const actions = h('div', { className: 'item-actions' });
+      // The resting row keeps a lone icon button in the inline slot; the confirm
+      // has words, so it takes its own full-width row under the content (the
+      // connected-site grammar) instead of squeezing a label and two buttons
+      // beside a 300px-wide row.
+      const confirmRow = h('div', { className: 'bm-confirm' });
+      let confirming = false;
+      const drawResting = () => {
+        confirming = false;
+        item.classList.remove('bm-confirming');
+        confirmRow.remove();
+        confirmRow.textContent = '';
+        actions.textContent = '';
+        actions.append(iconButton('Remove bookmark', 'x', (e) => {
+          e.stopPropagation();
+          drawConfirm();
+        }));
+      };
+      const drawConfirm = () => {
+        confirming = true;
+        item.classList.add('bm-confirming');
+        confirmRow.textContent = '';
+        const yes = h('button', { className: 'mini del-confirm', textContent: 'Remove' });
+        const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+        yes.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          yes.disabled = true;
+          yes.textContent = 'Removing…';
+          // Republish the owning list minus EVERY e-tag for this id — a client
+          // that wrote the same bookmark twice should see both copies go. The
+          // 30001's d-tag rides through untouched (only e-tags are filtered),
+          // so the category stays the same replaceable stream.
+          const tags = parent.tags.filter((t) => !(t[0] === 'e' && t[1] === id));
+          try {
+            const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: { kind: parent.kind, created_at: Math.floor(Date.now() / 1000), tags, content: parent.content || '' } });
+            await publishSigned(signed);
+            parent.tags = tags; // keep the in-memory copy honest for this session
+            const group = item.closest('.bm-group');
+            item.remove();
+            if (group && !group.querySelector('.bm-item')) group.remove();
+            if (!list.querySelector('.bm-item')) empty();
+            toast('Bookmark removed', 'success');
+          } catch (err) {
+            toast((err && err.message) || 'Could not remove the bookmark', 'error');
+            drawResting();
+          }
+        });
+        no.addEventListener('click', (e) => { e.stopPropagation(); drawResting(); });
+        confirmRow.append(h('span', { className: 'confirm-msg', textContent: 'Remove this bookmark?' }), yes, no);
+        item.append(confirmRow);
+      };
+      drawResting();
+      item.addEventListener('click', async () => {
+        // While the confirm is open the row isn't a link — a tap on the message
+        // (or the gap beside it) must not open the client behind the confirm.
+        if (confirming) return;
+        const client = await preferredClient();
+        try {
+          openInClient(client.url(NT.nip19.neventEncode({ id, author: ref ? ref.pubkey : undefined, relays: [] })));
+        } catch (_) {}
+      });
+      item.append(main, actions);
+      return item;
+    };
+
+    sections.forEach((s) => {
+      // Found entries first, in the owning client's own order; entries whose
+      // events no longer resolve sort to the bottom under their own divider —
+      // they're still bookmarks, but they can't be previewed, and a wall of
+      // "not found" ahead of real notes reads as a broken modal.
+      const found = [];
+      const missing = [];
+      const seen = new Set();
+      s.ev.tags.forEach((t) => {
+        const id = t && t[0] === 'e' && t[1];
+        if (!HEX_ID.test(id || '') || seen.has(id)) return;
+        seen.add(id);
+        (events.has(id) ? found : missing).push(id);
+      });
+      if (!found.length && !missing.length) return;
+      const group = h('div', { className: 'bm-group' });
+      if (s.title) group.append(h('div', { className: 'bm-cat', textContent: s.title }));
+      found.forEach((id) => group.append(buildRow(id, s.ev, false)));
+      if (missing.length) {
+        if (found.length) group.append(h('div', { className: 'bm-missing-head', textContent: 'Not on your relays' }));
+        missing.forEach((id) => group.append(buildRow(id, s.ev, true)));
+      }
+      list.append(group);
+    });
+    if (!list.children.length) return empty();
+  }
+
   const BACKUP_TYPES = [
     { key: 'profile', label: 'Profile', kind: 0, dtag: 'sidecar:profile-backup' },
     { key: 'follows', label: 'Follows', kind: 3, dtag: 'sidecar:follows-backup' },

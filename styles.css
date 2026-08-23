@@ -1385,6 +1385,48 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .export-block .hint { margin-bottom: 10px; }
 .export-block .secondary { display: block; width: 100%; margin-bottom: 8px; }
 
+/* bookmarks modal — NIP-51 lists written by other clients, grouped by category.
+   Rows follow the notifications layout: full-width dividers between full-bleed
+   rows, no boxed containers (a box inside the modal sheet reads as a narrow
+   column and wastes the width). */
+.bm-scroll { overflow-y: auto; flex: 1; min-height: 0; margin: 0 -22px -22px; padding: 0 22px 22px; }
+.bm-list { display: flex; flex-direction: column; margin-top: 4px; }
+.bm-cat {
+  font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--muted);
+  margin: 16px 0 2px; letter-spacing: 0.03em;
+}
+.bm-list .bm-group:first-child .bm-cat { margin-top: 0; }
+.bm-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 8px; margin: 0 -8px; border-radius: 10px; cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.bm-item:hover { background: var(--hover-soft); }
+.bm-list .bm-group:last-child .bm-item:last-child { border-bottom: none; }
+.bm-main { flex: 1; min-width: 0; }
+.bm-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bm-av { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); }
+.bm-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bm-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-snippet { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.bm-meta { font-size: 11px; color: var(--faint); margin-top: 2px; }
+/* entries whose events the relays no longer return: below the found ones,
+   under a divider, dimmed — present (they're still bookmarks) but quiet */
+/* remove confirm: the row becomes a column so "Remove this bookmark?" plus its
+   two buttons get the full width, with the bookmark still legible above them —
+   words never share the inline action slot beside the content */
+.bm-item.bm-confirming { flex-direction: column; align-items: stretch; gap: 10px; cursor: default; }
+.bm-item.bm-confirming:hover { background: none; }
+.bm-item.bm-confirming .item-actions { display: none; }
+.bm-confirm { display: flex; align-items: center; gap: 8px; }
+.bm-item.bm-missing { opacity: 0.55; }
+/* a dimmed row still gets an undimmed confirm — the red Remove has to keep its
+   contrast, so the dimming moves onto the content while the confirm is open */
+.bm-item.bm-missing.bm-confirming { opacity: 1; }
+.bm-item.bm-missing.bm-confirming .bm-main { opacity: 0.55; }
+.bm-item.bm-missing .bm-snippet { font-family: var(--font-mono); font-size: 11.5px; }
+.bm-missing-head { font-size: 11px; color: var(--faint); letter-spacing: 0.03em; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border); }
+
 /* follow-list recovery modal */
 .modal .recovery-modal .actions { margin-top: 22px; }
 .mutable-credit { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; }
