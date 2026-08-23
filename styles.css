@@ -1431,7 +1431,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   flex-shrink: 0; white-space: nowrap;
   padding: 7px 12px; font-size: 12px; font-weight: 600;
   border-radius: 8px; cursor: pointer;
-  color: var(--btn-primary-text, #1a0d33); background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold));
+  color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold));
 }
 .switch-site-btn:hover { filter: brightness(1.08); }
 /* multi-login safeguard: this host has signed in with 2+ accounts */
@@ -1674,15 +1674,20 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* Yes carries the accent (it's the more interesting answer and the one the
    disclosure is about), No stays quiet — a coin-flip styling would make
    "Just my follows" look like the reluctant fallback rather than a real choice.
-   --accent-fill / --btn-primary-text so light themes restyle it like every
-   other accent button. */
+   --accent-fill / --chip-ink so light themes restyle it like every other accent
+   button. (--chip-ink is the label on a BRIGHT --accent-fill; it falls back to
+   --btn-primary-text, which is what every theme but Nixie still uses. Nixie's
+   .primary is dark glass with lit lettering, so its --btn-primary-text is
+   bright — and bright ink on these ember chips would be unreadable. Small
+   selected chips are the one place this theme keeps a loud fill, because the
+   fill IS the selected state.) */
 .na-ask-actions button {
   flex: 1; padding: 7px 8px; border-radius: 8px; cursor: pointer;
   font-family: inherit; font-size: 12px; font-weight: 600; white-space: nowrap;
   transition: filter 0.12s;
 }
 .na-ask-actions button:hover { filter: brightness(1.08); }
-.na-ask-yes { background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold)); color: var(--btn-primary-text, #1a0d33); }
+.na-ask-yes { background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold)); color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); }
 .na-ask-no { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); }
 .compose-preview {
   min-height: 120px; max-height: 46vh; overflow-y: auto;
@@ -1928,7 +1933,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--faint); transition: color 0.12s, background 0.12s;
 }
 .wallet-chart-range-btn:hover { color: var(--text-2); background: var(--hover-soft); }
-.wallet-chart-range-btn.active { color: var(--btn-primary-text, #1a0e08); background: var(--accent-fill, var(--gold)); }
+.wallet-chart-range-btn.active { color: var(--chip-ink, var(--btn-primary-text, #1a0e08)); background: var(--accent-fill, var(--gold)); }
 
 /* ---- hover scrub ---- */
 /* The plot is the positioning context for both the readout and the SVG marker, and
@@ -2237,7 +2242,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--text-2); background: var(--hover-soft); border: 1px solid var(--border);
 }
 .preset-chip:hover { border-color: var(--gold-soft); }
-.preset-chip.active { color: var(--btn-primary-text, #1a0d33); background: var(--accent-fill, var(--gold)); border-color: var(--accent-fill, var(--gold)); }
+.preset-chip.active { color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold)); border-color: var(--accent-fill, var(--gold)); }
 
 /* receive: waiting + success states */
 .recv-waiting { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
@@ -2858,7 +2863,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .relax-status-x {
   width: 22px; height: 22px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
-  background: var(--accent-fill, var(--gold)); border: none; color: var(--btn-primary-text, #1a0a33);
+  background: var(--accent-fill, var(--gold)); border: none; color: var(--chip-ink, var(--btn-primary-text, #1a0a33));
   display: inline-flex; align-items: center; justify-content: center; transition: filter 0.12s;
 }
 .relax-status-x svg { width: 12px; height: 12px; display: block; }
