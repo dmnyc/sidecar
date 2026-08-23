@@ -152,7 +152,24 @@ fetches for content the user is viewing. There is no analytics, telemetry, or
 error reporting of any kind. `PRIVACY.md` in the source package documents this in
 full.
 
-## 7. Questions
+## 7. What this archive leaves out
+
+The archive is the repository at the release tag, with five paths held back.
+None of them is source for anything in the add-on, none is read by any build or
+verification step, and removing them changes no shipped byte:
+
+| Path | Why |
+|---|---|
+| `.claude/`, `CLAUDE.md` | Local editor-tooling config and an internal UI style rule. |
+| `FIREFOX_PORT.md` | A port *plan* whose own status line reads "DONE. Shipped in 1.5.0". `BROWSER_PARITY.md`, which is included, describes the build that actually exists. |
+| `docs/release-1.8.0-description.md`, `docs/release-1.8.0-guide.md` | Store listing copy for a version two releases back. |
+
+Everything that produces, verifies, or documents shipped code is present —
+including `scripts/` in full, `VENDOR.md`, `.github/` (the CI that enforces the
+vendored hashes), `test/`, and the docs that describe live code. The complete
+repository, with nothing held back at all, is public at the tag; see §8.
+
+## 8. Questions
 
 The complete source, including this file, is at
 <https://github.com/dmnyc/sidecar> under the MIT license. Every released version
