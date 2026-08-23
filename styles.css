@@ -321,7 +321,14 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
 }
 .mini:hover { border-color: var(--gold-soft); }
-.mini.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+/* The big-button .ghost rule below (14px, 12px 16px padding) ties .mini on
+   specificity and beats it by file order, which quietly rendered every mini
+   ghost a full size class bigger than its filled sibling. Restate .mini's
+   metrics here: a mini ghost is a mini first, ghost second. */
+.mini.ghost {
+  background: transparent; border-color: transparent; color: var(--muted);
+  font-size: 12px; padding: 7px 12px; border-width: 1px; border-style: solid;
+}
 .mini.ghost:hover { color: var(--text); border-color: transparent; }
 
 /* edit-profile form */
@@ -1368,6 +1375,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .backup-status.done { color: var(--gold); }
+.backup-status .backup-check { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; }
+.backup-status-time { color: var(--faint); margin-top: 1px; }
 /* A backup that exists but holds a different wallet — the reassuring gold ✓ would
    be exactly wrong here, so it reads as a warning instead. */
 .backup-status.warn { color: var(--warn); }
@@ -1402,7 +1411,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .recovery-badge.rec { background: rgba(var(--accent-rgb), 0.16); color: var(--gold); }
 .recovery-confirm { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 4px; }
 .restore-list { margin: 4px 0 10px; padding-left: 20px; color: var(--text); }
-.restore-list li { margin: 3px 0; }
+.restore-list li { margin: 3px 0 12px; }
+/* second line of a file-restore row: counts in the file vs counts live now.
+   Warn color only when the restore would actually change the list. */
+.restore-list-sub { font-size: 12px; color: var(--muted); margin-top: 1px; padding-left: 2px; }
+.restore-list-sub.warn { color: var(--warn); }
+.restore-list-sub .recv-spinner { width: 10px; height: 10px; border-width: 2px; margin-right: 4px; }
+
+/* what a restore will publish, shown before the PIN is asked for. The counts
+   block reuses .recovery-confirm (the follow-recovery modal's card); the profile
+   preview is its own pane because a bio answers "is this mine?" by looking. */
+.restore-compare { margin: 10px 0 4px; }
+.restore-preview { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.restore-preview-head { display: flex; align-items: center; gap: 10px; }
+.restore-preview-av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); }
+.restore-preview-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.restore-preview-id { min-width: 0; }
+.restore-preview-name { font-size: 16px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.restore-preview-nip05 { font-size: 12px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.restore-preview-about { font-size: 13px; margin: 10px 0 0; max-height: 140px; overflow: hidden; }
 .show-more-btn { display: block; width: 100%; margin: 4px 0 10px; color: var(--lav); font-weight: 600; }
 #activity-clear { display: block; margin: 8px auto 0; }
 
