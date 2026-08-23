@@ -36,6 +36,11 @@ fi
 
 SHORT=$(git rev-parse --short "${TAG}^{commit}")
 VERSION_NO_V="${TAG#v}"
+# The tag's own commit date, used to stamp every file in the zip. Derived from the
+# tag rather than "now" so the build is a function of the tag alone, and forced to
+# UTC so it does not depend on the packager's timezone. `touch -t` format, which
+# both BSD and GNU touch accept — BSD's -d rejects git's ISO offset.
+SOURCE_DATE=$(TZ=UTC git log -1 --format=%cd --date=format-local:'%Y%m%d%H%M.%S' "${TAG}^{commit}")
 
 STAGE="$(mktemp -d)/sidecar"
 mkdir -p "${STAGE}"
@@ -44,10 +49,13 @@ git archive "${TAG}" | tar -x -C "${STAGE}"
 # Strip everything that isn't part of the running extension.
 rm -rf "${STAGE}/.claude" "${STAGE}/.github" "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
        "${STAGE}/docs"
-rm -f "${STAGE}/.gitignore" "${STAGE}/README.md" "${STAGE}/CHANGELOG.md" \
-      "${STAGE}/FEATURES.md" "${STAGE}/PRIVACY.md" "${STAGE}/BROWSER_PARITY.md" \
-      "${STAGE}/FIREFOX_PORT.md" "${STAGE}/VENDOR.md" "${STAGE}/WALLET_BACKENDS.md" \
-      "${STAGE}/package.json"
+# Every top-level .md, by glob rather than by name. The old explicit list failed
+# open: a doc added later shipped inside the extension until someone noticed, and
+# REVIEWERS.md — written FOR the store, describing how to reproduce this very zip
+# — was about to be the next one. Nothing in the package references a bundled .md
+# (help.html's changelog and privacy links point at GitHub), so the glob is safe.
+# NOTICE has no extension and stays: it's the vendored licenses.
+rm -f "${STAGE}"/*.md "${STAGE}/.gitignore" "${STAGE}/package.json"
 
 # version.js is gitignored and not in the archive — regenerate it, stamped to the tag.
 cat > "${STAGE}/version.js" <<EOF
@@ -87,7 +95,14 @@ build_zip() {
     fs.writeFileSync(file, JSON.stringify(m, null, 2) + "\n");
   ' "${STAGE}/manifest.json" "${target}"
   rm -f "${ROOT}/${out}"
-  ( cd "${STAGE}" && zip -rqX "${ROOT}/${out}" . -x ".*" )
+  # Deterministic output. Every file is stamped with the tag's commit date and
+  # entries are added in sorted order, so the same tag always produces the same
+  # bytes on any machine. That turns the published SHA-256 into something a
+  # reviewer can reproduce and check, instead of "extract both and trust the
+  # diff" — which matters now that AMO requires a source submission alongside
+  # every upload (see REVIEWERS.md).
+  find "${STAGE}" -exec touch -t "${SOURCE_DATE}" {} +
+  ( cd "${STAGE}" && find . -type f ! -name '.*' | LC_ALL=C sort | zip -qXD "${ROOT}/${out}" -@ )
   local files sha
   files=$(unzip -Z1 "${ROOT}/${out}" | grep -vc '/$')
   sha=$(shasum -a 256 "${ROOT}/${out}" | awk '{print $1}')
