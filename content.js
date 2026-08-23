@@ -433,7 +433,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus', 'nixie']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'art-deco', 'aegean', 'bauhaus']);
   function setCardTheme(t) {
     if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;

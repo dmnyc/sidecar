@@ -193,7 +193,9 @@
 
   // Apply theme by setting data-theme attribute on HTML element
   function applyTheme(themeName) {
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus', 'nixie'];
+    // Dark themes first, then light, matching the picker's order in
+    // sidepanel.html (which is the canonical list).
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'art-deco', 'aegean', 'bauhaus'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
