@@ -781,7 +781,8 @@
     ring.innerHTML =
       '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
       '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
-    const num = h('div', { className: 'countdown-num', textContent: String(left) });
+    const num = h('div', { className: 'countdown-num' });
+    paintCountdownNum(num, left);
     const wrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
     const cap = remaining != null
       ? unlockNotice(remaining)
@@ -801,7 +802,7 @@
         pin.focus();
         return;
       }
-      num.textContent = String(left);
+      paintCountdownNum(num, left);
       fill.setAttribute('stroke-dashoffset', String(C * (1 - left / total)));
     }, 1000);
   }
@@ -7243,7 +7244,8 @@
       '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
       '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
       'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
-    const num = h('div', { className: 'countdown-num', textContent: String(remaining) });
+    const num = h('div', { className: 'countdown-num' });
+    paintCountdownNum(num, remaining);
     const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
 
     // Same identity strip as the editor — who's posting shouldn't be ambiguous right
@@ -7283,7 +7285,7 @@
     const fill = ring.querySelector('.ring-fill');
     timer = setInterval(() => {
       remaining -= 1;
-      num.textContent = String(Math.max(remaining, 0));
+      paintCountdownNum(num, remaining);
       fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
       if (remaining <= 0) fire();
     }, 1000);
@@ -9509,7 +9511,7 @@
   // (which is what the first pass's flat 60ms-per-glyph stagger did).
   //
   // Only Nixie reads these two; a theme whose animation wants an even stagger uses
-  // --i and --n instead (see paintBalanceEl). Longer than apogee's 620-980ms
+  // --i and --n instead (see splitGlyphs). Longer than apogee's 620-980ms
   // because Nixie's keyframes carry a longer settle at the end.
   const STRIKE_DELAY_MOD_MS = 300;
   const STRIKE_DUR_BASE_MS = 900;
@@ -9554,28 +9556,7 @@
     // record and never be repainted.
     if (prev === key && el.textContent === (parts.sym || '') + parts.text) return;
 
-    // The figure is ALWAYS built one glyph at a time, so each theme can style and
-    // animate it in its own idiom — a nixie tube striking, a projector flickering,
-    // a split-flap board turning over, a comma held in the theme's second colour.
-    // All of that lives in the theme file; this code stays ignorant of which theme
-    // is active and just publishes what it knows about each glyph:
-    //
-    //   .bal-glyph  every glyph, always.
-    //   .bal-sep    the ones that are not digits — the thousands separator, the
-    //               decimal point. A theme that wants to treat punctuation
-    //               differently cannot ask CSS "is this a comma", so it is said
-    //               here.
-    //   .bal-in     only on an arrival that has earned an animation. Splitting and
-    //               animating used to be the same decision, which meant any
-    //               per-glyph STYLING vanished on a repaint that did not animate —
-    //               a denomination toggle, or Reduce motion — and a permanently
-    //               coloured comma would have flickered in and out of existence.
-    //   --i / --n   this glyph's index and the total. Enough for a stagger, a
-    //               centre-out reveal, or alternating directions.
-    //   --strike-delay / --strike-dur  the ragged beat above, which only Nixie
-    //               uses. Emitted for every theme because it is two custom
-    //               properties, not two DOM nodes.
-    //
+    // The figure is always split (see splitGlyphs below for the class contract).
     // `prev !== key` is what makes a real balance change re-animate: a new element
     // (nothing recorded) or a number that moved both qualify, while a denomination
     // toggle keeps the same sats and only repaints.
@@ -9584,15 +9565,62 @@
 
     el.textContent = '';
     if (parts.sym) el.append(h('span', { className: symClass, textContent: parts.sym }));
-    const glyphs = Array.from(parts.text);
+    splitGlyphs(el, parts.text, () => animate);
+  }
+
+  // Build a figure one glyph at a time, so the active theme can style and animate
+  // it in its own idiom — a nixie tube striking, a projector flickering, a
+  // split-flap board turning over, a comma held in the theme's second colour.
+  // All of that lives in the theme file; this code stays ignorant of which theme
+  // is active and just publishes what it knows about each glyph:
+  //
+  //   .bal-glyph  every glyph, always.
+  //   .bal-sep    the ones that are not digits — the thousands separator, the
+  //               decimal point. A theme that wants to treat punctuation
+  //               differently cannot ask CSS "is this a comma", so it is said
+  //               here.
+  //   .bal-in     only on an arrival that has earned an animation. Splitting and
+  //               animating used to be the same decision, which meant any
+  //               per-glyph STYLING vanished on a repaint that did not animate —
+  //               a denomination toggle, or Reduce motion — and a permanently
+  //               coloured comma would have flickered in and out of existence.
+  //   --i / --n   this glyph's index and the total. Enough for a stagger, a
+  //               centre-out reveal, or alternating directions.
+  //   --strike-delay / --strike-dur  the ragged beat above, which only Nixie
+  //               uses. Emitted for every theme because it is two custom
+  //               properties, not two DOM nodes.
+  //
+  // The balances and the countdown rings share this; the theme rules key off the
+  // classes, not off where the figure hangs.
+  function splitGlyphs(el, text, strike) {
+    el.textContent = '';
+    const glyphs = Array.from(text);
     glyphs.forEach((ch, i) => {
       const { delay, duration } = glyphBeat(i);
       el.append(h('span', {
-        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep') + (animate ? ' bal-in' : ''),
+        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep') + (strike(i) ? ' bal-in' : ''),
         textContent: ch,
         style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
       }));
     });
+  }
+
+  // Paint a countdown ring's number in the theme's hand, with the same arrival
+  // animation the balance gets on the digits that CHANGE as it counts — a tube
+  // re-strikes when what it displays changes, and a countdown is the one place in
+  // the panel where that happens every second. Only the digits that actually
+  // moved strike ("15" → "14" re-lights the 4, not the 1), compared right-aligned
+  // so units line up with units when the figure loses a digit; the first paint
+  // on a fresh element strikes everything, because the number is arriving.
+  // Reduce motion (settings) keeps the figure plain, and the OS-level
+  // prefers-reduced-motion overrides in each theme file are the second gate.
+  function paintCountdownNum(el, n) {
+    const text = String(Math.max(n, 0));
+    const fresh = !el.querySelector('.bal-glyph');
+    const prev = el.textContent;
+    const off = prev.length - text.length;
+    splitGlyphs(el, text, (i) =>
+      !reduceBalanceMotion && (fresh || prev.charAt(off + i) !== text.charAt(i)));
   }
 
   // Force both balance surfaces to strike on their next paint, whatever figure they

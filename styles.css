@@ -395,7 +395,11 @@ input:focus, select:focus, textarea:focus {
 .unlock-cooldown { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 16px; }
 .unlock-cooldown .countdown-wrap { width: 56px; height: 56px; margin: 0; }
 .unlock-cooldown .countdown-ring { width: 56px; height: 56px; }
-.unlock-cooldown .countdown-num { font-size: 18px; }
+/* 19px, not the 18px this was: 700-weight text counts as "large" (the WCAG floor
+   drops to 3:1) from 18.66px up, and Bauhaus's --balance-ink red passes only as
+   large text (3.79:1 on this white). At 18px the small ring would have been the
+   one place in the theme that ink drops below its floor. */
+.unlock-cooldown .countdown-num { font-size: 19px; }
 /* refined attempts-remaining notice (used with and without the cooldown ring) */
 .unlock-note { text-align: center; }
 .unlock-note-title { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--text-2); }
@@ -1779,12 +1783,32 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .countdown-ring .ring-fill { fill: none; stroke: var(--gold); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
 .countdown-num {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1; color: var(--gold);
+  /* The same ink as the balance, for the same reason: a counting figure is the
+     theme's display face doing its most display-like job. --balance-ink defaults
+     to --gold, so the five themes that don't declare one see no change; Nixie's
+     tubes and Bauhaus's red take their own. */
+  font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1; color: var(--balance-ink);
   /* a lone counting digit reads best on the baseline; tabular keeps width steady
      as it counts down (15 → 9 → 0) so it doesn't jiggle. */
   font-variant-numeric: lining-nums tabular-nums;
   font-feature-settings: 'lnum' 1, 'tnum' 1;
 }
+/* Optical centering, per display face. Flex centers the LINE BOX; the eye
+   centers the INK, and every face puts its lining figures at a different height
+   inside the em (Josefin Sans's caps sit high, Apogee's sit low, Playfair's
+   oldstyle-metric em hangs below the baseline). The offsets were measured by
+   rendering each theme's "8" in its ring and finding the ink's bounding box in
+   the rasterized pixels, then nudging in em so the 28px ring and the 19px unlock
+   ring both center. Positive dy = ink sat low. These are font metrics, not theme
+   taste — a theme that swaps its display face inherits the wrong nudge and this
+   table needs a new row. */
+[data-theme="speakeasy"] .countdown-num,
+[data-theme="film-noir"] .countdown-num { transform: translateY(-0.04em); }
+[data-theme="brownstone"] .countdown-num { transform: translateY(0.04em); }
+[data-theme="nixie"] .countdown-num { transform: translate(0.01em, -0.05em); } /* x: letter-spacing trails the last glyph */
+[data-theme="art-deco"] .countdown-num { transform: translateY(0.10em); }
+[data-theme="aegean"] .countdown-num { transform: translateY(0.06em); }
+[data-theme="bauhaus"] .countdown-num { transform: translateY(0.02em); }
 /* the note preview leads; the full-size ring (above) sits centered below it */
 .countdown-preview {
   max-height: 42vh;

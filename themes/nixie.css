@@ -274,8 +274,14 @@
    The two balance selectors are named alongside .nixie-num, which nothing
    applied: this treatment is what makes these numerals look lit between strikes,
    and without it the figure only glowed while the animation was on screen.
-   .nixie-num stays as the hook for any other figure that wants the same. */
+   .nixie-num stays as the hook for any other figure that wants the same — the
+   countdown rings took it, and they are the theme's clock: a tube counting down
+   is the one place the strike every second is not an affectation. They carry the
+   cage too, with the balance selectors below — same tube, same screen. The ring
+   is not a rival fence: it is the case around the tube, 46px out from the digit,
+   while the cage lives at the cathode surface. */
 [data-theme="nixie"] .nixie-num,
+[data-theme="nixie"] .countdown-num,
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
   color: var(--balance-ink);
@@ -303,6 +309,7 @@
    red that layer used to provide now comes from --card-wash, which is where the
    light in the photographs is anyway: on the surface, not in the glyph. */
 [data-theme="nixie"] .nixie-num,
+[data-theme="nixie"] .countdown-num,
 [data-theme="nixie"] .wallet-balance {
   text-shadow:
     0 0 0.05em rgba(255, 246, 230, 0.5),
@@ -415,6 +422,20 @@
    Apple keyword set (`xor` for exclude) with its own layer-ordering behavior, and
    if it composited the other way round it would render the balance as wire-shaped
    slivers: an unreadable number is far worse than a missing texture. */
+/* The countdown number sits behind the same screen, and is the easy case: it is
+   position: absolute with inset: 0 (styles.css), so its border box — the mask's
+   painting area — is the whole 92px wrap (56px for the unlock ring), with the
+   figure flex-centered inside. The 0.8em bloom never reaches that edge, so none
+   of the padding compensation below applies; the mask simply covers more
+   transparent area, which excludes nothing visible.
+
+   The tile stays the shared em size — the countdown's 28px and 19px figures get
+   the same tile-to-figure ratio as the pinned bar's 24px, so all the smaller
+   readouts read as one family next to the hero's 40px. A fixed 18x8px tile (the
+   hero's pitch, one physical screen for every tube) was tried and rejected:
+   hexagons half a 19px digit tall stop reading as a screen and start reading
+   as texture. */
+[data-theme="nixie"] .countdown-num,
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
   mask-image: linear-gradient(#fff, #fff), var(--cage);
@@ -599,4 +620,30 @@
   [data-theme="nixie"] .bal-glyph.bal-in,
   [data-theme="nixie"] .balances-hidden .wallet-balance::after,
   [data-theme="nixie"] .balances-hidden .pinned-balance-amt::after { animation: none; }
+}
+
+/* The ring is a nixie ring: grey glass carrying a neon discharge. The colour
+   story is the buttons' — the shared --gold (#ffd2ab here, pale peach) lit the
+   corner of the modal like a plastic kitchen timer, and this theme has no
+   bright surfaces — so the ring itself stays grey the way the Post button does.
+   But grey alone is dead glass, and everything in this theme that is ON is
+   emitting. So the arc — the lit part, the part that is counting — carries the
+   same discharge the digits do (white-hot core, orange, red wash, stacked as
+   drop-shadows because the arc is a stroke, not a glyph), while the track it
+   burns down is unlit glass, one step deeper into the button's gradient so
+   the arc reads even before the glow reaches it. The numeral inside is still
+   the brightest thing on screen; the arc glows at maybe half its intensity,
+   furniture that is on without competing. */
+[data-theme="nixie"] .countdown-ring { overflow: visible; }
+[data-theme="nixie"] .countdown-ring .ring-track { stroke: var(--btn-primary-mid); }
+[data-theme="nixie"] .countdown-ring .ring-fill {
+  stroke: var(--btn-primary-top);
+  /* drop-shadow, unlike text-shadow, is a space-separated list — commas make
+     the whole declaration invalid, and the arc quietly stays dark. The
+     outermost wash is 12px, which spills past the svg viewport, hence
+     overflow: visible above. */
+  filter:
+    drop-shadow(0 0 2px rgba(255, 246, 230, 0.45))
+    drop-shadow(0 0 5px rgba(255, 106, 36, 0.55))
+    drop-shadow(0 0 12px rgba(240, 48, 12, 0.45));
 }
