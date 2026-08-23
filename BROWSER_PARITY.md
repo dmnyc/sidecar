@@ -34,10 +34,25 @@ build loads a background that's missing a module, with no error until something
 calls into it.
 
 **Current status:** shipped and live on both stores. Firefox launched in 1.5.0;
-AMO is public. AMO auto-approves listed extensions that pass automated validation
-and publishes within minutes, while the Chrome Web Store takes up to a week — so
-the normal steady state is a newer version live on Firefox and the previous one
-on Chrome. That gap is expected, not a problem to manage.
+AMO is public.
+
+**The store gap, and which way it runs.** Through 1.8.0 AMO auto-approved on
+automated validation and published within minutes, while the Chrome Web Store
+took up to a week, so the steady state was Firefox ahead and Chrome behind. That
+has inverted: AMO review slowed to human review with no published turnaround, and
+1.9.1 sat in the queue while it was already live on Chrome. Plan for Chrome
+landing first and for Firefox to skip versions entirely — a Firefox user may go
+straight from 1.8.0 to 1.10.0. Consequences worth holding onto:
+
+- **Never block a Chrome release on the AMO queue.** Submit both, ship what
+  clears.
+- **Never withdraw a pending AMO version to replace it with a newer one.** You
+  lose the queue position, and AMO locks the version string forever. Two versions
+  pending at once is fine: AMO serves the highest approved version, so a late
+  approval of an older one cannot downgrade anybody.
+- **AMO release notes have to cover the versions Firefox skipped**, since that
+  store's users never saw them. In-app is already handled — `help.html#whats-new`
+  keeps every prior version's section.
 
 ## Shared vs. browser-specific
 
@@ -80,8 +95,17 @@ on Chrome. That gap is expected, not a problem to manage.
       version — it forces a point release, and the two stores end up on different
       numbers.
 - [ ] Tag `vX.Y.Z`, then `scripts/package.sh vX.Y.Z` (it requires the tag and a clean
-      tree, and emits both zips).
-- [ ] Submit to **both** stores at once and let Firefox land first.
+      tree, and emits both store zips), then `scripts/package-source.sh vX.Y.Z`
+      for `dist/sidecar-X.Y.Z-source.zip`.
+- [ ] **On AMO, answer YES to the machine-generated-code question and upload the
+      source zip.** Every release, without re-arguing it. `nip49.js` is an esbuild
+      bundle, which meets AMO's definition on its own, and the store zip strips
+      `scripts/` and `VENDOR.md` — every answer a reviewer needs is only in the
+      source zip. Paste `REVIEWERS.md` into the build-instructions field.
+      Under-declaring this is what gets an add-on rejected and taken down;
+      over-declaring only slows the review.
+- [ ] Submit to **both** stores at once, and ship whichever clears first — see
+      the store gap above.
 
 ## Known cross-browser gotchas
 

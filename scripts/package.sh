@@ -49,10 +49,13 @@ git archive "${TAG}" | tar -x -C "${STAGE}"
 # Strip everything that isn't part of the running extension.
 rm -rf "${STAGE}/.claude" "${STAGE}/.github" "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
        "${STAGE}/docs"
-rm -f "${STAGE}/.gitignore" "${STAGE}/README.md" "${STAGE}/CHANGELOG.md" \
-      "${STAGE}/FEATURES.md" "${STAGE}/PRIVACY.md" "${STAGE}/BROWSER_PARITY.md" \
-      "${STAGE}/FIREFOX_PORT.md" "${STAGE}/VENDOR.md" "${STAGE}/WALLET_BACKENDS.md" \
-      "${STAGE}/package.json"
+# Every top-level .md, by glob rather than by name. The old explicit list failed
+# open: a doc added later shipped inside the extension until someone noticed, and
+# REVIEWERS.md — written FOR the store, describing how to reproduce this very zip
+# — was about to be the next one. Nothing in the package references a bundled .md
+# (help.html's changelog and privacy links point at GitHub), so the glob is safe.
+# NOTICE has no extension and stays: it's the vendored licenses.
+rm -f "${STAGE}"/*.md "${STAGE}/.gitignore" "${STAGE}/package.json"
 
 # version.js is gitignored and not in the archive — regenerate it, stamped to the tag.
 cat > "${STAGE}/version.js" <<EOF
