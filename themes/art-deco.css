@@ -198,11 +198,11 @@
   76% { transform: translateY(-0.06em); }
   100% { transform: translateY(0); opacity: 1; }
 }
-[data-theme="art-deco"] .bal-glyph {
-  display: inline-block;
+[data-theme="art-deco"] .bal-glyph { display: inline-block; }
+[data-theme="art-deco"] .bal-glyph.bal-in {
   animation: deco-rise 460ms cubic-bezier(0.26, 0.72, 0.24, 1)
              calc(min(var(--i), 8) * 58ms) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="art-deco"] .bal-glyph { animation: none; }
+  [data-theme="art-deco"] .bal-glyph.bal-in { animation: none; }
 }

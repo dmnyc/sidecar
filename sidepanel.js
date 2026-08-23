@@ -9554,19 +9554,27 @@
     // record and never be repainted.
     if (prev === key && el.textContent === (parts.sym || '') + parts.text) return;
 
-    // A figure that is genuinely new arrives one glyph at a time, so each theme can
+    // The figure is ALWAYS built one glyph at a time, so each theme can style and
     // animate it in its own idiom — a nixie tube striking, a projector flickering,
-    // a split-flap board turning over. The animation itself lives in the theme
-    // file, keyed off .bal-glyph, and each theme also disables it under
-    // prefers-reduced-motion. This code stays ignorant of which theme is active:
-    // it publishes the position of each glyph and lets the CSS decide what that
-    // means.
+    // a split-flap board turning over, a comma held in the theme's second colour.
+    // All of that lives in the theme file; this code stays ignorant of which theme
+    // is active and just publishes what it knows about each glyph:
     //
-    //   --i  this glyph's index, --n the total. Enough for a stagger, a
-    //        centre-out reveal, or alternating directions.
+    //   .bal-glyph  every glyph, always.
+    //   .bal-sep    the ones that are not digits — the thousands separator, the
+    //               decimal point. A theme that wants to treat punctuation
+    //               differently cannot ask CSS "is this a comma", so it is said
+    //               here.
+    //   .bal-in     only on an arrival that has earned an animation. Splitting and
+    //               animating used to be the same decision, which meant any
+    //               per-glyph STYLING vanished on a repaint that did not animate —
+    //               a denomination toggle, or Reduce motion — and a permanently
+    //               coloured comma would have flickered in and out of existence.
+    //   --i / --n   this glyph's index and the total. Enough for a stagger, a
+    //               centre-out reveal, or alternating directions.
     //   --strike-delay / --strike-dur  the ragged beat above, which only Nixie
-    //        uses. Emitted for every theme because it is two custom properties,
-    //        not two DOM nodes, and a theme that ignores them pays nothing.
+    //               uses. Emitted for every theme because it is two custom
+    //               properties, not two DOM nodes.
     //
     // `prev !== key` is what makes a real balance change re-animate: a new element
     // (nothing recorded) or a number that moved both qualify, while a denomination
@@ -9576,20 +9584,15 @@
 
     el.textContent = '';
     if (parts.sym) el.append(h('span', { className: symClass, textContent: parts.sym }));
-    if (animate) {
-      // Separators come along for the ride so the whole figure reads as one sign.
-      const glyphs = Array.from(parts.text);
-      glyphs.forEach((ch, i) => {
-        const { delay, duration } = glyphBeat(i);
-        el.append(h('span', {
-          className: 'bal-glyph',
-          textContent: ch,
-          style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
-        }));
-      });
-    } else {
-      el.append(document.createTextNode(parts.text));
-    }
+    const glyphs = Array.from(parts.text);
+    glyphs.forEach((ch, i) => {
+      const { delay, duration } = glyphBeat(i);
+      el.append(h('span', {
+        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep') + (animate ? ' bal-in' : ''),
+        textContent: ch,
+        style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
+      }));
+    });
   }
 
   // Force both balance surfaces to strike on their next paint, whatever figure they

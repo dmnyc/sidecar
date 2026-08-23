@@ -228,8 +228,10 @@
   mask-image: radial-gradient(circle at 50% 50%, #fff var(--sand), transparent calc(var(--sand) + 34%));
   mask-size: 3px 3px;
   mask-repeat: repeat;
-  animation: aegean-sand 660ms ease-out calc(min(var(--i), 8) * 68ms) both;
+}
+[data-theme="aegean"] .bal-glyph.bal-in {
+  animation: aegean-sand 980ms ease-out calc(min(var(--i), 8) * 82ms) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="aegean"] .bal-glyph { animation: none; }
+  [data-theme="aegean"] .bal-glyph.bal-in { animation: none; }
 }

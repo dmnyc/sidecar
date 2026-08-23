@@ -589,14 +589,14 @@
    works, and any explicit curve rewrites it. Duration and delay come per-glyph
    from paintBalanceEl (sidepanel.js), which also decides WHEN a figure has
    earned a strike. */
-[data-theme="nixie"] .bal-glyph {
+[data-theme="nixie"] .bal-glyph.bal-in {
   animation: nixie-strike var(--strike-dur, 1080ms) var(--strike-delay, 0ms) both;
 }
 
 /* Decorative, and it flashes — honor the OS setting by landing on the final
    state. */
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="nixie"] .bal-glyph,
+  [data-theme="nixie"] .bal-glyph.bal-in,
   [data-theme="nixie"] .balances-hidden .wallet-balance::after,
   [data-theme="nixie"] .balances-hidden .pinned-balance-amt::after { animation: none; }
 }
