@@ -141,7 +141,7 @@ Or regenerate it manually any time:
 | Side panel UI | `sidepanel.html`, `sidepanel.js`, `styles.css`, `fonts.css` |
 | Standalone pages | `welcome.html`/`welcome.js` (Nostr app directory, first-run), `wallets.html`/`wallets.js`/`wallets.css` (NWC wallet suggestions), `help.html`/`help.js`/`help.css` (help & guides) |
 | Lightning (NWC / NIP-47) | `nwc-client.js`, `wallet-budgets.js` |
-| Vendored | `nostr-tools.js`, `qrious.min.js` (receive QR), `jsqr.js` (scan QR to pay), `fonts/` (Playfair Display + Manrope, SIL OFL) |
+| Vendored | `nostr-tools.js`, `qrious.min.js` (receive QR), `jsqr.js` (scan QR to pay), `fonts/` (ten faces, all SIL OFL — credited under Acknowledgments) |
 | Generated | `version.js` (build stamp), `scripts/stamp-version.sh` |
 
 Decrypted private keys live only in the service worker's in-memory map. If the worker
@@ -185,6 +185,7 @@ dedicated, named support for:
 - Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf), [Alby](https://github.com/getAlby/lightning-browser-extension) extension, and [Amber](https://github.com/greenart7c3/Amber) by [greenart7c3](https://github.com/greenart7c3) — the OG reliable signers most of Nostr grew up with
 - Global @-mention search is powered by the [nostrarchives-api](https://github.com/barrydeen/nostrarchives-api) by [barrydeen](https://github.com/barrydeen)
 - The Bauhaus theme is a tribute to the [Bauhaus school](https://en.wikipedia.org/wiki/Bauhaus) (1919–1933) — its principles of geometric clarity, primary color, and type as architecture echo in the author's own logo at [dmnyc.net](https://dmnyc.net)
+- **Fonts** — every bundled face is under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL), with its license text in `fonts/`: Manrope for the UI, and Playfair Display, Oswald, Bitter, Cinzel, Jost, EB Garamond, Josefin Sans and Pinyon Script as the themes' display faces. The Nixie theme is set in **Apogee Telemetry**, a patched build of [Routed Gothic](https://webonastick.com/fonts/routed-gothic/) by Darren Embry — renamed per the OFL's reserved-name rule, with the modifications documented in [`fonts/OFL-ApogeeTelemetry.md`](fonts/OFL-ApogeeTelemetry.md). The build is [Apogee](https://github.com/Resolvr-io/apogee)'s, shipped here unchanged; Routed Gothic itself is a digitization of the mid-century Leroy-style lettering that engraved the instrument panels this theme is about.
 
 ## Author
 
