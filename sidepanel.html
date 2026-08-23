@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="themes/aegean.css" />
   <link rel="stylesheet" href="themes/brownstone.css" />
   <link rel="stylesheet" href="themes/bauhaus.css" />
+  <link rel="stylesheet" href="themes/nixie.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
 </head>
 <body>
@@ -293,6 +294,11 @@
       <div class="setting">
         <h3>Theme</h3>
         <p class="hint">Choose your preferred color scheme and aesthetic.</p>
+        <!-- ORDER: the dark themes first, then the light ones. This is the
+             canonical list; the arrays in sidepanel.js (validThemes), prompt.js
+             (THEMES) and content.js (CARD_THEMES) are kept in the same order so
+             a new theme is obvious to slot in. A new DARK theme joins the run
+             ending at Nixie; a new LIGHT one goes after Bauhaus. -->
         <div class="theme-selector">
           <button type="button" class="theme-card" data-theme="speakeasy">
             <span class="theme-name">Speakeasy</span>
@@ -302,6 +308,9 @@
           </button>
           <button type="button" class="theme-card" data-theme="brownstone">
             <span class="theme-name">Brownstone</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="nixie">
+            <span class="theme-name">Nixie</span>
           </button>
           <button type="button" class="theme-card" data-theme="art-deco">
             <span class="theme-name">Art Deco</span>

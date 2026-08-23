@@ -1,0 +1,34 @@
+<svg width="30" height="16" viewBox="0 0 30 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Nixie mesh — the fine wire grid that sits in front of a nixie tube's
+       digits, not a decorative honeycomb. It reads as a continuous fence: every
+       cell is closed, the lattice runs edge to edge, and no hex floats on its
+       own. (The first version drew 120px cells with rivet dots at 5% ink, and at
+       that scale a hex is an object rather than a texture — you saw the shapes,
+       not the screen. 24px cells were still legible as shapes; these are not.)
+
+       Flat-top cells, 20px across and 16px tall: a fraction squashed from
+       regular (a true hex of this width is 17.3 tall) so every coordinate lands
+       on a whole pixel and the tile cannot drift or seam. Column period 15, row
+       period 16, so the tile is exactly two columns by one row.
+
+       Each cell draws only its top edge and its two right-hand slants; its
+       neighbors supply the other three. That way a shared edge is stroked ONCE
+       — drawing whole hexes double-strokes every interior edge, which at this
+       density is the difference between a mesh and a plaid. Paths that cross
+       the tile edge are repeated at the wrapping offset, so the clipped halves
+       meet up when the tile repeats.
+
+       Stroke-only, so the chassis gradient beneath shows through. Steel, not
+       ember: the screen is a piece of metal, and it only looks orange in a photo
+       where it is sitting in front of lit gas. Stroked warm, tiled over the
+       whole window, it was a brown haze over everything. -->
+  <g stroke="#a9c0d8" stroke-width="1" fill="none" opacity="0.07">
+    <path d="M-5 -8H5L10 0L5 8"/>
+    <path d="M-5 8H5L10 16L5 24"/>
+    <path d="M10 -16H20L25 -8L20 0"/>
+    <path d="M10 0H20L25 8L20 16"/>
+    <path d="M10 16H20L25 24L20 32"/>
+    <path d="M25 -8H35L40 0L35 8"/>
+    <path d="M25 8H35L40 16L35 24"/>
+  </g>
+</svg>

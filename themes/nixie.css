@@ -1,0 +1,554 @@
+/* ============================================================
+   Sidecar — Nixie Theme
+   Retrofuturism: a steel instrument panel with one hot nixie in it.
+   Inspired by the gas-discharge readouts of mid-century control
+   rooms — red-hot digits behind a wire screen, and everything that
+   isn't the gas is cold metal.
+   ============================================================ */
+
+[data-theme="nixie"] {
+  color-scheme: dark;
+
+  /* Routed Gothic (patched as Apogee Telemetry, SIL OFL — see fonts/) is the
+     numeral face of instrument panels; here it becomes the display face, so
+     headings read like stencilled equipment labels. Drawn from a category none
+     of the other six occupy: monospaced engineer's lettering. */
+  --font-display: 'Apogee Telemetry', 'Oswald', var(--font-ui);
+
+  /* surfaces — the chassis, and it is COLD.
+     This started as warm near-black browns on the theory that a nixie panel is
+     warm all the way down. Photographs of the real thing say the opposite:
+     around the tube everything is cold — black, steel, sometimes frankly blue —
+     and the only warm thing in the frame is the gas plus whatever its light
+     lands on. Warm surfaces made the glow read as tint rather than light.
+     So: steel blue-black, and every warm value in this file is something that
+     is actually glowing. */
+  --bg: #07080a;
+  --bg-2: #0c0e12;
+  --velvet-1: #11141a;
+  --velvet-2: #171b22;
+  --velvet-1-rgb: 17, 20, 26;
+  --av-from: #191d25;
+  --av-to: #11141a;
+  --banner-accent: #11141a;
+
+  /* panel furniture — rings, rules, hairlines. STEEL, not ember.
+     These are ~25 rules between --border and --gold-soft, so when they carried
+     the accent hue every card in the app had a warm rim and the whole theme
+     read brown. The tube is the only thing allowed to glow; the metal holding
+     it is cold. */
+  --border: rgba(168, 190, 214, 0.13);
+  --border-strong: rgba(168, 190, 214, 0.26);
+  --border-rgb: 168, 190, 214;
+  --gold-soft: rgba(168, 190, 214, 0.30);
+  --well-rgb: 12, 14, 18;
+  --sheen: rgba(200, 220, 240, 0.05);
+  --warn: #ffb454;
+  --warn-rgb: 255, 180, 84;
+  /* success is the cool counterpoint the photos supply: the blue-white rim
+     light on the tube glass. A green here would be a third temperature. */
+  --success: #5fc9c4;
+  --success-rgb: 95, 201, 196;
+
+  /* brand — the tube's fill gas, and it runs RED.
+     SPLIT BY ROLE, the same decision Art Deco and Bauhaus make: the discharge
+     (#f0300c, and #ff5a1e where it is hottest) is a GLOW and cannot be ink.
+     The roles here are inverted from a light theme — a glow IS legible on dark,
+     and the danger is the opposite one: an ember that reads as decoration
+     rather than information at small sizes. So:
+
+       --orange  #ff7a3c  the working accent ink: the color of the digit's
+                         mid-envelope, 6.7:1 worst surface. @mentions, links,
+                         the account check.
+       --amber   #ffb454  warm signal ink, countdowns and pending states.
+       --gold    #ffd2ab  pale incandescent ink — the color the digits turn at
+                         the top of their envelope, which in every reference
+                         photo is nearly white. 12.4:1 worst surface, used as a
+                         `color:` in ~25 rules, so it must be the most legible
+                         thing in the theme.
+       #f0300c            the discharge itself — pinned into the fill and glow
+                         tokens (FAB, primary button, accent pills, relax
+                         button, chips, the balance bloom), never reached
+                         through --gold. Neon-red rather than the terracotta
+                         this theme started with: in the reference photos the
+                         wide halo around a digit is unambiguously red, and it
+                         is the orange-only version that looks like clay. */
+  --orange: #ff7a3c;
+  --amber: #ffb454;
+  --gold: #ffd2ab;
+  /* The balance figure gets its OWN ink, hotter than the pale accent one. In the
+     reference photos a lit numeral is amber-orange along the stroke, white only where
+     the cathode is brightest — which the bloom's innermost layer supplies. Pale
+     peach for the digits themselves made them look like printed text with a
+     glow behind them rather than the source of the glow. Large text (40px/700
+     and 24px/700, both past the 18.66px bold bar), 9.9:1 on the card. --gold
+     stays pale for the ~25 rules that use it as ordinary accent ink. */
+  --balance-ink: #ffb478;
+  --accent-fill: linear-gradient(160deg, #ff5a1e, #cf2606);
+  --balloon-bg-hover: rgba(240, 48, 12, 0.15);
+  --glow: rgba(240, 48, 12, 0.26);
+  /* ~15 rules paint accent washes with rgba(var(--accent-rgb), x) — the active
+     account row, focus rings, the avatar halo. The :root default is Speakeasy's
+     gold, and only two themes were overriding it, so every one of those washes
+     was quietly gold here. Same defect the contrast test's "no stray Speakeasy
+     gold" case exists for, just reached by omission instead of a literal. */
+  --accent-rgb: 240, 48, 12;
+  /* the tube light pooling inside the wallet card's top edge (.wallet-card's
+     --card-wash hook). Left at the default this was a GOLD wash, which is what
+     made the wallet read as the wrong theme. */
+  --card-wash: rgba(240, 48, 12, 0.20);
+
+  /* The cage tile, as a token so the one copy of it serves both the figures and
+     the hidden-balance discs. Everything about how it is built and why it is
+     inline is documented at the cage rule below. */
+  --cage: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2218%22%20height%3D%228%22%20viewBox%3D%220%200%2018%208%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.8%22%3E%3Cpath%20d%3D%22M-3%20-4H3L6%200L3%204%22%2F%3E%3Cpath%20d%3D%22M-3%204H3L6%208L3%2012%22%2F%3E%3Cpath%20d%3D%22M6%20-8H12L15%20-4L12%200%22%2F%3E%3Cpath%20d%3D%22M6%200H12L15%204L12%208%22%2F%3E%3Cpath%20d%3D%22M6%208H12L15%2012L12%2016%22%2F%3E%3Cpath%20d%3D%22M15%20-4H21L24%200L21%204%22%2F%3E%3Cpath%20d%3D%22M15%204H21L24%208L21%2012%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E');
+
+  /* --lav is a secondary ink in ~49 rules — headings, links, sub-labels — and a
+     stop in the Trust fill. Cold: those are engraved panel labels, not
+     readouts. Pairing it with the ember --orange for live/actionable text is
+     the same division the photos make, where the lettering on the base plate is
+     grey and only the tube is lit. --purple carries the Trust button's bottom
+     stop, and is only reached through the Trust fill, which this theme overrides
+     below — so it stays cool for the one other rule that reads it. */
+  --lav: #d8e3ee;
+  --purple: #8fb6cf;
+
+  /* ---- buttons: dark glass, lit lettering ------------------------------------
+     Every filled button in this theme is a piece of smoked glass with the label
+     glowing through it, because that is the only thing a nixie tube is. Bright
+     fills were tried first and they are the wrong object: a saturated orange
+     slab is a plastic key from a different machine, and it fought both the cold
+     chassis and the one figure that is supposed to be the brightest thing on
+     screen.
+
+     There were also two literal bugs in the bright version, both the same shape
+     the contrast test was written for — a theme overriding the MIDDLE of a
+     three-stop gradient and inheriting the other two from Speakeasy. The reload
+     and grant buttons ran gold -> ember -> bronze, which is where the ugliness
+     was coming from.
+
+     One ramp for all of them (#242c37 -> #1a2029 -> #11161d, lighter at the top
+     where glass catches the room), and the ROLE is carried by the ink and the
+     rim rather than by the fill:
+
+       primary / accent   lit amber #ffb478, warm rim, warm glow beneath
+       Trust              pale steel #d8e3ee, steel rim, no warm glow — the cold
+                          sibling of the hot action
+       secondary          already dark; its label drops from --text to --text-2
+                          so Deny doesn't out-shout Allow now that both are dark
+
+     Label contrast on the three stops: amber 8.09 / 9.40 / 10.42, steel
+     10.83 / 12.59 / 13.96. The test's bar is mid >= 4.5, every stop >= 3.0, and
+     dark-fill buttons clear it by a mile — which is the point, the old dark
+     label on the ember bottom stop was scraping 3.75. */
+  --btn-primary-top: #242c37;
+  --btn-primary-mid: #1a2029;
+  --btn-primary-bot: #11161d;
+  --btn-primary-text: #ffb478;
+  --btn-shadow: rgba(240, 48, 12, 0.26);
+  /* The rim on every dark button, and it is a REFLECTION, not a line: the light
+     off the figures catching the edge of the glass. So it is warmer than the
+     discharge (#ff7632 against #f0300c) and weak enough to read as a highlight —
+     at neon red and 0.62 alpha it was a drawn red outline, which no photograph of
+     a tube shows. The spill underneath the button stays red, because that is the
+     light landing on the surface below rather than glancing off the edge. */
+  --rim: rgba(255, 118, 50, 0.40);
+  --btn-secondary-text: #d3dae2;
+
+  --btn-accent-top: #242c37;
+  --btn-accent-mid: #1a2029;
+  --btn-accent-bot: #11161d;
+  --btn-accent-text: #ffb478;
+
+  --btn-lav-top: #242c37;
+  --btn-lav-mid: #1a2029;
+  --btn-lav-bot: #11161d;
+  --btn-lav-text: #d8e3ee;
+  --btn-lav-ring: rgba(168, 190, 214, 0.34);
+  --btn-lav-shadow: rgba(0, 0, 0, 0.45);
+
+  /* The exception: small chips that use --accent-fill keep the loud ember,
+     because on a chip the FILL is the selected state — dark-on-dark would erase
+     the distinction between an active preset and an idle one. They get their own
+     dark ink (styles.css --chip-ink) rather than --btn-primary-text, which is
+     now bright for the buttons above. */
+  --chip-ink: #180a02;
+
+  /* The compose FAB is the same object as the buttons: dark glass, lit glyph.
+     It carries a warm ring and an outer glow (see the scoped rule below) so a
+     dark disc on a dark panel is still the most findable thing in the corner. */
+  --fab-bg: linear-gradient(160deg, #242c37, #11161d);
+  --fab-icon: #ffb478;
+
+  /* inks — cool greys. Nothing that isn't lit gets to be warm. */
+  --text: #edf1f5;
+  --text-2: #d3dae2;
+  --muted: #a0aebc;
+  --faint: #778491;
+
+  /* interaction states — ambient light on metal, so cool. (The exception is
+     --mention-bg: a mention is live, and reads as gas.) */
+  --hover-soft: rgba(176, 200, 222, 0.07);
+  --hover-medium: rgba(176, 200, 222, 0.12);
+  --hover-faint: rgba(176, 200, 222, 0.045);
+  --mention-bg: rgba(240, 48, 12, 0.17);
+  --pending-sub: #a0aebc;
+  --pending-text: #ffb454;
+  --scroll-thumb: rgba(168, 190, 214, 0.20);
+  --scroll-thumb-hover: rgba(168, 190, 214, 0.32);
+
+  /* red is a payment/balance error color in ~16 rules, and this theme's ambient
+     glow is now red — so the error ink has to sit somewhere the tubes never go.
+     Coral pink is that place: lighter and pinker than any part of the
+     discharge, and it survives on a steel surface. */
+  --red: #ff7d8c;
+
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.62);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.5);
+  --pattern-opacity: 0.55;
+
+  --relax-dot-ok: #ff7a3c;
+  --relax-dot-low: #ffb454;
+}
+
+/* The rims for the dark-glass buttons. These are inset shadows and NOT borders:
+   the shared rule sets border: none, and a real border on one filled button
+   makes it 2px taller than the one beside it — the reason the contrast test
+   asserts .lav-btn never grows one. .lav-btn already had a --btn-lav-ring hook;
+   .primary and the two accent buttons don't, so their whole box-shadow is
+   restated here.
+
+   The white top hairline every one of them ships (0.3-0.35 alpha) is a highlight
+   for a bright plastic key. On smoked glass it reads as a scratch, so it comes
+   down to 0.06 and a warm inner glow takes over the job of describing the top
+   edge. */
+/* The primary carries one thing the others don't: gas inside the glass. With
+   every filled button now dark, the ink and the rim were the only things telling
+   Allow apart from Deny — and Deny's near-white label is the higher-contrast of
+   the two, so the hierarchy read backwards. The inset bloom lights the bottom of
+   the button from within, which is where a tube is brightest, and settles it. */
+[data-theme="nixie"] .primary {
+  box-shadow:
+    inset 0 0 0 1px var(--rim),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -14px 22px -14px rgba(255, 106, 36, 0.38),
+    0 8px 22px var(--btn-shadow);
+}
+[data-theme="nixie"] .lav-btn {
+  box-shadow:
+    inset 0 0 0 1px var(--btn-lav-ring),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 22px var(--btn-lav-shadow);
+}
+/* Lit lettering means lit: a wide, weak halo in the discharge color, so the label
+   looks like it is glowing through the glass rather than printed in orange on it.
+   Kept to one soft layer — the balance is the theme's bloom, and a 13px button
+   label competing with it would be both illegible and gaudy. */
+[data-theme="nixie"] .primary,
+[data-theme="nixie"] .reload-banner-btn,
+[data-theme="nixie"] .host-perm-grant-btn {
+  text-shadow: 0 0 0.45em rgba(255, 106, 36, 0.42);
+}
+
+[data-theme="nixie"] .reload-banner-btn,
+[data-theme="nixie"] .host-perm-grant-btn {
+  box-shadow:
+    inset 0 0 0 1px var(--rim),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 12px rgba(240, 48, 12, 0.14);
+}
+
+/* The FAB is a dark disc on a dark panel, so the ring and the glow are what make
+   it findable — without them it is a hole. The glow is the tube's light on the
+   surface it sits above, so it belongs here regardless. */
+[data-theme="nixie"] .fab {
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px var(--rim),
+    0 0 22px rgba(240, 48, 12, 0.26);
+}
+
+/* The ink and the face for any figure this theme lights up. The bloom itself is
+   below, because it has to be sized per surface.
+
+   The two balance selectors are named alongside .nixie-num, which nothing
+   applied: this treatment is what makes these numerals look lit between strikes,
+   and without it the figure only glowed while the animation was on screen.
+   .nixie-num stays as the hook for any other figure that wants the same. */
+[data-theme="nixie"] .nixie-num,
+[data-theme="nixie"] .wallet-balance,
+[data-theme="nixie"] .pinned-balance-amt {
+  color: var(--balance-ink);
+  font-family: 'Apogee Telemetry', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* The nixie bloom. FOUR layers, because that is what the reference photos show
+   and a single orange halo does not: a white-hot core where the cathode is
+   brightest, an orange inner glow, then red, then a deep-red wash the color of
+   the light spilling onto everything around the tube. Building it as one hue was
+   what made the figure look printed in terracotta instead of lit from inside.
+   em radii keep the stack proportional at every text size.
+
+   SIZED TO THE CAGE, and this is the constraint that governs the numbers. A mask
+   clips at the border box, so the widest layer has to die out inside the padding
+   the cage rule adds, or the glow ends in a hard rectangle. The rule of thumb
+   that came out of tuning it: padding must be about 1.3x the widest blur radius.
+   Padding EQUAL to the radius still showed a step — invisible on the wallet card,
+   where the card surface hides it, and obvious on the pinned bar, which sits on
+   near-black. That is also why the widest layer is 0.8em and not the 2.2em this
+   started as: a 2.2em wash needs ~2.9em of padding, which on the hero is 116px of
+   invisible box swallowing clicks meant for the label and the unit. The ambient
+   red that layer used to provide now comes from --card-wash, which is where the
+   light in the photographs is anyway: on the surface, not in the glyph. */
+[data-theme="nixie"] .nixie-num,
+[data-theme="nixie"] .wallet-balance {
+  text-shadow:
+    0 0 0.05em rgba(255, 246, 230, 0.5),
+    0 0 0.16em color-mix(in srgb, #ff6a24 58%, transparent),
+    0 0 0.42em color-mix(in srgb, #f0300c 62%, transparent),
+    0 0 0.8em color-mix(in srgb, #e01b06 46%, transparent);
+}
+/* Tighter on the pinned bar: a compact readout in a 44px strip cannot carry the
+   hero's padding (see the cage rule), and a proportionally smaller glow is the
+   better-looking answer anyway. */
+[data-theme="nixie"] .pinned-balance-amt {
+  text-shadow:
+    0 0 0.05em rgba(255, 246, 230, 0.5),
+    0 0 0.14em color-mix(in srgb, #ff6a24 58%, transparent),
+    0 0 0.34em color-mix(in srgb, #f0300c 58%, transparent),
+    0 0 0.62em color-mix(in srgb, #e01b06 42%, transparent);
+}
+
+/* OPTICAL CENTERING. styles.css nudges .wallet-balance UP by 0.08em so Playfair's
+   oldstyle figures — which have real descenders on 3, 4, 7 — stop looking like
+   they sag. This face needs the opposite correction, not zero: its figures are
+   lining and sit entirely on the baseline, so the only ink below the baseline in
+   a balance is the comma. That makes the ink top-heavy inside a line box that the
+   layout centers correctly, and the number reads high. Most obvious in the pinned
+   bar, where the eye has the Send/Hide buttons right beside it as a reference.
+
+   0.07em down, picked by rendering 0 / 0.04 / 0.07 / 0.10 against a center guide
+   and against Speakeasy's bar: at 0 the guide passes well below the digits'
+   middle, at 0.07 it runs through it. em-based, so it holds at the card's 40px,
+   the collapsed card's 24px and the pinned bar's 24px alike. */
+[data-theme="nixie"] .wallet-balance,
+[data-theme="nixie"] .pinned-balance-amt {
+  transform: translateY(0.07em);
+}
+/* inline-block so the figure is a box of its own rather than a card-wide line:
+   the cage is a mask on this element, and the padding it needs to hold the bloom
+   has to apply to the digits, not to the full width of the card.
+
+   vertical-align matters once it is inline-block. Left at baseline, the line box
+   also has to hold the strut's descender, which put 3px under the figure that no
+   other theme has — visible as a slightly taller card, and worse in the collapsed
+   header where 3px of 48 is a real difference. Aligning to the top drops it,
+   since the figure is the tallest thing on its line either way. */
+[data-theme="nixie"] .wallet-balance {
+  display: inline-block;
+  vertical-align: top;
+}
+
+/* ---- the cage --------------------------------------------------------------
+   The anode grid in front of the digits, which is what separates a nixie from
+   any other glowing readout: the numeral is always seen THROUGH a wire screen.
+
+   It is a MASK, not a drawn layer. The first version painted the lattice over
+   the figure as dark strokes, and you could see the wire itself — a hexagon
+   pattern sitting on top of the number, plus a visible rectangle of texture
+   wherever the tile was laid down. Wrong object: the grid is not something you
+   see, it is something the glow is missing from. So the mesh cuts the lit area
+   away instead, and every hexagon you can make out is negative space.
+
+   Two mask layers composited with `exclude`, which is "everything, minus the
+   mesh": layer one is a flat opaque fill, layer two is the lattice tile. Nothing
+   here paints a color. If a browser lacks mask-composite the default `add` makes
+   the mask fully opaque, which loses the cage and changes nothing else — the
+   right way for this to fail.
+
+   Three things about the tile are load-bearing and all three were found the hard
+   way, because every one of them fails to a mask that shows nothing wrong:
+
+     INLINE, not an external file. A mask image is fetched under same-origin
+     rules, and an SVG can be refused as a mask source while the exact same file
+     works fine as a background-image (it is refused outright over file://, which
+     is how this was caught). A refused mask reads as transparent, so the figure
+     vanishes on a single layer, or the cage silently does nothing when
+     composited. Data URI, no origin, no question. The lattice is generated by the
+     same math as nixie-mesh.svg: half-width 6, shoulder 3, half-height 4, column
+     period 9, row period 8, tile 18x8, one stroke per shared edge, wrap copies at
+     the tile edges.
+
+     WHITE strokes. A url() image mask is read as LUMINANCE, not alpha, in at
+     least Chrome. Black strokes on transparent have luminance zero everywhere,
+     which is a mask that hides everything and, composited, produces no cut at
+     all. White at 0.8 opacity means the same thing under either reading
+     (luminance 0.8, alpha 0.8), so the tile behaves the same whichever mode a
+     browser picks — and so does the flat layer above it, hence #fff there too.
+
+     0.8 ALPHA, not 1. Excluded against full coverage that leaves a fifth of the
+     glow alive along the wire, so the lattice dims the figure rather than
+     punching holes through it: a full-alpha wire cuts a 1px gap in a 4px digit
+     stroke and the glyph starts coming apart. 0.55 was the first try and the cut
+     was invisible — a 1px antialiased stroke at half alpha removes almost
+     nothing.
+
+   The padding is load-bearing too: a mask clips everything outside its painting
+   area (the border box), so without it the bloom would be sheared off in a hard
+   rectangle a few pixels from the digits. The negative margins hand the space
+   back to the layout, so neither the card nor the pinned bar changes height.
+
+   No -webkit- fallback on purpose, even though styles.css pairs them elsewhere.
+   The standard mask properties are Chrome 120+, and our floor is 114, so on
+   114-119 this whole block is invalid and those users get the figure with no
+   cage — which is the failure mode we want. -webkit-mask-composite is the old
+   Apple keyword set (`xor` for exclude) with its own layer-ordering behavior, and
+   if it composited the other way round it would render the balance as wire-shaped
+   slivers: an unreadable number is far worse than a missing texture. */
+[data-theme="nixie"] .wallet-balance,
+[data-theme="nixie"] .pinned-balance-amt {
+  mask-image: linear-gradient(#fff, #fff), var(--cage);
+  /* em, not px, so the cage scales with the figure: the wire has to stay the same
+     fraction of a digit stroke at 24px as at 40px, or the smaller readout in the
+     pinned bar gets chewed up while the big one looks right. 0.45em x 0.2em is the
+     18x8 tile at the wallet card's 40px. */
+  mask-size: auto, 0.45em 0.2em;
+  mask-repeat: no-repeat, repeat;
+  mask-position: center, center;
+  mask-composite: exclude;
+}
+[data-theme="nixie"] .wallet-balance {
+  padding: 1.05em 0.85em;
+  margin: calc(6px - 1.05em) -0.85em calc(4px - 1.05em);
+}
+/* The collapsed card sets `margin: 0` on the figure from a three-class selector,
+   which outranks the two-part one above and dropped the compensation while
+   keeping the padding — 50px of it, so the sticky header stood half again as tall
+   as every other theme's. The padding has to stay (it is what keeps the mask from
+   shearing the bloom, and it is em-based so it shrinks with the 24px figure), so
+   the compensation is restated here at a specificity that wins. Cancels exactly:
+   24px line + 2 x 1.05em padding - 2 x 1.05em margin = 24px, which is what the
+   other themes get from margin: 0 and no padding. */
+[data-theme="nixie"] .wallet-card.compact .wallet-balance {
+  margin: -1.05em -0.85em;
+}
+[data-theme="nixie"] .pinned-balance-amt {
+  padding: 0.85em 0.7em;
+  margin: -0.85em -0.7em;
+}
+
+/* Hiding balances swaps the figure for four discs (.balances-hidden in
+   styles.css: the element goes visibility: hidden and its ::after comes back
+   visible carrying '••••'). Those discs are still the tube's output, so they
+   belong behind the same screen.
+
+   The mask has to be repeated ON the pseudo-element. Masking an ancestor does
+   not reach it: the parent is visibility: hidden, and a masked group whose own
+   visibility is hidden does not carry its mask down to a descendant that turns
+   visibility back on — the discs came out perfectly round with no wire across
+   them. Same two layers, same tile, same em sizing, so the grid lines up with
+   the one over the digits.
+
+   And they strike as they appear. Switching to hidden mode is a change of what
+   the tube displays, which in a real one means the cathodes it was lighting go
+   out and different ones come on, so it flickers. No JS needed for this half: the
+   ::after does not exist until .balances-hidden matches, and an element that
+   starts matching a rule with an animation runs it. Leaving hidden mode is the
+   other half of the same event and is handled in sidepanel.js
+   (restrikeBalances), because there the figure is a repaint of a number that did
+   not change.
+
+   All four discs flicker in unison, unlike the digits, which each carry their own
+   beat. They are one text run in a single pseudo-element and CSS content cannot
+   be split — and the shared hidden-balance mechanism is deliberately CSS-only so
+   that toggling it never reflows the box. Worth knowing rather than fixing. */
+[data-theme="nixie"] .balances-hidden .wallet-balance::after,
+[data-theme="nixie"] .balances-hidden .pinned-balance-amt::after {
+  mask-image: linear-gradient(#fff, #fff), var(--cage);
+  mask-size: auto, 0.45em 0.2em;
+  mask-repeat: no-repeat, repeat;
+  mask-position: center, center;
+  mask-composite: exclude;
+  animation: nixie-strike 1040ms both;
+}
+
+/* The shared 5s glow pulse on an incoming payment (.balance-bump) is off here.
+   The tube re-striking IS the announcement in this theme, so the pulse is
+   redundant — and worse than redundant: it animates text-shadow on the balance
+   element, and since every glyph is a child span carrying no text-shadow of its
+   own, the spans inherit that animation in place of the bloom. Including its
+   `0 0 0 transparent` keyframes, which read as the tube dying right after it
+   lit. */
+[data-theme="nixie"] .balance-bump { animation: none; }
+
+/* Neon doesn't fade up — it stutters. The strike keyframes are deliberately
+   discontinuous: dark, failed strikes at partial brightness, a bright overshoot,
+   then settle. Abruptness lives in the keyframe positions rather than
+   steps(1), so the overshoot still falls off smoothly. Only opacity and
+   text-shadow animate, so a stuttering figure can't reflow the one beside it.
+   Ported from apogee's strike keyframes.
+
+   The LANDING is this file's own, and deliberately longer than apogee's: there,
+   the last event is a 0.9 -> 1 step over the final 12% and the animation simply
+   stops, which reads as a cut. Here the tail keeps rippling past the catch and
+   the ripples get shallower every time (0.72, 1, 0.88, 0.97, 0.995, 1), so the
+   figure arrives at rest instead of being switched to it. The glyph durations in
+   sidepanel.js were widened to give this tail room.
+
+   Top level, NOT nested inside [data-theme="nixie"]: an @keyframes inside a
+   style rule is invalid and gets dropped, which took the whole animation with
+   it. The name is theme-specific and only .nixie-strike references it, so
+   there is nothing to scope. */
+@keyframes nixie-strike {
+  0%, 11% { opacity: 0.06; text-shadow: none; }
+  14% { opacity: 0.85; text-shadow: 0 0 0.24em color-mix(in srgb, #ff5a1e 48%, transparent); }
+  17%, 26% { opacity: 0.1; text-shadow: none; }
+  31% { opacity: 0.7; text-shadow: 0 0 0.3em color-mix(in srgb, #f0300c 42%, transparent); }
+  36% { opacity: 0.14; text-shadow: none; }
+  45% {
+    /* the strike catches — brighter than rest, but NOT wider: the widest radius
+       here has to stay inside the cage's padding too, or the flash ends in a
+       clipped rectangle for a few hundred milliseconds. Brighter alphas at the
+       same radii do the work instead. */
+    opacity: 1;
+    text-shadow:
+      0 0 0.08em rgba(255, 250, 240, 0.85),
+      0 0 0.22em color-mix(in srgb, #ff6a24 82%, transparent),
+      0 0 0.55em color-mix(in srgb, #f0300c 85%, transparent),
+      0 0 0.8em color-mix(in srgb, #e01b06 62%, transparent);
+  }
+  /* the settle: cathode glow finding its level, in decreasing swings */
+  54% { opacity: 0.72; }
+  62% { opacity: 1; }
+  71% { opacity: 0.88; }
+  80% { opacity: 0.985; }
+  88% { opacity: 0.94; }
+  95% { opacity: 0.995; }
+  /* No text-shadow at 100% ON PURPOSE. An omitted property interpolates to the
+     element's own computed value, so the strike lands on whatever bloom that
+     surface carries — the hero's or the pinned bar's tighter one — instead of
+     pinning one stack here and leaving the other figure holding the wrong glow
+     for as long as the animation's fill lasts. */
+  100% { opacity: 1; }
+}
+
+/* The figure strikes like a tube igniting, once, when it first appears.
+   `both` holds the dark pre-strike state until the delay passes, so the glyphs
+   light raggedly rather than all starting from full. Timing function left at the
+   default `ease` — apogee's — because the stutter's rhythm is the part that
+   works, and any explicit curve rewrites it. Duration and delay come per-glyph
+   from paintBalanceEl (sidepanel.js), which also decides WHEN a figure has
+   earned a strike. */
+[data-theme="nixie"] .nixie-strike {
+  animation: nixie-strike var(--strike-dur, 1080ms) var(--strike-delay, 0ms) both;
+}
+
+/* Decorative, and it flashes — honor the OS setting by landing on the final
+   state. */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="nixie"] .nixie-strike,
+  [data-theme="nixie"] .balances-hidden .wallet-balance::after,
+  [data-theme="nixie"] .balances-hidden .pinned-balance-amt::after { animation: none; }
+}

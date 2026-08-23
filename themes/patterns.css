@@ -111,3 +111,28 @@ body {
   background-size: 320px, auto, auto, auto;
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
+
+/* Nixie — the tube's wire mesh over a cold chassis. The tile is 30x16, a
+   fine fence rather than the 360px lattice this started as: at that size the
+   hexes read as objects floating on the background instead of a screen in front
+   of it, which is the opposite of what a nixie grid does. Painted at its
+   intrinsic size so the 1px strokes stay 1px.
+
+   Two lamps, at two temperatures, which is what the reference photographs
+   actually show: the discharge pooling red at the top, and a cold blue room
+   light washing in at the bottom right. A second warm glow there made the whole
+   panel one temperature and flattened it.
+
+   The top lamp is RED, not orange: spread this thin over a dark surface, orange
+   turns to brown haze, which is exactly what it was doing. Red stays red. The
+   chassis it sits on is a cool grey-blue rather than the warm one this started
+   with. */
+[data-theme="nixie"] body {
+  background-image:
+    url(nixie-mesh.svg),
+    radial-gradient(1000px 440px at 50% -10%, rgba(240, 48, 12, 0.16), transparent 62%),
+    radial-gradient(760px 440px at 114% 110%, rgba(78, 126, 176, 0.13), transparent 55%),
+    linear-gradient(170deg, #0d1017 0%, var(--bg) 58%);
+  background-size: 30px 16px, auto, auto, auto;
+  background-position: center, 0% 0%, 0% 0%, 0% 0%;
+}
