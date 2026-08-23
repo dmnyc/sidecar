@@ -292,13 +292,23 @@
     t.appendChild(span);
     host.appendChild(t);
     requestAnimationFrame(() => t.classList.add('show'));
-    const hide = setTimeout(() => {
+    const dismiss = () => {
       t.classList.remove('show');
       const rm = setTimeout(() => t.remove(), 250);
       const cur = _toastTimers.get(t);
       if (cur) cur.remove = rm;
-    }, 3200);
+    };
+    const hide = setTimeout(dismiss, 3200);
     _toastTimers.set(t, { hide, remove: null });
+    // A tap dismisses immediately: 3.2s is a long time to wait out a toast that
+    // is sitting on something you want, and there was no way out at all. Runs
+    // the timer's own exit (fade, then remove) rather than yanking the node, so
+    // the transition plays and the replacement logic's timers stay coherent.
+    t.addEventListener('click', () => {
+      const timers = _toastTimers.get(t);
+      if (timers) { clearTimeout(timers.hide); clearTimeout(timers.remove); }
+      dismiss();
+    });
     return t;
   }
 
