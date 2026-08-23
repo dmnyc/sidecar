@@ -2842,7 +2842,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
        --amber         speakeasy 8.3  film-noir  8.8  brownstone 11.2
                        aegean    3.0  art-deco   1.6  bauhaus     1.4
    So the three light themes each set --relax-dot-ok / --relax-dot-low; the fallbacks here
-   are the original values, which is why the three dark themes are untouched.
+   are the original values, which is why Speakeasy, Film Noir and Brownstone are untouched.
+   Nixie overrides them too, for a different reason: a green indicator is a third
+   temperature in a theme built from one gas, so its dots are the ember and the amber.
    The glow is derived rather than given its own token: it was always the dot color at 50%
    alpha, and stating it twice is how the two drifted out of sync before (the .low glow
    below was still Speakeasy's gold in every theme). color-mix is safe at this project's

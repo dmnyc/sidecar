@@ -9556,6 +9556,18 @@
     }
   }
 
+  // Force both balance surfaces to strike on their next paint, whatever figure they
+  // are already showing. Hiding or revealing balances changes what the tube
+  // DISPLAYS without changing the balance, and a tube re-strikes on any change of
+  // what it shows — so the guard that suppresses a repeat of the same number gets
+  // cleared deliberately here rather than loosened for everyone.
+  function restrikeBalances() {
+    [$('pinned-balance-amt'), document.querySelector('.wallet-balance')].forEach((el) => {
+      if (el) paintedSats.delete(el);
+    });
+    repaintBalances();
+  }
+
   // Advance the cycle, persist nothing (it's a view preference, not a setting), warm
   // the price if we're landing on fiat, then repaint both balance surfaces.
   //
@@ -9687,6 +9699,11 @@
   // Keep the two hide-balances affordances (bar eye + wallet-card eye) in sync.
   function syncHideControls() {
     applyHideBalances();
+    // Both ends of the toggle are a change point for the tube: the discs re-strike
+    // from CSS as their ::after is created (themes/nixie.css), and the figure needs
+    // its paint record cleared or the reveal would repaint the same number and
+    // suppress the strike. Harmless in the other five themes, which never strike.
+    restrikeBalances();
     const setEye = (btn) => { if (!btn) return; btn.innerHTML = ''; btn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); btn.title = hideBalances ? 'Show balances' : 'Hide balances'; };
     setEye($('pinned-hide'));
     document.querySelectorAll('.wallet-eye').forEach(setEye);

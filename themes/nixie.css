@@ -98,6 +98,11 @@
      made the wallet read as the wrong theme. */
   --card-wash: rgba(240, 48, 12, 0.20);
 
+  /* The cage tile, as a token so the one copy of it serves both the figures and
+     the hidden-balance discs. Everything about how it is built and why it is
+     inline is documented at the cage rule below. */
+  --cage: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2218%22%20height%3D%228%22%20viewBox%3D%220%200%2018%208%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.8%22%3E%3Cpath%20d%3D%22M-3%20-4H3L6%200L3%204%22%2F%3E%3Cpath%20d%3D%22M-3%204H3L6%208L3%2012%22%2F%3E%3Cpath%20d%3D%22M6%20-8H12L15%20-4L12%200%22%2F%3E%3Cpath%20d%3D%22M6%200H12L15%204L12%208%22%2F%3E%3Cpath%20d%3D%22M6%208H12L15%2012L12%2016%22%2F%3E%3Cpath%20d%3D%22M15%20-4H21L24%200L21%204%22%2F%3E%3Cpath%20d%3D%22M15%204H21L24%208L21%2012%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E');
+
   /* --lav is a secondary ink in ~49 rules — headings, links, sub-labels — and a
      stop in the Trust fill. Cold: those are engraved panel labels, not
      readouts. Pairing it with the ember --orange for live/actionable text is
@@ -141,6 +146,13 @@
   --btn-primary-bot: #11161d;
   --btn-primary-text: #ffb478;
   --btn-shadow: rgba(240, 48, 12, 0.26);
+  /* The rim on every dark button, and it is a REFLECTION, not a line: the light
+     off the figures catching the edge of the glass. So it is warmer than the
+     discharge (#ff7632 against #f0300c) and weak enough to read as a highlight —
+     at neon red and 0.62 alpha it was a drawn red outline, which no photograph of
+     a tube shows. The spill underneath the button stays red, because that is the
+     light landing on the surface below rather than glancing off the edge. */
+  --rim: rgba(255, 118, 50, 0.40);
   --btn-secondary-text: #d3dae2;
 
   --btn-accent-top: #242c37;
@@ -217,9 +229,9 @@
    the button from within, which is where a tube is brightest, and settles it. */
 [data-theme="nixie"] .primary {
   box-shadow:
-    inset 0 0 0 1px rgba(240, 48, 12, 0.62),
+    inset 0 0 0 1px var(--rim),
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -14px 22px -14px rgba(240, 48, 12, 0.5),
+    inset 0 -14px 22px -14px rgba(255, 106, 36, 0.38),
     0 8px 22px var(--btn-shadow);
 }
 [data-theme="nixie"] .lav-btn {
@@ -235,15 +247,15 @@
 [data-theme="nixie"] .primary,
 [data-theme="nixie"] .reload-banner-btn,
 [data-theme="nixie"] .host-perm-grant-btn {
-  text-shadow: 0 0 0.45em rgba(240, 48, 12, 0.45);
+  text-shadow: 0 0 0.45em rgba(255, 106, 36, 0.42);
 }
 
 [data-theme="nixie"] .reload-banner-btn,
 [data-theme="nixie"] .host-perm-grant-btn {
   box-shadow:
-    inset 0 0 0 1px rgba(240, 48, 12, 0.45),
+    inset 0 0 0 1px var(--rim),
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 4px 12px rgba(240, 48, 12, 0.16);
+    0 4px 12px rgba(240, 48, 12, 0.14);
 }
 
 /* The FAB is a dark disc on a dark panel, so the ring and the glow are what make
@@ -252,8 +264,8 @@
 [data-theme="nixie"] .fab {
   box-shadow:
     0 10px 26px rgba(0, 0, 0, 0.6),
-    inset 0 0 0 1px rgba(240, 48, 12, 0.55),
-    0 0 20px rgba(240, 48, 12, 0.22);
+    inset 0 0 0 1px var(--rim),
+    0 0 22px rgba(240, 48, 12, 0.26);
 }
 
 /* The ink and the face for any figure this theme lights up. The bloom itself is
@@ -309,14 +321,35 @@
     0 0 0.62em color-mix(in srgb, #e01b06 42%, transparent);
 }
 
-/* .wallet-balance is nudged up 0.08em in styles.css to stop Playfair's oldstyle
-   figures from looking like they sag. This face has lining figures on a flat
-   baseline, so that correction becomes a real misalignment against the unit
-   label beside it. */
+/* OPTICAL CENTERING. styles.css nudges .wallet-balance UP by 0.08em so Playfair's
+   oldstyle figures — which have real descenders on 3, 4, 7 — stop looking like
+   they sag. This face needs the opposite correction, not zero: its figures are
+   lining and sit entirely on the baseline, so the only ink below the baseline in
+   a balance is the comma. That makes the ink top-heavy inside a line box that the
+   layout centers correctly, and the number reads high. Most obvious in the pinned
+   bar, where the eye has the Send/Hide buttons right beside it as a reference.
+
+   0.07em down, picked by rendering 0 / 0.04 / 0.07 / 0.10 against a center guide
+   and against Speakeasy's bar: at 0 the guide passes well below the digits'
+   middle, at 0.07 it runs through it. em-based, so it holds at the card's 40px,
+   the collapsed card's 24px and the pinned bar's 24px alike. */
+[data-theme="nixie"] .wallet-balance,
+[data-theme="nixie"] .pinned-balance-amt {
+  transform: translateY(0.07em);
+}
 /* inline-block so the figure is a box of its own rather than a card-wide line:
-   the cage below is a mask on this element, and the padding it needs to hold the
-   bloom has to apply to the digits, not to the full width of the card. */
-[data-theme="nixie"] .wallet-balance { transform: none; display: inline-block; }
+   the cage is a mask on this element, and the padding it needs to hold the bloom
+   has to apply to the digits, not to the full width of the card.
+
+   vertical-align matters once it is inline-block. Left at baseline, the line box
+   also has to hold the strut's descender, which put 3px under the figure that no
+   other theme has — visible as a slightly taller card, and worse in the collapsed
+   header where 3px of 48 is a real difference. Aligning to the top drops it,
+   since the figure is the tallest thing on its line either way. */
+[data-theme="nixie"] .wallet-balance {
+  display: inline-block;
+  vertical-align: top;
+}
 
 /* ---- the cage --------------------------------------------------------------
    The anode grid in front of the digits, which is what separates a nixie from
@@ -376,7 +409,7 @@
    slivers: an unreadable number is far worse than a missing texture. */
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
-  mask-image: linear-gradient(#fff, #fff), url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2218%22%20height%3D%228%22%20viewBox%3D%220%200%2018%208%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.8%22%3E%3Cpath%20d%3D%22M-3%20-4H3L6%200L3%204%22%2F%3E%3Cpath%20d%3D%22M-3%204H3L6%208L3%2012%22%2F%3E%3Cpath%20d%3D%22M6%20-8H12L15%20-4L12%200%22%2F%3E%3Cpath%20d%3D%22M6%200H12L15%204L12%208%22%2F%3E%3Cpath%20d%3D%22M6%208H12L15%2012L12%2016%22%2F%3E%3Cpath%20d%3D%22M15%20-4H21L24%200L21%204%22%2F%3E%3Cpath%20d%3D%22M15%204H21L24%208L21%2012%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E');
+  mask-image: linear-gradient(#fff, #fff), var(--cage);
   /* em, not px, so the cage scales with the figure: the wire has to stay the same
      fraction of a digit stroke at 24px as at 40px, or the smaller readout in the
      pinned bar gets chewed up while the big one looks right. 0.45em x 0.2em is the
@@ -390,9 +423,55 @@
   padding: 1.05em 0.85em;
   margin: calc(6px - 1.05em) -0.85em calc(4px - 1.05em);
 }
+/* The collapsed card sets `margin: 0` on the figure from a three-class selector,
+   which outranks the two-part one above and dropped the compensation while
+   keeping the padding — 50px of it, so the sticky header stood half again as tall
+   as every other theme's. The padding has to stay (it is what keeps the mask from
+   shearing the bloom, and it is em-based so it shrinks with the 24px figure), so
+   the compensation is restated here at a specificity that wins. Cancels exactly:
+   24px line + 2 x 1.05em padding - 2 x 1.05em margin = 24px, which is what the
+   other themes get from margin: 0 and no padding. */
+[data-theme="nixie"] .wallet-card.compact .wallet-balance {
+  margin: -1.05em -0.85em;
+}
 [data-theme="nixie"] .pinned-balance-amt {
   padding: 0.85em 0.7em;
   margin: -0.85em -0.7em;
+}
+
+/* Hiding balances swaps the figure for four discs (.balances-hidden in
+   styles.css: the element goes visibility: hidden and its ::after comes back
+   visible carrying '••••'). Those discs are still the tube's output, so they
+   belong behind the same screen.
+
+   The mask has to be repeated ON the pseudo-element. Masking an ancestor does
+   not reach it: the parent is visibility: hidden, and a masked group whose own
+   visibility is hidden does not carry its mask down to a descendant that turns
+   visibility back on — the discs came out perfectly round with no wire across
+   them. Same two layers, same tile, same em sizing, so the grid lines up with
+   the one over the digits.
+
+   And they strike as they appear. Switching to hidden mode is a change of what
+   the tube displays, which in a real one means the cathodes it was lighting go
+   out and different ones come on, so it flickers. No JS needed for this half: the
+   ::after does not exist until .balances-hidden matches, and an element that
+   starts matching a rule with an animation runs it. Leaving hidden mode is the
+   other half of the same event and is handled in sidepanel.js
+   (restrikeBalances), because there the figure is a repaint of a number that did
+   not change.
+
+   All four discs flicker in unison, unlike the digits, which each carry their own
+   beat. They are one text run in a single pseudo-element and CSS content cannot
+   be split — and the shared hidden-balance mechanism is deliberately CSS-only so
+   that toggling it never reflows the box. Worth knowing rather than fixing. */
+[data-theme="nixie"] .balances-hidden .wallet-balance::after,
+[data-theme="nixie"] .balances-hidden .pinned-balance-amt::after {
+  mask-image: linear-gradient(#fff, #fff), var(--cage);
+  mask-size: auto, 0.45em 0.2em;
+  mask-repeat: no-repeat, repeat;
+  mask-position: center, center;
+  mask-composite: exclude;
+  animation: nixie-strike 1040ms both;
 }
 
 /* The shared 5s glow pulse on an incoming payment (.balance-bump) is off here.
@@ -469,5 +548,7 @@
 /* Decorative, and it flashes — honor the OS setting by landing on the final
    state. */
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="nixie"] .nixie-strike { animation: none; }
+  [data-theme="nixie"] .nixie-strike,
+  [data-theme="nixie"] .balances-hidden .wallet-balance::after,
+  [data-theme="nixie"] .balances-hidden .pinned-balance-amt::after { animation: none; }
 }
