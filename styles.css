@@ -2540,7 +2540,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 .toasts {
   position: fixed;
-  bottom: 14px;
+  /* Above the bottom chrome, not just above the floor. The compose FAB stands
+     18px off the bottom and is 54px tall, and the brand-foot logo button sits in
+     the middle of that same band; flush to the floor a toast parked on both for
+     its whole life (top placement had the same fight with the actions row).
+     92px = FAB top (18 + 54) + 20px of air; if the FAB's geometry changes, this
+     number follows it. */
+  bottom: 92px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -2561,6 +2567,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-weight: 600;
   border: 1px solid var(--border);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  /* tappable: see the click handler in toast() — the timer is otherwise a
+     mandatory 3.2s wait */
+  cursor: pointer;
   transform: translateY(12px);
   opacity: 0;
   transition: transform 0.22s ease, opacity 0.22s ease;
