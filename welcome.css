@@ -169,26 +169,44 @@ body {
   flex-shrink: 0;
 }
 
+/* One artwork size for every card, framed or not. `flush` decides whether the
+   velvet tile is painted behind the icon, and nothing else.
+
+   These used to differ: framed icons drew at 32px inside the 46px tile while
+   flush ones filled all 46. That mostly passed because flush icons are usually
+   apple-touch-icons carrying their own internal padding, so the glyph landed
+   near the framed size by accident. An icon drawn edge to edge, with no padding
+   of its own, exposed the gap immediately by rendering half again as much ink
+   as its neighbours. Since the padding inside someone else's artwork is not
+   ours to normalize, the box is what gets held constant. */
 .favicon-wrap img {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
   /* round square favicons for an app-icon look; transparent/circular logos
      are unaffected */
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 /* Apps whose icon is a full-bleed tile (often on a white background) look better
-   without the velvet frame — let the icon fill and become its own rounded tile. */
+   without the velvet frame — the icon becomes its own rounded tile. */
 .favicon-wrap.flush {
   background: transparent;
   border-color: transparent;
 }
 .favicon-wrap.flush img {
-  width: 100%;
-  height: 100%;
   object-fit: cover;
-  border-radius: 10px;
+}
+
+/* A handful of entries carry their logo as inline SVG rather than a file, and
+   each arrived declaring its own dimensions — 19x32, 32x27, 100%. Held to the
+   same box as everything else. Their viewBox plus the default preserveAspectRatio
+   letterboxes each one inside that square, so a tall or wide mark scales to fit
+   instead of being stretched to fill. */
+.favicon-wrap svg {
+  width: 36px;
+  height: 36px;
+  display: block;
 }
 
 .favicon-fallback {
