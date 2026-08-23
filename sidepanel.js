@@ -7970,9 +7970,20 @@
     { key: 'mute', label: 'Mute list', kind: 10000, dtag: 'sidecar:mute-backup' },
   ];
 
+  // The newest copy of a replaceable identity event (kind 0/3/10002/10000) —
+  // what backups snapshot, exports write to file, and the restore confirm
+  // compares against. Read from the account's declared NIP-65 relays plus
+  // purplepag.es plus Settings, never Settings alone: replaceable events go
+  // stale independently per relay, and one configured relay holding an old copy
+  // (here: an empty kind 3 from two months back) can be the only answer within
+  // the window while the relays actually carrying the current 1000+ list sit
+  // outside the configured set — a backup exported from that read captures the
+  // wipe it exists to undo. readRelayUrls is resolved before the race so its
+  // own (cached) NIP-65 fetch doesn't eat the 6s query budget.
   async function fetchLatestEvent(kind) {
+    const relays = await readRelayUrls(state.activePubkey);
     return Promise.race([
-      poolGet(await relayUrls(false), { kinds: [kind], authors: [state.activePubkey] }),
+      poolGet(relays, { kinds: [kind], authors: [state.activePubkey] }),
       new Promise((res) => setTimeout(() => res(null), 6000)),
     ]).catch(() => null);
   }
@@ -8014,20 +8025,60 @@
     await publishSigned(signed);
   }
 
+  // What a list restore would change, as plain numbers. Counts are p-tags;
+  // DROPPED and ADDED are set differences, because counts alone can hide the
+  // danger both ways: 289 vs 312 can be a reshuffle rather than a loss, and a
+  // same-count swap can be a total loss. "23 you follow today are not in the
+  // backup" is the number that stops a bad restore.
+  function listDiff(currentTags, backupTags) {
+    // x[1] required: a valueless ['p'] tag is malformed, and counting it as an
+    // undefined member inflates both sides and can fake a difference between
+    // identical lists.
+    const cur = new Set((currentTags || []).filter((x) => x && x[0] === 'p' && x[1]).map((x) => x[1]));
+    const bak = new Set((backupTags || []).filter((x) => x && x[0] === 'p' && x[1]).map((x) => x[1]));
+    const dropped = [...cur].filter((p) => !bak.has(p)).length;
+    const added = [...bak].filter((p) => !cur.has(p)).length;
+    return { current: cur.size, backup: bak.size, dropped, added };
+  }
+
+  // A mute list's p-tags from both places they can live: public event tags, and
+  // the private list encrypted to self in content (NIP-44, or legacy NIP-04
+  // whose ciphertext carries "?iv="). loadMuteList merges the same two sources
+  // when it applies mutes; any count of a mute list has to merge them too, or
+  // every private list reads as empty — and against the hundreds the user
+  // actually mutes, "0 muted" is not a smaller number, it's the wrong number.
+  // ok=false means content exists but wouldn't decrypt (keystore locked, bad
+  // ciphertext), so callers say that instead of printing the public-only count
+  // as if it were the whole list.
+  async function muteTags(ev) {
+    const tags = (ev && ev.tags) || [];
+    if (!ev || !ev.content) return { tags, private: false, ok: true };
+    const order = ev.content.includes('?iv=') ? [4, 44] : [44, 4];
+    for (const nip of order) {
+      try {
+        const privateTags = JSON.parse(await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip }));
+        if (Array.isArray(privateTags)) return { tags: tags.concat(privateTags), private: true, ok: true };
+      } catch (_) {}
+    }
+    return { tags, private: true, ok: false };
+  }
+
+  // Decrypt a backup event's source payload. Restore only PIN-gates the SIGN;
+  // the panel may read its own backups freely (the panel is unlocked to be here).
+  async function decryptBackupSource(ev) {
+    const scheme = (ev.tags.find((x) => x[0] === 'encrypted') || [])[1];
+    const nip = scheme === 'nip44' ? 44 : 4; // older backups are NIP-04
+    const plaintext = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
+    const blob = JSON.parse(plaintext);
+    if (!blob || !blob.source) throw new Error('Backup could not be read');
+    return blob.source;
+  }
+
   // Decrypt the latest backup and re-publish it as the current event (PIN-gated).
   async function restoreBackup(t, pin) {
     const ev = await fetchBackupEvent(t.dtag);
     if (!ev) throw new Error('No backup found for ' + t.label.toLowerCase());
-    const scheme = (ev.tags.find((x) => x[0] === 'encrypted') || [])[1];
-    const nip = scheme === 'nip44' ? 44 : 4; // older backups were NIP-04
-    const plaintext = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
-    let blob;
-    try {
-      blob = JSON.parse(plaintext);
-    } catch (_) {
-      throw new Error('Backup could not be read');
-    }
-    const s = blob.source || {};
+    const s = await decryptBackupSource(ev);
     const event = { kind: s.kind, created_at: Math.floor(Date.now() / 1000), tags: s.tags || [], content: s.content || '' };
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin });
     await publishSigned(signed);
@@ -8194,7 +8245,20 @@
       }
 
       const summary = h('ul', { className: 'restore-list' });
-      valid.forEach((ev) => summary.append(h('li', { textContent: kindLabel(ev.kind) })));
+      // Each row's second line — what the file holds vs what's live — fills in
+      // async below; Restore stays disabled until it has, because the counts ARE
+      // the confirmation (a backup file older than a live list is how lists get
+      // shrunk, and the row is where that has to be visible).
+      const subs = new Map();
+      valid.forEach((ev) => {
+        const sub = h('div', { className: 'restore-list-sub' }, [
+          h('span', { className: 'recv-spinner' }),
+          document.createTextNode(' checking relays…'),
+        ]);
+        subs.set(ev, sub);
+        summary.append(h('li', {}, [h('div', { className: 'item-label', textContent: kindLabel(ev.kind) }), sub]));
+      });
+      go.disabled = true;
       children.push(
         h('p', {
           className: 'hint',
@@ -8202,6 +8266,62 @@
         }),
         summary
       );
+      (async () => {
+        const kinds = [...new Set(valid.map((ev) => ev.kind))];
+        const live = new Map(await Promise.all(kinds.map(async (k) => [k, await fetchLatestEvent(k)])));
+        for (const ev of valid) {
+          const sub = subs.get(ev);
+          if (!sub || !sub.isConnected) continue;
+          sub.innerHTML = '';
+          const cur = live.get(ev.kind);
+          if (ev.kind === 0) {
+            let incoming = {};
+            try { incoming = JSON.parse(ev.content || '{}'); } catch (_) {}
+            sub.append(profilePreviewPane(incoming));
+          } else if (ev.kind === 3 || ev.kind === 10000) {
+            const noun = ev.kind === 10000 ? 'muted' : 'followed';
+            // Mute lists carry their members encrypted in content as often as in
+            // tags — count both sources on both sides, or a private list reads
+            // as empty on every line.
+            const bak = ev.kind === 10000
+              ? await muteTags(ev)
+              : { tags: ev.tags, private: false, ok: true };
+            const now = ev.kind === 10000 && cur ? await muteTags(cur) : null;
+            const liveTags = ev.kind === 10000 ? (now && now.ok ? now.tags : null) : (cur && cur.tags);
+            if (!bak.ok) {
+              sub.classList.add('warn');
+              sub.textContent = 'Private mute list in this file — Sidecar could not decrypt it to count';
+            } else {
+              const d = listDiff(liveTags, bak.tags);
+              if (!d.backup) {
+                // An empty list in the file is a state to name, not a count to
+                // print: "0 followed" reads like a measured zero, and restoring
+                // publishes that emptiness over whatever is live.
+                sub.classList.add('warn');
+                sub.textContent = 'Empty ' + (ev.kind === 10000 ? 'mute' : 'follow') + ' list in this file';
+                if (cur && liveTags && d.current) {
+                  sub.textContent += ' · ' + d.current.toLocaleString('en-US') + ' live now would be ' + (ev.kind === 10000 ? 'unmuted' : 'lost');
+                }
+              } else {
+                sub.textContent = d.backup.toLocaleString('en-US') + ' ' + noun +
+                  (bak.private ? ' (private list)' : '') +
+                  (cur ? (liveTags ? ' · ' + d.current.toLocaleString('en-US') + ' now' : ' · live list unreadable') : ' · nothing live now');
+                if (liveTags && (d.dropped || d.added)) {
+                  sub.classList.add('warn');
+                  sub.textContent += ' · ' + (d.dropped ? d.dropped.toLocaleString('en-US') + ' will be ' + (ev.kind === 10000 ? 'unmuted' : 'removed') : '') +
+                    (d.dropped && d.added ? ', ' : '') + (d.added ? d.added.toLocaleString('en-US') + ' added' : '');
+                }
+              }
+            }
+          } else if (ev.kind === 10002) {
+            const n = (ev.tags || []).filter((x) => x && x[0] === 'r').length;
+            sub.textContent = n.toLocaleString('en-US') + ' relay' + (n === 1 ? '' : 's');
+          } else {
+            sub.textContent = '';
+          }
+        }
+        if (summary.isConnected) go.disabled = false;
+      })();
       if (foreign) {
         children.push(h('p', { className: 'hint warn', textContent: foreign + ' event(s) from another account were skipped.' }));
       }
@@ -8402,11 +8522,24 @@
     });
   }
 
+  // The restore confirm. This used to be a PIN box and a promise: it re-published
+  // whatever the latest backup held, sight unseen, and a backup older than a live
+  // list that had moved on would silently shrink it. Restoring over newer data is
+  // the destructive-event case the panel warns about everywhere else, so both
+  // sides are fetched first — the backup (readable without the PIN; only the
+  // signing step is gated) and the current live event — and the modal shows what
+  // will change before it ever asks for the PIN.
+  //
+  // For the lists the headline is the SET difference, not the counts: "289 vs
+  // 312" can be a reshuffle, "23 you follow today are not in the backup" cannot
+  // be anything but a loss. For the profile the same job is done by a preview
+  // pane — the bio rendered as the bio, not as a JSON diff.
   function restoreModal(t) {
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
       const go = h('button', { className: 'primary', textContent: 'Restore' });
+      go.disabled = true; // until the comparison has rendered
       go.addEventListener('click', async () => {
         err.textContent = '';
         if (!pin.value) return (err.textContent = 'Enter your PIN.');
@@ -8425,6 +8558,14 @@
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
+
+      const compare = h('div', { className: 'restore-compare' }, [
+        h('div', { className: 'recv-waiting' }, [
+          h('span', { className: 'recv-spinner' }),
+          h('span', { textContent: 'Checking your relays…' }),
+        ]),
+      ]);
+
       modal.append(
         h('h3', { textContent: 'Restore ' + t.label }),
         h('p', {
@@ -8432,12 +8573,151 @@
           textContent:
             'Re-publishes your latest ' + t.label.toLowerCase() + ' backup as your current ' + t.label.toLowerCase() + '. Requires your PIN.',
         }),
+        compare,
         h('label', { textContent: 'PIN' }),
         pin,
         err,
         h('div', { className: 'actions' }, [go, cancel])
       );
+
+      (async () => {
+        const [ev, cur] = await Promise.all([fetchBackupEvent(t.dtag), fetchLatestEvent(t.kind)]);
+        if (!compare.isConnected) return; // the modal was closed mid-fetch
+        compare.innerHTML = '';
+        if (!ev) {
+          compare.append(h('p', { className: 'hint warn', textContent: 'No backup found for ' + t.label.toLowerCase() + '. Try backing up first.' }));
+          pin.disabled = true;
+          return;
+        }
+        let s;
+        try {
+          s = await decryptBackupSource(ev);
+        } catch (e) {
+          compare.append(h('p', { className: 'hint warn', textContent: (e && e.message) || 'Backup could not be read.' }));
+          pin.disabled = true;
+          return;
+        }
+        compare.append(await buildRestoreCompare(t, s, ev.created_at, cur));
+        if (compare.isConnected) go.disabled = false;
+      })();
     });
+  }
+
+  // The comparison block itself, shared shape for every backup type. `cur` is the
+  // live event (or null when the relays hold none — then the restore is a first
+  // publish, not an overwrite, and saying so is the honest framing). Async
+  // because mute lists count through muteTags, which decrypts the private half
+  // of the list out of content.
+  async function buildRestoreCompare(t, source, backupAt, cur) {
+    const wrap = h('div');
+    const when = relativeTime(backupAt);
+
+    if (t.kind === 0) {
+      let incoming = {};
+      try { incoming = JSON.parse(source.content || '{}'); } catch (_) {}
+      let live = null;
+      if (cur) { try { live = JSON.parse(cur.content || '{}'); } catch (_) {} }
+      const changed = live === null || JSON.stringify(live) !== JSON.stringify(incoming);
+      wrap.append(profilePreviewPane(incoming));
+      wrap.append(
+        h('p', {
+          className: 'hint' + (changed ? ' warn' : ''),
+          textContent: live === null
+            ? 'No profile on your relays yet — this will publish the backup above.'
+            : changed
+              ? 'This replaces the profile you have live now.'
+              : 'Same profile as what you have live now.',
+        })
+      );
+      return wrap;
+    }
+
+    const noun = t.key === 'mute' ? 'muted' : 'followed';
+    const bak = t.key === 'mute' ? await muteTags(source) : { tags: source.tags, private: false, ok: true };
+    const now = t.key === 'mute' && cur ? await muteTags(cur) : null;
+    // null liveTags = no live event at all, or a private live list that wouldn't
+    // decrypt — both mean the diff numbers can't be trusted, so none are shown.
+    const liveTags = t.key === 'mute' ? (now && now.ok ? now.tags : null) : (cur && cur.tags);
+
+    if (!bak.ok) {
+      wrap.append(h('div', { className: 'recovery-confirm' }, [
+        h('div', { className: 'recovery-count-lg' }, [
+          h('strong', { textContent: 'Private mute list' }),
+        ]),
+        h('div', { className: 'recovery-sub', textContent: 'Sidecar could not decrypt it to count · backup from ' + when }),
+      ]));
+      return wrap;
+    }
+
+    const d = listDiff(liveTags, bak.tags);
+    if (!d.backup) {
+      // Name the state, don't print its count: "0 accounts followed in the
+      // backup" reads like a measured zero, and the restore publishes that
+      // emptiness over whatever is live.
+      wrap.append(h('div', { className: 'recovery-confirm' }, [
+        h('div', { className: 'recovery-count-lg' }, [
+          h('strong', { textContent: 'Empty ' + (t.key === 'mute' ? 'mute' : 'follow') + ' list' }),
+        ]),
+        h('div', {
+          className: 'recovery-sub',
+          textContent: (liveTags ? d.current.toLocaleString('en-US') + ' ' + noun + ' live now' : cur ? 'Live list unreadable' : 'Nothing live on your relays now') + ' · backup from ' + when,
+        }),
+      ]));
+      if (liveTags && d.current) {
+        wrap.append(h('p', {
+          className: 'hint warn',
+          textContent: 'The backup holds no ' + noun + ' accounts — restoring publishes the empty list over the ' + d.current.toLocaleString('en-US') + ' you have now.',
+        }));
+      }
+      return wrap;
+    }
+
+    const rows = h('div', { className: 'recovery-confirm' }, [
+      h('div', { className: 'recovery-count-lg' }, [
+        h('strong', { textContent: d.backup.toLocaleString('en-US') }),
+        document.createTextNode(' accounts ' + noun + ' in the backup'),
+      ]),
+      h('div', {
+        className: 'recovery-sub',
+        textContent:
+          (liveTags ? d.current.toLocaleString('en-US') + ' ' + noun + ' now' : cur ? 'Live list unreadable' : 'Nothing live on your relays now') +
+          ' · backup from ' + when + (bak.private ? ' · private list' : ''),
+      }),
+    ]);
+    wrap.append(rows);
+    if (!liveTags) return wrap;
+    if (d.dropped || d.added) {
+      const parts = [];
+      if (d.dropped) parts.push(d.dropped.toLocaleString('en-US') + (t.key === 'mute' ? ' currently muted will be unmuted' : ' you follow today are not in the backup and will be removed'));
+      if (d.added) parts.push(d.added.toLocaleString('en-US') + (t.key === 'mute' ? ' currently audible will be muted' : ' in the backup are new'));
+      wrap.append(h('p', { className: 'hint warn', textContent: parts.join('; ') + '.' }));
+    } else {
+      wrap.append(h('p', { className: 'hint', textContent: 'Same accounts as what you have live now.' }));
+    }
+    return wrap;
+  }
+
+  // The bio as the bio: a profile-shaped preview of what the restore will
+  // publish, so "is this MY bio?" is answered by looking rather than by diffing
+  // field names. Plain text only — the profile view linkifies the live copy, but
+  // a preview of an about-to-be-written event has no business pretending to be
+  // interactive.
+  function profilePreviewPane(p) {
+    const pane = h('div', { className: 'restore-preview' });
+    const head = h('div', { className: 'restore-preview-head' }, [
+      avatarEl({ picture: p.picture || '', npub: state.activePubkey }, 'restore-preview-av'),
+      h('div', { className: 'restore-preview-id' }, [
+        h('div', { className: 'profile-name restore-preview-name', textContent: p.display_name || p.name || '(no name)' }),
+        p.nip05 ? h('div', { className: 'hint restore-preview-nip05', textContent: p.nip05 }) : null,
+      ]),
+    ]);
+    pane.append(head);
+    pane.append(
+      p.about
+        ? h('div', { className: 'profile-about restore-preview-about', textContent: p.about })
+        : h('p', { className: 'hint', textContent: '(no bio in this backup)' })
+    );
+    return pane;
   }
 
   // ---- NIP-65 relay list editor (Profile tab) ----
@@ -8897,16 +9177,28 @@
       h('p', { className: 'hint', textContent: 'Your profile, follows, and mute list — data only, never your secret key — stored on your relays as an encrypted record you can restore here (NIP-78, NIP-44; NIP-04 for very large lists), or saved to a file below.' })
     );
     const list = h('div', { className: 'list flat' });
+    const statuses = new Map();
+    // "Backed up" and when, on two lines: the status column is narrow, and a
+    // gold "Backed up · 2 days ago" ran into the buttons on exactly the rows
+    // that had both. The when is furniture, not the signal — grey, below. The
+    // check mirrors the wallet badge, so "Backed up" reads the same everywhere.
+    const setBackedUp = (status, when) => {
+      status.textContent = '';
+      status.classList.add('done');
+      const tick = icon('check');
+      tick.classList.add('backup-check');
+      status.append(tick, 'Backed up', h('div', { className: 'backup-status-time', textContent: when }));
+    };
     BACKUP_TYPES.forEach((t) => {
       const status = h('div', { className: 'backup-status', textContent: 'Not backed up' });
+      statuses.set(t.key, status);
       const backup = h('button', { className: 'mini', textContent: 'Back up' });
       backup.addEventListener('click', async () => {
         backup.disabled = true;
         backup.textContent = 'Backing up…';
         try {
           await createBackup(t);
-          status.textContent = 'Backed up ✓';
-          status.classList.add('done');
+          setBackedUp(status, 'just now');
           toast(t.label + ' backed up', 'success');
         } catch (e) {
           // Keep the row tidy — surface the detail in a toast, not inline.
@@ -8922,6 +9214,17 @@
         h('div', { className: 'item-actions' }, [backup, restore]),
       ]);
       list.append(row);
+    });
+    // The last-backup time comes from the relays, not from memory: the row used
+    // to say "Not backed up" on every open until you backed up again in that
+    // session, which read as the backup having been lost. The kind:30078 event's
+    // created_at IS when the backup was taken. isConnected guards a rerender
+    // that replaced the section while the fetch was out.
+    BACKUP_TYPES.forEach(async (t) => {
+      const status = statuses.get(t.key);
+      const ev = await fetchBackupEvent(t.dtag);
+      if (!ev || !status.isConnected) return;
+      setBackedUp(status, relativeTime(ev.created_at));
     });
     setting.append(list);
 
