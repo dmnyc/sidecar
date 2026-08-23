@@ -26,7 +26,25 @@
   window.addEventListener('message', function (event) {
     if (event.source !== window) return;
     const d = event.data;
-    if (!d || d.ext !== 'sidecar' || d.kind !== 'request') return;
+    if (!d || d.ext !== 'sidecar') return;
+
+    // An invoice the page just copied to its own clipboard (see the writeText
+    // wrapper in nostr-provider.js). Re-validated here rather than trusted: the
+    // provider runs in the page world, so anything arriving on this channel is
+    // page-controlled and gets the same regex and expiry check as an invoice
+    // found in the DOM.
+    if (d.kind === 'copied-invoice') {
+      const m = INVOICE_TEXT_RE.exec(String(d.invoice || ''));
+      if (!m) return;
+      const inv = m[0].toLowerCase();
+      if (invoiceExpired(inv)) return;
+      copiedInvoice = inv;
+      copiedAt = Date.now();
+      scanForInvoice();
+      return;
+    }
+
+    if (d.kind !== 'request') return;
     const type = SCOPE_TO_TYPE[d.scope];
     if (!type) return;
 
@@ -152,6 +170,16 @@
   let cardHost = null;
   let shownInvoice = '';
   let dismissedInvoice = '';
+
+  // An invoice the page copied to the clipboard. Unlike a DOM invoice there is
+  // nothing to keep re-deriving it from, and nothing that disappears when the
+  // modal closes — so it carries its own expiry. Without one, a card could
+  // outlive the modal that produced it and sit there long after the moment
+  // passed. The BOLT11's own expiry still applies on top of this; this is only
+  // the ceiling on how long a copy counts as a live intent to pay.
+  let copiedInvoice = '';
+  let copiedAt = 0;
+  const COPIED_TTL_MS = 3 * 60 * 1000;
   let escHandler = null;
   let cardControls = null; // { invoice, setPaid, setError } for the live card
   // How long a payment may sit in flight before the card offers a way out. Well
@@ -322,6 +350,24 @@
         }
         node = node.parentNode || node.host || null;
         hops++;
+      }
+    }
+    // 4) an invoice the page copied to the clipboard. Last, so an explicit
+    // lightning: link or a visible invoice still wins — those are the same
+    // payment described more directly, and re-derived fresh on every scan.
+    if (copiedInvoice) {
+      // Dropped here rather than at each of the four places that dismiss an
+      // invoice — paid, declined, dismissed, stopped waiting. One expiry point
+      // means a new dismissal path can't forget to clear it.
+      if (
+        copiedInvoice === dismissedInvoice ||
+        Date.now() - copiedAt > COPIED_TTL_MS ||
+        invoiceExpired(copiedInvoice)
+      ) {
+        copiedInvoice = '';
+        copiedAt = 0;
+      } else {
+        return copiedInvoice;
       }
     }
     return '';
