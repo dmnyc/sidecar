@@ -474,6 +474,45 @@
   animation: nixie-strike 1040ms both;
 }
 
+/* The card's stroke matches the theme's buttons: warm, because in this theme a
+   lit edge is how anything interactive is outlined. Left to the shared rules it
+   took --border (steel) and, when selected, --gold plus --gold-soft — a pale
+   peach line inside a steel ring, which is the one thing in the picker that did
+   not look like the theme it is advertising. Selected is the discharge itself
+   rather than the reflection, since a chosen card should read as lit. */
+.theme-card[data-theme="nixie"] { border-color: rgba(255, 118, 50, 0.42); }
+.theme-card[data-theme="nixie"]:hover { border-color: rgba(255, 118, 50, 0.62); }
+.theme-card[data-theme="nixie"].active {
+  border-color: #ff7632;
+  box-shadow: 0 0 0 2px rgba(240, 48, 12, 0.26), 0 0 16px rgba(240, 48, 12, 0.18);
+}
+
+/* The theme picker is a type specimen — each card carries its own data-theme, so
+   you read every theme's name in the face and palette you would get by choosing
+   it. This one goes further and shows the READOUT, since that is the thing the
+   theme is about: the card's label takes the balance figure's ink and its bloom,
+   at the size that treatment needs to register. Same four-layer stack as the
+   figure rather than a second recipe, so the two can't drift apart.
+
+   Not the cage as well. It was tried, and at label size the mesh eats too much of
+   a five-letter word: the balance is a display, but this is a control, and it has
+   to stay a word you can read at a glance.
+
+   Only the ink and the bloom live here. The 20px that this treatment needed to
+   register turned out to be right for every card, so the size and the pinned
+   line-height moved to the shared .theme-name rule in styles.css. */
+/* No ancestor scope on this one, deliberately: the card carries data-theme itself,
+   which is both how it matches this file's variables and why it has to look right
+   while some OTHER theme is the active one. */
+.theme-card[data-theme="nixie"] .theme-name {
+  color: var(--balance-ink);
+  text-shadow:
+    0 0 0.05em rgba(255, 246, 230, 0.5),
+    0 0 0.16em color-mix(in srgb, #ff6a24 58%, transparent),
+    0 0 0.42em color-mix(in srgb, #f0300c 62%, transparent),
+    0 0 0.8em color-mix(in srgb, #e01b06 46%, transparent);
+}
+
 /* The shared 5s glow pulse on an incoming payment (.balance-bump) is off here.
    The tube re-striking IS the announcement in this theme, so the pulse is
    redundant — and worse than redundant: it animates text-shadow on the balance

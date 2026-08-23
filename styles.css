@@ -2975,6 +2975,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .theme-name {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 14px;
+  /* 20px, not 14: at label size a display face is a hint rather than a specimen,
+     and the point of this picker is that you read each theme's name in the face
+     you would get by choosing it.
+     line-height is pinned because the seven faces carry very different content
+     areas — Apogee Telemetry's is 39px at 24px against Playfair's 32 — so at the
+     default the cards came out anywhere from 43px to 62px tall and the list read
+     as ragged. Pinned, every card is the same height it was before the type grew,
+     which also keeps the whole picker on one screen. Descenders overflow the line
+     box (Speakeasy's y) and are absorbed by the card's padding; nothing clips. */
+  font-size: 20px;
+  line-height: 1;
   letter-spacing: 0.01em;
 }
