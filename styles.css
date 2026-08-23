@@ -2001,8 +2001,17 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .wallet-card.compact .wallet-refresh,
 .wallet-card.compact .wallet-pin { display: none; }
 .wallet-card.compact .wallet-balance { font-size: 24px; margin: 0; line-height: 1; }
+/* z-index: the balance can paint OVER these buttons. The figure carries a
+   transform (optical centering below) which puts it in the positioned painting
+   layer, and the card appends the eye and refresh BEFORE it (sidepanel.js,
+   card.append), so the earlier-in-tree buttons lose. Nixie pads the figure for
+   its glow and hands the space back with negative margins, and a wide BTC
+   figure — every one is ten glyphs, the only denomination that reaches this
+   far — covered most of both buttons at 400px and all of them at 320px: a
+   "refresh" click landed on the figure and cycled sats → BTC → fiat. A real
+   control never loses a click to a decorative halo, in any theme. */
 .wallet-refresh {
-  position: absolute; top: 10px; right: 10px;
+  position: absolute; top: 10px; right: 10px; z-index: 1;
   width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
 }
@@ -2010,7 +2019,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .wallet-refresh:active svg { transform: rotate(-180deg); }
 .wallet-refresh svg { width: 16px; height: 16px; transition: transform 0.3s ease; }
 .wallet-eye {
-  position: absolute; top: 10px; left: 10px;
+  position: absolute; top: 10px; left: 10px; z-index: 1; /* see .wallet-refresh */
   width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
 }
