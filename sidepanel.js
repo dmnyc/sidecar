@@ -1637,6 +1637,21 @@
       const name = tab.dataset.tab;
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-' + name));
+      // Every tab shares ONE scroll container, so the offset from the tab you just
+      // left carries into the tab you arrive at. With a long account list that is
+      // very visible: scroll down, tap "View full profile" (which clicks this tab
+      // for you), and the Profile screen opens partway down — at Relays, or
+      // wherever that pixel height happens to land — with no indication that
+      // anything is above it.
+      //
+      // Reset only on a tab CHANGE. Re-renders of the tab you are already on
+      // (an account switch, a settings change) deliberately keep your place, and
+      // those paths call the render functions directly rather than coming through
+      // here. Scoped to view-main because the profile editor has a .content of its
+      // own, and instant rather than smooth: you are arriving somewhere new, so
+      // animating the outgoing content is just noise.
+      const scroller = $('view-main').querySelector('.content');
+      if (scroller) scroller.scrollTop = 0;
       if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
       else if (name === 'wallet') renderWallet();
@@ -3096,6 +3111,10 @@
       if (acc) acc.classList.add('active');
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-accounts'));
+      // The only view change that does not go through the tab handler, so it needs
+      // the same scroll reset for the same reason (see there).
+      const scroller = $('view-main').querySelector('.content');
+      if (scroller) scroller.scrollTop = 0;
     }
 
     // persistent header chip (current account)
