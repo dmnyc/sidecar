@@ -193,7 +193,7 @@
 
   // Apply theme by setting data-theme attribute on HTML element
   function applyTheme(themeName) {
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus', 'nixie'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
@@ -9446,28 +9446,112 @@
   // the currency symbol for fiat (empty otherwise), kept out of `text` so callers can
   // set it in a smaller UI font instead of the balance's display face.
   // Fiat with no available rate falls back to sats rather than showing a wrong number.
+  // `sats` rides along unformatted so paintBalanceEl can decide whether the figure
+  // has actually changed. Keying that on the rendered text instead would count a
+  // sats → BTC → fiat toggle as a new balance.
   function denomParts(sats) {
-    if (sats == null) return { text: '…', unit: 'sats', sym: '' };
-    if (denom === 'btc') return { text: fmtBtc(sats), unit: 'BTC', sym: '' };
+    // Three middots, not an ellipsis: U+2026 is absent from Apogee Telemetry, so in
+    // Nixie the '…' silently fell back to another face — small baseline dots in the
+    // wrong typeface where the figure should be. periodcentered is in the font, sits
+    // at mid height, and reads as three unlit tubes waiting for a number.
+    if (sats == null) return { text: '···', unit: 'sats', sym: '', sats: null };
+    if (denom === 'btc') return { text: fmtBtc(sats), unit: 'BTC', sym: '', sats };
     if (denom === 'fiat') {
       const p = priceCache.price;
       if (priceCache.currency === fiatCurrency.toUpperCase() && p != null) {
         const { sym, num } = fmtFiatParts((sats / 1e8) * p, fiatCurrency);
-        return { text: num, unit: fiatCurrency.toUpperCase(), sym };
+        return { text: num, unit: fiatCurrency.toUpperCase(), sym, sats };
       }
-      return { text: fmtSats(sats), unit: 'sats', sym: '' }; // no rate yet — don't guess
+      return { text: fmtSats(sats), unit: 'sats', sym: '', sats }; // no rate yet — don't guess
     }
-    return { text: fmtSats(sats), unit: 'sats', sym: '' };
+    return { text: fmtSats(sats), unit: 'sats', sym: '', sats };
   }
+
+  // Per-glyph timing for the Nixie strike, from apogee's digit-cycle.ts.
+  // Deterministic and keyed on the glyph's position rather than random: a repaint
+  // mid-animation can't re-roll a glyph's beat and restart it, and the pattern is
+  // reproducible when tuning it. The two primes give a long-period sequence — no
+  // two adjacent glyphs share a beat, so the figure lights raggedly, the way a row
+  // of tubes does, instead of sweeping left to right (which is what the first
+  // pass's flat 60ms-per-glyph stagger did).
+  //
+  // Longer than apogee's 620-980ms, because this theme's keyframes carry a longer
+  // settle at the end (see themes/nixie.css — apogee's version stops rather
+  // than lands). The keyframe positions of the STUTTER were pulled in by the same
+  // ratio, so the opening flicker keeps its wall-clock rhythm and only the tail
+  // gets the extra time. The delay spread is wider for the same reason: it stops
+  // the whole figure from finishing at once.
+  const STRIKE_DELAY_MOD_MS = 300;
+  const STRIKE_DUR_BASE_MS = 900;
+  const STRIKE_DUR_STEPS = 5;
+  const STRIKE_DUR_STEP_MS = 90;
+  const strikeBeat = (i) => ({
+    delay: (i * 37) % STRIKE_DELAY_MOD_MS,
+    duration: STRIKE_DUR_BASE_MS + ((i * 53) % STRIKE_DUR_STEPS) * STRIKE_DUR_STEP_MS,
+  });
+
+  // The figure each balance element last painted, as raw sats. Weak, so a
+  // re-rendered card doesn't leak. Two jobs:
+  //
+  //   1. deciding when a strike is earned. Three of the four repaint paths fire on
+  //      a timer or a tab switch, so without this the tubes would re-ignite every
+  //      poll — the mistake apogee's balance-warmup.ts exists to avoid. The pinned
+  //      bar's node lives for the life of the panel and so only strikes on a real
+  //      change; the wallet card is rebuilt on entering the tab and strikes then,
+  //      which is when those numerals really are appearing for the first time.
+  //   2. deciding whether to touch the DOM at all (see paintBalanceEl).
+  const paintedSats = new WeakMap();
 
   // Paint a balance element with an optional smaller-font currency symbol prefix.
   // Uses textContent for the number (never innerHTML — the symbol comes from Intl,
   // but the habit matters in a signer).
   function paintBalanceEl(el, parts, symClass) {
     if (!el) return;
+    const key = parts.sats == null ? null : String(parts.sats);
+    const prev = paintedSats.get(el);
+
+    // Already showing exactly this figure? Leave the DOM alone. Refresh paints
+    // twice — once from the cache while the card is being built, then again when
+    // the fetch returns the same number — and rewriting identical content the
+    // second time replaced the striking spans with a plain text node partway
+    // through the animation. The figure snapped to full brightness, so a refreshed
+    // balance flickered for a fraction of the time a freshly loaded one did.
+    //
+    // The content is re-read from the DOM rather than trusted from the record,
+    // because other code writes these elements directly: the error path sets '—'
+    // and the pinned bar sets the '···' placeholder. Without that check, a figure
+    // that went to a placeholder and back to the SAME balance would match the
+    // record and never be repainted.
+    if (prev === key && el.textContent === (parts.sym || '') + parts.text) return;
+
+    // In Nixie the figure strikes like a nixie tube igniting: each glyph is
+    // its own span so it can carry a beat, and the animation lives in the theme
+    // (themes/nixie.css), which also disables itself under
+    // prefers-reduced-motion. Every other theme gets a plain text node exactly
+    // as before — the effect is opt-in by theme, not imposed on everyone.
+    //
+    // `prev !== key` is what makes a real balance change re-strike: a new element
+    // (nothing recorded) or a number that moved both qualify, while a denomination
+    // toggle keeps the same sats and only repaints.
+    const nixie = document.documentElement.getAttribute('data-theme') === 'nixie';
+    const strike = nixie && key != null && prev !== key;
+    paintedSats.set(el, key);
+
     el.textContent = '';
     if (parts.sym) el.append(h('span', { className: symClass, textContent: parts.sym }));
-    el.append(document.createTextNode(parts.text));
+    if (strike) {
+      // Separators come along for the ride so the whole figure strikes as one sign.
+      Array.from(parts.text).forEach((ch, i) => {
+        const { delay, duration } = strikeBeat(i);
+        el.append(h('span', {
+          className: 'nixie-strike',
+          textContent: ch,
+          style: `--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
+        }));
+      });
+    } else {
+      el.append(document.createTextNode(parts.text));
+    }
   }
 
   // Advance the cycle, persist nothing (it's a view preference, not a setting), warm
@@ -9574,7 +9658,7 @@
     amt.title = 'Tap to change units';
     const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     if (cached) paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
-    else amt.textContent = '…';
+    else amt.textContent = '···';
     const stale = !cached || !balanceCache.ts || Date.now() - balanceCache.ts > 60000;
     if (stale) {
       try {
@@ -10085,7 +10169,7 @@
     });
     const bal = h('div', {
       className: 'wallet-balance' + (cached ? '' : ' loading'),
-      textContent: '…',
+      textContent: '···',
       title: 'Tap to change units',
     });
     if (cached) paintBalanceEl(bal, denomParts(balanceCache.sats), 'wallet-fiat-sym');

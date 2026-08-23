@@ -39,11 +39,20 @@ const promptHtml = fs.readFileSync(path.join(ROOT, 'prompt.html'), 'utf8');
 
 // ---- CSS custom-property tables -------------------------------------------------------
 
+// Comments are stripped before the declarations are read. The theme files document
+// their palettes heavily and they name their own tokens while doing it, so prose like
+// "hotter than --gold: see below" parses as a declaration whose value runs to the next
+// semicolon — which silently replaced the real --gold with a sentence. It failed loudly
+// here (NaN contrast), but only because the stolen value happened not to look like a
+// color; a comment mentioning "--faint: #999 was too dark" would have quietly measured
+// the wrong ink and passed.
 function varsIn(src, blockRe) {
   const m = src.match(blockRe);
   if (!m) throw new Error('block not found: ' + blockRe);
   const out = {};
-  for (const d of m[0].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) out[d[1]] = d[2].trim();
+  for (const d of m[0].replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    out[d[1]] = d[2].trim();
+  }
   return out;
 }
 
@@ -295,7 +304,8 @@ const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 //
 // KNOWN BELOW AA (pre-existing, not introduced by any change here):
 //   art-deco --muted 3.68:1  — secondary body text under the 4.5 floor
-//   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone), except bauhaus
+//   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone), except bauhaus and
+//                              nixie (4.52, from its cool greys)
 // --faint is used for the lowest-emphasis labels; if it ever carries something a user has
 // to read, it needs darkening first, per theme.
 //
@@ -317,6 +327,7 @@ const FLOORS = {
   'film-noir': { '--muted': 4.45, '--faint': 2.25, '--gold': 7.85 },
   speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
   bauhaus: { '--muted': 6.00, '--faint': 4.65, '--gold': 4.80 },
+  nixie: { '--muted': 7.60, '--faint': 4.50, '--gold': 12.35 },
 };
 
 for (const theme of THEMES) {

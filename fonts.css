@@ -101,3 +101,17 @@
   font-display: swap;
   src: url('fonts/cinzel-var.woff2') format('woff2-variations');
 }
+
+/* Apogee Telemetry (patched Routed Gothic, SIL OFL 1.1 — see
+   fonts/OFL-ApogeeTelemetry.md). The numeral face of mid-century instrument
+   panels, lettered like the readouts in 2001: A Space Odyssey. Nixie's
+   display face, drawn from a category none of the other themes occupy:
+   monospaced engineer's lettering. Shipped as TTF — a single static face at
+   one weight, 57KB, rather than the variable woff2s above. */
+@font-face {
+  font-family: 'Apogee Telemetry';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/apogee-telemetry.ttf') format('truetype');
+}

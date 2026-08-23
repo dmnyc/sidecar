@@ -433,7 +433,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'art-deco', 'aegean', 'bauhaus', 'nixie']);
   function setCardTheme(t) {
     if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
@@ -576,6 +576,26 @@
          a second, smaller use, it needs splitting the way styles.css split the two.
          CARD_PAY_BG is a flat fill rather than the three-stop ramp every other theme
          uses here, matching the flat buttons in the theme file. */
+      nixie: {
+        CARD_COLOR: 'color:#edf1f5',
+        CARD_BORDER: 'rgba(168,190,214,0.28)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(240,48,12,0.13),transparent 58%),linear-gradient(165deg,#171b22,#07080a)',
+        CARD_MUTED: 'color:#a0aebc',
+        CARD_GOLD: 'color:#ffd2ab',
+        CARD_TEXT_2: 'color:#d3dae2',
+        CARD_LAV: '#d8e3ee',
+        CARD_PAY_TEXT: 'color:#1a0a02',
+        CARD_PAY_BG: 'linear-gradient(180deg,#ff8a3a,#f2571c 52%,#c93c08)',
+        CARD_CANCEL_BG: 'rgba(168,190,214,0.10)',
+        CARD_TEXT: '#edf1f5',
+        CARD_BORDER_FAINT: 'rgba(168,190,214,0.13)',
+        CARD_TOGGLE_OFF: 'rgba(168,190,214,0.22)',
+        CARD_TRACK: '#ff7a3c',
+        CARD_THUMB_OFF: '#a0aebc',
+        CARD_WARN: 'color:#ffb454',
+        CARD_SUCCESS: 'color:#5fc9c4',
+        CARD_PAY_SHADOW: 'rgba(240,48,12,0.36)'
+      },
       bauhaus: {
         CARD_COLOR: 'color:#111111',
         CARD_BORDER: 'rgba(17,17,17,0.30)',
