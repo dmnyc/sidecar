@@ -163,8 +163,17 @@ body {
    between the discs read as four-pointed stars. Daniel's tile, and the theme's palette
    comes from it rather than the other way round.
 
-   THE STRENGTH IS SET BY COVERAGE, NOT BY PER-MARK CONTRAST, and that distinction is the
-   whole reason this number is what it is. The tile's colors are blended 0.09 toward paper
+   SATURATION AND WEIGHT ARE SET SEPARATELY, and that is worth knowing before touching
+   this tile. Blending a color toward paper drops its chroma and its darkness together, so
+   the pale version of a palette is also a grey one. The cells here are therefore built in
+   two steps: blend toward paper to fix the LIGHTNESS, then put the chroma back at that
+   lightness (HSL saturation of the original x1.5, lightness held). Restoring saturation
+   costs no weight at all — measured, it slightly reduces it, 0.0423 -> 0.0401 mean
+   deviation for +32% mean chroma — because the eye's sense of "busy" tracks lightness
+   variation and its sense of "colorful" does not.
+
+   THE WEIGHT IS SET BY COVERAGE, NOT BY PER-MARK CONTRAST, and that distinction is the
+   whole reason this number is what it is. The tile's colors are blended 0.099 toward paper
    — far weaker than Aegean's or Bauhaus's marks measured one at a time — because this
    pattern inks EVERY pixel of the field while theirs leave the ground showing through.
    Matching the three by "how dark is the strongest mark against the page" put this at
@@ -174,7 +183,7 @@ body {
    The measure that actually tracks what the eye reads is the mean absolute luminance
    deviation over the whole tile. Rasterized at 256px over each theme's own --bg:
 
-       aegean    0.0359      bauhaus   0.0326      populuxe  0.0423
+       aegean    0.0359      bauhaus   0.0326      populuxe  0.0401
 
    which is the parity this file now holds — the three were levelled first, then raised
    together by about a tenth. (Before that raise: 0.0322 / 0.0296 / 0.0400.) On that scale the first version of this theme
