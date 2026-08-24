@@ -1,51 +1,82 @@
-<!-- Sidecar — Populuxe background pattern.
-     Starbursts and boomerangs on a 2x2 arrangement of 160px cells, so the 320px tile
-     repeats seamlessly: every motif is wholly contained in its own cell and nothing
-     crosses an edge.
-
-     SPARSE ON PURPOSE. The reference sheets for this style are dense — sixty motifs on
-     one page — and that density is the reason the style is usually done badly on screen.
-     Film Noir's venetian blinds are the precedent here for how much texture a panel
-     tolerates before it fights the text, and this is a LIGHT theme, where every mark
-     costs more: ink on white is a bigger step than a highlight on near-black. Four
-     motifs per tile, drawn as hairlines in the theme ink at 0.05 alpha, so it reads as
-     the stock's printed texture rather than as wallpaper.
-
-     Two motifs only, alternating: the atomic starburst and the boomerang. Both are
-     drawn as OUTLINES, not fills — the period's linework is what carries, and a filled
-     silhouette at this scale reads as a blob at panel width. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
-  <g stroke="#1C1A17" stroke-opacity="0.05" fill="none" stroke-width="1.25" stroke-linecap="round">
-
-    <!-- cell 1 (0,0): the atomic starburst — eight rays, long/short alternating, each
-         tipped with the small dot the period drew at the end of a ray. -->
-    <g transform="translate(80 80)">
-      <path d="M0-30V30M-30 0H30M-21-21 21 21M-21 21 21-21"/>
-      <path d="M0-17V17M-17 0H17" transform="rotate(22.5)"/>
-      <circle cx="0" cy="-30" r="2"/><circle cx="0" cy="30" r="2"/>
-      <circle cx="-30" cy="0" r="2"/><circle cx="30" cy="0" r="2"/>
-    </g>
-
-    <!-- cell 2 (160,0): the boomerang. Two arcs closed at the tips, the shape that ran
-         on every coffee table and countertop of the decade. -->
-    <g transform="translate(240 80) rotate(-18)">
-      <path d="M-34-14C-12-2 12-2 34-14 22 6 6 16-2 30-10 16-22 6-34-14Z"/>
-    </g>
-
-    <!-- cell 3 (0,160): starburst again, rotated and smaller, so the grid does not read
-         as a stamp repeating on a fixed axis. -->
-    <g transform="translate(80 240) rotate(15)">
-      <path d="M0-22V22M-22 0H22M-15-15 15 15M-15 15 15-15"/>
-      <circle cx="0" cy="0" r="3"/>
-    </g>
-
-    <!-- cell 4 (160,160): the ellipse-and-ray, the third motif the period used between
-         the other two — an atom's orbit read flat. -->
-    <g transform="translate(240 240) rotate(-30)">
-      <ellipse cx="0" cy="0" rx="30" ry="12"/>
-      <ellipse cx="0" cy="0" rx="30" ry="12" transform="rotate(60)"/>
-      <circle cx="0" cy="0" r="3.5"/>
-    </g>
-
-  </g>
+<svg width="1000" height="1000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="1000" y="1000" width="125" height="125" transform="rotate(-180 1000 1000)" fill="#D4B9B8"/>
+<rect x="1000" y="125" width="125" height="125" transform="rotate(-180 1000 125)" fill="#D4B9B8"/>
+<rect x="500" y="1000" width="125" height="125" transform="rotate(-180 500 1000)" fill="#D2E3E2"/>
+<rect x="500" y="125" width="125" height="125" transform="rotate(-180 500 125)" fill="#D2E3E2"/>
+<rect x="125" y="375" width="125" height="125" transform="rotate(-180 125 375)" fill="#D2E3E2"/>
+<rect x="1000" y="375" width="125" height="125" transform="rotate(-180 1000 375)" fill="#D2E3E2"/>
+<rect x="125" y="250" width="125" height="125" transform="rotate(-180 125 250)" fill="#D2E3E2"/>
+<rect x="1000" y="250" width="125" height="125" transform="rotate(-180 1000 250)" fill="#D2E3E2"/>
+<rect x="875" y="1000" width="125" height="125" transform="rotate(-180 875 1000)" fill="#FBD0BD"/>
+<rect x="875" y="125" width="125" height="125" transform="rotate(-180 875 125)" fill="#FBD0BD"/>
+<rect x="375" y="375" width="125" height="125" transform="rotate(-180 375 375)" fill="#FBD0BD"/>
+<rect x="875" y="875" width="125" height="125" transform="rotate(-180 875 875)" fill="#FDE1DC"/>
+<rect x="875" y="625" width="125" height="125" transform="rotate(-180 875 625)" fill="#D2E3E2"/>
+<rect x="875" y="750" width="125" height="125" transform="rotate(-180 875 750)" fill="#FDE1DC"/>
+<rect x="875" y="500" width="125" height="125" transform="rotate(-180 875 500)" fill="#D2E3E2"/>
+<rect x="375" y="250" width="125" height="125" transform="rotate(-180 375 250)" fill="#FBD0BD"/>
+<rect x="375" y="1000" width="125" height="125" transform="rotate(-180 375 1000)" fill="#DFD4B5"/>
+<rect x="375" y="125" width="125" height="125" transform="rotate(-180 375 125)" fill="#DFD4B5"/>
+<rect x="375" y="625" width="125" height="125" transform="rotate(-180 375 625)" fill="#DFD4B5"/>
+<rect x="875" y="375" width="125" height="125" transform="rotate(-180 875 375)" fill="#DFD4B5"/>
+<rect x="625" y="875" width="125" height="125" transform="rotate(-180 625 875)" fill="#EBE5CA"/>
+<rect x="625" y="625" width="125" height="125" transform="rotate(-180 625 625)" fill="#FCCDC6"/>
+<rect x="625" y="375" width="125" height="125" transform="rotate(-180 625 375)" fill="#D4B9B9"/>
+<rect x="375" y="500" width="125" height="125" transform="rotate(-180 375 500)" fill="#DFD4B5"/>
+<rect x="875" y="250" width="125" height="125" transform="rotate(-180 875 250)" fill="#DFD4B5"/>
+<rect x="625" y="750" width="125" height="125" transform="rotate(-180 625 750)" fill="#EBE5CA"/>
+<rect x="625" y="500" width="125" height="125" transform="rotate(-180 625 500)" fill="#FCCDC6"/>
+<rect x="625" y="250" width="125" height="125" transform="rotate(-180 625 250)" fill="#D4B9B9"/>
+<rect x="375" y="875" width="125" height="125" transform="rotate(-180 375 875)" fill="#ADCDCE"/>
+<rect x="375" y="750" width="125" height="125" transform="rotate(-180 375 750)" fill="#ADCDCE"/>
+<rect x="750" y="1000" width="125" height="125" transform="rotate(-180 750 1000)" fill="#FBD0BD"/>
+<rect x="750" y="125" width="125" height="125" transform="rotate(-180 750 125)" fill="#FBD0BD"/>
+<rect x="250" y="375" width="125" height="125" transform="rotate(-180 250 375)" fill="#FBD0BD"/>
+<rect x="750" y="875" width="125" height="125" transform="rotate(-180 750 875)" fill="#FDE1DC"/>
+<rect x="750" y="625" width="125" height="125" transform="rotate(-180 750 625)" fill="#D2E3E2"/>
+<rect x="750" y="750" width="125" height="125" transform="rotate(-180 750 750)" fill="#FDE1DC"/>
+<rect x="750" y="500" width="125" height="125" transform="rotate(-180 750 500)" fill="#D2E3E2"/>
+<rect x="250" y="250" width="125" height="125" transform="rotate(-180 250 250)" fill="#FBD0BD"/>
+<rect x="250" y="1000" width="125" height="125" transform="rotate(-180 250 1000)" fill="#DFD4B5"/>
+<rect x="250" y="125" width="125" height="125" transform="rotate(-180 250 125)" fill="#DFD4B5"/>
+<rect x="250" y="625" width="125" height="125" transform="rotate(-180 250 625)" fill="#DFD4B5"/>
+<rect x="750" y="375" width="125" height="125" transform="rotate(-180 750 375)" fill="#DFD4B5"/>
+<rect x="500" y="875" width="125" height="125" transform="rotate(-180 500 875)" fill="#EBE5CA"/>
+<rect x="500" y="625" width="125" height="125" transform="rotate(-180 500 625)" fill="#FCCDC6"/>
+<rect x="500" y="375" width="125" height="125" transform="rotate(-180 500 375)" fill="#D4B9B9"/>
+<rect x="250" y="500" width="125" height="125" transform="rotate(-180 250 500)" fill="#DFD4B5"/>
+<rect x="750" y="250" width="125" height="125" transform="rotate(-180 750 250)" fill="#DFD4B5"/>
+<rect x="500" y="750" width="125" height="125" transform="rotate(-180 500 750)" fill="#EBE5CA"/>
+<rect x="500" y="500" width="125" height="125" transform="rotate(-180 500 500)" fill="#FCCDC6"/>
+<rect x="500" y="250" width="125" height="125" transform="rotate(-180 500 250)" fill="#D4B9B9"/>
+<rect x="250" y="875" width="125" height="125" transform="rotate(-180 250 875)" fill="#ADCDCE"/>
+<rect x="125" y="625" width="125" height="125" transform="rotate(-180 125 625)" fill="#ADCDCE"/>
+<rect x="1000" y="625" width="125" height="125" transform="rotate(-180 1000 625)" fill="#ADCDCE"/>
+<rect x="250" y="750" width="125" height="125" transform="rotate(-180 250 750)" fill="#ADCDCE"/>
+<rect x="125" y="500" width="125" height="125" transform="rotate(-180 125 500)" fill="#ADCDCE"/>
+<rect x="1000" y="500" width="125" height="125" transform="rotate(-180 1000 500)" fill="#ADCDCE"/>
+<rect x="625" y="1000" width="125" height="125" transform="rotate(-180 625 1000)" fill="#D2E3E2"/>
+<rect x="625" y="125" width="125" height="125" transform="rotate(-180 625 125)" fill="#D2E3E2"/>
+<rect x="125" y="1000" width="125" height="125" transform="rotate(-180 125 1000)" fill="#D4B9B9"/>
+<rect x="125" y="125" width="125" height="125" transform="rotate(-180 125 125)" fill="#D4B9B9"/>
+<rect x="125" y="875" width="125" height="125" transform="rotate(-180 125 875)" fill="#FCCDC6"/>
+<rect x="1000" y="875" width="125" height="125" transform="rotate(-180 1000 875)" fill="#FCCDC6"/>
+<rect x="125" y="750" width="125" height="125" transform="rotate(-180 125 750)" fill="#FCCDC6"/>
+<rect x="1000" y="750" width="125" height="125" transform="rotate(-180 1000 750)" fill="#FCCDC6"/>
+<circle cx="875" cy="875" r="125" transform="rotate(-180 875 875)" fill="#FBF2E4"/>
+<circle cx="875" cy="625" r="125" transform="rotate(-180 875 625)" fill="#FBF2E4"/>
+<circle cx="875" cy="375" r="125" transform="rotate(-180 875 375)" fill="#FBF2E4"/>
+<circle cx="875" cy="125" r="125" transform="rotate(-180 875 125)" fill="#FBF2E4"/>
+<circle cx="625" cy="875" r="125" transform="rotate(-180 625 875)" fill="#FBF2E4"/>
+<circle cx="625" cy="625" r="125" transform="rotate(-180 625 625)" fill="#FBF2E4"/>
+<circle cx="625" cy="375" r="125" transform="rotate(-180 625 375)" fill="#FBF2E4"/>
+<circle cx="625" cy="125" r="125" transform="rotate(-180 625 125)" fill="#FBF2E4"/>
+<circle cx="375" cy="875" r="125" transform="rotate(-180 375 875)" fill="#FBF2E4"/>
+<circle cx="375" cy="625" r="125" transform="rotate(-180 375 625)" fill="#FBF2E4"/>
+<circle cx="375" cy="375" r="125" transform="rotate(-180 375 375)" fill="#FBF2E4"/>
+<circle cx="375" cy="125" r="125" transform="rotate(-180 375 125)" fill="#FBF2E4"/>
+<circle cx="125" cy="875" r="125" transform="rotate(-180 125 875)" fill="#FBF2E4"/>
+<circle cx="125" cy="625" r="125" transform="rotate(-180 125 625)" fill="#FBF2E4"/>
+<circle cx="125" cy="375" r="125" transform="rotate(-180 125 375)" fill="#FBF2E4"/>
+<circle cx="125" cy="125" r="125" transform="rotate(-180 125 125)" fill="#FBF2E4"/>
 </svg>

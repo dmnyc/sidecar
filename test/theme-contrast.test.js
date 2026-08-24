@@ -328,12 +328,14 @@ const FLOORS = {
   speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
   bauhaus: { '--muted': 6.00, '--faint': 4.65, '--gold': 4.80 },
   nixie: { '--muted': 7.60, '--faint': 4.50, '--gold': 12.35 },
-  // Populuxe is the first theme in which all five inks clear AA on all four surfaces —
-  // --faint included, at 4.89. That is a consequence of the ground being white with the
-  // cream demoted to a secondary plane, which is the correction for the art-deco note
-  // above: the cream could not carry a three-level hierarchy, so it stopped being the
-  // surface that had to.
-  populuxe: { '--muted': 4.71, '--faint': 4.89, '--gold': 4.92 },
+  // Populuxe clears AA on all four surfaces for all five inks, --faint included. That is
+  // a consequence of the ground being white with the cream demoted to a secondary plane,
+  // which is the correction for the art-deco note above: the cream could not carry a
+  // three-level hierarchy, so it stopped being the surface that had to.
+  // --muted is much darker than the role usually wants (7.32) because it also has to stay
+  // legible over the theme's pattern tile, which is far bolder than any other theme's.
+  // That is what forced --pending-sub to be set explicitly; see themes/populuxe.css.
+  populuxe: { '--muted': 7.32, '--faint': 4.78, '--gold': 4.64 },
 };
 
 for (const theme of THEMES) {
