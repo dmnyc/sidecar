@@ -1,0 +1,310 @@
+/* ============================================================
+   Sidecar — Populuxe Theme
+   Optimistic futurism, 1954–1964: starbursts and boomerangs on
+   white, tomato and marigold and teal, black linework.
+   ("Populuxe" is Thomas Hine's 1986 coinage — popular + luxury
+   + deluxe — for the period's own consumer futurism.)
+   ============================================================ */
+
+/* Every value here was measured before it was written down. See
+   test/theme-contrast.test.js, which resolves these var() chains and checks the ratios.
+
+   THE GROUND IS WHITE, AND THAT IS THE WHOLE DESIGN DECISION. Mid-century graphics are
+   built on cream and beige, so the obvious palette walks straight into the failure this
+   codebase has already documented once. From that test file, about Art Deco:
+
+       "the cream palette cannot carry a legible three-level grey hierarchy at all.
+        That is a surface problem, not an ink problem."
+
+   Art Deco's --muted (3.65:1) and --faint (2.30:1) are recorded there as permanent
+   exceptions, unfixable without changing the surface. So the cream moved one step down:
+   white is the paper, cream is the secondary plane, and the period color arrives as
+   accent, fill and pattern rather than as the sheet under body text. The reference
+   material agrees — the mid-century posters put their content on a genuinely white card
+   and use the saturated color as ground around it.
+
+   What that buys: every one of the five inks clears AA 4.5:1 on all four surfaces.
+
+       --text     14.44    --text-2    7.76    --muted    4.71
+       --faint     4.89    --gold      4.92
+
+   No other theme manages that. Bauhaus comes closest and is the only other one whose
+   --faint clears AA (4.65); the remaining five run 2.25–3.53 there.
+
+   INK IS COLORED, NOT GREY. Three greys on a warm ground is what failed in Art Deco, and
+   it is not how this material was printed either — mid-century process work carried its
+   hierarchy in colored inks. So --text-2 is a deep teal and --muted is a sage, both drawn
+   from the palette rather than desaturated out of it.
+
+   TRAP — three of the four accents collide by luminance. Measured against each other:
+
+       tomato / teal       1.04:1     unusable as a pair, at any size
+       tomato / sage       1.09:1
+       teal   / sage       1.14:1
+       marigold / tomato   2.79:1
+       marigold / teal     2.68:1
+       marigold / sage     3.05:1
+
+   Tomato, teal and sage may never be a fill/label pair, or two adjacent states told apart
+   by color alone. Marigold is the only mediator — exactly the role yellow plays in
+   Bauhaus, whose blue/red measured 1.09:1, and the same defect that scrapped Blackjack.
+   Where two of the three must sit together, the distinction is carried by a glyph or a
+   rule line as well as the color.
+
+   TRAP 2 — marigold cannot be ink. #F2B33C measures 1.55:1 as text and 9.33:1 as a fill
+   with black type on it, which is how the period actually used it: a plane with type on
+   it, never a tinted letterform. --amber is the full-strength marigold and is FILL-ONLY;
+   --gold is its dark end and is the only warm value allowed to carry text. */
+
+[data-theme="populuxe"] {
+  color-scheme: light;
+
+  /* DISPLAY FACE — PROVISIONAL, and the one unfinished thing in this theme.
+     Every other theme bundles its own face from a category no other theme uses: Didone
+     (Playfair), condensed grotesque (Oswald), slab (Bitter), 1920s geometric (Josefin),
+     Roman caps (Cinzel), Futura geometric (Jost), engineer's mono (Apogee Telemetry).
+     The category this style wants is the square/Eurostile lineage — the space-age face
+     proper — and nothing in fonts/ is in it. Michroma is the closest OFL candidate and
+     needs vendoring: a woff2 in fonts/, its license text beside the other eight, and an
+     @font-face in fonts.css.
+     Until then this is a system stack, which is a compromise the other themes do not
+     make: it renders differently per machine. What it must NOT do is stay unset —
+     --font-display then inherits Playfair Display, and the balance and theme-card label
+     render as a Didone serif, which is a hundred years and one aesthetic away. */
+  --font-display: 'Futura', 'Avenir Next', 'Century Gothic', 'Trebuchet MS', var(--font-ui);
+
+  /* Surfaces — white paper over a warm cream plane. The white carries a 6-point warm
+     cast rather than being pure #FFF, so it reads as stock rather than as screen; cards
+     are the one genuinely white surface, which is what makes them read as pinned on top.
+     --velvet-2 was #F0E5D3 in the first pass and came up two steps: at that value
+     --muted measured 4.55 and --gold 4.75, both clearing AA but with no headroom for a
+     later tweak to spend. */
+  --bg: #FFFDF9;
+  --bg-2: #F6EEE1;
+  --velvet-1: #FFFFFF;
+  --velvet-2: #F3E9D9;
+  --velvet-1-rgb: 255, 255, 255;
+  --av-from: #FFFFFF;
+  --av-to: #F3E9D9;
+  --banner-accent: #F6EEE1;
+
+  /* Rule lines are near-black, the way the period's linework was printed — the starbursts
+     and boomerangs in the reference sheets are black on color, not tinted. --accent-rgb
+     is set separately so row highlights can be tomato without the borders following. */
+  --border: rgba(28, 26, 23, 0.15);
+  --border-strong: rgba(28, 26, 23, 0.28);
+  --border-rgb: 28, 26, 23;
+  --well-rgb: 246, 238, 225;
+
+  /* Tomato is the theme's action color AND its destructive color, which is only safe
+     because the two never appear as a pair — destructive is always a filled button with
+     its own label, and the action color is a wash. #C0341C rather than the brighter
+     #D6432B: the bright one measures 4.47:1 on the mid stop of a button gradient, a hair
+     under the 4.5 the contrast test holds a 14px/600 label to. */
+  --warn: #C0341C;
+  --warn-rgb: 192, 52, 28;
+  --success: #1F6B3F;
+  --success-rgb: 31, 107, 63;
+
+  /* --orange holds the theme's action color, not an orange. This token drives
+     accent-color on every checkbox and the chosen-button fill, so it has to be whatever
+     the theme's "yes" is; here that is the tomato. Bauhaus puts blue in this slot and
+     Aegean puts cobalt, both for the same reason. */
+  --orange: #C43D26;
+
+  /* THE WARM FAMILY, SPLIT BY CONTRAST BUDGET — see TRAP 2 above. Which stop a rule gets
+     is decided by how big its text is, not by taste:
+
+       --amber        #F2B33C  fill only, never text          1.55:1 as ink — unusable
+       --balance-ink  #D6432B  large text only (>=18.66/700)  3.72:1 — clears 3.0, not 4.5
+       --gold         #8A5A0B  all remaining text             4.92:1 — clears 4.5 anywhere
+
+     --gold is a deep ochre rather than a brown: it has to be traceable back to the
+     marigold above it, or the lightning address and the relax countdown read as leftover
+     gold from Art Deco — the exact failure Bauhaus recorded when its --gold was an
+     unrelated #7A5C00. */
+  --amber: #F2B33C;
+  --gold: #8A5A0B;
+  --gold-soft: rgba(28, 26, 23, 0.28);
+
+  /* The wallet balance — the bright tomato, which is WCAG large text at 40px/700 (24px/700
+     pinned and compact) and holds 3.72:1 on its worst surface. It would fail the 4.5 bar
+     that the 12–13px labels are held to, which is why those take --gold instead. */
+  --balance-ink: #D6432B;
+
+  /* Row highlights, hover fills, tip cards — tomato, so a selected row reads as selected
+     rather than as a smudge of the border color. */
+  --accent-rgb: 196, 61, 38;
+
+  /* Teal takes the accent slot the dark themes fill with purple: 7.76:1 as ink for the
+     deeper tone, 5.68:1 for the lighter. It is the one accent that is never adjacent to
+     tomato without a rule line between them (TRAP, above). */
+  --purple: #186B68;
+  --lav: #1F7C79;
+
+  /* Relax countdown dot. The shared default (#4ade80) is built for a dark status bar and
+     measures 1.66:1 on this one. The low state is the balance tomato rather than --warn's
+     deeper red, so the countdown reads green -> warm and not green -> already-failed. */
+  --relax-dot-ok: #16803C;
+  --relax-dot-low: var(--balance-ink);
+
+  --hover-soft: rgba(28, 26, 23, 0.045);
+  --hover-medium: rgba(28, 26, 23, 0.085);
+  --hover-faint: rgba(28, 26, 23, 0.03);
+  --mention-bg: rgba(31, 124, 121, 0.16);
+  /* Warm grey, not tomato — the scrollbar is furniture, not an accent. */
+  --scroll-thumb: linear-gradient(180deg, #CFC6B6, #E2DACB);
+  --scroll-thumb-hover: #B8AE9C;
+
+  /* Buttons run a shallow three-stop ramp rather than Bauhaus's flat planes: the period's
+     printing had ink density, and a completely flat fill reads as the other theme. The
+     ramp is kept narrow so the label clears the bar at every stop, not just the middle —
+     white on tomato measures 4.30 / 5.19 / 6.22 top to bottom. */
+  --btn-primary-top: #D64A32;
+  --btn-primary-mid: #C43D26;
+  --btn-primary-bot: #B03520;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: rgba(196, 61, 38, 0.30);
+
+  /* "Trust this site" — teal, sitting directly below the tomato Allow. Two actions of
+     different weight as two different colors, not two shades of one. White on teal is
+     3.87 / 4.98 / 6.28. Tomato and teal collide at 1.04:1 by luminance (TRAP), so these
+     two buttons are separated by the ring and the gap between them, never by color alone
+     — which is why the ring here is ink rather than a tint of either. */
+  --btn-lav-top: #2E8F8C;
+  --btn-lav-mid: #1F7C79;
+  --btn-lav-bot: #186B68;
+  --btn-lav-text: #FFFFFF;
+  --btn-lav-ring: rgba(28, 26, 23, 0.22);
+  --btn-lav-shadow: rgba(31, 124, 121, 0.34);
+
+  /* Quiet buttons stay paper — the way back should not compete with either action. */
+  --btn-secondary-top: #FFFFFF;
+  --btn-secondary-bot: #F3E9D9;
+
+  /* Pending confirm. --pending-sub is left unset: the default is --muted, which clears
+     AA on the pending wash here. */
+  --pending-text: #186B68;
+
+  /* Small accent pills (reload banner, "grant" on a host row). The shared default
+     hardcodes gold at the outer stops with --gold in the middle, so a theme that recolors
+     --gold alone gets gold-ochre-gold. Marigold with black type — 9.33:1, and the one
+     place the full-strength warm value is allowed to appear, because it is a fill. */
+  --btn-accent-top: #F2B33C;
+  --btn-accent-mid: #E8A322;
+  --btn-accent-bot: #D8930F;
+  --btn-accent-text: #1C1A17;
+
+  /* Ink — warm near-black, then teal and sage rather than greys. See the header: this is
+     the first theme in which all five inks clear AA on all four surfaces. */
+  --text: #1C1A17;
+  --text-2: #1F4E4C;
+  --muted: #5C6B5A;
+  --faint: #6A6456;
+  --red: #C0341C;
+
+  --shadow: 0 10px 30px rgba(28, 26, 23, 0.10);
+  --shadow-sm: 0 6px 18px rgba(28, 26, 23, 0.07);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.80);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding a dark-theme literal. */
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(31, 124, 121, 0.26);
+  --card-wash: rgba(31, 124, 121, 0.07);
+  --accent-fill: var(--lav);
+  --glow: var(--lav);
+
+  /* The composer balloon — teal with a white label, 5.68:1. Tomato is spoken for by the
+     compose button below, and putting both on screen at once is the 1.04:1 collision. */
+  --balloon-bg: #1F7C79;
+  --balloon-bg-hover: #2E8F8C;
+  --balloon-text: #FFFFFF;
+
+  /* The compose button is the balance tomato, so the theme has exactly one loud warm
+     color rather than a tomato and a red doing similar jobs. White quill to match the
+     label on the primary. */
+  --fab-bg: #D6432B;
+  --fab-icon: #FFFFFF;
+
+  /* Floating shadows are tuned for dark themes; half-opacity black under a button sitting
+     on white paper reads as grime. */
+  --float-shadow: rgba(28, 26, 23, 0.16);
+  --float-shadow-strong: rgba(28, 26, 23, 0.24);
+}
+
+/* This theme's own card in the theme picker, in the balance tomato — the one loud warm
+   value, used everywhere it appears.
+   Written as [data-theme="populuxe"].theme-card rather than a plain `color:` in the block
+   above, and the distinction is load-bearing: that block matches BOTH <html> (when this
+   theme is active) and this button (always, since every card carries its own data-theme).
+   A bare `color:` there would repaint the entire app's default text.
+
+   CONTRAST NOTE: the label is 14px/700 on the card's white, which is not WCAG large text
+   (that needs 18.66px bold), so the bar is 4.5:1 and #D6432B measures 3.72:1. Deliberate
+   and specified, matching how Bauhaus handles the same rule with the same trade-off. */
+[data-theme="populuxe"].theme-card {
+  color: var(--balance-ink);
+}
+
+[data-theme="populuxe"].theme-card.active {
+  border-color: var(--balance-ink);
+  box-shadow: 0 0 0 2px rgba(214, 67, 43, 0.30);
+}
+
+/* The "+" badge carries near-black text on a colored disc in the dark themes. */
+[data-theme="populuxe"] .add-account-badge {
+  color: var(--velvet-1);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="populuxe"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+
+/* Outgoing transactions in the theme's red. Direction is carried by the arrow glyph as
+   well as the color — necessary here, because the tomato sits at 1.04:1 against the teal
+   used elsewhere and color alone could not be the distinction. */
+[data-theme="populuxe"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+
+[data-theme="populuxe"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+
+/* ---- balance animation: the starburst ------------------------------------
+   Every theme carries its own. This one takes the period's signature motif and
+   reads it as motion: each glyph arrives by expanding out of nothing, the way a
+   starburst is drawn from its center outward, with a single frame of marigold on
+   the way — the one moment the fill-only warm value is allowed to touch a
+   letterform, because it is in motion and lands on the ink.
+
+   Scale rather than translate: a boomerang sweep was tried first and read as the
+   figure sliding, which is a different (and duller) idea than radiating. The
+   slight overshoot at 70% is what makes it read as a pop rather than a zoom. */
+@keyframes populuxe-burst {
+  0% { transform: scale(0.4); opacity: 0; color: #F2B33C; }
+  60% { opacity: 1; }
+  70% { transform: scale(1.08); color: #E8A322; }
+  100% { transform: scale(1); opacity: 1; }
+}
+[data-theme="populuxe"] .bal-glyph { display: inline-block; }
+[data-theme="populuxe"] .bal-glyph.bal-in {
+  animation: populuxe-burst 320ms cubic-bezier(0.2, 0.9, 0.25, 1.15)
+             calc(min(var(--i), 8) * 42ms) both;
+}
+
+/* The thousands separator stays teal, always — not only while the figure arrives.
+   A separator is not a number, it is the mark that groups them, and the period's
+   own charts colored their structural rules separately from their data. It also
+   explains why the glyphs are split when nothing is animating: a comma that was
+   teal for 300ms after a balance change and ink the rest of the time would read
+   as a glitch rather than a decision. */
+[data-theme="populuxe"] .bal-sep { color: var(--lav); }
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="populuxe"] .bal-glyph.bal-in { animation: none; }
+}

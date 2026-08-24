@@ -479,7 +479,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'art-deco', 'aegean', 'bauhaus']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'art-deco', 'aegean', 'bauhaus', 'populuxe']);
   function setCardTheme(t) {
     if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
@@ -661,6 +661,26 @@
         CARD_WARN: 'color:#C9161C',
         CARD_SUCCESS: 'color:#1F6B3F',
         CARD_PAY_SHADOW: 'rgba(0,87,255,0.30)'
+      },
+      populuxe: {
+        CARD_COLOR: 'color:#1C1A17',
+        CARD_BORDER: 'rgba(28,26,23,0.28)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(242,179,60,0.12),transparent 58%),linear-gradient(165deg,#FFFFFF,#F3E9D9)',
+        CARD_MUTED: 'color:#5C6B5A',
+        CARD_GOLD: 'color:#8A5A0B',
+        CARD_TEXT_2: 'color:#1F4E4C',
+        CARD_LAV: '#1F7C79',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#D64A32,#C43D26 52%,#B03520)',
+        CARD_CANCEL_BG: 'rgba(31,124,121,0.10)',
+        CARD_TEXT: '#1C1A17',
+        CARD_BORDER_FAINT: 'rgba(28,26,23,0.15)',
+        CARD_TOGGLE_OFF: 'rgba(28,26,23,0.22)',
+        CARD_TRACK: '#1F7C79',
+        CARD_THUMB_OFF: '#5C6B5A',
+        CARD_WARN: 'color:#C0341C',
+        CARD_SUCCESS: 'color:#1F6B3F',
+        CARD_PAY_SHADOW: 'rgba(196,61,38,0.30)'
       }
     };
 
@@ -829,7 +849,7 @@
     // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
     // Every light theme needs it recoloured; the baked lavender vanishes on marble,
     // eggshell and plaster alike.
-    const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus']);
+    const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

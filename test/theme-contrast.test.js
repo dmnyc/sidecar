@@ -328,6 +328,12 @@ const FLOORS = {
   speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
   bauhaus: { '--muted': 6.00, '--faint': 4.65, '--gold': 4.80 },
   nixie: { '--muted': 7.60, '--faint': 4.50, '--gold': 12.35 },
+  // Populuxe is the first theme in which all five inks clear AA on all four surfaces —
+  // --faint included, at 4.89. That is a consequence of the ground being white with the
+  // cream demoted to a secondary plane, which is the correction for the art-deco note
+  // above: the cream could not carry a three-level hierarchy, so it stopped being the
+  // surface that had to.
+  populuxe: { '--muted': 4.71, '--faint': 4.89, '--gold': 4.92 },
 };
 
 for (const theme of THEMES) {

@@ -173,7 +173,7 @@
   // whose wordmark is dark purple (#5a4a8a) for legibility on the light
   // eggshell background; the cocktail-glass mark is identical in both files
   // (official colors), so only the wordmark changes.
-  const LIGHT_THEMES = new Set(['art-deco', 'aegean', 'bauhaus']);
+  const LIGHT_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe']);
   function logoSrcFor(themeName) {
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.
@@ -195,7 +195,7 @@
   function applyTheme(themeName) {
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'art-deco', 'aegean', 'bauhaus'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'art-deco', 'aegean', 'bauhaus', 'populuxe'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

@@ -157,3 +157,22 @@ body {
   background-size: 30px 16px, auto, auto, auto;
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
+
+/* Populuxe — starbursts and boomerangs, four to a 320px tile. Sparse where the reference
+   material is dense: this is a light theme, and a mark on white costs more than a
+   highlight on near-black, so the density that makes the style read on a poster is the
+   thing that would make it unreadable at panel width. 320px for the reason recorded in
+   the Bauhaus block above — the panel is ~400px, so a larger tile shows barely one repeat
+   and the motifs stop reading as a pattern at all.
+   The washes are marigold and teal rather than tomato: the tomato is the compose button
+   and the balance, and a wash of it behind them would flatten the one loud value in the
+   theme. */
+[data-theme="populuxe"] body {
+  background-image:
+    url(populuxe-pattern.svg),
+    radial-gradient(1000px 460px at 50% -10%, rgba(242, 179, 60, 0.10), transparent 62%),
+    radial-gradient(780px 460px at 118% 112%, rgba(31, 124, 121, 0.07), transparent 55%),
+    linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
+  background-size: 320px, auto, auto, auto;
+  background-position: center, 0% 0%, 0% 0%, 0% 0%;
+}
