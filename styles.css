@@ -788,7 +788,12 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .zap-inline input { flex: 1; min-width: 0; }
 .zap-inline .primary { flex: 0 0 auto; width: auto; min-width: 104px; padding-left: 18px; padding-right: 18px; }
 .zap-noconnect { text-align: center; margin-top: 12px; }
-.tabview h2 {
+/* Every view title takes the theme's display face. Settings is listed separately
+   because it opens as its own screen rather than as a tab, so its <h2> sits directly
+   in .content and never matched the .tabview selector — it was the one view title
+   still rendering in Manrope while Accounts and Activity carried the theme's face. */
+.tabview h2,
+#view-settings > .content > h2 {
   font-family: var(--font-display);
   font-weight: 700;
   margin: 0 0 16px;
