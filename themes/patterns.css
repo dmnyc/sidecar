@@ -53,7 +53,8 @@ body {
 /* Aegean — the Greek key over whitewash, with sea light top and bottom.
    Dialled well back from the first pass: at 300px and 7% ink the key read as loud
    wallpaper and every screen looked like a maze. 460px pushes it to architecture
-   scale, and the ink is down to 4.5% in the SVG itself. */
+   scale, and the ink is 5% in the SVG itself — 4.5% until the three light themes were
+   levelled and then raised together by a tenth. */
 [data-theme="aegean"] body {
   background-image:
     url(aegean-pattern.svg),
@@ -173,9 +174,10 @@ body {
    The measure that actually tracks what the eye reads is the mean absolute luminance
    deviation over the whole tile. Rasterized at 256px over each theme's own --bg:
 
-       aegean    0.0322      bauhaus   0.0296      populuxe  0.0400
+       aegean    0.0359      bauhaus   0.0326      populuxe  0.0423
 
-   which is the parity this file now holds. On that scale the first version of this theme
+   which is the parity this file now holds — the three were levelled first, then raised
+   together by about a tenth. (Before that raise: 0.0322 / 0.0296 / 0.0400.) On that scale the first version of this theme
    (hairline outlines at 0.05 alpha) was near zero and read as nothing, and the 0.32 it
    was rebuilt at measured 0.0676 — more than twice either neighbor.
 

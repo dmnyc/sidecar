@@ -43,8 +43,8 @@
 
    HOW BOLD THE PATTERN GETS, AND WHY. The first version of this theme was hairline
    outlines at 0.05 alpha and read as nothing at all. It was rebuilt at a 0.32 blend
-   toward paper, and then brought back down to 0.09 to sit level with the other two light
-   themes — see themes/patterns.css for the measurement, which is the interesting part:
+   toward paper, then brought back down to sit level with the other two light themes, and
+   finally raised with them to 0.099 — see themes/patterns.css for the measurement, which is the interesting part:
    the three patterns can only be compared by mean luminance deviation over the WHOLE
    tile, not by how dark their strongest mark is. This tile inks every pixel of the field;
    Aegean's meander and Bauhaus's motifs leave the ground showing through. Equalizing them
