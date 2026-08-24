@@ -84,7 +84,20 @@
      and 24px/700, both past the 18.66px bold bar), 9.9:1 on the card. --gold
      stays pale for the ~25 rules that use it as ordinary accent ink. */
   --balance-ink: #ffb478;
-  --accent-fill: linear-gradient(160deg, #ff5a1e, #cf2606);
+  /* The dark stop was #cf2606, and it put the label below AA over the bottom of
+     every chip this fill paints. --chip-ink is #180a02 (see the note beside it),
+     and against the gradient that measured 6.22 at the bright end, 4.75 at the
+     midpoint and 3.63 at the dark end — under the 4.5 a chip label needs. The
+     gradient runs at 160deg, so the failing band is the lower part of the chip,
+     and it bit hardest on the price-chart range buttons: at 10px they are the
+     smallest accent-fill text in the app, with no large-text allowance to fall
+     back on.
+     The FILL had to move rather than the ink, which was checked first — pure
+     black only reaches 3.93 at the old dark end, and inverting to a bright ink
+     is worse still at 3.12, because these embers sit mid-luminance and nothing
+     clears them from either direction. Lifting the dark stop to #ec4a16 and the
+     bright stop with it gives 6.68 / 5.13 across the run. */
+  --accent-fill: linear-gradient(160deg, #ff6a30, #ec4a16);
   --balloon-bg-hover: rgba(240, 48, 12, 0.15);
   --glow: rgba(240, 48, 12, 0.26);
   /* ~15 rules paint accent washes with rgba(var(--accent-rgb), x) — the active
