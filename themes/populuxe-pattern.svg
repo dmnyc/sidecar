@@ -1,82 +1,82 @@
 <svg width="1000" height="1000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect x="1000" y="1000" width="125" height="125" transform="rotate(-180 1000 1000)" fill="#D4B9B8"/>
-<rect x="1000" y="125" width="125" height="125" transform="rotate(-180 1000 125)" fill="#D4B9B8"/>
-<rect x="500" y="1000" width="125" height="125" transform="rotate(-180 500 1000)" fill="#D2E3E2"/>
-<rect x="500" y="125" width="125" height="125" transform="rotate(-180 500 125)" fill="#D2E3E2"/>
-<rect x="125" y="375" width="125" height="125" transform="rotate(-180 125 375)" fill="#D2E3E2"/>
-<rect x="1000" y="375" width="125" height="125" transform="rotate(-180 1000 375)" fill="#D2E3E2"/>
-<rect x="125" y="250" width="125" height="125" transform="rotate(-180 125 250)" fill="#D2E3E2"/>
-<rect x="1000" y="250" width="125" height="125" transform="rotate(-180 1000 250)" fill="#D2E3E2"/>
-<rect x="875" y="1000" width="125" height="125" transform="rotate(-180 875 1000)" fill="#FBD0BD"/>
-<rect x="875" y="125" width="125" height="125" transform="rotate(-180 875 125)" fill="#FBD0BD"/>
-<rect x="375" y="375" width="125" height="125" transform="rotate(-180 375 375)" fill="#FBD0BD"/>
-<rect x="875" y="875" width="125" height="125" transform="rotate(-180 875 875)" fill="#FDE1DC"/>
-<rect x="875" y="625" width="125" height="125" transform="rotate(-180 875 625)" fill="#D2E3E2"/>
-<rect x="875" y="750" width="125" height="125" transform="rotate(-180 875 750)" fill="#FDE1DC"/>
-<rect x="875" y="500" width="125" height="125" transform="rotate(-180 875 500)" fill="#D2E3E2"/>
-<rect x="375" y="250" width="125" height="125" transform="rotate(-180 375 250)" fill="#FBD0BD"/>
-<rect x="375" y="1000" width="125" height="125" transform="rotate(-180 375 1000)" fill="#DFD4B5"/>
-<rect x="375" y="125" width="125" height="125" transform="rotate(-180 375 125)" fill="#DFD4B5"/>
-<rect x="375" y="625" width="125" height="125" transform="rotate(-180 375 625)" fill="#DFD4B5"/>
-<rect x="875" y="375" width="125" height="125" transform="rotate(-180 875 375)" fill="#DFD4B5"/>
-<rect x="625" y="875" width="125" height="125" transform="rotate(-180 625 875)" fill="#EBE5CA"/>
-<rect x="625" y="625" width="125" height="125" transform="rotate(-180 625 625)" fill="#FCCDC6"/>
-<rect x="625" y="375" width="125" height="125" transform="rotate(-180 625 375)" fill="#D4B9B9"/>
-<rect x="375" y="500" width="125" height="125" transform="rotate(-180 375 500)" fill="#DFD4B5"/>
-<rect x="875" y="250" width="125" height="125" transform="rotate(-180 875 250)" fill="#DFD4B5"/>
-<rect x="625" y="750" width="125" height="125" transform="rotate(-180 625 750)" fill="#EBE5CA"/>
-<rect x="625" y="500" width="125" height="125" transform="rotate(-180 625 500)" fill="#FCCDC6"/>
-<rect x="625" y="250" width="125" height="125" transform="rotate(-180 625 250)" fill="#D4B9B9"/>
-<rect x="375" y="875" width="125" height="125" transform="rotate(-180 375 875)" fill="#ADCDCE"/>
-<rect x="375" y="750" width="125" height="125" transform="rotate(-180 375 750)" fill="#ADCDCE"/>
-<rect x="750" y="1000" width="125" height="125" transform="rotate(-180 750 1000)" fill="#FBD0BD"/>
-<rect x="750" y="125" width="125" height="125" transform="rotate(-180 750 125)" fill="#FBD0BD"/>
-<rect x="250" y="375" width="125" height="125" transform="rotate(-180 250 375)" fill="#FBD0BD"/>
-<rect x="750" y="875" width="125" height="125" transform="rotate(-180 750 875)" fill="#FDE1DC"/>
-<rect x="750" y="625" width="125" height="125" transform="rotate(-180 750 625)" fill="#D2E3E2"/>
-<rect x="750" y="750" width="125" height="125" transform="rotate(-180 750 750)" fill="#FDE1DC"/>
-<rect x="750" y="500" width="125" height="125" transform="rotate(-180 750 500)" fill="#D2E3E2"/>
-<rect x="250" y="250" width="125" height="125" transform="rotate(-180 250 250)" fill="#FBD0BD"/>
-<rect x="250" y="1000" width="125" height="125" transform="rotate(-180 250 1000)" fill="#DFD4B5"/>
-<rect x="250" y="125" width="125" height="125" transform="rotate(-180 250 125)" fill="#DFD4B5"/>
-<rect x="250" y="625" width="125" height="125" transform="rotate(-180 250 625)" fill="#DFD4B5"/>
-<rect x="750" y="375" width="125" height="125" transform="rotate(-180 750 375)" fill="#DFD4B5"/>
-<rect x="500" y="875" width="125" height="125" transform="rotate(-180 500 875)" fill="#EBE5CA"/>
-<rect x="500" y="625" width="125" height="125" transform="rotate(-180 500 625)" fill="#FCCDC6"/>
-<rect x="500" y="375" width="125" height="125" transform="rotate(-180 500 375)" fill="#D4B9B9"/>
-<rect x="250" y="500" width="125" height="125" transform="rotate(-180 250 500)" fill="#DFD4B5"/>
-<rect x="750" y="250" width="125" height="125" transform="rotate(-180 750 250)" fill="#DFD4B5"/>
-<rect x="500" y="750" width="125" height="125" transform="rotate(-180 500 750)" fill="#EBE5CA"/>
-<rect x="500" y="500" width="125" height="125" transform="rotate(-180 500 500)" fill="#FCCDC6"/>
-<rect x="500" y="250" width="125" height="125" transform="rotate(-180 500 250)" fill="#D4B9B9"/>
-<rect x="250" y="875" width="125" height="125" transform="rotate(-180 250 875)" fill="#ADCDCE"/>
-<rect x="125" y="625" width="125" height="125" transform="rotate(-180 125 625)" fill="#ADCDCE"/>
-<rect x="1000" y="625" width="125" height="125" transform="rotate(-180 1000 625)" fill="#ADCDCE"/>
-<rect x="250" y="750" width="125" height="125" transform="rotate(-180 250 750)" fill="#ADCDCE"/>
-<rect x="125" y="500" width="125" height="125" transform="rotate(-180 125 500)" fill="#ADCDCE"/>
-<rect x="1000" y="500" width="125" height="125" transform="rotate(-180 1000 500)" fill="#ADCDCE"/>
-<rect x="625" y="1000" width="125" height="125" transform="rotate(-180 625 1000)" fill="#D2E3E2"/>
-<rect x="625" y="125" width="125" height="125" transform="rotate(-180 625 125)" fill="#D2E3E2"/>
-<rect x="125" y="1000" width="125" height="125" transform="rotate(-180 125 1000)" fill="#D4B9B9"/>
-<rect x="125" y="125" width="125" height="125" transform="rotate(-180 125 125)" fill="#D4B9B9"/>
-<rect x="125" y="875" width="125" height="125" transform="rotate(-180 125 875)" fill="#FCCDC6"/>
-<rect x="1000" y="875" width="125" height="125" transform="rotate(-180 1000 875)" fill="#FCCDC6"/>
-<rect x="125" y="750" width="125" height="125" transform="rotate(-180 125 750)" fill="#FCCDC6"/>
-<rect x="1000" y="750" width="125" height="125" transform="rotate(-180 1000 750)" fill="#FCCDC6"/>
-<circle cx="875" cy="875" r="125" transform="rotate(-180 875 875)" fill="#FBF2E4"/>
-<circle cx="875" cy="625" r="125" transform="rotate(-180 875 625)" fill="#FBF2E4"/>
-<circle cx="875" cy="375" r="125" transform="rotate(-180 875 375)" fill="#FBF2E4"/>
-<circle cx="875" cy="125" r="125" transform="rotate(-180 875 125)" fill="#FBF2E4"/>
-<circle cx="625" cy="875" r="125" transform="rotate(-180 625 875)" fill="#FBF2E4"/>
-<circle cx="625" cy="625" r="125" transform="rotate(-180 625 625)" fill="#FBF2E4"/>
-<circle cx="625" cy="375" r="125" transform="rotate(-180 625 375)" fill="#FBF2E4"/>
-<circle cx="625" cy="125" r="125" transform="rotate(-180 625 125)" fill="#FBF2E4"/>
-<circle cx="375" cy="875" r="125" transform="rotate(-180 375 875)" fill="#FBF2E4"/>
-<circle cx="375" cy="625" r="125" transform="rotate(-180 375 625)" fill="#FBF2E4"/>
-<circle cx="375" cy="375" r="125" transform="rotate(-180 375 375)" fill="#FBF2E4"/>
-<circle cx="375" cy="125" r="125" transform="rotate(-180 375 125)" fill="#FBF2E4"/>
-<circle cx="125" cy="875" r="125" transform="rotate(-180 125 875)" fill="#FBF2E4"/>
-<circle cx="125" cy="625" r="125" transform="rotate(-180 125 625)" fill="#FBF2E4"/>
-<circle cx="125" cy="375" r="125" transform="rotate(-180 125 375)" fill="#FBF2E4"/>
-<circle cx="125" cy="125" r="125" transform="rotate(-180 125 125)" fill="#FBF2E4"/>
+<rect x="1000" y="1000" width="125" height="125" transform="rotate(-180 1000 1000)" fill="#F3EAE7"/>
+<rect x="1000" y="125" width="125" height="125" transform="rotate(-180 1000 125)" fill="#F3EAE7"/>
+<rect x="500" y="1000" width="125" height="125" transform="rotate(-180 500 1000)" fill="#F2F6F3"/>
+<rect x="500" y="125" width="125" height="125" transform="rotate(-180 500 125)" fill="#F2F6F3"/>
+<rect x="125" y="375" width="125" height="125" transform="rotate(-180 125 375)" fill="#F2F6F3"/>
+<rect x="1000" y="375" width="125" height="125" transform="rotate(-180 1000 375)" fill="#F2F6F3"/>
+<rect x="125" y="250" width="125" height="125" transform="rotate(-180 125 250)" fill="#F2F6F3"/>
+<rect x="1000" y="250" width="125" height="125" transform="rotate(-180 1000 250)" fill="#F2F6F3"/>
+<rect x="875" y="1000" width="125" height="125" transform="rotate(-180 875 1000)" fill="#FEF0E8"/>
+<rect x="875" y="125" width="125" height="125" transform="rotate(-180 875 125)" fill="#FEF0E8"/>
+<rect x="375" y="375" width="125" height="125" transform="rotate(-180 375 375)" fill="#FEF0E8"/>
+<rect x="875" y="875" width="125" height="125" transform="rotate(-180 875 875)" fill="#FEF5F1"/>
+<rect x="875" y="625" width="125" height="125" transform="rotate(-180 875 625)" fill="#F2F6F3"/>
+<rect x="875" y="750" width="125" height="125" transform="rotate(-180 875 750)" fill="#FEF5F1"/>
+<rect x="875" y="500" width="125" height="125" transform="rotate(-180 875 500)" fill="#F2F6F3"/>
+<rect x="375" y="250" width="125" height="125" transform="rotate(-180 375 250)" fill="#FEF0E8"/>
+<rect x="375" y="1000" width="125" height="125" transform="rotate(-180 375 1000)" fill="#F6F2E6"/>
+<rect x="375" y="125" width="125" height="125" transform="rotate(-180 375 125)" fill="#F6F2E6"/>
+<rect x="375" y="625" width="125" height="125" transform="rotate(-180 375 625)" fill="#F6F2E6"/>
+<rect x="875" y="375" width="125" height="125" transform="rotate(-180 875 375)" fill="#F6F2E6"/>
+<rect x="625" y="875" width="125" height="125" transform="rotate(-180 625 875)" fill="#F9F6EC"/>
+<rect x="625" y="625" width="125" height="125" transform="rotate(-180 625 625)" fill="#FEEFEB"/>
+<rect x="625" y="375" width="125" height="125" transform="rotate(-180 625 375)" fill="#F3EAE7"/>
+<rect x="375" y="500" width="125" height="125" transform="rotate(-180 375 500)" fill="#F6F2E6"/>
+<rect x="875" y="250" width="125" height="125" transform="rotate(-180 875 250)" fill="#F6F2E6"/>
+<rect x="625" y="750" width="125" height="125" transform="rotate(-180 625 750)" fill="#F9F6EC"/>
+<rect x="625" y="500" width="125" height="125" transform="rotate(-180 625 500)" fill="#FEEFEB"/>
+<rect x="625" y="250" width="125" height="125" transform="rotate(-180 625 250)" fill="#F3EAE7"/>
+<rect x="375" y="875" width="125" height="125" transform="rotate(-180 375 875)" fill="#E8EFED"/>
+<rect x="375" y="750" width="125" height="125" transform="rotate(-180 375 750)" fill="#E8EFED"/>
+<rect x="750" y="1000" width="125" height="125" transform="rotate(-180 750 1000)" fill="#FEF0E8"/>
+<rect x="750" y="125" width="125" height="125" transform="rotate(-180 750 125)" fill="#FEF0E8"/>
+<rect x="250" y="375" width="125" height="125" transform="rotate(-180 250 375)" fill="#FEF0E8"/>
+<rect x="750" y="875" width="125" height="125" transform="rotate(-180 750 875)" fill="#FEF5F1"/>
+<rect x="750" y="625" width="125" height="125" transform="rotate(-180 750 625)" fill="#F2F6F3"/>
+<rect x="750" y="750" width="125" height="125" transform="rotate(-180 750 750)" fill="#FEF5F1"/>
+<rect x="750" y="500" width="125" height="125" transform="rotate(-180 750 500)" fill="#F2F6F3"/>
+<rect x="250" y="250" width="125" height="125" transform="rotate(-180 250 250)" fill="#FEF0E8"/>
+<rect x="250" y="1000" width="125" height="125" transform="rotate(-180 250 1000)" fill="#F6F2E6"/>
+<rect x="250" y="125" width="125" height="125" transform="rotate(-180 250 125)" fill="#F6F2E6"/>
+<rect x="250" y="625" width="125" height="125" transform="rotate(-180 250 625)" fill="#F6F2E6"/>
+<rect x="750" y="375" width="125" height="125" transform="rotate(-180 750 375)" fill="#F6F2E6"/>
+<rect x="500" y="875" width="125" height="125" transform="rotate(-180 500 875)" fill="#F9F6EC"/>
+<rect x="500" y="625" width="125" height="125" transform="rotate(-180 500 625)" fill="#FEEFEB"/>
+<rect x="500" y="375" width="125" height="125" transform="rotate(-180 500 375)" fill="#F3EAE7"/>
+<rect x="250" y="500" width="125" height="125" transform="rotate(-180 250 500)" fill="#F6F2E6"/>
+<rect x="750" y="250" width="125" height="125" transform="rotate(-180 750 250)" fill="#F6F2E6"/>
+<rect x="500" y="750" width="125" height="125" transform="rotate(-180 500 750)" fill="#F9F6EC"/>
+<rect x="500" y="500" width="125" height="125" transform="rotate(-180 500 500)" fill="#FEEFEB"/>
+<rect x="500" y="250" width="125" height="125" transform="rotate(-180 500 250)" fill="#F3EAE7"/>
+<rect x="250" y="875" width="125" height="125" transform="rotate(-180 250 875)" fill="#E8EFED"/>
+<rect x="125" y="625" width="125" height="125" transform="rotate(-180 125 625)" fill="#E8EFED"/>
+<rect x="1000" y="625" width="125" height="125" transform="rotate(-180 1000 625)" fill="#E8EFED"/>
+<rect x="250" y="750" width="125" height="125" transform="rotate(-180 250 750)" fill="#E8EFED"/>
+<rect x="125" y="500" width="125" height="125" transform="rotate(-180 125 500)" fill="#E8EFED"/>
+<rect x="1000" y="500" width="125" height="125" transform="rotate(-180 1000 500)" fill="#E8EFED"/>
+<rect x="625" y="1000" width="125" height="125" transform="rotate(-180 625 1000)" fill="#F2F6F3"/>
+<rect x="625" y="125" width="125" height="125" transform="rotate(-180 625 125)" fill="#F2F6F3"/>
+<rect x="125" y="1000" width="125" height="125" transform="rotate(-180 125 1000)" fill="#F3EAE7"/>
+<rect x="125" y="125" width="125" height="125" transform="rotate(-180 125 125)" fill="#F3EAE7"/>
+<rect x="125" y="875" width="125" height="125" transform="rotate(-180 125 875)" fill="#FEEFEB"/>
+<rect x="1000" y="875" width="125" height="125" transform="rotate(-180 1000 875)" fill="#FEEFEB"/>
+<rect x="125" y="750" width="125" height="125" transform="rotate(-180 125 750)" fill="#FEEFEB"/>
+<rect x="1000" y="750" width="125" height="125" transform="rotate(-180 1000 750)" fill="#FEEFEB"/>
+<circle cx="875" cy="875" r="125" transform="rotate(-180 875 875)" fill="#FEFAF3"/>
+<circle cx="875" cy="625" r="125" transform="rotate(-180 875 625)" fill="#FEFAF3"/>
+<circle cx="875" cy="375" r="125" transform="rotate(-180 875 375)" fill="#FEFAF3"/>
+<circle cx="875" cy="125" r="125" transform="rotate(-180 875 125)" fill="#FEFAF3"/>
+<circle cx="625" cy="875" r="125" transform="rotate(-180 625 875)" fill="#FEFAF3"/>
+<circle cx="625" cy="625" r="125" transform="rotate(-180 625 625)" fill="#FEFAF3"/>
+<circle cx="625" cy="375" r="125" transform="rotate(-180 625 375)" fill="#FEFAF3"/>
+<circle cx="625" cy="125" r="125" transform="rotate(-180 625 125)" fill="#FEFAF3"/>
+<circle cx="375" cy="875" r="125" transform="rotate(-180 375 875)" fill="#FEFAF3"/>
+<circle cx="375" cy="625" r="125" transform="rotate(-180 375 625)" fill="#FEFAF3"/>
+<circle cx="375" cy="375" r="125" transform="rotate(-180 375 375)" fill="#FEFAF3"/>
+<circle cx="375" cy="125" r="125" transform="rotate(-180 375 125)" fill="#FEFAF3"/>
+<circle cx="125" cy="875" r="125" transform="rotate(-180 125 875)" fill="#FEFAF3"/>
+<circle cx="125" cy="625" r="125" transform="rotate(-180 125 625)" fill="#FEFAF3"/>
+<circle cx="125" cy="375" r="125" transform="rotate(-180 125 375)" fill="#FEFAF3"/>
+<circle cx="125" cy="125" r="125" transform="rotate(-180 125 125)" fill="#FEFAF3"/>
 </svg>

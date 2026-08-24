@@ -161,20 +161,30 @@ body {
 /* Populuxe — the circle lattice: cream discs on a grid of colored squares, so the gaps
    between the discs read as four-pointed stars. Daniel's tile, and the theme's palette
    comes from it rather than the other way round.
-   The colors are the drawing's own, blended 0.32 toward paper. That number is measured,
-   not chosen: over the darkest cell at that strength --text holds 9.45 and --muted 4.74.
-   The first version of this theme used hairline outlines at 0.05 and read as nothing —
-   the correction is recorded in themes/populuxe.css, along with why a per-color blend
-   that measured BETTER looked worse (equalizing the cells by luminance destroys the
-   lattice's own figure/ground, and a pattern has to read as a pattern first).
+
+   THE STRENGTH IS SET BY COVERAGE, NOT BY PER-MARK CONTRAST, and that distinction is the
+   whole reason this number is what it is. The tile's colors are blended 0.09 toward paper
+   — far weaker than Aegean's or Bauhaus's marks measured one at a time — because this
+   pattern inks EVERY pixel of the field while theirs leave the ground showing through.
+   Matching the three by "how dark is the strongest mark against the page" put this at
+   0.157 and Aegean at 0.177, and rendered, Aegean was loud wallpaper and this was still
+   soft: the metric ignores how much of the field each pattern covers.
+
+   The measure that actually tracks what the eye reads is the mean absolute luminance
+   deviation over the whole tile. Rasterized at 256px over each theme's own --bg:
+
+       aegean    0.0322      bauhaus   0.0296      populuxe  0.0400
+
+   which is the parity this file now holds. On that scale the first version of this theme
+   (hairline outlines at 0.05 alpha) was near zero and read as nothing, and the 0.32 it
+   was rebuilt at measured 0.0676 — more than twice either neighbour.
+
    Sized to the frame rather than to a pixel value: the tile is square and 8 cells across,
    so `100%` lays exactly one repeat over the panel's width and the grid always meets both
-   edges cleanly, at whatever width the side panel is dragged to. A fixed 320px (what this
-   shipped at first) leaves a partial column at every width except one — the Bauhaus block
-   above worries about a tile too LARGE to repeat, and this is the mirror of it: the whole
-   figure here is the grid meeting the frame, so a sheared column at the edge is the thing
-   that reads as broken. Vertically it keeps the same cell size and repeats down, which is
-   what makes the cells square. */
+   edges cleanly, at whatever width the side panel is dragged to. A fixed size leaves a
+   partial column at every width except one — the Bauhaus block above worries about a tile
+   too LARGE to repeat, and this is the mirror of it: the whole figure here is the grid
+   meeting the frame, so a sheared column at the edge is what reads as broken. */
 [data-theme="populuxe"] body {
   background-image:
     url(populuxe-pattern.svg),
