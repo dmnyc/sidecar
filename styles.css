@@ -1882,8 +1882,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    Measured the way this table describes — rasterize the theme's "8", find the ink's
    bounding box, compare its middle to the em's. The method was checked against the rows
    already here before trusting it on a new one: it reproduces Oswald at -0.043 against
-   the -0.04 recorded above, and Jost's small positive nudge. Cherry Cream Soda sits
-   almost centered, which is what a face this round tends to do. */
+   the -0.04 recorded above, and Jost's small positive nudge. A face this round sits
+   almost centered, so the nudge is small.
+
+   Kept unchanged across the swap from Cherry Cream Soda to Rowdies: re-measured by the
+   same method, the two faces land 0.004em apart, which is a tenth of a pixel in the 28px
+   ring. Sign and ordering reproduce on every row of this table, magnitudes run slightly
+   more extreme than what is recorded, so the measurement is trustworthy comparing two
+   faces and not for deriving an absolute value from scratch. */
 [data-theme="populuxe"] .countdown-num { transform: translateY(-0.01em); }
 /* the note preview leads; the full-size ring (above) sits centered below it */
 .countdown-preview {

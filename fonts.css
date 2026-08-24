@@ -1,6 +1,5 @@
-/* Sidecar typography — bundled webfonts, no external requests. All are OFL 1.1 except
-   Cherry Cream Soda, which is Apache 2.0 and is attributed in the repo's NOTICE the same
-   way the vendored jsQR bundle is.
+/* Sidecar typography — bundled webfonts, no external requests. Every face is SIL OFL 1.1
+   and ships its own OFL-*.txt beside it in fonts/.
    Manrope is the UI/body face in every theme and never changes.
 
    Each theme sets its own --font-display, because a palette alone was not carrying the
@@ -17,12 +16,19 @@
      Aegean      Cinzel             Roman inscriptional caps     classical stone
      Bauhaus     Jost               Futura-lineage geometric     the school's own
      Nixie       Apogee Telemetry   monospaced engineer's hand   instrument panel
-     Populuxe    Cherry Cream Soda  soda-fountain script-sans    diner signage
+     Populuxe    Rowdies            chunky rounded geometric     motel signage
+
+   Populuxe is the third geometric here, after Art Deco's Josefin Sans and Bauhaus's Jost,
+   which is the one place this table's rule bends. It holds because the axis those two are
+   separated on is weight, not shape: both are thin, high-waisted and drawn with a compass,
+   and Rowdies is heavy with rounded terminals and a large x-height. Set side by side the
+   pair that could be confused is still Josefin and Jost, not either of them and this.
 
    The first six are variable fonts, so each is ONE file spanning 400-700 rather than a
    static face per weight — about 26KB apiece. The last two are static TTFs at a single
-   weight; both declare `400 700` so headings synthesize rather than dropping to Manrope
-   halfway down a screen. */
+   weight; both declare `400 700`, which tells the browser the one outline covers that
+   whole range, so a 700-weight heading renders the real face rather than a synthetic
+   bold or a drop back to Manrope halfway down a screen. */
 
 @font-face {
   font-family: 'Playfair Display';
@@ -122,28 +128,24 @@
   src: url('fonts/apogee-telemetry.ttf') format('truetype');
 }
 
-/* Cherry Cream Soda (Font Diner, Apache License 2.0 — see
-   fonts/LICENSE-CherryCreamSoda.txt, and the attribution in NOTICE). Populuxe's
-   display face: the lettering of a 1950s soda fountain, drawn from a category
-   no other theme occupies. The only other condensed face here, Film Noir's
-   Oswald, is a hard grotesque cut for 1940s posters; this one is soft, bouncy
-   and commercial, which is roughly the distance between those two decades.
+/* Rowdies (Jaikishan Patel, SIL OFL 1.1 — see fonts/OFL-Rowdies.txt). Populuxe's
+   display face: heavy rounded geometric letterforms, the shape of the signage
+   the theme is named for. Shipped as an unmodified TTF, 75KB, the same way
+   Apogee Telemetry is — the OFL's Reserved Font Name clause means a subset
+   would have to be renamed, and a whole original anyone can re-derive is worth
+   more than the 40KB saved.
 
-   THE ONLY NON-OFL FONT IN THE BUNDLE. Apache 2.0 rather than the SIL license
-   the other eight carry, which changes two things: the license text ships as
-   LICENSE-CherryCreamSoda.txt rather than an OFL-*.txt, and the attribution
-   goes in NOTICE, where Apache-2.0 wants it and where jsqr.js already is.
-   Apache has no Reserved Font Name clause, so unlike the OFL faces this one
-   could legally be subset and renamed; it ships whole anyway, because a 50KB
-   original is worth more than a 15KB subset that nobody can re-derive.
-
-   ONE static weight, 400. Declared `400 700` so the browser synthesizes the
-   heavier end rather than falling back to Manrope mid-heading; see the note in
-   themes/populuxe.css about where that synthesis is allowed to show. */
+   THE REGULAR, not the Bold. Rowdies is one of the few faces here that ships a
+   real 700, and it is deliberately not used: the panel sets almost all display
+   type at font-weight 700, so shipping the Bold would make every heading in the
+   theme heavier than the specimen this face was chosen from — and cost another
+   75KB to do it. The `400 700` range below points the whole span at the Regular
+   outline, so nothing synthesizes and nothing falls back. Adding the Bold later
+   is one @font-face block if the headings ever want more punch. */
 @font-face {
-  font-family: 'Cherry Cream Soda';
+  font-family: 'Rowdies';
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/cherry-cream-soda.ttf') format('truetype');
+  src: url('fonts/rowdies.ttf') format('truetype');
 }

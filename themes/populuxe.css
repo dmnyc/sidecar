@@ -72,17 +72,18 @@
 [data-theme="populuxe"] {
   color-scheme: light;
 
-  /* Cherry Cream Soda — the lettering of a 1950s soda fountain, and the category no
-     other theme occupies. Film Noir's Oswald is the only other condensed face here and
-     is a hard grotesque cut for 1940s posters; this one is soft, bouncy and commercial,
-     which is exactly the distance between those two decades.
-     Apache 2.0, not OFL — the only font in the bundle that isn't. See fonts.css.
+  /* Rowdies — heavy rounded geometric, the lettering of the motel and coffee-shop signs
+     this theme is named after. It is the third geometric in the set; see the note in
+     fonts.css for why it does not collide with Josefin Sans or Jost, which are separated
+     from it by weight rather than by shape.
 
-     It has ONE weight. Where the other themes' display faces carry a real 700, this
-     synthesizes it, so the rule is: let the balance and the theme-card label take the
-     synthetic bold (they are large, and the face's own roundness absorbs it), and keep
-     everything smaller at 400 rather than smearing a 12px label. */
-  --font-display: 'Cherry Cream Soda', 'Futura', 'Century Gothic', var(--font-ui);
+     ONE outline covers 400 through 700 (fonts.css), so nothing here synthesizes and every
+     size renders the face as drawn. That is the whole reason the Regular ships instead of
+     the real Bold: almost all display type in the panel is set at 700, and pointing that
+     at the Bold would make the entire theme heavier than the face that was picked. If a
+     heading ever needs the extra weight, add the Bold rather than reaching for a
+     synthetic one. */
+  --font-display: 'Rowdies', 'Futura', 'Century Gothic', var(--font-ui);
 
   /* Surfaces — white paper over a warm cream plane. The white carries a 6-point warm
      cast rather than being pure #FFF, so it reads as stock rather than as screen; cards
