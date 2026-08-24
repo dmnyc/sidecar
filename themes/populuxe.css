@@ -228,7 +228,18 @@
   --input-bg: var(--velvet-1);
   --focus-ring: rgba(0, 103, 116, 0.28);
   --card-wash: rgba(0, 103, 116, 0.07);
-  --accent-fill: var(--lav);
+  /* --accent-fill is the FLAT version of the accent pills above, so it takes the same
+     olive rather than the teal. It was var(--lav) to begin with, copied from Aegean and
+     Bauhaus where that is right — but both of those pair it with a WHITE
+     --btn-primary-text, and this theme's is near-black, because its primary button is a
+     bright orange. The base sheet labels every --accent-fill surface with
+     `var(--chip-ink, var(--btn-primary-text))`, so inheriting that shortcut put near-black
+     type on the #006774 teal: 2.64:1 on a 12px chip that needs 4.5, and a block reading
+     6.58 against white paper on a light theme. The olive takes black at 8.15:1, the figure
+     the pill comment above already records.
+     This drives more than the countdown presets — the wallet chart range chips, the
+     "switch site" and grant buttons, and the round x on the relax status bar all read it. */
+  --accent-fill: #BFB367;
   --glow: var(--lav);
 
   /* The composer balloon — teal with a white label. The orange is spoken for by the
@@ -249,19 +260,41 @@
   --float-shadow-strong: rgba(28, 26, 23, 0.24);
 }
 
-/* This theme's own card in the theme picker takes the DEFAULT --lav (the deep teal),
-   which is why there is no `color:` override here where Bauhaus has one.
-   Bauhaus overrides the shared rule to its balance orange, and copying that pattern put
-   this card at #DC4A3C against its #E1552B — 1.09:1, which is to say the same color. Two
-   light themes sitting next to each other in the picker, both labelled in the same
-   orange, is exactly the "reads as siblings" failure Bauhaus's own header warns about
-   over its cream ground. The teal is the one value in this palette no other theme's card
-   is near.
-   Only the active ring is overridden, so the selected state matches the label rather than
-   drawing the shared rule's --gold ochre around a teal word. */
+/* This theme's own card in the theme picker: the maroon label inside an olive ring, the
+   two colors the tile is printed in. Unlike every other card this one sets a resting
+   border as well as an ink, which is why the rule below also has to restate :hover — the
+   shared `.theme-card:hover` sets border-color at the same specificity, and this file
+   loads after styles.css, so without a hover rule of its own the olive would sit there
+   unchanged and the card would lose its press feedback.
+
+   WHY THE LABEL IS THE MAROON AND NOT THE OLIVE, which is the way round it was first
+   drawn: Art Deco's card label is #7A5A18, and this theme's olive is #7E661D. That pair
+   measures 1.15:1, 4.7 degrees of hue and under two points of lightness apart — the same
+   collision that already got one version of this card thrown out, when copying Bauhaus's
+   pattern put it at #DC4A3C against Bauhaus's #E1552B (1.09:1). Rendering the whole
+   picker settles it: in olive, "Populuxe" reads as the same ink as "Art Deco" three rows
+   above it. The maroon is 313 degrees of hue off Art Deco's ochre and is not near any
+   other card in the list, so it separates on the axis the eye actually uses here.
+   The olive keeps its job as the ring, where being a warm mid-dark next to a warm dark is
+   a pairing rather than a confusion.
+
+   Contrast: the label is 20px/700, so WCAG large text (>=18.66px bold) and a 3.0 floor.
+   The maroon measures 9.73 on the card's white and 8.18 on the hover/active cream, which
+   clears the 4.5 normal-text bar as well — worth noting because Bauhaus's card is the one
+   ink in the set that does not, and this one has no such caveat to carry. */
+[data-theme="populuxe"].theme-card {
+  color: var(--red);
+  border-color: var(--gold);
+}
+[data-theme="populuxe"].theme-card:hover {
+  border-color: color-mix(in srgb, var(--gold) 78%, #1C1A17);
+}
+/* The selected ring stays the olive rather than switching to the shared rule's
+   --gold/--gold-soft, so the border is one color across all three states and only the
+   fill changes. */
 [data-theme="populuxe"].theme-card.active {
-  border-color: var(--lav);
-  box-shadow: 0 0 0 2px rgba(0, 103, 116, 0.28);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(126, 102, 29, 0.28);
 }
 
 /* The "+" badge carries near-black text on a colored disc in the dark themes. */
