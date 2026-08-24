@@ -145,8 +145,13 @@
 [data-theme="brownstone"] .bal-glyph { display: inline-block; }
 [data-theme="brownstone"] .bal-glyph.bal-in {
   animation-name: brownstone-flame;
-  animation-duration: calc(980ms + var(--i) * 47ms);
-  animation-delay: calc(min(var(--i), 8) * 58ms);
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 174ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  /* The duration grows with --i too — this theme's flame burns longer down the figure —
+     so it takes the same clamp, or a long balance still outlasts a short one. */
+  animation-duration: calc(980ms + var(--i) * min(47ms, 141ms / max(var(--n) - 1, 1)));
+  animation-delay: calc(var(--i) * min(58ms, 174ms / max(var(--n) - 1, 1)));
   animation-timing-function: ease-in-out;
   animation-fill-mode: both;
 }

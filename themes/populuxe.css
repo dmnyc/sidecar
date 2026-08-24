@@ -364,7 +364,10 @@
      together into a single soft landing. The 38ms stagger is tuned against it —
      slow enough that the glyphs pop in sequence, fast enough that a nine-figure
      balance finishes inside half a second. */
-  animation: populuxe-pop 430ms linear calc(min(var(--i), 8) * 38ms) both;
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 114ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: populuxe-pop 430ms linear calc(var(--i) * min(38ms, 114ms / max(var(--n) - 1, 1))) both;
 }
 
 /* No .bal-sep rule here on purpose. Coloring the thousands separator apart from

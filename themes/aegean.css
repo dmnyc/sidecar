@@ -230,7 +230,10 @@
   mask-repeat: repeat;
 }
 [data-theme="aegean"] .bal-glyph.bal-in {
-  animation: aegean-sand 980ms ease-out calc(min(var(--i), 8) * 82ms) both;
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 246ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: aegean-sand 980ms ease-out calc(var(--i) * min(82ms, 246ms / max(var(--n) - 1, 1))) both;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="aegean"] .bal-glyph.bal-in { animation: none; }

@@ -82,8 +82,11 @@
 }
 [data-theme="speakeasy"] .bal-glyph { display: inline-block; }
 [data-theme="speakeasy"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 165ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
   animation: speakeasy-slot 420ms cubic-bezier(0.22, 0.7, 0.2, 1)
-             calc(min(var(--i), 8) * 55ms) both;
+             calc(var(--i) * min(55ms, 165ms / max(var(--n) - 1, 1))) both;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="speakeasy"] .bal-glyph.bal-in { animation: none; }

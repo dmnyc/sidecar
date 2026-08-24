@@ -10115,14 +10115,31 @@
   // Only Nixie reads these two; a theme whose animation wants an even stagger uses
   // --i and --n instead (see splitGlyphs). Longer than apogee's 620-980ms
   // because Nixie's keyframes carry a longer settle at the end.
+  //
+  // The delays are then squeezed into a fixed WINDOW, the same clamp the CSS themes
+  // apply to their own staggers: without it a figure's arrival got longer the more
+  // digits it had, because the last glyph's delay grew with its index. The window is
+  // 111ms — the span the raw sequence already covers at four glyphs — so three- and
+  // four-glyph figures (and the countdown rings, which are one or two) are untouched
+  // and only longer figures compress. Scaling rather than clamping each value keeps
+  // the ragged ORDER intact: it is the same pattern played faster, not a different one.
   const STRIKE_DELAY_MOD_MS = 300;
+  const STRIKE_DELAY_WINDOW_MS = 111;
   const STRIKE_DUR_BASE_MS = 900;
   const STRIKE_DUR_STEPS = 5;
   const STRIKE_DUR_STEP_MS = 90;
-  const glyphBeat = (i) => ({
-    delay: (i * 37) % STRIKE_DELAY_MOD_MS,
-    duration: STRIKE_DUR_BASE_MS + ((i * 53) % STRIKE_DUR_STEPS) * STRIKE_DUR_STEP_MS,
-  });
+  const rawStrikeDelay = (i) => (i * 37) % STRIKE_DELAY_MOD_MS;
+  const glyphBeat = (i, n) => {
+    // The widest raw delay this many glyphs actually reaches — not the modulus, which
+    // only a long figure gets near.
+    let span = 0;
+    for (let k = 0; k < n; k++) span = Math.max(span, rawStrikeDelay(k));
+    const squeeze = span > STRIKE_DELAY_WINDOW_MS ? STRIKE_DELAY_WINDOW_MS / span : 1;
+    return {
+      delay: Math.round(rawStrikeDelay(i) * squeeze),
+      duration: STRIKE_DUR_BASE_MS + ((i * 53) % STRIKE_DUR_STEPS) * STRIKE_DUR_STEP_MS,
+    };
+  };
 
   // The figure each balance element last painted, as raw sats. Weak, so a
   // re-rendered card doesn't leak. Two jobs:
@@ -10188,6 +10205,21 @@
   //               coloured comma would have flickered in and out of existence.
   //   --i / --n   this glyph's index and the total. Enough for a stagger, a
   //               centre-out reveal, or alternating directions.
+  //
+  //               EVERY THEME'S STAGGER IS A WINDOW, NOT A STEP, and --n is what
+  //               makes that expressible:
+  //
+  //                 calc(var(--i) * min(<step>, <3 x step> / max(var(--n) - 1, 1)))
+  //
+  //               A flat per-glyph step made a balance take longer to arrive the
+  //               more digits it had — 506ms for three glyphs against 734ms for ten
+  //               in Populuxe, 1190 against 1867 in Brownstone, which read as the
+  //               big number being slower rather than bigger. Clamping the last
+  //               glyph to a fixed distance behind the first holds the arrival at
+  //               one length. The window is three steps wide so that short figures
+  //               keep exactly the timing they had and only long ones compress —
+  //               and so the countdown rings, which come through here with one or
+  //               two glyphs, are untouched by it.
   //   --strike-delay / --strike-dur  the ragged beat above, which only Nixie
   //               uses. Emitted for every theme because it is two custom
   //               properties, not two DOM nodes.
@@ -10198,7 +10230,7 @@
     el.textContent = '';
     const glyphs = Array.from(text);
     glyphs.forEach((ch, i) => {
-      const { delay, duration } = glyphBeat(i);
+      const { delay, duration } = glyphBeat(i, glyphs.length);
       el.append(h('span', {
         className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep') + (strike(i) ? ' bal-in' : ''),
         textContent: ch,
