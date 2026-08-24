@@ -347,7 +347,11 @@
   animation: bauhaus-drop 340ms cubic-bezier(0.16, 0.9, 0.2, 1)
              calc(var(--i) * min(46ms, 138ms / max(var(--n) - 1, 1))) both;
 }
-[data-theme="bauhaus"] .bal-glyph.bal-in:nth-child(even) {
+/* .bal-alt, not :nth-child(even) — splitGlyphs publishes the parity because the
+   element is not always all glyphs. In fiat the currency symbol is prepended into the
+   same parent, which shifts every nth-child index by one and would flip which digits
+   drop and which rise between sats and fiat, for no reason the reader could see. */
+[data-theme="bauhaus"] .bal-glyph.bal-in.bal-alt {
   animation-name: bauhaus-rise;
 }
 

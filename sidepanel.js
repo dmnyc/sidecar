@@ -10182,9 +10182,17 @@
     const animate = key != null && prev !== key && !reduceBalanceMotion;
     paintedSats.set(el, key);
 
-    el.textContent = '';
-    if (parts.sym) el.append(h('span', { className: symClass, textContent: parts.sym }));
+    // ORDER MATTERS HERE. splitGlyphs clears the element before it builds, so the
+    // symbol has to go on AFTER the figure, not before it. Appending it first was a
+    // silent drop: the span was created and then removed by the very next line, and
+    // fiat mode lost its currency glyph entirely.
+    //
+    // It cost more than the glyph. The early return above compares el.textContent
+    // against sym + text, and with the symbol never surviving that could not be true
+    // in fiat — so the guard never fired there, and every repaint rebuilt the figure,
+    // which is exactly the mid-animation teardown the guard exists to prevent.
     splitGlyphs(el, parts.text, () => animate);
+    if (parts.sym) el.prepend(h('span', { className: symClass, textContent: parts.sym }));
   }
 
   // Build a figure one glyph at a time, so the active theme can style and animate
@@ -10198,6 +10206,12 @@
   //               decimal point. A theme that wants to treat punctuation
   //               differently cannot ask CSS "is this a comma", so it is said
   //               here.
+  //   .bal-alt    every second glyph, counted among GLYPHS. Same reasoning as
+  //               .bal-sep: :nth-child(even) would do this until the element gains
+  //               a sibling that isn't a glyph, and in fiat it does — the currency
+  //               symbol is prepended into the same parent, which shifts every
+  //               index by one and silently flips a theme's alternation between
+  //               sats and fiat. Bauhaus alternates its drop and rise on this.
   //   .bal-in     only on an arrival that has earned an animation. Splitting and
   //               animating used to be the same decision, which meant any
   //               per-glyph STYLING vanished on a repaint that did not animate —
@@ -10232,7 +10246,8 @@
     glyphs.forEach((ch, i) => {
       const { delay, duration } = glyphBeat(i, glyphs.length);
       el.append(h('span', {
-        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep') + (strike(i) ? ' bal-in' : ''),
+        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep')
+          + (i % 2 ? ' bal-alt' : '') + (strike(i) ? ' bal-in' : ''),
         textContent: ch,
         style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
       }));
