@@ -288,26 +288,44 @@
   color: var(--text);
 }
 
-/* ---- balance animation: the starburst ------------------------------------
-   Every theme carries its own. This one takes the period's signature motif and
-   reads it as motion: each glyph arrives by expanding out of nothing, the way a
-   circle in the tile is drawn from its center outward, with a single frame of the
-   pattern's orange on the way — the one moment the fill-only warm value is allowed
-   to touch a letterform, because it is in motion and lands on the ink.
+/* ---- balance animation: the pop ------------------------------------------
+   Each glyph scales up out of nothing from its own center and bounces once
+   before it settles. The overshoot is the whole point — a plain scale-in reads
+   as a zoom, and what this decade's advertising did with a number was make it
+   ARRIVE.
 
-   Scale rather than translate: a sideways sweep was tried first and read as the
-   figure sliding, which is a different (and duller) idea than expanding. The
-   slight overshoot at 70% is what makes it read as a pop rather than a zoom. */
-@keyframes populuxe-burst {
-  0% { transform: scale(0.4); opacity: 0; color: #F3713D; }
-  60% { opacity: 1; }
-  70% { transform: scale(1.08); color: #E85F2A; }
+   The bounce is carried by the keyframes rather than by one easing curve,
+   because a single cubic-bezier can overshoot once and cannot come back: the
+   1.18 peak, the dip under to 0.93, and the small second rise to 1.03 are
+   three separate movements. Each keyframe carries its own timing function so
+   the segments ease independently, which is what stops the dip from reading as
+   a mechanical bob.
+
+   No color flash on the way in. That is BAUHAUS'S device — it is the only theme
+   whose balance changes color as it animates, and the reason is specific to it
+   (a structural element carrying its own color, the same argument as its
+   separator). Every other theme animates motion and opacity alone, and so does
+   this one.
+
+   Scaling from the center is why .bal-glyph is inline-block: the default
+   transform-origin of 50% 50% is then the middle of each glyph's own box, so
+   the figure expands in place instead of pushing along the baseline. */
+@keyframes populuxe-pop {
+  0%   { transform: scale(0.28); opacity: 0; animation-timing-function: cubic-bezier(0.22, 0.9, 0.3, 1); }
+  55%  { transform: scale(1.18); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.5, 1); }
+  72%  { transform: scale(0.93); animation-timing-function: cubic-bezier(0.45, 0, 0.5, 1); }
+  86%  { transform: scale(1.03); animation-timing-function: cubic-bezier(0.45, 0, 0.5, 1); }
+  95%  { transform: scale(0.985); }
   100% { transform: scale(1); opacity: 1; }
 }
-[data-theme="populuxe"] .bal-glyph { display: inline-block; }
+[data-theme="populuxe"] .bal-glyph { display: inline-block; transform-origin: 50% 50%; }
 [data-theme="populuxe"] .bal-glyph.bal-in {
-  animation: populuxe-burst 320ms cubic-bezier(0.2, 0.9, 0.25, 1.15)
-             calc(min(var(--i), 8) * 42ms) both;
+  /* 430ms rather than the 320 this started at: a bounce needs room to read as
+     three movements, and at the old duration the dip and the second rise ran
+     together into a single soft landing. The 38ms stagger is tuned against it —
+     slow enough that the glyphs pop in sequence, fast enough that a nine-figure
+     balance finishes inside half a second. */
+  animation: populuxe-pop 430ms linear calc(min(var(--i), 8) * 38ms) both;
 }
 
 /* No .bal-sep rule here on purpose. Coloring the thousands separator apart from
