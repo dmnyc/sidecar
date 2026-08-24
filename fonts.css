@@ -1,4 +1,6 @@
-/* Sidecar typography — bundled OFL webfonts (no external requests).
+/* Sidecar typography — bundled webfonts, no external requests. All are OFL 1.1 except
+   Cherry Cream Soda, which is Apache 2.0 and is attributed in the repo's NOTICE the same
+   way the vendored jsQR bundle is.
    Manrope is the UI/body face in every theme and never changes.
 
    Each theme sets its own --font-display, because a palette alone was not carrying the
@@ -15,7 +17,7 @@
      Aegean      Cinzel             Roman inscriptional caps     classical stone
      Bauhaus     Jost               Futura-lineage geometric     the school's own
      Nixie       Apogee Telemetry   monospaced engineer's hand   instrument panel
-     Populuxe    Mouse Memoirs      condensed rounded signage    diner and packaging
+     Populuxe    Cherry Cream Soda  soda-fountain script-sans    diner signage
 
    The first six are variable fonts, so each is ONE file spanning 400-700 rather than a
    static face per weight — about 26KB apiece. The last two are static TTFs at a single
@@ -120,28 +122,28 @@
   src: url('fonts/apogee-telemetry.ttf') format('truetype');
 }
 
-/* Mouse Memoirs (Brian J. Bonislawsky / Astigmatic, SIL OFL 1.1 — see
-   fonts/OFL-MouseMemoirs.txt). Populuxe's display face: a condensed rounded
-   sans in the hand of mid-century signage and packaging, drawn from a category
-   none of the other themes occupy — the other condensed face here, Film Noir's
-   Oswald, is a hard grotesque cut for 1940s posters, where this one is soft,
-   humanist and cheerful, which is the whole difference between that decade and
-   this one.
+/* Cherry Cream Soda (Font Diner, Apache License 2.0 — see
+   fonts/LICENSE-CherryCreamSoda.txt, and the attribution in NOTICE). Populuxe's
+   display face: the lettering of a 1950s soda fountain, drawn from a category
+   no other theme occupies. The only other condensed face here, Film Noir's
+   Oswald, is a hard grotesque cut for 1940s posters; this one is soft, bouncy
+   and commercial, which is roughly the distance between those two decades.
 
-   Shipped as the UNMODIFIED upstream TTF from google/fonts, not a subset woff2,
-   and the reason is the license: this font carries a Reserved Font Name, so any
-   modification — subsetting included — obliges a rename. Sidecar has been here
-   before with Apogee Telemetry, which IS renamed because it is patched. Taking
-   the original artifact untouched costs ~56KB against a ~15KB subset and keeps
-   the name honest.
+   THE ONLY NON-OFL FONT IN THE BUNDLE. Apache 2.0 rather than the SIL license
+   the other eight carry, which changes two things: the license text ships as
+   LICENSE-CherryCreamSoda.txt rather than an OFL-*.txt, and the attribution
+   goes in NOTICE, where Apache-2.0 wants it and where jsqr.js already is.
+   Apache has no Reserved Font Name clause, so unlike the OFL faces this one
+   could legally be subset and renamed; it ships whole anyway, because a 50KB
+   original is worth more than a 15KB subset that nobody can re-derive.
 
-   ONE static weight, 400. Declared as `400 700` so the browser synthesizes the
+   ONE static weight, 400. Declared `400 700` so the browser synthesizes the
    heavier end rather than falling back to Manrope mid-heading; see the note in
    themes/populuxe.css about where that synthesis is allowed to show. */
 @font-face {
-  font-family: 'Mouse Memoirs';
+  font-family: 'Cherry Cream Soda';
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/mouse-memoirs.ttf') format('truetype');
+  src: url('fonts/cherry-cream-soda.ttf') format('truetype');
 }

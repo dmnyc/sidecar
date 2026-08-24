@@ -1882,8 +1882,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    Measured the way this table describes — rasterize the theme's "8", find the ink's
    bounding box, compare its middle to the em's. The method was checked against the rows
    already here before trusting it on a new one: it reproduces Oswald at -0.043 against
-   the -0.04 recorded above, and Jost's small positive nudge. Mouse Memoirs sits almost
-   centered, which is what a face this round tends to do. */
+   the -0.04 recorded above, and Jost's small positive nudge. Cherry Cream Soda sits
+   almost centered, which is what a face this round tends to do. */
 [data-theme="populuxe"] .countdown-num { transform: translateY(-0.01em); }
 /* the note preview leads; the full-size ring (above) sits centered below it */
 .countdown-preview {

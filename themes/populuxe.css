@@ -70,17 +70,17 @@
 [data-theme="populuxe"] {
   color-scheme: light;
 
-  /* Mouse Memoirs — a condensed rounded sans in the hand of mid-century signage, and the
-     category no other theme occupies. Film Noir's Oswald is the only other condensed
-     face here and is a hard grotesque cut for 1940s posters; this one is soft, humanist
-     and cheerful, which is exactly the distance between those two decades.
-     Shipped unmodified because of its Reserved Font Name — see fonts.css.
+  /* Cherry Cream Soda — the lettering of a 1950s soda fountain, and the category no
+     other theme occupies. Film Noir's Oswald is the only other condensed face here and
+     is a hard grotesque cut for 1940s posters; this one is soft, bouncy and commercial,
+     which is exactly the distance between those two decades.
+     Apache 2.0, not OFL — the only font in the bundle that isn't. See fonts.css.
 
      It has ONE weight. Where the other themes' display faces carry a real 700, this
      synthesizes it, so the rule is: let the balance and the theme-card label take the
      synthetic bold (they are large, and the face's own roundness absorbs it), and keep
      everything smaller at 400 rather than smearing a 12px label. */
-  --font-display: 'Mouse Memoirs', 'Futura', 'Century Gothic', var(--font-ui);
+  --font-display: 'Cherry Cream Soda', 'Futura', 'Century Gothic', var(--font-ui);
 
   /* Surfaces — white paper over a warm cream plane. The white carries a 6-point warm
      cast rather than being pure #FFF, so it reads as stock rather than as screen; cards
@@ -246,23 +246,19 @@
   --float-shadow-strong: rgba(28, 26, 23, 0.24);
 }
 
-/* This theme's own card in the theme picker, in the balance coral — the one loud warm
-   value, used everywhere it appears.
-   Written as [data-theme="populuxe"].theme-card rather than a plain `color:` in the block
-   above, and the distinction is load-bearing: that block matches BOTH <html> (when this
-   theme is active) and this button (always, since every card carries its own data-theme).
-   A bare `color:` there would repaint the entire app's default text.
-
-   CONTRAST NOTE: the label is 14px/700 on the card's white, which is not WCAG large text
-   (that needs 18.66px bold), so the bar is 4.5:1 and #D6432B measures 3.72:1. Deliberate
-   and specified, matching how Bauhaus handles the same rule with the same trade-off. */
-[data-theme="populuxe"].theme-card {
-  color: var(--balance-ink);
-}
-
+/* This theme's own card in the theme picker takes the DEFAULT --lav (the deep teal),
+   which is why there is no `color:` override here where Bauhaus has one.
+   Bauhaus overrides the shared rule to its balance orange, and copying that pattern put
+   this card at #DC4A3C against its #E1552B — 1.09:1, which is to say the same color. Two
+   light themes sitting next to each other in the picker, both labelled in the same
+   orange, is exactly the "reads as siblings" failure Bauhaus's own header warns about
+   over its cream ground. The teal is the one value in this palette no other theme's card
+   is near.
+   Only the active ring is overridden, so the selected state matches the label rather than
+   drawing the shared rule's --gold ochre around a teal word. */
 [data-theme="populuxe"].theme-card.active {
-  border-color: var(--balance-ink);
-  box-shadow: 0 0 0 2px rgba(220, 74, 60, 0.30);
+  border-color: var(--lav);
+  box-shadow: 0 0 0 2px rgba(0, 103, 116, 0.28);
 }
 
 /* The "+" badge carries near-black text on a colored disc in the dark themes. */

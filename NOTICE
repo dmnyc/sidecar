@@ -12,3 +12,10 @@ Apache-2.0: http://www.apache.org/licenses/LICENSE-2.0
 
 The other vendored bundles and their licenses are listed in VENDOR.md
 (nostr-tools and nip49: Unlicense; qrcode-generator: MIT).
+
+fonts/cherry-cream-soda.ttf is an unmodified copy of CherryCreamSoda-Regular.ttf
+from the Google Fonts collection (apache/cherrycreamsoda), designed by Font Diner,
+licensed under the Apache License, Version 2.0. The full license text ships beside
+it as fonts/LICENSE-CherryCreamSoda.txt. Every other bundled face is SIL OFL 1.1
+and carries its own OFL-*.txt in the same directory.
+Apache-2.0: http://www.apache.org/licenses/LICENSE-2.0
