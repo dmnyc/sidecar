@@ -1878,11 +1878,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 [data-theme="art-deco"] .countdown-num { transform: translateY(0.10em); }
 [data-theme="aegean"] .countdown-num { transform: translateY(0.06em); }
 [data-theme="bauhaus"] .countdown-num { transform: translateY(0.02em); }
-/* Populuxe has no row on purpose. Its display face is still a provisional system stack
-   (see themes/populuxe.css), so any offset measured now would be measured against
-   whichever of Futura / Avenir Next / Century Gothic the machine happened to resolve —
-   a different number on the next machine. Measure and add the row when the face is
-   vendored; until then it takes the 0 default, which is the honest neutral. */
+/* Populuxe, now that its face is vendored and no longer a per-machine system stack.
+   Measured the way this table describes — rasterize the theme's "8", find the ink's
+   bounding box, compare its middle to the em's. The method was checked against the rows
+   already here before trusting it on a new one: it reproduces Oswald at -0.043 against
+   the -0.04 recorded above, and Jost's small positive nudge. Mouse Memoirs sits almost
+   centred, which is what a face this round tends to do. */
+[data-theme="populuxe"] .countdown-num { transform: translateY(-0.01em); }
 /* the note preview leads; the full-size ring (above) sits centered below it */
 .countdown-preview {
   max-height: 42vh;

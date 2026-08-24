@@ -70,19 +70,17 @@
 [data-theme="populuxe"] {
   color-scheme: light;
 
-  /* DISPLAY FACE — PROVISIONAL, and the one unfinished thing in this theme.
-     Every other theme bundles its own face from a category no other theme uses: Didone
-     (Playfair), condensed grotesque (Oswald), slab (Bitter), 1920s geometric (Josefin),
-     Roman caps (Cinzel), Futura geometric (Jost), engineer's mono (Apogee Telemetry).
-     The category this style wants is the square/Eurostile lineage — the space-age face
-     proper — and nothing in fonts/ is in it. Michroma is the closest OFL candidate and
-     needs vendoring: a woff2 in fonts/, its license text beside the other eight, and an
-     @font-face in fonts.css.
-     Until then this is a system stack, which is a compromise the other themes do not
-     make: it renders differently per machine. What it must NOT do is stay unset —
-     --font-display then inherits Playfair Display, and the balance and theme-card label
-     render as a Didone serif, which is a hundred years and one aesthetic away. */
-  --font-display: 'Futura', 'Avenir Next', 'Century Gothic', 'Trebuchet MS', var(--font-ui);
+  /* Mouse Memoirs — a condensed rounded sans in the hand of mid-century signage, and the
+     category no other theme occupies. Film Noir's Oswald is the only other condensed
+     face here and is a hard grotesque cut for 1940s posters; this one is soft, humanist
+     and cheerful, which is exactly the distance between those two decades.
+     Shipped unmodified because of its Reserved Font Name — see fonts.css.
+
+     It has ONE weight. Where the other themes' display faces carry a real 700, this
+     synthesizes it, so the rule is: let the balance and the theme-card label take the
+     synthetic bold (they are large, and the face's own roundness absorbs it), and keep
+     everything smaller at 400 rather than smearing a 12px label. */
+  --font-display: 'Mouse Memoirs', 'Futura', 'Century Gothic', var(--font-ui);
 
   /* Surfaces — white paper over a warm cream plane. The white carries a 6-point warm
      cast rather than being pure #FFF, so it reads as stock rather than as screen; cards
