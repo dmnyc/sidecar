@@ -167,13 +167,18 @@ body {
    the correction is recorded in themes/populuxe.css, along with why a per-color blend
    that measured BETTER looked worse (equalizing the cells by luminance destroys the
    lattice's own figure/ground, and a pattern has to read as a pattern first).
-   320px for the reason in the Bauhaus block above: the panel is ~400px, so a larger tile
-   shows barely one repeat and the motifs stop reading as a grid. Here that would be
-   fatal rather than merely soft — the whole figure is the repeat. */
+   Sized to the frame rather than to a pixel value: the tile is square and 8 cells across,
+   so `100%` lays exactly one repeat over the panel's width and the grid always meets both
+   edges cleanly, at whatever width the side panel is dragged to. A fixed 320px (what this
+   shipped at first) leaves a partial column at every width except one — the Bauhaus block
+   above worries about a tile too LARGE to repeat, and this is the mirror of it: the whole
+   figure here is the grid meeting the frame, so a sheared column at the edge is the thing
+   that reads as broken. Vertically it keeps the same cell size and repeats down, which is
+   what makes the cells square. */
 [data-theme="populuxe"] body {
   background-image:
     url(populuxe-pattern.svg),
     linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
-  background-size: 320px, auto;
-  background-position: center, 0% 0%;
+  background-size: 100%, auto;
+  background-position: top center, 0% 0%;
 }
