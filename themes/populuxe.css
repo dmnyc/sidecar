@@ -310,13 +310,11 @@
              calc(min(var(--i), 8) * 42ms) both;
 }
 
-/* The thousands separator stays teal, always — not only while the figure arrives.
-   A separator is not a number, it is the mark that groups them, and the period's
-   own charts colored their structural rules separately from their data. It also
-   explains why the glyphs are split when nothing is animating: a comma that was
-   teal for 300ms after a balance change and ink the rest of the time would read
-   as a glitch rather than a decision. */
-[data-theme="populuxe"] .bal-sep { color: var(--lav); }
+/* No .bal-sep rule here on purpose. Coloring the thousands separator apart from
+   the digits is BAUHAUS'S idea and stays exclusive to it — giving a structural
+   element its own color is that school's argument, not this one's, and repeating
+   it would blur two themes that are already both light and both geometric. Here
+   the separator is a digit's neighbor and takes the same ink. */
 @media (prefers-reduced-motion: reduce) {
   [data-theme="populuxe"] .bal-glyph.bal-in { animation: none; }
 }

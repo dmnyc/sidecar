@@ -177,7 +177,7 @@ body {
 
    which is the parity this file now holds. On that scale the first version of this theme
    (hairline outlines at 0.05 alpha) was near zero and read as nothing, and the 0.32 it
-   was rebuilt at measured 0.0676 — more than twice either neighbour.
+   was rebuilt at measured 0.0676 — more than twice either neighbor.
 
    Sized to the frame rather than to a pixel value: the tile is square and 8 cells across,
    so `100%` lays exactly one repeat over the panel's width and the grid always meets both
