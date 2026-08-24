@@ -325,8 +325,17 @@
           <button type="button" class="theme-card" data-theme="aegean">
             <span class="theme-name">Aegean</span>
           </button>
+          <!-- The only card whose label is split per letter, so it can alternate blue and
+               orange the way this theme's balance does — odd glyphs drop in blue, even ones
+               rise orange (see bauhaus-drop / bauhaus-rise). Split in the markup rather
+               than in JS because these cards are static, and split for this card only
+               because no other theme has a two-color idea to state. The colors live in
+               themes/bauhaus.css; without the spans the label still reads in one color, so
+               this degrades rather than breaks. -->
           <button type="button" class="theme-card" data-theme="bauhaus">
-            <span class="theme-name">Bauhaus</span>
+            <span class="theme-name"><span class="tn-glyph">B</span><span class="tn-glyph">a</span><span
+              class="tn-glyph">u</span><span class="tn-glyph">h</span><span class="tn-glyph">a</span><span
+              class="tn-glyph">u</span><span class="tn-glyph">s</span></span>
           </button>
           <button type="button" class="theme-card" data-theme="populuxe">
             <span class="theme-name">Populuxe</span>

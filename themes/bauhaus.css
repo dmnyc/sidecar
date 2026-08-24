@@ -258,15 +258,33 @@
    Scoping it to the card also keeps the picker's one rule intact — each card previews
    its own theme, so only this card turns orange, in every theme.
 
-   CONTRAST NOTE: this is the one ink in the theme that does not clear AA. The label is
-   14px/700 on the card's white, which is not WCAG large text (that needs 18.66px bold),
-   so the bar is 4.5:1 and #E1552B measures 3.79:1. It clears the 3.0:1 large-text bar
-   the balance is held to, which is why the same value is fine at 40px and marginal here.
-   Deliberate and specified; see the note beside --balance-ink for why the orange cannot
-   simply be darkened without ceasing to be the balance color. */
+   CONTRAST: the label is 20px/700, which IS WCAG large text (the bar drops to 3.0 from
+   18.66px bold), so the orange's 3.79:1 on the card's white clears it with room. This note
+   used to record the opposite, from when .theme-name was 14px and the same value was a
+   specified 4.5:1 failure; the size went up in styles.css and took the exception with it.
+   See the note beside --balance-ink for why the orange could not simply be darkened
+   without ceasing to be the balance color. */
 [data-theme="bauhaus"].theme-card {
   color: var(--balance-ink);
 }
+
+/* ...and the label alternates the two colors its own balance arrives in: odd glyphs drop
+   from above starting blue, even ones rise from below starting orange (bauhaus-drop /
+   bauhaus-rise, further down). Same :nth-child(even) split, so the card and the figure are
+   stating the same rule — the card just holds the pose instead of resolving out of it.
+
+   The blue is 5.52:1 on the card's white and the orange 3.79:1, both clear at 20px/700.
+
+   This is also what lets Populuxe label its own card in its balance red: that red and this
+   orange measure 1.09:1 apart, and two adjacent light-theme cards in the same solid red is
+   the collision that has already been fixed twice here. Once every other letter is blue,
+   the words stop being twins on a structural axis rather than a chromatic one, and neither
+   theme has to give up the color its numbers are drawn in.
+
+   Requires the per-letter spans in sidepanel.html. Without them the rule matches nothing
+   and the label falls back to the single orange above. */
+[data-theme="bauhaus"].theme-card .tn-glyph { color: var(--lav); }
+[data-theme="bauhaus"].theme-card .tn-glyph:nth-child(even) { color: var(--balance-ink); }
 
 /* ...and its selected ring, which otherwise comes from the shared .theme-card.active
    rule as --gold / --gold-soft. In this theme those are the dark ochre and a flat ink
