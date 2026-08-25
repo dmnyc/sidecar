@@ -53,6 +53,9 @@
      --accent-rgb follows, so every translucent wash goes cobalt with it. */
   --amber: #B8912F;
   --gold: var(--purple);
+  /* Full strength: muted, the symbol measures 3.53:1 on the pinned bar against the 4.5
+     that 16.8px/600 needs. Unmuted it is 6.32. */
+  --fiat-sym-opacity: 1;
   --gold-soft: rgba(var(--border-rgb), 0.42);
   --accent-rgb: var(--border-rgb);
   /* Cobalt takes the accent slot the dark themes fill with purple: deep sea for the

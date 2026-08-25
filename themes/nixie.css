@@ -84,6 +84,11 @@
      and 24px/700, both past the 18.66px bold bar), 9.9:1 on the card. --gold
      stays pale for the ~25 rules that use it as ordinary accent ink. */
   --balance-ink: #ffb478;
+  /* The symbol is not muted here. It clears AA either way (5.71 at 0.72, 9.91 at full),
+     so this is the tube metaphor rather than the contrast: every other mark in this
+     theme is lit, and a dimmed one beside glowing digits reads as a segment that failed
+     to strike. It does not take the glow itself — that belongs to the numerals. */
+  --fiat-sym-opacity: 1;
   /* The dark stop was #cf2606, and it put the label below AA over the bottom of
      every chip this fill paints. --chip-ink is #180a02 (see the note beside it),
      and against the gradient that measured 6.22 at the bright end, 4.75 at the

@@ -2162,10 +2162,20 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    dimmed so the amount stays the thing you read first. Sizes were picked by rendering
    both surfaces against $ and CHF: smaller/higher reads as a footnote, larger starts
    competing with the number again. */
+/* The symbol is subordinate to the figure — smaller, lighter, set in the UI face — so
+   it defaults to the balance's own ink at 0.72. Both halves are themeable, because
+   that default is not safe everywhere: it is a MUTE, and muting an ink that was
+   already chosen to just clear the large-text bar drops it under the small-text one.
+   The pinned bar renders this at 0.7em of 24px = 16.8px/600, which is not WCAG large
+   text, so it answers to 4.5:1 and not 3.0:1 — measured per theme, that is where the
+   default fails. A theme sets --fiat-sym-opacity to stop muting, and --fiat-sym-ink
+   when full strength alone is not enough and the symbol needs a different ink from
+   the number it qualifies. */
 .wallet-fiat-sym, .pinned-fiat-sym {
   font-family: var(--font-ui);
   font-weight: 600;
-  opacity: 0.72;
+  color: var(--fiat-sym-ink, currentColor);
+  opacity: var(--fiat-sym-opacity, 0.72);
   margin-right: 0.14em;
   vertical-align: baseline;
   display: inline-block;

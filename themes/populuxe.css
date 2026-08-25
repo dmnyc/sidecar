@@ -143,6 +143,16 @@
      worst surface. The undarkened #F5675B measures 2.24 and fails even that. It would
      fail the 4.5 bar the 12–13px labels are held to, which is why those take --gold. */
   --balance-ink: #DC4A3C;
+  /* The currency symbol, in the balance's own red darkened the least amount that clears
+     the bar — NOT a different colour. --balance-ink itself measures 2.49 on the pinned
+     bar at the shared 0.72 mute and 3.47 unmuted, against the 4.5 that 16.8px/600 needs,
+     so something has to move; the first fix sent it to --gold and put an olive $ beside
+     a red number, which reads as two colours rather than one mark and its qualifier.
+     Same hue, 18% down in lightness: 5.55 on the card, 4.67 on the bar. That is the
+     warm-family split of this theme applied at one more size — the figure keeps the
+     display ink, the small mark beside it takes a stop that can carry small text. */
+  --fiat-sym-ink: #C33123;
+  --fiat-sym-opacity: 1;
 
   /* Row highlights, hover fills, tip cards — teal, so a selected row reads as selected
      rather than as a smudge of the border color. */

@@ -57,6 +57,19 @@
   --orange: #8A4A18;
   --amber: #D4AF37;
   --gold: #6B4E1C;
+  /* The currency symbol, in the balance's own bronze darkened the least amount that
+     clears the bar. Inherited straight, #8C6A1F measures 2.43 / 2.32 at the shared 0.72
+     mute and 3.68 / 3.40 unmuted — over the 3.0 the 24.8px wallet symbol answers to,
+     under the 4.5 the 16.8px pinned one does. Restoring a partial mute cannot rescue it
+     either: even 0.9 lands at 4.32.
+     Swapping it to --gold was the first fix and read too strong — that value is a
+     browner, darker gold than the number it sits beside, so the small mark out-weighed
+     the big one. This is the same hue, one step down: the lightest value on that ramp
+     that clears, at 4.97 / 4.60. The symbol has to be darker than the figure here
+     whatever we do, because the figure itself is only 3.68 at this size — the eggshell
+     ground is the tighter surface, as the note below records. */
+  --fiat-sym-ink: #735719;
+  --fiat-sym-opacity: 1;
   --gold-soft: rgba(197, 160, 89, 0.5);
 
   /* The metallic, pinned. Each of these otherwise falls back to var(--gold) in

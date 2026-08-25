@@ -121,6 +121,15 @@
      #F2A81D measures 1.67–2.02:1 here and cannot carry a number at any size. */
   --balance-ink: #E1552B;
 
+  /* The currency symbol is the same kind of mark as the separator — it qualifies the
+     number without being part of it — so it takes the same blue, and full strength with
+     it. The shared 0.72 mute renders #0057FF as an effective #4786FF (3.43:1): fine for
+     the wallet card's 24.8px, under the 4.5 the pinned bar's 16.8px needs. At full it is
+     5.52 / 5.14 and clears both. Inheriting the orange instead would give #E98566, or
+     2.62:1, which fails at either size. */
+  --fiat-sym-ink: #0057FF;
+  --fiat-sym-opacity: 1;
+
   /* Translucent accent washes: row highlights, hover fills, tip cards. Blue, so a
      selected row reads as selected rather than as a smudge of the border color. This is
      why it is not simply var(--border-rgb) the way Aegean sets it. */
