@@ -48,6 +48,13 @@
      and [data-theme] matches the same element :root does, so the later rule wins. */
   --font-display: 'Jost', 'Futura', 'Century Gothic', var(--font-ui);
 
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.02em;
+
   /* Surfaces — whitewashed plaster, near-neutral. The 4-point spread between channels
      is deliberate and is what separates this from Art Deco's cream, which drops 26
      points of blue. The ground is the wall; cards are white paper pinned to it. */

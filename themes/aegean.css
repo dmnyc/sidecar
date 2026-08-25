@@ -13,6 +13,13 @@
      which is why it needs no text-transform of its own. */
   --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
 
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.06em;
+
   /* surfaces — whitewash, not beige. An earlier pass used warm marble here and the
      whole theme went muddy olive under the pattern; the reference is lime-washed
      plaster in sea light, so the ground is neutral-cool and the cards are plain

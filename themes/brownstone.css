@@ -14,6 +14,13 @@
      nothing but stroke contrast. */
   --font-display: 'Bitter', Rockwell, Georgia, serif;
 
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.04em;
+
   /* surfaces — the stone in shadow. Brown-black rather than neutral black; a grey
      base under a warm palette reads as dirt, not stone. */
   --bg: #120C0A;

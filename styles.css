@@ -1874,28 +1874,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    rendering each theme's "8" in its ring and finding the ink's bounding box in
    the rasterized pixels, then nudging in em so the 28px ring and the 19px unlock
    ring both center. Positive dy = ink sat low. These are font metrics, not theme
-   taste — a theme that swaps its display face inherits the wrong nudge and this
-   table needs a new row. */
-[data-theme="speakeasy"] .countdown-num,
-[data-theme="film-noir"] .countdown-num { transform: translateY(-0.04em); }
-[data-theme="brownstone"] .countdown-num { transform: translateY(0.04em); }
-[data-theme="nixie"] .countdown-num { transform: translate(0.01em, -0.05em); } /* x: letter-spacing trails the last glyph */
-[data-theme="art-deco"] .countdown-num { transform: translateY(0.10em); }
-[data-theme="aegean"] .countdown-num { transform: translateY(0.06em); }
-[data-theme="bauhaus"] .countdown-num { transform: translateY(0.02em); }
-/* Populuxe, now that its face is vendored and no longer a per-machine system stack.
-   Measured the way this table describes — rasterize the theme's "8", find the ink's
-   bounding box, compare its middle to the em's. The method was checked against the rows
-   already here before trusting it on a new one: it reproduces Oswald at -0.043 against
-   the -0.04 recorded above, and Jost's small positive nudge. A face this round sits
-   almost centered, so the nudge is small.
+   taste — a theme that swaps its display face inherits the wrong nudge.
 
-   Kept unchanged across the swap from Cherry Cream Soda to Rowdies: re-measured by the
-   same method, the two faces land 0.004em apart, which is a tenth of a pixel in the 28px
-   ring. Sign and ordering reproduce on every row of this table, magnitudes run slightly
-   more extreme than what is recorded, so the measurement is trustworthy comparing two
-   faces and not for deriving an absolute value from scratch. */
-[data-theme="populuxe"] .countdown-num { transform: translateY(-0.01em); }
+   The values live on --display-ink-nudge in each theme file rather than in a table
+   here, because the ring is not the only place they apply. The pinned balance bar
+   centers a 24px figure at line-height 1 between two 30px buttons and had the same
+   error, up to 2px of it — Art Deco riding high, Nixie riding low — which is what
+   made the fact worth naming once instead of tabulating per widget. Measured at
+   24px, the two surfaces agree in sign on six of eight themes and are within half a
+   pixel on the other two, so one value serves both. */
+.countdown-num { transform: translateY(var(--display-ink-nudge, 0)); }
+/* Nixie alone also needs an x nudge: its letter-spacing trails the last glyph, so a
+   centred figure sits a hair left. The y half still comes from the token. */
+[data-theme="nixie"] .countdown-num { transform: translate(0.01em, var(--display-ink-nudge, 0)); }
 /* the note preview leads; the full-size ring (above) sits centered below it */
 .countdown-preview {
   max-height: 42vh;
@@ -1969,7 +1960,17 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .pinned-balance-actions, .pinned-balance-tools { display: flex; align-items: center; gap: 6px; }
 .pinned-balance-amt-wrap { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
-.pinned-balance-amt { font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--balance-ink); font-variant-numeric: tabular-nums; line-height: 1; }
+/* Same optical correction the countdown ring takes, and for the same reason: this is a
+   figure at line-height 1 centered against two 30px buttons, so the flex centers its box
+   and the face decides where the ink sits in it. Untouched, the error ran to ~2px either
+   way — Art Deco riding high, Nixie low. The currency symbol is a child of this element,
+   so it travels with the number and the pair stays aligned. Transform applies because a
+   flex item is blockified; on a bare inline span it would be ignored. */
+.pinned-balance-amt {
+  font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--balance-ink);
+  font-variant-numeric: tabular-nums; line-height: 1;
+  transform: translateY(var(--display-ink-nudge, 0));
+}
 .pinned-balance-btn {
   width: 30px; height: 30px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
   background: var(--hover-soft); border: 1px solid var(--border-strong); color: var(--muted);
@@ -2147,9 +2148,16 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .wallet-balance {
   font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; color: var(--balance-ink);
   margin: 6px 0 4px; transition: font-size 0.2s ease;
-  /* Keep Playfair's oldstyle figures, but nudge the numerals up so their
-     descenders (3/4/7…) don't make the number look like it sags. */
-  transform: translateY(-0.08em);
+  /* The same per-face optical nudge the countdown ring and the pinned bar take.
+     This was a hardcoded -0.08em, written to lift Playfair's oldstyle figures so their
+     descenders (3/4/7…) didn't make the number look like it sags — correct for
+     Speakeasy, and inherited by all seven other themes that do not have Playfair's
+     descenders. It was worst where a face needs the opposite correction: Art Deco's
+     Josefin wants +0.10em and was getting -0.08em, so its figure sat about 4px high at
+     24px, which is most of the reason the compact wallet card looked off-centre.
+     Keeping a transform here in all cases is deliberate — the note by .wallet-card.compact
+     depends on this element staying in the positioned painting layer. */
+  transform: translateY(var(--display-ink-nudge, -0.08em));
 }
 .wallet-balance.loading { animation: balance-pulse 1.1s ease-in-out infinite; }
 /* Both balance displays cycle sats → BTC → fiat on tap. Subtle affordance only —
