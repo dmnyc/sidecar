@@ -464,7 +464,7 @@
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
   const _notifProfiles = new Map(); // sender pubkey → display name string
-  const _muteLists = new Map(); // pubkey → Set<pubkey> (resolved mute set)
+  const _muteLists = new Map(); // pubkey → resolved mute set (see emptyMuteSet)
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   const _ownNoteIds = new Map(); // pubkey → Set<eventId> (this account's own recent kind:1 ids)
   const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
@@ -2579,6 +2579,112 @@
       .trim();
   }
 
+  // ---- mute matching ----
+  // A NIP-51 mute list carries four kinds of entry and this panel only ever read
+  // one of them. `p` is people, `t` is hashtags, `word` is muted words, `e` is
+  // muted threads; a list written by Amethyst or Jumble routinely has all four,
+  // and the three we ignored simply did nothing here. Everything is lowercased on
+  // the way in so matching never has to think about case again.
+  const emptyMuteSet = () => ({ pubkeys: new Set(), hashtags: new Set(), words: [], threads: new Set(), size: 0 });
+
+  function collectMuteTags(tags, into) {
+    for (const t of tags || []) {
+      if (!Array.isArray(t) || !t[1]) continue;
+      const v = String(t[1]);
+      if (t[0] === 'p') into.pubkeys.add(v);
+      else if (t[0] === 't') into.hashtags.add(v.replace(/^#/, '').toLowerCase());
+      else if (t[0] === 'word') into.words.push(v.toLowerCase());
+      else if (t[0] === 'e') into.threads.add(v);
+    }
+    into.size = into.pubkeys.size + into.hashtags.size + into.words.length + into.threads.size;
+    return into;
+  }
+
+  // Word characters, for deciding where a muted term is allowed to match. Unicode
+  // aware on purpose: a mute list is not going to be all ASCII.
+  const MUTE_WORDISH = /[\p{L}\p{N}_]/u;
+  const isWordish = (s) => !!s && [...s].every((c) => MUTE_WORDISH.test(c));
+
+  // A single word matches on word boundaries; anything else (a phrase, an emoji,
+  // something with punctuation) matches as a plain substring. Muting "ass" should
+  // not silence a note about a class, but muting "gm " or "🔥" has no boundaries
+  // to speak of and the user clearly meant the literal text.
+  function mutedTermHit(haystack, needle) {
+    if (!needle || !haystack) return false;
+    if (!isWordish(needle)) return haystack.includes(needle);
+    let i = haystack.indexOf(needle);
+    while (i !== -1) {
+      const before = haystack[i - 1];
+      const after = haystack[i + needle.length];
+      if ((before === undefined || !MUTE_WORDISH.test(before))
+          && (after === undefined || !MUTE_WORDISH.test(after))) return true;
+      i = haystack.indexOf(needle, i + 1);
+    }
+    return false;
+  }
+
+  // A hashtag typed into the text without the client adding a `t` tag. Common
+  // enough that checking only the tag would let half of them through.
+  function mutedHashtagInText(text, tag) {
+    const lit = '#' + tag;
+    let i = text.indexOf(lit);
+    while (i !== -1) {
+      const after = text[i + lit.length];
+      if (after === undefined || !MUTE_WORDISH.test(after)) return true;
+      i = text.indexOf(lit, i + 1);
+    }
+    return false;
+  }
+
+  // What a notification actually SAYS, and what it references. For a zap receipt
+  // both live in the embedded zap request rather than on the receipt: the receipt's
+  // own content is empty and its tags belong to the LNURL service, while the
+  // comment the user reads and the note being zapped are inside `description`.
+  // Checking the receipt alone would mute nothing on a zap.
+  function muteSubject(ev) {
+    let text = ev.content || '';
+    let tags = ev.tags || [];
+    if (ev.kind === 9735) {
+      const desc = (ev.tags || []).find((t) => t[0] === 'description');
+      if (desc) {
+        try {
+          const req = JSON.parse(desc[1]);
+          if (req && typeof req === 'object') {
+            text = req.content || '';
+            tags = tags.concat(Array.isArray(req.tags) ? req.tags : []);
+          }
+        } catch (_) {}
+      }
+    }
+    return { text: text.toLowerCase(), tags };
+  }
+
+  function isMutedNotif(mute, ev) {
+    if (!mute || !mute.size || !ev) return false;
+    // zapSender, not ev.pubkey: a zap receipt is authored by the LNURL service, so
+    // testing the receipt's author meant muting a person never hid their zaps.
+    if (mute.pubkeys.size && mute.pubkeys.has(zapSender(ev))) return true;
+    if (mute.pubkeys.size && mute.pubkeys.has(ev.pubkey)) return true;
+
+    const { text, tags } = muteSubject(ev);
+
+    if (mute.threads.size) {
+      if (mute.threads.has(ev.id)) return true;
+      for (const t of tags) {
+        // e = the thread, q = a quote of it, E = the NIP-22 root of a comment
+        if ((t[0] === 'e' || t[0] === 'q' || t[0] === 'E') && t[1] && mute.threads.has(t[1])) return true;
+      }
+    }
+    if (mute.hashtags.size) {
+      for (const t of tags) {
+        if (t[0] === 't' && t[1] && mute.hashtags.has(String(t[1]).replace(/^#/, '').toLowerCase())) return true;
+      }
+      for (const tag of mute.hashtags) if (mutedHashtagInText(text, tag)) return true;
+    }
+    for (const w of mute.words) if (mutedTermHit(text, w)) return true;
+    return false;
+  }
+
   // Load an account's mute list (kind 10000) — newest replaceable event across
   // relays, including both public p-tag mutes and private mutes encrypted in the
   // content. Private mutes may be NIP-04 (legacy NIP-51) or NIP-44 (newer clients
@@ -2593,13 +2699,13 @@
   function loadMuteList(pubkey, relays, force) {
     if (_muteListPromises.has(pubkey) && !force) return _muteListPromises.get(pubkey);
     const p = (async () => {
-      const muted = new Set();
+      const muted = emptyMuteSet();
       try {
         const evs = await getPool().querySync(relays, { kinds: [10000], authors: [pubkey] });
         const ev = (evs || []).sort((x, y) => y.created_at - x.created_at)[0];
         if (ev) {
           seedBaseline(pubkey, ev); // free ride — see seedBaseline
-          ev.tags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+          collectMuteTags(ev.tags, muted);
           if (ev.content) {
             // NIP-04 ciphertext is "<base64>?iv=<base64>"; NIP-44 is a single
             // base64 blob. Try the matching scheme first, then the other.
@@ -2609,7 +2715,7 @@
                 const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
                 const privateTags = JSON.parse(plain);
                 if (Array.isArray(privateTags)) {
-                  privateTags.filter((t) => t[0] === 'p' && t[1]).forEach((t) => muted.add(t[1]));
+                  collectMuteTags(privateTags, muted);
                   break;
                 }
               } catch (_) {}
@@ -2624,7 +2730,7 @@
       const cache = _notifCache.get(pubkey);
       if (cache && muted.size) {
         const before = cache.events.length;
-        cache.events = cache.events.filter((e) => !muted.has(e.pubkey));
+        cache.events = cache.events.filter((e) => !isMutedNotif(muted, e));
         if (cache.events.length !== before && pubkey === state?.activePubkey) refreshBell();
       }
       return muted;
@@ -2711,8 +2817,7 @@
 
       const addEvent = (ev) => {
         if (ev.pubkey === a.pubkey) return;
-        const muted = _muteLists.get(a.pubkey);
-        if (muted && muted.has(ev.pubkey)) return;
+        if (isMutedNotif(_muteLists.get(a.pubkey), ev)) return;
         if (cache.events.some((e) => e.id === ev.id)) return;
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
@@ -2780,7 +2885,7 @@
     // already open and interactive (see below), instead of blocking the modal
     // from appearing at all.
     const muted = _muteLists.get(a.pubkey);
-    const events = muted && muted.size ? cache.events.filter((e) => !muted.has(e.pubkey)) : cache.events;
+    const events = muted && muted.size ? cache.events.filter((e) => !isMutedNotif(muted, e)) : cache.events;
     const PAGE = 25;
 
     function buildItem(ev) {
@@ -2801,9 +2906,13 @@
             title: 'Open in ' + client.label,
           })
         : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
-      // Lets the background mute re-check (see showNotifModal) remove this row
-      // in place if the author turns out to be freshly muted.
+      // Lets the background mute re-check (see showNotifModal) remove this row in
+      // place if the mute list turns out to cover it. The id is what that check keys
+      // on — muting can turn on a word, a hashtag or a thread, none of which the
+      // author's pubkey can answer for. The pubkey stays for everything else that
+      // reads a row.
       item.dataset.pubkey = ev.pubkey;
+      item.dataset.notifId = ev.id;
 
       // Reuse an existing client tab on a plain left-click; leave modified clicks
       // (cmd/ctrl/shift) to the anchor's default new-tab behavior.
@@ -2991,11 +3100,16 @@
           Promise.all(uncached.map((pk) => prefetchNotifProfile(pk, relays))),
         ]);
 
-        // Drop any row whose author turned out to be freshly muted.
+        // Drop any row the freshly-loaded list now covers.
+        // Re-checked against the EVENT, not the row's author: words, hashtags and
+        // threads are properties of the note, and a zap's row carries the LNURL
+        // service's pubkey rather than the zapper's.
         const freshMuted = _muteLists.get(a.pubkey);
         if (freshMuted && freshMuted.size) {
-          modal.querySelectorAll('.notif-item[data-pubkey]').forEach((el) => {
-            if (freshMuted.has(el.dataset.pubkey)) el.remove();
+          const byId = new Map(cache.events.map((e) => [e.id, e]));
+          modal.querySelectorAll('.notif-item[data-notif-id]').forEach((el) => {
+            const ev = byId.get(el.dataset.notifId);
+            if (ev && isMutedNotif(freshMuted, ev)) el.remove();
           });
         }
         // Patch in any names that resolved after the row was first drawn.
