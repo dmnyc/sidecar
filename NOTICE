@@ -12,3 +12,6 @@ Apache-2.0: http://www.apache.org/licenses/LICENSE-2.0
 
 The other vendored bundles and their licenses are listed in VENDOR.md
 (nostr-tools and nip49: Unlicense; qrcode-generator: MIT).
+
+Every bundled font is SIL OFL 1.1 and carries its own OFL-*.txt beside it in
+fonts/, so none of them needs an entry here.

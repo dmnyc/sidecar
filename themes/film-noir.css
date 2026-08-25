@@ -12,6 +12,13 @@
      of a noir title card and reads as nothing else in the picker. */
   --font-display: 'Oswald', 'Haettenschweiler', 'Arial Narrow', var(--font-ui);
 
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: -0.04em;
+
   /* surfaces */
   --bg: #0a0a0a;
   --bg-2: #111111;
@@ -34,6 +41,9 @@
   --orange: #a0a0a0;
   --amber: #b8b8b8;
   --gold: #c0c0c0;
+  /* Full strength: the shared 0.72 mute drops the symbol to 3.83:1 on the pinned bar,
+     where 16.8px/600 answers to 4.5. Unmuted it is 5.98. */
+  --fiat-sym-opacity: 1;
   --gold-soft: rgba(192, 192, 192, 0.4);
 
   /* Pending confirm sub-label — --muted sits at exactly 4.50:1 on the pending wash, which
@@ -134,7 +144,10 @@
 }
 [data-theme="film-noir"] .bal-glyph { display: inline-block; }
 [data-theme="film-noir"] .bal-glyph.bal-in {
-  animation: noir-projector 940ms linear calc(var(--i) * 10ms) both;
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 30ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: noir-projector 940ms linear calc(var(--i) * min(10ms, 30ms / max(var(--n) - 1, 1))) both;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="film-noir"] .bal-glyph.bal-in { animation: none; }

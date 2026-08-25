@@ -13,6 +13,13 @@
      the pattern to copy. This is also still the :root value, so nothing changes here. */
   --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
 
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: -0.04em;
+
   /* surfaces */
   --bg: #0a0118;
   --bg-2: #140428;
@@ -82,8 +89,11 @@
 }
 [data-theme="speakeasy"] .bal-glyph { display: inline-block; }
 [data-theme="speakeasy"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 165ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
   animation: speakeasy-slot 420ms cubic-bezier(0.22, 0.7, 0.2, 1)
-             calc(min(var(--i), 8) * 55ms) both;
+             calc(var(--i) * min(55ms, 165ms / max(var(--n) - 1, 1))) both;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="speakeasy"] .bal-glyph.bal-in { animation: none; }

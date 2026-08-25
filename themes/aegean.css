@@ -13,6 +13,13 @@
      which is why it needs no text-transform of its own. */
   --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
 
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.06em;
+
   /* surfaces — whitewash, not beige. An earlier pass used warm marble here and the
      whole theme went muddy olive under the pattern; the reference is lime-washed
      plaster in sea light, so the ground is neutral-cool and the cards are plain
@@ -53,6 +60,9 @@
      --accent-rgb follows, so every translucent wash goes cobalt with it. */
   --amber: #B8912F;
   --gold: var(--purple);
+  /* Full strength: muted, the symbol measures 3.53:1 on the pinned bar against the 4.5
+     that 16.8px/600 needs. Unmuted it is 6.32. */
+  --fiat-sym-opacity: 1;
   --gold-soft: rgba(var(--border-rgb), 0.42);
   --accent-rgb: var(--border-rgb);
   /* Cobalt takes the accent slot the dark themes fill with purple: deep sea for the
@@ -230,7 +240,10 @@
   mask-repeat: repeat;
 }
 [data-theme="aegean"] .bal-glyph.bal-in {
-  animation: aegean-sand 980ms ease-out calc(min(var(--i), 8) * 82ms) both;
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 246ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: aegean-sand 980ms ease-out calc(var(--i) * min(82ms, 246ms / max(var(--n) - 1, 1))) both;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="aegean"] .bal-glyph.bal-in { animation: none; }

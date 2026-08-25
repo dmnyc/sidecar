@@ -16,14 +16,14 @@
      The tile is drawn at 480 but rendered at 320 (see patterns.css) so the repeat is
      visible at panel width; the geometry is authored large to keep the arcs exact. -->
 <svg width="480" height="480" viewBox="0 0 480 480" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M0,0 L120,0 A120,120 0 0 1 0,120 Z" fill="#0057FF" opacity="0.05"/>
-  <circle cx="180" cy="60" r="53" fill="none" stroke="#111111" stroke-width="14" opacity="0.05"/>
-  <path d="M360,120 L240,120 A120,120 0 0 1 360,0 Z" fill="#FFD400" opacity="0.13"/>
-  <path d="M240,120 L240,240 A120,120 0 0 1 120,120 Z" fill="#111111" opacity="0.05"/>
-  <circle cx="420" cy="180" r="60" fill="#C9161C" opacity="0.05"/>
-  <circle cx="60" cy="300" r="60" fill="#FFD400" opacity="0.13"/>
-  <path d="M240,360 L240,240 A120,120 0 0 1 360,360 Z" fill="#0057FF" opacity="0.05"/>
-  <path d="M360,240 L480,240 A120,120 0 0 1 360,360 Z" fill="#111111" opacity="0.05"/>
-  <path d="M120,480 L0,480 A120,120 0 0 1 120,360 Z" fill="#C9161C" opacity="0.05"/>
-  <circle cx="300" cy="420" r="53" fill="none" stroke="#0057FF" stroke-width="14" opacity="0.05"/>
+  <path d="M0,0 L120,0 A120,120 0 0 1 0,120 Z" fill="#0057FF" opacity="0.055"/>
+  <circle cx="180" cy="60" r="53" fill="none" stroke="#111111" stroke-width="14" opacity="0.055"/>
+  <path d="M360,120 L240,120 A120,120 0 0 1 360,0 Z" fill="#FFD400" opacity="0.143"/>
+  <path d="M240,120 L240,240 A120,120 0 0 1 120,120 Z" fill="#111111" opacity="0.055"/>
+  <circle cx="420" cy="180" r="60" fill="#C9161C" opacity="0.055"/>
+  <circle cx="60" cy="300" r="60" fill="#FFD400" opacity="0.143"/>
+  <path d="M240,360 L240,240 A120,120 0 0 1 360,360 Z" fill="#0057FF" opacity="0.055"/>
+  <path d="M360,240 L480,240 A120,120 0 0 1 360,360 Z" fill="#111111" opacity="0.055"/>
+  <path d="M120,480 L0,480 A120,120 0 0 1 120,360 Z" fill="#C9161C" opacity="0.055"/>
+  <circle cx="300" cy="420" r="53" fill="none" stroke="#0057FF" stroke-width="14" opacity="0.055"/>
 </svg>

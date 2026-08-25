@@ -1,0 +1,397 @@
+/* ============================================================
+   Sidecar — Populuxe Theme
+   Optimistic futurism, 1954–1964: the circle lattice, in teal and
+   orange and ochre over cream.
+   ("Populuxe" is Thomas Hine's 1986 coinage — popular + luxury +
+   deluxe — for the period's own consumer futurism.)
+   ============================================================ */
+
+/* Every value here was measured before it was written down. See
+   test/theme-contrast.test.js, which resolves these var() chains and checks the ratios.
+
+   THE PALETTE IS THE PATTERN'S. Daniel drew the circle-lattice tile first, and its
+   colors are the theme rather than the other way round: deep teal #006774, maroon
+   #792830, orange #F3713D, coral #F5675B, ochre #9A7C24, olive #BFB367, light teal
+   #73ADB1, blush #FAA69F, cream #F3DBB7. Measuring them sorted the set cleanly in two,
+   and that split is the whole structure of this theme:
+
+       INK        deep teal 4.90 worst   maroon 7.24 worst
+       FILL ONLY  ochre 2.96   orange 2.16   coral 2.24   olive 1.59
+                  light teal 1.87   blush 1.42   cream 1.00
+
+   The brights take BLACK type, not white — orange 5.99, coral 5.77, olive 8.15, blush
+   9.11 — which is both the period-correct pairing and the reason the buttons can be the
+   pattern's actual saturated colors rather than darkened stand-ins. Only the two ink
+   colors take a white label (teal 6.58, maroon 9.73).
+
+   THE GROUND IS WHITE, and that is the other design decision. This material is built on
+   cream, which walks into the failure the contrast test already records about Art Deco:
+
+       "the cream palette cannot carry a legible three-level grey hierarchy at all.
+        That is a surface problem, not an ink problem."
+
+   Its --muted (3.65:1) and --faint (2.30:1) sit in that file as permanent exceptions.
+   So the cream moved one step down — white is the paper, cream is the plane behind it,
+   and the pattern's color arrives underneath rather than as the sheet under body text.
+   All five inks then clear AA on all four surfaces: --text 14.60, --text-2 5.53,
+   --muted 7.32, --faint 4.78, --gold 4.64. Bauhaus is the only other theme whose
+   --faint clears AA at all; the remaining five run 2.25–3.53.
+
+   INK IS COLORED, NOT GREY, for the same reason: three greys on a warm ground is what
+   failed before, and this material was printed in colored inks. --text-2 is the
+   pattern's deep teal and --muted is a darker step of it.
+
+   HOW BOLD THE PATTERN GETS, AND WHY. The first version of this theme was hairline
+   outlines at 0.05 alpha and read as nothing at all. It was rebuilt at a 0.32 blend
+   toward paper, then brought back down to sit level with the other two light themes, then
+   raised with them to 0.099, and finally re-saturated at that lightness (see
+   themes/patterns.css: chroma and weight are separate axes, and putting the color back
+   costs no weight) — see themes/patterns.css for the measurement, which is the interesting part:
+   the three patterns can only be compared by mean luminance deviation over the WHOLE
+   tile, not by how dark their strongest mark is. This tile inks every pixel of the field;
+   Aegean's meander and Bauhaus's motifs leave the ground showing through. Equalizing them
+   per-mark made Aegean four times louder than Bauhaus by area, which is exactly what it
+   looked like on screen.
+
+   Two other options were built and rejected along the way. 0.20 uniform keeps every ink
+   clear but reads soft. A per-color blend — lighten each hue only as far as legibility
+   demands, so the light cells keep their chroma — measured BETTER and looked WORSE:
+   equalizing the cells by luminance destroys the lattice's own figure/ground, the cream
+   circles stop separating from the squares, and it stops reading as a lattice at all.
+   Internal contrast is what makes a pattern legible AS a pattern, and no ink-vs-cell
+   ratio captures that.
+
+   --muted was darkened from #47686A to #35504F when the tile was at 0.32, to survive it:
+   it is the secondary ink most likely to sit on the body background with no card under
+   it. It is KEPT at that value now the tile is quieter, because the extra weight costs
+   nothing on the flat surfaces (7.32 worst) and because --pending-sub is now written
+   against it. --faint and --gold were never chased darker, since past that point they
+   stop separating from --muted and the hierarchy collapses — the Art Deco failure again,
+   approached from the other side. */
+
+[data-theme="populuxe"] {
+  color-scheme: light;
+
+  /* Rowdies — heavy rounded geometric, the lettering of the motel and coffee-shop signs
+     this theme is named after. It is the third geometric in the set; see the note in
+     fonts.css for why it does not collide with Josefin Sans or Jost, which are separated
+     from it by weight rather than by shape.
+
+     ONE outline covers 400 through 700 (fonts.css), so nothing here synthesizes and every
+     size renders the face as drawn. That is the whole reason the Regular ships instead of
+     the real Bold: almost all display type in the panel is set at 700, and pointing that
+     at the Bold would make the entire theme heavier than the face that was picked. If a
+     heading ever needs the extra weight, add the Bold rather than reaching for a
+     synthetic one. */
+  --font-display: 'Rowdies', 'Futura', 'Century Gothic', var(--font-ui);
+
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: -0.01em;
+
+  /* Surfaces — white paper over a warm cream plane. The white carries a 6-point warm
+     cast rather than being pure #FFF, so it reads as stock rather than as screen; cards
+     are the one genuinely white surface, which is what makes them read as pinned on top.
+     --velvet-2 was #F0E5D3 in the first pass and came up two steps: at that value
+     --muted measured 4.55 and --gold 4.75, both clearing AA but with no headroom for a
+     later tweak to spend. */
+  --bg: #FFFDF9;
+  --bg-2: #F9F1E4;
+  --velvet-1: #FFFFFF;
+  --velvet-2: #F5EADA;
+  --velvet-1-rgb: 255, 255, 255;
+  --av-from: #FFFFFF;
+  --av-to: #F5EADA;
+  --banner-accent: #F9F1E4;
+
+  /* Rule lines are near-black, the way the period's linework was printed — the starbursts
+     lattice is drawn without them, so the app's own rules stay near-black. --accent-rgb
+     is set separately so row highlights can be teal without the borders following. */
+  --border: rgba(28, 26, 23, 0.15);
+  --border-strong: rgba(28, 26, 23, 0.28);
+  --border-rgb: 28, 26, 23;
+  --well-rgb: 249, 241, 228;
+
+  /* Destructive is the pattern's maroon, which is one of only two colors in the set
+     that can carry text at all (8.18 worst surface). It is never confusable with the
+     action color, because the action color here is the teal at the other end of the
+     palette. */
+  --warn: #792830;
+  --warn-rgb: 121, 40, 48;
+  --success: #1F6B3F;
+  --success-rgb: 31, 107, 63;
+
+  /* --orange holds the theme's action color, not an orange. This token drives
+     accent-color on every checkbox and the chosen-button fill, so it has to be whatever
+     the theme's "yes" is; here that is the deep teal. Bauhaus puts blue in this slot and
+     Aegean puts cobalt, both for the same reason. */
+  --orange: #006774;
+
+  /* THE WARM FAMILY, SPLIT BY CONTRAST BUDGET. Which stop a rule gets is decided by how
+     big its text is, not by taste:
+
+       --amber        #F3713D  fill only, never text          2.44:1 as ink — unusable
+       --balance-ink  #DC4A3C  large text only (>=18.66/700)  3.47:1 — clears 3.0, not 4.5
+       --gold         #7E661D  all remaining text             4.64:1 — clears 4.5 anywhere
+
+     --amber is the pattern's own orange, unmodified, because it is only ever a fill.
+     --gold is the pattern's ochre darkened until it can carry 12px text: the undarkened
+     #9A7C24 measures 3.91 and would have been another Art Deco --gold, a warm value that
+     looks fine and cannot legally be text. */
+  --amber: #F3713D;
+  --gold: #7E661D;
+  --gold-soft: rgba(28, 26, 23, 0.26);
+
+  /* The wallet balance — the pattern's coral, darkened just enough to clear the 3.0 bar
+     WCAG allows large text (40px/700, and 24px/700 pinned and compact): 3.47:1 on its
+     worst surface. The undarkened #F5675B measures 2.24 and fails even that. It would
+     fail the 4.5 bar the 12–13px labels are held to, which is why those take --gold. */
+  --balance-ink: #DC4A3C;
+  /* The currency symbol, in the balance's own red darkened the least amount that clears
+     the bar — NOT a different colour. --balance-ink itself measures 2.49 on the pinned
+     bar at the shared 0.72 mute and 3.47 unmuted, against the 4.5 that 16.8px/600 needs,
+     so something has to move; the first fix sent it to --gold and put an olive $ beside
+     a red number, which reads as two colours rather than one mark and its qualifier.
+     Same hue, 18% down in lightness: 5.55 on the card, 4.67 on the bar. That is the
+     warm-family split of this theme applied at one more size — the figure keeps the
+     display ink, the small mark beside it takes a stop that can carry small text. */
+  --fiat-sym-ink: #C33123;
+  --fiat-sym-opacity: 1;
+
+  /* Row highlights, hover fills, tip cards — teal, so a selected row reads as selected
+     rather than as a smudge of the border color. */
+  --accent-rgb: 0, 103, 116;
+
+  /* Teal takes the accent slot the dark themes fill with purple. The pattern's #006774
+     at 5.53 worst surface, and its darker step for the pressed/deep tone. */
+  --purple: #00505A;
+  --lav: #006774;
+
+  /* Relax countdown dot. The shared default (#4ade80) is built for a dark status bar and
+     measures 1.66:1 on this one. The low state is the balance coral rather than --warn's
+     maroon, so the countdown reads green -> warm and not green -> already-failed. */
+  --relax-dot-ok: #16803C;
+  --relax-dot-low: var(--balance-ink);
+
+  --hover-soft: rgba(28, 26, 23, 0.045);
+  --hover-medium: rgba(28, 26, 23, 0.085);
+  --hover-faint: rgba(28, 26, 23, 0.03);
+  --mention-bg: rgba(0, 103, 116, 0.16);
+  /* Warm grey, not an accent — the scrollbar is furniture. */
+  --scroll-thumb: linear-gradient(180deg, #CFC6B6, #E2DACB);
+  --scroll-thumb-hover: #B8AE9C;
+
+  /* Buttons run a shallow three-stop ramp rather than Bauhaus's flat planes: the period's
+     printing had ink density, and a completely flat fill reads as the other theme. The
+     primary is the pattern's orange with BLACK type — 5.99:1, the period pairing — which
+     is why it can be the full-strength color instead of a darkened one. */
+  --btn-primary-top: #F5824F;
+  --btn-primary-mid: #F3713D;
+  --btn-primary-bot: #E85F2A;
+  --btn-primary-text: #1C1A17;
+  --btn-shadow: rgba(243, 113, 61, 0.34);
+
+  /* "Trust this site" — deep teal with a white label (6.58:1), sitting directly below
+     the orange Allow. Two actions of different weight as two different colors, not two
+     shades of one, and the two labels are opposite polarities (black on orange, white on
+     teal) so the pair can never be confused at a glance. */
+  --btn-lav-top: #007C8B;
+  --btn-lav-mid: #006774;
+  --btn-lav-bot: #00505A;
+  --btn-lav-text: #FFFFFF;
+  --btn-lav-ring: rgba(28, 26, 23, 0.22);
+  --btn-lav-shadow: rgba(0, 103, 116, 0.34);
+
+  /* Quiet buttons stay paper — the way back should not compete with either action. */
+  --btn-secondary-top: #FFFFFF;
+  --btn-secondary-bot: #F5EADA;
+
+  /* Pending confirm — the two-line "Set as active? / Tap again to confirm". --pending-sub
+     CANNOT be left at its default here, the way Bauhaus leaves it. The default is --muted,
+     and this theme's --muted is deliberately dark enough to survive the pattern tile
+     (7.32 worst surface), which makes the sub-label out-shout the title above it: 7.26
+     against the title's 5.49 on the wash. The contrast test checks that ordering, not
+     just the floors, and caught it. --faint is the right value — quieter than the title
+     by construction, and still 4.78 on its worst surface. */
+  --pending-text: #006774;
+  --pending-sub: var(--faint);
+
+  /* Small accent pills (reload banner, "grant" on a host row). The shared default
+     hardcodes gold at the outer stops with --gold in the middle, so a theme that recolors
+     --gold alone gets gold-ochre-gold. The pattern's olive with black type — 8.15:1. */
+  --btn-accent-top: #C8AE55;
+  --btn-accent-mid: #BFB367;
+  --btn-accent-bot: #A99C4F;
+  --btn-accent-text: #1C1A17;
+
+  /* Ink — warm near-black, then two steps of the pattern's teal, then a warm grey. See
+     the header for why --muted is as dark as it is (it has to survive the tile). */
+  --text: #1C1A17;
+  --text-2: #006774;
+  --muted: #35504F;
+  --faint: #6E6656;
+  --red: #792830;
+
+  --shadow: 0 10px 30px rgba(28, 26, 23, 0.10);
+  --shadow-sm: 0 6px 18px rgba(28, 26, 23, 0.07);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.80);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding a dark-theme literal. */
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(0, 103, 116, 0.28);
+  --card-wash: rgba(0, 103, 116, 0.07);
+  /* --accent-fill is the FLAT version of the accent pills above, so it takes the same
+     olive rather than the teal. It was var(--lav) to begin with, copied from Aegean and
+     Bauhaus where that is right — but both of those pair it with a WHITE
+     --btn-primary-text, and this theme's is near-black, because its primary button is a
+     bright orange. The base sheet labels every --accent-fill surface with
+     `var(--chip-ink, var(--btn-primary-text))`, so inheriting that shortcut put near-black
+     type on the #006774 teal: 2.64:1 on a 12px chip that needs 4.5, and a block reading
+     6.58 against white paper on a light theme. The olive takes black at 8.15:1, the figure
+     the pill comment above already records.
+     This drives more than the countdown presets — the wallet chart range chips, the
+     "switch site" and grant buttons, and the round x on the relax status bar all read it. */
+  --accent-fill: #BFB367;
+  --glow: var(--lav);
+
+  /* The composer balloon — teal with a white label. The orange is spoken for by the
+     compose button below, and the balloon sits near it. */
+  --balloon-bg: #006774;
+  --balloon-bg-hover: #007C8B;
+  --balloon-text: #FFFFFF;
+
+  /* The compose button is the pattern's orange, the same value as the primary, so the
+     theme has one loud warm color rather than two doing similar jobs. Black quill, since
+     black is what this orange takes. */
+  --fab-bg: #F3713D;
+  --fab-icon: #1C1A17;
+
+  /* Floating shadows are tuned for dark themes; half-opacity black under a button sitting
+     on white paper reads as grime. */
+  --float-shadow: rgba(28, 26, 23, 0.16);
+  --float-shadow-strong: rgba(28, 26, 23, 0.24);
+}
+
+/* This theme's own card in the theme picker: the maroon label inside an olive ring, the
+   two colors the tile is printed in. Unlike every other card this one sets a resting
+   border as well as an ink, which is why the rule below also has to restate :hover — the
+   shared `.theme-card:hover` sets border-color at the same specificity, and this file
+   loads after styles.css, so without a hover rule of its own the olive would sit there
+   unchanged and the card would lose its press feedback.
+
+   THE LABEL IS THE BALANCE RED, the same value the wallet numbers are drawn in, so the
+   card names the theme in the theme's own loudest ink. Two earlier versions of this line
+   could not: the label was #DC4A3C once before and was pulled because Bauhaus's card
+   directly above it is #E1552B — 1.09:1, 8.6 degrees of hue — and the olive that replaced
+   it collided just as hard with Art Deco's #7A5A18 (1.15:1, 4.7 degrees). Both times the
+   fix was tried on this card, and both times it meant giving up the color that means
+   something here.
+   What unblocked it was fixing the OTHER card: Bauhaus's label now alternates blue and
+   orange per letter, mirroring its own balance animation (see themes/bauhaus.css). Only
+   every other letter over there is orange now, and the blue running through the word
+   separates the two on a structural axis instead of a chromatic one — so this card can
+   have the red back.
+
+   Contrast: 20px/700 is WCAG large text (>=18.66px bold), floor 3.0. The red measures 4.13
+   on the card's white and 3.47 on the hover/active cream. That is deliberately less
+   headroom than the maroon it replaces (9.73 / 8.18) and it is the same trade the theme
+   already records beside --balance-ink: this red exists to be the balance figure, and
+   darkening it to buy margin stops it being that. It stays off the 12-13px labels, which
+   take --gold.
+
+   The olive keeps its job as the ring, where a warm mid-dark next to a warm dark reads as
+   a pairing rather than a confusion. */
+[data-theme="populuxe"].theme-card {
+  color: var(--balance-ink);
+  border-color: var(--gold);
+}
+[data-theme="populuxe"].theme-card:hover {
+  border-color: color-mix(in srgb, var(--gold) 78%, #1C1A17);
+}
+/* The selected ring stays the olive rather than switching to the shared rule's
+   --gold/--gold-soft, so the border is one color across all three states and only the
+   fill changes. */
+[data-theme="populuxe"].theme-card.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(126, 102, 29, 0.28);
+}
+
+/* The "+" badge carries near-black text on a colored disc in the dark themes. */
+[data-theme="populuxe"] .add-account-badge {
+  color: var(--velvet-1);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="populuxe"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+
+/* Outgoing transactions in the theme's red. Direction is carried by the arrow glyph as
+   well as the color — the maroon and the teal used elsewhere are both dark inks, so at
+   12px the two directions separate by hue alone, which is not enough on its own. */
+[data-theme="populuxe"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+
+[data-theme="populuxe"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+
+/* ---- balance animation: the pop ------------------------------------------
+   Each glyph scales up out of nothing from its own center and bounces once
+   before it settles. The overshoot is the whole point — a plain scale-in reads
+   as a zoom, and what this decade's advertising did with a number was make it
+   ARRIVE.
+
+   The bounce is carried by the keyframes rather than by one easing curve,
+   because a single cubic-bezier can overshoot once and cannot come back: the
+   1.18 peak, the dip under to 0.93, and the small second rise to 1.03 are
+   three separate movements. Each keyframe carries its own timing function so
+   the segments ease independently, which is what stops the dip from reading as
+   a mechanical bob.
+
+   No color flash on the way in. That is BAUHAUS'S device — it is the only theme
+   whose balance changes color as it animates, and the reason is specific to it
+   (a structural element carrying its own color, the same argument as its
+   separator). Every other theme animates motion and opacity alone, and so does
+   this one.
+
+   Scaling from the center is why .bal-glyph is inline-block: the default
+   transform-origin of 50% 50% is then the middle of each glyph's own box, so
+   the figure expands in place instead of pushing along the baseline. */
+@keyframes populuxe-pop {
+  0%   { transform: scale(0.28); opacity: 0; animation-timing-function: cubic-bezier(0.22, 0.9, 0.3, 1); }
+  55%  { transform: scale(1.18); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.5, 1); }
+  72%  { transform: scale(0.93); animation-timing-function: cubic-bezier(0.45, 0, 0.5, 1); }
+  86%  { transform: scale(1.03); animation-timing-function: cubic-bezier(0.45, 0, 0.5, 1); }
+  95%  { transform: scale(0.985); }
+  100% { transform: scale(1); opacity: 1; }
+}
+[data-theme="populuxe"] .bal-glyph { display: inline-block; transform-origin: 50% 50%; }
+[data-theme="populuxe"] .bal-glyph.bal-in {
+  /* 430ms rather than the 320 this started at: a bounce needs room to read as
+     three movements, and at the old duration the dip and the second rise ran
+     together into a single soft landing. The 38ms stagger is tuned against it —
+     slow enough that the glyphs pop in sequence, fast enough that a nine-figure
+     balance finishes inside half a second. */
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 114ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: populuxe-pop 430ms linear calc(var(--i) * min(38ms, 114ms / max(var(--n) - 1, 1))) both;
+}
+
+/* No .bal-sep rule here on purpose. Coloring the thousands separator apart from
+   the digits is BAUHAUS'S idea and stays exclusive to it — giving a structural
+   element its own color is that school's argument, not this one's, and repeating
+   it would blur two themes that are already both light and both geometric. Here
+   the separator is a digit's neighbor and takes the same ink. */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="populuxe"] .bal-glyph.bal-in { animation: none; }
+}

@@ -1,4 +1,5 @@
-/* Sidecar typography — bundled OFL webfonts (no external requests).
+/* Sidecar typography — bundled webfonts, no external requests. Every face is SIL OFL 1.1
+   and ships its own OFL-*.txt beside it in fonts/.
    Manrope is the UI/body face in every theme and never changes.
 
    Each theme sets its own --font-display, because a palette alone was not carrying the
@@ -14,9 +15,20 @@
      Art Deco    Josefin Sans       1920s geometric sans         deco lettering
      Aegean      Cinzel             Roman inscriptional caps     classical stone
      Bauhaus     Jost               Futura-lineage geometric     the school's own
+     Nixie       Apogee Telemetry   monospaced engineer's hand   instrument panel
+     Populuxe    Rowdies            chunky rounded geometric     motel signage
 
-   All six are variable fonts, so each is ONE file spanning 400-700 rather than a static
-   face per weight — about 26KB apiece. */
+   Populuxe is the third geometric here, after Art Deco's Josefin Sans and Bauhaus's Jost,
+   which is the one place this table's rule bends. It holds because the axis those two are
+   separated on is weight, not shape: both are thin, high-waisted and drawn with a compass,
+   and Rowdies is heavy with rounded terminals and a large x-height. Set side by side the
+   pair that could be confused is still Josefin and Jost, not either of them and this.
+
+   The first six are variable fonts, so each is ONE file spanning 400-700 rather than a
+   static face per weight — about 26KB apiece. The last two are static TTFs at a single
+   weight; both declare `400 700`, which tells the browser the one outline covers that
+   whole range, so a 700-weight heading renders the real face rather than a synthetic
+   bold or a drop back to Manrope halfway down a screen. */
 
 @font-face {
   font-family: 'Playfair Display';
@@ -114,4 +126,26 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/apogee-telemetry.ttf') format('truetype');
+}
+
+/* Rowdies (Jaikishan Patel, SIL OFL 1.1 — see fonts/OFL-Rowdies.txt). Populuxe's
+   display face: heavy rounded geometric letterforms, the shape of the signage
+   the theme is named for. Shipped as an unmodified TTF, 75KB, the same way
+   Apogee Telemetry is — the OFL's Reserved Font Name clause means a subset
+   would have to be renamed, and a whole original anyone can re-derive is worth
+   more than the 40KB saved.
+
+   THE REGULAR, not the Bold. Rowdies is one of the few faces here that ships a
+   real 700, and it is deliberately not used: the panel sets almost all display
+   type at font-weight 700, so shipping the Bold would make every heading in the
+   theme heavier than the specimen this face was chosen from — and cost another
+   75KB to do it. The `400 700` range below points the whole span at the Regular
+   outline, so nothing synthesizes and nothing falls back. Adding the Bold later
+   is one @font-face block if the headings ever want more punch. */
+@font-face {
+  font-family: 'Rowdies';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/rowdies.ttf') format('truetype');
 }

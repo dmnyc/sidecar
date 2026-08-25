@@ -16,6 +16,13 @@
      most rules, so it would have rendered as a synthetic bold everywhere. */
   --font-display: 'Josefin Sans', 'Century Gothic', var(--font-ui);
 
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.10em;
+
   /* surfaces */
   --bg: #F0EAD6;
   --bg-2: #E8E0D0;
@@ -57,6 +64,19 @@
   --orange: #8A4A18;
   --amber: #D4AF37;
   --gold: #6B4E1C;
+  /* The currency symbol, in the balance's own bronze darkened the least amount that
+     clears the bar. Inherited straight, #8C6A1F measures 2.43 / 2.32 at the shared 0.72
+     mute and 3.68 / 3.40 unmuted — over the 3.0 the 24.8px wallet symbol answers to,
+     under the 4.5 the 16.8px pinned one does. Restoring a partial mute cannot rescue it
+     either: even 0.9 lands at 4.32.
+     Swapping it to --gold was the first fix and read too strong — that value is a
+     browner, darker gold than the number it sits beside, so the small mark out-weighed
+     the big one. This is the same hue, one step down: the lightest value on that ramp
+     that clears, at 4.97 / 4.60. The symbol has to be darker than the figure here
+     whatever we do, because the figure itself is only 3.68 at this size — the eggshell
+     ground is the tighter surface, as the note below records. */
+  --fiat-sym-ink: #735719;
+  --fiat-sym-opacity: 1;
   --gold-soft: rgba(197, 160, 89, 0.5);
 
   /* The metallic, pinned. Each of these otherwise falls back to var(--gold) in
@@ -200,8 +220,11 @@
 }
 [data-theme="art-deco"] .bal-glyph { display: inline-block; }
 [data-theme="art-deco"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 174ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
   animation: deco-rise 460ms cubic-bezier(0.26, 0.72, 0.24, 1)
-             calc(min(var(--i), 8) * 58ms) both;
+             calc(var(--i) * min(58ms, 174ms / max(var(--n) - 1, 1))) both;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="art-deco"] .bal-glyph.bal-in { animation: none; }
