@@ -2681,8 +2681,54 @@
       }
       for (const tag of mute.hashtags) if (mutedHashtagInText(text, tag)) return true;
     }
-    for (const w of mute.words) if (mutedTermHit(text, w)) return true;
+    if (mute.words.length) {
+      for (const w of mute.words) if (mutedTermHit(text, w)) return true;
+      // The sender's display name — the string the notification row actually
+      // shows. A word mute that only scans note text is blind to the one place a
+      // sender fully controls and a reader sees first: a note can read as an
+      // ordinary greeting while the row announces the thing the user asked never
+      // to see. Rotating-key campaigns rely on exactly that split, which is why
+      // the match has to cover the name and not just the body.
+      //
+      // Same sender identity as the pubkey checks above (zapSender), so the name
+      // tested is the name displayed — for a zap that is the zapper, not the
+      // LNURL service that signed the receipt.
+      //
+      // The name arrives from a separate fetch and often after the event, so this
+      // arm cannot fire until the profile is cached. The late-arriving match is
+      // pruned when the profile resolves (pruneNameMuted), which re-runs this
+      // same check against the cache.
+      const name = _notifProfiles.get(zapSender(ev));
+      if (name) for (const w of mute.words) if (mutedTermHit(name.toLowerCase(), w)) return true;
+    }
     return false;
+  }
+
+  // Re-check an account's cached notifications against whatever is known NOW —
+  // the mute list and the sender profiles both — and drop what has become
+  // muted. A name match cannot fire before the profile resolves, so this is the
+  // authoritative pass, run whenever either half lands late: after the mute list
+  // (loadMuteList), after a sender profile (addEvent's prefetch continuation),
+  // or during the bell modal's reconciliation. Keeps the unseen count and the
+  // next open honest, and pulls the row out of a bell that is open right now.
+  function pruneNameMuted(pubkey) {
+    const mute = _muteLists.get(pubkey);
+    if (!mute || !mute.size) return;
+    const cache = _notifCache.get(pubkey);
+    if (!cache || !cache.events.length) return;
+    const keep = cache.events.filter((e) => !isMutedNotif(mute, e));
+    if (keep.length === cache.events.length) return;
+    cache.events = keep;
+    if (pubkey === state?.activePubkey) refreshBell();
+    if (_openNotifBell && _openNotifBell.pubkey === pubkey) {
+      // Re-checked against the EVENT, not the row's author: words, hashtags and
+      // threads are properties of the note, and a zap's row carries the LNURL
+      // service's pubkey rather than the zapper's.
+      const ids = new Set(keep.map((e) => e.id));
+      _openNotifBell.list.querySelectorAll('.notif-item[data-notif-id]').forEach((el) => {
+        if (!ids.has(el.dataset.notifId)) el.remove();
+      });
+    }
   }
 
   // Load an account's mute list (kind 10000) — newest replaceable event across
@@ -2726,13 +2772,10 @@
       _muteLists.set(pubkey, muted);
       // Drop any events that slipped into the cache before the list was ready
       // (first load), or that arrived from a user muted after the fact (a
-      // later, force-triggered re-fetch when the bell is opened).
-      const cache = _notifCache.get(pubkey);
-      if (cache && muted.size) {
-        const before = cache.events.length;
-        cache.events = cache.events.filter((e) => !isMutedNotif(muted, e));
-        if (cache.events.length !== before && pubkey === state?.activePubkey) refreshBell();
-      }
+      // later, force-triggered re-fetch when the bell is opened). pruneNameMuted
+      // is the same re-check this always was — text, hashtags, threads, people —
+      // now also name-aware, and clears an open bell's rows too.
+      pruneNameMuted(pubkey);
       return muted;
     })();
     _muteListPromises.set(pubkey, p);
@@ -2822,7 +2865,12 @@
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
         if (cache.events.length > 100) cache.events.length = 100;
-        prefetchNotifProfile(ev.pubkey, relays);
+        // zapSender: fetch the profile of whoever the row will NAME — for a zap
+        // that is the zapper, not the LNURL service that signed the receipt.
+        // When it resolves, pruneNameMuted re-checks this event against the
+        // now-known name, so a sender whose keyword lives only in their display
+        // name disappears as soon as the name does — badge and open bell both.
+        prefetchNotifProfile(zapSender(ev), relays).then(() => pruneNameMuted(a.pubkey));
         if (a.pubkey === state?.activePubkey) refreshBell();
         // The notif modal for this account is open right now — append the new
         // event to the visible list instead of leaving it to only show up the
@@ -3100,18 +3148,11 @@
           Promise.all(uncached.map((pk) => prefetchNotifProfile(pk, relays))),
         ]);
 
-        // Drop any row the freshly-loaded list now covers.
-        // Re-checked against the EVENT, not the row's author: words, hashtags and
-        // threads are properties of the note, and a zap's row carries the LNURL
-        // service's pubkey rather than the zapper's.
-        const freshMuted = _muteLists.get(a.pubkey);
-        if (freshMuted && freshMuted.size) {
-          const byId = new Map(cache.events.map((e) => [e.id, e]));
-          modal.querySelectorAll('.notif-item[data-notif-id]').forEach((el) => {
-            const ev = byId.get(el.dataset.notifId);
-            if (ev && isMutedNotif(freshMuted, ev)) el.remove();
-          });
-        }
+        // Drop any row the freshly-loaded list now covers — including rows whose
+        // sender's display name only resolved in the prefetch that just finished
+        // (see isMutedNotif). pruneNameMuted pulls them from the open list AND
+        // from the cache, so the badge and the next open agree with what's shown.
+        pruneNameMuted(a.pubkey);
         // Patch in any names that resolved after the row was first drawn.
         modal.querySelectorAll('.notif-author[data-sender-pubkey]').forEach((el) => {
           const name = _notifProfiles.get(el.dataset.senderPubkey);

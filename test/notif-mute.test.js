@@ -16,6 +16,13 @@
 // already has zapSender() for exactly this — so muting someone never hid their
 // zaps. The comment they typed and the note they zapped are likewise inside the
 // embedded zap request, not on the receipt.
+//
+// FOLLOW-UP (2026-08-25): word mutes now also match the sender's display name,
+// because the name is the one part of a notification the sender fully controls
+// and the reader sees first — a key-rotating campaign can keep its keyword out
+// of note text entirely and still have it announced on every row. Names arrive
+// from a separate fetch and often after the event, so the late match is pruned
+// (pruneNameMuted) rather than trusted to have been caught on arrival.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -42,10 +49,17 @@ vm.runInContext(
     + lift(/  function mutedHashtagInText\([\s\S]*?\n  \}\n/, 'mutedHashtagInText')
     + lift(/  function zapSender\(ev\) \{[\s\S]*?\n  \}\n/, 'zapSender')
     + lift(/  function muteSubject\(ev\) \{[\s\S]*?\n  \}\n/, 'muteSubject')
+    + lift(/  const _notifProfiles = new Map\(\);[^\n]*\n/, '_notifProfiles')
     + lift(/  function isMutedNotif\(mute, ev\) \{[\s\S]*?\n  \}\n/, 'isMutedNotif')
+    + lift(/  function pruneNameMuted\(pubkey\) \{[\s\S]*?\n  \}\n/, 'pruneNameMuted')
+    // pruneNameMuted reads the panel's caches and repaint helpers. Function
+    // declarations above land on the vm context; the caches and `state` are
+    // stand-ins the tests can seed directly.
+    + '\nvar state = null;\nvar refreshBell = () => {};\nvar _openNotifBell = null;\n'
+    + 'var _notifCache = new Map();\nvar _muteLists = new Map();\n'
     // `const` bindings are lexical and never land on the vm context; the function
     // declarations above do. Hand the rest over explicitly.
-    + '\nglobalThis.emptyMuteSet = emptyMuteSet;\n',
+    + '\nglobalThis.emptyMuteSet = emptyMuteSet;\nglobalThis.__profiles = _notifProfiles;\n',
   ctx
 );
 
@@ -155,4 +169,90 @@ test('a zap receipt with an unparseable description does not throw', () => {
   const m = muteSet([['word', 'airdrop']]);
   const broken = note({ kind: 9735, pubkey: 'svc', tags: [['description', '{not json']] });
   assert.equal(ctx.isMutedNotif(m, broken), false);
+});
+
+// ---- display names ----
+//
+// The sender's name is what the notification row displays, so a word mute that
+// skips it lets a sender put their keyword in the one place every reader looks.
+// All fixtures here are synthetic words with no meaning outside this file.
+
+test("a muted word matches the sender's display name, not only the note text", () => {
+  const m = muteSet([['word', 'widgeon']]);
+  ctx.__profiles.set('author', 'Widgeon Daily');
+  assert.equal(ctx.isMutedNotif(m, note({ content: 'thanks for the note!' })), true,
+    'the keyword lives in the name, and the row displays the name');
+  assert.equal(ctx.isMutedNotif(m, note({ pubkey: 'other', content: 'plain words' })), false);
+  ctx.__profiles.delete('author');
+  assert.equal(ctx.isMutedNotif(m, note({ content: 'thanks for the note!' })), false,
+    'before the profile resolves the arm is blind — the late match is pruneNameMuted\'s job');
+});
+
+test('names are matched case-insensitively, like text', () => {
+  const m = muteSet([['word', 'widgeon']]);
+  ctx.__profiles.set('author', 'WIDGEON daily');
+  assert.equal(ctx.isMutedNotif(m, note({ content: 'x' })), true);
+  ctx.__profiles.delete('author');
+});
+
+test('name matching follows the same word-boundary rule as text', () => {
+  const m = muteSet([['word', 'art']]);
+  ctx.__profiles.set('a1', 'Cartography Weekly');
+  ctx.__profiles.set('a2', 'The Art of Nostr');
+  assert.equal(ctx.isMutedNotif(m, note({ pubkey: 'a1', content: 'hi' })), false,
+    'mid-word is not a hit');
+  assert.equal(ctx.isMutedNotif(m, note({ pubkey: 'a2', content: 'hi' })), true);
+  ctx.__profiles.delete('a1');
+  ctx.__profiles.delete('a2');
+});
+
+test('a name match checks the zapper, not the LNURL service that signed the receipt', () => {
+  const m = muteSet([['word', 'widgeon']]);
+  ctx.__profiles.set('lnurl-service', 'Widgeon Holdings');
+  ctx.__profiles.set('zapper', 'ordinary name');
+  assert.equal(ctx.isMutedNotif(m, zap({ sender: 'zapper' })), false,
+    'the service bearing the keyword is not the person the row shows');
+  ctx.__profiles.set('zapper', 'widgeon fan');
+  assert.equal(ctx.isMutedNotif(m, zap({ sender: 'zapper', comment: 'nice one' })), true);
+  ctx.__profiles.delete('lnurl-service');
+  ctx.__profiles.delete('zapper');
+});
+
+// ---- late-arriving names: the prune pass ----
+
+test('a name that resolves after the event prunes it from the cache, the badge and an open bell', () => {
+  ctx._muteLists.set('me', muteSet([['word', 'widgeon']]));
+  const ev = note({ id: 'late1', content: 'an ordinary greeting' });
+  ctx._notifCache.set('me', { events: [ev] });
+  ctx.state = { activePubkey: 'me' };
+  let bellPaints = 0;
+  ctx.refreshBell = () => { bellPaints++; };
+  const removed = [];
+  const row = { dataset: { notifId: 'late1' }, remove: () => removed.push('late1') };
+  ctx._openNotifBell = { pubkey: 'me', list: { querySelectorAll: () => [row] } };
+
+  // Profile not resolved yet: the same event that will be muted shows for now.
+  ctx.pruneNameMuted('me');
+  assert.equal(ctx._notifCache.get('me').events.length, 1);
+
+  // The fetch lands.
+  ctx.__profiles.set('author', 'Widgeon Daily');
+  ctx.pruneNameMuted('me');
+  assert.equal(ctx._notifCache.get('me').events.length, 0, 'event dropped from the cache');
+  assert.deepEqual(removed, ['late1'], 'row pulled from the open bell');
+  assert.ok(bellPaints >= 1, 'badge recount requested');
+
+  ctx._muteLists.delete('me');
+  ctx._notifCache.delete('me');
+  ctx._openNotifBell = null;
+  ctx.state = null;
+});
+
+test('prune leaves a cache with no word mutes entirely alone', () => {
+  ctx._muteLists.set('me', muteSet([['p', 'someone']]));
+  ctx._notifCache.set('me', { events: [note({ id: 'x' })] });
+  ctx.pruneNameMuted('me');
+  assert.equal(ctx._notifCache.get('me').events.length, 1);
+  ctx._muteLists.delete('me');
+  ctx._notifCache.delete('me');
 });
