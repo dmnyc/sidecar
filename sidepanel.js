@@ -7828,6 +7828,28 @@
   }
 
   // ---- edit profile (full-panel overlay) ----
+  // A textarea that grows with what's in it, so a long bio is visible while it's
+  // being edited instead of hiding in a 76px slot. The .autosize class caps the
+  // growth (max-height) with internal scrolling past the cap, and the native
+  // resize handle stays for manual control. fit() runs once here so opening an
+  // editor on an existing long bio shows it tall immediately.
+  function autosizeTextarea(el) {
+    el.classList.add('autosize');
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    };
+    el.addEventListener('input', fit);
+    // Size now if the element is already in the document. A detached textarea
+    // has no layout and scrollHeight reads 0 — sizing it then collapses the
+    // field back to its minimum, which is exactly the long-existing-bio case
+    // this helper exists for. Call after append for a clean first paint; the
+    // frame fallback covers any caller that doesn't.
+    if (el.isConnected) fit();
+    else requestAnimationFrame(fit);
+    return fit;
+  }
+
   function openProfileEdit(current) {
     const draft = { ...current };
     const body = $('profile-edit-body');
@@ -7913,6 +7935,7 @@
       el.value = current[key] || '';
       inputs[key] = el;
       body.append(el);
+      if (type === 'textarea') autosizeTextarea(el); // after append — see the helper
     });
 
     // advanced: raw image URLs
@@ -8141,6 +8164,7 @@
             ta,
             footer('Finish', commit)
           );
+          autosizeTextarea(ta); // after append — see the helper
         }
 
         render();
