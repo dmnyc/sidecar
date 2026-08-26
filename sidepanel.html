@@ -280,228 +280,311 @@
     <main class="content">
       <h2>Settings</h2>
 
-      <div class="setting">
-        <h3>Auto-lock</h3>
-        <select id="autolock-select">
-          <option value="0">Never</option>
-          <option value="1">After 1 minute</option>
-          <option value="5">After 5 minutes</option>
-          <option value="15">After 15 minutes</option>
-          <option value="60">After 1 hour</option>
-        </select>
-        <!-- "Never" turns off the idle timer, and reads like an absolute promise —
-             but the unlocked key lives in memory for the browser session and is gone
-             when the browser closes, because the alternative is writing a decrypted
-             key to disk. Someone who picks Never and is then asked for a PIN the next
-             morning has no way to tell that apart from the setting not working. -->
-        <p class="hint">Sidecar asks for your PIN once per browser session even on
-        Never — your key is held in memory and never written to disk unencrypted.</p>
-      </div>
+      <!-- One section open at a time; the open/closed map persists in
+           sidecar_settings.settingsSectionsOpen (initSettingsSections owns the wiring —
+           renderSettings must never touch it, or listeners stack). Blocks hide wholesale
+           via syncSettingsSectionVisibility when everything inside them hides.
+           Danger zone deliberately stays outside any section: a destructive action is
+           never behind a toggle. -->
+      <section class="settings-section open" data-section="appearance">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="true" aria-controls="section-body-appearance">Appearance</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-appearance">
 
-      <div class="setting">
-        <h3>Theme</h3>
-        <p class="hint">Choose your preferred color scheme and aesthetic.</p>
-        <!-- ORDER: the dark themes first, then the light ones. This is the
-             canonical list; the arrays in sidepanel.js (validThemes), prompt.js
-             (THEMES) and content.js (CARD_THEMES) are kept in the same order so
-             a new theme is obvious to slot in. A new DARK theme joins the run
-             ending at Nixie; a new LIGHT one goes after Bauhaus. -->
-        <div class="theme-selector">
-          <button type="button" class="theme-card" data-theme="speakeasy">
-            <span class="theme-name">Speakeasy</span>
-          </button>
-          <button type="button" class="theme-card" data-theme="film-noir">
-            <span class="theme-name">Film Noir</span>
-          </button>
-          <button type="button" class="theme-card" data-theme="brownstone">
-            <span class="theme-name">Brownstone</span>
-          </button>
-          <button type="button" class="theme-card" data-theme="nixie">
-            <span class="theme-name">Nixie</span>
-          </button>
-          <button type="button" class="theme-card" data-theme="art-deco">
-            <span class="theme-name">Art Deco</span>
-          </button>
-          <button type="button" class="theme-card" data-theme="aegean">
-            <span class="theme-name">Aegean</span>
-          </button>
-          <!-- The only card whose label is split per letter, so it can alternate blue and
-               orange the way this theme's balance does — odd glyphs drop in blue, even ones
-               rise orange (see bauhaus-drop / bauhaus-rise). Split in the markup rather
-               than in JS because these cards are static, and split for this card only
-               because no other theme has a two-color idea to state. The colors live in
-               themes/bauhaus.css; without the spans the label still reads in one color, so
-               this degrades rather than breaks. -->
-          <button type="button" class="theme-card" data-theme="bauhaus">
-            <span class="theme-name"><span class="tn-glyph">B</span><span class="tn-glyph">a</span><span
-              class="tn-glyph">u</span><span class="tn-glyph">h</span><span class="tn-glyph">a</span><span
-              class="tn-glyph">u</span><span class="tn-glyph">s</span></span>
-          </button>
-          <button type="button" class="theme-card" data-theme="populuxe">
-            <span class="theme-name">Populuxe</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="setting">
-        <h3>Reduce motion</h3>
-        <p class="hint">Have the wallet balance and countdowns appear without their theme's animation.</p>
-        <label class="toggle-row"><input type="checkbox" id="reducemotion-toggle" /> <span>Turn off balance and countdown animations</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Post countdown</h3>
-        <p class="hint">Show a review countdown before a note publishes, so you can read it — or cancel — first. Off posts immediately.</p>
-        <label class="toggle-row"><input type="checkbox" id="countdown-toggle" /> <span>Review countdown before posting</span></label>
-        <div class="amount-presets hidden" id="countdown-presets">
-          <button type="button" class="preset-chip" data-secs="5">5s</button>
-          <button type="button" class="preset-chip" data-secs="10">10s</button>
-          <button type="button" class="preset-chip" data-secs="15">15s</button>
-          <button type="button" class="preset-chip" data-secs="25">25s</button>
-          <button type="button" class="preset-chip" data-secs="30">30s</button>
-        </div>
-      </div>
-
-      <div class="setting">
-        <h3>Client tag</h3>
-        <p class="hint">Add a “client” tag to notes and page comments you post, attributing them to Sidecar. Turn off to post without it.</p>
-        <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span>Tag posts as made with Sidecar</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Background app syncs</h3>
-        <p class="hint">Clients quietly sync app settings (read status, preferences) as you browse. These aren’t posts, so Sidecar handles them without interrupting you when a site uses more than one of your accounts. Turn on to confirm each one instead.</p>
-        <label class="toggle-row"><input type="checkbox" id="datasync-toggle" /> <span>Confirm background app-data syncs</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Global name search</h3>
-        <p class="hint">The first time you search a Nostr name, Sidecar offers to also ask a third-party index (api.nostrarchives.com) that covers every user, and to send it the people you follow so it can fill in names your relays missed. That service then sees both what you type and who you follow — which nothing else reveals together. This switch is that answer; @mentions from your own relays keep working either way.</p>
-        <label class="toggle-row"><input type="checkbox" id="na-toggle" /> <span>Use the Nostr Archives name index</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Open notes in</h3>
-        <p class="hint">Which web client to open your published notes in.</p>
-        <select id="client-select">
-          <option value="primal">Primal</option>
-          <option value="jumble">Jumble</option>
-          <option value="yakihonne">YakiHonne</option>
-          <option value="iris">Iris</option>
-          <option value="snort">Snort</option>
-          <option value="nostrudel">noStrudel</option>
-          <option value="zapcooking">Zap Cooking</option>
-          <option value="noornote">NoorNote</option>
-          <option value="jank">JANK</option>
-          <option value="nostrich">Nostrich</option>
-          <option value="coracle">Coracle</option>
-          <option value="njump">njump</option>
-        </select>
-        <label class="toggle-row"><input type="checkbox" id="reuse-tab-toggle" /> <span>Reuse an open client tab</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Pay button on web pages</h3>
-        <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
-        <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Payment animation</h3>
-        <p class="hint">Flash a lightning bolt across the screen when a payment or zap goes out. Turn it off for a quieter confirmation.</p>
-        <label class="toggle-row"><input type="checkbox" id="zapflash-toggle" /> <span>Lightning bolt on payment</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Pin balance bar</h3>
-        <p class="hint">Show your wallet balance under the navigation on every tab except Wallet, with quick Send and Receive buttons.</p>
-        <label class="toggle-row"><input type="checkbox" id="pinbalance-toggle" /> <span>Pin balance bar across tabs</span></label>
-      </div>
-
-      <div class="setting">
-        <h3>Local currency</h3>
-        <p class="hint">Tap your balance to switch between sats, BTC, and this currency. Rates come from mempool.space and Coinbase.</p>
-        <!-- Options are populated from FIAT_CURRENCIES in sidepanel.js, shared with
-             the wallet screen's copy of this picker. -->
-        <select id="fiat-select"></select>
-      </div>
-
-      <div class="setting">
-        <h3>Auto Zaps</h3>
-        <p class="hint">Zaps under these limits go through with nothing to approve. Every other payment still asks. Capped at 1,000 sats a zap, 100,000 a day.</p>
-        <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Enable Auto Zaps</span></label>
-        <label class="toggle-row hidden" id="autozap-max-row">
-          <span>Max per zap</span>
-          <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
-          <span>sats</span>
-        </label>
-        <label class="toggle-row hidden" id="autozap-daily-row">
-          <span>Max per day</span>
-          <input type="text" inputmode="numeric" id="autozap-daily-max" class="autozap-max-input" />
-          <span>sats</span>
-        </label>
-        <p class="hint">Covers zaps you start in a client. For other payments, give a site its own daily budget under <strong>Sites</strong>.</p>
-      </div>
-
-      <div class="setting">
-        <h3>Bootstrap relays</h3>
-        <p class="hint">Used to discover your relay list on first load, and as a fallback if it can't be reached. Once you've published a relay list from the <strong>Profile</strong> tab, these take a back seat.</p>
-        <p class="hint">NIP-65 only is set <strong>per account</strong>. When it's on for an account, these relays are excluded from its reads and publishes — except the initial discovery fetch, which still queries them once per session to find that account's relay list. Sites calling <code>getRelays()</code> still see the bootstrap set regardless.</p>
-        <label class="switch-label">
-          <!-- Per account: the scope span names the active account, so with more than
-               one it's clear this isn't a global switch. -->
-          <span>NIP-65 only <span class="switch-scope" id="nip65-only-scope"></span></span>
-          <span class="switch">
-            <input type="checkbox" id="nip65-only-toggle" />
-            <span class="switch-track"></span>
-          </span>
-        </label>
-        <div id="relay-section-body" class="relay-section-body">
-          <div id="relay-list" class="list"></div>
-          <div class="row-actions">
-            <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
-            <button class="secondary" id="relay-add">Add</button>
+          <div class="setting">
+            <h3>Theme</h3>
+            <p class="hint">Choose your preferred color scheme and aesthetic.</p>
+            <!-- ORDER: the dark themes first, then the light ones. This is the
+                 canonical list; the arrays in sidepanel.js (validThemes), prompt.js
+                 (THEMES) and content.js (CARD_THEMES) are kept in the same order so
+                 a new theme is obvious to slot in. A new DARK theme joins the run
+                 ending at Nixie; a new LIGHT one goes after Bauhaus. -->
+            <div class="theme-selector">
+              <button type="button" class="theme-card" data-theme="speakeasy">
+                <span class="theme-name">Speakeasy</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="film-noir">
+                <span class="theme-name">Film Noir</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="brownstone">
+                <span class="theme-name">Brownstone</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="nixie">
+                <span class="theme-name">Nixie</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="art-deco">
+                <span class="theme-name">Art Deco</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="aegean">
+                <span class="theme-name">Aegean</span>
+              </button>
+              <!-- The only card whose label is split per letter, so it can alternate blue and
+                   orange the way this theme's balance does — odd glyphs drop in blue, even ones
+                   rise orange (see bauhaus-drop / bauhaus-rise). Split in the markup rather
+                   than in JS because these cards are static, and split for this card only
+                   because no other theme has a two-color idea to state. The colors live in
+                   themes/bauhaus.css; without the spans the label still reads in one color, so
+                   this degrades rather than breaks. -->
+              <button type="button" class="theme-card" data-theme="bauhaus">
+                <span class="theme-name"><span class="tn-glyph">B</span><span class="tn-glyph">a</span><span
+                  class="tn-glyph">u</span><span class="tn-glyph">h</span><span class="tn-glyph">a</span><span
+                  class="tn-glyph">u</span><span class="tn-glyph">s</span></span>
+              </button>
+              <button type="button" class="theme-card" data-theme="populuxe">
+                <span class="theme-name">Populuxe</span>
+              </button>
+            </div>
           </div>
-          <!-- Shown while any bootstrap relay is ws:// — same advisory as the
-               Profile tab's NIP-65 editor. Hidden by renderSettings. -->
-          <p class="hint warn hidden" id="relay-ws-warn">A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.</p>
+
+          <div class="setting">
+            <h3>Reduce motion</h3>
+            <p class="hint">Have the wallet balance and countdowns appear without their theme's animation.</p>
+            <label class="toggle-row"><input type="checkbox" id="reducemotion-toggle" /> <span>Turn off balance and countdown animations</span></label>
+          </div>
+
         </div>
-      </div>
+      </section>
 
-      <div class="setting">
-        <h3>Share Sidecar</h3>
-        <p class="hint">Know someone who'd like a classy Nostr signer? Send them the link.</p>
-        <button class="secondary" id="share-sidecar-btn"><span>Share with a friend</span></button>
-      </div>
+      <section class="settings-section" data-section="posting">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-posting">Posting</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-posting">
 
-      <div class="setting">
-        <h3>Updates</h3>
-        <p class="hint" id="settings-version"></p>
-        <a href="#" id="whats-new-link" class="whats-new-link">What&#8217;s new in this version &rarr;</a>
-        <button class="secondary" id="check-update-btn">Check for updates</button>
-        <p class="hint" id="check-update-status"></p>
-      </div>
+          <div class="setting">
+            <h3>Post countdown</h3>
+            <p class="hint">Show a review countdown before a note publishes, so you can read it — or cancel — first. Off posts immediately.</p>
+            <label class="toggle-row"><input type="checkbox" id="countdown-toggle" /> <span>Review countdown before posting</span></label>
+            <div class="amount-presets hidden" id="countdown-presets">
+              <button type="button" class="preset-chip" data-secs="5">5s</button>
+              <button type="button" class="preset-chip" data-secs="10">10s</button>
+              <button type="button" class="preset-chip" data-secs="15">15s</button>
+              <button type="button" class="preset-chip" data-secs="25">25s</button>
+              <button type="button" class="preset-chip" data-secs="30">30s</button>
+            </div>
+          </div>
 
-      <div class="setting hidden" id="dev-settings-section">
-        <h3>Developer</h3>
-        <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
-        <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
-      </div>
+          <div class="setting">
+            <h3>Client tag</h3>
+            <p class="hint">Add a “client” tag to notes and page comments you post, attributing them to Sidecar. Turn off to post without it.</p>
+            <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span>Tag posts as made with Sidecar</span></label>
+          </div>
 
-      <div class="setting">
-        <h3>Change PIN</h3>
-        <button class="secondary" id="change-pin-btn">Change PIN…</button>
-      </div>
-
-      <div class="setting">
-        <h3>Vault backup</h3>
-        <p class="hint">Export every account's private key (and connected wallet, if any) into one encrypted file, or restore from one. This is separate from a single account's nsec/ncryptsec backup in its account menu.</p>
-        <div class="vault-actions">
-          <button class="secondary" id="export-vault-btn">Export encrypted vault…</button>
-          <button class="secondary" id="import-vault-btn">Import vault…</button>
         </div>
-        <input type="file" id="import-vault-file" accept="application/json" class="hidden" />
-      </div>
+      </section>
+
+      <section class="settings-section" data-section="apps">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-apps">Apps &amp; browsing</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-apps">
+
+          <div class="setting">
+            <h3>Background app syncs</h3>
+            <p class="hint">Clients quietly sync app settings (read status, preferences) as you browse. These aren’t posts, so Sidecar handles them without interrupting you when a site uses more than one of your accounts. Turn on to confirm each one instead.</p>
+            <label class="toggle-row"><input type="checkbox" id="datasync-toggle" /> <span>Confirm background app-data syncs</span></label>
+          </div>
+
+          <div class="setting">
+            <h3>Global name search</h3>
+            <p class="hint">The first time you search a Nostr name, Sidecar offers to also ask a third-party index (api.nostrarchives.com) that covers every user, and to send it the people you follow so it can fill in names your relays missed. That service then sees both what you type and who you follow — which nothing else reveals together. This switch is that answer; @mentions from your own relays keep working either way.</p>
+            <label class="toggle-row"><input type="checkbox" id="na-toggle" /> <span>Use the Nostr Archives name index</span></label>
+          </div>
+
+          <div class="setting">
+            <h3>Open notes in</h3>
+            <p class="hint">Which web client to open your published notes in.</p>
+            <select id="client-select">
+              <option value="primal">Primal</option>
+              <option value="jumble">Jumble</option>
+              <option value="yakihonne">YakiHonne</option>
+              <option value="iris">Iris</option>
+              <option value="snort">Snort</option>
+              <option value="nostrudel">noStrudel</option>
+              <option value="zapcooking">Zap Cooking</option>
+              <option value="noornote">NoorNote</option>
+              <option value="jank">JANK</option>
+              <option value="nostrich">Nostrich</option>
+              <option value="coracle">Coracle</option>
+              <option value="njump">njump</option>
+            </select>
+            <label class="toggle-row"><input type="checkbox" id="reuse-tab-toggle" /> <span>Reuse an open client tab</span></label>
+          </div>
+
+          <div class="setting">
+            <h3>Pay button on web pages</h3>
+            <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
+            <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="settings-section" data-section="wallet">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-wallet">Wallet &amp; payments</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-wallet">
+
+          <div class="setting">
+            <h3>Payment animation</h3>
+            <p class="hint">Flash a lightning bolt across the screen when a payment or zap goes out. Turn it off for a quieter confirmation.</p>
+            <label class="toggle-row"><input type="checkbox" id="zapflash-toggle" /> <span>Lightning bolt on payment</span></label>
+          </div>
+
+          <div class="setting">
+            <h3>Pin balance bar</h3>
+            <p class="hint">Show your wallet balance under the navigation on every tab except Wallet, with quick Send and Receive buttons.</p>
+            <label class="toggle-row"><input type="checkbox" id="pinbalance-toggle" /> <span>Pin balance bar across tabs</span></label>
+          </div>
+
+          <div class="setting">
+            <h3>Local currency</h3>
+            <p class="hint">Tap your balance to switch between sats, BTC, and this currency. Rates come from mempool.space and Coinbase.</p>
+            <!-- Options are populated from FIAT_CURRENCIES in sidepanel.js, shared with
+                 the wallet screen's copy of this picker. -->
+            <select id="fiat-select"></select>
+          </div>
+
+          <div class="setting">
+            <h3>Auto Zaps</h3>
+            <p class="hint">Zaps under these limits go through with nothing to approve. Every other payment still asks. Capped at 1,000 sats a zap, 100,000 a day.</p>
+            <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Enable Auto Zaps</span></label>
+            <label class="toggle-row hidden" id="autozap-max-row">
+              <span>Max per zap</span>
+              <input type="text" inputmode="numeric" id="autozap-max" class="autozap-max-input" />
+              <span>sats</span>
+            </label>
+            <label class="toggle-row hidden" id="autozap-daily-row">
+              <span>Max per day</span>
+              <input type="text" inputmode="numeric" id="autozap-daily-max" class="autozap-max-input" />
+              <span>sats</span>
+            </label>
+            <p class="hint">Covers zaps you start in a client. For other payments, give a site its own daily budget under <strong>Sites</strong>.</p>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="settings-section" data-section="relays">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-relays">Relays</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-relays">
+
+          <div class="setting">
+            <h3>Bootstrap relays</h3>
+            <p class="hint">Used to discover your relay list on first load, and as a fallback if it can't be reached. Once you've published a relay list from the <strong>Profile</strong> tab, these take a back seat.</p>
+            <p class="hint">NIP-65 only is set <strong>per account</strong>. When it's on for an account, these relays are excluded from its reads and publishes — except the initial discovery fetch, which still queries them once per session to find that account's relay list. Sites calling <code>getRelays()</code> still see the bootstrap set regardless.</p>
+            <label class="switch-label">
+              <!-- Per account: the scope span names the active account, so with more than
+                   one it's clear this isn't a global switch. -->
+              <span>NIP-65 only <span class="switch-scope" id="nip65-only-scope"></span></span>
+              <span class="switch">
+                <input type="checkbox" id="nip65-only-toggle" />
+                <span class="switch-track"></span>
+              </span>
+            </label>
+            <div id="relay-section-body" class="relay-section-body">
+              <div id="relay-list" class="list"></div>
+              <div class="row-actions">
+                <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
+                <button class="secondary" id="relay-add">Add</button>
+              </div>
+              <!-- Shown while any bootstrap relay is ws:// — same advisory as the
+                   Profile tab's NIP-65 editor. Hidden by renderSettings. -->
+              <p class="hint warn hidden" id="relay-ws-warn">A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="settings-section" data-section="security">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-security">Security &amp; backup</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-security">
+
+          <div class="setting">
+            <h3>Auto-lock</h3>
+            <select id="autolock-select">
+              <option value="0">Never</option>
+              <option value="1">After 1 minute</option>
+              <option value="5">After 5 minutes</option>
+              <option value="15">After 15 minutes</option>
+              <option value="60">After 1 hour</option>
+            </select>
+            <!-- "Never" turns off the idle timer, and reads like an absolute promise —
+                 but the unlocked key lives in memory for the browser session and is gone
+                 when the browser closes, because the alternative is writing a decrypted
+                 key to disk. Someone who picks Never and is then asked for a PIN the next
+                 morning has no way to tell that apart from the setting not working. -->
+            <p class="hint">Sidecar asks for your PIN once per browser session even on
+            Never — your key is held in memory and never written to disk unencrypted.</p>
+          </div>
+
+          <div class="setting">
+            <h3>Change PIN</h3>
+            <button class="secondary" id="change-pin-btn">Change PIN…</button>
+          </div>
+
+          <div class="setting">
+            <h3>Vault backup</h3>
+            <p class="hint">Export every account's private key (and connected wallet, if any) into one encrypted file, or restore from one. This is separate from a single account's nsec/ncryptsec backup in its account menu.</p>
+            <div class="vault-actions">
+              <button class="secondary" id="export-vault-btn">Export encrypted vault…</button>
+              <button class="secondary" id="import-vault-btn">Import vault…</button>
+            </div>
+            <input type="file" id="import-vault-file" accept="application/json" class="hidden" />
+          </div>
+
+        </div>
+      </section>
+
+      <section class="settings-section" data-section="developer">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-developer">Developer</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-developer">
+
+          <!-- Kept as its own section because its visibility toggles whole-block on store
+               builds (initDevBadge); folded into Sharing & updates instead, non-dev users
+               would see a section that never opens onto anything. Synced away entirely
+               by syncSettingsSectionVisibility. The data-section key stays "about" — it
+               is also the storage map's key, and the label is the only thing that moved. -->
+          <div class="setting hidden" id="dev-settings-section">
+            <h3>Developer</h3>
+            <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
+            <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="settings-section" data-section="about">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-about">Sharing &amp; updates</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-about">
+
+          <div class="setting">
+            <h3>Share Sidecar</h3>
+            <p class="hint">Know someone who'd like a classy Nostr signer? Send them the link.</p>
+            <button class="secondary" id="share-sidecar-btn"><span>Share with a friend</span></button>
+          </div>
+
+          <div class="setting">
+            <h3>Updates</h3>
+            <p class="hint" id="settings-version"></p>
+            <a href="#" id="whats-new-link" class="whats-new-link">What&#8217;s new in this version &rarr;</a>
+            <button class="secondary" id="check-update-btn">Check for updates</button>
+            <p class="hint" id="check-update-status"></p>
+          </div>
+
+        </div>
+      </section>
 
       <div class="setting danger-zone">
         <h3>Danger zone</h3>

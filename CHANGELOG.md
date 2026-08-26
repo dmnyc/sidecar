@@ -7,6 +7,11 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [Unreleased]
+
+### Changed
+- **Settings is organized into collapsible sections.** The single long scroll is now eight labeled ones — Appearance, Posting, Apps & browsing, Wallet & payments, Relays, Security & backup, Developer (dev builds only), Sharing & updates — with one open at a time (Appearance on first run) and your choice remembered. The danger zone stays outside every section at the bottom: a reset is never behind a toggle.
+
 ## [1.10.0] — 2026-08-26
 
 ### Added

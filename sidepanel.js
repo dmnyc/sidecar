@@ -4818,6 +4818,9 @@
         closeModal();
         hide($('view-main'));
         show($('view-settings'));
+        // The control this button names sits in Security & backup — expand it, or
+        // the button lands the user on a wall of collapsed headers.
+        openSettingsSection('security');
         renderSettings();
       });
       const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
@@ -13701,6 +13704,7 @@
     await devBuildReady; // Firefox: don't decide before management.getSelf answers
     if (!isDevBuild()) return;
     show($('dev-settings-section'));
+    syncSettingsSectionVisibility();
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('dev-indicator-toggle').checked = settings.devIndicator !== false;
     applyDevBadge(settings.devIndicator !== false);
@@ -13839,9 +13843,108 @@
     syncHostPermBanner();
   }
 
+  // ---- collapsible settings sections ----
+  // Accordion contract: at most one section open. Opening one folds the others;
+  // tapping the open header closes it and leaves none open. State lives in
+  // sidecar_settings.settingsSectionsOpen, written as one whole map on every flip
+  // (this panel is the sole writer; a two-panel race costs one flip at worst).
+  // Appearance defaults open so the theme picker greets a first run.
+  // Everything here wires up exactly once — never in renderSettings(), which runs
+  // on every gear entry and every relay add/remove and would stack listeners.
+  const SETTINGS_SECTION_DEFAULTS = {
+    appearance: true,
+    posting: false,
+    apps: false,
+    wallet: false,
+    relays: false,
+    security: false,
+    about: false,
+    developer: false,
+  };
+  let settingsSectionsOpen = { ...SETTINGS_SECTION_DEFAULTS };
+
+  function applySettingsSectionState(section, open) {
+    section.classList.toggle('open', open);
+    const btn = section.querySelector('.settings-section-toggle');
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+  }
+
+  // One function owns the accordion rule so the toggle, the boot restore, and the
+  // auto-lock deep link cannot drift apart. open === null folds everything (unused
+  // today, kept for symmetry with "none open" being a legal state).
+  function applyAccordion(nextKey, open) {
+    document.querySelectorAll('#view-settings .settings-section').forEach((el) => {
+      const isOpen = el.dataset.section === nextKey && !!open;
+      settingsSectionsOpen[el.dataset.section] = isOpen;
+      applySettingsSectionState(el, isOpen);
+    });
+  }
+
+  function setSettingsSection(key, open) {
+    if (!document.querySelector('#view-settings .settings-section[data-section="' + key + '"]')) return;
+    applyAccordion(key, open);
+    call({ type: 'SIDECAR_SET_SETTINGS', settings: { settingsSectionsOpen } }).catch(() => {});
+  }
+
+  // Deep links (the auto-lock notice's "Auto-lock settings") land on a control the
+  // collapsed map would bury. Expanding here is arrival, not arrangement, so it
+  // isn't persisted; it still obeys the accordion rule.
+  function openSettingsSection(key) {
+    if (!document.querySelector('#view-settings .settings-section[data-section="' + key + '"]')) return;
+    applyAccordion(key, true);
+  }
+
+  // A section whose every block is hidden goes away entirely — the Developer
+  // section on store builds is the live case. Blocks that hide individually
+  // (Passkeys where WebAuthn can't run) just leave their siblings in place.
+  function syncSettingsSectionVisibility() {
+    document.querySelectorAll('#view-settings .settings-section').forEach((section) => {
+      const blocks = section.querySelectorAll('.settings-section-body > .setting');
+      const anyVisible = Array.prototype.some.call(blocks, (b) => !b.classList.contains('hidden'));
+      section.classList.toggle('hidden', !anyVisible);
+    });
+  }
+
+  async function initSettingsSections() {
+    document.querySelectorAll('#view-settings .settings-section-toggle').forEach((btn) => {
+      btn.append(icon('chevron-down'));
+      btn.addEventListener('click', () => {
+        const key = btn.closest('.settings-section').dataset.section;
+        setSettingsSection(key, !settingsSectionsOpen[key]);
+      });
+    });
+    let stored = {};
+    try {
+      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      if (settings && typeof settings.settingsSectionsOpen === 'object' && settings.settingsSectionsOpen) stored = settings.settingsSectionsOpen;
+    } catch (_) {} // unreadable storage falls back to all-collapsed defaults
+    settingsSectionsOpen = { ...SETTINGS_SECTION_DEFAULTS, ...stored };
+    document.querySelectorAll('#view-settings .settings-section').forEach((section) => {
+      applySettingsSectionState(section, settingsSectionsOpen[section.dataset.section] === true);
+    });
+    // Defend at-most-one even over a corrupted or hand-edited stored map: the
+    // first open section in document order wins; any extra folds.
+    let opened = false;
+    document.querySelectorAll('#view-settings .settings-section').forEach((section) => {
+      if (!section.classList.contains('open')) return;
+      if (opened) {
+        settingsSectionsOpen[section.dataset.section] = false;
+        applySettingsSectionState(section, false);
+      } else {
+        opened = true;
+      }
+    });
+    // Same gate as initDevBadge: wait out the store/dev decision before deciding
+    // which whole sections vanish. On a store build initDevBadge returns before
+    // its show(), so this call is what hides the Developer section there.
+    try { await devBuildReady; } catch (_) {}
+    syncSettingsSectionVisibility();
+  }
+
   // ---- boot ----
   document.addEventListener('DOMContentLoaded', refresh);
   if (document.readyState !== 'loading') refresh();
   initDevBadge();
   initHostPermGuard();
+  initSettingsSections();
 })();
