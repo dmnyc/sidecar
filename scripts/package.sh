@@ -113,5 +113,8 @@ build_zip() {
 
 mkdir -p dist
 echo "Packaging ${TAG} (${SHORT})"
-build_zip chrome  "dist/sidecar-${VERSION_NO_V}.zip"
+# Both outputs carry their store's name — the Chrome zip used to be bare
+# sidecar-X.Y.Z.zip, which read as "the" package and had people reaching for the
+# wrong file. 1.10.0 and earlier keep the old name (published, never renamed).
+build_zip chrome  "dist/sidecar-${VERSION_NO_V}-chrome.zip"
 build_zip firefox "dist/sidecar-${VERSION_NO_V}-firefox.zip"
