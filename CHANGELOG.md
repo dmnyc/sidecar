@@ -7,6 +7,31 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.10.0] — 2026-08-26
+
+### Added
+- **Two new themes: Nixie and Populuxe.** Nixie is the fourth dark theme — red-hot digits behind a wire screen, every figure striking through its change points and settling like a real tube. Populuxe is the fourth light one and the first theme where every ink passes WCAG AA against its background: a chrome-and-tile diner built on Rowdies, with a balance that pops in from the center and bounces. (#225, #232)
+- **Balance animations with each theme's own character — and a switch to turn them off.** The figure now arrives the way the theme says it should: Nixie's digits strike and settle, Brownstone's balance is lit by gaslamp, Bauhaus splits into glyphs with its blue comma, Film Noir holds a steady figure. The countdown rings got the same treatment, including a glowing ring for Nixie. A Settings switch turns balance animations off entirely, and Reduce Motion is respected everywhere. (#226)
+- **Bookmarks.** A topbar button showing the bookmark lists other clients write for your account (NIP-51 kinds 10003/10004), read from your relays — entries open at your preferred client, and each list can be cleared or removed. (#230)
+- **Mute lists work in notifications.** A mute list written by any client carries four kinds of entry — muted people, hashtags, muted words, and muted threads — and Sidecar was reading only the people. Words, hashtags, and threads now hide notifications, including words that appear only in a sender's display name, which is where a key-rotating campaign puts its keyword; late-arriving names are pruned from the open bell, the cache, and the unread count as soon as they resolve. (#233, #234)
+- **An invoice the page copies to its own clipboard gets the pay card.** Sites that generate an invoice into the clipboard (instead of the page) used to leave you hunting for it; the card now appears when that copy happens, same rules as an invoice in the page. (#223)
+- **Send resolves a Lightning address before asking for an amount.** Typing an @address into Send now resolves it up front — you see the recipient's real address before committing, rather than discovering a typo after typing an amount. (#221)
+- **New apps and clients in the directory:** JANK and Nostrich as note-viewing clients, NostrHub in the app catalog. (#222)
+
+### Fixed
+- **The bio editor sizes itself to your bio.** Both bio fields — the profile editor and the setup wizard's — opened at a fixed three lines, leaving the native resize corner as the only way to see a long bio while editing it. The field now opens sized to what's there, grows as you type, and scrolls internally past half the panel so the save button stays reachable. (#236)
+- **A PIN change no longer orphans your wallet.** The NWC connection string was stored encrypted under the old PIN-derived key, and a PIN change re-wrapped the accounts but not the wallet — the wallet looked connected and could never be read again. Connections are now re-wrapped with everything else. (#218)
+- **Automatic zaps only where you're connected.** An invoice embedded on a page you've never signed in with can't be auto-paid, whatever its size against the auto-zap cap: the payment path now requires an actual site connection, checked in the background rather than trusted from the page. (#235)
+- **The signing prompt settles what it's signing before it asks.** A malformed signEvent request reached the approval card as a blank with Allow looking as ordinary as ever; the shape is validated at the boundary now, and the composer derives the quote tags a proper quote needs. (#219)
+- **Backups say when, confirm what a restore overwrites, and count what's real.** Restoring shows what will be replaced and asks; the numbers reported are the counts that actually matched. (#228)
+- **Toasts rise above the bottom chrome, and a tap dismisses them.** They were clipped behind the composer bar; now they clear it and can be sent away. (#227)
+- **The wallet card's corner buttons are clickable where they appear.** Their hit area sat under the balance figure's; taps landed on nothing. (#229)
+- **The fiat symbol and the balance figure are right in every theme.** The currency symbol was being dropped on some paints and rendered illegibly in others; the figure now centers by its ink, and holds one length regardless of digit count. (#232)
+
+### Changed
+- **The vault is behind key slots.** One random data key now encrypts everything, and each unlock factor (your PIN, today) wraps that key rather than the secrets directly. Adding or changing an unlock factor re-wraps 32 bytes and no ciphertext moves — the architecture that made the NWC re-wrap bug possible is gone. You'll notice nothing; future unlock factors will ride on it. (#220)
+- **AMO submissions ship a reproducible source archive.** Packaging is deterministic — same tag, same bytes, published hash verifiable by anyone — and the source bundle accompanies every Firefox upload. (#231)
+
 ## [1.9.1] — 2026-08-19
 
 *1.9.0 was packaged and tagged but never released; everything below ships here instead.*
