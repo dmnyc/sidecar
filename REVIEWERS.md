@@ -38,7 +38,8 @@ scripts/package.sh v<VERSION>
 This writes two files:
 
 - `dist/sidecar-<VERSION>-firefox.zip` — the AMO package
-- `dist/sidecar-<VERSION>.zip` — the Chrome package
+- `dist/sidecar-<VERSION>-chrome.zip` — the Chrome package (versions 1.10.0
+  and earlier were named `dist/sidecar-<VERSION>.zip`, with no suffix)
 
 The build is deterministic. Every file is stamped with the tag's commit date in
 UTC and entries are added in sorted order, so the same tag produces the same
