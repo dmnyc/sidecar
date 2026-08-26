@@ -1801,6 +1801,16 @@ async function tryZapAutopay(invoiceRaw, host, originWindowId, tabId) {
   if (amt > cap) return no(amt + ' sats exceeds the ' + cap + ' cap');
   const who = await resolveSiteAccount(host);
   if (!who) return no('no account resolved for ' + host);
+  // Auto-pay only on sites we are actually connected to. The card renders only
+  // on connected sites (content.js gates on the site binding), and a zap request
+  // record can only exist for a host whose signing the user approved — but this
+  // is the function that moves money, so it must not depend on a UI gate or an
+  // emergent property to be safe. A site never signed into has no binding at all,
+  // and resolveSiteAccount's fall-back-to-the-active-account must never stand in
+  // for a connection: an invoice pasted onto any page stays a prompt, however far
+  // under the auto-zap cap it sits.
+  const bound = await getSiteAccount(host);
+  if (!bound || bound !== who) return no('not connected to ' + host);
   if ((await PERMS.getLevel(who, host)) === 'blocked') return no('site is blocked');
   if (!(await ZAPREQ.peek(host, who, amt))) {
     return no('no zap request signed here matches ' + amt + ' sats (' + amt * 1000 + ' msat)');
