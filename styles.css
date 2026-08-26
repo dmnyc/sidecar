@@ -1327,6 +1327,67 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .list.flat.empty .hint { margin: 2px 0 0; }
 
 .setting { margin-bottom: 24px; }
+
+/* Collapsible settings sections. The heading contains the button so heading
+   semantics survive; the body hides by class (same grammar as .account-stats
+   and .tx-row elsewhere in this file) — no <details>, whose marker styling is
+   Firefox-hostile and which can't animate to unknown content heights anyway.
+   Styled purely from variables so themes need no per-file overrides. */
+/* Spacing lives on the section's own padding, never on sibling margins: padding
+   cannot collapse through, so the gap above and below every hairline is the same
+   fixed 12px whether the neighboring section is open or closed (margins were not
+   — a child's margin escapes a borderless element, and open/closed bodies change
+   which child is last). */
+.settings-section { padding: 12px 0; }
+/* Hairlines between sections only — none above the first (the page title needs no
+   underline) and none below the last: the danger zone's red divider owns that edge. */
+.settings-section + .settings-section { border-top: 1px solid var(--border); }
+.settings-section-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+  color: var(--text);
+  margin: 0;
+}
+/* Nothing styled the settings h3s before this existed — .tabview h3 never
+   matched #view-settings, so they fell back to UA default bold. The toggle
+   inherits this face rather than restarting it. */
+.settings-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  /* Must stay explicit: a button's UA padding-inline is nonzero, and without
+     this the header text out-dents the content below it. */
+  padding: 0;
+  margin: 0 0 8px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-section-toggle:hover { color: var(--gold); }
+.settings-section-toggle svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+.settings-section.open .settings-section-toggle svg { transform: rotate(180deg); }
+.settings-section-body { padding-left: 2px; }
+.settings-section:not(.open) .settings-section-body { display: none; }
+/* Closed rows carry no header-to-content gap either — every collapsed section
+   pitches identically, and open ones add just the 8px step to their content. */
+.settings-section:not(.open) .settings-section-toggle { margin-bottom: 0; }
+.settings-section-body .setting:last-child { margin-bottom: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-section-toggle svg { transition: none; }
+}
 .toggle-row { display: flex; align-items: center; gap: 9px; cursor: pointer; color: var(--text); font-size: 14px; }
 .toggle-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
 
