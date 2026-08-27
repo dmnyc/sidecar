@@ -375,7 +375,9 @@
    the pinned bar's 24px alike. */
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
-  transform: translateY(-0.03em);
+  /* -0.03em measured dead-centre in software rendering, but the figure reads low
+     in the composited panel; -0.10em lifts it ~2px where the user actually sees it. */
+  transform: translateY(-0.1em);
 }
 /* inline-block so the figure is a box of its own rather than a card-wide line:
    the cage is a mask on this element, and the padding it needs to hold the bloom
