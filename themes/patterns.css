@@ -203,3 +203,18 @@ body {
   background-size: 100%, auto;
   background-position: top center, 0% 0%;
 }
+
+/* Cast Iron — bare plate under one lamp. Every other theme here is a room with
+   something on the walls; iron keeps bare metal and takes its depth from light alone.
+   One weak source hangs overhead and dies FAST — by about a third of the way down the
+   panel the field is void — so everything below sits in its falloff, and the theme's
+   sheen tokens read as reflections of the same lamp rather than independent decoration.
+   That single vertical story (lit above, sinking to black) is the whole backdrop; if
+   texture is ever wanted beyond it, it should be near-invisible grain, not a motif:
+   the pattern in this theme is the relief on its numerals (see the strike rules in
+   cast-iron.css). */
+[data-theme="cast-iron"] body {
+  background-image:
+    radial-gradient(900px 380px at 50% -10%, rgba(216, 209, 196, 0.055), transparent 60%),
+    linear-gradient(180deg, #131010 0%, var(--bg) 34%);
+}

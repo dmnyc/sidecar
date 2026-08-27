@@ -1,0 +1,18 @@
+Impressed Metal — provenance record (this face is freeware, NOT SIL OFL)
+
+Author:    GemFonts / Typotheticals (Graham Meade), ©GemFonts98, version 2.00
+Source:    https://www.dafont.com/impressed-metal.font
+Listing:   dafont category "100% Free" (free for personal and commercial use)
+Added:     2026-08-26, for the Cast Iron theme's numerals
+
+Notes kept on the record:
+
+- The distributed zip contains ONLY the TTF — no license file ships with it, so
+  this note stands in for one. The upstream listing is the license of record.
+- The TTF's OS/2 fsType embedding bit reads 2 (restricted), the default state on
+  late-1990s freeware that never went through a commercial clear. It is treated
+  here as stale: the author's own distribution was free and unrestricted, and
+  dafont's 100% Free classification has stood since 2005. Recorded rather than
+  silently ignored so a reviewer can see the question was asked.
+- The face is redistributed unmodified and unrenamed (whole original, per the
+  same practice as Rowdies/Apogee Telemetry).

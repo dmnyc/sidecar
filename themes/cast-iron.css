@@ -1,0 +1,494 @@
+/* ============================================================
+   Sidecar — Cast Iron Theme
+   Jet-black cast metal seen in a dark room. Nothing here is
+   face-lit: fills sit at or a hair above the panel color, and
+   shapes announce themselves only where light catches an edge
+   — border hairlines, lip highlights under controls, drop
+   shadows beneath proud surfaces. The one near-color is the
+   warm gray of iron under a glint; every accent is steel,
+   never gold. Type is set in a groove-outline face and reads
+   as the impression a stamp leaves; figures arrive under the
+   press and land slightly crooked like hand-struck marks.
+   ============================================================ */
+
+[data-theme="cast-iron"] {
+  color-scheme: dark;
+
+  /* Impressed Metal — the theme's whole display voice (fonts.css has the roster note;
+     fonts/LICENSE-ImpressedMetal.txt has the license record). Glyphs are hollow
+     channel outlines: type reads as the recess a stamp leaves, which is why the same
+     face carries both headings and figures. Fallbacks are Jost first — Bauhaus loads
+     it already, so a slow swap lands on a machined neighbor rather than Manrope. */
+  --font-display: 'Impressed Metal', 'Jost', 'Futura', 'Century Gothic', var(--font-ui);
+  /* Dialed by eye; the face is a 1998 rounded hand with loose vertical metrics. */
+  --display-ink-nudge: 0.02em;
+
+  /* surfaces — void, not charcoal. With nothing bright to fight, dark-warm-grey ink
+     clears AA against a plate this deep while reading as grey-on-black, which is the
+     point. */
+  --bg: #050404;
+  --bg-2: #0a0908;
+  --velvet-1: #0e0c0b;
+  --velvet-2: #131110;
+  --velvet-1-rgb: 14, 12, 11;
+  --av-from: #0d0b0a;
+  --av-to: #161311;
+  --banner-accent: #161310;
+  /* borders do not draw. At these alphas a border is only the faintest suggestion
+     that an edge exists — every box is actually announced by its edge lighting
+     (--sheen: a lip of light on top, shade beneath) and by the dark seating its
+     drop shadow casts. See the sheen token below. The one deliberate exception:
+     red's own hairlines (danger zone, destructive warns, delete confirms) are
+     hardcoded semantic alarm color in styles.css and stay loud on purpose. */
+  --border: rgba(216, 209, 196, 0.035);
+  --border-strong: rgba(216, 209, 196, 0.055);
+  --border-rgb: 216, 209, 196;
+  --well-rgb: 5, 4, 4;
+  /* Every input is a punch in the plate with its own REVERSED light: against the
+     page's lamp-from-above, a debossed well goes dark toward its ceiling and pools
+     faint light along its floor. The gradient is fed to styles.css whole via
+     --input-bg so the fill carries the reversal by itself — visible without help
+     from any border or shadow. */
+  --input-bg: linear-gradient(180deg, #020202 0%, #0b0a08 62%, #171310 100%);
+  --warn: #a98f6f;
+  --warn-rgb: 169, 143, 111;
+  --success: #7f9a88;
+  --success-rgb: 127, 154, 136;
+
+  /* brand — no whites anywhere. Steel accents are identifiable metal, not lamps, and
+     sit well below body-text luminance; --gold-soft rides down with them so the
+     accent borders (backup card, pending rings) hint rather than line. Warn/success
+     follow: hues survive, volume does not. */
+  --orange: #8f887a;
+  --amber: #aaa294;
+  --gold: #b9b19f;
+  /* The currency glyph beside a struck figure keeps full opacity — muting at this
+     altitude turns it invisible — but carries its own lower ink: a fraction of the
+     figure, not an equal. (styles.css reads --fiat-sym-ink / --fiat-sym-opacity.) */
+  --fiat-sym-opacity: 1;
+  --fiat-sym-ink: #6e675a;
+  --accent-rgb: 197, 189, 175;
+  --gold-soft: rgba(197, 189, 175, 0.12);
+
+  /* Pending confirm sub-label — see speakeasy for why this is pinned instead of
+     letting --muted ride on the pending wash. */
+  --pending-sub: #91897b;
+  --purple: #8f887a; /* kept for logo compatibility */
+  --lav: #948c79;
+
+  /* The accent-chip pair. styles.css paints several small controls as
+     --accent-fill background + --chip-ink label, each falling back through warm greys
+     that in this theme land two shades apart — "Search everyone", the receive amount
+     presets, switch-site, the chart range chip and the relax End disc all read as grey
+     on grey until these are defined. Declaring the pair here repairs every current and
+     future consumer at once (Nixie does the same with its ember fill). Solid #b9b19f,
+     not a gradient, because the same token also feeds border-color; #12100e is the
+     sunk-die ink from the raised-metal treatment — a label PRESSED INTO bright metal. */
+  --accent-fill: #b9b19f;
+  --chip-ink: #12100e;
+
+  --hover-soft: rgba(197, 189, 175, 0.05);
+  --hover-medium: rgba(197, 189, 175, 0.09);
+  --hover-faint: rgba(197, 189, 175, 0.04);
+  --mention-bg: rgba(197, 189, 175, 0.10);
+  --scroll-thumb: linear-gradient(180deg, #191512, #0e0b09);
+  --scroll-thumb-hover: #221d18;
+
+  /* Trust button — a plate barely proud of the panel, seated by shadow and read by
+     its rim, with grey stamp ink that stays inside the tonal world. The inks are
+     modest BECAUSE the plates are deep: grey-on-void still measures 5:1+. */
+  --btn-lav-top: #181512;
+  --btn-lav-mid: #131110;
+  --btn-lav-bot: #0d0b09;
+  --btn-lav-text: #8f8877;
+  --btn-lav-ring: rgba(190, 183, 170, 0.16);
+  --btn-lav-shadow: rgba(0, 0, 0, 0.5);
+
+  /* Allow — one grade prouder than Trust's casting. Same grammar, brighter by one
+     step of grey, still nowhere near white. */
+  --btn-primary-top: #1c1814;
+  --btn-primary-mid: #161210;
+  --btn-primary-bot: #0e0c09;
+  --btn-primary-text: #aaa291;
+  --btn-shadow: rgba(0, 0, 0, 0.6);
+
+  /* Compose FAB — blacked out: cast iron where every other theme hangs brass or a
+     lamp. A dark disc on a dark plate is findable by its edge, not by a glow (Nixie's
+     disc is lit by its tube; iron has no light to shed), so the feather carries what
+     brightness the object has and the scoped rule below seats it with a rim lip. */
+  --fab-bg: linear-gradient(160deg, #171310, #090705);
+  --fab-icon: #beb6a4;
+
+  /* ink — every stop demoted from the first pass. Body copy tops out around #a5,
+     muted and faint step down toward the plate, and nothing anywhere reaches for
+     white: hierarchy is carried by STEP between greys, not by brightness itself. */
+  --text: #a59d8b;
+  --text-2: #938b7a;
+  --muted: #857d6c;
+  --faint: #575144;
+  --red: #a86652;
+
+  /* figure ink — numerals sit BELOW body text tone; the strike is what makes them
+     first among equals (see the struck-type chapter). */
+  --figure-ink: #968e7c;
+
+  /* shadows — --sheen is the memo: it is consumed by every card, modal and button in
+     styles.css, so making it a two-part edge (light caught on the top lip, shade
+     pooled along the bottom) retires the drawn outline everywhere at once. The box
+     shape is what light does at its boundary, not a stroke around it. */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.5);
+  --sheen: inset 0 1px 0 rgba(216, 209, 196, 0.055), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+
+  /* pattern — none. Flatness is the theme. See patterns.css. */
+  --pattern-opacity: 1;
+}
+
+/* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
+   pixel-identical to the original); re-theme them for iron. The box-shadow swaps the
+   default champagne glow for a plain dark seating — edges, not haloes — with only a
+   whisper of a lip highlight (the shared white at full strength would be the one
+   bright line left in the theme). */
+[data-theme="cast-iron"] .lav-btn {
+  background: linear-gradient(180deg, var(--btn-lav-top), var(--btn-lav-mid) 58%, var(--btn-lav-bot));
+  color: var(--btn-lav-text, #8f8877);
+  box-shadow: inset 0 1px 0 rgba(216, 209, 196, 0.06), inset 0 -1px 0 rgba(0, 0, 0, 0.8), 0 8px 22px var(--btn-lav-shadow);
+}
+/* longhand background-image keeps the shimmer's background-size intact */
+[data-theme="cast-iron"] .sk {
+  background-image: linear-gradient(100deg, var(--velvet-1) 30%, rgba(197, 189, 175, 0.08) 50%, var(--velvet-1) 70%);
+}
+/* The shared .fab rule insets a white ring all the way round; this replaces it with
+   the theme's own two-part edge — a lip caught on top, shade seated beneath — so the
+   disc is an object standing on the plate rather than a sticker. */
+[data-theme="cast-iron"] .fab {
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(216, 209, 196, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.8);
+}
+/* ...and the feather carries what brightness the disc has (see --fab-icon above), lit
+   by the same lamp the struck type answers to: the catch pools along the top of each
+   stroke and the ink shades as it falls — bright enough that the quill is the first
+   thing the eye finds on this surface. A stroke can only take a gradient through an
+   SVG paint server — sidepanel.html carries the def this names — so currentColor stands
+   in wherever that node is absent. */
+[data-theme="cast-iron"] .fab svg :is(path, line, polyline, polygon, circle) {
+  stroke: url(#cast-iron-stroke-light);
+}
+/* Hover on a black disc over a black plate needs more than the shared lift, which
+   moves the object without showing it. Two additions, both in the theme's language:
+   a wash of lamplight pooling on the upper face of the disc (an ::after fade, since a
+   gradient fill cannot interpolate), and the top lip catching harder as the button
+   rises under the cursor — the shared rule's translateY animates this box-shadow. */
+[data-theme="cast-iron"] .fab::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 28%, rgba(216, 209, 196, 0.1), rgba(216, 209, 196, 0.03) 70%);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+[data-theme="cast-iron"] .fab:hover {
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(216, 209, 196, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.8);
+}
+[data-theme="cast-iron"] .fab:hover::after { opacity: 1; }
+/* ---- inputs are recesses ----------------------------------------------------------------
+   The fill does the reversing (see --input-bg above): black toward the top wall,
+   light pooling at the floor. All the shadows add is one soft bite under the top
+   edge and the lit bottom lip catching the pool — quiet support, not the show.
+   styles.css's :focus rule replaces this shadow wholesale and the theme sheets load
+   after it, so the focus state is restated here: same well, plus a faint halo where
+   light spills onto the plate around an open punch. */
+[data-theme="cast-iron"] input,
+[data-theme="cast-iron"] select,
+[data-theme="cast-iron"] textarea {
+  background: var(--input-bg);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(216, 209, 196, 0.1),
+    0 1px 0 rgba(216, 209, 196, 0.05);
+}
+[data-theme="cast-iron"] input:focus,
+[data-theme="cast-iron"] select:focus,
+[data-theme="cast-iron"] textarea:focus {
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(216, 209, 196, 0.12),
+    0 1px 0 rgba(216, 209, 196, 0.05),
+    0 0 0 3px rgba(216, 209, 196, 0.1);
+}
+
+/* ---- struck type ---------------------------------------------------------------------
+   The theme's ornament and its whole idea: EMBOSSED DARK ON DARK. Type is struck ONTO
+   the plate and stands a hair proud of it, and the panel's one lamp (see patterns.css)
+   says which end is which: the catch pools along a stroke's TOP edge, the ink shades
+   as it falls, and its own shadow seats BENEATH the mark — light above, dark below.
+   Every proud surface in the theme agrees on those directions (the sheen tokens lip
+   light on top and pool shade underneath; the raised-metal chips inset exactly that
+   way); only true recesses reverse them (--input-bg wells go dark toward their
+   ceiling). No white anywhere in either pass.
+
+   The face itself (Impressed Metal, via --font-display) already draws glyphs as
+   hollow channel outlines, so the relief is IN the letterforms; what the shadows add
+   is depth — and what the mask adds is DIRECTION: each stroke fades toward its base,
+   multiplying over the element's own ink rather than replacing it, so hierarchy
+   survives — a gold heading still reads warmer than an iron figure; both shade toward
+   the base. The mechanism is a MASK, deliberately not the background-clip:text
+   gradient-text trick other CSS uses: these strokes are composited (the figures sit
+   on transform-promoted spans under promoted parents, with a fill-mode:both animation
+   alive forever), and a text-clipped background silently drops out under exactly that
+   acceleration while painting fine in a static screenshot — the gradient shipped this
+   way first and was invisible in the panel while proving perfectly in headless renders.
+   A mask composes on every layer path. On the FIGURES it lands on each split glyph,
+   not the parent element: besides reading truer (each die catches the lamp alone),
+   a gradient clipped on the PARENT above strike-animated children leaves a stale tile
+   behind in the compositor once the numbers settle — a smudge of overlapped characters
+   parked left of the figure, rendered and bisected to that exact combination earlier
+   in this theme. Masks cut ink only, never add it; the light catch at the top comes
+   from the shadow pair below instead, which is why those lead with the warm hairline.
+   Body copy stays untouched — struck 12px text reads as smear, and the hierarchy
+   needs somewhere quiet to stand against. */
+[data-theme="cast-iron"] .wallet-balance,
+[data-theme="cast-iron"] .pinned-balance-amt,
+[data-theme="cast-iron"] .relax-status-time,
+[data-theme="cast-iron"] .unlock-note-count {
+  color: var(--figure-ink, var(--text));
+  text-shadow:
+    0 -1px 1px rgba(216, 209, 196, 0.14),
+    0 1px 1px rgba(0, 0, 0, 0.9);
+}
+/* Figures: the falloff AND the dice pose live on every split glyph — struck or
+   silently re-dealt by a denomination tap. Scoped to split glyphs so the '···'
+   placeholder and error dashes keep plain ink and square type. Full ink through the
+   upper third, then down to ~58% remaining at the base: shaded, not vanished. The
+   rings' landed pose is deliberately NOT here; see the strike chapter above. */
+[data-theme="cast-iron"] .wallet-balance .bal-glyph,
+[data-theme="cast-iron"] .pinned-balance-amt .bal-glyph {
+  transform: rotate(var(--iron-rot, 0deg))
+    translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 34%,
+    rgba(0, 0, 0, 0.58) 96%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 34%,
+    rgba(0, 0, 0, 0.58) 96%
+  );
+}
+[data-theme="cast-iron"] .headline,
+[data-theme="cast-iron"] .lud16-sync-title,
+[data-theme="cast-iron"] .profile-name,
+[data-theme="cast-iron"] .unlock-note-title,
+[data-theme="cast-iron"] .tabview h2,
+[data-theme="cast-iron"] #view-settings > .content > h2,
+[data-theme="cast-iron"] .tabview h3,
+[data-theme="cast-iron"] .notif-modal-title,
+[data-theme="cast-iron"] .settings-section-title,
+[data-theme="cast-iron"] .modal h3,
+[data-theme="cast-iron"] .welcome-title,
+[data-theme="cast-iron"] .aa-label,
+[data-theme="cast-iron"] .approval-host,
+[data-theme="cast-iron"] .destructive-warn-title,
+[data-theme="cast-iron"] .recv-success-title,
+[data-theme="cast-iron"] .relax-label {
+  text-shadow:
+    0 -1px 1px rgba(216, 209, 196, 0.08),
+    0 1px 1px rgba(0, 0, 0, 0.65);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 42%,
+    rgba(0, 0, 0, 0.62) 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 42%,
+    rgba(0, 0, 0, 0.62) 100%
+  );
+}
+/* The hand-set pose rides on splitGlyphs' figures above and — via the observer in
+   sidepanel.js — on every display-face heading this list names: each character span
+   lands its own dice (see ironDiceStyle for the limits). Only this theme reads the
+   properties; other themes inherit plain metrics and kerning untouched. */
+[data-theme="cast-iron"] .stamped-glyph {
+  display: inline-block;
+  transform-origin: 50% 58%;
+  transform: rotate(var(--iron-rot, 0deg))
+    translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+}
+
+/* ---- the strike: figures arrive stamped ---------------------------------------------
+   A press cycle, one glyph at a time, in order, like a mint striking digits into a
+   die: each character appears large over its position, slams to size (impact at 55%,
+   pressed past rest), rebounds once and seats hard — and lands MISREGISTERED.
+   splitGlyphs deals every glyph RANDOM dice — rotation within +-3deg, slippage
+   within +-0.035em sideways, seat height within +-0.03em up or down — so no two
+   strikes, no two re-renders of the same balance, ever land alike; a hand-held
+   stamp is never twice in the same place. WHERE THE POSE LANDS splits by surface:
+   the two balances hang it on every glyph, so a denomination toggle can re-deal
+   dice silently — the tap shows the new figure just as crooked, no replay of the
+   press run, matching the other themes' tap contract — while the countdown rings
+   hang it on .bal-in alone: paintCountdownNum rebuilds every span each tick and
+   re-deals fresh dice, so a digit that did not change must sit still while its
+   neighbor is struck, instead of twitching through a pose it never earned.
+   Animation fill holds the end frame after the strike, and custom properties
+   resolve per element inside keyframes, so what fill holds IS the resting rule —
+   nothing pops at handback.
+
+   TIMING DELIBERATELY BREAKS THE ROSTER'S STAGGER-WINDOW RULE (see splitGlyphs in
+   sidepanel.js): every other theme clamps its arrival so a long figure is never
+   slower than a short one. Here the opposite is the point — a longer number is
+   struck over more press cycles and visibly takes longer, the way a mint run reads
+   as intent, not lag. Cadence is set so the next die drops just as the last one
+   seats; the strike stays legible as a sequence without dragging.
+
+   Scope: whatever arrives through splitGlyphs — the two balances AND the countdown
+   rings, which share that machinery (paintCountdownNum, so a changing digit
+   re-stamps every tick it moves). */
+[data-theme="cast-iron"] .bal-glyph {
+  /* Glyphs are plain inline until a theme promotes them — transforms do nothing on
+     inline boxes (same line Film Noir opens its chapter with). */
+  display: inline-block;
+  transform-origin: 50% 58%;
+}
+[data-theme="cast-iron"] .bal-glyph.bal-in {
+  /* The rest pose. Applies straight away under reduced motion too, where the
+     animation below is cut but the misregistration survives — the imperfection IS
+     the figure. */
+  transform: rotate(var(--iron-rot, 0deg))
+    translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+}
+
+@keyframes iron-strike {
+  0% {
+    opacity: 0;
+    transform: scale(1.9) rotate(var(--iron-rot, 0deg))
+      translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+  }
+  55% {
+    opacity: 1;
+    /* impact — pressed slightly past rest into the plate */
+    transform: scale(0.94) rotate(var(--iron-rot, 0deg))
+      translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+  }
+  78% {
+    transform: scale(1.02) rotate(var(--iron-rot, 0deg))
+      translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(var(--iron-rot, 0deg))
+      translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+  }
+}
+
+[data-theme="cast-iron"] .bal-glyph.bal-in {
+  animation: iron-strike var(--iron-press, 200ms) cubic-bezier(0.3, 0.7, 0.4, 1)
+    calc(var(--i) * var(--iron-cadence, 150ms)) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="cast-iron"] .bal-glyph.bal-in {
+    /* The landed pose above stays — only the motion is cut. */
+    animation: none;
+  }
+}
+
+/* ---- the theme picker -----------------------------------------------------------------
+   Reverted by hand: the active card first took a much darker frame here, which read
+   as relief but let the picker's louder preview cards (Nixie's tube glow) crowd the
+   selected one out of its own list. So this is deliberately bright again — the shared
+   var(--gold) edge stays untouched — and what this theme adds is a widening pair of
+   light rings around the chosen plate, lamplight spilling past its rim: unmistakable
+   against any neighbor without inventing a second kind of loud object. */
+[data-theme="cast-iron"] .theme-card.active {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 0 0 3px rgba(197, 189, 175, 0.17),
+    0 0 0 6px rgba(197, 189, 175, 0.06);
+}
+
+/* ---- one exception to the borderless rule: the chart scrub ---------------------------
+   The time chip floats over the chart plot, and a floating box needs to be DARKER
+   than what it floats over, not edged — a raised hint would sit wrong on the plate.
+   Solid void behind, lip of light, hard drop shadow; the time line steps up from
+   --muted so it holds at 9.5px. */
+[data-theme="cast-iron"] .wallet-chart-scrub {
+  background: rgba(5, 4, 4, 0.94);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(216, 209, 196, 0.06), 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+[data-theme="cast-iron"] .wallet-chart-scrub-time { color: var(--text-2); }
+
+/* The range chips failed twice at once: the ACTIVE chip took its ink and fill from
+   --chip-ink / --accent-fill's fallback chain, which here resolved to two warm greys
+   almost the same tone — "24h" sat invisibly on its own selected pill, the same
+   collision the relax End disc had — and the idle chips sit at --faint, below any
+   sensible floor at 10px. The token pair is now declared in the block above (shared
+   with every other accent chip), so this rule only adds the die's inset seating to
+   what the fill already says. */
+[data-theme="cast-iron"] .wallet-chart-range-btn { color: var(--muted); }
+[data-theme="cast-iron"] .wallet-chart-range-btn:hover { color: var(--text-2); } /* tie goes to the theme sheet; keep the ramp */
+[data-theme="cast-iron"] .wallet-chart-range-btn.active {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.28),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.55);
+}
+
+/* ---- the countdown ring ----------------------------------------------------------------
+   The post-review ring drew its sweep at --gold — brass in a theme that has none —
+   and left it flat on top of everything. Iron reads the ring as struck metal: the
+   sweep drops to figure tone, and since an SVG circle cannot take an inset shadow,
+   the emboss is a pair of drop-shadows with the same directions as the type — light
+   caught on the upper rim, shade seated beneath. */
+[data-theme="cast-iron"] .countdown-ring .ring-track { stroke: rgba(216, 209, 196, 0.08); }
+[data-theme="cast-iron"] .countdown-ring .ring-fill {
+  stroke: #a89f8d;
+  filter:
+    drop-shadow(0 -1px 1px rgba(216, 209, 196, 0.12))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.9));
+}
+
+/* ---- relax mode: the End control and its timer -----------------------------------------
+   Two faults, both this theme's doing. The X button painted a gold disc and took the
+   glyph ink from --chip-ink's fallback chain — which in iron resolved to another warm
+   grey, so the mark sat inside its own circle near-invisibly. That collision is what
+   the --accent-fill / --chip-ink pair in the token block now settles everywhere; this
+   rule adds the die's inset seating, and the disc stays deliberately bright: one of
+   the few loud objects short of the danger reds, because an emergency exit should not
+   have to be hunted for. And the timer track was a violet-tinted strip lifted OFF the
+   plate; as a channel it goes dark instead — dropped below the bar around it and
+   bitten from above — so the gold fill reads as level striking down it. */
+[data-theme="cast-iron"] .relax-status {
+  background: linear-gradient(180deg, #0b0908, #050404);
+}
+[data-theme="cast-iron"] .relax-status-x {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.28),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.55);
+}
+/* The unread pill carried #fff on --orange — two greys apart here at 9px bold, the
+   worst possible shape for a number someone is meant to act on. Same raised metal,
+   same sunk die as every other count in the theme (range chip, End disc). */
+[data-theme="cast-iron"] .notif-badge {
+  background: linear-gradient(180deg, #b9b19f, #948c79);
+  color: #12100e;
+  border-color: rgba(5, 4, 4, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.28),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.55);
+}
+[data-theme="cast-iron"] .relax-status-track {
+  background: rgba(0, 0, 0, 0.75);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(216, 209, 196, 0.05);
+}

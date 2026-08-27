@@ -1,5 +1,7 @@
 /* Sidecar typography — bundled webfonts, no external requests. Every face is SIL OFL 1.1
-   and ships its own OFL-*.txt beside it in fonts/.
+   and ships its own OFL-*.txt beside it in fonts/ — one exception: Cast Iron's
+   Impressed Metal is GemFonts freeware with its own license record
+   (fonts/LICENSE-ImpressedMetal.txt).
    Manrope is the UI/body face in every theme and never changes.
 
    Each theme sets its own --font-display, because a palette alone was not carrying the
@@ -17,6 +19,14 @@
      Bauhaus     Jost               Futura-lineage geometric     the school's own
      Nixie       Apogee Telemetry   monospaced engineer's hand   instrument panel
      Populuxe    Rowdies            chunky rounded geometric     motel signage
+     Cast Iron   Impressed Metal    groove-outline letterforms   the stamp impression
+
+   Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
+   record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
+   glyph as a hollow channel outline, so display type and numerals alike read as the
+   IMPRESSION a stamp leaves in the plate rather than ink sitting on top of it. On a
+   near-black ground that is the difference between a number that is lit and a number
+   that was struck.
 
    Populuxe is the third geometric here, after Art Deco's Josefin Sans and Bauhaus's Jost,
    which is the one place this table's rule bends. It holds because the axis those two are
@@ -24,11 +34,13 @@
    and Rowdies is heavy with rounded terminals and a large x-height. Set side by side the
    pair that could be confused is still Josefin and Jost, not either of them and this.
 
-   The first six are variable fonts, so each is ONE file spanning 400-700 rather than a
-   static face per weight — about 26KB apiece. The last two are static TTFs at a single
-   weight; both declare `400 700`, which tells the browser the one outline covers that
-   whole range, so a 700-weight heading renders the real face rather than a synthetic
-   bold or a drop back to Manrope halfway down a screen. */
+   Five faces ship as variable fonts — one file spanning the weight range rather than a
+   static per weight. The remaining statics are Playfair Display (two woff2 weights),
+   Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Apogee Telemetry,
+   Rowdies, and Impressed Metal. The single-weight faces declare `400 700`, which tells
+   the browser the one outline covers that whole range, so a 700-weight heading renders
+   the real face rather than a synthetic bold or a drop back to Manrope halfway down a
+   screen. */
 
 @font-face {
   font-family: 'Playfair Display';
@@ -148,4 +160,18 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/rowdies.ttf') format('truetype');
+}
+
+/* Impressed Metal (GemFonts / Typotheticals, 1998 freeware — see
+   fonts/LICENSE-ImpressedMetal.txt; the one face here that is not OFL). Cast Iron's
+   whole display voice, headings and numerals alike: glyphs drawn as hollow channel
+   outlines, so type reads as the recess a stamp leaves in a plate. Single static
+   outline, 92KB, shipped unmodified and unrenamed — same practice as the other
+   single-weight TTFs, `400 700` covering the range so nothing synthesizes. */
+@font-face {
+  font-family: 'Impressed Metal';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/impressed-metal.ttf') format('truetype');
 }

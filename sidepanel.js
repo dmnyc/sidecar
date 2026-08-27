@@ -195,7 +195,7 @@
   function applyTheme(themeName) {
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'art-deco', 'aegean', 'bauhaus', 'populuxe'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
@@ -10357,10 +10357,14 @@
     // record and never be repainted.
     if (prev === key && el.textContent === (parts.sym || '') + parts.text) return;
 
-    // The figure is always split (see splitGlyphs below for the class contract).
-    // `prev !== key` is what makes a real balance change re-animate: a new element
-    // (nothing recorded) or a number that moved both qualify, while a denomination
-    // toggle keeps the same sats and only repaints.
+    // The figure is always split (see splitGlyphs below for the class contract),
+    // so a denomination toggle re-deals Cast Iron's dice even when it does not
+    // strike: the tap shows the new figure straight away, sitting just as crooked,
+    // while the full press run plays only on a genuine balance change — the same
+    // contract every theme keeps ("a balance change re-animates; a denomination
+    // toggle does not", test/balance-fiat-symbol.test.js). Whether the re-dealt
+    // pose shows is a theme-CSS question, not this flag's; that split is what
+    // lets both halves hold at once.
     const animate = key != null && prev !== key && !reduceBalanceMotion;
     paintedSats.set(el, key);
 
@@ -10419,21 +10423,168 @@
   //   --strike-delay / --strike-dur  the ragged beat above, which only Nixie
   //               uses. Emitted for every theme because it is two custom
   //               properties, not two DOM nodes.
+  //   --iron-rot / --iron-dx / --iron-dy  Cast Iron's strike reads these as the
+  //               cant its press lands with, so they are dealt RANDOMLY per glyph
+  //               at every split — rotation within +-3deg, slippage within
+  //               +-0.035em sideways and +-0.03em of seat height — rather than
+  //               derived from --i, which would land the same figure in the same
+  //               place forever. Emitted for every theme like the pairs above,
+  //               and consumed by none of the others.
   //
   // The balances and the countdown rings share this; the theme rules key off the
   // classes, not off where the figure hangs.
+  // The strike dice, dealt wherever they are needed. The limits are tight on
+  // purpose — rotation within +-3deg, slippage within +-0.035em sideways, seat
+  // height within +-0.03em up or down — enough that no two strikes of the same
+  // figure ever land alike (a hand-held stamp is never twice in the same place)
+  // without threatening legibility even at 9px. Emitted for every theme; the
+  // cast-iron rules are the only consumers.
+  function ironDiceStyle() {
+    return '--iron-rot:' + ((Math.random() * 6) - 3).toFixed(2) + 'deg'
+      + ';--iron-dx:' + ((Math.random() * 0.07) - 0.035).toFixed(3) + 'em'
+      + ';--iron-dy:' + ((Math.random() * 0.06) - 0.03).toFixed(3) + 'em';
+  }
+
   function splitGlyphs(el, text, strike) {
     el.textContent = '';
     const glyphs = Array.from(text);
+    // Fresh dice at every split (see ironDiceStyle) — not seeded off --i or the
+    // glyph itself, because re-rendering the same balance should land differently.
     glyphs.forEach((ch, i) => {
       const { delay, duration } = glyphBeat(i, glyphs.length);
       el.append(h('span', {
         className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep')
           + (i % 2 ? ' bal-alt' : '') + (strike(i) ? ' bal-in' : ''),
         textContent: ch,
-        style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`,
+        style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`
+          + ';' + ironDiceStyle(),
       }));
     });
+  }
+
+  // ---- hand-stamped display type -------------------------------------------------
+  // splitGlyphs strikes the figures; this extends the same deal-every-character-dice
+  // contract to the HEADLINES listed below, the short big display-face titles where a
+  // hand-set pose reads as intention. Deliberately narrower than cast-iron.css's full
+  // struck-type list: navigation subheads (section titles, view headers, row labels)
+  // live in tight flex rows where a letter-level pose fights the layout rather than
+  // adding to it — tried everywhere first and reverted to just the headlines. The CSS
+  // mask/lip treatment still covers every heading regardless of this list.
+  //
+  // Splitting is word-preserving: whitespace stays as real text nodes, so wrapping and
+  // justification behave exactly as before, while each printable character becomes one
+  // span holding its own dice. Only cast-iron.css reads the custom properties — every
+  // other theme inherits identical-looking runs of spans (same emit-for-every-theme
+  // precedent as the balance vars above).
+  //
+  // Delivery is an observer, deliberately: views repaint wholesale through ~80
+  // innerHTML sites, and wiring every renderer would be exactly the kind of contract
+  // that silently stops being honored by the next feature. Any headline that enters
+  // the DOM gets struck whatever produced it. Our own splits are filtered out, so
+  // the observer never feeds itself.
+  //
+  // Accessibility: the original string is mirrored onto aria-label, so a screen reader
+  // hears "Wallet", not "W a l l e t" — the pose is presentation only.
+  const STAMPED_TYPE_SELECTOR = [
+    '.headline',
+    '.lud16-sync-title',
+    '.profile-name',
+    '.unlock-note-title',
+    '.notif-modal-title',
+    '.welcome-title',
+    '.destructive-warn-title',
+    '.recv-success-title',
+  ].join(',');
+
+  function stampedHasRawText(el) {
+    return Array.prototype.some.call(
+      el.childNodes,
+      (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+    );
+  }
+
+  function splitStampedType(el) {
+    // Already fully struck: the common case on every observer pass (our own spans
+    // keep re-entering the record list). An element flagged stamped but carrying
+    // fresh raw text was rewritten in place — strike the replacement too.
+    if (el.dataset.stamped === '1' && !stampedHasRawText(el)) return;
+    const label = el.textContent;
+    // Empty labels have nothing to strike, and beyond ~200 characters the pose
+    // stops reading as handiwork and starts reading as misprint: leave long hosts
+    // square. Both are per-element, so nesting stays safe.
+    if (!label || !label.trim() || label.length > 200) return;
+    el.dataset.stamped = '1';
+    let strung = false;
+    const strikeLevel = (node) => {
+      Array.from(node.childNodes).forEach((child) => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          if (!child.textContent.trim()) return; // whitespace is layout, leave it be
+          const frag = document.createDocumentFragment();
+          child.textContent.split(/(\s+)/).forEach((piece) => {
+            if (!piece.trim()) { frag.append(piece); return; }
+            for (const ch of Array.from(piece)) {
+              strung = true;
+              frag.append(h('span', {
+                className: 'stamped-glyph',
+                textContent: ch,
+                style: ironDiceStyle(),
+              }));
+            }
+          });
+          child.replaceWith(frag);
+        } else if (child.nodeType === Node.ELEMENT_NODE && !/^svg$/i.test(child.tagName)) {
+          strikeLevel(child);
+        }
+      });
+      // A struck element that ITSELF lays out as flex or grid would turn every
+      // glyph span into an item — with justify-content distributing them across
+      // the full row (the settings section titles once rendered letterspaced to
+      // oblivion exactly this way). Regroup this level's children into one run
+      // wrapper, so the container sees the item count it always did: label run,
+      // then whatever structural children (the toggle's chevron) follow.
+      const disp = getComputedStyle(node).display;
+      if (/flex|grid/.test(disp) && node.children.length > 1) {
+        const runs = Array.from(node.childNodes).filter((n) =>
+          (n.nodeType === Node.TEXT_NODE && n.textContent.trim())
+          || (n.nodeType === Node.ELEMENT_NODE && !/^svg$/i.test(n.tagName)));
+        if (runs.length > 1 || (runs.length === 1 && runs[0].nodeType === Node.TEXT_NODE)) {
+          const wrap = document.createElement('span');
+          wrap.className = 'stamped-run';
+          node.insertBefore(wrap, runs[0]);
+          runs.forEach((n) => wrap.appendChild(n));
+        }
+      }
+    };
+    strikeLevel(el);
+    if (strung) el.setAttribute('aria-label', label.trim().replace(/\s+/g, ' '));
+  }
+
+  function initStampedType() {
+    const sweep = (rootEl) => {
+      if (!rootEl || rootEl.nodeType !== Node.ELEMENT_NODE || !rootEl.matches) return;
+      if (rootEl.matches(STAMPED_TYPE_SELECTOR)) splitStampedType(rootEl);
+      if (rootEl.querySelectorAll) {
+        rootEl.querySelectorAll(STAMPED_TYPE_SELECTOR).forEach(splitStampedType);
+      }
+    };
+    sweep(document.body);
+    let queued = false;
+    const mo = new MutationObserver((records) => {
+      if (queued) return;
+      const foreign = records.some((r) => Array.prototype.some.call(
+        r.addedNodes,
+        (n) => n.nodeType === Node.ELEMENT_NODE
+          && !(n.classList && n.classList.contains('stamped-glyph'))
+          && !(n.closest && n.closest('[data-stamped="1"]'))
+      ));
+      if (!foreign) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        sweep(document.body);
+      });
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
   }
 
   // Paint a countdown ring's number in the theme's hand, with the same arrival
@@ -13947,4 +14098,5 @@
   initDevBadge();
   initHostPermGuard();
   initSettingsSections();
+  initStampedType();
 })();
