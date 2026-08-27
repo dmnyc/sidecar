@@ -336,6 +336,13 @@ const FLOORS = {
   // legible over the theme's pattern tile, which is far bolder than any other theme's.
   // That is what forced --pending-sub to be set explicitly; see themes/populuxe.css.
   populuxe: { '--muted': 7.32, '--faint': 4.78, '--gold': 4.64 },
+  // Cast Iron's floors moved DOWN once, deliberately: a second user-directed pass
+  // ("even outlines should be hinted at … avoid white fonts, everything in a dark
+  // grey/black tone") demoted every ink and dimmed the surfaces with it. Hierarchy is
+  // now carried by step between greys rather than by brightness, and these record the
+  // honest new measurements — not a concession snuck past this table. Every ink still
+  // clears AA where AA applies (--text 6.99, --text-2 5.57 on the darkest plate).
+  'cast-iron': { '--muted': 4.61, '--faint': 2.39, '--gold': 8.83 },
 };
 
 for (const theme of THEMES) {

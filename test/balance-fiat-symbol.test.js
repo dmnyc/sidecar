@@ -64,6 +64,7 @@ function run() {
   vm.createContext(ctx);
   vm.runInContext(
     lift(/  const STRIKE_DELAY_MOD_MS[\s\S]*?\n  \};\n/, 'glyphBeat')
+      + lift(/  \/\/ The strike dice[\s\S]*?\n  \}\n/, 'ironDiceStyle')
       + lift(/  const paintedSats = new WeakMap\(\);/, 'paintedSats record')
       + lift(/  function splitGlyphs\(el, text, strike\) \{[\s\S]*?\n  \}\n/, 'splitGlyphs')
       + lift(/  function paintBalanceEl\(el, parts, symClass\) \{[\s\S]*?\n  \}\n/, 'paintBalanceEl'),
