@@ -626,6 +626,13 @@
     await syncRelax();
   });
 
+  // "Restart" winds the running window back to its full original duration — the
+  // same act as approving the relax chips again, without leaving the page you're on.
+  $('relax-status-restart').addEventListener('click', async () => {
+    try { await call({ type: 'SIDECAR_RESTART_RELAX' }); } catch (_) {}
+    await syncRelax();
+  });
+
   // Reset the background idle auto-lock timer on active panel use (composing),
   // throttled so a burst of keystrokes doesn't spam the service worker — auto-lock
   // is minutes, so one ping every ~20s keeps it alive while you're actively typing.

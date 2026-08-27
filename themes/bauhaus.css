@@ -187,6 +187,11 @@
   --btn-lav-ring: rgba(17, 17, 17, 0.24);
   --btn-lav-shadow: rgba(255, 212, 0, 0.38);
 
+  /* Relax bar's restart chip: still unmistakably yellow, but stepped back toward
+     white so the blue End X keeps the loudest voice on the bar. */
+  --relax-restart-bg: linear-gradient(180deg, #FFE566, #FFDF4D 58%, #F8D420);
+  --relax-restart-ink: #111111;
+
   /* Quiet buttons stay paper — the way back should not compete with either action. */
   --btn-secondary-top: #FFFFFF;
   --btn-secondary-bot: #F0F0EA;

@@ -3133,6 +3133,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     RELAX.revoke(message.host, message.pubkey).then(() => { syncRelaxBadge(); sendResponse({ ok: true }); });
     return true; // async response
   }
+  // Panel's restart button on the relax status bar. Wind the running window back to
+  // its full stored duration — a re-grant extends rather than stacks and re-arms the
+  // expiry alarm (relax-grants.js), so this is grant() with the grant's own numbers.
+  // Host and pubkey come from the stored grant, never the message: at most this can
+  // reset a window that is already open, not start one for an arbitrary site.
+  if (message.type === 'SIDECAR_RESTART_RELAX') {
+    RELAX.active().then(async (grants) => {
+      const g = grants[0];
+      if (!g) { sendResponse({ ok: false }); return; }
+      await RELAX.grant(g.host, g.pubkey, g.duration);
+      syncRelaxBadge();
+      sendResponse({ ok: true });
+    }).catch(() => sendResponse({ ok: false }));
+    return true; // async response
+  }
   // Observable-queue queries/actions (see the approval-queue section up top).
   if (message.type === 'SIDECAR_GET_PENDING') {
     sendResponse({ ok: true, result: pendingView() });
