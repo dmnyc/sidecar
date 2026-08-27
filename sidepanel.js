@@ -10468,8 +10468,10 @@
   // hand-set pose reads as intention. Deliberately narrower than cast-iron.css's full
   // struck-type list: navigation subheads (section titles, view headers, row labels)
   // live in tight flex rows where a letter-level pose fights the layout rather than
-  // adding to it — tried everywhere first and reverted to just the headlines. The CSS
-  // mask/lip treatment still covers every heading regardless of this list.
+  // adding to it — tried everywhere first and reverted to just the headlines. In the
+  // theme picker only the Cast Iron plate strikes; each neighbor previews its own
+  // theme and keeps its own face square. The CSS mask/lip treatment still covers
+  // every heading regardless of this list, which is why both sides are kept in sync.
   //
   // Splitting is word-preserving: whitespace stays as real text nodes, so wrapping and
   // justification behave exactly as before, while each printable character becomes one
@@ -10494,6 +10496,7 @@
     '.welcome-title',
     '.destructive-warn-title',
     '.recv-success-title',
+    '.theme-card[data-theme="cast-iron"] .theme-name',
   ].join(',');
 
   function stampedHasRawText(el) {

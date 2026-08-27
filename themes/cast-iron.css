@@ -87,6 +87,31 @@
   --accent-fill: #b9b19f;
   --chip-ink: #12100e;
 
+  /* styles.css paints several surfaces from themed tokens whose hardcoded fallbacks
+     are speakeasy champagne or raw neon. Each fallback found during the gotcha pass:
+     --balance-ink resolves to var(--gold) for the countdown ring's digits (the two
+     balances already take --figure-ink from the struck-type rule below, so the ring
+     was the lone brass holdout); --focus-ring haloes inputs in gold at three call
+     sites this theme doesn't restate; --card-wash lays a champagne radial over the
+     top of the wallet card; --glow text-shadows the incoming-payment pulse in gold;
+     and --relax-dot-ok ignores var(--success) entirely for #4ade80 neon green. All
+     steel now. */
+  --balance-ink: var(--figure-ink);
+  --focus-ring: rgba(216, 209, 196, 0.1);
+  --card-wash: rgba(216, 209, 196, 0.05);
+  --glow: rgba(216, 209, 196, 0.5);
+  --relax-dot-ok: var(--success);
+
+  /* The two banner CTA buttons (.reload-banner-btn, .host-perm-grant-btn) draw from
+     the --btn-accent-* quartet, whose speakeasy fallback is a solid brass gradient
+     wearing a white lip. They are affirmative actions in the raised-metal-loud-object
+     family (badge, End disc): pale metal fill, sunk-die ink, and the white lip is
+     restated as a warm hairline by the scoped rule below. */
+  --btn-accent-top: #c5bdac;
+  --btn-accent-mid: #b3ab99;
+  --btn-accent-bot: #948c79;
+  --btn-accent-text: #12100e;
+
   --hover-soft: rgba(197, 189, 175, 0.05);
   --hover-medium: rgba(197, 189, 175, 0.09);
   --hover-faint: rgba(197, 189, 175, 0.04);
@@ -144,6 +169,13 @@
   --pattern-opacity: 1;
 }
 
+/* Text selection elsewhere in the browser defaulting to the OS highlight blue has
+   no place on a forged plate; populuxe and bauhaus pin theirs the same way. */
+[data-theme="cast-iron"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+
 /* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
    pixel-identical to the original); re-theme them for iron. The box-shadow swaps the
    default champagne glow for a plain dark seating — edges, not haloes — with only a
@@ -198,6 +230,23 @@
     inset 0 -1px 0 rgba(0, 0, 0, 0.8);
 }
 [data-theme="cast-iron"] .fab:hover::after { opacity: 1; }
+/* The banner CTA pair. styles.css gives both a white top lip (and the reload button
+   an accent glow); this theme's lamp story restates them — warm hairline above,
+   seating beneath, spill onto the plate instead of glow. Fill and ink arrive through
+   the --btn-accent-* tokens declared in the block above. */
+[data-theme="cast-iron"] .host-perm-grant-btn,
+[data-theme="cast-iron"] .reload-banner-btn {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.28),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.55);
+}
+[data-theme="cast-iron"] .reload-banner-btn {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.28),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(var(--accent-rgb), 0.18);
+}
+
 /* ---- inputs are recesses ----------------------------------------------------------------
    The fill does the reversing (see --input-bg above): black toward the top wall,
    light pooling at the floor. All the shadows add is one soft bite under the top
@@ -256,6 +305,7 @@
    needs somewhere quiet to stand against. */
 [data-theme="cast-iron"] .wallet-balance,
 [data-theme="cast-iron"] .pinned-balance-amt,
+[data-theme="cast-iron"] .countdown-num,
 [data-theme="cast-iron"] .relax-status-time,
 [data-theme="cast-iron"] .unlock-note-count {
   color: var(--figure-ink, var(--text));
@@ -264,12 +314,15 @@
     0 1px 1px rgba(0, 0, 0, 0.9);
 }
 /* Figures: the falloff AND the dice pose live on every split glyph — struck or
-   silently re-dealt by a denomination tap. Scoped to split glyphs so the '···'
-   placeholder and error dashes keep plain ink and square type. Full ink through the
+   silently re-dealt by a denomination tap; the ring's digits share all of it, with
+   dice still hanging on .bal-in alone so an unchanged digit never twitches. Scoped
+   to split glyphs so the '···' placeholder and error dashes keep plain ink and
+   square type. Full ink through the
    upper third, then down to ~58% remaining at the base: shaded, not vanished. The
    rings' landed pose is deliberately NOT here; see the strike chapter above. */
 [data-theme="cast-iron"] .wallet-balance .bal-glyph,
-[data-theme="cast-iron"] .pinned-balance-amt .bal-glyph {
+[data-theme="cast-iron"] .pinned-balance-amt .bal-glyph,
+[data-theme="cast-iron"] .countdown-num .bal-glyph {
   transform: rotate(var(--iron-rot, 0deg))
     translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
   -webkit-mask-image: linear-gradient(
@@ -298,6 +351,9 @@
 [data-theme="cast-iron"] .approval-host,
 [data-theme="cast-iron"] .destructive-warn-title,
 [data-theme="cast-iron"] .recv-success-title,
+/* The picker is a specimen wall: only this plate carries the theme's own pose
+   (outer attribute = the active page theme, inner = which card). */
+[data-theme="cast-iron"] .theme-card[data-theme="cast-iron"] .theme-name,
 [data-theme="cast-iron"] .relax-label {
   text-shadow:
     0 -1px 1px rgba(216, 209, 196, 0.08),
@@ -322,6 +378,18 @@
   transform-origin: 50% 58%;
   transform: rotate(var(--iron-rot, 0deg))
     translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
+}
+/* Section headings hold a shared 16px across every theme, but Impressed Metal draws
+   its caps short: ~9.7px of ascent at 16px where the roster's other faces run
+   11.4-13.1 (measured via canvas metrics). At 16 they read a size small. Stepped up
+   to 19, which puts their ink height back level with Jost/Playfair titles next door;
+   verified 19 over 20 by eye so the long labels keep clear room before the chevron. */
+[data-theme="cast-iron"] .settings-section-title {
+  font-size: 19px;
+}
+/* Same short-caps correction on this theme's picker tile. */
+.theme-card[data-theme="cast-iron"] .theme-name {
+  font-size: 24px;
 }
 
 /* ---- the strike: figures arrive stamped ---------------------------------------------
@@ -416,6 +484,14 @@
     0 0 0 6px rgba(197, 189, 175, 0.06);
 }
 
+/* Outbound payment history rows keep #f4a64b orange in every other theme (inbound
+   rides --success and already demotes). Bauhaus and populuxe retint theirs; iron
+   reads the arrow as the same struck metal as everything else on the plate. */
+[data-theme="cast-iron"] .tx-icon.out {
+  color: var(--orange);
+  background: rgba(143, 136, 122, 0.14);
+}
+
 /* ---- one exception to the borderless rule: the chart scrub ---------------------------
    The time chip floats over the chart plot, and a floating box needs to be DARKER
    than what it floats over, not edged — a raised hint would sit wrong on the plate.
@@ -426,7 +502,7 @@
   border-color: transparent;
   box-shadow: inset 0 1px 0 rgba(216, 209, 196, 0.06), 0 4px 14px rgba(0, 0, 0, 0.6);
 }
-[data-theme="cast-iron"] .wallet-chart-scrub-time { color: var(--text-2); }
+[data-theme="cast-iron"] .wallet-chart-scrub-time { color: var(--text); }
 
 /* The range chips failed twice at once: the ACTIVE chip took its ink and fill from
    --chip-ink / --accent-fill's fallback chain, which here resolved to two warm greys

@@ -609,6 +609,35 @@
         CARD_SUCCESS: 'color:#4F6B3A',
         CARD_PAY_SHADOW: 'rgba(21,101,192,0.32)'
       },
+      /* Cast Iron — jet cast metal, grey-warm steel accents, no whites and no gold.
+         Mirrors themes/cast-iron.css. CARD_GOLD is the theme's --balance-ink
+         (#968e7c, same value its struck figures wear) per the bauhaus note below;
+         on this plate it clears large-text 3:1 with room to spare. The pay button
+         reuses the raised-metal ramp the unread badge and End disc use in the side
+         panel: pale metal fill, sunk-die ink — the one loud object short of the
+         danger reds, because a pay button should not have to be hunted for.
+         CARD_PAY_SHADOW is a plain dark seating rather than the colored glows the
+         other themes throw, matching the theme's shadow tokens. */
+      'cast-iron': {
+        CARD_COLOR: 'color:#a59d8b',
+        CARD_BORDER: 'rgba(216,209,196,0.12)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(216,209,196,0.06),transparent 58%),linear-gradient(165deg,#131110,#050404)',
+        CARD_MUTED: 'color:#857d6c',
+        CARD_GOLD: 'color:#968e7c',
+        CARD_TEXT_2: 'color:#938b7a',
+        CARD_LAV: '#948c79',
+        CARD_PAY_TEXT: 'color:#12100e',
+        CARD_PAY_BG: 'linear-gradient(180deg,#c5bdac,#b3ab99 52%,#948c79)',
+        CARD_CANCEL_BG: 'rgba(197,189,175,0.08)',
+        CARD_TEXT: '#a59d8b',
+        CARD_BORDER_FAINT: 'rgba(216,209,196,0.08)',
+        CARD_TOGGLE_OFF: 'rgba(197,189,175,0.22)',
+        CARD_TRACK: '#b9b19f',
+        CARD_THUMB_OFF: '#938b7a',
+        CARD_WARN: 'color:#a98f6f',
+        CARD_SUCCESS: 'color:#7f9a88',
+        CARD_PAY_SHADOW: 'rgba(0,0,0,0.45)'
+      },
       /* Bauhaus — plaster, black rule lines, flat planes of primary. Mirrors
          themes/bauhaus.css; the card carries its own copy because it renders in the
          page's shadow DOM with no access to the extension's stylesheets. (Its font is
