@@ -176,7 +176,7 @@
   // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
   // prompt.js (the approval window's wordmark). Three documents, no module system between
   // them; a new light theme has to be registered in all three.
-  const LIGHT_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe']);
+  const LIGHT_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
   function logoSrcFor(themeName) {
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.
@@ -185,6 +185,22 @@
     return LIGHT_THEMES.has(themeName)
       ? 'icons/sidecar-logo-deco.svg'
       : 'icons/sidecar-logo.svg';
+  }
+
+  // Which cut of the placeholder garnish to use. It is drawn in white for a dark
+  // avatar disc, and on the five light themes that is white on white — the slice was
+  // simply not there, on the account switcher, the rows, the compose author, the
+  // notification modal, everywhere. Same shape as logoSrcFor above and for exactly the
+  // same reason, so it reads the same LIGHT_THEMES set: one place to register a theme,
+  // not two.
+  //
+  // Reads the live attribute rather than taking a parameter, because applyAvatar is
+  // called from a dozen renderers that have no idea what the theme is and should not
+  // have to be told.
+  function avatarPhSrc() {
+    return LIGHT_THEMES.has(document.documentElement.getAttribute('data-theme'))
+      ? 'icons/avatar-default-dark.svg'
+      : 'icons/avatar-default.svg';
   }
 
   // Swap every full-logo <img> in the panel to the variant for the active theme.
@@ -198,11 +214,15 @@
   function applyTheme(themeName) {
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
     swapLogos(themeName);
+    // Placeholders already on screen keep whatever cut they were built with, so they
+    // are re-pointed here — the attribute above has to be set first, since avatarPhSrc
+    // reads it.
+    document.querySelectorAll('.avatar-ph img').forEach((img) => { img.src = avatarPhSrc(); });
 
     // Update active state in theme selector
     document.querySelectorAll('.theme-card').forEach(card => {
@@ -647,6 +667,35 @@
     chrome.runtime.sendMessage({ type: 'SIDECAR_ACTIVITY' }).catch(() => {});
   }
 
+  // ---- Par Avion's map leg -------------------------------------------------------
+  // The field in that theme is a world map about three times the panel's width (see
+  // themes/patterns.css), so only a slice of the world is on the paper at any moment.
+  // Rather than pick one slice and print it forever, the window moves a leg further
+  // round on every unlock: open the panel over the Atlantic, come back after lunch and
+  // it is somewhere over the Indian Ocean. Nothing is announced and nothing is
+  // configurable — it is meant to be noticed the third or fourth time, not the first.
+  //
+  // 37% a leg, from a random start. A step that shares no factor with 100 walks the
+  // whole map before it repeats a position (0, 37, 74, 11, 48, 85, 22, …), where a
+  // rounder number would bounce between two or three views forever; the random start
+  // is what stops two browsers from flying in formation. Held in memory only: the
+  // panel document survives lock and unlock, so the journey continues across a lock,
+  // and a panel reload simply starts a new one somewhere else. Nothing worth a byte
+  // of storage.
+  //
+  // Written for EVERY theme, not just this one. It is one custom property on <html>
+  // that only par-avion's background reads; gating it on the active theme would mean
+  // this had to be re-run on theme change, which is one more thing to forget.
+  const MAP_LEG_STEP = 37;
+  let mapLeg = Math.floor(Math.random() * 100);
+  function advanceMapLeg() {
+    mapLeg = (mapLeg + MAP_LEG_STEP) % 100;
+    document.documentElement.style.setProperty('--map-leg', mapLeg + '%');
+  }
+  // True until the panel has shown the main view once, so the first render after a
+  // load counts as an arrival and gets its own leg.
+  let wasLocked = true;
+
   // ---- top-level routing ----
   async function refresh() {
     // A pending signing approval is modal — it stays put until the user decides,
@@ -691,6 +740,7 @@
       stopWalletMonitor();
       if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
       balanceCache = { pubkey: null, sats: null };
+      wasLocked = true; // the next unlock is a new leg — see advanceMapLeg
       show($('view-lock'));
       // On Never, the only thing that can have locked this is the browser closing —
       // the derived key lives in chrome.storage.session, which is memory-only and
@@ -705,6 +755,12 @@
         .catch(() => {});
       setTimeout(() => $('unlock-pin').focus(), 50);
     } else {
+      // Coming from the lock screen (or from a fresh load): move the Par Avion map on
+      // by a leg. Here rather than in the PIN handler because this is the one place
+      // every route into the main view passes through — PIN, browser-close unlock,
+      // and the first render after a reload alike.
+      if (wasLocked) advanceMapLeg();
+      wasLocked = false;
       show($('view-main'));
       dismissPostBanner(); // a note link is account-specific; clear on any state change
       renderMain();
@@ -1737,12 +1793,12 @@
     if (a && a.picture) {
       img.src = a.picture;
       img.onerror = () => {
-        img.src = 'icons/avatar-default.svg';
+        img.src = avatarPhSrc();
         img.onerror = null;
         box.classList.add('avatar-ph');
       };
     } else {
-      img.src = 'icons/avatar-default.svg';
+      img.src = avatarPhSrc();
       box.classList.add('avatar-ph');
     }
     box.appendChild(img);

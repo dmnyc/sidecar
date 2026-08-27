@@ -218,3 +218,96 @@ body {
     radial-gradient(900px 380px at 50% -10%, rgba(216, 209, 196, 0.055), transparent 60%),
     linear-gradient(180deg, #131010 0%, var(--bg) 34%);
 }
+
+/* Par Avion — the envelope itself: the chevron round three edges, and the world
+   printed on the paper inside them.
+
+   THE STRIPE IS A BORDER, NOT A FIELD, which is the correction that made this theme
+   read as an envelope at all. The first pass laid the chevron across the whole panel
+   as texture, levelled by mean luminance deviation against the other light themes the
+   way the blocks above are, and it measured correctly and looked like wrapping paper:
+   what an airmail envelope actually does with that stripe is run it round the edge and
+   leave the middle for the address. So it runs the top and both sides at ink strength
+   — 9px of it, three layers, since one gradient cannot be two different repeat axes —
+   and the field inside is the map. The 7% version of that field is not gone: it moved
+   to the top chrome, behind the account bar and the tabs, where the map does not reach.
+   See --airmail-field in themes/par-avion.css.
+
+   The band is var(--airmail-band) from themes/par-avion.css, the same declaration the
+   wallet card, the pinned bar and the picker card wear. Four consumers now, one
+   printing. The bottom edge is deliberately bare: it is where the map runs off.
+
+   THE MAP RUNS FROM THE TOP BAR TO THE FLOOR. `auto calc(100% - var(--top-chrome))`
+   sizes it against the viewport minus the height of the bar, so both of its own edges
+   land on something structural rather than in the middle of the paper: 90S sits on the
+   panel's bottom edge, and its northern edge tucks under the bar. There is nowhere the
+   map stops that is not already a line, so there is no seam to see.
+
+   Two earlier versions are worth knowing about, because each was wrong in an
+   instructive way. 82% of the viewport left a band of bare paper under the menu. Full
+   height put the map behind the header, where the stripe belongs. And measuring to the
+   bar PLUS the tabs was right in the main view and wrong on the settings screen, which
+   has a bar and no tabs and got 42px of dead paper behind its headline for it — see
+   --top-chrome in themes/par-avion.css for why measuring to the bar alone is correct
+   in both places.
+
+   The chrome height is a pixel value and the rest is a percentage on purpose: a bar is
+   padding plus a fixed font size and does not scale, while everything below it is
+   whatever the window gives us.
+
+   Percentages resolve against the viewport because body carries
+   background-attachment: fixed, which is also what makes the field hold still while
+   views scroll over it. Roughly a quarter of the world is in frame at a time — see
+   advanceMapLeg in sidepanel.js, which moves the window a leg further round on each
+   unlock.
+
+   WEIGHT, AND WHY IT IS A RANGE. The tile metric the three older light themes were
+   levelled on cannot be applied here, because there is no tile: a repeating pattern
+   weighs the same everywhere by construction and a map does not. Measured the nearest
+   honest way instead — rasterized at the size it actually renders, over this theme's
+   own --bg, mean absolute luminance deviation across a 400x820 panel — the field comes
+   out different at every leg (re-measured after the map grew to meet the menu; at the
+   earlier 82% the same legs ran about 0.004 lighter):
+
+       leg  0  0.0275   the Pacific, nearly all water
+       leg 11  0.0409
+       leg 37  0.0412
+       leg 22  0.0430
+       leg 48  0.0449
+       leg 85  0.0545
+       leg 74  0.0589   Africa and Asia together, the heaviest window there is
+
+   against aegean 0.0359, bauhaus 0.0326, populuxe 0.0401. So the quiet half of the
+   journey sits inside the band the other light themes hold and the land-heavy half
+   runs above it, up to about half again over Populuxe. That is recorded rather than
+   levelled away because it is the honest consequence of a chosen design: the map is
+   meant to be seen, and flattening the continents until every window measured the
+   same would be flattening the thing itself.
+
+   If it ever does need to come down, move the INKS, not the size. Land carries 10%
+   fill and an 18% coastline and the graticule 10%, all of them the same blue over the
+   same paper, so the whole figure scales very nearly linearly with them: multiplying
+   the three by 0.8 (fill 0.08, coast 0.145, graticule 0.08) puts the mean at the
+   band's centre and costs about a fifth of the map's presence. The fill is most of the
+   number; the coastline is most of the character.
+
+   No wash at the bottom right here. The other light themes put one there to keep the
+   field from going flat, and this field has a world on it. */
+[data-theme="par-avion"] body {
+  background-image:
+    var(--airmail-band),
+    var(--airmail-band),
+    var(--airmail-band),
+    url(par-avion-map.svg),
+    linear-gradient(170deg, #FDFBF4 0%, var(--bg) 58%);
+  background-size: 100% 9px, 9px 100%, 9px 100%, auto calc(100% - var(--top-chrome, 63px)), auto;
+  /* --map-leg is the longitude window, written by sidepanel.js on each unlock and
+     defaulted here so every other surface that loads this sheet — the approval
+     window, the welcome page, help — still gets a sensible view of the map. */
+  background-position:
+    top left, top left, top right, var(--map-leg, 44%) bottom, 0% 0%;
+  /* Restated because styles.css sets four values on body, written when every theme
+     had four layers. Any theme that changes its layer count has to say this for
+     itself; the Brownstone block above is the other one. */
+  background-repeat: repeat-x, repeat-y, repeat-y, no-repeat, no-repeat;
+}

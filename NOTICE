@@ -13,5 +13,16 @@ Apache-2.0: http://www.apache.org/licenses/LICENSE-2.0
 The other vendored bundles and their licenses are listed in VENDOR.md
 (nostr-tools and nip49: Unlicense; qrcode-generator: MIT).
 
-Every bundled font is SIL OFL 1.1 and carries its own OFL-*.txt beside it in
-fonts/, so none of them needs an entry here.
+Most bundled fonts are SIL OFL 1.1 and carry their own OFL-*.txt beside them in
+fonts/, so they need no entry here. Two are not OFL and each carries a
+LICENSE-*.txt of its own:
+
+Special Elite (fonts/special-elite.ttf), Copyright (c) 2010 by Brian J.
+Bonislawsky DBA Astigmatic (AOETI), licensed under the Apache License,
+Version 2.0. Redistributed unmodified from google/fonts; the full license
+text and the provenance record are in fonts/LICENSE-SpecialElite.txt.
+Apache-2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Impressed Metal (fonts/impressed-metal.ttf), ©GemFonts98 (Graham Meade), is
+freeware rather than open-source licensed; the terms and the provenance
+questions asked of them are recorded in fonts/LICENSE-ImpressedMetal.txt.
