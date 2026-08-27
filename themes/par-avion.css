@@ -601,6 +601,23 @@
   background: var(--balance-ink);
   color: var(--fab-icon);
 }
+/* Restart, beside it. The shared default is the Trust button's fill, and in this theme
+   that is KRAFT — which measures 1.3 to 1.9 against the bar it sits on and simply does
+   not read as an object. Every other theme names its own quieter register here rather
+   than borrowing Trust's (see the note in styles.css); this is that value.
+
+   The pen blue, sunk on opacity, for the reason the bar beside it is blue: this is the
+   control that winds a METER back, and meters in this theme are blue while the mark and
+   the control that ends it are red. 0.75 alpha lands the disc at 4.37 against the bar
+   and carries a white arrow at 4.56 — a real object, one clear step back from End's
+   solid red (5.63 / 5.55). Anything under 0.7 stops clearing 3.0 for the arrow. */
+[data-theme="par-avion"] .relax-status-restart {
+  --relax-restart-bg: linear-gradient(180deg,
+    rgba(42, 99, 168, 0.78),
+    rgba(27, 76, 140, 0.75) 58%,
+    rgba(18, 58, 110, 0.72));
+  --relax-restart-ink: #FFFFFF;
+}
 /* THE BAR STAYS BLUE, and the line this theme draws is between meters and marks
    rather than between widgets. Every countdown that shows PROGRESS is --gold: the send
    ring, the unlock cooldown ring, and this fill. What goes red is the figure being
