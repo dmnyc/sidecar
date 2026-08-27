@@ -192,6 +192,11 @@
   --btn-lav-ring: rgba(168, 190, 214, 0.34);
   --btn-lav-shadow: rgba(0, 0, 0, 0.45);
 
+  /* Relax bar's restart chip: a deeper charcoal than the lav trio so the whole
+     disc recedes beneath the ember End X instead of echoing it. */
+  --relax-restart-bg: linear-gradient(180deg, #1b232d, #121820 58%, #0c1117);
+  --relax-restart-ink: #d8e3ee;
+
   /* The exception: small chips that use --accent-fill keep the loud ember,
      because on a chip the FILL is the selected state — dark-on-dark would erase
      the distinction between an active preset and an idle one. They get their own

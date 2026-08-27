@@ -250,7 +250,7 @@
 
     <!-- Persistent bottom status bar, shown only while a relax (auto-sign) window
          is active — Apogee-style. Status dot + signing account + live mm:ss
-         countdown + End. See renderRelaxStatus in sidepanel.js. -->
+         countdown + Restart / End. See renderRelaxStatus in sidepanel.js. -->
     <div id="relax-status" class="relax-status hidden">
       <div class="relax-status-top">
         <span class="relax-status-who">
@@ -259,6 +259,9 @@
           <span class="relax-status-sep">·</span>
           <span id="relax-status-host">—</span>
         </span>
+        <button type="button" id="relax-status-restart" class="relax-status-restart" aria-label="Restart auto-sign timer" title="Restart timer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+        </button>
         <button type="button" id="relax-status-end" class="relax-status-x" aria-label="End auto-sign" title="End auto-sign">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
         </button>

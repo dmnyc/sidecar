@@ -3135,6 +3135,22 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .relax-status-x svg { width: 12px; height: 12px; display: block; }
 .relax-status-x:hover { filter: brightness(1.1); }
+/* Restart sits left of End and must stay quieter than it — End is this bar's one
+   accent (gold), reset-the-timer is housekeeping. Default fill borrows the Trust
+   button's lavender pair via --btn-lav-*, which suits most themes; palettes where
+   that either collides with End's hue or shouts over it retune the disc through
+   the two hooks below in themes/<name>.css (see nixie for the recessive pattern).
+   --relax-restart-bg takes a whole background value, so a theme can go translucent,
+   flatter, or darker without touching the metrics. */
+.relax-status-restart {
+  width: 22px; height: 22px; flex-shrink: 0; padding: 0; border-radius: 50%; cursor: pointer;
+  border: none;
+  background: var(--relax-restart-bg, linear-gradient(180deg, var(--btn-lav-top, #cebfff), var(--btn-lav-mid, var(--lav)) 58%, var(--btn-lav-bot, var(--purple))));
+  color: var(--relax-restart-ink, var(--btn-lav-text, #190a33));
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.relax-status-restart svg { width: 12px; height: 12px; display: block; }
+.relax-status-restart:hover { filter: brightness(1.1); }
 .relax-status-bottom { display: flex; align-items: center; gap: 9px; }
 .relax-status-track { flex: 1; height: 5px; border-radius: 99px; background: rgba(167, 139, 250, 0.18); overflow: hidden; }
 .relax-status-fill { height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); transition: width 1s linear; }

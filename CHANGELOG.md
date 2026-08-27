@@ -11,6 +11,7 @@ Update that section alongside this file as part of every release.
 
 ### Added
 - **A new theme: Cast Iron.** Black metal taken all the way down — plates a step from void, no drawn outlines: boxes are announced by edge lighting and shadow alone. Every scrap of type is set in Impressed Metal, a groove-outline face whose letters read as the impression a stamp leaves in the plate; figures arrive under a press and settle slightly crooked, like hand-struck marks. No white ink anywhere — the quietest thing in the picker.
+- **Restart for the auto-sign timer.** While a relaxed-permissions window runs, the bottom bar's arrow button winds the countdown back to its full original duration — the same act as tapping the relax chips again, without leaving what you were doing. Each theme paints the restart disc in its own quieter register so it never competes with End.
 
 ### Changed
 - **Settings is organized into collapsible sections.** The single long scroll is now eight labeled ones — Appearance, Posting, Apps & browsing, Wallet & payments, Relays, Security & backup, Developer (dev builds only), Sharing & updates — with one open at a time (Appearance on first run) and your choice remembered. The danger zone stays outside every section at the bottom: a reset is never behind a toggle.

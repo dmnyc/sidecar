@@ -51,6 +51,12 @@
   --pending-sub: #989898;
   --purple: #d4d4d4; /* kept for logo compatibility */
   --lav: #e0e0e0;
+
+  /* Relax bar's restart chip. The default trio resolves to silver here — the same
+     metal as the End X — so the disc goes charcoal instead: recessive value, no
+     second silver fighting the accent. */
+  --relax-restart-bg: linear-gradient(180deg, #383838, #2c2c2c 58%, #232323);
+  --relax-restart-ink: #dedede;
   --hover-soft: rgba(192, 192, 192, 0.08);
   --hover-medium: rgba(192, 192, 192, 0.12);
   --hover-faint: rgba(192, 192, 192, 0.06);

@@ -127,6 +127,12 @@
   --btn-lav-ring: rgba(139, 115, 85, 0.34);
   --btn-lav-shadow: rgba(139, 115, 85, 0.20);
 
+  /* Relax bar's restart chip: the same parchment let down to roughly two-thirds
+     strength, so it reads as a watermark beside the bronze End X rather than a
+     second solid button. */
+  --relax-restart-bg: linear-gradient(180deg, rgba(246, 238, 218, 0.72), rgba(235, 224, 196, 0.68) 58%, rgba(221, 207, 171, 0.66));
+  --relax-restart-ink: #2a2a2a;
+
   /* Pending confirm. The gold default sat at 1.68:1 for the title against this theme's
      cream card. Dark bronze instead — same hue family, without the wash. --pending-sub is
      overridden too because this theme's --muted is itself only 3.68:1, so inheriting the

@@ -205,6 +205,11 @@
   --btn-lav-ring: rgba(28, 26, 23, 0.22);
   --btn-lav-shadow: rgba(0, 103, 116, 0.34);
 
+  /* Relax bar's restart chip: the teal run at reduced strength — same hue, sunk
+     toward the bar so the olive End X out-weighs it. */
+  --relax-restart-bg: linear-gradient(180deg, rgba(0, 124, 139, 0.62), rgba(0, 103, 116, 0.56) 58%, rgba(0, 80, 90, 0.52));
+  --relax-restart-ink: #FFFFFF;
+
   /* Quiet buttons stay paper — the way back should not compete with either action. */
   --btn-secondary-top: #FFFFFF;
   --btn-secondary-bot: #F5EADA;
