@@ -498,11 +498,18 @@
    Solid void behind, lip of light, hard drop shadow; the time line steps up from
    --muted so it holds at 9.5px. */
 [data-theme="cast-iron"] .wallet-chart-scrub {
-  background: rgba(5, 4, 4, 0.94);
-  border-color: transparent;
+  /* Nearly opaque so plot lines stop ghosting through behind the type, plus a faint
+     warm hairline to hold the edge where bright fills pass underneath. */
+  background: rgba(5, 4, 4, 0.97);
+  border-color: rgba(216, 209, 196, 0.14);
   box-shadow: inset 0 1px 0 rgba(216, 209, 196, 0.06), 0 4px 14px rgba(0, 0, 0, 0.6);
 }
-[data-theme="cast-iron"] .wallet-chart-scrub-time { color: var(--text); }
+/* Both lines lift well clear of the plate; the price keeps its step above the time. */
+[data-theme="cast-iron"] .wallet-chart-scrub-price { color: #c5bdac; }
+[data-theme="cast-iron"] .wallet-chart-scrub-time {
+  color: #b3ab99;
+  font-size: 10px;
+}
 
 /* The range chips failed twice at once: the ACTIVE chip took its ink and fill from
    --chip-ink / --accent-fill's fallback chain, which here resolved to two warm greys
@@ -511,9 +518,13 @@
    sensible floor at 10px. The token pair is now declared in the block above (shared
    with every other accent chip), so this rule only adds the die's inset seating to
    what the fill already says. */
-[data-theme="cast-iron"] .wallet-chart-range-btn { color: var(--muted); }
-[data-theme="cast-iron"] .wallet-chart-range-btn:hover { color: var(--text-2); } /* tie goes to the theme sheet; keep the ramp */
+/* :not(.active) matters: an unqualified color here would tie (0,2,0) with the base
+   .active rule and, loading later, overwrite the active chip's sunk-die ink — which
+   is exactly the faint-label failure this chapter exists to prevent. */
+[data-theme="cast-iron"] .wallet-chart-range-btn:not(.active) { color: var(--muted); }
+[data-theme="cast-iron"] .wallet-chart-range-btn:not(.active):hover { color: var(--text-2); }
 [data-theme="cast-iron"] .wallet-chart-range-btn.active {
+  color: var(--chip-ink);
   box-shadow:
     inset 0 1px 0 rgba(216, 209, 196, 0.28),
     inset 0 -1px 1px rgba(0, 0, 0, 0.55);
