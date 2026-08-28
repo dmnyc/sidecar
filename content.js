@@ -479,7 +479,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
   function setCardTheme(t) {
     if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
@@ -637,6 +637,36 @@
         CARD_WARN: 'color:#a98f6f',
         CARD_SUCCESS: 'color:#7f9a88',
         CARD_PAY_SHADOW: 'rgba(0,0,0,0.45)'
+      },
+      /* Metropolis — soot, concrete and tarnished brass. Mirrors themes/metropolis.css;
+         the card carries its own copy because it renders in the page's shadow DOM with
+         no access to the extension's stylesheets.
+         CARD_GOLD is the theme's --balance-ink rather than its --gold, per the Bauhaus
+         note below: its one use in CARD_CSS is the amount at display size, where the
+         bar is WCAG large text at 3.0:1 and the lit brass is the right value.
+         CARD_LAV takes the theme's re-pointed --lav (brass, not lavender), since the
+         theme's whole argument is that nothing here is purple.
+         Nothing mirrors the strike — that is one @keyframes block on the side panel's
+         balance, and this card has no balance animation to hang it on. */
+      metropolis: {
+        CARD_COLOR: 'color:#E8E0D0',
+        CARD_BORDER: 'rgba(168,132,60,0.34)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(168,132,60,0.14),transparent 58%),linear-gradient(165deg,#241F1A,#0D0C0A)',
+        CARD_MUTED: 'color:#9A8F7C',
+        CARD_GOLD: 'color:#E3B55C',
+        CARD_TEXT_2: 'color:#C9BFAC',
+        CARD_LAV: '#DCC084',
+        CARD_PAY_TEXT: 'color:#17120A',
+        CARD_PAY_BG: 'linear-gradient(180deg,#EBC97A,#C9A24A 52%,#8F6C28)',
+        CARD_CANCEL_BG: 'rgba(168,132,60,0.12)',
+        CARD_TEXT: '#E8E0D0',
+        CARD_BORDER_FAINT: 'rgba(168,132,60,0.18)',
+        CARD_TOGGLE_OFF: 'rgba(168,132,60,0.25)',
+        CARD_TRACK: '#D3A94E',
+        CARD_THUMB_OFF: '#9A8F7C',
+        CARD_WARN: 'color:#E9A85E',
+        CARD_SUCCESS: 'color:#7FB88C',
+        CARD_PAY_SHADOW: 'rgba(168,132,60,0.30)'
       },
       /* Bauhaus — plaster, black rule lines, flat planes of primary. Mirrors
          themes/bauhaus.css; the card carries its own copy because it renders in the

@@ -214,7 +214,7 @@
   function applyTheme(themeName) {
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

@@ -393,7 +393,7 @@
     // this window always rendered Speakeasy regardless of what the panel was wearing.
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
     // than writing an arbitrary string into the DOM.
-    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
     const theme = THEMES.includes(data.theme) ? data.theme : 'speakeasy';
     document.documentElement.setAttribute('data-theme', theme);
 

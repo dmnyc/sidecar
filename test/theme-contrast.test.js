@@ -343,6 +343,15 @@ const FLOORS = {
   // honest new measurements — not a concession snuck past this table. Every ink still
   // clears AA where AA applies (--text 6.99, --text-2 5.57 on the darkest plate).
   'cast-iron': { '--muted': 4.61, '--faint': 2.39, '--gold': 8.83 },
+  // Metropolis clears AA on --muted (5.13) without the darkening Populuxe needed, because
+  // its ground is soot rather than a mid value — there is room between the surfaces and the
+  // ink for a three-level grey hierarchy, which is exactly what the art-deco note above says
+  // a cream palette cannot give you. --faint is 2.85, mid-pack for the dark themes and under
+  // AA like all of them; it carries no text a user has to read.
+  // --gold is 7.43 as the INK half of a role split made in the theme's first commit rather
+  // than retrofitted — the bright brass is --amber/--accent-fill and is a `color:` nowhere,
+  // so this number is not at risk from a fill being restyled.
+  metropolis: { '--muted': 5.1, '--faint': 2.8, '--gold': 7.4 },
   // Par Avion clears AA on all four surfaces for all five inks, --faint included — the
   // fourth theme to manage it, for the same structural reason Populuxe does: the warm
   // stock is the FIELD and the surface body text sits on is near-white. --faint was

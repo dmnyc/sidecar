@@ -219,6 +219,68 @@ body {
     linear-gradient(180deg, #131010 0%, var(--bg) 34%);
 }
 
+/* Metropolis — shafts of light from a source above the frame, dying into soot.
+   The one motif in the film that is neither a machine nor a face: hard-edged beams
+   fanning down over the towers, which is also what the 1927 poster is mostly made of.
+
+   NOT A TILE, and that is the point of difference. Every patterned theme here repeats
+   a motif (a lattice, a meander, a course of masonry); this one places a single figure
+   anchored to the top of the frame and lets it fall off. A repeating fan would read as
+   corduroy at panel width — the beams have to converge on ONE point or they are just
+   diagonal stripes, which is Film Noir's territory turned 30 degrees.
+
+   Sized to the frame rather than to a pixel value, the same reasoning as Populuxe:
+   the origin is at 50% of the width, so the figure stays centred and symmetrical at
+   whatever width the side panel is dragged to. A fixed size would swing the fan's
+   axis off-centre at every width except one.
+
+   THE ORIGIN IS FAR ABOVE THE FRAME, and that is the whole difference between this and
+   Art Deco's tile. Both are fans. Put the vertex just above the top edge and the beams
+   sweep the full width as a SUNBURST, which is deco ornament and is what deco-pattern.svg
+   already does; put it a panel-height and a tenth above (50% -110%) and the panel only
+   sees a narrow slice of the fan, so the beams run near-vertical and diverge just enough
+   to say they come from somewhere. The first build of this had the vertex at -14% and
+   rendered as a starburst behind the whole panel — worth recording, because the value
+   looks arbitrary and is not.
+
+   SOFT EDGES, not hard stops. Hard-edged beams read as slats — architecture, a grille,
+   a venetian blind — which is Film Noir's figure turned thirty degrees. Ramping each
+   beam up and back down reads as light instead. That is also why the repeat is 6.5deg
+   and not the 2-3deg a denser fan wanted: at seven or eight shafts across the panel the
+   thing reads as corduroy, and at three or four it reads as a window.
+
+   Two beams per repeat, a wide one and a half-strength narrow one, so the rhythm is
+   uneven — an even fan reads as a machined part, and this wants light through a gap.
+
+   The falloff is the FIRST layer, not a mask and not a pseudo-element: background layers
+   paint first-listed on top, so a soot gradient at the head of the stack draws over the
+   beams and fades them out down the panel. A `mask-image` would have taken the base
+   gradient with it, and a fixed ::before would have put a painted element between the
+   background and the content for no gain. Beams are at strength across the header and
+   gone by two-thirds down, so content sits on bare soot.
+
+   No luminance figure quoted, unlike the three light themes above: those were levelled
+   against EACH OTHER and the number is what holds them in a band. The dark themes are
+   not a band — noir's slats, iron's bare falloff and this are three different amounts of
+   nothing — so this was set by eye against them, which is the honest description of it. */
+[data-theme="metropolis"] body {
+  background-image:
+    linear-gradient(180deg, transparent 0%, rgba(13, 12, 10, 0.38) 34%, var(--bg) 72%),
+    repeating-conic-gradient(from 176.75deg at 50% -110%,
+      transparent 0deg,
+      rgba(232, 224, 208, 0.085) 1.1deg,
+      transparent 2.2deg,
+      transparent 4deg,
+      rgba(232, 224, 208, 0.038) 4.7deg,
+      transparent 5.35deg,
+      transparent 6.5deg),
+    radial-gradient(1200px 520px at 50% -10%, rgba(168, 132, 60, 0.10), transparent 62%),
+    linear-gradient(178deg, #17140F 0%, var(--bg) 46%);
+  /* Centre the fan; the gradients stay anchored. Every theme does this now, so a
+     pattern is never clipped at the left edge. */
+  background-position: 0% 0%, center, 0% 0%, 0% 0%;
+}
+
 /* Par Avion — the envelope itself: the chevron round three edges, and the world
    printed on the paper inside them.
 

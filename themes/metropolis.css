@@ -1,0 +1,302 @@
+/* ============================================================
+   Sidecar — Metropolis Theme
+   Soot, concrete and tarnished brass, under shafts of light.
+   Inspired by Fritz Lang's Metropolis (1927).
+   ============================================================ */
+
+/* WHAT SEPARATES THIS FROM THE THREE THEMES IT SITS NEAREST, because a ninth
+   theme is only worth shipping if it is not a recolour of an eighth:
+
+     Art Deco    same movement, opposite treatment. Deco INDUSTRIAL rather than
+                 deco decorative — soot instead of eggshell, tarnished brass
+                 instead of champagne. The relationship is deliberate and runs
+                 through the ink: --text here is #E8E0D0, which is Art Deco's
+                 --bg exactly. The light theme's ground is the dark theme's ink.
+
+     Cast Iron   the closest call, and the one this theme must not become. Iron
+                 is a bare plate under one lamp: neutral jet, no hue, no pattern,
+                 depth from light alone, and figures STRUCK INTO the metal. This
+                 has a definite ochre cast, a real pattern, high contrast, and
+                 figures that arrive LIT. A workbench against a lit city.
+
+     Film Noir   noir is a cold field with one warm figure — neutral silver ink,
+                 gold only on the balance. This is the inverse: warm brass
+                 throughout, and the only cold thing in it lasts 620ms (see the
+                 strike at the foot of this file).
+
+   ONE HUE. Brass is the whole palette; there is no second accent at rest. An
+   arc-light cyan was designed, built and rejected — it was the strongest
+   separator from Cast Iron and it made the theme read as science fiction rather
+   than as 1927. What survives of it is the strike: a white flash that exists
+   for the length of one balance animation and is never a border, an ink or a
+   fill. See --arc-flash. */
+
+[data-theme="metropolis"] {
+  color-scheme: dark;
+
+  /* Limelight — 1920s poster capitals, heavy verticals and hairline horizontals.
+     The one deliberate category overlap in the set: at small sizes it reads as a
+     high-contrast display serif, which is Speakeasy's Playfair. Chosen anyway,
+     against two alternatives that measured worse when all three were rendered at
+     the four sizes the panel actually uses. The full comparison is recorded above
+     the @font-face block in fonts.css; it is separated from Speakeasy on palette
+     rather than on shape. */
+  --font-display: 'Limelight', 'Copperplate Gothic', Georgia, var(--font-ui);
+
+  /* How far this theme's display face has to move to sit optically centred, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink.
+
+     MEASURED, not guessed: the digits' ink box against the em box at line-height 1,
+     with Playfair as a control (its computed value is -0.13em against the -0.08em
+     styles.css ships, the gap being its oldstyle figures' ascenders and descenders
+     making the ink box taller than the number's visual body). Limelight has flat
+     lining figures, so ink box and cap band are the same thing and there is no such
+     gap to split — the measurement stands as taken. It rides HIGH, like Josefin
+     does in Art Deco, so the correction pushes down. */
+  --display-ink-nudge: 0.04em;
+
+  /* surfaces — soot, with a brown cast rather than Cast Iron's neutral jet */
+  --bg: #0D0C0A;
+  --bg-2: #14120F;
+  --velvet-1: #1B1815;
+  --velvet-2: #241F1A;
+  --velvet-1-rgb: 27, 24, 21;
+  --av-from: #241F1A;
+  --av-to: #14120F;
+  --banner-accent: #241F1A;
+  --border: rgba(168, 132, 60, 0.18);
+  --border-strong: rgba(168, 132, 60, 0.34);
+  --border-rgb: 168, 132, 60;
+  --well-rgb: 20, 18, 15;
+
+  /* semantic. Kept far enough apart in hue that the traffic-light reading survives
+     a palette this warm — the danger red is a real red (hue ~5) and not a hotter
+     copper, which is the mistake a brass-only theme invites. */
+  --warn: #E9A85E;
+  --warn-rgb: 233, 168, 94;
+  --success: #7FB88C;
+  --success-rgb: 127, 184, 140;
+
+  /* brand — brass, SPLIT BY ROLE from the first commit.
+     This codebase has now made the gold-as-both-ink-and-fill mistake twice: Art Deco
+     shipped #C5A059 as a `color:` in 25 rules at 1.67:1, and Bauhaus had the same
+     defect. The split is not an optimisation here, it is the starting shape.
+
+       --gold         the INK. 7.4:1 on the tightest surface.
+       --amber        the bright fill. Never a `color:`.
+       --accent-fill  the tarnished metal every filled surface is pinned to, so
+                      darkening the ink later cannot drag the fills down with it.
+
+     --orange keeps its own role (@mentions, four checkbox accent-colors) and is a
+     copper rather than a second gold, so a mention still reads as a different thing
+     from a brass label — the distinction Art Deco's note argues for. Copper and
+     brass are one family of warm metal, which is why this does not break the
+     one-hue rule at the top of the file. */
+  --orange: #C87F4A;
+  --amber: #E8C46B;
+  --gold: #D3A94E;
+  --balance-ink: #E3B55C;
+  --accent-rgb: 168, 132, 60;
+  --gold-soft: rgba(168, 132, 60, 0.42);
+
+  /* The metallic, pinned — each of these otherwise falls back to var(--gold). */
+  --accent-fill: #A8843C;
+  --balloon-bg-hover: #A8843C;
+  --btn-accent-mid: #A8843C;
+  --glow: #C9A45C;
+  /* Not a plain token — the shared rule's fallback is a whole gradient whose second
+     stop is var(--gold), so it has to be restated rather than pointed at. */
+  --fab-bg: linear-gradient(160deg, #EBC97A, #A8843C);
+
+  /* Speakeasy's lavenders, re-pointed to brass. Names kept — they are shared with
+     the other themes and read in ~46 places — but nothing in a soot-and-brass theme
+     should be purple, and left alone these are the only cool notes in it. Same move
+     Art Deco makes for the same reason. */
+  --purple: #C9A45C;
+  --lav: #DCC084;
+
+  --fiat-sym-ink: #C9A45C;
+  /* The shared 0.72 mute drops the symbol under the small-text bar on the pinned
+     bar, where 16.8px/600 answers to 4.5. Unmuted it clears. Same call as noir. */
+  --fiat-sym-opacity: 1;
+
+  --hover-soft: rgba(168, 132, 60, 0.08);
+  --hover-medium: rgba(168, 132, 60, 0.12);
+  --hover-faint: rgba(168, 132, 60, 0.06);
+  --mention-bg: rgba(200, 127, 74, 0.16);
+  --scroll-thumb: linear-gradient(180deg, #2C261F, #1B1815);
+  --scroll-thumb-hover: #3A3129;
+
+  /* primary button — the brass ramp. All three stops are overridden because the mid
+     defaults to --orange, which is the copper here and would pull the button off the
+     brass the rest of the theme is filled with. */
+  --btn-primary-top: #EBC97A;
+  --btn-primary-mid: #C9A24A;
+  --btn-primary-bot: #8F6C28;
+  --btn-shadow: rgba(168, 132, 60, 0.30);
+
+  /* "Trust this site" — the same metal one step down and matte, so it reads as the
+     quieter action beside the primary rather than as a second lit button. The shared
+     default puts a lavender at the top stop and reaches --lav / --purple below it,
+     which is a fill this theme has no business rendering. */
+  --btn-lav-top: #C9A45C;
+  --btn-lav-mid: #A8843C;
+  --btn-lav-bot: #7E6129;
+  --btn-lav-text: #17120A;
+  --btn-lav-ring: rgba(232, 224, 208, 0.10);
+  --btn-lav-shadow: rgba(0, 0, 0, 0.42);
+
+  /* Relax bar's restart chip. The default trio resolves to brass here — the same
+     metal as the End X — so the disc goes to bare concrete instead: recessive
+     value, no second brass fighting the accent. Same reasoning as noir's charcoal. */
+  --relax-restart-bg: linear-gradient(180deg, #322B23, #282219 58%, #201B15);
+  --relax-restart-ink: #D8CFBC;
+
+  /* ink — the poster's aged paper, not white. Cast Iron's rule ("avoid white fonts")
+     is right for a metal theme, but this one is a HIGH-contrast picture where iron is
+     a low-contrast one, so the ink runs brighter than iron's and the hierarchy is
+     carried by brightness rather than by step between greys. */
+  --text: #E8E0D0;
+  --text-2: #C9BFAC;
+  --muted: #9A8F7C;
+  --faint: #6E6557;
+  --red: #E66152;
+
+  /* shadows — deep, because everything here sits in the falloff of one high source */
+  --shadow: 0 12px 34px rgba(0, 0, 0, 0.66);
+  --shadow-sm: 0 7px 20px rgba(0, 0, 0, 0.52);
+  --sheen: inset 0 1px 0 rgba(232, 224, 208, 0.045);
+
+  /* pattern */
+  --pattern-opacity: 1;
+
+  /* ---- the strike ----------------------------------------------------------
+     NOT a palette color, and the only place white appears in this theme. It is
+     read by one @keyframes block at the foot of this file and by nothing else —
+     no border, no ink, no fill — so it exists for 620ms per balance arrival and
+     is absent the rest of the time.
+
+     Cooled slightly toward blue on purpose. Against a field that is entirely warm
+     a neutral white reads as warm too; this lands cold, which is the arc-light's
+     feeling without the theme having to own a second hue. Three whites were
+     compared in motion (#FFF4E2 warm, #F6F2EA neutral, this) and they are close
+     to indistinguishable at speed, so it went to the one with a reason behind it.
+
+     --flash-cool is the tail, and matters as much as the peak: white cutting
+     straight to brass reads as an edit, white COOLING through pale gold reads as
+     metal losing heat, which is this theme's own subject. */
+  --arc-flash: #E9F1F5;
+  --flash-soft: rgba(233, 241, 245, 0.44);
+  --flash-far: rgba(233, 241, 245, 0.16);
+  --flash-cool: #F3E0B4;
+}
+
+/* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
+   pixel-identical to the original); re-theme them for metropolis. */
+[data-theme="metropolis"] .lav-btn {
+  background: linear-gradient(180deg, var(--btn-lav-top), var(--btn-lav-mid) 58%, var(--btn-lav-bot));
+  color: var(--btn-lav-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px var(--btn-lav-ring),
+    0 8px 22px var(--btn-lav-shadow);
+}
+/* longhand background-image keeps the shimmer's background-size intact */
+[data-theme="metropolis"] .sk {
+  background-image: linear-gradient(100deg, var(--velvet-1) 30%, rgba(168, 132, 60, 0.16) 50%, var(--velvet-1) 70%);
+}
+[data-theme="metropolis"] input,
+[data-theme="metropolis"] select,
+[data-theme="metropolis"] textarea {
+  background: var(--bg-2);
+}
+/* The "sent" tx icon: copper on its own tinted chip, which is where this theme's
+   --orange belongs — an icon at that size, not a run of body text. */
+[data-theme="metropolis"] .tx-icon.out {
+  color: var(--orange);
+  background: rgba(200, 127, 74, 0.13);
+}
+
+/* ---- the theme picker card -------------------------------------------------
+   The picker is a type specimen — each card carries its own data-theme, so you
+   read every theme's name in the face and palette you would get by choosing it.
+   No ancestor scope, deliberately: the card has to look right while some OTHER
+   theme is the active one.
+
+   Left to the shared rules the selected ring comes from --gold plus --gold-soft,
+   which on this card is brass on brass and reads as nothing. The ring is the one
+   place the card borrows the strike's white, at low alpha — a chosen card should
+   look lit, and this is the same idea the balance states more loudly. */
+.theme-card[data-theme="metropolis"] { border-color: rgba(168, 132, 60, 0.34); }
+.theme-card[data-theme="metropolis"]:hover { border-color: rgba(168, 132, 60, 0.55); }
+.theme-card[data-theme="metropolis"].active {
+  border-color: #C9A45C;
+  box-shadow: 0 0 0 2px rgba(168, 132, 60, 0.24), 0 0 18px rgba(233, 241, 245, 0.10);
+}
+.theme-card[data-theme="metropolis"] .theme-name {
+  color: var(--text);
+  text-shadow: 0 0 0.5em rgba(233, 241, 245, 0.12);
+}
+
+/* ---- balance animation: the arc collapses ---------------------------------
+   The film's signature image is the ring of electricity closing on the
+   Maschinenmensch, so each glyph arrives inside a wide bloom that contracts onto
+   it, flashes white, and cools into brass.
+
+   Three things are load-bearing:
+
+   1. THE TAIL. The white does not cut to --balance-ink; it passes through
+      --flash-cool (a pale gold) on the way. Cutting reads as an edit. Cooling
+      reads as metal losing heat, which is the only reading this theme wants.
+
+   2. IT IS ONE-SHOT. Nixie's bloom is a steady state — a tube that is lit stays
+      lit. This is an event: at 100% there is no text-shadow at all, so a figure
+      at rest is flat brass and the theme has no glow in it. That is what keeps
+      the two themes from reading as the same idea, and it is why the shared
+      .balance-bump pulse is turned off below.
+
+   3. NO TRANSFORM. Cast Iron and Art Deco both move their glyphs; this one only
+      changes light, because the subject is a current arriving rather than a part
+      being placed. It also means the animation cannot shift the layout under the
+      unit label the way a translate can. */
+@keyframes met-arc {
+  0% {
+    opacity: 0;
+    color: var(--arc-flash);
+    text-shadow: 0 0 0.95em var(--flash-soft), 0 0 2.3em var(--flash-far);
+  }
+  30% {
+    opacity: 1;
+    color: var(--arc-flash);
+    text-shadow: 0 0 0.30em var(--flash-soft), 0 0 1em var(--flash-far);
+  }
+  54% {
+    color: var(--flash-cool);
+    text-shadow: 0 0 0.15em var(--flash-soft);
+  }
+  100% {
+    opacity: 1;
+    color: var(--balance-ink);
+    text-shadow: none;
+  }
+}
+[data-theme="metropolis"] .bal-glyph { display: inline-block; }
+[data-theme="metropolis"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 174ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: met-arc 620ms cubic-bezier(0.22, 0.68, 0.24, 1)
+             calc(var(--i) * min(46ms, 174ms / max(var(--n) - 1, 1))) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="metropolis"] .bal-glyph.bal-in { animation: none; }
+}
+
+/* The shared 5s glow pulse on an incoming payment (.balance-bump) is off here, for
+   the reason Nixie turns it off too: the strike IS the announcement, so the pulse is
+   redundant — and worse than redundant, because it animates text-shadow on the
+   balance ELEMENT while every glyph is a child span carrying its own, so the two
+   fight and the figure ends up half-lit. One event, one animation. */
+[data-theme="metropolis"] .balance-bump { animation: none; }
