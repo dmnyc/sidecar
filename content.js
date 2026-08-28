@@ -479,7 +479,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
   function setCardTheme(t) {
     if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
@@ -710,6 +710,38 @@
         CARD_WARN: 'color:#C0341C',
         CARD_SUCCESS: 'color:#1F6B3F',
         CARD_PAY_SHADOW: 'rgba(196,61,38,0.30)'
+      },
+      /* Par Avion — manila stock, the pen blue, the airmail red. Mirrors
+         themes/par-avion.css. CARD_GOLD is the amount slot and takes the theme's
+         --balance-ink, the same red the panel sets its wallet figure in (the bauhaus
+         and cast-iron entries pair it the same way); the number is 42px/800, so the
+         3.0 large-text floor applies and it measures 4.91 on the card's lower stop.
+         The pay button is the BLUE, not the red, for the reason the theme file gives
+         at length: red here means air mail rather than danger, but a button a user
+         is about to spend money with is not the place to test that. CARD_TRACK is the
+         primary's top stop lightened one step — the toggle thumb is hardcoded
+         near-black in the shared CSS, and at the theme's own #1B4C8C it disappeared
+         (2.23:1, under the 3.0 a non-text indicator needs); #3570B8 carries it at
+         3.78 while still reading as the same blue. */
+      'par-avion': {
+        CARD_COLOR: 'color:#211E19',
+        CARD_BORDER: 'rgba(29,58,107,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(27,76,140,0.08),transparent 58%),linear-gradient(165deg,#FCFAF3,#F1EADA)',
+        CARD_MUTED: 'color:#5A4C3B',
+        CARD_GOLD: 'color:#C0272D',
+        CARD_TEXT_2: 'color:#1D3A6B',
+        CARD_LAV: '#1B4C8C',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#2A63A8,#1B4C8C 52%,#123A6E)',
+        CARD_CANCEL_BG: 'rgba(27,76,140,0.10)',
+        CARD_TEXT: '#211E19',
+        CARD_BORDER_FAINT: 'rgba(29,58,107,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(29,58,107,0.25)',
+        CARD_TRACK: '#3570B8',
+        CARD_THUMB_OFF: '#5A4C3B',
+        CARD_WARN: 'color:#8E2226',
+        CARD_SUCCESS: 'color:#3D6B3E',
+        CARD_PAY_SHADOW: 'rgba(27,76,140,0.30)'
       }
     };
 
@@ -880,7 +912,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe']);
+    const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

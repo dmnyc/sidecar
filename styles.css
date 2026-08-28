@@ -3246,4 +3246,24 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   font-size: 20px;
   line-height: 1;
   letter-spacing: 0.01em;
+  /* The same optical correction the balance, the pinned bar and the countdown ring take,
+     and it belongs here for the identical reason: the card centres with align-items,
+     which centres the line BOX, and each face puts its ink somewhere different inside
+     that box. Reported as Art Deco and Par Avion sitting high — those two are the worst
+     in the set by a wide margin, at 2.7px and 3.0px above centre on a 20px label.
+
+     Measured with canvas TextMetrics against each card's own face, centring the band
+     from BASELINE TO CAP HEIGHT rather than the full ink box: a descender overhangs, it
+     does not shift where a word looks centred. That distinction is what makes the model
+     agree with the eye — by full-ink-box, Speakeasy's 'y' would demand 2.6px of lift
+     that nobody has ever asked for, and Populuxe's 'p' another 2.9px.
+
+     The token was measured on FIGURES, so it is not identical to the label's ideal, but
+     it lands within a pixel of it on every face (Par Avion 0.03px, Art Deco 0.65px,
+     Bauhaus 0.9px) and every card ends up closer to centred than it is without it. One
+     exception, recorded rather than hidden: Brownstone is currently the best-centred
+     card in the picker at 0.1px and this puts it 0.8px low. Bitter's figures and its
+     caps want different corrections, and a second per-face token to buy back 0.7px on
+     one card is not worth carrying. */
+  transform: translateY(var(--display-ink-nudge, 0));
 }

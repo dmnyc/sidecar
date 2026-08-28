@@ -1,0 +1,752 @@
+/* ============================================================
+   Sidecar — Par Avion Theme
+   An airmail envelope, 1935: the red-and-blue chevron round
+   the edge, a world map printed on the paper inside it, an
+   address typed on a portable, and one deep ink for
+   everything the pen wrote. Light mode.
+   ============================================================ */
+
+/* Measured before written down, like every theme here — test/theme-contrast.test.js
+   resolves these var() chains and checks the ratios. What follows is the reasoning
+   the numbers came out of.
+
+   TWO INKS AND A PAPER. The material has exactly three colors and they already have
+   jobs, so the token map is mostly a matter of not fighting them:
+
+       PAPER    manila #F5F0E4 field, letter sheet #FCFAF3 on top of it
+       BLUE     #1B4C8C   the pen, and every accent the panel needs
+       RED      #C0272D   the loud mark — the figure, the compose stamp, the edge
+
+   Blue is the workhorse and red is rationed. That split is deliberate and it is what
+   keeps the approval prompt honest: red in this palette means air mail, not danger,
+   but a user glancing at a permission window does not know that, so neither Allow nor
+   Trust is red — Allow is the blue fill, Trust is the kraft one. Red appears where it
+   cannot be mistaken for a verdict: the balance figure, the compose button, the
+   chevron edges, the destructive family (a darker oxblood, --warn below).
+
+   THE GROUND IS MANILA AND THE CARDS ARE THE LETTER, which is the Populuxe correction
+   applied to a warmer sheet: the cream that Art Deco could not carry a three-level gray
+   hierarchy on is demoted to the FIELD, and the surface body text actually sits on is
+   near-white. Ink is colored rather than gray for the same reason that theme records —
+   three grays on a warm ground is the failure — so the hierarchy runs near-black ink,
+   navy pen, sepia, then a warm gray-brown:
+
+       --text    12.65 worst surface     --text-2   8.56
+       --muted    6.32                   --faint    4.63      --gold  6.51
+
+   --faint clears AA on all four surfaces, which only Bauhaus, Nixie and Populuxe manage.
+   It was #7A6A55 first (3.98, under the bar) and darkened one step; past #6D5D46 it stops
+   separating from --muted and the hierarchy collapses, which is the Art Deco failure
+   approached from the other side.
+
+   WHAT IS FILL-ONLY. --amber is the stamp ochre at 2.52:1 and never carries text; it
+   exists because the relax countdown's amber half has to stay amber. --balance-ink
+   is 4.48:1 — comfortably past the 3.0 WCAG allows the 40px/700 figure (and the 24px/700
+   pinned and compact ones), and it does not go anywhere smaller. The currency symbol
+   beside it is the one small mark that has to: at the shared 0.72 mute it measures 3.25
+   on the card bottom against the 4.5 that 16.8px/600 needs, so --fiat-sym-opacity is
+   pinned to 1 and the full-strength red clears it at 4.91 without needing a second value.
+   Aegean's --fiat-sym note is the same fix for the same reason. */
+
+[data-theme="par-avion"] {
+  color-scheme: light;
+
+  /* Special Elite — a Smith-Corona portable striking through a worn ribbon (fonts.css
+     has the roster note; fonts/LICENSE-SpecialElite.txt has the license record, and
+     NOTICE carries the Apache attribution). Every display line in this theme is TYPED,
+     which is the premise: the panel is a letter. The face is proportional, not
+     monospaced, so it does not collide with Nixie's draftsman's lettering; see the
+     fonts.css note for the measurement behind that claim.
+
+     Courier New leads the fallbacks so a slow swap lands on the nearest typewriter the
+     system has rather than dropping straight back to Manrope mid-screen. */
+  --font-display: 'Special Elite', 'Courier New', Courier, var(--font-ui);
+
+  /* How far this theme's display face has to move to sit optically centered, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which centre a figure set at line-height 1
+     and so centre the box rather than the ink.
+
+     The largest correction in the set, and it is a metrics fact rather than a taste
+     call: this face declares an ascent of 0.703em (hhea, OS/2 typo and OS/2 win all
+     agree) while its digits are drawn 0.733em tall, so at line-height 1 the figures
+     OVERFLOW the top of their own line box and the ink sits high by about a seventh of
+     an em. Modeling the same way against three faces whose nudges were dialed by eye
+     — Playfair, Rowdies, Impressed Metal — the model runs 0.01–0.05em low, so this is
+     the computed 0.147 taken up to a round 0.15. Confirm it in the panel against the
+     countdown ring, which is where a couple of pixels shows most. */
+  --display-ink-nudge: 0.15em;
+
+  /* Surfaces. The manila field, a deeper manila plane, and the letter sheet — warm
+     near-white, carrying a cast rather than being #FFF, because this is stock and not
+     screen. The cards are the sheet, which is what makes them read as laid on top of
+     the envelope. */
+  --bg: #F5F0E4;
+  --bg-2: #E9E0CC;
+  --velvet-1: #FCFAF3;
+  --velvet-2: #F1EADA;
+  --velvet-1-rgb: 252, 250, 243;
+  --av-from: #FCFAF3;
+  --av-to: #E9E0CC;
+  --banner-accent: #E9E0CC;
+
+  /* Rules are the pen, thinned — a ruled line on a form is the same ink as the writing.
+     --border-rgb is the navy rather than the accent blue so hairlines stay a shade
+     deeper than the washes that ride on --accent-rgb. */
+  --border: rgba(29, 58, 107, 0.16);
+  --border-strong: rgba(29, 58, 107, 0.30);
+  --border-rgb: 29, 58, 107;
+  --well-rgb: 233, 224, 204;
+
+  /* Destructive is oxblood, a full step darker than the airmail red so the two never
+     read as the same mark: 6.65:1 as ink, against the figure red's 4.48. The theme's
+     action color is blue, so nothing red is ever also the affirmative choice — the
+     condition Populuxe's palette note sets out for a red being safe to use at all. */
+  --warn: #8E2226;
+  --warn-rgb: 142, 34, 38;
+  --success: #3D6B3E;
+  --success-rgb: 61, 107, 62;
+
+  /* --orange holds the theme's action color, not an orange. It drives accent-color on
+     every checkbox, @mentions and the chosen-button fill, so it has to be whatever the
+     theme's "yes" is; here that is the pen blue. Aegean, Bauhaus and Populuxe all put
+     their own answer in this slot for the same reason. */
+  --orange: #1B4C8C;
+
+  /* --amber stays a real amber: it is what the amber half of the relax countdown reads,
+     and amber has to mean amber even here. Fill only, at 2.52:1 (see the header).
+     --gold is the accent INK — the active-account check, row borders, tips, the live-note
+     banner — and gold on manila is mustard on manila, so it takes the pen blue instead
+     at 6.51:1. Aegean made the same call against whitewash. */
+  --amber: #B0872C;
+  --gold: #1B4C8C;
+  --gold-soft: rgba(29, 58, 107, 0.28);
+  --accent-rgb: 27, 76, 140;
+
+  /* The wallet figure, in the red the edge stripes are printed in — 4.48:1, past the
+     3.0 that 40px/700 (and the 24px/700 pinned and compact sizes) need. The symbol
+     beside it takes full strength rather than the shared mute; see the header. */
+  --balance-ink: #C0272D;
+  --fiat-sym-opacity: 1;
+
+  /* Blue takes the accent slot the dark themes fill with purple: the deep pen for the
+     strong tone, the writing blue for the lighter. */
+  --purple: #14304F;
+  --lav: #1B4C8C;
+
+  /* Relax countdown dot. The shared default (#4ade80) is built for a dark status bar
+     and disappears on manila. --success was the first fix and read olive at 7px, the
+     way Aegean records; #1F7A3C is green at 4.09:1 worst surface, well past the 3.0 a
+     non-text indicator needs. The low state is the airmail red rather than the oxblood,
+     so the countdown reads green -> warm and not green -> already-failed. */
+  --relax-dot-ok: #1F7A3C;
+  --relax-dot-low: var(--balance-ink);
+
+  --hover-soft: rgba(29, 58, 107, 0.05);
+  --hover-medium: rgba(29, 58, 107, 0.09);
+  --hover-faint: rgba(29, 58, 107, 0.035);
+  --mention-bg: rgba(27, 76, 140, 0.14);
+  /* The pen, not furniture. Every other light theme keeps a pale thumb here and gets
+     away with it, because a pale thumb only has to beat the paper behind it — and this
+     theme's paper has a world map on it. The warm grays this shipped with (#D8CDB4 to
+     #EAE2D0) were within a hair of the manila to begin with and vanished completely
+     wherever a continent passed under them.
+
+     Firefox reads --scroll-thumb-hover as its RESTING color (see the note in
+     styles.css: the standard scrollbar properties are its whole API and take a flat
+     color, not a gradient), so that value has to be legible on its own rather than
+     merely being a step up from the gradient. It is the theme's accent blue, which
+     answers both questions at once. */
+  --scroll-thumb: linear-gradient(180deg, #5A8FCB, #2E68AC);
+  --scroll-thumb-hover: #1B4C8C;
+
+  /* Allow once — the pen blue with a white label: 8.54:1 on the mid stop, 6.09 and
+     11.31 at the ends. */
+  --btn-primary-top: #2A63A8;
+  --btn-primary-mid: #1B4C8C;
+  --btn-primary-bot: #123A6E;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: rgba(27, 76, 140, 0.30);
+
+  /* "Trust this site" — kraft, the envelope's own material, with the deep pen for a
+     label (8.27:1 on the mid stop). The pair is the two things an airmail envelope is
+     made of rather than two shades of one color, and the labels are opposite
+     polarities — white on blue above, dark on kraft below — so they cannot be confused
+     at a glance. This is also why the prompt does not look like Aegean's, which puts a
+     pale BLUE under its cobalt: same ordering, different material. */
+  --btn-lav-top: #E8D9BC;
+  --btn-lav-mid: #DCC9A5;
+  --btn-lav-bot: #CDB88C;
+  --btn-lav-text: #14304F;
+  --btn-lav-ring: rgba(20, 48, 79, 0.28);
+  --btn-lav-shadow: rgba(120, 95, 50, 0.20);
+
+  /* Quiet buttons stay paper — the way back should not compete with either action. */
+  --btn-secondary-top: #FDFBF5;
+  --btn-secondary-bot: #F0E8D6;
+
+  /* Pending confirm — the two-line "Set as active? / Tap again to confirm". The default
+     title is --gold on a gold wash, which on manila washes to nothing; the deep pen
+     instead, 8.92:1 on the composited wash. --pending-sub is deliberately left at its
+     default: --muted measures 6.54 there, which clears AA and stays quieter than the
+     title, the ordering the contrast test checks. */
+  --pending-text: #123A6E;
+
+  /* Small accent pills (reload banner, "grant" on a host row). The shared default
+     hardcodes gold at the outer stops with --gold in the middle, so a theme that
+     recolors --gold alone gets gold-blue-gold. */
+  --btn-accent-top: #2A63A8;
+  --btn-accent-mid: #1B4C8C;
+  --btn-accent-bot: #123A6E;
+  --btn-accent-text: #FFFFFF;
+
+  /* Ink — see the header for the hierarchy and why none of it is gray. --text-2 is the
+     pen, --muted the sepia an old envelope has faded to, --faint a warm gray-brown. */
+  --text: #211E19;
+  --text-2: #1D3A6B;
+  --muted: #5A4C3B;
+  --faint: #706048;
+  --red: #A02C2E;
+
+  --shadow: 0 10px 30px rgba(60, 45, 25, 0.12);
+  --shadow-sm: 0 6px 18px rgba(60, 45, 25, 0.08);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding a dark-theme literal. */
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(27, 76, 140, 0.22);
+  --card-wash: rgba(27, 76, 140, 0.06);
+  /* The bright fill behind an active chip, plus the label that sits on it. styles.css
+     paints several small controls this way — "Search everyone", the receive amount
+     presets, switch-site, the chart range chip, the relax End disc, the unread badge —
+     and reads the label as `var(--chip-ink, var(--btn-primary-text))`. The fallback
+     would land correctly here, since this theme's primary label is already white on
+     blue; --chip-ink is stated anyway so that a later change to the BUTTON's label can
+     never quietly repaint every chip in the theme. That coupling is exactly how Cast
+     Iron ended up with gray on gray. */
+  --accent-fill: var(--lav);
+  --chip-ink: #FFFFFF;
+  --glow: var(--lav);
+
+  /* The composer balloon — the deep pen, so it sits under the red compose button
+     without the two competing. */
+  --balloon-bg: #14304F;
+  --balloon-bg-hover: #1B4C8C;
+  --balloon-text: #FCFAF3;
+
+  /* The compose button is the red rubber stamp — the theme's one loud object, and the
+     only place red is a control. Paper-colored quill on it at 5.69:1. The disc gets a
+     ring struck inside it further down, which is what makes it a cancellation mark
+     rather than a red circle. */
+  --fab-bg: #C0272D;
+  --fab-icon: #FDF8EC;
+
+  /* Floating shadows are tuned for dark themes; half-opacity black under a button
+     sitting on manila reads as grime. Warm-brown instead, the color of the shadow a
+     sheet of paper actually casts on another one. */
+  --float-shadow: rgba(60, 45, 25, 0.18);
+  --float-shadow-strong: rgba(60, 45, 25, 0.26);
+
+  /* ---- the chevron edge -----------------------------------------------------------
+     THE ONE ORNAMENT IN THE THEME, and the thing the whole design is named after: the
+     red-and-blue barber stripe printed around an airmail envelope. It is declared once
+     here and spent in four places — the panel's own top and side edges (themes/
+     patterns.css), the wallet card, the pinned balance bar, and this theme's picker
+     card — so all four are the same printing rather than four near-agreements.
+
+     Full strength everywhere, and only ever as an EDGE. An earlier pass laid the same
+     figure across the whole field at 7% as texture; it measured correctly against the
+     other light themes and looked like wrapping paper, because running that stripe
+     round the border and leaving the middle alone is the entire idea of the object.
+     As an edge it reads at ink weight or it reads as nothing.
+
+     135 DEGREES, and the angle is a constraint rather than a look: a stripe crossing a
+     3px border shows up on each side at the period of its own PROJECTION onto that
+     side. At 115deg — where the first pass put it, chasing the steep lean of the
+     printed original — the horizontal projection was 0.91 and the vertical one 0.42, so
+     the top and bottom edges of the card were a tidy run of dashes and the left and
+     right were two lonely marks 85px apart. 135 splits the projection evenly (0.71 on
+     both), and the field in patterns.css follows it so the two are the same printing at
+     two strengths rather than two patterns that nearly agree.
+
+     The period is tighter than the field's for the same reason: 26px along the gradient
+     is ~37px along an edge, which is the dash rhythm the real border has. The paper
+     between the stripes is --velvet-1 rather than transparent so the band is opaque and
+     can sit under a translucent card wash without it showing through from behind. */
+  --airmail-band: repeating-linear-gradient(135deg,
+    var(--balance-ink) 0 6px,
+    var(--velvet-1) 6px 13px,
+    var(--lav) 13px 19px,
+    var(--velvet-1) 19px 26px);
+
+  /* The same chevron at 7%, which is the weight it was measured at when it was still
+     the whole field (themes/patterns.css records why it stopped being that). It
+     survives on the TOP CHROME alone — the account bar and the tabs under it — where
+     it does the job the field version could not: the header is the one part of the
+     panel that is never the map, and a stripe behind it ties the menu to the printed
+     edges on either side of it. Wider spacing than the band above (7 on 18 rather than
+     6 on 13) because this one is texture and has to stay under type.
+
+     Note the paper here is TRANSPARENT, not --velvet-1: the topbar's own translucent
+     wash sits on top of this, and an opaque backing would knock a rectangle out of it. */
+  /* The height of the top bar — 63px in the main view, 60px on the settings screen,
+     measured in the panel rather than guessed. themes/patterns.css subtracts it from
+     the viewport so the map begins directly under the bar.
+
+     THE TABS ARE NOT COUNTED, and that is the whole trick. This was 105px first (bar
+     plus tabs), which is right for the main view and wrong everywhere else: the
+     settings screen has a bar and no tabs, so it got a 42px band of bare paper behind
+     its headline. Measuring to the BAR instead fixes settings, and costs the main view
+     nothing, because the tabs carry an opaque --bg base of their own (see the top-chrome
+     rules below) and simply cover the strip of map behind them. The map still meets the
+     menu with no seam; it just meets it from underneath.
+
+     A pixel value because that is what a bar is: its height is padding plus a fixed
+     font size and does not move with the window. The 3px difference between the two
+     bars falls behind the settings header's own background, so one number covers both. */
+  --top-chrome: 63px;
+
+  --airmail-field: repeating-linear-gradient(135deg,
+    rgba(192, 39, 45, 0.07) 0 7px,
+    transparent 7px 18px,
+    rgba(27, 76, 140, 0.07) 18px 25px,
+    transparent 25px 36px);
+}
+
+/* ---- the top section is printed, not blank -------------------------------------
+   The map is anchored to the bottom and stops short of the header, which left the
+   busiest part of the panel sitting on bare paper. The faded chevron fills it.
+
+   Scoped to the CHROME rather than laid on the body as a top band, because the band
+   would have to end at some number of pixels and that edge would be visible at any
+   value; ending it on the tabs' own border-bottom is an edge that already exists.
+   Both surfaces are included so the printed area is the whole top section — the
+   settings screen's topbar comes along, which is right: it is the same furniture.
+
+   The last layer on each is an opaque sheet of --bg, and it is load-bearing rather
+   than tidy: the map behind these runs the full height of the panel, so without a
+   backing the header would show stripe AND map at once and read as neither. It is
+   what makes the top section paper.
+
+   background-attachment: fixed is what keeps the two elements in phase. Each element
+   otherwise starts the repeat at its own top-left corner, and a 135deg stripe restarted
+   partway down shows a visible jog where the topbar meets the tabs; positioned against
+   the viewport instead, the two read as one continuous printing. The topbar's own wash
+   keeps `scroll` — it is a vertical gradient meant to be read against the element, not
+   the window. */
+[data-theme="par-avion"] .topbar {
+  background-image:
+    linear-gradient(180deg, rgba(var(--velvet-1-rgb), 0.5), transparent),
+    var(--airmail-field),
+    linear-gradient(var(--bg), var(--bg));
+  background-attachment: scroll, fixed, scroll;
+}
+[data-theme="par-avion"] .tabs {
+  background-image:
+    var(--airmail-field),
+    linear-gradient(var(--bg), var(--bg));
+  background-attachment: fixed, scroll;
+}
+
+/* --- what still needs a rule, and why --------------------------------------- */
+
+/* The "+" badge carries near-black text on a colored disc in the dark themes. */
+[data-theme="par-avion"] .add-account-badge {
+  color: var(--velvet-1);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="par-avion"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+
+/* Outgoing transactions in the oxblood. Direction is carried by the arrow glyph as well
+   as the color — both this and the incoming green are dark inks on paper, and at 12px
+   two dark inks separate by hue alone, which is not enough on its own. */
+[data-theme="par-avion"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+
+[data-theme="par-avion"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+
+/* ---- the wallet card is the envelope -------------------------------------------
+   The theme's signature, and the reason the chevron token exists. The card keeps its
+   fill, its wash and its radius and trades its 1px hairline for a 3px printed edge.
+
+   The mechanism is per-layer background-clip, not a border-image: border-image would
+   get the stripes on too, but it disables border-radius while it does it, and a
+   square-cornered card in a panel where every other card is rounded reads as a
+   rendering fault rather than as an envelope. Clipping instead — the fills to
+   padding-box, the band to border-box — leaves the corners intact and lets the stripes
+   run round them.
+
+   Layer ORDER is what makes it work: the first layer paints on top, so the two fills
+   come first and the band goes last, showing only in the ring the padding-box clip
+   leaves uncovered. The fills are restated rather than inherited because the shorthand
+   here replaces styles.css's `background` outright.
+
+   The card grows 2px on each side (1px border to 3px). That is the intended cost —
+   the compact/sticky variant only changes padding, so it follows along by itself. */
+[data-theme="par-avion"] .wallet-card {
+  border: 3px solid transparent;
+  background:
+    radial-gradient(120% 120% at 50% 0%, var(--card-wash), transparent 60%) padding-box,
+    linear-gradient(160deg, var(--velvet-1), var(--velvet-2)) padding-box,
+    var(--airmail-band) border-box;
+}
+
+/* The pinned bar takes the same edge on its underside only — its other three borders
+   are 0, so the band shows as a 3px printed strip under the figure and nowhere else.
+   This is the bar the wallet card collapses INTO when you scroll, so the two carrying
+   one edge is what keeps the collapse reading as the same object. */
+[data-theme="par-avion"] .pinned-balance {
+  border-bottom: 3px solid transparent;
+  background:
+    linear-gradient(180deg, var(--velvet-2), var(--velvet-1)) padding-box,
+    var(--airmail-band) border-box;
+}
+
+/* ---- the compose button is a cancellation mark ----------------------------------
+   The shared rule rings the disc with a 1px white inset, which on a red stamp reads as
+   a highlight. Struck in paper ink at 2px instead, it reads as what a postmark actually
+   is: the ring the canceller leaves around its own impression. The outer shadow drops
+   the black seating for the theme's warm-brown one. */
+[data-theme="par-avion"] .fab {
+  box-shadow:
+    0 10px 26px var(--float-shadow-strong),
+    inset 0 0 0 2px rgba(253, 248, 236, 0.55);
+}
+[data-theme="par-avion"] .fab:hover {
+  box-shadow:
+    0 12px 28px var(--float-shadow-strong),
+    inset 0 0 0 2px rgba(253, 248, 236, 0.75);
+}
+
+/* ---- the lock screen is franked -------------------------------------------------
+   Four markings, all different objects: one paper stamp at the top right with the
+   machine cancel struck beside it, and at the foot the PAR AVION handstamp and the
+   receiving clerk's violet oval. Each is its own file (themes/par-avion-stamp-a.svg,
+   par-avion-cancel.svg, par-avion-mark-air|oval.svg) because CSS cannot rotate a
+   background image, so every angle has to be baked in — and because they are not one
+   object repeated.
+
+   ONE CANCEL, ONE STAMP. Both paper stamps used to wear a transit mark of their own on
+   top of the machine cancel beside them, which put two rings within an inch of each
+   other and made the corner read as clutter rather than as postage. A real envelope
+   gets one strike per corner.
+
+   THE VARIETY IS THE POINT, and it is the thing three earlier passes got wrong. A
+   repeating strip of identical stamps read as wallpaper. Small ones read as clip art.
+   Identical cancels on each read as printed, because a rubber stamp is not a printed
+   circle: different offices, different pads, different inks — sooty black on the
+   canceller, postal red on the handstamp, aniline violet on the clerk's oval, faded
+   blue-black on the transit mark. scripts/gen-par-avion-stamps.py has the drawing, and
+   the note at the top of any of the SVGs has the method.
+
+   This is the screen with the most bare paper on it: .screen centres a short form in a
+   full-height column, so there is a dead band above the wordmark and a wider one below
+   the Forgot link. Bare paper on an envelope is where the post office writes.
+
+   ALL FOUR ARE BACKGROUND LAYERS, not a ::after. Backgrounds paint BEHIND content,
+   which is what makes this safe on the onboarding screen, whose form is tall enough to
+   reach the foot: the worst case there is a marking partly behind a button, where a
+   pseudo-element would have painted over the button.
+
+   Clipped to the CONTENT box, so .screen's 30/24px inset keeps everything clear of the
+   chevron down each side. Sized by height, at four different sizes, because a hand
+   does not reach for a matched set. The four-value background-position syntax hangs
+   the top pair from the top edge and the bottom pair from the bottom, so they hold at
+   any panel height. */
+/* The foot of the envelope. These two stay BACKGROUND layers on the section, which
+   means they paint behind everything — the right answer down here, where the onboarding
+   form is tall enough to reach them and the worst case must be a marking behind a
+   button rather than over one. */
+[data-theme="par-avion"] #view-lock,
+[data-theme="par-avion"] #view-onboarding {
+  position: relative;
+  background-image:
+    url(par-avion-mark-air.svg),
+    url(par-avion-mark-oval.svg);
+  background-repeat: no-repeat, no-repeat;
+  background-origin: padding-box;
+  background-clip: padding-box;
+  /* Offsets and sizes both account for the padding wrap() now adds — see the note on
+     the cancel below. Same marks, same size on screen, in boxes big enough to hold
+     them. */
+  background-position:
+    left 10px bottom 77px,
+    right 8px bottom 8px;
+  background-size: auto 80px, auto 104px;
+}
+
+/* The head of it is a LAYER instead, and the reason is short windows. As a background
+   the stamp painted behind everything, so in a panel short enough for the centred form
+   to ride up under it, the wordmark sat on top of the stamp — a logo printed over
+   postage, which is backwards. Postage goes on last.
+
+   So the two top markings move into a pseudo-element at z-index 1, and everything in
+   the view EXCEPT the wordmark is lifted to 2. The exclusion is the whole design: a
+   stamp is allowed to cover a logo and is never allowed to cover a word you have to
+   read or a control you have to hit. On a tall panel none of it touches and the
+   stacking never comes up.
+
+   THE CANCEL IS THE FIRST LAYER, so it paints on top of the stamp beside it — the same
+   reason it led the list when these were element backgrounds. Both had to move together
+   for that to survive; a canceller under its own stamp is the one arrangement that
+   makes no sense at all.
+
+   The 150px height is what clips them: the stamp reaches 134px from the top and the
+   cancel 126px, so nothing is cut and nothing hangs into the form below. */
+[data-theme="par-avion"] #view-lock::before,
+[data-theme="par-avion"] #view-onboarding::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 150px;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    url(par-avion-cancel.svg),
+    url(par-avion-stamp-a.svg);
+  background-repeat: no-repeat, no-repeat;
+  /* Neither offset is round, and neither matches the other. The two used to sit at a
+     tidy 30/6 with matching tilts, and a stamp and a cancel that agree on anything look
+     placed rather than applied — they are two hands on two different days. The stamp
+     leans 9.5deg against the canceller's 1.5.
+
+     The cancel's own top is the sensitive number: at 38px the dial dropped far enough
+     that the bars only grazed the stamp's corner, and bars that miss are not killer
+     bars. 29px puts them back across its lower third — off-centre, which is the
+     haphazard part, but unmistakably ON it. */
+  background-position:
+    left 25px top 21px,
+    right 9px top 7px;
+  /* 112px, up from 96: the cancel's viewBox grew to hold its own tilt without cropping
+     the dial (see wrap() in scripts/gen-par-avion-stamps.py), and these are sized by
+     height, so the number has to grow with it or the mark shrinks. The content is the
+     same size on screen as before; the extra is padding. The position moved up and
+     left by the same amount for the same reason. */
+  background-size: auto 112px, auto 128px;
+}
+[data-theme="par-avion"] #view-lock > *:not(.brand-lg),
+[data-theme="par-avion"] #view-onboarding > *:not(.brand-lg) {
+  position: relative;
+  z-index: 2;
+}
+
+
+
+
+/* ---- a warning is red here, and the urgent one is the destructive red -----------
+   .error, .hint.warn, .kind-warn and friends all read --red or --warn, and both of
+   those are red in this palette, so most of the app's warnings were already right. The
+   incorrect-PIN notice is the exception, and it is the one people actually meet: its
+   title reads --text-2 and its attempts-remaining count reads --gold, which in every
+   other theme are a neutral ink and a warm accent — and in this one are the pen blue
+   twice over. "Incorrect PIN" rendered in the same blue as a row border and a link.
+
+   THE SHARED SHEET ESCALATES BY COLOR: the notice is neutral until failed attempts
+   approach the auto-erase threshold, then .unlock-danger turns it red. Painting the
+   base red flattens that, so the escalation moves up a step rather than disappearing —
+   near the threshold the notice goes to --warn, the oxblood this app uses for
+   destructive actions, which is what the state has actually become. The ordinary
+   mistake is postal red; the one that is about to erase your keys is the ink that
+   means erasure.
+
+   Contrast on the lock screen, which sits on the body and therefore on the map as well
+   as the paper: --red 6.38 on paper and 5.47 over the map's land, --warn 7.67 and 6.57.
+   Both clear the 4.5 that 15-16px/700 needs on either. --balance-ink was the first
+   choice for the escalation — brighter red, louder — and it measures 4.43 over land,
+   which is how it lost the argument.
+
+   The debug log's warn rows come along; the class is literally named warn and it was
+   drawing blue for the same reason. Dev builds only. */
+[data-theme="par-avion"] .unlock-note-title,
+[data-theme="par-avion"] .unlock-note-count,
+[data-theme="par-avion"] .debug-log-warn .item-label {
+  color: var(--red);
+}
+[data-theme="par-avion"] .unlock-note.unlock-danger .unlock-note-title,
+[data-theme="par-avion"] .unlock-note.unlock-danger .unlock-note-count {
+  color: var(--warn);
+}
+
+/* ---- the relax bar counts in red ------------------------------------------------
+   Both of these read --gold in the shared sheet, and --gold in this theme is the pen
+   blue that carries every other accent — which puts the one thing on screen that is
+   actively running down in the same ink as a row border. Red is this theme's live
+   mark: it is what the balance is set in, and a window counting toward zero is the
+   same kind of object as a meter reading.
+
+   Only these two. --accent-fill still drives the receive presets, switch-site, the
+   chart range chip and the unread badge, and those are states rather than clocks, so
+   the disc is repainted here rather than by moving the token out from under all of
+   them.
+
+   Contrast: 16px/700 is NOT WCAG large text (that wants 18.66 bold), so the time is
+   held to 4.5 — 4.91 on the bar's lower stop, 5.63 on its upper. The disc takes the
+   compose stamp's exact pairing, paper ink on the airmail red, at 5.69. */
+[data-theme="par-avion"] .relax-status-time {
+  color: var(--balance-ink);
+}
+[data-theme="par-avion"] .relax-status-x {
+  background: var(--balance-ink);
+  color: var(--fab-icon);
+}
+/* Restart, beside it. The shared default is the Trust button's fill, and in this theme
+   that is KRAFT — which measures 1.3 to 1.9 against the bar it sits on and simply does
+   not read as an object. Every other theme names its own quieter register here rather
+   than borrowing Trust's (see the note in styles.css); this is that value.
+
+   The pen blue, sunk on opacity, for the reason the bar beside it is blue: this is the
+   control that winds a METER back, and meters in this theme are blue while the mark and
+   the control that ends it are red. 0.75 alpha lands the disc at 4.37 against the bar
+   and carries a white arrow at 4.56 — a real object, one clear step back from End's
+   solid red (5.63 / 5.55). Anything under 0.7 stops clearing 3.0 for the arrow. */
+[data-theme="par-avion"] .relax-status-restart {
+  --relax-restart-bg: linear-gradient(180deg,
+    rgba(42, 99, 168, 0.78),
+    rgba(27, 76, 140, 0.75) 58%,
+    rgba(18, 58, 110, 0.72));
+  --relax-restart-ink: #FFFFFF;
+}
+/* THE BAR STAYS BLUE, and the line this theme draws is between meters and marks
+   rather than between widgets. Every countdown that shows PROGRESS is --gold: the send
+   ring, the unlock cooldown ring, and this fill. What goes red is the figure being
+   counted and the control that ends it. Painting the fill red was tried first — with a
+   red disc at one end and a red time at the other, a blue bar between them looked like
+   the one thing nobody had repainted — and it is the wrong read: the bar's twin is the
+   ring, not its neighbours. It needs no rule at all, since the shared default is
+   --gold-soft to --gold; this note exists so the next person does not repeat the
+   experiment.
+
+   The TRACK under it needed a rule here once, and no longer does. This theme is where
+   the shared sheet's hardcoded rgba(167, 139, 250, 0.18) finally showed — Speakeasy's
+   lavender, running as a faint purple gutter in every theme that is not Speakeasy,
+   invisible until it sat on manila. #245 moved it to rgba(var(--border-rgb), 0.18), so
+   this theme now gets its own pen blue from the shared rule and the override that used
+   to live here is gone with the leak that caused it. */
+
+/* ---- this theme's own card in the picker ----------------------------------------
+   THE LABEL IS PLAIN INK, and that is a decision the picker forced rather than a
+   preference. Every other card names its theme in its own loudest color, and both of
+   this theme's are already spoken for in that list: blue collides twice over — Aegean's
+   cobalt at 1.49:1 and 2.1 degrees of hue, Bauhaus's blue at 1.55:1 and 5.5 degrees —
+   and the red would sit directly above Populuxe's, which is the collision that file
+   spends three paragraphs on. So this card speaks with its BORDER instead: it is the
+   only one in the picker wearing the chevron, which no amount of hue crowding can blur,
+   and the name is typed on it in the ink an address is typed in. 12.65:1 on the card.
+
+   All three states are restated, and that is not defensive noise. `[data-theme]` plus
+   `.theme-card` is specificity (0,2,0), the same as `.theme-card.active` and one step
+   above `.theme-card:hover`'s (0,1,1) — and this file loads after styles.css, so a
+   single idle rule here silently wins the tie and BOTH the hover and the selected
+   states stop rendering. Cast Iron shipped exactly that bug. The band is constant
+   across the three; only the paper behind it moves, plus a light ring when selected. */
+[data-theme="par-avion"].theme-card {
+  color: var(--text);
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, var(--velvet-1), var(--velvet-1)) padding-box,
+    var(--airmail-band) border-box;
+}
+[data-theme="par-avion"].theme-card:hover {
+  background:
+    linear-gradient(180deg, var(--velvet-2), var(--velvet-2)) padding-box,
+    var(--airmail-band) border-box;
+}
+[data-theme="par-avion"].theme-card.active {
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, var(--velvet-1), var(--velvet-2)) padding-box,
+    var(--airmail-band) border-box;
+  box-shadow: 0 0 0 2px var(--gold-soft);
+}
+
+/* ---- balance animation: the figure is typed --------------------------------
+   Left to right, one character at a time, and each one is simply THERE the instant it
+   lands. No fade — a typebar does not fade in, it has hit the paper or it has not, and
+   that binary is the whole device. It is also why the keyframes open with a steps(1)
+   segment instead of an opacity ramp: every other theme here animates a glyph INTO
+   existence, and this one refuses to.
+
+   What moves after the strike is the paper, not the ink. The character arrives a hair
+   oversize with the ribbon's spread still on it, the sheet takes the blow and rebounds
+   a fraction under, and both resolve inside about 140ms. A settle, not an entrance.
+
+   It is not Cast Iron's strike, and the difference is worth naming since both themes
+   have a press in them somewhere. Iron animates POSE — where an impression lands,
+   dealt crooked per glyph from random dice — and this animates SEQUENCE, which is the
+   one thing a typewriter has that a hand stamp does not. Neither borrows the other's:
+   the iron dice (--iron-rot / --iron-dx / --iron-dy) are emitted onto these spans too,
+   the way sidepanel.js emits them for every theme, and are deliberately left unread
+   here. A figure typed on a machine comes out straight.
+
+   The rhythm is even rather than ragged. A ragged beat is NIXIE'S (--strike-delay /
+   --strike-dur, also emitted here and also unread), and beyond that it would be wrong
+   for the object: what advances the carriage one character is an escapement, and an
+   escapement is the most mechanically even thing in the room.
+
+   .bal-glyph is inline-block so the scale has a box to work in — on a bare inline span
+   a transform is ignored — and it scales about its own center, so the character swells
+   in place instead of shoving its neighbours along the baseline. */
+@keyframes par-avion-typed {
+  /* The key has not been struck: nothing on the paper. steps(1, end) holds this state
+     flat for the whole segment and jumps at the end of it, which is what makes the
+     arrival instantaneous rather than merely fast. */
+  0% {
+    opacity: 0;
+    transform: scale(1.09);
+    filter: blur(0.4px);
+    animation-timing-function: steps(1, end);
+  }
+  /* Impact. The glyph appears whole, a touch oversize, its edges softened by the ink
+     the ribbon leaves — 0.4px, which at 40px is a suggestion and at the 24px pinned
+     size is barely there. */
+  10% {
+    opacity: 1;
+    transform: scale(1.09);
+    filter: blur(0.4px);
+    animation-timing-function: cubic-bezier(0.2, 0.85, 0.3, 1);
+  }
+  /* The sheet gives under the blow and comes back a fraction past true. */
+  46% { transform: scale(0.984); filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+[data-theme="par-avion"] .bal-glyph { display: inline-block; }
+[data-theme="par-avion"] .bal-glyph.bal-in {
+  /* THE RHYTHM IS THE ANIMATION HERE, which is why this window is far wider than any
+     other theme's and why the first attempt failed. It was 58ms a glyph inside a 174ms
+     window, copied from the shape the other themes use — and a 174ms window means a
+     seven-figure balance finishes in a sixth of a second, which the eye reads as one
+     flash rather than seven keystrokes. Every other theme can clamp hard because its
+     figures arrive with a MOTION (a pop, a drop, a strike) that reads on each glyph
+     independently; this one has nothing to read except the order things landed in.
+
+     105ms a key is a real typist at speed, and the window caps at 1000ms so a long
+     figure compresses rather than dragging:
+
+         124,900     7 glyphs   105ms steps, 630ms end to end
+         0.00124900  10 glyphs  105ms steps, 945ms
+         13 glyphs              83ms steps, held to the 1000ms cap
+
+     See splitGlyphs in sidepanel.js for the --i/--n contract. The 240ms strike per
+     glyph deliberately overlaps its neighbours: a key is still settling when the next
+     one lands, which is what a typewriter sounds like and looks like. */
+  animation: par-avion-typed 240ms linear
+    calc(var(--i) * min(105ms, 1000ms / max(var(--n) - 1, 1))) both;
+}
+
+/* No .bal-sep rule here on purpose. Coloring the thousands separator apart from the
+   digits is BAUHAUS'S idea and stays exclusive to it. */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="par-avion"] .bal-glyph.bal-in { animation: none; }
+}

@@ -343,6 +343,11 @@ const FLOORS = {
   // honest new measurements — not a concession snuck past this table. Every ink still
   // clears AA where AA applies (--text 6.99, --text-2 5.57 on the darkest plate).
   'cast-iron': { '--muted': 4.61, '--faint': 2.39, '--gold': 8.83 },
+  // Par Avion clears AA on all four surfaces for all five inks, --faint included — the
+  // fourth theme to manage it, for the same structural reason Populuxe does: the warm
+  // stock is the FIELD and the surface body text sits on is near-white. --faint was
+  // #7A6A55 (3.98) before it was darkened one step to buy that.
+  'par-avion': { '--muted': 6.32, '--faint': 4.63, '--gold': 6.51 },
 };
 
 for (const theme of THEMES) {

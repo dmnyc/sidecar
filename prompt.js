@@ -63,6 +63,10 @@
   let data = null;
   let isPayment = false;
   let chosenPubkey = null; // login (getPublicKey) prompts only — see canOfferAccountSwitch in background.js
+  // Which cut of the placeholder garnish this window is drawing — set once the theme
+  // arrives with the request (see the note beside THEMES below). The white default is
+  // right until we know otherwise, since Speakeasy is also the fallback theme.
+  let avatarPh = 'icons/avatar-default.svg';
 
   function fmtSats(n) {
     return Number(n).toLocaleString('en-US');
@@ -389,26 +393,31 @@
     // this window always rendered Speakeasy regardless of what the panel was wearing.
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
     // than writing an arbitrary string into the DOM.
-    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe'];
+    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
     const theme = THEMES.includes(data.theme) ? data.theme : 'speakeasy';
     document.documentElement.setAttribute('data-theme', theme);
 
-    // The wordmark is baked lavender for a dark field and disappears on a light one, so
-    // every light theme needs the dark-wordmark variant. The panel has done this since
-    // Art Deco shipped (logoSrcFor / LIGHT_THEMES in sidepanel.js) and the page-side pay
-    // card does it too (LIGHT_CARD_THEMES in content.js) — this window never did, so it
-    // has been showing a washed-out mark on four themes for as long as they have existed.
+    // Light themes need two swaps in this window, and they share one list. The wordmark
+    // is baked lavender for a dark field and disappears on a light one; the placeholder
+    // garnish is drawn white for a dark avatar disc and vanishes on the same grounds.
+    // The panel has done the wordmark since Art Deco shipped (logoSrcFor / LIGHT_THEMES
+    // in sidepanel.js) and the pay card does its own (LIGHT_CARD_THEMES in content.js);
+    // this window renders from its own document and needs its own copy of both.
     //
-    // A third copy of the list, and it is worth saying why rather than sharing one: these
-    // are three separate documents with no module system between them — the panel, a
-    // content script in a page's world, and this window — and the alternative is a fourth
-    // file loaded by all three to hold nine strings. The cost is that a new light theme
-    // must be registered here as well; the comment beside each copy names the others.
-    const LIGHT_THEMES = ['art-deco', 'aegean', 'bauhaus', 'populuxe'];
-    if (LIGHT_THEMES.includes(theme)) {
+    // A third copy of the list, and worth saying why rather than sharing one: these are
+    // three separate documents with no module system between them — the panel, a content
+    // script in a page's world, and this window — and the alternative is a fourth file
+    // loaded by all three to hold ten strings. The cost is that a new light theme must be
+    // registered in all three, so each copy names the others.
+    const LIGHT_THEMES = ['art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const isLight = LIGHT_THEMES.includes(theme);
+    if (isLight) {
       const mark = document.querySelector('.brand img');
       if (mark) mark.src = 'icons/sidecar-logo-deco.svg';
     }
+    // Keyed off the VALIDATED theme rather than data.theme, so an unrecognised value
+    // falls back with everything else instead of picking a cut of its own.
+    avatarPh = isLight ? 'icons/avatar-default-dark.svg' : 'icons/avatar-default.svg';
     isPayment = data.scope === 'webln' && data.method === 'sendPayment';
     chosenPubkey = data.activePubkey;
 
@@ -612,8 +621,8 @@
     const av = document.createElement('img');
     av.className = 'acct-av';
     av.referrerPolicy = 'no-referrer';
-    av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
-    av.src = chosen.picture || 'icons/avatar-default.svg';
+    av.onerror = () => { av.onerror = null; av.src = avatarPh; };
+    av.src = chosen.picture || avatarPh;
     const name = document.createElement('div');
     name.className = 'acct-name';
     name.textContent = chosen.name || shortNpub(chosen.npub);
@@ -655,8 +664,8 @@
       const av = document.createElement('img');
       av.className = 'switch-row-av';
       av.referrerPolicy = 'no-referrer';
-      av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
-      av.src = a.picture || 'icons/avatar-default.svg';
+      av.onerror = () => { av.onerror = null; av.src = avatarPh; };
+      av.src = a.picture || avatarPh;
       const info = document.createElement('div');
       info.className = 'switch-row-info';
       const name = document.createElement('div');
@@ -715,8 +724,8 @@
       const av = document.createElement('img');
       av.className = 'switch-row-av';
       av.referrerPolicy = 'no-referrer';
-      av.onerror = () => { av.onerror = null; av.src = 'icons/avatar-default.svg'; };
-      av.src = a.picture || 'icons/avatar-default.svg';
+      av.onerror = () => { av.onerror = null; av.src = avatarPh; };
+      av.src = a.picture || avatarPh;
       const info = document.createElement('div');
       info.className = 'switch-row-info';
       const name = document.createElement('div');

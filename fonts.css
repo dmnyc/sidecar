@@ -1,7 +1,8 @@
-/* Sidecar typography — bundled webfonts, no external requests. Every face is SIL OFL 1.1
-   and ships its own OFL-*.txt beside it in fonts/ — one exception: Cast Iron's
-   Impressed Metal is GemFonts freeware with its own license record
-   (fonts/LICENSE-ImpressedMetal.txt).
+/* Sidecar typography — bundled webfonts, no external requests. Every face ships its own
+   license record beside it in fonts/. Most are SIL OFL 1.1 (OFL-*.txt); two are not, and
+   each has a LICENSE-*.txt of its own instead — Cast Iron's Impressed Metal (GemFonts
+   freeware) and Par Avion's Special Elite (Apache 2.0, also listed in NOTICE, which is
+   what that license asks for).
    Manrope is the UI/body face in every theme and never changes.
 
    Each theme sets its own --font-display, because a palette alone was not carrying the
@@ -20,6 +21,7 @@
      Nixie       Apogee Telemetry   monospaced engineer's hand   instrument panel
      Populuxe    Rowdies            chunky rounded geometric     motel signage
      Cast Iron   Impressed Metal    groove-outline letterforms   the stamp impression
+     Par Avion   Special Elite      distressed typewriter        the typed letter
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -27,6 +29,14 @@
    IMPRESSION a stamp leaves in the plate rather than ink sitting on top of it. On a
    near-black ground that is the difference between a number that is lit and a number
    that was struck.
+
+   Special Elite is the second face here drawn from a machine rather than a pen, after
+   Nixie's Apogee Telemetry, and the two do not collide for the reason the table cares
+   about: Apogee is MONOSPACED draftsman's lettering, uniform hairlines set on a fixed
+   pitch, and Special Elite is PROPORTIONAL (54 distinct advance widths in its first 60
+   glyphs, and its isFixedPitch flag is 0) with slabbed serifs and ink spread unevenly
+   across every stroke. One is a machine that draws; the other is a machine that hits
+   paper, which is the whole reason this theme wanted it.
 
    Populuxe is the third geometric here, after Art Deco's Josefin Sans and Bauhaus's Jost,
    which is the one place this table's rule bends. It holds because the axis those two are
@@ -37,7 +47,7 @@
    Five faces ship as variable fonts — one file spanning the weight range rather than a
    static per weight. The remaining statics are Playfair Display (two woff2 weights),
    Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Apogee Telemetry,
-   Rowdies, and Impressed Metal. The single-weight faces declare `400 700`, which tells
+   Rowdies, Impressed Metal, and Special Elite. The single-weight faces declare `400 700`, which tells
    the browser the one outline covers that whole range, so a 700-weight heading renders
    the real face rather than a synthetic bold or a drop back to Manrope halfway down a
    screen. */
@@ -195,4 +205,22 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/varela-round.ttf') format('truetype');
+}
+
+/* Special Elite (Brian J. Bonislawsky / Astigmatic, Apache 2.0 — see
+   fonts/LICENSE-SpecialElite.txt, and NOTICE in the repo root, which section 4 of that
+   license asks for). Par Avion's display voice: a Smith-Corona portable's typebars
+   striking through a worn ribbon, so every glyph carries its own uneven inking and no
+   two of a letter look quite alike. Headings and the balance figure alike are therefore
+   TYPED rather than set, which is the theme's whole premise — the panel is a letter.
+   The unmodified original from google/fonts, 162KB, the largest face here: the ragged
+   outlines carry a lot of nodes and that texture IS the face, so there is nothing to
+   simplify away. `400 700` covers the range off the one outline, so a 700 heading
+   renders the real face and never a synthetic bold. */
+@font-face {
+  font-family: 'Special Elite';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/special-elite.ttf') format('truetype');
 }
