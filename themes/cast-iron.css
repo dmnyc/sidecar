@@ -182,18 +182,19 @@
    bar of #0e0c0b: 1.04:1. The plate IS the bar. What shipped is a bare arrow floating
    next to a proper End disc.
 
-   A dark plate, not a bright one, because this theme announces boxes by EDGE LIGHTING
-   rather than by fill — the header note calls it out and every button here works that
-   way. The fill is #262320 against the bar's #0e0c0b, which is 1.25:1 and deliberately
-   nothing on its own; the lit top lip and the shade seated under it are what make it
-   an object. The arrow reads 9.3:1 on that fill.
+   A first pass here set a dark plate at 1.25:1 and leaned on this theme's edge-lighting
+   grammar to carry it — lit lip, seated shade, the way every box in the theme announces
+   itself. That was reasoning from the theme instead of measuring against the
+   requirement, and it was still a disc you could not find. The grammar is right for
+   panels and cards, which are large; a 22px control has no edge worth reading.
 
-   That also settles the weight question. End is the one loud control in the theme —
-   raised metal at 9.16:1 against the bar, with sunk-die ink at 8.91 — and restart is
-   the quieter of the pair, so it stays a plate and lets its edges do the talking. */
+   So it is measured now: 3.13:1 against the bar's top stop and 3.02 against its bottom,
+   which is the 3.0 a non-text control needs. Sunk-die ink at 3.05 on the fill, keeping
+   the pressed-into-metal reading. Still well under End, the theme's one loud object at
+   9.16:1 — so the hierarchy survives being legible. */
 [data-theme="cast-iron"] .relax-status-restart {
-  --relax-restart-bg: linear-gradient(180deg, #2e2a25, #262320 58%, #1c1a17);
-  --relax-restart-ink: #cfc7b5;
+  --relax-restart-bg: linear-gradient(180deg, #716B5F, #666055 58%, #575146);
+  --relax-restart-ink: #12100e;
   box-shadow:
     inset 0 1px 0 rgba(216, 209, 196, 0.16),
     inset 0 -1px 0 rgba(0, 0, 0, 0.7);
