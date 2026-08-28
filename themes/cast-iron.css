@@ -176,6 +176,29 @@
   color: var(--text);
 }
 
+/* Relax restart, the disc beside End. #240 added it while this theme was in review,
+   so iron never declared the pair and fell through to the shared default — which is
+   the Trust button's fill, and this theme's Trust plate is #131110 against a status
+   bar of #0e0c0b: 1.04:1. The plate IS the bar. What shipped is a bare arrow floating
+   next to a proper End disc.
+
+   A dark plate, not a bright one, because this theme announces boxes by EDGE LIGHTING
+   rather than by fill — the header note calls it out and every button here works that
+   way. The fill is #262320 against the bar's #0e0c0b, which is 1.25:1 and deliberately
+   nothing on its own; the lit top lip and the shade seated under it are what make it
+   an object. The arrow reads 9.3:1 on that fill.
+
+   That also settles the weight question. End is the one loud control in the theme —
+   raised metal at 9.16:1 against the bar, with sunk-die ink at 8.91 — and restart is
+   the quieter of the pair, so it stays a plate and lets its edges do the talking. */
+[data-theme="cast-iron"] .relax-status-restart {
+  --relax-restart-bg: linear-gradient(180deg, #2e2a25, #262320 58%, #1c1a17);
+  --relax-restart-ink: #cfc7b5;
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7);
+}
+
 /* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
    pixel-identical to the original); re-theme them for iron. The box-shadow swaps the
    default champagne glow for a plain dark seating — edges, not haloes — with only a
@@ -344,7 +367,6 @@
 [data-theme="cast-iron"] #view-settings > .content > h2,
 [data-theme="cast-iron"] .tabview h3,
 [data-theme="cast-iron"] .notif-modal-title,
-[data-theme="cast-iron"] .settings-section-title,
 [data-theme="cast-iron"] .modal h3,
 [data-theme="cast-iron"] .welcome-title,
 [data-theme="cast-iron"] .aa-label,
@@ -379,13 +401,34 @@
   transform: rotate(var(--iron-rot, 0deg))
     translate(var(--iron-dx, 0em), var(--iron-dy, 0em));
 }
-/* Section headings hold a shared 16px across every theme, but Impressed Metal draws
-   its caps short: ~9.7px of ascent at 16px where the roster's other faces run
-   11.4-13.1 (measured via canvas metrics). At 16 they read a size small. Stepped up
-   to 19, which puts their ink height back level with Jost/Playfair titles next door;
-   verified 19 over 20 by eye so the long labels keep clear room before the chevron. */
+/* ---- the settings heads are set solid ------------------------------------------
+   Impressed Metal draws every glyph as a hollow channel, and the relief treatment
+   above fades each one to 62% toward its base. On a display line at 23px that is the
+   theme's whole idea. On the eight settings section heads it is three handicaps at
+   once — outline, fade, and small — stacked on the type a user reads to FIND things.
+
+   The argument is one this theme already made and only half-applied. The stamped-type
+   note in sidepanel.js records that navigation subheads were deliberately left out of
+   the hand-set pose, because they live in tight flex rows where a letter-level pose
+   fights the layout rather than adding to it. Same reasoning, one step further: these
+   are wayfinding, not display, so they come off the display FACE too.
+
+   Three edits, and they only work together:
+     - the UI face here, so the strokes are solid
+     - the relief list above no longer names .settings-section-title, because a mask
+       that fades small type toward its base is the smear this theme's own struck-type
+       note warns body copy away from
+     - and the 19px bump is GONE. It existed only to pay for Impressed Metal's short
+       caps (~9.7px of ascent at 16px against the roster's 11.4-13.1); with Manrope
+       back, 19px would simply be an oversized heading. Back to the shared 16.
+
+   .settings-section-toggle takes `font: inherit` from this element, so it follows
+   without a rule of its own. The h2 view titles and .tabview h3 keep the display face
+   — they are titles, not navigation, and they are the size the face was chosen for. */
 [data-theme="cast-iron"] .settings-section-title {
-  font-size: 19px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0.005em;
 }
 /* Same short-caps correction on this theme's picker tile. */
 .theme-card[data-theme="cast-iron"] .theme-name {
