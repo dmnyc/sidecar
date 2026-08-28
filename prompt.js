@@ -390,10 +390,25 @@
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
     // than writing an arbitrary string into the DOM.
     const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe'];
-    document.documentElement.setAttribute(
-      'data-theme',
-      THEMES.includes(data.theme) ? data.theme : 'speakeasy'
-    );
+    const theme = THEMES.includes(data.theme) ? data.theme : 'speakeasy';
+    document.documentElement.setAttribute('data-theme', theme);
+
+    // The wordmark is baked lavender for a dark field and disappears on a light one, so
+    // every light theme needs the dark-wordmark variant. The panel has done this since
+    // Art Deco shipped (logoSrcFor / LIGHT_THEMES in sidepanel.js) and the page-side pay
+    // card does it too (LIGHT_CARD_THEMES in content.js) — this window never did, so it
+    // has been showing a washed-out mark on four themes for as long as they have existed.
+    //
+    // A third copy of the list, and it is worth saying why rather than sharing one: these
+    // are three separate documents with no module system between them — the panel, a
+    // content script in a page's world, and this window — and the alternative is a fourth
+    // file loaded by all three to hold nine strings. The cost is that a new light theme
+    // must be registered here as well; the comment beside each copy names the others.
+    const LIGHT_THEMES = ['art-deco', 'aegean', 'bauhaus', 'populuxe'];
+    if (LIGHT_THEMES.includes(theme)) {
+      const mark = document.querySelector('.brand img');
+      if (mark) mark.src = 'icons/sidecar-logo-deco.svg';
+    }
     isPayment = data.scope === 'webln' && data.method === 'sendPayment';
     chosenPubkey = data.activePubkey;
 

@@ -173,6 +173,9 @@
   // whose wordmark is dark purple (#5a4a8a) for legibility on the light
   // eggshell background; the cocktail-glass mark is identical in both files
   // (official colors), so only the wordmark changes.
+  // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
+  // prompt.js (the approval window's wordmark). Three documents, no module system between
+  // them; a new light theme has to be registered in all three.
   const LIGHT_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe']);
   function logoSrcFor(themeName) {
     // EVERY light theme needs the dark-wordmark variant; the default is baked
