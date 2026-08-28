@@ -316,6 +316,24 @@
 }
 
 /* The "+" badge carries near-black text on a colored disc in the dark themes. */
+/* End, on the relax status bar. It draws from --accent-fill, which in this theme is the
+   blue — so the one control that STOPS something was rendering in the same colour as
+   every affirmative chip beside it. This school assigns meaning by colour more than any
+   other theme here; red is in the palette and this is what it is for.
+
+   --warn, the palette's own red, not a new value: 5.81 against the bar's top stop and
+   5.41 against its bottom, with a white glyph at 5.81 — better on both counts than the
+   blue it replaces (5.52). The restart disc stays yellow, so the pair reads as two
+   different actions rather than two weights of one.
+
+   Scoped to this control alone. --accent-fill also drives the receive presets,
+   switch-site, the chart range chips and the unread badge, and those are affirmative or
+   neutral; moving the token would turn all of them red. */
+[data-theme="bauhaus"] .relax-status-x {
+  background: var(--warn);
+  color: #FFFFFF;
+}
+
 [data-theme="bauhaus"] .add-account-badge {
   color: var(--velvet-1);
 }
