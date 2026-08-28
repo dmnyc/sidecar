@@ -437,6 +437,35 @@
   font-weight: 600;
   letter-spacing: 0.005em;
 }
+/* The picker card, unselected. Every other dark theme's card is found by its border;
+   this theme's --border is rgba(216, 209, 196, 0.035), which is deliberately almost
+   nothing — the header note above says boxes here announce themselves by edge lighting
+   and shadow, not by an outline. The card is the one object that never got the lighting,
+   so on a dark page it is a black rectangle on a dark ground with no shape at all.
+
+   The theme's own grammar, the same one .fab and the raised chips use: a lip of light
+   caught on the top edge, shade pooled along the bottom, and a dark seating beneath so
+   the plate stands off the page. No border change — the outline stays as faint as the
+   theme intends, and the shape comes from the light.
+
+   :not(.active) IS LOAD-BEARING. `.theme-card[data-theme="cast-iron"]` is (0,2,0), the
+   same weight as `.theme-card.active`, and this file loads after styles.css — so an
+   unqualified rule here would win the tie and delete the selected card's gold ring.
+   That is the same trap recorded at the range chips below, and it has bitten this file
+   once already. */
+.theme-card[data-theme="cast-iron"]:not(.active) {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.75),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.theme-card[data-theme="cast-iron"]:not(.active):hover {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 209, 196, 0.20),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.8),
+    0 3px 9px rgba(0, 0, 0, 0.5);
+}
+
 /* Same short-caps correction on this theme's picker tile. */
 .theme-card[data-theme="cast-iron"] .theme-name {
   font-size: 24px;
