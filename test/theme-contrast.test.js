@@ -257,7 +257,7 @@ test('the light themes supply their own Trust fill', () => {
   // Aegean and Art Deco are the two whose --lav / --purple are dark enough to break the
   // shared default. If either stops overriding, the contrast tests above go red — this just
   // names them so the failure is obvious rather than arithmetic.
-  for (const name of ['aegean', 'art-deco']) {
+  for (const name of ['aegean', 'industria']) {
     const t = THEMES.find((x) => x.name === name);
     assert.ok(t, 'missing theme ' + name);
     for (const v of ['--btn-lav-top', '--btn-lav-mid', '--btn-lav-bot', '--btn-lav-text']) {
@@ -303,26 +303,26 @@ const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 // one to make a change pass — that is the failure this file exists to make visible.
 //
 // KNOWN BELOW AA (pre-existing, not introduced by any change here):
-//   art-deco --muted 3.68:1  — secondary body text under the 4.5 floor
+//   industria --muted 3.68:1  — secondary body text under the 4.5 floor
 //   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone), except bauhaus and
 //                              nixie (4.52, from its cool greys)
 // --faint is used for the lowest-emphasis labels; if it ever carries something a user has
 // to read, it needs darkening first, per theme.
 //
-// RESOLVED: art-deco --gold was 1.67:1 while being a `color:` in 25 rules, and this file
+// RESOLVED: industria --gold was 1.67:1 while being a `color:` in 25 rules, and this file
 // said it "needs a decision about what Art Deco's accent ink IS". The decision was to
 // split the token the way Bauhaus does — the bright metallic #C5A059 is now fill-only
 // and pinned into --accent-fill / --fab-bg / --btn-accent-mid / --balloon-bg-hover /
 // --glow, and --gold is a deep bronze at 5.23:1. --orange (2.21, @mentions) and --red
 // (2.81, 16 rules) were the same defect in the same theme and moved with it.
 //
-// Note on art-deco --muted/--faint: they are NOT fixable the way the others were. To
+// Note on industria --muted/--faint: they are NOT fixable the way the others were. To
 // clear 4.5:1 on --velvet-2 (#DED4C0) a neutral grey has to be about #5A5A5A, which is
 // barely lighter than --text-2 (#4a4a4a) — so the cream palette cannot carry a legible
 // three-level grey hierarchy at all. That is a surface problem, not an ink problem.
 const FLOORS = {
   aegean: { '--muted': 4.55, '--faint': 2.85, '--gold': 6.00 },
-  'art-deco': { '--muted': 3.65, '--faint': 2.30, '--gold': 5.20 },
+  'industria': { '--muted': 3.65, '--faint': 2.30, '--gold': 5.20 },
   brownstone: { '--muted': 6.20, '--faint': 3.50, '--gold': 8.60 },
   'film-noir': { '--muted': 4.45, '--faint': 2.25, '--gold': 7.85 },
   speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
@@ -330,7 +330,7 @@ const FLOORS = {
   nixie: { '--muted': 7.60, '--faint': 4.50, '--gold': 12.35 },
   // Populuxe clears AA on all four surfaces for all five inks, --faint included. That is
   // a consequence of the ground being white with the cream demoted to a secondary plane,
-  // which is the correction for the art-deco note above: the cream could not carry a
+  // which is the correction for the industria note above: the cream could not carry a
   // three-level hierarchy, so it stopped being the surface that had to.
   // --muted is much darker than the role usually wants (7.32) because it also has to stay
   // legible over the theme's pattern tile, which is far bolder than any other theme's.
@@ -345,7 +345,7 @@ const FLOORS = {
   'cast-iron': { '--muted': 4.61, '--faint': 2.39, '--gold': 8.83 },
   // Metropolis clears AA on --muted (5.13) without the darkening Populuxe needed, because
   // its ground is soot rather than a mid value — there is room between the surfaces and the
-  // ink for a three-level grey hierarchy, which is exactly what the art-deco note above says
+  // ink for a three-level grey hierarchy, which is exactly what the industria note above says
   // a cream palette cannot give you. --faint is 2.85, mid-pack for the dark themes and under
   // AA like all of them; it carries no text a user has to read.
   // --gold is 7.43 as the INK half of a role split made in the theme's first commit rather
@@ -594,4 +594,59 @@ test('no stray Speakeasy gold is baked into a themed value', () => {
     offenders.push(i + 1 + ': ' + line.trim());
   });
   assert.deepEqual(offenders, [], 'unthemeable gold literals:\n  ' + offenders.join('\n  '));
+});
+
+// ---------------------------------------------------------------------------
+// Renamed themes
+// ---------------------------------------------------------------------------
+//
+// Art Deco was rebranded to Industria once Metropolis made "Art Deco" the one theme
+// named after a category rather than a thing. The stored value in
+// sidecar_settings.theme is never rewritten, so vaults that chose it before the rename
+// still hold 'art-deco' — every document that reads the setting has to map it, or those
+// users silently fall back to Speakeasy on their next unlock.
+//
+// This pins the alias in all three readers at once. They are three separate documents
+// with no module system between them, which is exactly the shape of thing that gets
+// fixed in two places out of three.
+
+test('a stored art-deco maps to industria in every document that reads the setting', () => {
+  for (const file of ['sidepanel.js', 'prompt.js', 'content.js']) {
+    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.match(
+      src,
+      /THEME_ALIASES\s*=\s*\{[^}]*'art-deco'\s*:\s*'industria'/,
+      `${file} must alias the pre-rename theme id, or its users fall back to Speakeasy`
+    );
+  }
+});
+
+test('nothing still ships the old id as a live theme', () => {
+  // The alias table is the only place 'art-deco' may appear in a code path. Judged per
+  // LINE rather than by a window of surrounding characters: the first version of this
+  // test scanned 120 chars back for the word "renamed" and failed on the very comment
+  // explaining the alias, which is a test measuring its own prose rather than the code.
+  //
+  // The STYLESHEETS are scanned too, and that is not padding: the rebrand renamed the
+  // file and every selector in it, and a rule added to art-deco.css on main while this
+  // branch was away rebased in still carrying the old attribute. A selector nothing
+  // matches fails silently — the theme just quietly gets the shared default back, which
+  // for that rule was the unreadable End disc the rule existed to fix.
+  const files = ['sidepanel.js', 'prompt.js', 'content.js', 'sidepanel.html'].concat(
+    fs.readdirSync(path.join(ROOT, 'themes'))
+      .filter((f) => f.endsWith('.css'))
+      .map((f) => `themes/${f}`)
+  );
+  for (const file of files) {
+    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    src.split('\n').forEach((line, i) => {
+      if (!line.includes('art-deco')) return;
+      const isComment = /^\s*(\/\/|\*|<!--|\/\*)/.test(line);
+      const isAlias = line.includes('THEME_ALIASES') || /'art-deco'\s*:\s*'industria'/.test(line);
+      assert.ok(
+        isComment || isAlias,
+        `${file}:${i + 1} — a live 'art-deco' reference outside the alias table: ${line.trim()}`
+      );
+    });
+  }
 });

@@ -479,8 +479,12 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+  // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
+  // for why the stored value is not rewritten.
+  const THEME_ALIASES = { 'art-deco': 'industria' };
   function setCardTheme(t) {
+    t = THEME_ALIASES[t] || t;
     if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
     cardTheme = t;
@@ -541,7 +545,7 @@
         CARD_SUCCESS: 'color:#6ee7a8',
         CARD_PAY_SHADOW: 'rgba(160,160,160,0.36)'
       },
-      'art-deco': {
+      'industria': {
         CARD_COLOR: 'color:#2a2a2a',
         CARD_BORDER: 'rgba(197,160,89,0.40)',
         CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(212,175,55,0.15),transparent 58%),linear-gradient(165deg,#E6DCC8,#F0EAD6)',
@@ -942,7 +946,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

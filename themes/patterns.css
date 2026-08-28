@@ -38,7 +38,7 @@ body {
 }
 
 /* Art Deco — Geometric sunburst/fan */
-[data-theme="art-deco"] body {
+[data-theme="industria"] body {
   background-image:
     url(deco-pattern.svg),
     radial-gradient(1000px 500px at 50% -10%, rgba(212, 175, 55, 0.18), transparent 60%),
