@@ -4,7 +4,7 @@
    Inspired by 1920s Art Deco elegance and geometric patterns.
    ============================================================ */
 
-[data-theme="art-deco"] {
+[data-theme="industria"] {
   color-scheme: light;
 
   /* Josefin Sans — a 1920s geometric with a very small x-height and long extenders, the
@@ -132,7 +132,7 @@
      second solid button. */
   /* Restart disc — MEASURED against the bar it sits on, not against how quiet it ought
      to feel. #240 gave every theme a "quieter register than End" and the registers came
-     out at roughly 1.0:1: art-deco 1.03, nixie 1.03, film-noir 1.25/1.03. A control
+     out at roughly 1.0:1: industria 1.03, nixie 1.03, film-noir 1.25/1.03. A control
      nobody can locate is not quiet, it is missing. These clear the 3.0 that a non-text
      control needs against BOTH stops of the status bar's gradient, and stay under End's
      weight wherever End is the louder of the two. */
@@ -178,31 +178,31 @@
 
    It is also red, which is where Bauhaus and Populuxe ended up for the same control and
    the same reason: End is a stop, and the convention for a stop is red. */
-[data-theme="art-deco"] .relax-status-x {
+[data-theme="industria"] .relax-status-x {
   background: var(--warn);
   color: #FFFFFF;
 }
 
 
 /* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
-   pixel-identical to the original); re-theme them for art deco. */
-[data-theme="art-deco"] .lav-btn {
+   pixel-identical to the original); re-theme them for Industria. */
+[data-theme="industria"] .lav-btn {
   background: linear-gradient(180deg, #FBF8F0, #F2ECDC);
   color: #2a2a2a;
   border: 1px solid var(--border-strong);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 4px 14px rgba(139, 115, 85, 0.18);
 }
-[data-theme="art-deco"] .sk {
+[data-theme="industria"] .sk {
   background-image: linear-gradient(100deg, var(--velvet-1) 30%, rgba(197, 160, 89, 0.18) 50%, var(--velvet-1) 70%);
 }
-[data-theme="art-deco"] input,
-[data-theme="art-deco"] select,
-[data-theme="art-deco"] textarea {
+[data-theme="industria"] input,
+[data-theme="industria"] select,
+[data-theme="industria"] textarea {
   background: var(--bg-2);
 }
 /* the "+" badge text is speakeasy's dark #2a1257; on deco's dark-purple badge it
    needs the light page color to stay legible */
-[data-theme="art-deco"] .add-account-badge {
+[data-theme="industria"] .add-account-badge {
   color: var(--bg);
 }
 /* The two balance displays were different colours, and both were washed out on the
@@ -214,11 +214,11 @@
    card and the one after that fails, because the card is the tighter surface.
    The "sent" tx icon below has the same origin and keeps --orange, which is fine on
    an icon at that size against its own tinted chip. */
-[data-theme="art-deco"] .wallet-balance,
-[data-theme="art-deco"] .pinned-balance-amt {
+[data-theme="industria"] .wallet-balance,
+[data-theme="industria"] .pinned-balance-amt {
   color: #8C6A1F;
 }
-[data-theme="art-deco"] .tx-icon.out {
+[data-theme="industria"] .tx-icon.out {
   color: var(--orange);
   background: rgba(184, 134, 11, 0.12);
 }
@@ -249,8 +249,8 @@
   76% { transform: translateY(-0.06em); }
   100% { transform: translateY(0); opacity: 1; }
 }
-[data-theme="art-deco"] .bal-glyph { display: inline-block; }
-[data-theme="art-deco"] .bal-glyph.bal-in {
+[data-theme="industria"] .bal-glyph { display: inline-block; }
+[data-theme="industria"] .bal-glyph.bal-in {
   /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
      never more than 174ms behind the first, however many there are. See splitGlyphs
      in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
@@ -258,5 +258,5 @@
              calc(var(--i) * min(58ms, 174ms / max(var(--n) - 1, 1))) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="art-deco"] .bal-glyph.bal-in { animation: none; }
+  [data-theme="industria"] .bal-glyph.bal-in { animation: none; }
 }

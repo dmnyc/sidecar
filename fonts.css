@@ -22,6 +22,7 @@
      Populuxe    Rowdies            chunky rounded geometric     motel signage
      Cast Iron   Impressed Metal    groove-outline letterforms   the stamp impression
      Par Avion   Special Elite      distressed typewriter        the typed letter
+     Metropolis  Limelight          deco poster capitals         the 1927 one-sheet
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -44,10 +45,34 @@
    and Rowdies is heavy with rounded terminals and a large x-height. Set side by side the
    pair that could be confused is still Josefin and Jost, not either of them and this.
 
+   Metropolis's Limelight is the SECOND place the rule bends, and the more honest one:
+   at small sizes it reads as a high-contrast display serif, which is Playfair's category
+   outright. That was chosen with the cost known — the full comparison, and the two
+   alternatives that turned out worse, are recorded above its @font-face block below.
+
+   TWO THEMES USE A SECOND FACE for their settings section heads, and both for the same
+   reason: a display face that earns its keep on a 23px title is doing the wrong job on
+   16px navigation, eight rows deep. Cast Iron takes Varela Round (see its block below).
+   METROPOLIS BORROWS ART DECO'S JOSEFIN SANS.
+
+   That reuse is deliberate, and it is the cheap answer to a real problem. Limelight at
+   16px is a wall of dense type; what it needs beside it is the same deco geometry drawn
+   light. Josefin already IS that, already ships, and — unlike the single-weight deco
+   faces — carries a real weight axis, so a 600 head is a DRAWN 600 rather than a 400
+   outline the browser thickens. Poiret One was built for this slot first and dropped on
+   exactly that point: one outline, and Google's own CSS declares it at 400, so the 600
+   the heads ask for came out synthesised and lost the hairlines it was chosen for.
+
+   The table's rule above is about two themes' DISPLAY faces reading as the same idea.
+   This is a display face against a navigation face, in themes separated by palette
+   (eggshell and bronze against soot and brass) and by their own display faces, which
+   share nothing. Cast Iron already leans the same way in its fallback chain, naming Jost
+   because Bauhaus loads it.
+
    Five faces ship as variable fonts — one file spanning the weight range rather than a
    static per weight. The remaining statics are Playfair Display (two woff2 weights),
    Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Apogee Telemetry,
-   Rowdies, Impressed Metal, and Special Elite. The single-weight faces declare `400 700`, which tells
+   Rowdies, Impressed Metal, Special Elite, and Limelight. The single-weight faces declare `400 700`, which tells
    the browser the one outline covers that whole range, so a 700-weight heading renders
    the real face rather than a synthetic bold or a drop back to Manrope halfway down a
    screen. */
@@ -223,4 +248,38 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/special-elite.ttf') format('truetype');
+}
+
+/* Limelight (Eben Sorkin / Sorkin Type, SIL OFL 1.1 — see fonts/OFL-Limelight.txt).
+   Metropolis's display face: 1920s poster capitals with heavy verticals and hairline
+   horizontals, the lettering of a deco one-sheet rather than of a deco building.
+   Shipped as an unmodified TTF, 129KB, the same practice as the other single-weight
+   faces — `400 700` covering the range so nothing synthesizes.
+
+   THE ONE CATEGORY OVERLAP IN THE SET, and it is recorded rather than glossed. At the
+   small end — 16.8px in the pinned balance bar — Limelight reads as a high-contrast
+   display serif, which is the same read as Speakeasy's Playfair, and the note at the
+   head of this file says that is exactly what a shared category does to two themes.
+   Three faces were rendered at all four sizes the panel uses (40 / 24 / 16.8 / 20px)
+   before this was chosen, and the alternatives were worse:
+
+     Stardos Stencil  its stencil breaks close up below 40px, so the theme pays for
+                      an idea that is invisible everywhere it would have mattered,
+                      and what is left is also a heavy serif.
+     Poiret One       genuinely distinct, and legible smaller than expected — but it
+                      is a delicate geometric deco face, which lands on Art Deco's
+                      Josefin Sans in category AND in movement, in the two themes most
+                      likely to be compared.
+
+   So the overlap was chosen deliberately, against a worse one, and it is separated on
+   palette rather than on shape: Speakeasy is purple velvet, this is soot and brass.
+   Limelight is also squarer and more poster-like than Playfair at display size, where
+   the balance figure actually lives. If the two ever read as one theme in the picker,
+   the fix is a face from a category nothing here occupies — not a tweak to this one. */
+@font-face {
+  font-family: 'Limelight';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/limelight.ttf') format('truetype');
 }

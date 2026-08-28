@@ -8,7 +8,7 @@
   /* Theme-specific color variables are loaded from:
      - themes/speakeasy.css (default)
      - themes/film-noir.css
-     - themes/art-deco.css
+     - themes/industria.css
 
      Sidecar defaults to Speakeasy if no theme is set. */
 
@@ -3121,9 +3121,9 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    disappear on a light one. Measured against the status bar (velvet-1 -> velvet-2), where
    a non-text indicator needs 3.0:1:
        green #4ade80   speakeasy 9.6  film-noir 10.0  brownstone 10.5
-                       aegean    1.7  art-deco   1.3  bauhaus     1.7  populuxe 1.7
+                       aegean    1.7  industria  1.3  bauhaus     1.7  populuxe 1.7
        --amber         speakeasy 8.3  film-noir  8.8  brownstone 11.2
-                       aegean    3.0  art-deco   1.6  bauhaus     1.4  populuxe 1.9
+                       aegean    3.0  industria  1.6  bauhaus     1.4  populuxe 1.9
    So the four light themes each set --relax-dot-ok / --relax-dot-low; the fallbacks here
    are the original values, which is why Speakeasy, Film Noir and Brownstone are untouched.
    (Populuxe's own pair measures 5.0/4.2 for the green and 4.5/3.7 for the low state, both

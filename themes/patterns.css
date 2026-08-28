@@ -38,7 +38,7 @@ body {
 }
 
 /* Art Deco — Geometric sunburst/fan */
-[data-theme="art-deco"] body {
+[data-theme="industria"] body {
   background-image:
     url(deco-pattern.svg),
     radial-gradient(1000px 500px at 50% -10%, rgba(212, 175, 55, 0.18), transparent 60%),
@@ -217,6 +217,80 @@ body {
   background-image:
     radial-gradient(900px 380px at 50% -10%, rgba(216, 209, 196, 0.055), transparent 60%),
     linear-gradient(180deg, #131010 0%, var(--bg) 34%);
+}
+
+/* Metropolis — shafts of light from a source above the frame, dying into soot.
+   The one motif in the film that is neither a machine nor a face: hard-edged beams
+   fanning down over the towers, which is also what the 1927 poster is mostly made of.
+
+   NOT A TILE, and that is the point of difference. Every patterned theme here repeats
+   a motif (a lattice, a meander, a course of masonry); this one places a single figure
+   anchored to the top of the frame and lets it fall off. A repeating fan would read as
+   corduroy at panel width — the beams have to converge on ONE point or they are just
+   diagonal stripes, which is Film Noir's territory turned 30 degrees.
+
+   Sized to the frame rather than to a pixel value, the same reasoning as Populuxe:
+   the origin is at 50% of the width, so the figure stays centred and symmetrical at
+   whatever width the side panel is dragged to. A fixed size would swing the fan's
+   axis off-centre at every width except one.
+
+   THE ORIGIN IS FAR ABOVE THE FRAME, and that is the whole difference between this and
+   Art Deco's tile. Both are fans. Put the vertex just above the top edge and the beams
+   sweep the full width as a SUNBURST, which is deco ornament and is what deco-pattern.svg
+   already does; put it most of a panel-height above (50% -78%) and the panel only
+   sees a narrow slice of the fan, so the beams run near-vertical and diverge just enough
+   to say they come from somewhere. The first build of this had the vertex at -14% and
+   rendered as a starburst behind the whole panel — worth recording, because the value
+   looks arbitrary and is not.
+
+   BRASS RAYS, NOT LIGHT SHAFTS, and that was a correction. The first version rendered
+   each beam as a soft ramp in pale cream — light through a gap — and read as nothing at
+   all: no line, no structure, the one part of the theme with no deco in it. These are
+   drawn in the theme's brass, thin and many, the way the printed sunbursts are.
+
+   DRAWN AS STROKES, NOT AS A CONIC GRADIENT, and that is the second correction. A
+   repeating-conic-gradient states its rays as an ANGLE, so a ray's width on screen is a
+   function of how far it is from the vertex: at the 0.14deg this wants, a ray is 0.17px
+   across near the vertex and about 1.5px far from it. Below a pixel the rasteriser does
+   what it must — drops some rays, doubles others, and lands the left and right halves on
+   different pixel boundaries. The result was jagged and visibly asymmetric on screen from
+   arithmetic that was exactly symmetric. Chasing it with a `from` angle computed to a
+   hundredth of a degree fixed nothing, because the problem was never the angle.
+
+   metropolis-rays.svg draws 59 real lines instead. A stroke has a width in user units,
+   so it antialiases properly and holds one weight from top to bottom, and the fan is
+   symmetric BY CONSTRUCTION — rays at k*2.6deg for k in -29..29, so every ray has a
+   mirror and k=0 is the vertical spine. There is no phase to get wrong.
+
+   THE VERTEX IS JUST OFF THE TOP EDGE (70 units above a 400-wide frame), not most of a
+   panel above it. That is what makes this a sun rather than a searchlight: far away, the
+   panel sees a narrow slice and the rays run near-parallel; close in, everything
+   genuinely splays from a point just outside the window.
+
+   The falloff is the FIRST layer, not a mask and not a pseudo-element: background layers
+   paint first-listed on top, so a soot gradient at the head of the stack draws over the
+   beams and fades them out down the panel. A `mask-image` would have taken the base
+   gradient with it, and a fixed ::before would have put a painted element between the
+   background and the content for no gain. Beams are at strength across the header and
+   gone by two-thirds down, so content sits on bare soot.
+
+   No luminance figure quoted, unlike the three light themes above: those were levelled
+   against EACH OTHER and the number is what holds them in a band. The dark themes are
+   not a band — noir's slats, iron's bare falloff and this are three different amounts of
+   nothing — so this was set by eye against them, which is the honest description of it. */
+[data-theme="metropolis"] body {
+  background-image:
+    linear-gradient(180deg, transparent 0%, rgba(13, 12, 10, 0.46) 42%, var(--bg) 78%),
+    url(metropolis-rays.svg),
+    radial-gradient(1200px 520px at 50% -10%, rgba(168, 132, 60, 0.12), transparent 62%),
+    linear-gradient(178deg, #17140F 0%, var(--bg) 46%);
+  /* 100% auto: the fan scales to the panel's WIDTH, which is what keeps the stroke a
+     sensible thickness at any size — 1px at 400, ~1.9px at 754 — instead of thinning
+     into the sub-pixel range the conic version lived in. Anchored top centre so the
+     vertex stays on the panel's vertical axis however wide it is dragged. */
+  background-size: auto, 100% auto, auto, auto;
+  background-position: 0% 0%, center top, 0% 0%, 0% 0%;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 /* Par Avion — the envelope itself: the chevron round three edges, and the world

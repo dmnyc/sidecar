@@ -393,14 +393,18 @@
     // this window always rendered Speakeasy regardless of what the panel was wearing.
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
     // than writing an arbitrary string into the DOM.
-    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    // Renamed themes: a stored 'art-deco' predates the Industria rebrand and is never
+    // rewritten, so it is mapped on read here exactly as sidepanel.js and content.js do.
+    const THEME_ALIASES = { 'art-deco': 'industria' };
+    data.theme = THEME_ALIASES[data.theme] || data.theme;
     const theme = THEMES.includes(data.theme) ? data.theme : 'speakeasy';
     document.documentElement.setAttribute('data-theme', theme);
 
     // Light themes need two swaps in this window, and they share one list. The wordmark
     // is baked lavender for a dark field and disappears on a light one; the placeholder
     // garnish is drawn white for a dark avatar disc and vanishes on the same grounds.
-    // The panel has done the wordmark since Art Deco shipped (logoSrcFor / LIGHT_THEMES
+    // The panel has done the wordmark since the first light theme shipped (logoSrcFor / LIGHT_THEMES
     // in sidepanel.js) and the pay card does its own (LIGHT_CARD_THEMES in content.js);
     // this window renders from its own document and needs its own copy of both.
     //
@@ -409,7 +413,7 @@
     // script in a page's world, and this window — and the alternative is a fourth file
     // loaded by all three to hold ten strings. The cost is that a new light theme must be
     // registered in all three, so each copy names the others.
-    const LIGHT_THEMES = ['art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
     const isLight = LIGHT_THEMES.includes(theme);
     if (isLight) {
       const mark = document.querySelector('.brand img');

@@ -176,7 +176,7 @@
   // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
   // prompt.js (the approval window's wordmark). Three documents, no module system between
   // them; a new light theme has to be registered in all three.
-  const LIGHT_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
   function logoSrcFor(themeName) {
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.
@@ -211,10 +211,20 @@
   }
 
   // Apply theme by setting data-theme attribute on HTML element
+  // Themes that have been renamed. The stored value in sidecar_settings.theme is
+  // whatever was current when the user last chose, and it is never rewritten — so a
+  // vault that picked Art Deco any time in the last year still holds 'art-deco'. Mapping
+  // on READ is deliberate: rewriting settings to migrate would be a write on every
+  // unlock for a cosmetic rename, and a failed write would strand the user on the
+  // fallback. Aliased here, in prompt.js and in content.js, because those three
+  // documents each read the setting for themselves.
+  const THEME_ALIASES = { 'art-deco': 'industria' };
+
   function applyTheme(themeName) {
+    themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'art-deco', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

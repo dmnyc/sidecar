@@ -1,0 +1,28 @@
+<!--
+  Metropolis — the sunburst. Real strokes, not a repeating-conic-gradient.
+
+  The conic version could not be made clean: it states rays as an ANGLE, so a ray's width
+  on screen depends on its distance from the vertex — 0.17px near it, ~1.5px far from it,
+  at the 0.14deg this theme wanted. Below a pixel the rasteriser drops some rays, doubles
+  others, and lands the two halves on different pixel boundaries, so it rendered jagged
+  and asymmetric from perfectly symmetric arithmetic. A stroke has a width in user units
+  instead, so it antialiases properly and holds one weight the whole way down.
+
+  SYMMETRIC BY CONSTRUCTION: 58 rays at k*2.6deg for k in -29..29 EXCLUDING zero,
+  so every ray has a mirror, plus one spine at k=0 drawn separately below.
+
+  THE SPINE IS DRAWN EXACTLY ONCE, and that is worth stating because the first version of
+  this file drew it twice — k=0 came out of the loop at width 1 and then an explicit
+  centre line went over it at width 1.2, two strokes on the same axis with different
+  weights and opacities. That reads as a doubled line: a bright core inside a wider halo.
+  If the spine ever needs to be heavier, change the values here; do not add a layer.
+
+  Sized 400x1200 with the vertex 70 units above the frame, used at
+  background-size 100% auto so the fan scales to the panel's width and the stroke scales
+  with it — 1px at a 400px panel, ~1.9px at 754 — instead of thinning into the sub-pixel
+  range the conic lived in.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 1200" width="400" height="1200">
+<g stroke="#D3A94E" stroke-opacity="0.42" stroke-width="1" fill="none"><line x1="200.0" y1="-70.0" x2="-2122.50" y2="534.97"/><line x1="200.0" y1="-70.0" x2="-2092.67" y2="639.70"/><line x1="200.0" y1="-70.0" x2="-2058.11" y2="742.97"/><line x1="200.0" y1="-70.0" x2="-2018.91" y2="844.57"/><line x1="200.0" y1="-70.0" x2="-1975.14" y2="944.28"/><line x1="200.0" y1="-70.0" x2="-1926.89" y2="1041.91"/><line x1="200.0" y1="-70.0" x2="-1874.26" y2="1137.25"/><line x1="200.0" y1="-70.0" x2="-1817.36" y2="1230.10"/><line x1="200.0" y1="-70.0" x2="-1756.31" y2="1320.27"/><line x1="200.0" y1="-70.0" x2="-1691.23" y2="1407.59"/><line x1="200.0" y1="-70.0" x2="-1622.25" y2="1491.86"/><line x1="200.0" y1="-70.0" x2="-1549.52" y2="1572.91"/><line x1="200.0" y1="-70.0" x2="-1473.20" y2="1650.59"/><line x1="200.0" y1="-70.0" x2="-1393.42" y2="1724.72"/><line x1="200.0" y1="-70.0" x2="-1310.37" y2="1795.15"/><line x1="200.0" y1="-70.0" x2="-1224.21" y2="1861.75"/><line x1="200.0" y1="-70.0" x2="-1135.11" y2="1924.36"/><line x1="200.0" y1="-70.0" x2="-1043.26" y2="1982.87"/><line x1="200.0" y1="-70.0" x2="-948.86" y2="2037.16"/><line x1="200.0" y1="-70.0" x2="-852.09" y2="2087.11"/><line x1="200.0" y1="-70.0" x2="-753.15" y2="2132.61"/><line x1="200.0" y1="-70.0" x2="-652.26" y2="2173.58"/><line x1="200.0" y1="-70.0" x2="-549.60" y2="2209.93"/><line x1="200.0" y1="-70.0" x2="-445.41" y2="2241.59"/><line x1="200.0" y1="-70.0" x2="-339.88" y2="2268.49"/><line x1="200.0" y1="-70.0" x2="-233.25" y2="2290.57"/><line x1="200.0" y1="-70.0" x2="-125.72" y2="2307.79"/><line x1="200.0" y1="-70.0" x2="-17.52" y2="2320.12"/><line x1="200.0" y1="-70.0" x2="91.13" y2="2327.53"/><line x1="200.0" y1="-70.0" x2="308.87" y2="2327.53"/><line x1="200.0" y1="-70.0" x2="417.52" y2="2320.12"/><line x1="200.0" y1="-70.0" x2="525.72" y2="2307.79"/><line x1="200.0" y1="-70.0" x2="633.25" y2="2290.57"/><line x1="200.0" y1="-70.0" x2="739.88" y2="2268.49"/><line x1="200.0" y1="-70.0" x2="845.41" y2="2241.59"/><line x1="200.0" y1="-70.0" x2="949.60" y2="2209.93"/><line x1="200.0" y1="-70.0" x2="1052.26" y2="2173.58"/><line x1="200.0" y1="-70.0" x2="1153.15" y2="2132.61"/><line x1="200.0" y1="-70.0" x2="1252.09" y2="2087.11"/><line x1="200.0" y1="-70.0" x2="1348.86" y2="2037.16"/><line x1="200.0" y1="-70.0" x2="1443.26" y2="1982.87"/><line x1="200.0" y1="-70.0" x2="1535.11" y2="1924.36"/><line x1="200.0" y1="-70.0" x2="1624.21" y2="1861.75"/><line x1="200.0" y1="-70.0" x2="1710.37" y2="1795.15"/><line x1="200.0" y1="-70.0" x2="1793.42" y2="1724.72"/><line x1="200.0" y1="-70.0" x2="1873.20" y2="1650.59"/><line x1="200.0" y1="-70.0" x2="1949.52" y2="1572.91"/><line x1="200.0" y1="-70.0" x2="2022.25" y2="1491.86"/><line x1="200.0" y1="-70.0" x2="2091.23" y2="1407.59"/><line x1="200.0" y1="-70.0" x2="2156.31" y2="1320.27"/><line x1="200.0" y1="-70.0" x2="2217.36" y2="1230.10"/><line x1="200.0" y1="-70.0" x2="2274.26" y2="1137.25"/><line x1="200.0" y1="-70.0" x2="2326.89" y2="1041.91"/><line x1="200.0" y1="-70.0" x2="2375.14" y2="944.28"/><line x1="200.0" y1="-70.0" x2="2418.91" y2="844.57"/><line x1="200.0" y1="-70.0" x2="2458.11" y2="742.97"/><line x1="200.0" y1="-70.0" x2="2492.67" y2="639.70"/><line x1="200.0" y1="-70.0" x2="2522.50" y2="534.97"/></g>
+<line x1="200.0" y1="-70.0" x2="200.0" y2="1200" stroke="#D3A94E" stroke-opacity="0.42" stroke-width="1"/>
+</svg>
