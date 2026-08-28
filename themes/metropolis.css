@@ -42,6 +42,11 @@
      the @font-face block in fonts.css; it is separated from Speakeasy on palette
      rather than on shape. */
   --font-display: 'Limelight', 'Copperplate Gothic', Georgia, var(--font-ui);
+  /* The settings section heads take Josefin Sans, not Limelight — see the note in
+     fonts.css. Limelight's heavy verticals and hairline horizontals are the theme at
+     display size and a wall of dense type at 16px, eight rows deep. Josefin is the same
+     deco geometry drawn light, it already ships for Art Deco, and it has a real weight
+     axis, so a 600 head is drawn rather than synthesised. */
 
   /* How far this theme's display face has to move to sit optically centred, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
@@ -300,3 +305,11 @@
    balance ELEMENT while every glyph is a child span carrying its own, so the two
    fight and the figure ends up half-lit. One event, one animation. */
 [data-theme="metropolis"] .balance-bump { animation: none; }
+
+/* Settings section heads: the theme's secondary face, borrowed from Art Deco.
+   .settings-section-toggle takes `font: inherit` from this element, so it follows without
+   a rule of its own. The h2 view titles and .tabview h3 keep Limelight — they are titles,
+   not navigation. */
+[data-theme="metropolis"] .settings-section-title {
+  font-family: 'Josefin Sans', var(--font-ui);
+}

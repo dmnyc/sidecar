@@ -50,6 +50,25 @@
    outright. That was chosen with the cost known — the full comparison, and the two
    alternatives that turned out worse, are recorded above its @font-face block below.
 
+   TWO THEMES USE A SECOND FACE for their settings section heads, and both for the same
+   reason: a display face that earns its keep on a 23px title is doing the wrong job on
+   16px navigation, eight rows deep. Cast Iron takes Varela Round (see its block below).
+   METROPOLIS BORROWS ART DECO'S JOSEFIN SANS.
+
+   That reuse is deliberate, and it is the cheap answer to a real problem. Limelight at
+   16px is a wall of dense type; what it needs beside it is the same deco geometry drawn
+   light. Josefin already IS that, already ships, and — unlike the single-weight deco
+   faces — carries a real weight axis, so a 600 head is a DRAWN 600 rather than a 400
+   outline the browser thickens. Poiret One was built for this slot first and dropped on
+   exactly that point: one outline, and Google's own CSS declares it at 400, so the 600
+   the heads ask for came out synthesised and lost the hairlines it was chosen for.
+
+   The table's rule above is about two themes' DISPLAY faces reading as the same idea.
+   This is a display face against a navigation face, in themes separated by palette
+   (eggshell and bronze against soot and brass) and by their own display faces, which
+   share nothing. Cast Iron already leans the same way in its fallback chain, naming Jost
+   because Bauhaus loads it.
+
    Five faces ship as variable fonts — one file spanning the weight range rather than a
    static per weight. The remaining statics are Playfair Display (two woff2 weights),
    Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Apogee Telemetry,
