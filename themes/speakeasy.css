@@ -39,6 +39,7 @@
 
   /* brand */
   --orange: #ea772f;
+  --badge-ink: #1c0c00; /* white on this orange is 2.93; near-black is 6.28 */
   --amber: #f4a64b;
   --gold: #cba14e;
   --gold-soft: rgba(203, 161, 78, 0.5);
