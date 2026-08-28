@@ -1134,8 +1134,15 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   position: absolute;
   top: -5px;
   right: -5px;
-  background: var(--orange);
-  color: #fff;
+  background: var(--badge-bg, var(--orange));
+  /* 9px/700 is small text, so the count needs 4.5:1 on whatever it sits on. White is
+     right on a deep badge and wrong on a bright one — it measured 2.6-2.9 in Speakeasy,
+     Film Noir and Nixie, whose --orange is a bright orange or a mid grey. Those themes
+     set --badge-ink to their own near-black instead ("brights take black type", which
+     Populuxe's palette note already argues at length). Themes that pass keep the white
+     by default and are untouched. --badge-bg exists for Brownstone, whose terracotta is
+     mid-toned enough that NEITHER ink clears the bar on it. */
+  color: var(--badge-ink, #fff);
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
@@ -1150,9 +1157,15 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   border: 1.5px solid var(--velvet-2);
 }
 /* Film Noir: the unread pill defaults to --orange (flat gray here), so give it
-   a purple accent — Sidecar's signature color and noir's one splash of color. */
+   a purple accent — Sidecar's signature color and noir's one splash of color.
+
+   SEATED DEEPER THAN IT WAS. The gradient ran #a78bfa to #7c3aed, and no single ink
+   clears the 4.5 that 9px/700 needs across a span that wide: white measures 2.72 at the
+   light end, near-black 3.23 at the dark end. The splash of colour is the point, so the
+   fix is to move the whole ramp down rather than to change the ink — white now reads
+   5.70 at the worst stop. */
 [data-theme="film-noir"] .notif-badge {
-  background: linear-gradient(180deg, #a78bfa, #7c3aed);
+  background: linear-gradient(180deg, #7c3aed, #5b21b6);
 }
 
 /* notification modal */

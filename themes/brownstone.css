@@ -45,6 +45,9 @@
   /* brand — lamplight through a parlour window. Money is gold across all themes
      and this is the warmest reading of it: 8.74:1 on the ground. */
   --orange: #B4643A;
+  /* Neither ink clears 4.5 on --orange (#B4643A: white 4.35, near-black 4.21), so
+     the badge takes a darker step of the same terracotta and keeps white: 6.28. */
+  --badge-bg: #9C4726;
   --amber: #F0C46B;
   --gold: #E0A94A;
   --gold-soft: rgba(224, 169, 74, 0.5);

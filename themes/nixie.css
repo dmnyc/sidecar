@@ -81,6 +81,7 @@
                          wide halo around a digit is unambiguously red, and it
                          is the orange-only version that looks like clay. */
   --orange: #ff7a3c;
+  --badge-ink: #180a02; /* white on this ember is 2.59; near-black is 7.09 */
   --amber: #ffb454;
   --gold: #ffd2ab;
   /* The balance figure gets its OWN ink, hotter than the pale accent one. In the

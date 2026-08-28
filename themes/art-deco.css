@@ -165,6 +165,25 @@
   --pattern-opacity: 1;
 }
 
+/* End, on the relax status bar. It draws from --accent-fill, which here is the bright
+   metallic #C5A059 — 1.81 / 1.67 against the two stops of the status bar, so the control
+   that stops something has been a pale disc on a cream bar, effectively shapeless. Same
+   defect #244 fixed in four other themes; this one was missed because its glyph still
+   read at 7.53 on the metallic, so the ink was fine while the object was not.
+
+   --warn, the palette's terracotta, is the only value here that clears both floors:
+   3.97 / 3.67 as a disc against the bar, and 5.40 for a white glyph on it. --gold and
+   --purple measure better still (5.2-5.6) but they are the theme's INK colours and a
+   disc in body-text bronze reads as a smudge rather than a control.
+
+   It is also red, which is where Bauhaus and Populuxe ended up for the same control and
+   the same reason: End is a stop, and the convention for a stop is red. */
+[data-theme="art-deco"] .relax-status-x {
+  background: var(--warn);
+  color: #FFFFFF;
+}
+
+
 /* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
    pixel-identical to the original); re-theme them for art deco. */
 [data-theme="art-deco"] .lav-btn {

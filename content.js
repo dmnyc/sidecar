@@ -878,6 +878,8 @@
     // to the same darker purple icons/sidecar-logo-deco.svg uses for the side panel.
     // Every light theme needs it recoloured; the baked lavender vanishes on marble,
     // eggshell and plaster alike.
+    // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
+    // window's wordmark). A new light theme has to be registered in all three.
     const LIGHT_CARD_THEMES = new Set(['art-deco', 'aegean', 'bauhaus', 'populuxe']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
