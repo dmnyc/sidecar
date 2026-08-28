@@ -306,6 +306,22 @@
    fight and the figure ends up half-lit. One event, one animation. */
 [data-theme="metropolis"] .balance-bump { animation: none; }
 
+/* Relax restart, the disc beside End. #240 added the button and #244 gave four themes a
+   pair of their own; this theme was written between the two and has neither, so it falls
+   through to the shared default — the Trust button's fill. Left alone it would ship the
+   same defect #244 fixed: a disc you cannot find.
+
+   Tarnished brass, one step below End rather than beside it: the fill reads 3.49 / 3.22
+   against the two stops of the status bar, clearing the 3.0 a non-text control needs.
+   The arrow is the theme's near-black — 4.31 on the fill's top stop, 3.63 on its mid,
+   2.89 at the bottom, so it holds the bar across the part of the disc the glyph actually
+   occupies and softens where the gradient darkens under it. End is the loud one of the
+   pair at 5.08, so the hierarchy holds while both are legible. */
+[data-theme="metropolis"] .relax-status-restart {
+  --relax-restart-bg: linear-gradient(180deg, #837A62, #766E59 58%, #665F4C);
+  --relax-restart-ink: #17140F;
+}
+
 /* No hairlines between the settings sections in this theme. The rule that draws them
    (.settings-section + .settings-section) is right everywhere else, but here the panel
    already has a field of lines behind it — a horizontal rule every 40px cuts across the
