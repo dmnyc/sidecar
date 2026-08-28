@@ -326,6 +326,34 @@
   box-shadow: 0 0 0 2px rgba(126, 102, 29, 0.28);
 }
 
+/* The unread badge and End, both moved to the pattern's maroon.
+
+   Both drew from tokens that are TEAL and OLIVE in this theme — --orange for the badge,
+   --accent-fill for the disc — so a count of things waiting rendered green and the
+   control that stops something rendered as a mustard chip. Green on a count reads as
+   "all clear", which is the opposite of what it means.
+
+   The maroon is the only red here that can do either job. At 9px/700 white the badge
+   needs 4.5:1 and it gives 9.73; --balance-ink measures 4.13 and --amber 2.90, so both
+   fail. As a disc it reads 9.73 / 8.18 against the two stops of the status bar, against
+   the olive's 2.13 / 1.79 — the End control has been nearly invisible on its own bar.
+
+   THE GLYPH INK HAS TO BE STATED. styles.css falls back to --btn-primary-text, which is
+   near-black here because this theme's primary button is a bright orange; on maroon that
+   is 1.79:1. White is 9.73.
+
+   This does put the destructive colour on the bell, and the palette note above says the
+   maroon is "never confusable with the action color, because the action color here is
+   the teal". That still holds for actions — this is a count and a stop, neither of which
+   is an affirmative action, and the convention for both is red. */
+[data-theme="populuxe"] .notif-badge {
+  background: var(--warn);
+}
+[data-theme="populuxe"] .relax-status-x {
+  background: var(--warn);
+  color: #FFFFFF;
+}
+
 /* The "+" badge carries near-black text on a colored disc in the dark themes. */
 [data-theme="populuxe"] .add-account-badge {
   color: var(--velvet-1);
