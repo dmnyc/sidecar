@@ -222,7 +222,14 @@ input:focus, select:focus, textarea:focus {
 /* profile loading skeleton (mirrors the centered layout) */
 .profile-skeleton { display: flex; flex-direction: column; align-items: center; }
 .sk {
-  background: linear-gradient(100deg, var(--velvet-1) 30%, rgba(167, 139, 250, 0.14) 50%, var(--velvet-1) 70%);
+  /* The sweep was a hardcoded lavender — Speakeasy's, with no token behind it — so
+     every theme that did not override .sk by hand shimmered purple. Brownstone and
+     Nixie were the two that never did, which is a warm brown theme and a cold blue one
+     both sweeping violet. --border-rgb is the fix rather than a new token: :root holds
+     167, 139, 250 exactly, so Speakeasy is byte-identical, and every other theme
+     already declares its own. The remaining per-theme .sk rules still win where they
+     exist; they change the BASE as well as the sweep, so they are left alone. */
+  background: linear-gradient(100deg, var(--velvet-1) 30%, rgba(var(--border-rgb), 0.14) 50%, var(--velvet-1) 70%);
   background-size: 200% 100%;
   animation: sk-shimmer 1.3s ease-in-out infinite;
   border-radius: 8px;
@@ -3152,7 +3159,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .relax-status-restart svg { width: 12px; height: 12px; display: block; }
 .relax-status-restart:hover { filter: brightness(1.1); }
 .relax-status-bottom { display: flex; align-items: center; gap: 9px; }
-.relax-status-track { flex: 1; height: 5px; border-radius: 99px; background: rgba(167, 139, 250, 0.18); overflow: hidden; }
+/* Same hardcoded lavender as .sk above, and the same fix. This one had no per-theme
+   escape hatch at all, so the gutter under every countdown has been faintly purple in
+   nine themes out of ten since it was written. */
+.relax-status-track { flex: 1; height: 5px; border-radius: 99px; background: rgba(var(--border-rgb), 0.18); overflow: hidden; }
 .relax-status-fill { height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); transition: width 1s linear; }
 .relax-status-time { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; min-width: 3.5em; text-align: right; }
 @keyframes relax-pulse {

@@ -175,3 +175,24 @@
   font-display: swap;
   src: url('fonts/impressed-metal.ttf') format('truetype');
 }
+
+/* Varela Round (Joe Prince, SIL OFL 1.1 — see fonts/OFL-VarelaRound.txt). Cast Iron's
+   settings section heads, and nothing else in the app. Chosen against Impressed Metal's
+   own skeleton rather than by taste: rounded geometric, near-monoline, circular bowls,
+   double-storey 'a'. Quicksand is the obvious rival and was rejected on that last point;
+   M PLUS Rounded 1c matched too but carries full CJK coverage at 3.4MB, and this repo
+   ships whole originals rather than subsets (see the Rowdies note above for why).
+
+   SINGLE WEIGHT, 130KB, unmodified. The heads are set at 600 and this outline is a 400,
+   so `400 700` below points the whole range at it and nothing synthesizes — the same
+   arrangement Rowdies, Apogee Telemetry, Impressed Metal and Special Elite already use.
+   The heads therefore render at the regular weight, which on this face is sturdy enough
+   to carry a section title; if they ever need more, the answer is a heavier face, not a
+   synthetic bold. */
+@font-face {
+  font-family: 'Varela Round';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/varela-round.ttf') format('truetype');
+}

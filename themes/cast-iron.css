@@ -427,7 +427,13 @@
    without a rule of its own. The h2 view titles and .tabview h3 keep the display face
    — they are titles, not navigation, and they are the size the face was chosen for. */
 [data-theme="cast-iron"] .settings-section-title {
-  font-family: var(--font-ui);
+  /* Varela Round, not the UI face. The first fix here reached for Manrope because it
+     was solid and to hand, and solid was the requirement — but it also threw away every
+     trace of the theme, so the settings screen stopped looking like Cast Iron at all.
+     This face is Impressed Metal's own skeleton without the hollow: rounded geometric,
+     near-monoline, circular bowls, and the same double-storey 'a'. Solid, and still the
+     theme's. See fonts.css for why it beat Quicksand and M PLUS Rounded 1c. */
+  font-family: 'Varela Round', var(--font-ui);
   font-weight: 600;
   letter-spacing: 0.005em;
 }
