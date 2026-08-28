@@ -237,20 +237,27 @@ body {
    THE ORIGIN IS FAR ABOVE THE FRAME, and that is the whole difference between this and
    Art Deco's tile. Both are fans. Put the vertex just above the top edge and the beams
    sweep the full width as a SUNBURST, which is deco ornament and is what deco-pattern.svg
-   already does; put it a panel-height and a tenth above (50% -110%) and the panel only
+   already does; put it most of a panel-height above (50% -78%) and the panel only
    sees a narrow slice of the fan, so the beams run near-vertical and diverge just enough
    to say they come from somewhere. The first build of this had the vertex at -14% and
    rendered as a starburst behind the whole panel — worth recording, because the value
    looks arbitrary and is not.
 
-   SOFT EDGES, not hard stops. Hard-edged beams read as slats — architecture, a grille,
-   a venetian blind — which is Film Noir's figure turned thirty degrees. Ramping each
-   beam up and back down reads as light instead. That is also why the repeat is 6.5deg
-   and not the 2-3deg a denser fan wanted: at seven or eight shafts across the panel the
-   thing reads as corduroy, and at three or four it reads as a window.
+   BRASS RAYS, NOT LIGHT SHAFTS, and that was a correction. The first version rendered
+   each beam as a soft ramp in pale cream — light through a gap — and it read as nothing
+   at all: no line, no structure, the one part of the theme with no deco in it. These are
+   drawn instead, in the theme's own brass at 40%, with hard stops.
 
-   Two beams per repeat, a wide one and a half-strength narrow one, so the rhythm is
-   uneven — an even fan reads as a machined part, and this wants light through a gap.
+   Hard edges were the thing the soft version was avoiding, on the grounds that they read
+   as slats — a grille, a venetian blind, Film Noir's figure turned thirty degrees. What
+   makes them read as rays rather than slats is DENSITY, not softness: at 1.62deg the
+   panel carries dozens of hairlines and the eye takes them as radiating, where the old
+   6.5deg gave four or five bands and any hard edge on those would have been a shutter.
+   Thin and many, the way the printed sunbursts this is drawn from do it.
+
+   0.18deg of ink in a 1.62deg repeat — about a ninth. Wider than that and the rays
+   thicken into gold bars sitting on top of the panel, which is exactly what the first
+   brass attempt did at 1deg in 4.2.
 
    The falloff is the FIRST layer, not a mask and not a pseudo-element: background layers
    paint first-listed on top, so a soot gradient at the head of the stack draws over the
@@ -265,15 +272,14 @@ body {
    nothing — so this was set by eye against them, which is the honest description of it. */
 [data-theme="metropolis"] body {
   background-image:
-    linear-gradient(180deg, transparent 0%, rgba(13, 12, 10, 0.38) 34%, var(--bg) 72%),
-    repeating-conic-gradient(from 176.75deg at 50% -110%,
+    linear-gradient(180deg, transparent 0%, rgba(13, 12, 10, 0.46) 40%, var(--bg) 76%),
+    repeating-conic-gradient(from 177.4deg at 50% -78%,
       transparent 0deg,
-      rgba(232, 224, 208, 0.085) 1.1deg,
-      transparent 2.2deg,
-      transparent 4deg,
-      rgba(232, 224, 208, 0.038) 4.7deg,
-      transparent 5.35deg,
-      transparent 6.5deg),
+      transparent 0.72deg,
+      rgba(211, 169, 78, 0.4) 0.72deg,
+      rgba(211, 169, 78, 0.4) 0.9deg,
+      transparent 0.9deg,
+      transparent 1.62deg),
     radial-gradient(1200px 520px at 50% -10%, rgba(168, 132, 60, 0.10), transparent 62%),
     linear-gradient(178deg, #17140F 0%, var(--bg) 46%);
   /* Centre the fan; the gradients stay anchored. Every theme does this now, so a
