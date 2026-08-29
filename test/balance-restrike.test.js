@@ -181,3 +181,27 @@ test('arriving from the lock screen clears both balance slots', () => {
   const unconditional = /wasLocked = false;\s*\n\s*forgetBalancePaint/.test(panel);
   assert.ok(!unconditional, 'forgetting outside the wasLocked branch re-breaks bug B');
 });
+
+test('an approval settling does not rebuild a still-valid wallet view', () => {
+  // Approving a signature re-syncs the panel, because an approval CAN move the active
+  // account. It cannot change what is in a wallet, and a full renderWallet() is a relay
+  // round trip plus a teardown that resets the transaction list's paging. The approval
+  // path therefore asks refresh() to keep the view, and refresh() decides for itself
+  // whether keeping it is safe.
+  assert.match(
+    panel,
+    /if \(!hasHead && wasShowing\) refresh\(\{ keepWallet: true \}\)/,
+    'refreshApproval should ask refresh() to keep a still-valid wallet view'
+  );
+
+  const branch = panel.match(/const reusable = opts && opts\.keepWallet([\s\S]*?)\n {8}\}/);
+  assert.ok(branch, 'could not find the wallet branch in refresh()');
+  // Both proofs are load-bearing: the account can genuinely change under an approval
+  // (switchToPubkey, detach), and the connect screen has no balance node to patch.
+  assert.match(branch[1], /walletRenderedFor === state\.activePubkey/,
+    'a changed account must still force a full rebuild');
+  assert.match(branch[1], /querySelector\('\.wallet-balance'\)/,
+    'the connect screen has nothing to patch and must still rebuild');
+  assert.match(branch[1], /refreshWalletBalance\(\);\s*\n\s*refreshTransactionList\(\);/,
+    'the reusable path should use the targeted helpers, not a rebuild');
+});
