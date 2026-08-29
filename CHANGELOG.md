@@ -19,6 +19,9 @@ Update that section alongside this file as part of every release.
 - **Balances can re-hide themselves after a reveal.** Tapping the eye to check an amount unmasks the wallet until you mask it again, which is fine at your desk and less so anywhere else. A new switch under Wallet & payments makes a reveal expire instead: 30 seconds, then it masks again and says so, with nothing counting down beside the figure. Off by default — the eye behaves exactly as it always has. Whether balances are masked to begin with is now a switch in the same place, rather than only reachable from the eye on the balance card.
 - **Settings is organized into collapsible sections.** The single long scroll is now eight labeled ones — Appearance, Posting, Apps & browsing, Wallet & payments, Relays, Security & backup, Developer (dev builds only), Sharing & updates — with one open at a time (Appearance on first run) and your choice remembered. The danger zone stays outside every section at the bottom: a reset is never behind a toggle.
 
+### Fixed
+- **The wallet balance no longer replays its animation for no reason.** Signing anything while the Wallet tab was open re-ran the balance's arrival animation on a figure that hadn't moved, and closing any wallet modal did the same. The panel was tracking "has this balance changed?" by remembering the element it last painted, so rebuilding the card — which happens whenever an approval settles or a modal closes — looked identical to a brand-new balance. It now remembers the figure per surface and per account, so the animation is spent on a balance that actually changed, on arriving at the tab, and on switching accounts.
+
 ## [1.10.0] — 2026-08-26
 
 ### Added

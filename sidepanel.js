@@ -1774,7 +1774,10 @@
       if (scroller) scroller.scrollTop = 0;
       if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
-      else if (name === 'wallet') renderWallet();
+      // Arriving on Wallet is the one card rebuild that earns a strike: the figure is
+      // appearing, not being redrawn. Every other rebuild — an approval settling, a
+      // wallet modal closing — now keeps whatever the slot last painted and stays put.
+      else if (name === 'wallet') { forgetBalancePaint('wallet'); renderWallet(); }
       // Same deal for Accounts: the overview's stats (wallet connected/backed-up
       // badges especially) are whatever renderMain() last drew. Without this a
       // wallet disconnected on the Wallet tab still read "Connected" here until
@@ -10418,17 +10421,42 @@
     };
   };
 
-  // The figure each balance element last painted, as raw sats. Weak, so a
-  // re-rendered card doesn't leak. Two jobs:
+  // The figure each balance SURFACE last painted, as raw sats, per account. Two jobs:
   //
   //   1. deciding when a strike is earned. Three of the four repaint paths fire on
   //      a timer or a tab switch, so without this the tubes would re-ignite every
-  //      poll — the mistake apogee's balance-warmup.ts exists to avoid. The pinned
-  //      bar's node lives for the life of the panel and so only strikes on a real
-  //      change; the wallet card is rebuilt on entering the tab and strikes then,
-  //      which is when those numerals really are appearing for the first time.
+  //      poll — the mistake apogee's balance-warmup.ts exists to avoid.
   //   2. deciding whether to touch the DOM at all (see paintBalanceEl).
-  const paintedSats = new WeakMap();
+  //
+  // KEYED BY SLOT, NOT BY ELEMENT, and that is the fix for a real bug rather than a
+  // tidy-up. This was a WeakMap on the node, which quietly made "has this figure
+  // changed?" mean "is this the same DOM node?" — so every rebuild of the wallet card
+  // struck a balance that had not moved. The pinned bar was never affected: its node
+  // lives for the life of the panel, so its record always survived.
+  //
+  // What rebuilds the card is not rare. refreshApproval() calls refresh() as soon as
+  // the queue empties, and refresh() re-renders the active tab — so signing anything
+  // while sitting on Wallet re-struck the balance. Every wallet modal that closes with
+  // renderWallet() (send, receive, budgets, disconnect) did the same.
+  //
+  // The account is part of the key because switching accounts SHOULD strike: those
+  // numerals really are new. Under element keying that came for free, since the switch
+  // rebuilt the card; by slot it has to be said out loud, or two accounts holding the
+  // same balance would switch between each other in silence.
+  const paintedSats = new Map(); // slot -> { pubkey, key }
+
+  // Which of the two balance surfaces an element is. Only these two exist — every
+  // paintBalanceEl caller passes #pinned-balance-amt or the card's .wallet-balance.
+  function balanceSlot(el) {
+    return el.id === 'pinned-balance-amt' ? 'pinned' : 'wallet';
+  }
+
+  // Make a surface strike on its next paint whatever it is already showing. Used where
+  // the numerals genuinely are arriving for the first time (entering the Wallet tab) or
+  // where what they SHOW has changed without the balance changing (masking).
+  function forgetBalancePaint(slot) {
+    paintedSats.delete(slot);
+  }
 
   // Paint a balance element with an optional smaller-font currency symbol prefix.
   // Uses textContent for the number (never innerHTML — the symbol comes from Intl,
@@ -10436,7 +10464,10 @@
   function paintBalanceEl(el, parts, symClass) {
     if (!el) return;
     const key = parts.sats == null ? null : String(parts.sats);
-    const prev = paintedSats.get(el);
+    const slot = balanceSlot(el);
+    const pubkey = (state && state.activePubkey) || null;
+    const rec = paintedSats.get(slot);
+    const prev = rec && rec.pubkey === pubkey ? rec.key : undefined;
 
     // Already showing exactly this figure? Leave the DOM alone. Refresh paints
     // twice — once from the cache while the card is being built, then again when
@@ -10461,7 +10492,7 @@
     // pose shows is a theme-CSS question, not this flag's; that split is what
     // lets both halves hold at once.
     const animate = key != null && prev !== key && !reduceBalanceMotion;
-    paintedSats.set(el, key);
+    paintedSats.set(slot, { pubkey, key });
 
     // ORDER MATTERS HERE. splitGlyphs clears the element before it builds, so the
     // symbol has to go on AFTER the figure, not before it. Appending it first was a
@@ -10709,9 +10740,8 @@
   // what it shows — so the guard that suppresses a repeat of the same number gets
   // cleared deliberately here rather than loosened for everyone.
   function restrikeBalances() {
-    [$('pinned-balance-amt'), document.querySelector('.wallet-balance')].forEach((el) => {
-      if (el) paintedSats.delete(el);
-    });
+    forgetBalancePaint('pinned');
+    forgetBalancePaint('wallet');
     repaintBalances();
   }
 
