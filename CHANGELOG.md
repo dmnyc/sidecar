@@ -16,6 +16,7 @@ Update that section alongside this file as part of every release.
 - **Restart for the auto-sign timer.** While a relaxed-permissions window runs, the bottom bar's arrow button winds the countdown back to its full original duration — the same act as tapping the relax chips again, without leaving what you were doing. Each theme paints the restart disc in its own quieter register so it never competes with End.
 
 ### Changed
+- **Balances can re-hide themselves after a reveal.** Tapping the eye to check an amount unmasks the wallet until you mask it again, which is fine at your desk and less so anywhere else. A new switch under Wallet & payments makes a reveal expire instead: 30 seconds, then it masks again and says so, with nothing counting down beside the figure. Off by default — the eye behaves exactly as it always has. Whether balances are masked to begin with is now a switch in the same place, rather than only reachable from the eye on the balance card.
 - **Settings is organized into collapsible sections.** The single long scroll is now eight labeled ones — Appearance, Posting, Apps & browsing, Wallet & payments, Relays, Security & backup, Developer (dev builds only), Sharing & updates — with one open at a time (Appearance on first run) and your choice remembered. The danger zone stays outside every section at the bottom: a reset is never behind a toggle.
 
 ## [1.10.0] — 2026-08-26
