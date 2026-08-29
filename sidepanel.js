@@ -484,7 +484,18 @@
   document.addEventListener('copy', cancelClipboardClear, true);
 
   let state = null;
-  let hideBalances = false;
+  // The LIVE mask state and the STORED preference are two different things, and they
+  // came apart when the reveal got an optional timeout. With autoHideBalances OFF — the
+  // default — the eye is the plain toggle it always was and the two track each other.
+  // Switch it on and revealing becomes a PEEK: the panel unmasks for 30 seconds without
+  // touching the preference, so it returns to masked on its own, on a reload, and after
+  // a lock. That is the whole reason the preference needs a home in Settings: while
+  // peeking, the eye can no longer turn masking off for good, and a preference with no
+  // control is a preference you cannot undo.
+  let hideBalances = false;      // what the panel is showing right now
+  let hideBalancesPref = false;  // what the user chose; a peek does not move this
+  let autoHideBalances = false;  // opt-in: does a reveal expire, or last until masked?
+  let _balancePeekTimer = null;
   let pinBalanceBar = false;
   // Off by default: the balance animations are part of what each theme IS, so they
   // ship on. This is the escape hatch for someone who wants them gone without
@@ -717,7 +728,12 @@
     }
     state = await call({ type: 'SIDECAR_GET_STATE' });
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    hideBalances = !!(settings && settings.hideBalances);
+    // Re-init means a lock, an unlock or a reload, and a peek does not survive any of
+    // them: the timer is dropped and the live state goes back to the preference.
+    if (_balancePeekTimer) { clearTimeout(_balancePeekTimer); _balancePeekTimer = null; }
+    hideBalancesPref = !!(settings && settings.hideBalances);
+    hideBalances = hideBalancesPref;
+    autoHideBalances = !!(settings && settings.autoHideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
     reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
     // A class on <html> rather than a JS check for the one animation that is pure
@@ -1758,7 +1774,10 @@
       if (scroller) scroller.scrollTop = 0;
       if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
-      else if (name === 'wallet') renderWallet();
+      // Arriving on Wallet is the one card rebuild that earns a strike: the figure is
+      // appearing, not being redrawn. Every other rebuild — an approval settling, a
+      // wallet modal closing — now keeps whatever the slot last painted and stays put.
+      else if (name === 'wallet') { forgetBalancePaint('wallet'); renderWallet(); }
       // Same deal for Accounts: the overview's stats (wallet connected/backed-up
       // badges especially) are whatever renderMain() last drew. Without this a
       // wallet disconnected on the Wallet tab still read "Connected" here until
@@ -5250,6 +5269,9 @@
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
+    $('hidebalance-toggle').checked = settings.hideBalances === true; // default off
+    $('balancepeek-toggle').checked = settings.autoHideBalances === true; // default off
+    syncPeekRow(); // greyed out until the switch above it is on
     $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
@@ -10399,17 +10421,42 @@
     };
   };
 
-  // The figure each balance element last painted, as raw sats. Weak, so a
-  // re-rendered card doesn't leak. Two jobs:
+  // The figure each balance SURFACE last painted, as raw sats, per account. Two jobs:
   //
   //   1. deciding when a strike is earned. Three of the four repaint paths fire on
   //      a timer or a tab switch, so without this the tubes would re-ignite every
-  //      poll — the mistake apogee's balance-warmup.ts exists to avoid. The pinned
-  //      bar's node lives for the life of the panel and so only strikes on a real
-  //      change; the wallet card is rebuilt on entering the tab and strikes then,
-  //      which is when those numerals really are appearing for the first time.
+  //      poll — the mistake apogee's balance-warmup.ts exists to avoid.
   //   2. deciding whether to touch the DOM at all (see paintBalanceEl).
-  const paintedSats = new WeakMap();
+  //
+  // KEYED BY SLOT, NOT BY ELEMENT, and that is the fix for a real bug rather than a
+  // tidy-up. This was a WeakMap on the node, which quietly made "has this figure
+  // changed?" mean "is this the same DOM node?" — so every rebuild of the wallet card
+  // struck a balance that had not moved. The pinned bar was never affected: its node
+  // lives for the life of the panel, so its record always survived.
+  //
+  // What rebuilds the card is not rare. refreshApproval() calls refresh() as soon as
+  // the queue empties, and refresh() re-renders the active tab — so signing anything
+  // while sitting on Wallet re-struck the balance. Every wallet modal that closes with
+  // renderWallet() (send, receive, budgets, disconnect) did the same.
+  //
+  // The account is part of the key because switching accounts SHOULD strike: those
+  // numerals really are new. Under element keying that came for free, since the switch
+  // rebuilt the card; by slot it has to be said out loud, or two accounts holding the
+  // same balance would switch between each other in silence.
+  const paintedSats = new Map(); // slot -> { pubkey, key }
+
+  // Which of the two balance surfaces an element is. Only these two exist — every
+  // paintBalanceEl caller passes #pinned-balance-amt or the card's .wallet-balance.
+  function balanceSlot(el) {
+    return el.id === 'pinned-balance-amt' ? 'pinned' : 'wallet';
+  }
+
+  // Make a surface strike on its next paint whatever it is already showing. Used where
+  // the numerals genuinely are arriving for the first time (entering the Wallet tab) or
+  // where what they SHOW has changed without the balance changing (masking).
+  function forgetBalancePaint(slot) {
+    paintedSats.delete(slot);
+  }
 
   // Paint a balance element with an optional smaller-font currency symbol prefix.
   // Uses textContent for the number (never innerHTML — the symbol comes from Intl,
@@ -10417,7 +10464,10 @@
   function paintBalanceEl(el, parts, symClass) {
     if (!el) return;
     const key = parts.sats == null ? null : String(parts.sats);
-    const prev = paintedSats.get(el);
+    const slot = balanceSlot(el);
+    const pubkey = (state && state.activePubkey) || null;
+    const rec = paintedSats.get(slot);
+    const prev = rec && rec.pubkey === pubkey ? rec.key : undefined;
 
     // Already showing exactly this figure? Leave the DOM alone. Refresh paints
     // twice — once from the cache while the card is being built, then again when
@@ -10442,7 +10492,7 @@
     // pose shows is a theme-CSS question, not this flag's; that split is what
     // lets both halves hold at once.
     const animate = key != null && prev !== key && !reduceBalanceMotion;
-    paintedSats.set(el, key);
+    paintedSats.set(slot, { pubkey, key });
 
     // ORDER MATTERS HERE. splitGlyphs clears the element before it builds, so the
     // symbol has to go on AFTER the figure, not before it. Appending it first was a
@@ -10690,9 +10740,8 @@
   // what it shows — so the guard that suppresses a repeat of the same number gets
   // cleared deliberately here rather than loosened for everyone.
   function restrikeBalances() {
-    [$('pinned-balance-amt'), document.querySelector('.wallet-balance')].forEach((el) => {
-      if (el) paintedSats.delete(el);
-    });
+    forgetBalancePaint('pinned');
+    forgetBalancePaint('wallet');
     repaintBalances();
   }
 
@@ -10835,6 +10884,75 @@
     const setEye = (btn) => { if (!btn) return; btn.innerHTML = ''; btn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); btn.title = hideBalances ? 'Show balances' : 'Hide balances'; };
     setEye($('pinned-hide'));
     document.querySelectorAll('.wallet-eye').forEach(setEye);
+    const cb = $('hidebalance-toggle');
+    if (cb) cb.checked = hideBalancesPref; // the row tracks the PREFERENCE, not the peek
+    syncPeekRow();
+  }
+
+  // The expiry switch only means something while there is something to reveal, and with
+  // hiding off nothing is ever masked — the eye's own mask route turns the preference on,
+  // so "not hiding" and "something masked" cannot both be true. Left disabled rather than
+  // removed, and its stored answer left alone, so turning hiding back on restores the
+  // choice instead of quietly resetting it.
+  function syncPeekRow() {
+    const peek = $('balancepeek-toggle');
+    if (peek) peek.disabled = !hideBalancesPref;
+  }
+
+  // ---- the peek ------------------------------------------------------------------
+  // A revealed balance closes itself. Nothing counts down on screen — a ticking number
+  // beside a figure reads as part of the figure, and this is the one place in the app
+  // where a countdown would sit against live digits — so the snap back is announced
+  // afterwards by a toast, which is also the only thing that says the panel did it
+  // rather than you. Same 30 seconds the secret reveal uses (NSEC_REVEAL_TIMEOUT_S),
+  // which does show its countdown, because there the number IS the secret.
+  const BALANCE_PEEK_MS = 30000;
+
+  function beginBalancePeek() {
+    if (_balancePeekTimer) clearTimeout(_balancePeekTimer);
+    hideBalances = false;
+    syncHideControls();
+    _balancePeekTimer = setTimeout(() => {
+      _balancePeekTimer = null;
+      hideBalances = true;
+      syncHideControls();
+      toast('Balances hidden again');
+    }, BALANCE_PEEK_MS);
+  }
+
+  // Ending a peek early is silent: the user asked for it, so there is nothing to report.
+  function endBalancePeek() {
+    if (_balancePeekTimer) { clearTimeout(_balancePeekTimer); _balancePeekTimer = null; }
+    hideBalances = hideBalancesPref;
+    syncHideControls();
+  }
+
+  async function setHideBalancesPref(v) {
+    if (_balancePeekTimer) { clearTimeout(_balancePeekTimer); _balancePeekTimer = null; }
+    hideBalancesPref = v;
+    hideBalances = v;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { hideBalances: v } });
+    syncHideControls();
+  }
+
+  // Both eyes — the wallet card's and the pinned bar's — are this.
+  //
+  // Revealing is the only branch autoHideBalances changes, and it is worth being exact
+  // about why. Off, a reveal is a decision and is written down like one. On, a reveal is
+  // a glance: it must NOT be written down, or the expiry would have to write the user's
+  // real choice back over itself half a minute later.
+  //
+  // Masking is durable either way, because masking MORE is never the unsafe direction to
+  // take without asking. Ending a peek early is the one masking route that writes
+  // nothing, and it does not need to: the preference already says masked.
+  async function onBalanceEye() {
+    if (hideBalances) {
+      if (autoHideBalances) beginBalancePeek();
+      else await setHideBalancesPref(false);
+      return;
+    }
+    if (_balancePeekTimer) { endBalancePeek(); return; }
+    await setHideBalancesPref(true);
   }
 
   // Lightning address for receiving. Some NWC connection strings embed a `lud16`
@@ -11330,11 +11448,7 @@
     // Privacy toggle on the balance card (masks balance, history, budgets).
     const eye = h('button', { className: 'wallet-eye', title: hideBalances ? 'Show balances' : 'Hide balances' });
     eye.appendChild(icon(hideBalances ? 'eye-off' : 'eye'));
-    eye.addEventListener('click', async () => {
-      hideBalances = !hideBalances;
-      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { hideBalances } });
-      syncHideControls();
-    });
+    eye.addEventListener('click', onBalanceEye);
     // Pin the balance bar from the card's corner. Only reachable while the bar is
     // unpinned (the card hides once pinned), so this is a one-way "pin" affordance.
     const pin = h('button', { className: 'wallet-pin', title: 'Pin balance bar' });
@@ -12773,6 +12887,23 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: e.target.checked } });
   });
 
+  $('hidebalance-toggle').addEventListener('change', async (e) => {
+    await setHideBalancesPref(e.target.checked);
+  });
+
+  $('balancepeek-toggle').addEventListener('change', async (e) => {
+    autoHideBalances = e.target.checked;
+    // Switched off mid-peek, the reveal simply stops expiring. The preference is left
+    // alone deliberately: promoting the peek to a real reveal would silently uncheck
+    // "Hide balances by default" above, which the user did not touch. So the balance
+    // stays up for this session and the next unlock masks it again, per the preference.
+    if (!autoHideBalances && _balancePeekTimer) {
+      clearTimeout(_balancePeekTimer);
+      _balancePeekTimer = null;
+    }
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoHideBalances: e.target.checked } });
+  });
+
   $('pinbalance-toggle').addEventListener('change', async (e) => {
     pinBalanceBar = e.target.checked;
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: e.target.checked } });
@@ -12817,11 +12948,7 @@
   $('pinned-unpin').append(icon('x'));
   $('pinned-send').addEventListener('click', () => sendModal());
   $('pinned-receive').addEventListener('click', () => receiveModal());
-  $('pinned-hide').addEventListener('click', async () => {
-    hideBalances = !hideBalances;
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { hideBalances } });
-    syncHideControls();
-  });
+  $('pinned-hide').addEventListener('click', onBalanceEye);
   $('pinned-unpin').addEventListener('click', async () => {
     pinBalanceBar = false;
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: false } });

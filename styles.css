@@ -1410,6 +1410,18 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .toggle-row { display: flex; align-items: center; gap: 9px; cursor: pointer; color: var(--text); font-size: 14px; }
 .toggle-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
+/* Two switches under one heading (Wallet & payments' hide-balances pair, where the
+   second qualifies the first) — the row carries no vertical margin of its own, so
+   stacked ones would sit flush. Matched to the row's own 9px gap. */
+.toggle-row + .toggle-row { margin-top: 9px; }
+/* A switch that only means something while the one above it is on. Indented by the
+   parent's box plus its gap, so the sub-label starts where the parent's label does.
+   DISABLED rather than hidden: a control that appears and disappears as you tick the
+   one above reads as a glitch, and the stored answer is still there for when the
+   parent comes back on. */
+.toggle-row.toggle-sub { margin-left: 26px; }
+.toggle-row:has(input:disabled) { opacity: 0.4; cursor: default; }
+.toggle-row:has(input:disabled) input[type=checkbox] { cursor: default; }
 
 /* iOS-style toggle switch */
 .switch-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; }

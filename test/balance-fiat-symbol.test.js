@@ -55,7 +55,11 @@ function makeEl() {
 function run() {
   const ctx = {
     reduceBalanceMotion: false,
-    WeakMap,
+    // The paint record is per (surface, account) now, so both have to exist here.
+    // These tests all drive the wallet card as one account; balance-peek and
+    // balance-restrike cover what happens when either half of that key moves.
+    state: { activePubkey: 'npub-test' },
+    Map,
     Array,
     Math,
     String,
@@ -65,7 +69,10 @@ function run() {
   vm.runInContext(
     lift(/  const STRIKE_DELAY_MOD_MS[\s\S]*?\n  \};\n/, 'glyphBeat')
       + lift(/  \/\/ The strike dice[\s\S]*?\n  \}\n/, 'ironDiceStyle')
-      + lift(/  const paintedSats = new WeakMap\(\);/, 'paintedSats record')
+      // The trailing newline is load-bearing: this line ends in a // comment, and without
+      // it the next lifted chunk is concatenated onto the same line and commented out.
+      + lift(/  const paintedSats = new Map\(\); \/\/ slot -> \{ pubkey, key \}\n/, 'paintedSats record')
+      + lift(/  function balanceSlot\(el\) \{[\s\S]*?\n  \}\n/, 'balanceSlot')
       + lift(/  function splitGlyphs\(el, text, strike\) \{[\s\S]*?\n  \}\n/, 'splitGlyphs')
       + lift(/  function paintBalanceEl\(el, parts, symClass\) \{[\s\S]*?\n  \}\n/, 'paintBalanceEl'),
     ctx

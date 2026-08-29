@@ -472,6 +472,13 @@
           </div>
 
           <div class="setting">
+            <h3>Hide balances</h3>
+            <p class="hint">Mask every amount in the wallet. Tap the eye on the balance to reveal them.</p>
+            <label class="toggle-row"><input type="checkbox" id="hidebalance-toggle" /> <span>Hide balances by default</span></label>
+            <label class="toggle-row toggle-sub"><input type="checkbox" id="balancepeek-toggle" /> <span>Re-hide 30 seconds after a reveal</span></label>
+          </div>
+
+          <div class="setting">
             <h3>Local currency</h3>
             <p class="hint">Tap your balance to switch between sats, BTC, and this currency. Rates come from mempool.space and Coinbase.</p>
             <!-- Options are populated from FIAT_CURRENCIES in sidepanel.js, shared with
