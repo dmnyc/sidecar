@@ -718,7 +718,10 @@
   let wasLocked = true;
 
   // ---- top-level routing ----
-  async function refresh() {
+  // opts.keepWallet: the caller knows nothing wallet-related happened, so a wallet view
+  // that is still valid should be updated in place instead of torn down. See the note at
+  // the wallet branch below.
+  async function refresh(opts) {
     // A pending signing approval is modal — it stays put until the user decides,
     // so don't let an incidental refresh navigate away from it.
     if (pendingApproval) {
@@ -785,7 +788,17 @@
       // by a leg. Here rather than in the PIN handler because this is the one place
       // every route into the main view passes through — PIN, browser-close unlock,
       // and the first render after a reload alike.
-      if (wasLocked) advanceMapLeg();
+      // Arriving from the lock screen is a first showing, so the balance strikes. #248
+      // keyed the paint record by SLOT rather than by element, which correctly stopped a
+      // rebuilt card from re-striking a figure that never moved — and incorrectly took
+      // the strike off this route too, because the record outlives a lock in a panel
+      // that stayed open. Only when wasLocked: the same refresh() runs when an approval
+      // settles, and forgetting there would put bug B straight back.
+      if (wasLocked) {
+        advanceMapLeg();
+        forgetBalancePaint('wallet');
+        forgetBalancePaint('pinned');
+      }
       wasLocked = false;
       show($('view-main'));
       dismissPostBanner(); // a note link is account-specific; clear on any state change
@@ -797,7 +810,33 @@
       const name = activeTab && activeTab.dataset.tab;
       if (name === 'activity') renderActivity();
       else if (name === 'profile') renderProfile();
-      else if (name === 'wallet') renderWallet();
+      else if (name === 'wallet') {
+        // A FULL renderWallet() HERE IS A RELAY ROUND TRIP AND A TEARDOWN. It clears the
+        // view, refetches the balance and refetches the transaction list, and the list
+        // is paged from a view-local `offset` — so a rebuild silently drops anyone who
+        // pressed "Show more" back to the first page.
+        //
+        // That is the right thing when the account moved, and pure collateral when it
+        // did not. Signing an event with the panel sitting on Wallet did it every time:
+        // the approval settles, refreshApproval() re-syncs the panel because an approval
+        // CAN change global state (switchToPubkey, detach, a relax grant), and the wallet
+        // got rebuilt for a signature that never touched it.
+        //
+        // So callers that know better say so, and the view still has to prove it is
+        // reusable — walletRenderedFor catches the account actually having changed, and
+        // the balance node catches the connect screen, where there is nothing to patch.
+        // This is the same trade the walletChanged broadcast handler already makes, for
+        // the same reasons, using the same two targeted helpers.
+        const reusable = opts && opts.keepWallet
+          && walletRenderedFor === state.activePubkey
+          && document.querySelector('.wallet-balance');
+        if (reusable) {
+          refreshWalletBalance();
+          refreshTransactionList();
+        } else {
+          renderWallet();
+        }
+      }
     }
     // Re-assert the approval overlay from the queue after rendering the base view,
     // so a panel reload while a request is pending re-surfaces it deterministically
@@ -11132,6 +11171,10 @@
   }
 
   let walletRenderSeq = 0;
+  // Which account the wallet view currently on screen was built for, or null when the
+  // view is the connect screen rather than a wallet. Read by refresh() to decide whether
+  // a rebuild is actually needed — see the keepWallet note there.
+  let walletRenderedFor = null;
   // Set by loadTransactions so the walletChanged handler can prepend new entries
   // without tearing the whole view down. Null when the wallet view isn't mounted.
   let _refreshTxList = null;
@@ -11156,6 +11199,7 @@
     if (seq !== walletRenderSeq) return;
     _refreshTxList = null; // previous view's transaction refresh callback is stale
     view.innerHTML = '';
+    walletRenderedFor = has ? state.activePubkey : null;
     if (!has) {
       renderWalletConnect(view);
       return;
@@ -11444,7 +11488,12 @@
     const unit = h('div', { className: 'wallet-unit', textContent: denomParts(cached ? balanceCache.sats : null).unit });
     const refresh = h('button', { className: 'wallet-refresh', title: 'Refresh' });
     refresh.appendChild(icon('refresh'));
-    refresh.addEventListener('click', () => renderWallet());
+    // Refresh is a deliberate ask, so it strikes whatever comes back — including the
+    // same figure, which is the answer most refreshes give and the only feedback that
+    // the button did anything. Without this the slot record survives the rebuild and
+    // the card silently redraws (#248 keyed the record by slot; before that every
+    // rebuild minted a new node and struck by accident).
+    refresh.addEventListener('click', () => { forgetBalancePaint('wallet'); renderWallet(); });
     // Privacy toggle on the balance card (masks balance, history, budgets).
     const eye = h('button', { className: 'wallet-eye', title: hideBalances ? 'Show balances' : 'Hide balances' });
     eye.appendChild(icon(hideBalances ? 'eye-off' : 'eye'));
@@ -13981,7 +14030,10 @@
   async function refreshApproval() {
     const wasShowing = !!pendingApproval;
     const hasHead = await syncApprovalOverlay();
-    if (!hasHead && wasShowing) refresh();
+    // keepWallet: an approval can move the active account, and refresh() checks for that
+    // itself — but it cannot change what is IN a wallet, so the view does not need
+    // rebuilding from the relay just because a signature was approved.
+    if (!hasHead && wasShowing) refresh({ keepWallet: true });
   }
 
   // "N more waiting" strip inside the approval card + a Reject all escape hatch.
