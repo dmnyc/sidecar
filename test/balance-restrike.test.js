@@ -137,3 +137,47 @@ test('forgetBalancePaint makes the next paint strike again', () => {
   ctx.paintBalanceEl(arriving, SATS, 'wallet-fiat-sym');
   assert.ok(struck(arriving));
 });
+
+// ---------------------------------------------------------------------------------
+// WHERE the strike is earned, as opposed to whether the guard works.
+//
+// The four cases above pin paintBalanceEl itself. What they cannot see is that keying
+// the record by slot moved the decision OUT of paintBalanceEl and into its callers:
+// under the old element keying, every renderWallet() minted a fresh node and struck by
+// accident, so no caller had to think about it. Two routes were relying on that
+// accident and lost their animation when it went away — the refresh button, and
+// arriving on the wallet from the lock screen.
+//
+// These are source assertions, which is a blunt instrument, and they are here because
+// the alternative is a browser: the call sites are inside renderWallet and refresh(),
+// neither of which can be lifted into a vm. They check the one thing that actually
+// broke — that the route clears the slot before it re-renders.
+
+const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+
+test('the refresh button clears the wallet slot before re-rendering', () => {
+  const m = panel.match(/refresh\.addEventListener\('click',([^\n]*)\)/);
+  assert.ok(m, 'could not find the wallet refresh click handler');
+  assert.match(
+    m[1],
+    /forgetBalancePaint\('wallet'\)/,
+    "the refresh button must forget the wallet slot first, or the rebuilt card finds the " +
+    'same figure and redraws in silence — a refresh that reports nothing looks broken'
+  );
+});
+
+test('arriving from the lock screen clears both balance slots', () => {
+  // Scoped to the wasLocked branch on purpose. The same refresh() runs when an approval
+  // settles, and forgetting unconditionally would restore the very bug #248 fixed.
+  const m = panel.match(/if \(wasLocked\) \{([\s\S]*?)\n      \}/);
+  assert.ok(m, 'could not find the wasLocked branch in refresh()');
+  for (const slot of ['wallet', 'pinned']) {
+    assert.match(
+      m[1],
+      new RegExp("forgetBalancePaint\\('" + slot + "'\\)"),
+      `unlocking is a first showing, so the ${slot} balance should strike`
+    );
+  }
+  const unconditional = /wasLocked = false;\s*\n\s*forgetBalancePaint/.test(panel);
+  assert.ok(!unconditional, 'forgetting outside the wasLocked branch re-breaks bug B');
+});

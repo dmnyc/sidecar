@@ -785,7 +785,17 @@
       // by a leg. Here rather than in the PIN handler because this is the one place
       // every route into the main view passes through — PIN, browser-close unlock,
       // and the first render after a reload alike.
-      if (wasLocked) advanceMapLeg();
+      // Arriving from the lock screen is a first showing, so the balance strikes. #248
+      // keyed the paint record by SLOT rather than by element, which correctly stopped a
+      // rebuilt card from re-striking a figure that never moved — and incorrectly took
+      // the strike off this route too, because the record outlives a lock in a panel
+      // that stayed open. Only when wasLocked: the same refresh() runs when an approval
+      // settles, and forgetting there would put bug B straight back.
+      if (wasLocked) {
+        advanceMapLeg();
+        forgetBalancePaint('wallet');
+        forgetBalancePaint('pinned');
+      }
       wasLocked = false;
       show($('view-main'));
       dismissPostBanner(); // a note link is account-specific; clear on any state change
@@ -11444,7 +11454,12 @@
     const unit = h('div', { className: 'wallet-unit', textContent: denomParts(cached ? balanceCache.sats : null).unit });
     const refresh = h('button', { className: 'wallet-refresh', title: 'Refresh' });
     refresh.appendChild(icon('refresh'));
-    refresh.addEventListener('click', () => renderWallet());
+    // Refresh is a deliberate ask, so it strikes whatever comes back — including the
+    // same figure, which is the answer most refreshes give and the only feedback that
+    // the button did anything. Without this the slot record survives the rebuild and
+    // the card silently redraws (#248 keyed the record by slot; before that every
+    // rebuild minted a new node and struck by accident).
+    refresh.addEventListener('click', () => { forgetBalancePaint('wallet'); renderWallet(); });
     // Privacy toggle on the balance card (masks balance, history, budgets).
     const eye = h('button', { className: 'wallet-eye', title: hideBalances ? 'Show balances' : 'Hide balances' });
     eye.appendChild(icon(hideBalances ? 'eye-off' : 'eye'));
