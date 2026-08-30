@@ -238,6 +238,10 @@
     document.querySelectorAll('.theme-card').forEach(card => {
       card.classList.toggle('active', card.dataset.theme === themeName);
     });
+    // Show the half of the gallery the active theme is in. Called on load too, so opening
+    // Settings lands on your own theme's mode rather than always on Dark.
+    const active = document.querySelector('.theme-card.active');
+    if (active) showThemeMode(active.dataset.mode || 'dark');
 
     return themeName;
   }
@@ -13083,6 +13087,8 @@
   $('reducemotion-toggle').addEventListener('change', async (e) => {
     reduceBalanceMotion = e.target.checked;
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
+    // The theme previews are separate documents, so the class above does not reach them.
+    syncPreviewMotion();
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reduceBalanceMotion: e.target.checked } });
     // Repaint so the change is visible now rather than at the next balance: turning
     // it on collapses the figure back to a plain text node, turning it off gives the
@@ -13139,11 +13145,129 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { noteCountdownSecs: secs } });
   });
 
-  // Theme selector
+  // ---- the theme gallery ----------------------------------------------------------
+  // Each card previews its theme in an iframe. theme-tile.html says why a document and
+  // not a div; the short of it is that a themed preview nested in the themed panel
+  // matches every `[data-theme="x"] .thing` rule twice and stylesheet order picks the
+  // winner, so every card animated as whichever theme loaded last.
+  //
+  // MOUNTED LAZILY, on the mode being shown rather than on panel start. Twelve documents
+  // at boot would be twelve stylesheet loads for a screen most sessions never open, and
+  // only half are ever on screen at once. Once mounted a card stays mounted: the cost is
+  // paid, and re-creating the frame on every filter flip would reload the sheets.
+  function mountThemePreview(card) {
+    const slot = card.querySelector('.theme-preview');
+    if (!slot || slot.firstChild) return;
+    const frame = document.createElement('iframe');
+    // No title and aria-hidden: the card's own label already names the theme, and a
+    // screen reader announcing a nested document here would be noise.
+    frame.setAttribute('aria-hidden', 'true');
+    frame.setAttribute('tabindex', '-1');
+    frame.setAttribute('scrolling', 'no');
+    frame.src = 'theme-tile.html?t=' + encodeURIComponent(card.dataset.theme);
+    frame.addEventListener('load', syncPreviewMotion);
+    slot.appendChild(frame);
+    scaleThemePreview(slot);
+  }
+
+  // The frame is a fixed-width document shrunk to whatever the card actually is. Measured
+  // rather than hardcoded because the side panel is resizable: one fixed factor fits one
+  // width and clips or letterboxes at every other.
+  //
+  // TRUE PANEL WIDTH, and it has to be. A narrower document magnifies the repeating
+  // patterns, which was tempting — but a theme's field is not resolution-independent.
+  // Several are built from layers sized in absolute pixels, tuned to sit at the top of a
+  // 700px panel, and in a small document the same glow floods all of it. Nixie previewed
+  // red and Speakeasy warm when they are near-black and deep violet.
+  // So the document is a panel and the card crops it to the top band. See theme-tile.html.
+  const PREVIEW_W = 360;
+  function scaleThemePreview(slot) {
+    if (!slot) return;
+    const frame = slot.querySelector('iframe');
+    if (!frame) return;
+    // Zero means the card is in the hidden half, and a display:none element has no layout
+    // to measure. There is nothing to do about that here — the scale is applied when the
+    // card is revealed instead. See showThemeMode.
+    const w = slot.clientWidth;
+    if (!w) return;
+    frame.style.transform = 'scale(' + w / PREVIEW_W + ')';
+  }
+
+  // Re-scale on any change to the gallery's own width. Observing the grid rather than the
+  // window catches the accordion opening and the panel being dragged with one hook.
+  const _themeGrid = document.querySelector('.theme-selector');
+  if (_themeGrid && typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => {
+      document.querySelectorAll('.theme-preview').forEach(scaleThemePreview);
+    }).observe(_themeGrid);
+  }
+
+  // Ask a mounted preview to run its balance animation again. Same-origin, so this is a
+  // direct call rather than postMessage; guarded because the frame may still be loading.
+  //
+  // REDUCE MOTION IS DECIDED HERE, in the caller, because that is where it is enforced
+  // everywhere else: paintBalanceEl gates .bal-in on the flag rather than on a CSS rule,
+  // and the class on <html> only covers the masked-disc animation. A preview is its own
+  // document and cannot read the setting, so the panel tells it.
+  // It is passed rather than withheld — the preview repaints STILL — so a figure left
+  // mid-animation by an earlier click is cleared instead of frozen where it stopped.
+  function replayThemePreview(card) {
+    const frame = card.querySelector('.theme-preview iframe');
+    try {
+      if (frame && frame.contentWindow && frame.contentWindow.replayPreview) {
+        frame.contentWindow.replayPreview(!reduceBalanceMotion);
+      }
+    } catch (_) {}
+  }
+
+  // Carry the class into each mounted preview as well. Nothing in a preview depends on it
+  // today — they show no masked balance — but a theme that ever keys an ambient animation
+  // on it would otherwise keep running inside the iframe with the setting on, and the
+  // iframe is the one place the panel's own <html> class cannot reach.
+  function syncPreviewMotion() {
+    document.querySelectorAll('.theme-preview iframe').forEach((frame) => {
+      try {
+        const doc = frame.contentDocument;
+        if (doc) doc.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
+      } catch (_) {}
+    });
+  }
+
+  function showThemeMode(mode) {
+    document.querySelectorAll('.theme-mode').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    document.querySelectorAll('.theme-card').forEach((card) => {
+      const on = card.dataset.mode === mode;
+      card.classList.toggle('hidden-mode', !on);
+      if (!on) return;
+      // Mounted, not replayed. Six animations firing together on a filter switch is a
+      // fairground, and it fights the one thing the grid is for — comparing them side by
+      // side. A card moves when you pick it and not before.
+      mountThemePreview(card);
+      // AND RE-SCALED, every time, not just on the mount. The ResizeObserver above runs
+      // for all twelve cards, but the six in the hidden half are display:none and measure
+      // zero, so they keep the scale they had when they were last on screen. Widen the
+      // panel on Dark and the Light cards still render at the old width — a frame too
+      // small for its card, with the theme's field stopping short of the edge.
+      // Revealing them is the first moment they can be measured, so that is where it
+      // happens. mountThemePreview returns early once a card has its frame, so it cannot
+      // be the place this is done.
+      scaleThemePreview(card.querySelector('.theme-preview'));
+    });
+  }
+
+  document.querySelectorAll('.theme-mode').forEach((b) => {
+    b.addEventListener('click', () => showThemeMode(b.dataset.mode));
+  });
+
   document.querySelectorAll('.theme-card').forEach(card => {
     card.addEventListener('click', async (e) => {
       const selectedTheme = card.dataset.theme;
       applyTheme(selectedTheme);
+      // The panel just changed theme under the previews; the one you picked replays so
+      // the choice confirms itself with the animation you chose it for.
+      replayThemePreview(card);
       await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
     });
   });

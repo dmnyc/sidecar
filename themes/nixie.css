@@ -548,7 +548,11 @@
    peach line inside a steel ring, which is the one thing in the picker that did
    not look like the theme it is advertising. Selected is the discharge itself
    rather than the reflection, since a chosen card should read as lit. */
-.theme-card[data-theme="nixie"] { border-color: rgba(255, 118, 50, 0.42); }
+/* NO COLORED BORDER AT REST. In the gallery the cards sit six abreast, and any
+   colored edge reads as the selected one — a dimmer version of the hue this goes
+   bright in is a difference you can only see with the two side by side, which is
+   never how they are looked at. The border is the shared neutral until chosen;
+   hover and selected below still speak in this theme. */
 .theme-card[data-theme="nixie"]:hover { border-color: rgba(255, 118, 50, 0.62); }
 .theme-card[data-theme="nixie"].active {
   border-color: #ff7632;

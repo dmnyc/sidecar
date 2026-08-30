@@ -324,30 +324,39 @@
                  (This said "ending at Nixie" until Cast Iron, Par Avion and then
                  Metropolis were appended without it being updated — the note is
                  only useful if it names the themes actually at the ends.) -->
+            <!-- MODE FILTER. Twelve previews will not fit a panel at a size where the preview is
+                 worth having; six will, with room for eight before this needs revisiting. The
+                 split is not new — it is the dark-then-light order the list has always used, now
+                 made into a control. data-mode on each card is the only place that split is
+                 written down in markup; sidepanel.js reads LIGHT_THEMES for everything else. -->
+            <div class="theme-modes">
+              <button type="button" class="theme-mode" data-mode="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg><span>Dark</span></button>
+              <button type="button" class="theme-mode" data-mode="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg><span>Light</span></button>
+            </div>
             <div class="theme-selector">
-              <button type="button" class="theme-card" data-theme="speakeasy">
-                <span class="theme-name">Speakeasy</span>
+              <button type="button" class="theme-card" data-theme="speakeasy" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Speakeasy</span>
               </button>
-              <button type="button" class="theme-card" data-theme="film-noir">
-                <span class="theme-name">Film Noir</span>
+              <button type="button" class="theme-card" data-theme="film-noir" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Film Noir</span>
               </button>
-              <button type="button" class="theme-card" data-theme="brownstone">
-                <span class="theme-name">Brownstone</span>
+              <button type="button" class="theme-card" data-theme="brownstone" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Brownstone</span>
               </button>
-              <button type="button" class="theme-card" data-theme="nixie">
-                <span class="theme-name">Nixie</span>
+              <button type="button" class="theme-card" data-theme="nixie" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Nixie</span>
               </button>
-              <button type="button" class="theme-card" data-theme="cast-iron">
-                <span class="theme-name">Cast Iron</span>
+              <button type="button" class="theme-card" data-theme="cast-iron" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Cast Iron</span>
               </button>
-              <button type="button" class="theme-card" data-theme="metropolis">
-                <span class="theme-name">Metropolis</span>
+              <button type="button" class="theme-card" data-theme="metropolis" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Metropolis</span>
               </button>
-              <button type="button" class="theme-card" data-theme="industria">
-                <span class="theme-name">Industria</span>
+              <button type="button" class="theme-card" data-theme="industria" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name">Industria</span>
               </button>
-              <button type="button" class="theme-card" data-theme="aegean">
-                <span class="theme-name">Aegean</span>
+              <button type="button" class="theme-card" data-theme="aegean" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name">Aegean</span>
               </button>
               <!-- The only card whose label is split per letter, so it can alternate blue and
                    orange the way this theme's balance does — odd glyphs drop in blue, even ones
@@ -356,19 +365,19 @@
                    because no other theme has a two-color idea to state. The colors live in
                    themes/bauhaus.css; without the spans the label still reads in one color, so
                    this degrades rather than breaks. -->
-              <button type="button" class="theme-card" data-theme="bauhaus">
-                <span class="theme-name"><span class="tn-glyph">B</span><span class="tn-glyph">a</span><span
+              <button type="button" class="theme-card" data-theme="bauhaus" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name"><span class="tn-glyph">B</span><span class="tn-glyph">a</span><span
                   class="tn-glyph">u</span><span class="tn-glyph">h</span><span class="tn-glyph">a</span><span
                   class="tn-glyph">u</span><span class="tn-glyph">s</span></span>
               </button>
-              <button type="button" class="theme-card" data-theme="populuxe">
-                <span class="theme-name">Populuxe</span>
+              <button type="button" class="theme-card" data-theme="populuxe" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name">Populuxe</span>
               </button>
-              <button type="button" class="theme-card" data-theme="par-avion">
-                <span class="theme-name">Par Avion</span>
+              <button type="button" class="theme-card" data-theme="par-avion" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name">Par Avion</span>
               </button>
-              <button type="button" class="theme-card" data-theme="werkstatte">
-                <span class="theme-name">Werkstätte</span>
+              <button type="button" class="theme-card" data-theme="werkstatte" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name">Werkstätte</span>
               </button>
             </div>
           </div>

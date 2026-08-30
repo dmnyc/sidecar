@@ -578,6 +578,42 @@ test('both relax countdown dots are visible on every theme status bar', () => {
   assert.match(lowBody, /--relax-glow: color-mix/, 'the .low glow must follow its dot color');
 });
 
+test('every theme declares a color-scheme, and it matches the theme', () => {
+  // The UA draws checkboxes, radios, scrollbars and select popups from color-scheme, not
+  // from anything in the palette. styles.css sets `dark` at :root because most of the set
+  // is dark, so a LIGHT theme that forgets to say otherwise inherits it and gets Chrome's
+  // dark form controls on pale paper. Werkstätte shipped that way: one solid black
+  // checkbox in an otherwise light theme, and nothing in the palette could explain it.
+  //
+  // Reads the light/dark split from sidepanel.js rather than a list here, so registering
+  // a theme stays one edit and this cannot drift out of step with the app.
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  const m = panel.match(/const LIGHT_THEMES = new Set\(\[([^\]]*)\]\)/);
+  assert.ok(m, 'could not read LIGHT_THEMES from sidepanel.js');
+  const light = new Set(m[1].match(/'([a-z-]+)'/g).map((q) => q.replace(/'/g, '')));
+
+  for (const theme of THEMES) {
+    // Comments stripped first. The prose explaining this rule in werkstatte.css quotes
+    // `color-scheme: dark` while describing what :root does, and matching that instead of
+    // the declaration made this test fail on the very file it had just fixed.
+    const src = fs
+      .readFileSync(path.join(ROOT, 'themes', theme.name + '.css'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    const decl = src.match(/color-scheme:\s*(light|dark)/);
+    assert.ok(
+      decl,
+      `${theme.name}.css declares no color-scheme, so it inherits :root's \`dark\` and the ` +
+      'UA will draw its form controls dark — wrong for a light theme, and invisible in ' +
+      'any review that does not open a checkbox.'
+    );
+    const want = light.has(theme.name) ? 'light' : 'dark';
+    assert.equal(
+      decl[1], want,
+      `${theme.name} is registered as a ${want} theme but declares color-scheme: ${decl[1]}`
+    );
+  }
+});
+
 test('the add-account plus is visible on its own disc in every theme', () => {
   // The reported bug: the disc reads var(--purple) and the plus inside it was a hardcoded
   // #2a1257 — Speakeasy's ink. It works where --purple is a light lavender and vanishes

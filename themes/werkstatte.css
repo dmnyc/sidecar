@@ -43,6 +43,13 @@
    held to 3.0 is --balance-ink, and it is a `color:` nowhere else. */
 
 [data-theme="werkstatte"] {
+  /* THE UA DRAWS FORM CONTROLS FROM THIS, not from the palette below. styles.css sets
+     color-scheme: dark at :root because most of the set is dark, and a light theme that
+     does not say otherwise gets Chrome's dark checkboxes and scrollbars on its own pale
+     paper. This shipped missing and the checkbox came out a solid black square — the only
+     control in the theme that looked like it belonged to a different one. */
+  color-scheme: light;
+
   /* Syncopate 700: monoline poster capitals, the lettering of a Secession sheet. */
   --font-display: 'Syncopate', 'Trebuchet MS', var(--font-ui);
 

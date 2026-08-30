@@ -234,7 +234,11 @@
    which on this card is brass on brass and reads as nothing. The ring is the one
    place the card borrows the strike's white, at low alpha — a chosen card should
    look lit, and this is the same idea the balance states more loudly. */
-.theme-card[data-theme="metropolis"] { border-color: rgba(168, 132, 60, 0.34); }
+/* NO COLORED BORDER AT REST. In the gallery the cards sit six abreast, and any
+   colored edge reads as the selected one — a dimmer version of the hue this goes
+   bright in is a difference you can only see with the two side by side, which is
+   never how they are looked at. The border is the shared neutral until chosen;
+   hover and selected below still speak in this theme. */
 .theme-card[data-theme="metropolis"]:hover { border-color: rgba(168, 132, 60, 0.55); }
 .theme-card[data-theme="metropolis"].active {
   border-color: #C9A45C;
