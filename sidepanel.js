@@ -93,6 +93,7 @@
     check: '<polyline points="20 6 9 17 4 12"></polyline>',
     camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle>',
     alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+    help: '<circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line>',
     grip: '<circle cx="9" cy="7" r="1.5" fill="currentColor"></circle><circle cx="15" cy="7" r="1.5" fill="currentColor"></circle><circle cx="9" cy="12" r="1.5" fill="currentColor"></circle><circle cx="15" cy="12" r="1.5" fill="currentColor"></circle><circle cx="9" cy="17" r="1.5" fill="currentColor"></circle><circle cx="15" cy="17" r="1.5" fill="currentColor"></circle>',
     external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>',
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
@@ -3871,11 +3872,7 @@
         const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
         const badge = h('span', { className: 'nip05-badge' });
         nip05Val.append(badge, document.createTextNode(nip05));
-        verifyNip05(content.nip05, pubkey).then((ok) => {
-          badge.classList.add(ok ? 'nip05-ok' : 'nip05-bad');
-          badge.title = ok ? 'Verified' : "Couldn't verify";
-          badge.append(icon(ok ? 'check' : 'alert'));
-        });
+        verifyNip05(content.nip05, pubkey).then((res) => paintNip05Badge(badge, res));
       } else {
         nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
       }
@@ -5986,22 +5983,95 @@
   // host_permissions. Returns false (not an error) for anything that doesn't
   // confirm a match, since a stale or unreachable NIP-05 is common and not
   // necessarily malicious.
-  async function verifyNip05(nip05, pubkey) {
+  // NIP-05 VERIFICATION HAS SIX OUTCOMES, NOT TWO (#179).
+  //
+  // This used to return a bare boolean, so the badge said "Couldn't verify" for all of
+  // them — and got the severity backwards in both directions at once. Someone offline saw
+  // an alarming badge on a perfectly good NIP-05; someone whose handle now resolves to a
+  // DIFFERENT KEY saw the same mild warning and had no reason to act. That second case is
+  // the one worth interrupting a person over: they lost the handle, the host reassigned
+  // it, or they are unknowingly impersonating.
+  //
+  // The split that matters is verdict versus ignorance:
+  //   ok / mismatch / absent  — we asked, the domain answered, this IS the answer
+  //   http / malformed / unreachable — we never got an answer; says nothing about them
+  //
+  // Note on CORS: NIP-05 requires the header and plenty of hosts get it wrong, but the
+  // panel is an extension page holding host permissions, so it is not subject to CORS in
+  // the first place. A host that omits the header still answers us. That is why there is
+  // no 'cors' status here — from this context it is not a distinct outcome, and in a page
+  // context it would be indistinguishable from being offline anyway.
+  const NIP05_TIMEOUT = 6000;
+  const NIP05_TTL = 10 * 60 * 1000;
+  // A failure we could not explain expires fast: someone on a train should not carry a
+  // stale "unreachable" for ten minutes after their connection comes back.
+  const NIP05_TTL_UNKNOWN = 30 * 1000;
+  const _nip05Cache = new Map(); // nip05|pubkey -> { res, expiresAt }
+
+  async function checkNip05(nip05, pubkey) {
+    const at = nip05.indexOf('@');
+    const name = at === -1 ? '_' : nip05.slice(0, at);
+    const domain = at === -1 ? nip05 : nip05.slice(at + 1);
+    if (!domain || !name) return { status: 'malformed', ok: false, known: true };
+    let res;
     try {
-      const at = nip05.indexOf('@');
-      const name = at === -1 ? '_' : nip05.slice(0, at);
-      const domain = at === -1 ? nip05 : nip05.slice(at + 1);
-      if (!domain || !name) return false;
-      const res = await fetch('https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name));
-      if (!res.ok) return false;
-      const data = await res.json();
-      const names = data && data.names;
-      if (!names || typeof names !== 'object') return false;
-      const key = Object.keys(names).find((k) => k.toLowerCase() === name.toLowerCase());
-      return key ? names[key] === pubkey : false;
+      res = await fetch(
+        'https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name),
+        { signal: AbortSignal.timeout(NIP05_TIMEOUT) }
+      );
     } catch (_) {
-      return false;
+      // Offline, DNS failure, TLS failure, or a timeout. We did not reach the domain, so
+      // we know nothing about the identifier — which is NOT the same as it being wrong.
+      return { status: 'unreachable', ok: false, known: false };
     }
+    if (!res.ok) return { status: 'http', ok: false, known: false, code: res.status };
+    let data;
+    try {
+      data = await res.json();
+    } catch (_) {
+      return { status: 'malformed', ok: false, known: false };
+    }
+    const names = data && data.names;
+    if (!names || typeof names !== 'object') return { status: 'malformed', ok: false, known: false };
+    const key = Object.keys(names).find((k) => k.toLowerCase() === name.toLowerCase());
+    // Checked, and the domain does not list this name at all.
+    if (!key) return { status: 'absent', ok: false, known: true };
+    // Checked, and it points somewhere else. The loud one.
+    if (names[key] !== pubkey) return { status: 'mismatch', ok: false, known: true, found: names[key] };
+    return { status: 'ok', ok: true, known: true };
+  }
+
+  // CACHED, because the overview drawer is expanded by default: every render of the
+  // Accounts tab used to fire a request at a third party, telling that host when the user
+  // is active and how often. Same answer, far fewer disclosures.
+  async function verifyNip05(nip05, pubkey) {
+    const cacheKey = nip05 + '|' + pubkey;
+    const hit = _nip05Cache.get(cacheKey);
+    if (hit && hit.expiresAt > Date.now()) return hit.res;
+    const res = await checkNip05(nip05, pubkey);
+    _nip05Cache.set(cacheKey, {
+      res,
+      expiresAt: Date.now() + (res.known ? NIP05_TTL : NIP05_TTL_UNKNOWN),
+    });
+    return res;
+  }
+
+  // SEVERITY FOLLOWS CERTAINTY, not just failure. A verdict against you is colored like
+  // one; not having reached the host is neutral and shaped differently, so it cannot be
+  // mistaken for a finding about the identifier.
+  const NIP05_BADGE = {
+    ok:          { cls: 'nip05-ok',      glyph: 'check', title: 'Verified' },
+    mismatch:    { cls: 'nip05-alarm',   glyph: 'alert', title: 'This address points to a different key' },
+    absent:      { cls: 'nip05-bad',     glyph: 'alert', title: 'This domain doesn’t list this name' },
+    http:        { cls: 'nip05-unknown', glyph: 'help',  title: 'The domain didn’t serve its nostr.json' },
+    malformed:   { cls: 'nip05-unknown', glyph: 'help',  title: 'The domain’s nostr.json isn’t valid' },
+    unreachable: { cls: 'nip05-unknown', glyph: 'help',  title: 'Couldn’t reach the domain to check' },
+  };
+  function paintNip05Badge(badge, res) {
+    const b = NIP05_BADGE[res && res.status] || NIP05_BADGE.unreachable;
+    badge.classList.add(b.cls);
+    badge.title = b.title;
+    badge.append(icon(b.glyph));
   }
 
   async function renderProfile() {
@@ -6046,11 +6116,9 @@
         nip05Badge,
       ]);
       body.append(nip05Row);
-      verifyNip05(content.nip05, active.pubkey).then((ok) => {
+      verifyNip05(content.nip05, active.pubkey).then((res) => {
         nip05Badge.innerHTML = '';
-        nip05Badge.classList.add(ok ? 'nip05-ok' : 'nip05-bad');
-        nip05Badge.title = ok ? 'Verified' : "Couldn't verify this NIP-05 against your account";
-        nip05Badge.append(icon(ok ? 'check' : 'alert'));
+        paintNip05Badge(nip05Badge, res);
       });
     }
     body.append(npubChip(active.npub));
