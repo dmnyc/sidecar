@@ -119,7 +119,7 @@ test('parseZapRequest ignores anything that is not a kind 9734', () => {
 });
 
 test('a JSON object that is not a zap still passes through untouched', () => {
-  // The pre-#243 behaviour for non-zap objects, kept deliberately: some wallets put
+  // The pre-#243 behavior for non-zap objects, kept deliberately: some wallets put
   // structured notes here and the raw string is a better guess than an empty row.
   const other = '{"memo":"invoice 12"}';
   assert.equal(normalizeDescription(other), other);

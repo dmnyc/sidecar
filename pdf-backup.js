@@ -157,12 +157,12 @@
   // file to draw a logo it already ships.
   //
   // The sheet is monochrome, so the mark is too. The source is four stacked paths —
-  // a white bowl, a grey right-hand shade, and two oranges for the glass — a scheme
-  // that only reads in colour. Flattened to two tones of the page ink instead, which
+  // a white bowl, a gray right-hand shade, and two oranges for the glass — a scheme
+  // that only reads in color. Flattened to two tones of the page ink instead, which
   // keeps the dimensional read of the original without any hue.
   //
   // Each pair draws a full shape then overlays its right-hand half, so the LIT side
-  // is whichever colour goes down first. Base light + right-hand overlay dark puts
+  // is whichever color goes down first. Base light + right-hand overlay dark puts
   // the highlight on the left, matching a light source at upper left.
   const MARK_VIEWBOX = { w: 201, h: 226 };
   const MARK_INK = [0.16, 0.12, 0.09];
@@ -467,7 +467,7 @@
     // KEY, not NPUB: the value on this line already begins "npub1", so an NPUB label
     // prints the same word twice on one line. "PUBLIC KEY" would be more precise but
     // overruns the 26pt label gutter TO and FROM share — and the value self-identifies
-    // anyway, with the secret half explicitly labelled on the box below.
+    // anyway, with the secret half explicitly labeled on the box below.
     c.fill(...INK).text(colX[0], y, 'KEY', 6.5, 'F1');
     c.fill(...INK).text(colX[0] + 26, y, npub, 7.4, 'F1');
     y += 10;

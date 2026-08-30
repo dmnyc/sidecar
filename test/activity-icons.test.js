@@ -12,7 +12,7 @@
 //   1. every named kind resolves to an icon that actually exists (a typo renders a
 //      blank box, which is worse than the feather it replaced)
 //   2. the feather still means authorship, not "signed something"
-//   3. the icons users already recognise are used for the events they know
+//   3. the icons users already recognize are used for the events they know
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -90,7 +90,7 @@ test('the noisy machine kinds are NOT feathers', () => {
   }
 });
 
-// ---- the icons users already recognise ------------------------------------------
+// ---- the icons users already recognize ------------------------------------------
 
 test('reposts, reactions and zaps use their conventional glyphs', () => {
   assert.equal(KIND_ICONS[6], 'repeat', 'repost');
@@ -132,9 +132,9 @@ test('the flower is the real Blossom mark, fitted to the box', () => {
   assert.ok(h > 18, `only ${h.toFixed(1)} units tall — reads small beside the tower`);
 });
 
-test('the filled Blossom mark still follows the theme colour', () => {
+test('the filled Blossom mark still follows the theme color', () => {
   // icon() sets fill:none stroke=currentColor, which renders a filled path invisible.
-  // The mark has to opt into fill="currentColor" — a literal colour would pin it and
+  // The mark has to opt into fill="currentColor" — a literal color would pin it and
   // stop the five themes from recolouring it.
   const body = iconsSrc.match(/^\s*flower: '([^']*)'/m)[1];
   assert.match(body, /fill="currentColor"/, 'a filled glyph needs an explicit fill');
@@ -200,15 +200,15 @@ test('no duplicate keys in ICONS', () => {
   assert.deepEqual(dupes, [], 'duplicate icon keys');
 });
 
-test('no icon carries its own viewBox or a hard-coded colour', () => {
+test('no icon carries its own viewBox or a hard-coded color', () => {
   // icon() wraps every body in <svg viewBox="0 0 24 24" fill="none"
   // stroke="currentColor" stroke-width="2">. Art pasted in from a design tool is
   // usually FILLED geometry on its own viewBox — dropped in as-is it renders as a
-  // hollow outline of itself, in the wrong box, and ignores the theme colour. Icons
-  // have to be redrawn as stroke centre-lines on the 24x24 grid.
+  // hollow outline of itself, in the wrong box, and ignores the theme color. Icons
+  // have to be redrawn as stroke center-lines on the 24x24 grid.
   //
   // fill="currentColor" is allowed and used deliberately by the dot glyphs (`more`,
-  // `grip`), which have to be solid. Anything else pins a colour the themes can't
+  // `grip`), which have to be solid. Anything else pins a color the themes can't
   // override.
   const offenders = [];
   for (const [, name, body] of iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'([^']*)'/gm)) {
@@ -219,11 +219,11 @@ test('no icon carries its own viewBox or a hard-coded colour', () => {
       }
     }
   }
-  assert.deepEqual(offenders, [], 'icons carrying their own viewBox or a fixed colour');
+  assert.deepEqual(offenders, [], 'icons carrying their own viewBox or a fixed color');
 });
 
 test('icon geometry stays inside the 24x24 box with room for the stroke', () => {
-  // stroke-width 2 means the ink extends 1 unit past every centre-line, so a circle
+  // stroke-width 2 means the ink extends 1 unit past every center-line, so a circle
   // at cy=12 r=11.5 would clip. Only circles are checked — their bounds are exact
   // and they are what the hand-drawn icons here are built from.
   const bad = [];

@@ -64,8 +64,8 @@
 
   /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink.
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink.
 
      The largest correction in the set, and it is a metrics fact rather than a taste
      call: this face declares an ascent of 0.703em (hhea, OS/2 typo and OS/2 win all
@@ -452,7 +452,7 @@
    blue-black on the transit mark. scripts/gen-par-avion-stamps.py has the drawing, and
    the note at the top of any of the SVGs has the method.
 
-   This is the screen with the most bare paper on it: .screen centres a short form in a
+   This is the screen with the most bare paper on it: .screen centers a short form in a
    full-height column, so there is a dead band above the wordmark and a wider one below
    the Forgot link. Bare paper on an envelope is where the post office writes.
 
@@ -489,7 +489,7 @@
 }
 
 /* The head of it is a LAYER instead, and the reason is short windows. As a background
-   the stamp painted behind everything, so in a panel short enough for the centred form
+   the stamp painted behind everything, so in a panel short enough for the centered form
    to ride up under it, the wordmark sat on top of the stamp — a logo printed over
    postage, which is backwards. Postage goes on last.
 
@@ -527,7 +527,7 @@
 
      The cancel's own top is the sensitive number: at 38px the dial dropped far enough
      that the bars only grazed the stamp's corner, and bars that miss are not killer
-     bars. 29px puts them back across its lower third — off-centre, which is the
+     bars. 29px puts them back across its lower third — off-center, which is the
      haphazard part, but unmistakably ON it. */
   background-position:
     left 25px top 21px,

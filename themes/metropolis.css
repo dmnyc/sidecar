@@ -46,12 +46,12 @@
      fonts.css. Limelight's heavy verticals and hairline horizontals are the theme at
      display size and a wall of dense type at 16px, eight rows deep. Josefin is the same
      deco geometry drawn light, it already ships for Art Deco, and it has a real weight
-     axis, so a 600 head is drawn rather than synthesised. */
+     axis, so a 600 head is drawn rather than synthesized. */
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink.
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink.
 
      MEASURED, not guessed: the digits' ink box against the em box at line-height 1,
      with Playfair as a control (its computed value is -0.13em against the -0.08em
@@ -162,7 +162,7 @@
   /* ink — the poster's aged paper, not white. Cast Iron's rule ("avoid white fonts")
      is right for a metal theme, but this one is a HIGH-contrast picture where iron is
      a low-contrast one, so the ink runs brighter than iron's and the hierarchy is
-     carried by brightness rather than by step between greys. */
+     carried by brightness rather than by step between grays. */
   --text: #E8E0D0;
   --text-2: #C9BFAC;
   --muted: #9A8F7C;

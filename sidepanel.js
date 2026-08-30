@@ -5178,7 +5178,7 @@
         sheet.addEventListener('click', async () => {
           if (!tabNcrypt.classList.contains('active')) {
             await downloadBackupSheet(nsec, a);
-            // RESTART the 30s auto-hide rather than cancelling it. Cancelling
+            // RESTART the 30s auto-hide rather than canceling it. Canceling
             // would leave the nsec on screen indefinitely; restarting gives a
             // full fresh window without removing the guard. After the save, not
             // before: the fresh window should start when the user is back, not
@@ -7539,8 +7539,8 @@
   // composer and page comments. Takes over `modal` and returns a stop() so the caller
   // can clear the interval if it tears the modal down another way.
   //
-  // Signing happens inside onFire, never here — cancelling must not have produced a
-  // signature, and the countdown is the last point where cancelling is still free.
+  // Signing happens inside onFire, never here — canceling must not have produced a
+  // signature, and the countdown is the last point where canceling is still free.
   //
   // `preview` is whatever the caller wants reviewed: the note composer passes its
   // rendered note, a comment passes the target link card plus the comment text. That

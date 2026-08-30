@@ -27,7 +27,7 @@
    THE GROUND IS WHITE, and that is the other design decision. This material is built on
    cream, which walks into the failure the contrast test already records about Art Deco:
 
-       "the cream palette cannot carry a legible three-level grey hierarchy at all.
+       "the cream palette cannot carry a legible three-level gray hierarchy at all.
         That is a surface problem, not an ink problem."
 
    Its --muted (3.65:1) and --faint (2.30:1) sit in that file as permanent exceptions.
@@ -37,7 +37,7 @@
    --muted 7.32, --faint 4.78, --gold 4.64. Bauhaus is the only other theme whose
    --faint clears AA at all; the remaining five run 2.25–3.53.
 
-   INK IS COLORED, NOT GREY, for the same reason: three greys on a warm ground is what
+   INK IS COLORED, NOT GRAY, for the same reason: three grays on a warm ground is what
    failed before, and this material was printed in colored inks. --text-2 is the
    pattern's deep teal and --muted is a darker step of it.
 
@@ -85,10 +85,10 @@
      synthetic one. */
   --font-display: 'Rowdies', 'Futura', 'Century Gothic', var(--font-ui);
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink. See the note above the rule in
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
   --display-ink-nudge: -0.01em;
 
@@ -151,10 +151,10 @@
      fail the 4.5 bar the 12–13px labels are held to, which is why those take --gold. */
   --balance-ink: #DC4A3C;
   /* The currency symbol, in the balance's own red darkened the least amount that clears
-     the bar — NOT a different colour. --balance-ink itself measures 2.49 on the pinned
+     the bar — NOT a different color. --balance-ink itself measures 2.49 on the pinned
      bar at the shared 0.72 mute and 3.47 unmuted, against the 4.5 that 16.8px/600 needs,
      so something has to move; the first fix sent it to --gold and put an olive $ beside
-     a red number, which reads as two colours rather than one mark and its qualifier.
+     a red number, which reads as two colors rather than one mark and its qualifier.
      Same hue, 18% down in lightness: 5.55 on the card, 4.67 on the bar. That is the
      warm-family split of this theme applied at one more size — the figure keeps the
      display ink, the small mark beside it takes a stop that can carry small text. */
@@ -183,7 +183,7 @@
   --hover-medium: rgba(28, 26, 23, 0.085);
   --hover-faint: rgba(28, 26, 23, 0.03);
   --mention-bg: rgba(0, 103, 116, 0.16);
-  /* Warm grey, not an accent — the scrollbar is furniture. */
+  /* Warm gray, not an accent — the scrollbar is furniture. */
   --scroll-thumb: linear-gradient(180deg, #CFC6B6, #E2DACB);
   --scroll-thumb-hover: #B8AE9C;
 
@@ -235,7 +235,7 @@
   --btn-accent-bot: #A99C4F;
   --btn-accent-text: #1C1A17;
 
-  /* Ink — warm near-black, then two steps of the pattern's teal, then a warm grey. See
+  /* Ink — warm near-black, then two steps of the pattern's teal, then a warm gray. See
      the header for why --muted is as dark as it is (it has to survive the tile). */
   --text: #1C1A17;
   --text-2: #006774;
@@ -345,7 +345,7 @@
    near-black here because this theme's primary button is a bright orange; on maroon that
    is 1.79:1. White is 9.73.
 
-   This does put the destructive colour on the bell, and the palette note above says the
+   This does put the destructive color on the bell, and the palette note above says the
    maroon is "never confusable with the action color, because the action color here is
    the teal". That still holds for actions — this is a count and a stop, neither of which
    is an affirmative action, and the convention for both is red. */

@@ -23,8 +23,8 @@
   /* Dialed by eye; the face is a 1998 rounded hand with loose vertical metrics. */
   --display-ink-nudge: 0.02em;
 
-  /* surfaces — void, not charcoal. With nothing bright to fight, dark-warm-grey ink
-     clears AA against a plate this deep while reading as grey-on-black, which is the
+  /* surfaces — void, not charcoal. With nothing bright to fight, dark-warm-gray ink
+     clears AA against a plate this deep while reading as gray-on-black, which is the
      point. */
   --bg: #050404;
   --bg-2: #0a0908;
@@ -77,10 +77,10 @@
   --lav: #948c79;
 
   /* The accent-chip pair. styles.css paints several small controls as
-     --accent-fill background + --chip-ink label, each falling back through warm greys
+     --accent-fill background + --chip-ink label, each falling back through warm grays
      that in this theme land two shades apart — "Search everyone", the receive amount
-     presets, switch-site, the chart range chip and the relax End disc all read as grey
-     on grey until these are defined. Declaring the pair here repairs every current and
+     presets, switch-site, the chart range chip and the relax End disc all read as gray
+     on gray until these are defined. Declaring the pair here repairs every current and
      future consumer at once (Nixie does the same with its ember fill). Solid #b9b19f,
      not a gradient, because the same token also feeds border-color; #12100e is the
      sunk-die ink from the raised-metal treatment — a label PRESSED INTO bright metal. */
@@ -120,8 +120,8 @@
   --scroll-thumb-hover: #221d18;
 
   /* Trust button — a plate barely proud of the panel, seated by shadow and read by
-     its rim, with grey stamp ink that stays inside the tonal world. The inks are
-     modest BECAUSE the plates are deep: grey-on-void still measures 5:1+. */
+     its rim, with gray stamp ink that stays inside the tonal world. The inks are
+     modest BECAUSE the plates are deep: gray-on-void still measures 5:1+. */
   --btn-lav-top: #181512;
   --btn-lav-mid: #131110;
   --btn-lav-bot: #0d0b09;
@@ -130,7 +130,7 @@
   --btn-lav-shadow: rgba(0, 0, 0, 0.5);
 
   /* Allow — one grade prouder than Trust's casting. Same grammar, brighter by one
-     step of grey, still nowhere near white. */
+     step of gray, still nowhere near white. */
   --btn-primary-top: #1c1814;
   --btn-primary-mid: #161210;
   --btn-primary-bot: #0e0c09;
@@ -146,7 +146,7 @@
 
   /* ink — every stop demoted from the first pass. Body copy tops out around #a5,
      muted and faint step down toward the plate, and nothing anywhere reaches for
-     white: hierarchy is carried by STEP between greys, not by brightness itself. */
+     white: hierarchy is carried by STEP between grays, not by brightness itself. */
   --text: #a59d8b;
   --text-2: #938b7a;
   --muted: #857d6c;
@@ -459,7 +459,7 @@
      rectangle with a bright border. It dies by 45% so the lower half stays plate — light
      falls off on iron, and a wash carried the whole way would read as a gradient fill.
      Layered over --velvet-1 rather than replacing it, so the card keeps its own surface
-     colour underneath. */
+     color underneath. */
   background:
     linear-gradient(180deg, rgba(216, 209, 196, 0.06), rgba(216, 209, 196, 0) 45%),
     var(--velvet-1);
@@ -603,7 +603,7 @@
 }
 
 /* The range chips failed twice at once: the ACTIVE chip took its ink and fill from
-   --chip-ink / --accent-fill's fallback chain, which here resolved to two warm greys
+   --chip-ink / --accent-fill's fallback chain, which here resolved to two warm grays
    almost the same tone — "24h" sat invisibly on its own selected pill, the same
    collision the relax End disc had — and the idle chips sit at --faint, below any
    sensible floor at 10px. The token pair is now declared in the block above (shared
@@ -638,7 +638,7 @@
 /* ---- relax mode: the End control and its timer -----------------------------------------
    Two faults, both this theme's doing. The X button painted a gold disc and took the
    glyph ink from --chip-ink's fallback chain — which in iron resolved to another warm
-   grey, so the mark sat inside its own circle near-invisibly. That collision is what
+   gray, so the mark sat inside its own circle near-invisibly. That collision is what
    the --accent-fill / --chip-ink pair in the token block now settles everywhere; this
    rule adds the die's inset seating, and the disc stays deliberately bright: one of
    the few loud objects short of the danger reds, because an emergency exit should not
@@ -653,7 +653,7 @@
     inset 0 1px 0 rgba(216, 209, 196, 0.28),
     inset 0 -1px 1px rgba(0, 0, 0, 0.55);
 }
-/* The unread pill carried #fff on --orange — two greys apart here at 9px bold, the
+/* The unread pill carried #fff on --orange — two grays apart here at 9px bold, the
    worst possible shape for a number someone is meant to act on. Same raised metal,
    same sunk die as every other count in the theme (range chip, End disc). */
 [data-theme="cast-iron"] .notif-badge {
