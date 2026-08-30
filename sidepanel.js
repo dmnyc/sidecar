@@ -3593,6 +3593,19 @@
     main.append(label, sub);
 
     const isActive = a.pubkey === state.activePubkey;
+
+    // The actions slot is built BEFORE the confirm wiring below, because the confirm
+    // swaps what is in it and needs the button to exist.
+    const actions = document.createElement('div');
+    actions.className = 'item-actions';
+    if (isActive) {
+      const check = icon('check');
+      check.classList.add('active-check');
+      actions.appendChild(check);
+    }
+    const moreBtn = iconButton('Account options', 'more', () => accountMenuModal(a));
+    actions.appendChild(moreBtn);
+
     if (!isActive) {
       // Both the avatar and the name area switch accounts on click — clicking the
       // PFP used to be a no-op because only `main` carried the handler. The grip
@@ -3602,10 +3615,27 @@
         el.style.cursor = 'pointer';
         el.title = 'Set as active account';
       }
+      // WHILE ARMED, THE SLOT HOLDS A CANCEL INSTEAD OF THE MENU. Arming a row used to
+      // have no way out: the two lines rewrite to "Set as active?" / "Tap again to
+      // confirm", and the only thing that cleared them was arming a DIFFERENT row or
+      // leaving the tab — neither of which is available or discoverable when you have
+      // one account and you have just changed your mind. The second tap switching the
+      // account is the whole point of the confirm, so it cannot double as the way out.
+      //
+      // It replaces the menu button rather than joining it: the slot is flex-shrink: 0
+      // and one icon swapped for another costs nothing, where a second button would
+      // take width from the name beside it. The menu is not reachable for the moment
+      // the row is armed, which is the right trade — you are mid-decision, and the way
+      // out of that decision is the only action that matters.
+      const cancelBtn = iconButton('Cancel', 'x', (e) => {
+        e.stopPropagation();
+        resetRow();
+      });
       function resetRow() {
         row.classList.remove('item-pending');
         label.textContent = displayName(a);
         sub.textContent = shortNpub(a.npub);
+        if (cancelBtn.parentElement) actions.replaceChild(moreBtn, cancelBtn);
       }
       const onActivate = async () => {
         const list = row.parentElement;
@@ -3621,21 +3651,12 @@
           row.classList.add('item-pending');
           label.textContent = 'Set as active?';
           sub.textContent = 'Tap again to confirm';
+          if (moreBtn.parentElement) actions.replaceChild(cancelBtn, moreBtn);
         }
       };
       clickables.forEach((el) => el.addEventListener('click', onActivate));
       row._resetRow = resetRow;
     }
-
-    const actions = document.createElement('div');
-    actions.className = 'item-actions';
-
-    if (isActive) {
-      const check = icon('check');
-      check.classList.add('active-check');
-      actions.appendChild(check);
-    }
-    actions.appendChild(iconButton('Account options', 'more', () => accountMenuModal(a)));
 
     row.append(main, actions);
     return row;
