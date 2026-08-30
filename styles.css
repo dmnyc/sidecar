@@ -2010,14 +2010,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    open on a browser that doesn't support it. */
 .balances-hidden .wallet-balance,
 .balances-hidden .tx-amt,
-.balances-hidden .amt-hide,
 .balances-hidden .pinned-balance-amt {
   position: relative;
   visibility: hidden;
 }
 .balances-hidden .wallet-balance::after,
 .balances-hidden .tx-amt::after,
-.balances-hidden .amt-hide::after,
 .balances-hidden .pinned-balance-amt::after {
   content: '••••';
   visibility: visible;
