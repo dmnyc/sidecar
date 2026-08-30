@@ -3408,7 +3408,16 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      which also keeps the whole picker on one screen. Descenders overflow the line
      box (Speakeasy's y) and are absorbed by the card's padding; nothing clips. */
   font-size: calc(20px * var(--display-scale, 1));
-  line-height: 1;
+  /* 20px, not 1. A ratio makes the line BOX follow the font size, and Werkstätte's card
+     re-declares --display-scale to 0.77 so its face reads at the set's size — which left
+     its label box 15.4px against everyone else's 20. The cards sit in equal-height grid
+     rows and stack from the top, so those 4.6px came off the bottom of one card and the
+     label looked lifted.
+     Pinned, every label occupies the same room whatever face or scale is in it, which is
+     the same rule the display-face headings follow: --display-scale changes the face, not
+     the space. Cast Iron sets 24px here for its own card and still fits — its ink is only
+     14.1px tall at that size. */
+  line-height: 20px;
   letter-spacing: 0.01em;
   /* The same optical correction the balance, the pinned bar and the countdown ring take,
      and it belongs here for the identical reason: the card centers with align-items,

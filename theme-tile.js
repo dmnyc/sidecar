@@ -54,8 +54,10 @@
     }
   }
 
-  // The gallery calls this only for the card you picked.
-  window.replayPreview = function () { paint(true); };
+  // The gallery calls this only for the card you picked, and passes false when Reduce
+  // motion is on — it repaints STILL rather than declining to repaint, so a figure left
+  // mid-animation by an earlier click is cleared rather than frozen where it stopped.
+  window.replayPreview = function (animate) { paint(animate !== false); };
 
   link.addEventListener('load', function () { paint(false); });
   paint(false);

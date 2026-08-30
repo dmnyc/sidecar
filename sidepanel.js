@@ -13087,6 +13087,8 @@
   $('reducemotion-toggle').addEventListener('change', async (e) => {
     reduceBalanceMotion = e.target.checked;
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
+    // The theme previews are separate documents, so the class above does not reach them.
+    syncPreviewMotion();
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reduceBalanceMotion: e.target.checked } });
     // Repaint so the change is visible now rather than at the next balance: turning
     // it on collapses the figure back to a plain text node, turning it off gives the
@@ -13163,6 +13165,7 @@
     frame.setAttribute('tabindex', '-1');
     frame.setAttribute('scrolling', 'no');
     frame.src = 'theme-tile.html?t=' + encodeURIComponent(card.dataset.theme);
+    frame.addEventListener('load', syncPreviewMotion);
     slot.appendChild(frame);
     scaleThemePreview(slot);
   }
@@ -13197,13 +13200,33 @@
 
   // Ask a mounted preview to run its balance animation again. Same-origin, so this is a
   // direct call rather than postMessage; guarded because the frame may still be loading.
+  //
+  // REDUCE MOTION IS DECIDED HERE, in the caller, because that is where it is enforced
+  // everywhere else: paintBalanceEl gates .bal-in on the flag rather than on a CSS rule,
+  // and the class on <html> only covers the masked-disc animation. A preview is its own
+  // document and cannot read the setting, so the panel tells it.
+  // It is passed rather than withheld — the preview repaints STILL — so a figure left
+  // mid-animation by an earlier click is cleared instead of frozen where it stopped.
   function replayThemePreview(card) {
     const frame = card.querySelector('.theme-preview iframe');
     try {
       if (frame && frame.contentWindow && frame.contentWindow.replayPreview) {
-        frame.contentWindow.replayPreview();
+        frame.contentWindow.replayPreview(!reduceBalanceMotion);
       }
     } catch (_) {}
+  }
+
+  // Carry the class into each mounted preview as well. Nothing in a preview depends on it
+  // today — they show no masked balance — but a theme that ever keys an ambient animation
+  // on it would otherwise keep running inside the iframe with the setting on, and the
+  // iframe is the one place the panel's own <html> class cannot reach.
+  function syncPreviewMotion() {
+    document.querySelectorAll('.theme-preview iframe').forEach((frame) => {
+      try {
+        const doc = frame.contentDocument;
+        if (doc) doc.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
+      } catch (_) {}
+    });
   }
 
   function showThemeMode(mode) {
