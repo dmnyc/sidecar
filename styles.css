@@ -2314,11 +2314,11 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .tx-icon svg { width: 15px; height: 15px; }
 /* A ZAP SHOWS WHO SENT IT. The slot is already a 32px disc, which is what an avatar
    wants, so a zap with a resolved profile puts the face there instead of the arrow —
-   see txRow. The tint goes with it: a photo behind a colour wash reads as a mistake.
+   see txRow. The tint goes with it: a photo behind a color wash reads as a mistake.
    The arrow does not disappear, it moves to a badge in the corner. Direction is the one
-   thing this row must not lose, and the amount states it in colour — so the badge keeps
+   thing this row must not lose, and the amount states it in color — so the badge keeps
    a SHAPE saying the same thing, which is what makes it legible to someone who cannot
-   separate the two colours. */
+   separate the two colors. */
 .tx-icon.has-av { background: none; overflow: visible; position: relative; }
 .tx-icon.has-av img {
   width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;

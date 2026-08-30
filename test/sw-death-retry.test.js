@@ -64,7 +64,7 @@ test('an invalidated extension context is NOT retryable', () => {
 });
 
 test('an unknown error is NOT retryable', () => {
-  // Default closed. An error we do not recognise might mean the request was
+  // Default closed. An error we do not recognize might mean the request was
   // processed, and the cost of guessing wrong is a duplicate signature.
   for (const msg of ['', 'Some unexpected failure', 'Native host has exited.']) {
     assert.equal(RETRYABLE.test(msg), false, JSON.stringify(msg));

@@ -48,10 +48,10 @@
      and [data-theme] matches the same element :root does, so the later rule wins. */
   --font-display: 'Jost', 'Futura', 'Century Gothic', var(--font-ui);
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink. See the note above the rule in
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
   --display-ink-nudge: 0.02em;
 
@@ -162,7 +162,7 @@
   --hover-medium: rgba(17, 17, 17, 0.09);
   --hover-faint: rgba(17, 17, 17, 0.035);
   --mention-bg: rgba(0, 87, 255, 0.14);
-  /* Neutral ink-grey, not blue — the scrollbar is furniture, not an accent. */
+  /* Neutral ink-gray, not blue — the scrollbar is furniture, not an accent. */
   --scroll-thumb: linear-gradient(180deg, #C4C4BE, #DCDCD6);
   --scroll-thumb-hover: #AEAEA8;
 
@@ -211,7 +211,7 @@
   --btn-accent-bot: #0057FF;
   --btn-accent-text: #FFFFFF;
 
-  /* Ink — near-black rather than a tinted grey, because the walls are near-neutral and a
+  /* Ink — near-black rather than a tinted gray, because the walls are near-neutral and a
      blue-black would fight the blue accent at small sizes. --faint clears AA at 5.31:1 on
      the ground and 4.84:1 on the darkest surface. That is deliberate and this is still
      the only theme where it is true: the other five run 2.25–3.53:1 there, a gap recorded
@@ -335,8 +335,8 @@
 }
 
 /* End, on the relax status bar. It draws from --accent-fill, which in this theme is the
-   blue — so the one control that STOPS something was rendering in the same colour as
-   every affirmative chip beside it. This school assigns meaning by colour more than any
+   blue — so the one control that STOPS something was rendering in the same color as
+   every affirmative chip beside it. This school assigns meaning by color more than any
    other theme here; red is in the palette and this is what it is for.
 
    --warn, the palette's own red, not a new value: 5.81 against the bar's top stop and
@@ -378,7 +378,7 @@
    No fade, no glow: elements arrive at their position on the grid and stop,
    which is the whole argument of the school. Alternate glyphs come from above
    and below so the figure assembles from both directions at once rather than
-   sweeping, and each one carries a single frame of primary colour on the way in
+   sweeping, and each one carries a single frame of primary color on the way in
    — blue from above, red from below — resolving to the ink as it lands.
 
    nth-child parity is the direction switch. A fiat figure puts its currency
@@ -414,7 +414,7 @@
 
 /* The separator stays blue, always — not just while the figure is arriving. A
    thousands comma is not a number, it is the mark that groups them, and giving a
-   structural element its own colour is the most Bauhaus thing in the theme. It is
+   structural element its own color is the most Bauhaus thing in the theme. It is
    also why the glyphs are split even when nothing animates: a comma that was blue
    for 300ms after a balance change and black the rest of the time would read as a
    glitch rather than a decision.

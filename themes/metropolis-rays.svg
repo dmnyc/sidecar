@@ -3,7 +3,7 @@
 
   The conic version could not be made clean: it states rays as an ANGLE, so a ray's width
   on screen depends on its distance from the vertex — 0.17px near it, ~1.5px far from it,
-  at the 0.14deg this theme wanted. Below a pixel the rasteriser drops some rays, doubles
+  at the 0.14deg this theme wanted. Below a pixel the rasterizer drops some rays, doubles
   others, and lands the two halves on different pixel boundaries, so it rendered jagged
   and asymmetric from perfectly symmetric arithmetic. A stroke has a width in user units
   instead, so it antialiases properly and holds one weight the whole way down.
@@ -13,7 +13,7 @@
 
   THE SPINE IS DRAWN EXACTLY ONCE, and that is worth stating because the first version of
   this file drew it twice — k=0 came out of the loop at width 1 and then an explicit
-  centre line went over it at width 1.2, two strokes on the same axis with different
+  center line went over it at width 1.2, two strokes on the same axis with different
   weights and opacities. That reads as a doubled line: a bright core inside a wider halo.
   If the spine ever needs to be heavier, change the values here; do not add a layer.
 

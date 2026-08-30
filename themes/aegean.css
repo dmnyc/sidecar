@@ -13,10 +13,10 @@
      which is why it needs no text-transform of its own. */
   --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink. See the note above the rule in
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
   --display-ink-nudge: 0.06em;
 
@@ -123,7 +123,7 @@
   --btn-accent-bot: #0B4F94;
   --btn-accent-text: #FFFFFF;
 
-  /* ink — blue-black; neutral grey looks dirty against whitewash */
+  /* ink — blue-black; neutral gray looks dirty against whitewash */
   --text: #14232E;
   --text-2: #2C3E4C;
   --muted: #5A6B78;
@@ -169,7 +169,7 @@
   /* The compose button stays gold — it's the warm note the palette is built
      around, and the balloon above it carries the cobalt. What made it look muddy
      was the default gradient bottoming out on this theme's own --gold (#9C7A1C),
-     an olive that goes grey against whitewash. Pinned to bright metallic instead:
+     an olive that goes gray against whitewash. Pinned to bright metallic instead:
      the quill reads 8.99:1 at the darkest stop, and the gradient keeps enough
      depth to look like a button rather than a flat disc. --fab-icon stays unset,
      so the quill keeps its default near-black. */
@@ -182,7 +182,7 @@
 
 /* --- what still needs a rule, and why --------------------------------------- */
 
-/* The "+" badge carries Speakeasy's near-black text on a coloured disc. Worth a
+/* The "+" badge carries Speakeasy's near-black text on a colored disc. Worth a
    token of its own if a fourth theme needs it too. */
 [data-theme="aegean"] .add-account-badge {
   color: var(--velvet-1);

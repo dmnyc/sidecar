@@ -14,14 +14,14 @@
      nothing but stroke contrast. */
   --font-display: 'Bitter', Rockwell, Georgia, serif;
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink. See the note above the rule in
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
   --display-ink-nudge: 0.04em;
 
-  /* surfaces — the stone in shadow. Brown-black rather than neutral black; a grey
+  /* surfaces — the stone in shadow. Brown-black rather than neutral black; a gray
      base under a warm palette reads as dirt, not stone. */
   --bg: #120C0A;
   --bg-2: #180F0C;
@@ -68,7 +68,7 @@
   --btn-primary-bot: #B48230;
   --btn-shadow: rgba(224, 169, 74, 0.34);
 
-  /* ink — warm ivory, the colour of the limestone trim, never pure white */
+  /* ink — warm ivory, the color of the limestone trim, never pure white */
   --text: #F2E7DD;
   --text-2: #D8C7B8;
   --muted: #A89383;

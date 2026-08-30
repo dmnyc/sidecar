@@ -122,7 +122,7 @@ test('turning the preference off during a peek leaves balances visible for good'
   const c = harness(true);
   await c.api.onBalanceEye();
   await c.api.setHideBalancesPref(false); // the Settings row, mid-peek
-  assert.equal(c.pending(), 0, 'the peek expiry is cancelled, not left armed');
+  assert.equal(c.pending(), 0, 'the peek expiry is canceled, not left armed');
   c.advance(c.api.BALANCE_PEEK_MS * 2);
   assert.equal(c.hideBalances, false, 'no stale timer re-masks a wallet the user unmasked');
   assert.equal(c.hideBalancesPref, false);

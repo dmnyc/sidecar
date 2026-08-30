@@ -15,10 +15,10 @@
      of the other six occupy: monospaced engineer's lettering. */
   --font-display: 'Apogee Telemetry', 'Oswald', var(--font-ui);
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink. See the note above the rule in
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
   --display-ink-nudge: -0.05em;
 
@@ -133,7 +133,7 @@
      stop in the Trust fill. Cold: those are engraved panel labels, not
      readouts. Pairing it with the ember --orange for live/actionable text is
      the same division the photos make, where the lettering on the base plate is
-     grey and only the tube is lit. --purple carries the Trust button's bottom
+     gray and only the tube is lit. --purple carries the Trust button's bottom
      stop, and is only reached through the Trust fill, which this theme overrides
      below — so it stays cool for the one other rule that reads it. */
   --lav: #d8e3ee;
@@ -217,7 +217,7 @@
   --fab-bg: linear-gradient(160deg, #242c37, #11161d);
   --fab-icon: #ffb478;
 
-  /* inks — cool greys. Nothing that isn't lit gets to be warm. */
+  /* inks — cool grays. Nothing that isn't lit gets to be warm. */
   --text: #edf1f5;
   --text-2: #d3dae2;
   --muted: #a0aebc;
@@ -371,23 +371,23 @@
    here, but zero is not right either.
 
    The first attempt was +0.07em (down), judged by eye against a guide at the
-   bar's centre. That was measuring the wrong thing: the guide comparison took in
+   bar's center. That was measuring the wrong thing: the guide comparison took in
    the whole ink block including the comma's descender, and pushing the DIGITS
-   down to centre THAT put the figure visibly low — which is what it looked like
+   down to center THAT put the figure visibly low — which is what it looked like
    in the panel.
 
-   Measured properly, the number is the centre of the digits' own block
-   (baseline minus half the cap height, from canvas metrics) against the centre of
+   Measured properly, the number is the center of the digits' own block
+   (baseline minus half the cap height, from canvas metrics) against the center of
    the bar. At +0.07em Nixie sat +2.46px against a six-theme spread of -2.67 to
-   +0.82 — the lowest of the seven by a wide margin. -0.03em puts its ink centre
-   within a fraction of dead centre, which lands it mid-pack: below Brownstone
+   +0.82 — the lowest of the seven by a wide margin. -0.03em puts its ink center
+   within a fraction of dead center, which lands it mid-pack: below Brownstone
    (-1.09) and Bauhaus (-1.07), above Film Noir (+0.64) and Speakeasy (+0.82).
 
    em-based, so one value serves the card's 40px, the collapsed card's 24px and
    the pinned bar's 24px alike. */
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
-  /* -0.03em measured dead-centre in software rendering, but the figure reads low
+  /* -0.03em measured dead-center in software rendering, but the figure reads low
      in the composited panel; -0.10em lifts it ~2px where the user actually sees it. */
   transform: translateY(-0.1em);
 }
@@ -661,11 +661,11 @@
   [data-theme="nixie"] .balances-hidden .pinned-balance-amt::after { animation: none; }
 }
 
-/* The ring is a nixie ring: grey glass carrying a neon discharge. The colour
+/* The ring is a nixie ring: gray glass carrying a neon discharge. The color
    story is the buttons' — the shared --gold (#ffd2ab here, pale peach) lit the
    corner of the modal like a plastic kitchen timer, and this theme has no
-   bright surfaces — so the ring itself stays grey the way the Post button does.
-   But grey alone is dead glass, and everything in this theme that is ON is
+   bright surfaces — so the ring itself stays gray the way the Post button does.
+   But gray alone is dead glass, and everything in this theme that is ON is
    emitting. So the arc — the lit part, the part that is counting — carries the
    same discharge the digits do (white-hot core, orange, red wash, stacked as
    drop-shadows because the arc is a stroke, not a glyph), while the track it

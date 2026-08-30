@@ -1233,7 +1233,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // screen is a no-op with extra steps.
       //
       // Anything already in `otherAccounts` — that's the switcher's own list, and those
-      // accounts can be picked up there without cancelling anything. Subtracting it keeps
+      // accounts can be picked up there without canceling anything. Subtracting it keeps
       // the two lists disjoint, so the prompt never shows the same account twice under two
       // different actions. Derived from `otherAccounts` itself rather than re-deriving the
       // condition, so the two stay complementary if that filter ever changes.

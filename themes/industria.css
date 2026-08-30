@@ -16,10 +16,10 @@
      most rules, so it would have rendered as a synthetic bold everywhere. */
   --font-display: 'Josefin Sans', 'Century Gothic', var(--font-ui);
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink. See the note above the rule in
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
   --display-ink-nudge: 0.10em;
 
@@ -176,7 +176,7 @@
 
    --warn, the palette's terracotta, is the only value here that clears both floors:
    3.97 / 3.67 as a disc against the bar, and 5.40 for a white glyph on it. --gold and
-   --purple measure better still (5.2-5.6) but they are the theme's INK colours and a
+   --purple measure better still (5.2-5.6) but they are the theme's INK colors and a
    disc in body-text bronze reads as a smudge rather than a control.
 
    It is also red, which is where Bauhaus and Populuxe ended up for the same control and
@@ -208,7 +208,7 @@
 [data-theme="industria"] .add-account-badge {
   color: var(--bg);
 }
-/* The two balance displays were different colours, and both were washed out on the
+/* The two balance displays were different colors, and both were washed out on the
    light eggshell: the wallet card used --orange (#B8860B, 2.70:1) and the pinned bar
    used --gold (#C5A059, 2.04:1). WCAG wants 3.0:1 even at display sizes, so both were
    under the floor — the pinned one badly. One bronze for both: 4.16:1 on the eggshell

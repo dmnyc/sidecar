@@ -36,7 +36,7 @@ function lift(pattern, label) {
   return m[0];
 }
 
-// The one DOM behaviour this bug turned on: assigning textContent drops all children.
+// The one DOM behavior this bug turned on: assigning textContent drops all children.
 // Everything else here is the minimum the two lifted functions touch.
 function makeEl() {
   const el = {

@@ -12,10 +12,10 @@
      of a noir title card and reads as nothing else in the picker. */
   --font-display: 'Oswald', 'Haettenschweiler', 'Arial Narrow', var(--font-ui);
 
-  /* How far this theme's display face has to move to sit optically centred, in em.
+  /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
-     and by the pinned balance bar, both of which centre a figure set at line-height 1
-     and so centre the box rather than the ink. See the note above the rule in
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
   --display-ink-nudge: -0.04em;
 
@@ -72,7 +72,7 @@
 
   /* primary button — warm champagne → gold → bronze. All three stops are
      overridden because the mid defaults to --orange (gray here), which would
-     muddy the gold toward grey/green. Gold-tinted shadow keeps it clean. */
+     muddy the gold toward gray/green. Gold-tinted shadow keeps it clean. */
   --btn-primary-top: #f1d488;
   --btn-primary-mid: #cda14a;
   --btn-primary-bot: #9c7826;
@@ -131,7 +131,7 @@
    and there are simply more of them — hard at the start, settling toward the end
    as the lamp finds its arc.
 
-   Brightness rather than colour, because this theme has no colour to play with.
+   Brightness rather than color, because this theme has no color to play with.
    Whole-figure motion is the reason translateY is on the glyph and not the
    element: the element carries the layout, and a jittering figure must not be
    able to move the label under it. */

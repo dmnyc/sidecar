@@ -305,7 +305,7 @@ const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 // KNOWN BELOW AA (pre-existing, not introduced by any change here):
 //   industria --muted 3.68:1  — secondary body text under the 4.5 floor
 //   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone), except bauhaus and
-//                              nixie (4.52, from its cool greys)
+//                              nixie (4.52, from its cool grays)
 // --faint is used for the lowest-emphasis labels; if it ever carries something a user has
 // to read, it needs darkening first, per theme.
 //
@@ -339,7 +339,7 @@ const FLOORS = {
   // Cast Iron's floors moved DOWN once, deliberately: a second user-directed pass
   // ("even outlines should be hinted at … avoid white fonts, everything in a dark
   // gray/black tone") demoted every ink and dimmed the surfaces with it. Hierarchy is
-  // now carried by step between greys rather than by brightness, and these record the
+  // now carried by step between grays rather than by brightness, and these record the
   // honest new measurements — not a concession snuck past this table. Every ink still
   // clears AA where AA applies (--text 6.99, --text-2 5.57 on the darkest plate).
   'cast-iron': { '--muted': 4.61, '--faint': 2.39, '--gold': 8.83 },
