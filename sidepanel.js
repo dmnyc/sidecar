@@ -406,6 +406,12 @@
   function lightningStrike() {
     try {
       if (!zapFlash) return; // Settings → Payment animation
+      // Reduce motion means Sidecar's animations, all of them. The toggle used to scope
+      // itself to balances and countdowns, which left the loudest thing in the app — a
+      // bolt across the whole panel — still firing at someone who had just asked for
+      // less movement. The separate switch above stays: wanting no bolt is not the same
+      // as wanting no animation anywhere.
+      if (reduceBalanceMotion) return; // Settings → Reduce motion
       if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const host = document.createElement('div');
       host.className = 'lightning-layer';
@@ -5388,6 +5394,7 @@
     }
     fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
     $('zapflash-toggle').checked = settings.zapFlash !== false; // default on
+    syncFlashRow(); // disabled while Reduce motion is on, which already covers it
     // Per account: reflects the ACTIVE account, and the label below names it so the
     // scope is unmistakable when more than one account exists.
     const nip65Only = await nip65OnlyFor(state.activePubkey);
@@ -11153,6 +11160,16 @@
     if (peek) peek.disabled = !hideBalancesPref;
   }
 
+  // Reduce motion already suppresses the bolt, so leaving this switch live would be a
+  // control that does nothing when you flip it — the shape of #208. Disabled and
+  // explained instead, the same way the peek row follows the switch above it.
+  function syncFlashRow() {
+    const flash = $('zapflash-toggle');
+    if (!flash) return;
+    flash.disabled = reduceBalanceMotion;
+    flash.title = reduceBalanceMotion ? 'Reduce motion is on, which already turns this off.' : '';
+  }
+
   // ---- the peek ------------------------------------------------------------------
   // A revealed balance closes itself. Nothing counts down on screen — a ticking number
   // beside a figure reads as part of the figure, and this is the one place in the app
@@ -13367,6 +13384,7 @@
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     // The theme previews are separate documents, so the class above does not reach them.
     syncPreviewMotion();
+    syncFlashRow();
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { reduceBalanceMotion: e.target.checked } });
     // Repaint so the change is visible now rather than at the next balance: turning
     // it on collapses the figure back to a plain text node, turning it off gives the

@@ -2156,6 +2156,11 @@ async function notifyTabsPaidByHost(host) {
   // Default on — only an explicit false disables it.
   const settings = (await sget('sidecar_settings')).sidecar_settings || {};
   if (settings.zapFlash === false) return;
+  // Reduce motion covers this one too. It is read HERE for the same reason the line
+  // above is: the page-facing settings read is clamped to showPayButton on purpose, and
+  // handing every visited site another config bit to fingerprint would be a worse trade
+  // than the flash itself.
+  if (settings.reduceBalanceMotion === true) return;
   try {
     chrome.tabs.query({}, (tabs) => {
       void chrome.runtime.lastError;
