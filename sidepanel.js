@@ -13182,8 +13182,12 @@
   // So the document is a panel and the card crops it to the top band. See theme-tile.html.
   const PREVIEW_W = 360;
   function scaleThemePreview(slot) {
+    if (!slot) return;
     const frame = slot.querySelector('iframe');
     if (!frame) return;
+    // Zero means the card is in the hidden half, and a display:none element has no layout
+    // to measure. There is nothing to do about that here — the scale is applied when the
+    // card is revealed instead. See showThemeMode.
     const w = slot.clientWidth;
     if (!w) return;
     frame.style.transform = 'scale(' + w / PREVIEW_W + ')';
@@ -13241,6 +13245,15 @@
       // fairground, and it fights the one thing the grid is for — comparing them side by
       // side. A card moves when you pick it and not before.
       mountThemePreview(card);
+      // AND RE-SCALED, every time, not just on the mount. The ResizeObserver above runs
+      // for all twelve cards, but the six in the hidden half are display:none and measure
+      // zero, so they keep the scale they had when they were last on screen. Widen the
+      // panel on Dark and the Light cards still render at the old width — a frame too
+      // small for its card, with the theme's field stopping short of the edge.
+      // Revealing them is the first moment they can be measured, so that is where it
+      // happens. mountThemePreview returns early once a card has its frame, so it cannot
+      // be the place this is done.
+      scaleThemePreview(card.querySelector('.theme-preview'));
     });
   }
 

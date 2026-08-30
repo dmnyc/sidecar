@@ -110,3 +110,30 @@ test('no theme paints a resting border on its own gallery card', () => {
     'selected:\n  ' + offenders.join('\n  ')
   );
 });
+
+test('revealing a card re-scales it, because a hidden card cannot be measured', () => {
+  // The frame is a fixed 360px document scaled to whatever the card actually is, and the
+  // factor is measured rather than hardcoded because the side panel is resizable.
+  //
+  // The trap: .hidden-mode is display:none, so the six cards in the other half have no
+  // layout and clientWidth reads 0. The ResizeObserver runs for all twelve, but those six
+  // hit the `if (!w) return` guard and keep the scale they had when last on screen. Widen
+  // the panel on Dark, switch to Light, and every light card renders at the old width —
+  // the theme's field stopping short of the card edge with dead background beside it.
+  //
+  // mountThemePreview cannot be where this is fixed: it returns early once a card has a
+  // frame, so it runs once per card ever. Reveal is the first moment a card is
+  // measurable, so showThemeMode has to do it on every switch.
+  const show = panel.slice(panel.indexOf('function showThemeMode'));
+  const body = show.slice(0, show.indexOf('\n  }\n'));
+  assert.match(
+    body,
+    /scaleThemePreview\(/,
+    'showThemeMode must re-scale each card it reveals; mounting alone only covers the first reveal'
+  );
+  // And the mount path must still early-return, which is what makes the above necessary —
+  // if this ever changes, the reasoning above is worth rereading rather than deleting.
+  assert.match(panel, /if \(!slot \|\| slot\.firstChild\) return;/);
+  // The zero guard stays: it is correct, it is just not sufficient on its own.
+  assert.match(panel, /const w = slot\.clientWidth;\s*\n\s*if \(!w\) return;/);
+});
