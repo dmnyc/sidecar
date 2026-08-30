@@ -292,6 +292,14 @@ input:focus, select:focus, textarea:focus {
 .nip05-badge svg { width: 13px; height: 13px; }
 .nip05-badge.nip05-ok { color: var(--success); }
 .nip05-badge.nip05-bad { color: var(--warn); }
+/* A VERDICT AGAINST YOU, not a failure to check. "This address points at someone else"
+   is the one state here worth interrupting a person over — they lost the handle, the host
+   reassigned it, or they are unknowingly impersonating — and it used to wear the same
+   mild badge as being offline. */
+.nip05-badge.nip05-alarm { color: var(--red); }
+/* And the opposite end: we never reached the domain, so we know nothing about the
+   identifier. Neutral, and a different glyph, so it cannot read as a finding. */
+.nip05-badge.nip05-unknown { color: var(--muted); }
 .profile-stats { margin: 8px 0 2px; font-size: 13px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
 .profile-stat strong { color: var(--text); font-weight: 700; }
 .profile-backup-jump {
