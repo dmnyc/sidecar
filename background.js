@@ -215,6 +215,39 @@ const SECRET_STORES = {
   drafts: { v1: 'sidecar_drafts_enc', legacy: 'sidecar_compose_drafts' },
   paymeta: { v1: 'sidecar_pay_meta_enc', legacy: 'sidecar_pay_meta' },
 };
+// Add one entry to the encrypted pay-meta store, mirroring the panel's savePayMeta:
+// same 300-entry cap, same oldest-first eviction, same merge-don't-clobber. Two writers
+// on one store, so the cap has to live in both — a background write that ignored it
+// would grow the store without bound between panel writes.
+//
+// Fails silently and on purpose: this is a caption for a payment that has already
+// settled. A locked keystore (secretPut cannot write) or a storage error must never
+// surface as a payment error, and the caller is inside the post-payment block where
+// nothing is allowed to throw at the page.
+const PAY_META_MAX = 300;
+async function savePayMetaEntry(invoice, meta) {
+  if (!invoice || !meta) return;
+  try {
+    // NULL IS NOT EMPTY, and the difference is destructive. secretGet returns {} for a
+    // store that is genuinely empty, and null when it could not read one — locked, no
+    // notes key, or a CORRUPT ENVELOPE, which it deliberately leaves on disk because a
+    // future build may recover it. Treating null as {} and writing would encrypt a
+    // one-entry store straight over that envelope and take every recorded payment with
+    // it. So a failed read means we do not write; the payment simply goes unlabeled.
+    const all = await secretGet('paymeta');
+    if (!all || typeof all !== 'object') return;
+    all[invoice] = Object.assign({}, all[invoice], meta, { ts: Date.now() });
+    const keys = Object.keys(all);
+    if (keys.length > PAY_META_MAX) {
+      keys
+        .sort((a, b) => (all[a].ts || 0) - (all[b].ts || 0))
+        .slice(0, keys.length - PAY_META_MAX)
+        .forEach((k) => delete all[k]);
+    }
+    await secretPut('paymeta', all);
+  } catch (_) {}
+}
+
 async function secretGet(name) {
   const cfg = SECRET_STORES[name];
   if (!cfg) throw new Error('Unknown secret store');
@@ -1967,6 +2000,12 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // Auto-zap is gated by BOTH a per-zap cap and a rolling daily aggregate cap, each
   // held under a hard ceiling (see autoZapLimits).
   const { perZap: zapMax, daily: zapDailyMax } = autoZapLimits(settings);
+  // READ BEFORE THE CLAIM BELOW, which consumes the record on the auto-zap path — after
+  // it, there is nothing left to read. This is only a label (see #253): a zap's recipient
+  // is committed to by description_hash and never travels with the invoice, so the
+  // wallet's own history can never name who was paid. Sidecar signed the request and can.
+  // Non-consuming, so it cannot affect whether the payment is auto-approved.
+  const zapRecipient = sats == null ? '' : await ZAPREQ.recipientFor(host, pubkey, sats).catch(() => '');
   let zapOk = false;
   // Claim only if the payment actually needs it: the site's budget already covering
   // this one makes autoOk true either way, and a zap approval is single-use, so
@@ -2064,6 +2103,10 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     // Count an auto-zap (one authorized solely by the zap allowance) against the
     // rolling daily total, so the aggregate cap is enforced across the window.
     if (zapOk && !budgetOk && sats != null) await recordAutoZap(sats);
+    // Who this zap paid, keyed by invoice like the rest of payMeta, so the wallet list
+    // can say "Zap to alice" instead of "Sent". Bookkeeping, so it sits here with the
+    // rest of it — after the money moved and off the caller's path.
+    if (zapRecipient) await savePayMetaEntry(invoice, { zapPubkey: zapRecipient });
     await setSiteAccount(host, pubkey);
   })()
     .catch(() => {})

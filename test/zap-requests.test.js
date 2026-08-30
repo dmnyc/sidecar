@@ -257,3 +257,69 @@ test('a real zap invoice carries NO inline description, which is why the old che
     assert.ok(!tags.includes(13), 'and carries no inline description (tag 13) to sniff');
   }
 });
+
+// ---- the recipient, carried for labelling only (#253) ----------------------------
+//
+// A sent zap can never be labeled from the payment itself: NIP-57 step 6 has the lnurl
+// server issue a description_hash invoice, so the request is committed to and never
+// travels with it. The paying wallet genuinely does not know who it paid. Sidecar signed
+// the request seconds earlier and does, so the recipient rides along on the record that
+// already exists for the spending gate.
+//
+// The invariant that matters here is that this is a CAPTION, not a permission: reading
+// it must not change what the payment is allowed to do.
+
+const CAROL = 'c'.repeat(64); // the p tag zapRequest() builds
+
+test('the recipient is recorded and can be read back', async () => {
+  await Z.record(SITE, ALICE, zapRequest(212000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 212), CAROL);
+});
+
+test('reading the recipient does not spend the approval', async () => {
+  // THE ONE THAT MATTERS. recipientFor runs on every payment; if it consumed, the
+  // auto-zap claim right after it would find nothing and every zap would prompt —
+  // a label silently turning a feature off.
+  await Z.record(SITE, ALICE, zapRequest(212000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 212), CAROL);
+  assert.equal(await Z.recipientFor(SITE, ALICE, 212), CAROL, 'still there on a second read');
+  assert.equal(await Z.claim(SITE, ALICE, 212), true, 'the claim still has its record');
+  assert.equal(await Z.claim(SITE, ALICE, 212), false, 'and it is single-use as before');
+});
+
+test('the recipient is refused on exactly the terms the claim is', async () => {
+  // Same predicate, so a label can never name someone the gate would not have matched.
+  await Z.record(SITE, ALICE, zapRequest(212000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 999), '', 'wrong amount');
+  assert.equal(await Z.recipientFor(OTHER, ALICE, 212), '', 'wrong site');
+  assert.equal(await Z.recipientFor(SITE, BOB, 212), '', 'wrong account');
+  assert.equal(await Z.recipientFor(SITE, ALICE, null), '', 'amountless invoice');
+});
+
+test('an expired record names no one', async () => {
+  await Z.record(SITE, ALICE, zapRequest(212000));
+  const stale = (await Z.pending()).map((z) => ({ ...z, ts: z.ts - Z.TTL_MS - 1000 }));
+  await new Promise((r) => chrome.storage.session.set({ [Z.STORAGE_KEY]: stale }, r));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 212), '');
+});
+
+test('a zap request with no p tag still gates, it just cannot be labeled', async () => {
+  // The gate and the caption are independent. NIP-57 requires the p tag, but a record
+  // that cannot be labeled must never become a record that cannot be claimed — that
+  // would turn a missing caption into a spending change.
+  const noP = { kind: 9734, content: '', tags: [['amount', '212000'], ['relays', 'wss://r.example']] };
+  assert.equal(await Z.record(SITE, ALICE, noP), true, 'still recorded');
+  assert.equal(await Z.recipientFor(SITE, ALICE, 212), '', 'nobody to name');
+  assert.equal(await Z.claim(SITE, ALICE, 212), true, 'and it still authorizes the payment');
+});
+
+test('the label names the same record the claim would take', async () => {
+  // Two same-amount zaps from one site inside the window are indistinguishable to both,
+  // so both must pick the same one — the older — or the caption describes a different
+  // payment than the one that went out.
+  await Z.record(SITE, ALICE, { kind: 9734, content: '', tags: [['p', 'd'.repeat(64)], ['amount', '5000']] });
+  await Z.record(SITE, ALICE, { kind: 9734, content: '', tags: [['p', 'e'.repeat(64)], ['amount', '5000']] });
+  assert.equal(await Z.recipientFor(SITE, ALICE, 5), 'd'.repeat(64), 'oldest first');
+  await Z.claim(SITE, ALICE, 5); // consumes the same one
+  assert.equal(await Z.recipientFor(SITE, ALICE, 5), 'e'.repeat(64), 'then the next');
+});
