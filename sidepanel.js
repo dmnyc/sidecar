@@ -238,6 +238,10 @@
     document.querySelectorAll('.theme-card').forEach(card => {
       card.classList.toggle('active', card.dataset.theme === themeName);
     });
+    // Show the half of the gallery the active theme is in. Called on load too, so opening
+    // Settings lands on your own theme's mode rather than always on Dark.
+    const active = document.querySelector('.theme-card.active');
+    if (active) showThemeMode(active.dataset.mode || 'dark');
 
     return themeName;
   }
@@ -13139,11 +13143,95 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { noteCountdownSecs: secs } });
   });
 
-  // Theme selector
+  // ---- the theme gallery ----------------------------------------------------------
+  // Each card previews its theme in an iframe. theme-tile.html says why a document and
+  // not a div; the short of it is that a themed preview nested in the themed panel
+  // matches every `[data-theme="x"] .thing` rule twice and stylesheet order picks the
+  // winner, so every card animated as whichever theme loaded last.
+  //
+  // MOUNTED LAZILY, on the mode being shown rather than on panel start. Twelve documents
+  // at boot would be twelve stylesheet loads for a screen most sessions never open, and
+  // only half are ever on screen at once. Once mounted a card stays mounted: the cost is
+  // paid, and re-creating the frame on every filter flip would reload the sheets.
+  function mountThemePreview(card) {
+    const slot = card.querySelector('.theme-preview');
+    if (!slot || slot.firstChild) return;
+    const frame = document.createElement('iframe');
+    // No title and aria-hidden: the card's own label already names the theme, and a
+    // screen reader announcing a nested document here would be noise.
+    frame.setAttribute('aria-hidden', 'true');
+    frame.setAttribute('tabindex', '-1');
+    frame.setAttribute('scrolling', 'no');
+    frame.src = 'theme-tile.html?t=' + encodeURIComponent(card.dataset.theme);
+    slot.appendChild(frame);
+    scaleThemePreview(slot);
+  }
+
+  // The frame is a fixed-width document shrunk to whatever the card actually is. Measured
+  // rather than hardcoded because the side panel is resizable: one fixed factor fits one
+  // width and clips or letterboxes at every other.
+  //
+  // TRUE PANEL WIDTH, and it has to be. A narrower document magnifies the repeating
+  // patterns, which was tempting — but a theme's field is not resolution-independent.
+  // Several are built from layers sized in absolute pixels, tuned to sit at the top of a
+  // 700px panel, and in a small document the same glow floods all of it. Nixie previewed
+  // red and Speakeasy warm when they are near-black and deep violet.
+  // So the document is a panel and the card crops it to the top band. See theme-tile.html.
+  const PREVIEW_W = 360;
+  function scaleThemePreview(slot) {
+    const frame = slot.querySelector('iframe');
+    if (!frame) return;
+    const w = slot.clientWidth;
+    if (!w) return;
+    frame.style.transform = 'scale(' + w / PREVIEW_W + ')';
+  }
+
+  // Re-scale on any change to the gallery's own width. Observing the grid rather than the
+  // window catches the accordion opening and the panel being dragged with one hook.
+  const _themeGrid = document.querySelector('.theme-selector');
+  if (_themeGrid && typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => {
+      document.querySelectorAll('.theme-preview').forEach(scaleThemePreview);
+    }).observe(_themeGrid);
+  }
+
+  // Ask a mounted preview to run its balance animation again. Same-origin, so this is a
+  // direct call rather than postMessage; guarded because the frame may still be loading.
+  function replayThemePreview(card) {
+    const frame = card.querySelector('.theme-preview iframe');
+    try {
+      if (frame && frame.contentWindow && frame.contentWindow.replayPreview) {
+        frame.contentWindow.replayPreview();
+      }
+    } catch (_) {}
+  }
+
+  function showThemeMode(mode) {
+    document.querySelectorAll('.theme-mode').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    document.querySelectorAll('.theme-card').forEach((card) => {
+      const on = card.dataset.mode === mode;
+      card.classList.toggle('hidden-mode', !on);
+      if (!on) return;
+      // Mounted, not replayed. Six animations firing together on a filter switch is a
+      // fairground, and it fights the one thing the grid is for — comparing them side by
+      // side. A card moves when you pick it and not before.
+      mountThemePreview(card);
+    });
+  }
+
+  document.querySelectorAll('.theme-mode').forEach((b) => {
+    b.addEventListener('click', () => showThemeMode(b.dataset.mode));
+  });
+
   document.querySelectorAll('.theme-card').forEach(card => {
     card.addEventListener('click', async (e) => {
       const selectedTheme = card.dataset.theme;
       applyTheme(selectedTheme);
+      // The panel just changed theme under the previews; the one you picked replays so
+      // the choice confirms itself with the animation you chose it for.
+      replayThemePreview(card);
       await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
     });
   });

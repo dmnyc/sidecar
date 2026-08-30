@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Theme preview</title>
+  <!--
+    ONE THEME PREVIEW, IN ITS OWN DOCUMENT. Loaded in an iframe by the theme gallery in
+    Settings, once per card.
+
+    A separate document rather than a div, and the reason is not isolation for its own
+    sake. Theme rules are written `[data-theme="x"] .thing`, which matches whenever ANY
+    ancestor carries that attribute — so a themed preview nested inside the themed panel
+    matches twice, at identical specificity, and STYLESHEET ORDER decides which one wins.
+    Not the nearest one. With the panel on Werkstätte, the last sheet in the list, all
+    twelve previews animated as Werkstätte.
+
+    Custom properties do not have this problem: they inherit, so the nearest theme block
+    wins and a nested palette is correct. That is why the old picker cards showed the
+    right colours and faces while anything that was not a token leaked. Here the whole
+    preview needs real rules, not just tokens, so it gets a root of its own where
+    [data-theme] is unambiguous.
+
+    It also means the field works for free. Every theme paints its background on `body`
+    (themes/patterns.css), and in here `body` is a body — so patterns.css applies exactly
+    as it does in the panel, including Par Avion's fixed-attachment map, with no selector
+    rewriting anywhere.
+
+    The gallery renders this at true panel width and crops it to the top band, so every
+    pattern and every pixel-sized layer keeps its real proportion.
+  -->
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
+  <style>
+    /* THE DOCUMENT IS A REAL PANEL: 360 wide and 700 tall, because a theme's field is not
+       resolution-independent. Several are built from layers sized in absolute pixels —
+       Nixie's tube glow is a 900x380 radial, Cast Iron's is 900x380, Metropolis's is
+       1200x520 — and those are tuned to sit at the TOP of a 700px panel. Shrink the
+       document to fit a card and the same glow floods the whole of it: Nixie's preview
+       came out red and Speakeasy's warm, when both are near-black and deep violet.
+       So the document keeps panel dimensions and the gallery crops it, showing the top
+       band. Every layer then lands exactly where it lands in the panel. */
+    html, body { margin: 0; overflow: hidden; }
+    html { height: 700px; }
+    body {
+      min-height: 700px;
+      /* No scrollbar gutter, no selection, no caret: this is a picture of a panel. */
+      user-select: none;
+      cursor: pointer;
+    }
+    /* THE VISIBLE BAND, and the card is centred in THIS rather than in the document. The
+       document is 700px because the field needs to be; the card only ever appears in the
+       top 250 of it, so centring against the body would push the card out of frame
+       entirely. Height is tied to the .theme-preview aspect-ratio in styles.css — 360/250
+       — and the two have to agree or the card drifts off centre. */
+    .preview-stage {
+      height: 250px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* THE PANEL'S OWN CLASSES, not lookalikes. The first cut of this used .tile-card and
+       .tile-bal, which meant every rule a theme writes for the real wallet was skipped —
+       Nixie's tube light pooling inside the card's top edge and its balance glow, Cast
+       Iron's glyph relief, Par Avion's card treatment, Aegean's and Film Noir's balance
+       rules. The preview looked plausible and was not the theme.
+       So it is .wallet-card and .wallet-balance, and only what the preview needs is
+       overridden here. */
+    .wallet-card {
+      position: static;
+      margin: 0;
+      padding: 22px 34px;
+    }
+    /* 68px against the panel's 40. The card is scaled to roughly 0.41 in a gallery tile,
+       so a panel-sized figure lands near 16 and the display face — the one thing this
+       preview exists to show — stops being legible. At 68 it lands near 28.
+       Multiplied by --display-scale like the real rule, so a theme that scales its face
+       is scaled here too rather than being singled out. */
+    .wallet-balance {
+      font-size: calc(68px * var(--display-scale, 1));
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-stage">
+    <div class="wallet-card">
+      <div class="wallet-balance" id="bal"></div>
+    </div>
+  </div>
+  <script src="theme-tile.js"></script>
+</body>
+</html>

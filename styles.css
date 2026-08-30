@@ -264,7 +264,7 @@ input:focus, select:focus, textarea:focus {
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--gold-soft); border-radius: 12px; box-shadow: var(--sheen);
 }
-.lud16-sync-title { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-family: var(--font-display); font-weight: 700; font-size: calc(15px * var(--display-scale, 1)); color: var(--text); }
+.lud16-sync-title { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-family: var(--font-display); font-weight: 700; line-height: 22.5px; font-size: calc(15px * var(--display-scale, 1)); color: var(--text); }
 .lud16-sync-title .lud16-sync-bolt { width: 16px; height: 16px; color: var(--gold); flex-shrink: 0; }
 .lud16-sync-msg { margin: 0 0 10px; font-size: 13px; line-height: 1.45; color: var(--text-2); }
 .lud16-sync-addr { font-family: var(--font-mono); font-size: 13px; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 12px; }
@@ -277,7 +277,7 @@ input:focus, select:focus, textarea:focus {
 }
 .profile-body .profile-edit-cta svg { width: 15px; height: 15px; display: block; }
 .profile-body { text-align: center; }
-.profile-name { font-family: var(--font-display); font-weight: 700; font-size: calc(22px * var(--display-scale, 1)); margin: 8px 0 3px; overflow-wrap: anywhere; }
+.profile-name { font-family: var(--font-display); font-weight: 700; line-height: 33px; font-size: calc(22px * var(--display-scale, 1)); margin: 8px 0 3px; overflow-wrap: anywhere; }
 .profile-npub {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--font-mono); font-size: 12px; color: var(--muted);
@@ -419,9 +419,9 @@ input:focus, select:focus, textarea:focus {
 .unlock-cooldown .countdown-num { font-size: 19px; }
 /* refined attempts-remaining notice (used with and without the cooldown ring) */
 .unlock-note { text-align: center; }
-.unlock-note-title { font-family: var(--font-display); font-weight: 700; font-size: calc(15px * var(--display-scale, 1)); color: var(--text-2); }
+.unlock-note-title { font-family: var(--font-display); font-weight: 700; line-height: 22.5px; font-size: calc(15px * var(--display-scale, 1)); color: var(--text-2); }
 .unlock-note-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
-.unlock-note-count { font-family: var(--font-display); font-weight: 700; font-size: calc(16px * var(--display-scale, 1)); color: var(--gold); }
+.unlock-note-count { font-family: var(--font-display); font-weight: 700; line-height: 24px; font-size: calc(16px * var(--display-scale, 1)); color: var(--gold); }
 .unlock-note.unlock-danger .unlock-note-title { color: var(--red); }
 .unlock-note.unlock-danger .unlock-note-count { color: var(--red); }
 
@@ -802,15 +802,22 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    because it opens as its own screen rather than as a tab, so its <h2> sits directly
    in .content and never matched the .tabview selector — it was the one view title
    still rendering in Manrope while Accounts and Activity carried the theme's face. */
+/* LINE BOXES ARE PINNED TO THE UNSCALED SIZE on every display-face heading, here and in
+   the thirteen rules like it. --display-scale changes the FACE, not the room it takes:
+   these all inherited line-height 1.5, a ratio of the SCALED size, so Werkstätte at 0.77
+   shrank each heading's box and every heading in the panel reflowed. Clicking that theme
+   in the gallery jumped the grid 13.8px up the screen, from a control the user was
+   pointing at.
+   At scale 1 these values are exactly what the ratio produced, so no other theme moves. */
 .tabview h2,
 #view-settings > .content > h2 {
   font-family: var(--font-display);
   font-weight: 700;
   margin: 0 0 16px;
-  font-size: calc(24px * var(--display-scale, 1));
+  line-height: 36px; font-size: calc(24px * var(--display-scale, 1));
   letter-spacing: 0.01em;
 }
-.tabview h3 { font-family: var(--font-display); font-weight: 600; margin: 0 0 8px; font-size: calc(16px * var(--display-scale, 1)); color: var(--lav); }
+.tabview h3 { font-family: var(--font-display); font-weight: 600; margin: 0 0 8px; line-height: 24px; font-size: calc(16px * var(--display-scale, 1)); color: var(--lav); }
 
 /* active account banner — the reserved booth */
 .active-account {
@@ -836,7 +843,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: linear-gradient(90deg, transparent, var(--gold-soft), transparent);
 }
 .aa-info { min-width: 0; }
-.aa-label { font-family: var(--font-display); font-weight: 700; font-size: calc(19px * var(--display-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aa-label { font-family: var(--font-display); font-weight: 700; line-height: 28.5px; font-size: calc(19px * var(--display-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aa-npub { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 5px; word-break: break-all; }
 
 /* empty-state welcome hero (no accounts yet) — strip the booth chrome */
@@ -853,7 +860,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: radial-gradient(circle, rgba(var(--accent-rgb), 0.32), transparent 66%);
 }
 .welcome-mark img { position: relative; width: 58px; height: auto; display: block; filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.55)); }
-.welcome-title { font-family: var(--font-display); font-weight: 700; font-size: calc(27px * var(--display-scale, 1)); margin: 0 0 8px; color: var(--text); }
+.welcome-title { font-family: var(--font-display); font-weight: 700; line-height: 40.5px; font-size: calc(27px * var(--display-scale, 1)); margin: 0 0 8px; color: var(--text); }
 .welcome-sub { font-size: 13.5px; line-height: 1.6; color: var(--muted); max-width: 300px; margin: 0 auto; text-wrap: balance; }
 .welcome-cta { font-size: 13px; line-height: 1.5; color: var(--lav); max-width: 300px; margin: 10px auto 0; text-wrap: balance; }
 .welcome-tip {
@@ -1372,7 +1379,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .settings-section-title {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: calc(16px * var(--display-scale, 1));
+  line-height: 24px; font-size: calc(16px * var(--display-scale, 1));
   letter-spacing: 0.01em;
   color: var(--text);
   margin: 0;
@@ -1717,7 +1724,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--gold-soft), transparent);
 }
-.modal h3 { font-family: var(--font-display); font-weight: 700; font-size: calc(19px * var(--display-scale, 1)); margin: 0 0 8px; }
+.modal h3 { font-family: var(--font-display); font-weight: 700; line-height: 28.5px; font-size: calc(19px * var(--display-scale, 1)); margin: 0 0 8px; }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 
@@ -2572,7 +2579,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   color: #1a0d33; background: #6ee7a8; box-shadow: 0 0 0 6px rgba(110, 231, 168, 0.16);
 }
 .recv-check svg { width: 30px; height: 30px; }
-.recv-success-title { font-family: var(--font-display); font-size: calc(18px * var(--display-scale, 1)); color: var(--text); }
+.recv-success-title { font-family: var(--font-display); line-height: 27px; font-size: calc(18px * var(--display-scale, 1)); color: var(--text); }
 .recv-success-amt { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--success); }
 .wallet-backup { margin-top: 20px; }
 
@@ -2892,7 +2899,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .approval-card .brand { margin-bottom: 16px; justify-content: center; }
 .approval-host {
   font-family: var(--font-display); font-weight: 700;
-  font-size: calc(19px * var(--display-scale, 1)); color: var(--lav);
+  line-height: 28.5px; font-size: calc(19px * var(--display-scale, 1)); color: var(--lav);
   word-break: break-all; margin-bottom: 3px;
 }
 .approval-ask { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
@@ -2965,7 +2972,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .destructive-warn-title {
   display: flex; align-items: center; gap: 6px;
-  font-family: var(--font-display); font-weight: 700; font-size: calc(15px * var(--display-scale, 1));
+  font-family: var(--font-display); font-weight: 700; line-height: 22.5px; font-size: calc(15px * var(--display-scale, 1));
   color: var(--red); letter-spacing: 0.01em; margin-bottom: 3px;
 }
 .destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
@@ -3136,7 +3143,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .trust-nudge { font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; margin: 0 0 12px; }
 .trust-nudge strong { color: var(--lav); font-weight: 600; }
 .relax-row { margin: 0 0 14px; text-align: center; }
-.relax-label { font-family: var(--font-display); font-size: calc(15px * var(--display-scale, 1)); color: var(--gold); font-weight: 700; letter-spacing: 0.01em; margin-bottom: 10px; text-align: center; }
+.relax-label { font-family: var(--font-display); line-height: 22.5px; font-size: calc(15px * var(--display-scale, 1)); color: var(--gold); font-weight: 700; letter-spacing: 0.01em; margin-bottom: 10px; text-align: center; }
 .relax-chips { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
 .relax-chip {
   width: auto; flex: 1; padding: 9px 6px; border-radius: 10px; cursor: pointer;
@@ -3234,11 +3241,105 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 #view-main.relax-active .first-post-balloon { bottom: 144px; }
 
 /* ===== Theme Selector ===== */
-.theme-selector {
+/* THE MODE FILTER. Two segments rather than a dropdown: there are exactly two answers,
+   and a select would cost a tap to discover that.
+
+   BUILT LIKE THE PANEL'S TABS, and that is a contrast decision rather than a visual one.
+   A filled pill needs a fill and an ink that read against each other in twelve palettes,
+   and the obvious pair does not: --lav runs from #0043C8 to #e0e0e0 across the set, so
+   white on it measured 1.32 in Film Noir, 1.76 in Metropolis, 2.16 in Speakeasy and 2.42
+   in Brownstone. --btn-primary-* is no better, because five themes never define it and
+   would inherit Speakeasy's purple.
+   The tabs already solved this: no fill at all, the label in --lav, and a rule under the
+   active one. Every theme is already legible that way, and it makes the filter look like
+   part of the panel rather than a control borrowed from somewhere else. */
+.theme-modes {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
   margin-top: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.theme-mode {
+  flex: 1;
+  position: relative;
+  /* Icon and label on one baseline. The glyph says which half you are looking at before
+     the word is read, which is the whole reason it is there — the two labels are the same
+     length and shape at a glance. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 0 9px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+/* 15px, not the topbar's 19: these sit beside 13px text and a full-size icon would
+   out-weigh the word it is labelling. Inherits currentColor, so it dims with the label
+   when the segment is inactive and takes --lav with it when active. */
+.theme-mode svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.theme-mode:hover { color: var(--text); }
+.theme-mode.active { color: var(--lav); }
+.theme-mode.active::after {
+  content: '';
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--orange), var(--gold));
+}
+
+.theme-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 9px;
+}
+.theme-card.hidden-mode { display: none; }
+
+/* THE PREVIEW IS AN IFRAME, and theme-tile.html explains at length why it has to be a
+   document rather than a div. The short of it: `[data-theme="x"] .thing` matches on any
+   ancestor, so a themed preview inside the themed panel matches twice and stylesheet
+   order picks the winner — every card animated as whichever theme loaded last.
+
+   Sized at true panel width and scaled down, so a card is the panel shrunk rather than a
+   crop of it. A pattern sized in px (Aegean's meander at 300, Populuxe's tile at 360)
+   would otherwise show less than half a repeat and read as a smudge.
+
+   THE SCALE IS SET IN JS, NOT HERE, because the side panel is resizable: a hardcoded
+   factor is correct at exactly one panel width and clips or letterboxes at every other.
+   sidepanel.js measures the slot and scales the frame to it, and re-does it on resize.
+   aspect-ratio keeps the slot's height in step with its width so the two never disagree. */
+.theme-preview {
+  display: block;
+  position: relative;
+  width: 100%;
+  /* 250 is the height of .preview-stage in theme-tile.html; the two must agree or the
+     card no longer sits centred in the band this crops to. */
+  aspect-ratio: 360 / 250;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--velvet-2);
+  pointer-events: none;
+}
+.theme-preview iframe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 360px;
+  height: 700px;
+  border: 0;
+  transform-origin: top left;
 }
 
 /* Each card previews its own theme's accent, so the picker reads as a swatch
@@ -3248,12 +3349,16 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   background: var(--velvet-1);
   border: 2px solid var(--border);
   border-radius: 8px;
-  padding: 12px 16px;
+  /* Tight to the preview, which brings its own margin: the card is a frame around a
+     picture with a caption under it, not a padded button any more. */
+  padding: 5px 5px 7px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 6px;
 }
 
 .theme-card:hover {
