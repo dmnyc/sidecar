@@ -10,7 +10,7 @@ body {
     radial-gradient(1100px 480px at 50% -12%, rgba(167, 139, 250, 0.14), transparent 60%),
     radial-gradient(820px 560px at 115% 112%, rgba(234, 119, 47, 0.12), transparent 55%),
     linear-gradient(165deg, #170630 0%, var(--bg) 62%);
-  /* Centre the tile; the gradients stay anchored. Every theme does this now,
+  /* Center the tile; the gradients stay anchored. Every theme does this now,
      so a pattern is never clipped at the left edge. */
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
@@ -45,7 +45,7 @@ body {
     radial-gradient(700px 450px at 120% 110%, rgba(197, 160, 89, 0.12), transparent 50%),
     linear-gradient(160deg, #E8E0D0 0%, var(--bg) 65%);
   background-size: 360px, auto, auto, auto;
-  /* Centre the tile; the gradients stay anchored. Every theme does this now,
+  /* Center the tile; the gradients stay anchored. Every theme does this now,
      so a pattern is never clipped at the left edge. */
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
@@ -54,7 +54,7 @@ body {
    Dialled well back from the first pass: at 300px and 7% ink the key read as loud
    wallpaper and every screen looked like a maze. 460px pushes it to architecture
    scale, and the ink is 5% in the SVG itself — 4.5% until the three light themes were
-   levelled and then raised together by a tenth. */
+   leveled and then raised together by a tenth. */
 [data-theme="aegean"] body {
   background-image:
     url(aegean-pattern.svg),
@@ -62,7 +62,7 @@ body {
     radial-gradient(780px 460px at 118% 112%, rgba(11, 87, 164, 0.07), transparent 55%),
     linear-gradient(170deg, #FFFFFF 0%, var(--bg) 58%);
   background-size: 460px, auto, auto, auto;
-  /* Centre the tile; the gradients stay anchored. Every theme does this now,
+  /* Center the tile; the gradients stay anchored. Every theme does this now,
      so a pattern is never clipped at the left edge. */
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
@@ -85,7 +85,7 @@ body {
        the part of the wall it is near. The courses are legible where the light
        falls and sink into the dark a few feet away, which is what makes the tile
        read as brick rather than as wallpaper. Anchored to the lamp, not the
-       centre. */
+       center. */
     radial-gradient(115% 92% at 20% 4%, transparent 18%, rgba(0, 0, 0, 0.42) 56%, rgba(0, 0, 0, 0.76) 100%),
     url(brownstone-pattern.svg),
     /* The lamp itself: a small, hot pool with a steep falloff, set off to one side
@@ -99,7 +99,7 @@ body {
     radial-gradient(250px 235px at 86% 70%, rgba(232, 158, 78, 0.055), transparent 58%),
     linear-gradient(168deg, #1B1310 0%, var(--bg) 55%);
   background-size: auto, 150px, auto, auto, auto;
-  /* Centre the tile so it's symmetric in the panel rather than clipped at the left
+  /* Center the tile so it's symmetric in the panel rather than clipped at the left
      edge. Only the pattern layer moves; the gradients stay anchored. Film Noir does
      the same. */
   background-position: 0% 0%, center, 0% 0%, 0% 0%, 0% 0%;
@@ -147,7 +147,7 @@ body {
 
    The top lamp is RED, not orange: spread this thin over a dark surface, orange
    turns to brown haze, which is exactly what it was doing. Red stays red. The
-   chassis it sits on is a cool grey-blue rather than the warm one this started
+   chassis it sits on is a cool gray-blue rather than the warm one this started
    with. */
 [data-theme="nixie"] body {
   background-image:
@@ -165,7 +165,7 @@ body {
 
    SATURATION AND WEIGHT ARE SET SEPARATELY, and that is worth knowing before touching
    this tile. Blending a color toward paper drops its chroma and its darkness together, so
-   the pale version of a palette is also a grey one. The cells here are therefore built in
+   the pale version of a palette is also a gray one. The cells here are therefore built in
    two steps: blend toward paper to fix the LIGHTNESS, then put the chroma back at that
    lightness (HSL saturation of the original x1.5, lightness held). Restoring saturation
    costs no weight at all — measured, it slightly reduces it, 0.0423 -> 0.0401 mean
@@ -185,7 +185,7 @@ body {
 
        aegean    0.0359      bauhaus   0.0326      populuxe  0.0401
 
-   which is the parity this file now holds — the three were levelled first, then raised
+   which is the parity this file now holds — the three were leveled first, then raised
    together by about a tenth. (Before that raise: 0.0322 / 0.0296 / 0.0400.) On that scale the first version of this theme
    (hairline outlines at 0.05 alpha) was near zero and read as nothing, and the 0.32 it
    was rebuilt at measured 0.0676 — more than twice either neighbor.
@@ -230,9 +230,9 @@ body {
    diagonal stripes, which is Film Noir's territory turned 30 degrees.
 
    Sized to the frame rather than to a pixel value, the same reasoning as Populuxe:
-   the origin is at 50% of the width, so the figure stays centred and symmetrical at
+   the origin is at 50% of the width, so the figure stays centered and symmetrical at
    whatever width the side panel is dragged to. A fixed size would swing the fan's
-   axis off-centre at every width except one.
+   axis off-center at every width except one.
 
    THE ORIGIN IS FAR ABOVE THE FRAME, and that is the whole difference between this and
    Art Deco's tile. Both are fans. Put the vertex just above the top edge and the beams
@@ -251,7 +251,7 @@ body {
    DRAWN AS STROKES, NOT AS A CONIC GRADIENT, and that is the second correction. A
    repeating-conic-gradient states its rays as an ANGLE, so a ray's width on screen is a
    function of how far it is from the vertex: at the 0.14deg this wants, a ray is 0.17px
-   across near the vertex and about 1.5px far from it. Below a pixel the rasteriser does
+   across near the vertex and about 1.5px far from it. Below a pixel the rasterizer does
    what it must — drops some rays, doubles others, and lands the left and right halves on
    different pixel boundaries. The result was jagged and visibly asymmetric on screen from
    arithmetic that was exactly symmetric. Chasing it with a `from` angle computed to a
@@ -274,7 +274,7 @@ body {
    background and the content for no gain. Beams are at strength across the header and
    gone by two-thirds down, so content sits on bare soot.
 
-   No luminance figure quoted, unlike the three light themes above: those were levelled
+   No luminance figure quoted, unlike the three light themes above: those were leveled
    against EACH OTHER and the number is what holds them in a band. The dark themes are
    not a band — noir's slats, iron's bare falloff and this are three different amounts of
    nothing — so this was set by eye against them, which is the honest description of it. */
@@ -286,11 +286,38 @@ body {
     linear-gradient(178deg, #17140F 0%, var(--bg) 46%);
   /* 100% auto: the fan scales to the panel's WIDTH, which is what keeps the stroke a
      sensible thickness at any size — 1px at 400, ~1.9px at 754 — instead of thinning
-     into the sub-pixel range the conic version lived in. Anchored top centre so the
+     into the sub-pixel range the conic version lived in. Anchored top center so the
      vertex stays on the panel's vertical axis however wide it is dragged. */
   background-size: auto, 100% auto, auto, auto;
   background-position: 0% 0%, center top, 0% 0%, 0% 0%;
   background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+}
+
+/* Werkstätte — the Gitterwerk, taken to the checkerboard Hoffmann is named for.
+
+   THE INK HERE IS A CONTRAST BUDGET, not a design value. Prose lands directly on the
+   body background in this panel, so a field dense enough to see is a field taken out of
+   every hint in Settings. 5% is the ceiling that keeps --muted and --faint above 4.5:1;
+   they measure 5.05 and 4.55.
+   Inverting alternate cells is what makes that ceiling liveable — weight 0.0475, where
+   the plain lattice managed 0.0156 at the same alpha, because a checker has ink area and
+   a grid has only lines. The three light themes that were leveled against each other
+   sit at 0.0359, 0.0326 and 0.0401.
+
+   Sized in var(--gitter), which is the TILE — two cells — so the checker is stated once.
+   The tile's own drawing constraints are in themes/werkstatte-grid.svg. */
+[data-theme="werkstatte"] body {
+  background-image:
+    url(werkstatte-grid.svg),
+    linear-gradient(168deg, #F1F3F6 0%, var(--bg) 52%);
+  background-size: var(--gitter, 16px) var(--gitter, 16px), auto;
+  /* Anchored top left rather than centered: a 16px tile centered on an odd panel width
+     puts a half-square against the edge, and at this weight a broken cell is the only
+     part of the lattice anyone would actually notice. */
+  background-position: top left, 0% 0%;
+  /* Restated because styles.css sets four values on body. Any theme that changes its
+     layer count has to say this for itself; Brownstone and Par Avion are the others. */
+  background-repeat: repeat, no-repeat;
 }
 
 /* Par Avion — the envelope itself: the chevron round three edges, and the world
@@ -298,7 +325,7 @@ body {
 
    THE STRIPE IS A BORDER, NOT A FIELD, which is the correction that made this theme
    read as an envelope at all. The first pass laid the chevron across the whole panel
-   as texture, levelled by mean luminance deviation against the other light themes the
+   as texture, leveled by mean luminance deviation against the other light themes the
    way the blocks above are, and it measured correctly and looked like wrapping paper:
    what an airmail envelope actually does with that stripe is run it round the edge and
    leave the middle for the address. So it runs the top and both sides at ink strength
@@ -336,7 +363,7 @@ body {
    unlock.
 
    WEIGHT, AND WHY IT IS A RANGE. The tile metric the three older light themes were
-   levelled on cannot be applied here, because there is no tile: a repeating pattern
+   leveled on cannot be applied here, because there is no tile: a repeating pattern
    weighs the same everywhere by construction and a map does not. Measured the nearest
    honest way instead — rasterized at the size it actually renders, over this theme's
    own --bg, mean absolute luminance deviation across a 400x820 panel — the field comes
@@ -354,7 +381,7 @@ body {
    against aegean 0.0359, bauhaus 0.0326, populuxe 0.0401. So the quiet half of the
    journey sits inside the band the other light themes hold and the land-heavy half
    runs above it, up to about half again over Populuxe. That is recorded rather than
-   levelled away because it is the honest consequence of a chosen design: the map is
+   leveled away because it is the honest consequence of a chosen design: the map is
    meant to be seen, and flattening the continents until every window measured the
    same would be flattening the thing itself.
 
@@ -362,7 +389,7 @@ body {
    fill and an 18% coastline and the graticule 10%, all of them the same blue over the
    same paper, so the whole figure scales very nearly linearly with them: multiplying
    the three by 0.8 (fill 0.08, coast 0.145, graticule 0.08) puts the mean at the
-   band's centre and costs about a fifth of the map's presence. The fill is most of the
+   band's center and costs about a fifth of the map's presence. The fill is most of the
    number; the coastline is most of the character.
 
    No wash at the bottom right here. The other light themes put one there to keep the

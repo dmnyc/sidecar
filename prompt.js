@@ -296,7 +296,7 @@
         box.className = 'destructive-warn';
         const title = document.createElement('div');
         title.className = 'destructive-warn-title';
-        // Glyph as well as colour — the panel's copy has one, and red text alone is
+        // Glyph as well as color — the panel's copy has one, and red text alone is
         // not a signal for a red-green colourblind user.
         const warnIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         warnIcon.setAttribute('viewBox', '0 0 24 24');
@@ -393,7 +393,7 @@
     // this window always rendered Speakeasy regardless of what the panel was wearing.
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
     // than writing an arbitrary string into the DOM.
-    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const THEMES = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte'];
     // Renamed themes: a stored 'art-deco' predates the Industria rebrand and is never
     // rewritten, so it is mapped on read here exactly as sidepanel.js and content.js do.
     const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -413,7 +413,7 @@
     // script in a page's world, and this window — and the alternative is a fourth file
     // loaded by all three to hold ten strings. The cost is that a new light theme must be
     // registered in all three, so each copy names the others.
-    const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte'];
     const isLight = LIGHT_THEMES.includes(theme);
     if (isLight) {
       const mark = document.querySelector('.brand img');

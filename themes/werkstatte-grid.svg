@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Werkstatte's field: Hoffmann's Gitterwerk as a checkerboard. Two cells sit light
+       with an ink Quadratl in them; the other two invert.
+
+       NO PIXEL MAY CARRY TWO COATS. A translucent fill COMPOSITES rather than covers, so
+       ink drawn under a filled cell adds to it instead of hiding beneath it. That is why
+       the hairlines are one path rather than four rects, and why that path runs only
+       around the two LIGHT cells. Both were found by measurement, and either one puts the
+       body inks under AA on their own.
+
+       The alpha is a measured ceiling, not a taste value — see the note over the body
+       rule in patterns.css. -->
+  <path fill="rgba(21,23,28,0.05)" d="M0 0h16v1H0z M0 0h1v16H0z M16 16h16v1H16z M16 16h1v16h-1z"/>
+  <rect x="16" y="0" width="16" height="16" fill="rgba(21,23,28,0.05)"/>
+  <rect x="0" y="16" width="16" height="16" fill="rgba(21,23,28,0.05)"/>
+  <rect x="6" y="6" width="4" height="4" fill="rgba(21,23,28,0.05)"/>
+  <rect x="22" y="22" width="4" height="4" fill="rgba(21,23,28,0.05)"/>
+  <rect x="22" y="6" width="4" height="4" fill="#E8EAEE"/>
+  <rect x="6" y="22" width="4" height="4" fill="#E8EAEE"/>
+</svg>

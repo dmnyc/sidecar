@@ -479,7 +479,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -613,7 +613,7 @@
         CARD_SUCCESS: 'color:#4F6B3A',
         CARD_PAY_SHADOW: 'rgba(21,101,192,0.32)'
       },
-      /* Cast Iron — jet cast metal, grey-warm steel accents, no whites and no gold.
+      /* Cast Iron — jet cast metal, gray-warm steel accents, no whites and no gold.
          Mirrors themes/cast-iron.css. CARD_GOLD is the theme's --balance-ink
          (#968e7c, same value its struck figures wear) per the bauhaus note below;
          on this plate it clears large-text 3:1 with room to spare. The pay button
@@ -776,6 +776,39 @@
         CARD_WARN: 'color:#8E2226',
         CARD_SUCCESS: 'color:#3D6B3E',
         CARD_PAY_SHADOW: 'rgba(27,76,140,0.30)'
+      },
+      /* Werkstätte — white metal, near-black ink, and the leaf. Mirrors
+         themes/werkstatte.css, including the decision that makes this entry look odd
+         beside the others: the theme's accent is a FILL, so CARD_LAV and the pay button
+         are the ink rather than a color. A black plate with white letters is the
+         Secession poster, and it measures 15.92.
+         CARD_GOLD is the amount slot and takes --balance-ink like the bauhaus,
+         cast-iron and par-avion entries; 42px/800 puts it under the 3.0 large-text
+         floor and it measures 3.71 on the card's lower stop.
+         CARD_TRACK is the LEAF and nothing else would do. The toggle thumb is
+         hardcoded #1c0c00 in the shared CSS, and this theme's accent (#3F3A22) is a
+         bronze-black — a near-black thumb on it is a black dot on a black track. The
+         gold carries it at 7.88, which is the one job in the card that a fill-only
+         color is exactly right for. */
+      werkstatte: {
+        CARD_COLOR: 'color:#15171C',
+        CARD_BORDER: 'rgba(21,23,28,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(201,162,39,0.10),transparent 58%),linear-gradient(165deg,#FAFBFC,#F0F2F5)',
+        CARD_MUTED: 'color:#565C66',
+        CARD_GOLD: 'color:#96791F',
+        CARD_TEXT_2: 'color:#2C3038',
+        CARD_LAV: '#3F3A22',
+        CARD_PAY_TEXT: 'color:#FAFBFC',
+        CARD_PAY_BG: 'linear-gradient(180deg,#2C3038,#1C1F26 52%,#15171C)',
+        CARD_CANCEL_BG: 'rgba(21,23,28,0.08)',
+        CARD_TEXT: '#15171C',
+        CARD_BORDER_FAINT: 'rgba(21,23,28,0.15)',
+        CARD_TOGGLE_OFF: 'rgba(21,23,28,0.25)',
+        CARD_TRACK: '#C9A227',
+        CARD_THUMB_OFF: '#565C66',
+        CARD_WARN: 'color:#8C1D22',
+        CARD_SUCCESS: 'color:#2F6B3A',
+        CARD_PAY_SHADOW: 'rgba(21,23,28,0.28)'
       }
     };
 
@@ -863,7 +896,7 @@
       svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;' +
         'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px rgba(255,180,87,.85))');
       const width = (2.4 + Math.random() * 2.4).toFixed(1);
-      // An under-stroke in near-white, slightly wider, gives the bolt a hot centre
+      // An under-stroke in near-white, slightly wider, gives the bolt a hot center
       // instead of a flat line — the thing that made it look dim before.
       const glow = document.createElementNS(NS, 'path');
       glow.setAttribute('class', 'b');
@@ -946,7 +979,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

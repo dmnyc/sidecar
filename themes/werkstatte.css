@@ -1,0 +1,406 @@
+/* ============================================================
+   Sidecar — Werkstätte Theme
+   Wiener Werkstätte, 1903: white-painted metal, a lattice of
+   little squares, and gold that is applied rather than
+   written. Light mode.
+   ============================================================ */
+
+/* Measured before written down, like every theme here — test/theme-contrast.test.js
+   resolves these var() chains and checks the ratios. What follows is the reasoning the
+   numbers came out of.
+
+   BLACK, WHITE, AND ONE METAL — and the third of those is not an ink. That is the whole
+   palette and it is also the one structural decision in this file, so it goes first.
+
+   Gold cannot be this theme's accent ink, and the reason is arithmetic rather than
+   taste. Getting gold to 4.5:1 on a near-white surface drags it to roughly #6B5015,
+   and two light themes are already sitting there: Industria's --gold is #6B4E1C and
+   Populuxe's is #7E661D. The candidate this theme would have used measured 8 degrees of
+   hue and the same lightness as Industria's. A third of them would have been a third
+   theme whose accent reads brown.
+
+   So gold is demoted to LEAF: it is a fill, a rule and a border, and it is a `color:`
+   in exactly one place — the balance figure, which is large text and answers to the
+   3.0 floor rather than 4.5. The accent INK is a bronze-black, dark enough to read as
+   ink rather than as another dark gold. Which is also what the source material does.
+   Ver Sacrum's pages are black on white; Klimt's gold is a material laid onto them.
+
+       PAPER   white-painted metal #E8EAEE, and the sheet #FAFBFC on top of it
+       INK     #15171C, cooling to #2C3038 and #565C66 beneath it
+       LEAF    #C9A227, fill only
+
+   COOL, WHICH IS THE OTHER THING THAT KEEPS THIS OFF INDUSTRIA'S GROUND. Every light
+   theme here is warm — Industria's cream #F0EAD6 is 26 points redder than it is blue,
+   Aegean's and Populuxe's stock likewise, Par Avion's manila most of all. Bauhaus's
+   #F4F4F0 is the closest to neutral and is still 4 points warm. This one runs the other
+   way, and at panel size that reads as a different MATERIAL rather than as a different
+   pattern: enamel and white metal, not paper.
+
+   EVERY INK CLEARS AA, --faint included, which makes this the third theme to manage it
+   after Populuxe and Par Avion. It comes free here for a structural reason rather than a
+   clever one: the field is a mid-light gray and the surfaces above it are near-white, so
+   there is a lot of room under them before an ink runs out of contrast. The one value
+   held to 3.0 is --balance-ink, and it is a `color:` nowhere else. */
+
+[data-theme="werkstatte"] {
+  /* Syncopate 700: monoline poster capitals, the lettering of a Secession sheet. */
+  --font-display: 'Syncopate', 'Trebuchet MS', var(--font-ui);
+
+  /* IT IS UNICASE — the lowercase are small caps at cap height, so cap and x-height are
+     the same 16.1px at 24px where the other eleven faces average 12.4 of x-height under a
+     16.9 cap. Nothing in the panel's px sizes knows that, so at face value every heading
+     here arrived a third too big and "Wallet & payments" wrapped to two lines in a 328px
+     column.
+     0.77 is the ratio that puts this face's x-height on the set's median, which is the
+     right basis precisely because there is no lowercase to compare separately: for a
+     unicase face, x-height IS the text's apparent size. Width follows — the same heading
+     comes back from 365px to 281px and fits with room.
+     Deliberately not the ratio that matches median WIDTH, which wanted 0.60 and would
+     have left the display face smaller than the body text beside it. */
+  --display-scale: 0.77;
+
+  /* It also hangs high in its line box. Measured rather than estimated: at line-height 1
+     the box is exactly font-size tall and the baseline sits at half-leading plus the
+     face's own ascent, so the cap band's center is computable and the nudge is the
+     distance from it to the box's center. Derived from the font's own head/hhea/OS-2
+     tables. */
+  --display-ink-nudge: 0.060em;
+
+  /* Surfaces. The field is the painted metal; the two velvets are the sheet laid on it.
+     The gap between #E8EAEE and #FAFBFC is what every ink here is spending. */
+  --bg: #E8EAEE;
+  --bg-2: #DFE2E7;
+  --velvet-1: #FAFBFC;
+  --velvet-2: #F0F2F5;
+  --velvet-1-rgb: 250, 251, 252;
+  --av-from: #FAFBFC;
+  --av-to: #DFE2E7;
+  --banner-accent: #DFE2E7;
+
+  /* Rules are the ink thinned, never a shadow. Hoffmann draws an edge; he does not
+     imply one. --border-rgb is the near-black so every hairline in the shared sheet —
+     the relax track, the skeleton shimmer, every divider — comes out of the same pot. */
+  --border: rgba(21, 23, 28, 0.15);
+  --border-strong: rgba(21, 23, 28, 0.30);
+  --border-rgb: 21, 23, 28;
+  --well-rgb: 223, 226, 231;
+
+  --warn: #8C1D22;
+  --warn-rgb: 140, 29, 34;
+  --success: #2F6B3A;
+  --success-rgb: 47, 107, 58;
+
+  /* THE UNREAD BADGE, and it is designed here rather than discovered later. An
+     achromatic palette has two things that can make a control read as an object, and
+     the leaf is not one of them: #C9A227 is 1.86:1 against the sheet, so a gold disc
+     with white on it is invisible as a shape. The oxblood is 6.99 as a disc and carries
+     white at 8.1, which is the same answer Bauhaus and Populuxe reached for the same
+     control. Red is what a count in a corner has always been. */
+  --orange: #8C1D22;
+
+  /* Leaf. Fill only — there are zero `color:` rules on this token, the same practice
+     Industria's --amber keeps, and the reason its 1.86:1 costs nothing. */
+  --amber: #C9A227;
+  /* The accent INK: gold burnt down until it reads as ink. 8.79 worst surface. */
+  --gold: #3F3A22;
+  --gold-soft: rgba(201, 162, 39, 0.32);
+  --accent-rgb: 63, 58, 34;
+
+  /* The gilded figure — large text only, 3.20 against the darkest surface. This is the
+     one place the leaf is allowed to be a color, and it is 34px and up. */
+  --balance-ink: #96791F;
+  --fiat-sym-opacity: 1;
+
+  --purple: #2C3038;
+  --lav: #3F3A22;
+
+  --relax-dot-ok: #2F6B3A;
+  --relax-dot-low: var(--warn);
+
+  --hover-soft: rgba(21, 23, 28, 0.045);
+  --hover-medium: rgba(21, 23, 28, 0.085);
+  --hover-faint: rgba(21, 23, 28, 0.03);
+  --mention-bg: rgba(201, 162, 39, 0.22);
+
+  /* The scrollbar is a rule like everything else. Firefox reads --scroll-thumb-hover as
+     its RESTING color, so that one is the ink rather than a hover brightening. */
+  --scroll-thumb: linear-gradient(180deg, #6E7480, #4A505A);
+  --scroll-thumb-hover: #2C3038;
+
+  /* Buttons are flat plates with a drawn edge — no gradient doing the work of a border.
+     The primary is the ink itself, which is the Secession poster: black block, white
+     letters, one hairline. */
+  --btn-primary-top: #2C3038;
+  --btn-primary-mid: #1C1F26;
+  --btn-primary-bot: #15171C;
+  --btn-primary-text: #FAFBFC;
+  --btn-shadow: rgba(21, 23, 28, 0.26);
+
+  --btn-lav-top: #F0E7C8;
+  --btn-lav-mid: #E4D5A6;
+  --btn-lav-bot: #D2C088;
+  --btn-lav-text: #2C2818;
+  --btn-lav-ring: rgba(63, 58, 34, 0.30);
+  --btn-lav-shadow: rgba(120, 100, 40, 0.20);
+
+  --btn-secondary-top: #FDFDFE;
+  --btn-secondary-bot: #EDEFF3;
+
+  --btn-accent-top: #2C3038;
+  --btn-accent-mid: #1C1F26;
+  --btn-accent-bot: #15171C;
+  --btn-accent-text: #FAFBFC;
+
+  /* Ink. Three cool grays under the near-black, all of them AA on the darkest surface:
+     13.81 / 10.19 / 5.19 / 4.68. */
+  --text: #15171C;
+  --text-2: #2C3038;
+  --muted: #565C66;
+  --faint: #5C636C;
+  --red: #8C1D22;
+
+  /* Shadows exist only where the shared sheet floats something over the panel. In the
+     flat furniture they are turned down to almost nothing, because a Hoffmann box is
+     announced by its rule. */
+  --shadow: 0 8px 24px rgba(21, 23, 28, 0.10);
+  --shadow-sm: 0 4px 14px rgba(21, 23, 28, 0.07);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+
+  --pattern-opacity: 1;
+
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(201, 162, 39, 0.42);
+  --card-wash: rgba(21, 23, 28, 0.045);
+
+  --accent-fill: var(--amber);
+  --chip-ink: #FAFBFC;
+  --glow: var(--amber);
+
+  --balloon-bg: #1C1F26;
+  --balloon-bg-hover: #2C3038;
+  --balloon-text: #FAFBFC;
+
+  --fab-bg: #15171C;
+  --fab-icon: #C9A227;
+
+  --float-shadow: rgba(21, 23, 28, 0.16);
+  --float-shadow-strong: rgba(21, 23, 28, 0.24);
+
+  /* The Gitterwerk TILE, which is 2x2 cells rather than one: a checker needs both
+     states present to read as one. Cells land at 24px, where the Quadratl inside each is
+     still legible and the alternation reads at a glance. */
+  --gitter: 48px;
+}
+
+/* ---- THE FIELD -------------------------------------------------------------------
+   THE FIELD IS HELD DOWN BY THE TEXT ON TOP OF IT. Prose in this panel sits directly on
+   it — .content, .setting and .hint carry no surface of their own — so every point of ink
+   in the tile is taken out of the contrast budget of every hint in Settings. Measured:
+   5% is the most it can carry with --muted and --faint both above 4.5:1, and there they
+   sit at 5.05 and 4.55.
+
+   INVERTING ALTERNATE CELLS is what makes that ceiling liveable. Weight comes out at
+   0.0475 where a plain lattice managed 0.0156 at the same alpha, because a checker has
+   ink AREA and a grid has only lines — so it registers at a strength lines cannot reach
+   without spending the words. For scale, the three light themes that were leveled
+   against one another sit at 0.0359, 0.0326 and 0.0401.
+
+   The tile's own drawing constraints are in themes/werkstatte-grid.svg, and they are not
+   optional. */
+
+/* ---- THE GILDING -----------------------------------------------------------------
+   Every other theme's balance moves or changes temperature: Nixie strikes, Cast Iron
+   comes down crooked, Populuxe pops from the center, Par Avion is typed, Metropolis
+   cools from white through gold to brass. This one changes what the glyph is MADE of.
+   Each figure arrives as a hairline outline in the bronze ink and then fills with leaf,
+   which is the actual sequence of gilding: the letter is drawn, then the gold is laid
+   into it.
+
+   The outline is -webkit-text-stroke with a transparent fill, so the figure occupies its
+   final metrics from the first frame and nothing reflows as it fills. Sequential by
+   glyph at 70ms, capped so a long figure still finishes inside a second. */
+@keyframes werkstatte-gild {
+  0% {
+    color: transparent;
+    -webkit-text-stroke: 0.7px var(--gold);
+    opacity: 0.4;
+  }
+  40% {
+    color: transparent;
+    -webkit-text-stroke: 0.7px var(--gold);
+    opacity: 1;
+  }
+  100% {
+    color: var(--balance-ink);
+    -webkit-text-stroke: 0px var(--gold);
+    opacity: 1;
+  }
+}
+[data-theme="werkstatte"] .bal-glyph.bal-in {
+  animation: werkstatte-gild 620ms cubic-bezier(0.3, 0.7, 0.2, 1)
+    calc(var(--i) * min(70ms, 900ms / max(var(--n) - 1, 1))) both;
+}
+
+/* ---- NOTHING IS ROUND ------------------------------------------------------------
+   The sharpest single break from Populuxe, and the most literal thing Hoffmann asks for.
+
+   A BLANKET RULE RATHER THAN A LIST, because the list is 98 selectors long. The shared
+   sheet rounds almost everything it draws — .wallet-card at 16px, .modal at 18, cards,
+   banners, chips, the scrollbar thumb — and an enumeration here would be wrong the first
+   time anyone adds a rule to styles.css. This theme's claim is not "these things are
+   square", it is "nothing is round", so it is written that way.
+
+   THE PICKER IS EXCLUDED, and that is not optional. Every card in the theme picker
+   carries its own data-theme so it renders as a specimen of the theme it offers — a
+   universal selector under [data-theme="werkstatte"] would square all twelve of them the
+   moment this theme was selected, which is the same leak that squared and re-inked them
+   once already. Werkstatte's own card is squared by name further down.
+
+   The exceptions afterwards are the two places where round is doing a job that square
+   cannot: a spinner is a rotating shape and a square one reads as a stutter, and the
+   toggle's track and knob ARE the affordance. Everything else, avatars included, goes
+   square deliberately — a portrait in a square frame is entirely period-correct here. */
+[data-theme="werkstatte"] *:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] *:not(.theme-card):not(.theme-card *)::before,
+[data-theme="werkstatte"] *:not(.theme-card):not(.theme-card *)::after {
+  border-radius: 0;
+}
+/* WHAT STAYS ROUND, and every one of these earns it.
+
+   The exceptions repeat the blanket's :not() chain, and that is specificity rather than
+   decoration: the blanket is (0,3,0) because of those two :not()s, so a plain
+   [data-theme] .class exception is (0,2,0) and loses to it. Written without them these
+   rules did nothing and the spinners shipped square — caught by measuring, not reading.
+
+   A SPINNER AND A SWITCH are round because square breaks them: a rotating square reads
+   as a stutter, and the toggle's track and knob ARE the affordance.
+
+   A COUNT AND A FLOATING ACTION are round because they are marks laid ON the theme
+   rather than chrome it draws. Squared, the badge read as a clipped label and the quill
+   as a tile.
+
+   A DIRECTION, AN OUTCOME AND A STATE are round for the same reason. The transaction
+   row's in/out disc is not pressable and sits in the slot an avatar occupies elsewhere;
+   the receive tick reports what happened (the code calls it a badge); and the relax
+   status dot is 7px, where roundness stops being decoration and becomes legibility — a
+   square that small reads as a speck rather than as a deliberate mark.
+
+   PEOPLE ARE ROUND. Every avatar in the app, at every size — the topbar chip, the
+   account rows, the notification modal, the composer's author, mention autocomplete,
+   embeds, the Lightning recipient, the upload preview and its skeleton. A circle is how
+   this app says "this is someone", and that convention is not the theme's to reassign.
+   The banner upload is deliberately absent: it is a rectangle of scenery, not a face. */
+[data-theme="werkstatte"] .ac-spinner:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .recv-spinner:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .tx-icon:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .recv-check:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .relax-status-dot:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .sk-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .profile-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .upload-preview:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .chip-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .acct-row-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .ip-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .avatar:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .aa-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .notif-modal-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .add-account-badge:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .bm-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .restore-preview-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .site-bound-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .compose-author-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .ac-item-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .embed-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .ln-recipient-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .compose-thumb-x:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .fab:not(.theme-card):not(.theme-card *) {
+  border-radius: 50%;
+}
+[data-theme="werkstatte"] .switch-track:not(.theme-card):not(.theme-card *) {
+  border-radius: 999px;
+}
+[data-theme="werkstatte"] .switch-track:not(.theme-card):not(.theme-card *)::after {
+  border-radius: 50%;
+}
+[data-theme="werkstatte"] .notif-badge:not(.theme-card):not(.theme-card *) {
+  border-radius: 8px;
+}
+
+/* THE ACTIVE TAB IS A RULE, not a gradient, and the leaf cannot do this job. The shared
+   marker is linear-gradient(90deg, var(--orange), var(--gold)), which here would run
+   oxblood into bronze — a red dash under the tab, in a theme where red means a count or
+   a stop. The obvious repair is to paint it in leaf, and the leaf fails: #C9A227 on the
+   field is 1.86:1, well under the 3.0 a non-text indicator answers to, so a 2px gold
+   rule is a control nobody can find. It is the same fill-against-surface trap that has
+   cost this codebase four bugs, and it is worth naming here because the wrong fix looks
+   more on-brand than the right one.
+   So: one flat bar of the accent ink at 8.79. Which is also the grammar — every division
+   in this theme is a drawn rule. */
+[data-theme="werkstatte"] .tab.active::after {
+  background: var(--gold);
+  border-radius: 0;
+}
+
+/* The mark in the corner of a Hoffmann box: a square rule with the leaf inside it. */
+[data-theme="werkstatte"] .wallet-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: var(--amber);
+}
+
+/* ---- THE END DISC AND THE RESTART DISC -------------------------------------------
+   Designed with the badge above rather than found later. The relax bar is --velvet-2,
+   and the two controls on it have to read as objects against it before their glyphs are
+   judged. End is the oxblood: 6.31 as a disc on that bar, 8.09 for a white glyph on the
+   disc. Restart is deliberately quieter — it is the same act as tapping the chips again,
+   not a stop — so it takes the bronze ink at 4.62 against the bar with leaf on top. */
+[data-theme="werkstatte"] .relax-status-x {
+  background: var(--warn);
+  color: #FFFFFF;
+}
+[data-theme="werkstatte"] {
+  --relax-restart-bg: #3F3A22;
+  --relax-restart-ink: #C9A227;
+}
+
+/* ---- ITS CARD IN THE PICKER ------------------------------------------------------
+   NOT PREFIXED WITH [data-theme="werkstatte"], and that distinction is the whole point.
+   A prefix means "while this theme is ACTIVE", which is right for the panel and exactly
+   wrong for the picker: every card carries its own data-theme so that it renders as a
+   specimen of the theme it offers, whichever theme you are currently in. Written with
+   the prefix, these rules squared and re-inked all ELEVEN other cards whenever
+   Werkstätte was selected, and left Werkstätte's own card rounded and wrongly inked
+   whenever it was not. The right scope is the card itself, always — the same form
+   cast-iron.css uses for its own card's type size.
+
+   The label is plain ink, which the palette decided rather than the designer. Every
+   other card names its theme in its own loudest color and this theme's loudest color is
+   a fill — naming it in leaf would put #C9A227 on #FAFBFC at 1.86:1. Par Avion arrived
+   at plain ink from the opposite direction: it had two accents and both collided. The
+   leaf does the SELECTED state instead, where it is a border and a ring rather than a
+   color on type. */
+.theme-card[data-theme="werkstatte"] {
+  border-radius: 0;
+  color: var(--text);
+}
+/* ITS OWN CARD TAKES THE SCALE BACK. .theme-name resets --display-scale to 1 so that a
+   theme scaling its face cannot shrink the other eleven cards — that is a cascade fix and
+   it is right. But it left this card at a flat 20px, and 20px of a UNICASE face is not
+   20px of anything else: Syncopate's lowercase are small caps at cap height, so where
+   Josefin sets "Industria" with a 10.3px x-height, this sets "Werkstätte" with a 13.4px
+   one and reads a third larger on a row of cards meant to look like siblings.
+   Re-declaring the token here rather than a literal size keeps one number for the face:
+   0.77 is the same ratio the panel uses, derived the same way, and 20 x 0.77 lands the
+   x-height on the set's median. Cast Iron does the same thing in the other direction —
+   Impressed Metal is small, so its card goes UP to 24px. */
+.theme-card[data-theme="werkstatte"] .theme-name {
+  --display-scale: 0.77;
+}
+.theme-card[data-theme="werkstatte"].active {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px var(--gold-soft);
+}

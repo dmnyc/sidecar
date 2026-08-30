@@ -317,9 +317,9 @@ const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 // (2.81, 16 rules) were the same defect in the same theme and moved with it.
 //
 // Note on industria --muted/--faint: they are NOT fixable the way the others were. To
-// clear 4.5:1 on --velvet-2 (#DED4C0) a neutral grey has to be about #5A5A5A, which is
+// clear 4.5:1 on --velvet-2 (#DED4C0) a neutral gray has to be about #5A5A5A, which is
 // barely lighter than --text-2 (#4a4a4a) — so the cream palette cannot carry a legible
-// three-level grey hierarchy at all. That is a surface problem, not an ink problem.
+// three-level gray hierarchy at all. That is a surface problem, not an ink problem.
 const FLOORS = {
   aegean: { '--muted': 4.55, '--faint': 2.85, '--gold': 6.00 },
   'industria': { '--muted': 3.65, '--faint': 2.30, '--gold': 5.20 },
@@ -338,14 +338,14 @@ const FLOORS = {
   populuxe: { '--muted': 7.32, '--faint': 4.78, '--gold': 4.64 },
   // Cast Iron's floors moved DOWN once, deliberately: a second user-directed pass
   // ("even outlines should be hinted at … avoid white fonts, everything in a dark
-  // grey/black tone") demoted every ink and dimmed the surfaces with it. Hierarchy is
+  // gray/black tone") demoted every ink and dimmed the surfaces with it. Hierarchy is
   // now carried by step between greys rather than by brightness, and these record the
   // honest new measurements — not a concession snuck past this table. Every ink still
   // clears AA where AA applies (--text 6.99, --text-2 5.57 on the darkest plate).
   'cast-iron': { '--muted': 4.61, '--faint': 2.39, '--gold': 8.83 },
   // Metropolis clears AA on --muted (5.13) without the darkening Populuxe needed, because
   // its ground is soot rather than a mid value — there is room between the surfaces and the
-  // ink for a three-level grey hierarchy, which is exactly what the industria note above says
+  // ink for a three-level gray hierarchy, which is exactly what the industria note above says
   // a cream palette cannot give you. --faint is 2.85, mid-pack for the dark themes and under
   // AA like all of them; it carries no text a user has to read.
   // --gold is 7.43 as the INK half of a role split made in the theme's first commit rather
@@ -357,6 +357,18 @@ const FLOORS = {
   // stock is the FIELD and the surface body text sits on is near-white. --faint was
   // #7A6A55 (3.98) before it was darkened one step to buy that.
   'par-avion': { '--muted': 6.32, '--faint': 4.63, '--gold': 6.51 },
+  // Werkstätte clears AA on all five inks including --faint, the third theme to do it,
+  // and for the same structural reason Populuxe and Par Avion do: the field is a mid
+  // value and the surfaces the body text sits on are near-white, so there is room under
+  // them before an ink runs out.
+  // --gold is 8.79 because it is NOT gold. Getting a real gold to 4.5 on a near-white
+  // surface lands it within 8 degrees of hue and zero lightness of Industria's #6B4E1C,
+  // with Populuxe's #7E661D beside it — a third of them would have been a third light
+  // theme whose accent reads brown. So the accent ink here is a bronze-black and the
+  // leaf (#C9A227, 1.86) is a fill with zero `color:` rules, exactly as Industria's
+  // --amber is. The one exception is --balance-ink at 3.20, which is 34px and up and
+  // therefore answers to the large-text floor; it is a `color:` nowhere else.
+  werkstatte: { '--muted': 5.19, '--faint': 4.68, '--gold': 8.79 },
 };
 
 for (const theme of THEMES) {
@@ -648,5 +660,49 @@ test('nothing still ships the old id as a live theme', () => {
         `${file}:${i + 1} — a live 'art-deco' reference outside the alias table: ${line.trim()}`
       );
     });
+  }
+});
+
+// ---------------------------------------------------------------------------------
+// The picker is a SPECIMEN, and a theme must not reach into it.
+//
+// Every card in the theme picker carries its own data-theme so it renders as the theme
+// it offers, whatever theme you are currently in. That makes two scopes look alike and
+// mean opposite things:
+//
+//   [data-theme="x"] .theme-card    "while X is the active theme, all twelve cards"
+//   .theme-card[data-theme="x"]     "X's own card, always"
+//
+// Werkstätte shipped the first form for its square corners and its label ink, which
+// squared and re-inked all eleven other cards the moment it was selected — and left its
+// own card rounded and wrongly inked whenever it was not. The picker silently stopped
+// being a preview of anything.
+//
+// The same trap catches a blanket element selector, because a card IS a button:
+// `[data-theme="x"] button` matches all twelve.
+test('no theme reaches into another theme\'s picker card', () => {
+  for (const file of fs.readdirSync(path.join(ROOT, 'themes')).filter((f) => f.endsWith('.css'))) {
+    const src = fs.readFileSync(path.join(ROOT, 'themes', file), 'utf8');
+    // Comments carry these selectors as prose — this file's own note does — so strip them.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const line of code.split('\n')) {
+      const sel = line.split('{')[0];
+      // Two forms are already safe and must not be flagged:
+      //   .theme-card[data-theme="x"]  further qualifies the card by its OWN theme, so it
+      //                                cannot reach another one (cast-iron.css does this)
+      //   .theme-card.active           can only be the active theme's own card, since
+      //                                that is what "active" means here
+      // A universal selector reaches every card in the picker exactly as `button` does,
+      // and is the broader mistake of the two.
+      const m = sel.match(
+        /\[data-theme="([a-z-]+)"\]\s+(?:\.theme-card(?!\[data-theme|\.active)|button(?!\s*:not\(\.theme-card\))|\*(?!\s*:not\(\.theme-card\)))/
+      );
+      if (!m) continue;
+      assert.fail(
+        `${file}: \`${sel.trim()}\` applies while ${m[1]} is ACTIVE, so it hits every ` +
+        `card in the picker, not just ${m[1]}'s. Use \`.theme-card[data-theme="${m[1]}"]\` ` +
+        `for a theme's own card, or \`button:not(.theme-card)\` for a blanket button rule.`
+      );
+    }
   }
 });

@@ -146,7 +146,7 @@ button, input, select, textarea { font-family: inherit; }
 .headline {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 23px;
+  font-size: calc(23px * var(--display-scale, 1));
   line-height: 1.25;
   color: var(--text);
   margin: 0 0 10px;
@@ -264,7 +264,7 @@ input:focus, select:focus, textarea:focus {
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--gold-soft); border-radius: 12px; box-shadow: var(--sheen);
 }
-.lud16-sync-title { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--text); }
+.lud16-sync-title { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-family: var(--font-display); font-weight: 700; font-size: calc(15px * var(--display-scale, 1)); color: var(--text); }
 .lud16-sync-title .lud16-sync-bolt { width: 16px; height: 16px; color: var(--gold); flex-shrink: 0; }
 .lud16-sync-msg { margin: 0 0 10px; font-size: 13px; line-height: 1.45; color: var(--text-2); }
 .lud16-sync-addr { font-family: var(--font-mono); font-size: 13px; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 12px; }
@@ -277,7 +277,7 @@ input:focus, select:focus, textarea:focus {
 }
 .profile-body .profile-edit-cta svg { width: 15px; height: 15px; display: block; }
 .profile-body { text-align: center; }
-.profile-name { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 8px 0 3px; overflow-wrap: anywhere; }
+.profile-name { font-family: var(--font-display); font-weight: 700; font-size: calc(22px * var(--display-scale, 1)); margin: 8px 0 3px; overflow-wrap: anywhere; }
 .profile-npub {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--font-mono); font-size: 12px; color: var(--muted);
@@ -394,7 +394,7 @@ input:focus, select:focus, textarea:focus {
 .wallet-backup-nudge { position: relative; color: var(--warn); margin: 2px 0 16px; padding-right: 18px; }
 /* The action is a <button> (it performs something, it doesn't navigate), but
    .explore-link was only ever used on <a> so it resets no button chrome — without
-   these the UA's grey box and padding show through. */
+   these the UA's gray box and padding show through. */
 .wallet-backup-nudge .explore-link {
   display: inline; color: inherit; text-decoration: underline; text-align: left;
   background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
@@ -419,9 +419,9 @@ input:focus, select:focus, textarea:focus {
 .unlock-cooldown .countdown-num { font-size: 19px; }
 /* refined attempts-remaining notice (used with and without the cooldown ring) */
 .unlock-note { text-align: center; }
-.unlock-note-title { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--text-2); }
+.unlock-note-title { font-family: var(--font-display); font-weight: 700; font-size: calc(15px * var(--display-scale, 1)); color: var(--text-2); }
 .unlock-note-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
-.unlock-note-count { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--gold); }
+.unlock-note-count { font-family: var(--font-display); font-weight: 700; font-size: calc(16px * var(--display-scale, 1)); color: var(--gold); }
 .unlock-note.unlock-danger .unlock-note-title { color: var(--red); }
 .unlock-note.unlock-danger .unlock-note-count { color: var(--red); }
 
@@ -807,10 +807,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   font-family: var(--font-display);
   font-weight: 700;
   margin: 0 0 16px;
-  font-size: 24px;
+  font-size: calc(24px * var(--display-scale, 1));
   letter-spacing: 0.01em;
 }
-.tabview h3 { font-family: var(--font-display); font-weight: 600; margin: 0 0 8px; font-size: 16px; color: var(--lav); }
+.tabview h3 { font-family: var(--font-display); font-weight: 600; margin: 0 0 8px; font-size: calc(16px * var(--display-scale, 1)); color: var(--lav); }
 
 /* active account banner — the reserved booth */
 .active-account {
@@ -836,7 +836,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: linear-gradient(90deg, transparent, var(--gold-soft), transparent);
 }
 .aa-info { min-width: 0; }
-.aa-label { font-family: var(--font-display); font-weight: 700; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aa-label { font-family: var(--font-display); font-weight: 700; font-size: calc(19px * var(--display-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aa-npub { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 5px; word-break: break-all; }
 
 /* empty-state welcome hero (no accounts yet) — strip the booth chrome */
@@ -853,7 +853,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: radial-gradient(circle, rgba(var(--accent-rgb), 0.32), transparent 66%);
 }
 .welcome-mark img { position: relative; width: 58px; height: auto; display: block; filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.55)); }
-.welcome-title { font-family: var(--font-display); font-weight: 700; font-size: 27px; margin: 0 0 8px; color: var(--text); }
+.welcome-title { font-family: var(--font-display); font-weight: 700; font-size: calc(27px * var(--display-scale, 1)); margin: 0 0 8px; color: var(--text); }
 .welcome-sub { font-size: 13.5px; line-height: 1.6; color: var(--muted); max-width: 300px; margin: 0 auto; text-wrap: balance; }
 .welcome-cta { font-size: 13px; line-height: 1.5; color: var(--lav); max-width: 300px; margin: 10px auto 0; text-wrap: balance; }
 .welcome-tip {
@@ -1137,7 +1137,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: var(--badge-bg, var(--orange));
   /* 9px/700 is small text, so the count needs 4.5:1 on whatever it sits on. White is
      right on a deep badge and wrong on a bright one — it measured 2.6-2.9 in Speakeasy,
-     Film Noir and Nixie, whose --orange is a bright orange or a mid grey. Those themes
+     Film Noir and Nixie, whose --orange is a bright orange or a mid gray. Those themes
      set --badge-ink to their own near-black instead ("brights take black type", which
      Populuxe's palette note already argues at length). Themes that pass keep the white
      by default and are untouched. --badge-bg exists for Brownstone, whose terracotta is
@@ -1161,7 +1161,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
    SEATED DEEPER THAN IT WAS. The gradient ran #a78bfa to #7c3aed, and no single ink
    clears the 4.5 that 9px/700 needs across a span that wide: white measures 2.72 at the
-   light end, near-black 3.23 at the dark end. The splash of colour is the point, so the
+   light end, near-black 3.23 at the dark end. The splash of color is the point, so the
    fix is to move the whole ramp down rather than to change the ink — white now reads
    5.70 at the worst stop. */
 [data-theme="film-noir"] .notif-badge {
@@ -1189,7 +1189,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .notif-modal-title {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 18px;
+  font-size: calc(18px * var(--display-scale, 1));
   line-height: 1.2;
 }
 .notif-modal-sub {
@@ -1365,7 +1365,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .settings-section-title {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 16px;
+  font-size: calc(16px * var(--display-scale, 1));
   letter-spacing: 0.01em;
   color: var(--text);
   margin: 0;
@@ -1710,7 +1710,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--gold-soft), transparent);
 }
-.modal h3 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin: 0 0 8px; }
+.modal h3 { font-family: var(--font-display); font-weight: 700; font-size: calc(19px * var(--display-scale, 1)); margin: 0 0 8px; }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 
@@ -1957,7 +1957,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
      theme's display face doing its most display-like job. --balance-ink defaults
      to --gold, so the five themes that don't declare one see no change; Nixie's
      tubes and Bauhaus's red take their own. */
-  font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1; color: var(--balance-ink);
+  font-family: var(--font-display); font-weight: 700; font-size: calc(28px * var(--display-scale, 1)); line-height: 1; color: var(--balance-ink);
   /* a lone counting digit reads best on the baseline; tabular keeps width steady
      as it counts down (15 → 9 → 0) so it doesn't jiggle. */
   font-variant-numeric: lining-nums tabular-nums;
@@ -1981,7 +1981,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    pixel on the other two, so one value serves both. */
 .countdown-num { transform: translateY(var(--display-ink-nudge, 0)); }
 /* Nixie alone also needs an x nudge: its letter-spacing trails the last glyph, so a
-   centred figure sits a hair left. The y half still comes from the token. */
+   centered figure sits a hair left. The y half still comes from the token. */
 [data-theme="nixie"] .countdown-num { transform: translate(0.01em, var(--display-ink-nudge, 0)); }
 /* the note preview leads; the full-size ring (above) sits centered below it */
 .countdown-preview {
@@ -2002,7 +2002,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    digit count — 84,231 sats read as six discs and 21 as two. That leaks the order of
    magnitude, which is most of what hiding the balance is for, and it made the number
    visibly change length when tapping to switch units.
-   `visibility` rather than a transparent colour: it hides the glyphs while leaving
+   `visibility` rather than a transparent color: it hides the glyphs while leaving
    `color` intact, so the discs inherit whatever the number is painted in — gold on
    Speakeasy and Film Noir, bronze on Art Deco — instead of being hardcoded to one
    value that matched no theme. It also keeps the element's box, so nothing reflows
@@ -2063,7 +2063,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    so it travels with the number and the pair stays aligned. Transform applies because a
    flex item is blockified; on a bare inline span it would be ignored. */
 .pinned-balance-amt {
-  font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--balance-ink);
+  font-family: var(--font-display); font-weight: 700; font-size: calc(24px * var(--display-scale, 1)); color: var(--balance-ink);
   font-variant-numeric: tabular-nums; line-height: 1;
   transform: translateY(var(--display-ink-nudge, 0));
 }
@@ -2242,7 +2242,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .wallet-eye svg { width: 16px; height: 16px; }
 .wallet-bal-label { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
 .wallet-balance {
-  font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; color: var(--balance-ink);
+  font-family: var(--font-display); font-weight: 700; font-size: calc(40px * var(--display-scale, 1)); line-height: 1; color: var(--balance-ink);
   margin: 6px 0 4px; transition: font-size 0.2s ease;
   /* The same per-face optical nudge the countdown ring and the pinned bar take.
      This was a hardcoded -0.08em, written to lift Playfair's oldstyle figures so their
@@ -2250,7 +2250,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      Speakeasy, and inherited by all seven other themes that do not have Playfair's
      descenders. It was worst where a face needs the opposite correction: Art Deco's
      Josefin wants +0.10em and was getting -0.08em, so its figure sat about 4px high at
-     24px, which is most of the reason the compact wallet card looked off-centre.
+     24px, which is most of the reason the compact wallet card looked off-center.
      Keeping a transform here in all cases is deliberate — the note by .wallet-card.compact
      depends on this element staying in the positioned painting layer. */
   transform: translateY(var(--display-ink-nudge, -0.08em));
@@ -2544,7 +2544,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   color: #1a0d33; background: #6ee7a8; box-shadow: 0 0 0 6px rgba(110, 231, 168, 0.16);
 }
 .recv-check svg { width: 30px; height: 30px; }
-.recv-success-title { font-family: var(--font-display); font-size: 18px; color: var(--text); }
+.recv-success-title { font-family: var(--font-display); font-size: calc(18px * var(--display-scale, 1)); color: var(--text); }
 .recv-success-amt { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--success); }
 .wallet-backup { margin-top: 20px; }
 
@@ -2864,7 +2864,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .approval-card .brand { margin-bottom: 16px; justify-content: center; }
 .approval-host {
   font-family: var(--font-display); font-weight: 700;
-  font-size: 19px; color: var(--lav);
+  font-size: calc(19px * var(--display-scale, 1)); color: var(--lav);
   word-break: break-all; margin-bottom: 3px;
 }
 .approval-ask { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
@@ -2930,14 +2930,14 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    system alert: a red box nested inside the event-preview box read as a stray browser
    error, not as part of this panel. A rule and a Playfair headline carry the weight
    instead, which is how the rest of Sidecar emphasises things.
-   The glyph stays so the warning isn't carried by colour alone. */
+   The glyph stays so the warning isn't carried by color alone. */
 .destructive-warn {
   margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
   border-left: 2px solid var(--red);
 }
 .destructive-warn-title {
   display: flex; align-items: center; gap: 6px;
-  font-family: var(--font-display); font-weight: 700; font-size: 15px;
+  font-family: var(--font-display); font-weight: 700; font-size: calc(15px * var(--display-scale, 1));
   color: var(--red); letter-spacing: 0.01em; margin-bottom: 3px;
 }
 .destructive-warn-title svg { width: 14px; height: 14px; flex-shrink: 0; }
@@ -3108,7 +3108,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .trust-nudge { font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; margin: 0 0 12px; }
 .trust-nudge strong { color: var(--lav); font-weight: 600; }
 .relax-row { margin: 0 0 14px; text-align: center; }
-.relax-label { font-family: var(--font-display); font-size: 15px; color: var(--gold); font-weight: 700; letter-spacing: 0.01em; margin-bottom: 10px; text-align: center; }
+.relax-label { font-family: var(--font-display); font-size: calc(15px * var(--display-scale, 1)); color: var(--gold); font-weight: 700; letter-spacing: 0.01em; margin-bottom: 10px; text-align: center; }
 .relax-chips { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
 .relax-chip {
   width: auto; flex: 1; padding: 9px 6px; border-radius: 10px; cursor: pointer;
@@ -3189,7 +3189,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    nine themes out of ten since it was written. */
 .relax-status-track { flex: 1; height: 5px; border-radius: 99px; background: rgba(var(--border-rgb), 0.18); overflow: hidden; }
 .relax-status-fill { height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); transition: width 1s linear; }
-.relax-status-time { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; min-width: 3.5em; text-align: right; }
+.relax-status-time { font-family: var(--font-display); font-weight: 700; font-size: calc(16px * var(--display-scale, 1)); color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; min-width: 3.5em; text-align: right; }
 @keyframes relax-pulse {
   0% { box-shadow: 0 0 0 0 var(--relax-glow); }
   70% { box-shadow: 0 0 0 6px transparent; }
@@ -3243,9 +3243,28 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    data-theme, so it matches that theme's block and inherits its --font-display along
    with its palette. The picker is therefore a type specimen: you read each theme's
    name in the face you would get by choosing it. */
+/* --display-scale: one lever a theme can pull to size its display face against every
+   other theme's, because the px values above are tuned to the SET rather than to any one
+   face. Defaults to 1, so a theme that says nothing is untouched — the calc() resolves to
+   the identical value it had before this existed.
+   It is there for Werkstätte, whose Syncopate is unicase: cap height and x-height are
+   both 16.1px at 24px, so every glyph is cap-height and the face runs 68% wider and 30%
+   taller in the eye than the median of the other eleven. Per-rule overrides were the
+   alternative and would have meant twenty-one of them in one theme file, drifting the
+   first time a shared size changed. */
 .theme-name {
   font-family: var(--font-display);
   font-weight: 700;
+  /* THE PICKER OPTS OUT OF --display-scale, and it has to be said on this element rather
+     than left to the cascade. The token is an inherited custom property, so a theme that
+     scales its face scales it from :root — and every card in the picker inherits that,
+     not just the card belonging to the theme doing the scaling. Werkstätte's 0.77 took
+     all twelve labels from 20px to 15.4px the moment it was selected.
+     Declaring it here beats inheritance for every card at once. The picker is a fixed
+     specimen row: the cards are one height, the labels are meant to read as siblings,
+     and a theme's scale is a decision about the PANEL, where its face has to share a
+     column with body text. It says nothing about a card. */
+  --display-scale: 1;
   /* 20px, not 14: at label size a display face is a hint rather than a specimen,
      and the point of this picker is that you read each theme's name in the face
      you would get by choosing it.
@@ -3255,25 +3274,25 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      as ragged. Pinned, every card is the same height it was before the type grew,
      which also keeps the whole picker on one screen. Descenders overflow the line
      box (Speakeasy's y) and are absorbed by the card's padding; nothing clips. */
-  font-size: 20px;
+  font-size: calc(20px * var(--display-scale, 1));
   line-height: 1;
   letter-spacing: 0.01em;
   /* The same optical correction the balance, the pinned bar and the countdown ring take,
-     and it belongs here for the identical reason: the card centres with align-items,
-     which centres the line BOX, and each face puts its ink somewhere different inside
+     and it belongs here for the identical reason: the card centers with align-items,
+     which centers the line BOX, and each face puts its ink somewhere different inside
      that box. Reported as Art Deco and Par Avion sitting high — those two are the worst
-     in the set by a wide margin, at 2.7px and 3.0px above centre on a 20px label.
+     in the set by a wide margin, at 2.7px and 3.0px above center on a 20px label.
 
-     Measured with canvas TextMetrics against each card's own face, centring the band
+     Measured with canvas TextMetrics against each card's own face, centering the band
      from BASELINE TO CAP HEIGHT rather than the full ink box: a descender overhangs, it
-     does not shift where a word looks centred. That distinction is what makes the model
+     does not shift where a word looks centered. That distinction is what makes the model
      agree with the eye — by full-ink-box, Speakeasy's 'y' would demand 2.6px of lift
      that nobody has ever asked for, and Populuxe's 'p' another 2.9px.
 
      The token was measured on FIGURES, so it is not identical to the label's ideal, but
      it lands within a pixel of it on every face (Par Avion 0.03px, Art Deco 0.65px,
-     Bauhaus 0.9px) and every card ends up closer to centred than it is without it. One
-     exception, recorded rather than hidden: Brownstone is currently the best-centred
+     Bauhaus 0.9px) and every card ends up closer to centered than it is without it. One
+     exception, recorded rather than hidden: Brownstone is currently the best-centered
      card in the picker at 0.1px and this puts it 0.8px low. Bitter's figures and its
      caps want different corrections, and a second per-face token to buy back 0.7px on
      one card is not worth carrying. */
