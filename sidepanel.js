@@ -12015,9 +12015,21 @@
     // matters flips with direction: on one you received, it is whoever zapped you; on one
     // you sent, you are the zapper and the p tag is the recipient.
     const zap = zapFromTx(tx);
-    const zapParty = zap ? (incoming ? zap.pubkey : zap.recipient) : '';
+    // A SENT ZAP CARRIES NOTHING TO PARSE. NIP-57 step 6 has the lnurl server issue a
+    // description_hash invoice — the request is committed to, never carried — so
+    // zapFromTx finds nothing on anything we paid, and an outgoing zap used to render as
+    // a bare "Sent" or a lightning address. Sidecar signed that request seconds before
+    // the payment, so the background records who it was for; that is the only place the
+    // recipient exists on this side (#253).
+    // Only ever consulted for outgoing: an incoming zap has the real event to read, and
+    // payMeta is keyed by an invoice we paid.
+    const zapParty = zap ? (incoming ? zap.pubkey : zap.recipient) : (!incoming && meta.zapPubkey) || '';
+    // Either source makes it a zap. Note this is the recorded pubkey, so a zap sent from
+    // another client and paid by the same wallet still reads as a plain payment — there
+    // is nothing on it that says otherwise.
+    const isZap = !!zap || !!zapParty;
     const labelEl = h('div', { className: 'item-label' });
-    if (zap) {
+    if (isZap) {
       // The name may not be cached yet, and a wallet list must not wait on a relay to
       // render. Show the short key immediately and let the fetch upgrade it in place,
       // which is the same two-step the note mentions use.
@@ -12054,7 +12066,7 @@
       const note = meta.comment || (normDesc && normDesc !== counterparty ? normDesc : '');
       // For a zap the counterparty is in the event rather than in the invoice, so the
       // From/To row above would otherwise be blank on every one of them.
-      const zapWho = zap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
+      const zapWho = isZap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
       const rows = [
         txDetailRow(incoming ? 'From' : 'To', counterparty || zapWho),
         txDetailRow('Note', note, null, true),

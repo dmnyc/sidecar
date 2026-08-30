@@ -59,6 +59,12 @@
 
   const fresh = (list, t) => list.filter((z) => z && t - z.ts <= TTL_MS);
 
+  // The one predicate claim/peek/recipientFor all match on. Factored so they cannot
+  // drift: a lookup that matched more loosely than the claim would label a payment
+  // with a request that was never going to authorize it.
+  const matches = (z, host, pubkey, msat, t) =>
+    !!z && z.host === host && z.pubkey === pubkey && z.msat === msat && t - z.ts <= TTL_MS;
+
   // Remember a zap request we just signed, so the payment that follows can be tied
   // back to it. Anything we can't bind tightly is skipped rather than stored loosely —
   // the cost of skipping is a prompt, which is the safe direction.
@@ -70,9 +76,18 @@
     // NIP-57 makes `amount` optional. A record that would match ANY amount is not a
     // safeguard, so decline to store one and let the payment prompt normally.
     if (!Number.isFinite(msat) || msat <= 0) return false;
+    // WHO THE ZAP IS FOR, carried for labelling rather than for the gate. NIP-57 step 6
+    // has the lnurl server issue a description_hash invoice, so the recipient is
+    // committed to and never travels with the payment — the paying wallet has no idea
+    // who it paid, and no amount of parsing the BOLT11 recovers it. Sidecar signed this
+    // request seconds earlier and does know, so it is kept here and nowhere else.
+    // It has no bearing on whether a payment is auto-approved; matching is still
+    // host + account + exact amount + window, exactly as before.
+    const p = ev.tags.find((t2) => Array.isArray(t2) && t2[0] === 'p' && t2[1]);
+    const recipient = p ? String(p[1]) : '';
     const t = now();
     const list = fresh(await read(), t);
-    list.push({ host, pubkey, msat, ts: t });
+    list.push({ host, pubkey, msat, recipient, ts: t });
     await write(list);
     return true;
   }
@@ -86,14 +101,7 @@
     const t = now();
     const msat = Math.round(sats * 1000);
     const list = await read();
-    const i = list.findIndex(
-      (z) =>
-        z &&
-        z.host === host &&
-        z.pubkey === pubkey &&
-        z.msat === msat &&
-        t - z.ts <= TTL_MS
-    );
+    const i = list.findIndex((z) => matches(z, host, pubkey, msat, t));
     if (i < 0) return false;
     list.splice(i, 1);
     await write(fresh(list, t));
@@ -108,9 +116,28 @@
     if (sats == null || !Number.isFinite(sats)) return false;
     const t = now();
     const msat = Math.round(sats * 1000);
-    return (await read()).some(
-      (z) => z && z.host === host && z.pubkey === pubkey && z.msat === msat && t - z.ts <= TTL_MS
-    );
+    return (await read()).some((z) => matches(z, host, pubkey, msat, t));
+  }
+
+  // The recipient of the zap request behind this payment, for labelling it afterwards.
+  //
+  // DELIBERATELY NOT A CLAIM. Consuming here would spend the single-use approval that
+  // the auto-zap gate is about to need, turning every labeled zap into a prompted one —
+  // the label is a caption, and a caption must not change what the payment does.
+  // Consequently this stays true for the whole TTL, which is the right trade: it is read
+  // once per payment, and nothing downstream is a permission.
+  //
+  // Same first-match rule as claim, so the two agree on which record a payment belongs
+  // to. Two zaps of the SAME amount, from the SAME site, on the SAME account, inside the
+  // window are indistinguishable here — they already are to the gate — and the older one
+  // wins. That mislabels the rarer case rather than the common one.
+  async function recipientFor(host, pubkey, sats) {
+    if (!host || !pubkey) return '';
+    if (sats == null || !Number.isFinite(sats)) return '';
+    const t = now();
+    const msat = Math.round(sats * 1000);
+    const hit = (await read()).find((z) => matches(z, host, pubkey, msat, t));
+    return (hit && hit.recipient) || '';
   }
 
   // Drop everything — used on lock, so a locked keystore leaves no spendable approvals.
@@ -122,7 +149,7 @@
     return fresh(await read(), now());
   }
 
-  const api = { STORAGE_KEY, TTL_MS, record, claim, peek, clear, pending };
+  const api = { STORAGE_KEY, TTL_MS, record, claim, peek, recipientFor, clear, pending };
   if (typeof self !== 'undefined') self.SidecarZapRequests = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarZapRequests = api;
 })();
