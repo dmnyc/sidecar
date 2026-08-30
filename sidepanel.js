@@ -11959,6 +11959,22 @@
     return verb + npub.slice(0, 10) + '…' + npub.slice(-4);
   }
 
+  // Swap the direction arrow for the zapper's face, keeping the arrow as a corner badge.
+  // Called twice per zap — once from the cache so a warm list draws faces immediately,
+  // once when the fetch lands — so it has to be idempotent and cheap. No picture means no
+  // swap: the plain arrow disc is a better row than a wall of identical placeholders.
+  function showZapFace(iconEl, incoming, rec) {
+    if (!iconEl || !rec || !rec.picture) return;
+    if (iconEl.dataset.face === rec.picture) return;
+    iconEl.dataset.face = rec.picture;
+    iconEl.innerHTML = '';
+    iconEl.classList.add('has-av');
+    applyAvatar(iconEl, rec);
+    const dir = h('span', { className: 'tx-dir' });
+    dir.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
+    iconEl.append(dir);
+  }
+
   function txRow(tx, metaMap) {
     const incoming = tx.type === 'incoming';
     const sats = msatToSat(tx.amount);
@@ -11981,9 +11997,14 @@
       // render. Show the short key immediately and let the fetch upgrade it in place,
       // which is the same two-step the note mentions use.
       labelEl.textContent = zapLabel(incoming, zapParty, cachedProfile(zapParty));
+      showZapFace(ic, incoming, cachedProfile(zapParty));
       if (zapParty) {
         getProfile(zapParty)
-          .then((rec) => { if (rec && rec.name) labelEl.textContent = zapLabel(incoming, zapParty, rec); })
+          .then((rec) => {
+            if (!rec) return;
+            if (rec.name) labelEl.textContent = zapLabel(incoming, zapParty, rec);
+            showZapFace(ic, incoming, rec);
+          })
           .catch(() => {});
       }
     } else {
