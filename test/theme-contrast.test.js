@@ -578,6 +578,60 @@ test('both relax countdown dots are visible on every theme status bar', () => {
   assert.match(lowBody, /--relax-glow: color-mix/, 'the .low glow must follow its dot color');
 });
 
+test('the add-account plus is visible on its own disc in every theme', () => {
+  // The reported bug: the disc reads var(--purple) and the plus inside it was a hardcoded
+  // #2a1257 — Speakeasy's ink. It works where --purple is a light lavender and vanishes
+  // everywhere else; six of twelve themes had it between 1.18 and 2.20:1 against their own
+  // disc. A plus in a circle is a non-text indicator, so the floor is WCAG 1.4.11's 3.0,
+  // not 4.5.
+  //
+  // This is the third instance of one shape — a fill that is themeable with a mark on it
+  // that is not — after the relax dots above and the End discs. The pattern to look for
+  // when adding any control: if the background reads a token and the foreground is a
+  // literal, it has only been checked against whichever theme the author had open.
+  const body = rule(css, '.add-account-badge');
+  const fallback = /color:\s*var\(--add-badge-ink,\s*(#[0-9a-f]{3,6})\)/i.exec(body);
+  assert.ok(
+    fallback,
+    '.add-account-badge must read --add-badge-ink with a literal fallback, so a theme can ' +
+    'override the glyph without the shared sheet losing its default'
+  );
+
+  for (const theme of THEMES) {
+    const disc = resolve('var(--purple)', theme.vars);
+    const ink = theme.vars['--add-badge-ink']
+      ? resolve('var(--add-badge-ink)', theme.vars)
+      : fallback[1];
+    assert.ok(/^#[0-9a-f]{3,6}$/i.test(disc), `${theme.name}: disc resolved to "${disc}"`);
+    assert.ok(/^#[0-9a-f]{3,6}$/i.test(ink), `${theme.name}: glyph resolved to "${ink}"`);
+    const r = contrast(ink, disc);
+    assert.ok(
+      r >= 3.0,
+      `${theme.name}: the add-account plus (${ink}) on its disc (${disc}) is ` +
+      `${r.toFixed(2)}:1, needs >= 3.0. Set --add-badge-ink in this theme.`
+    );
+  }
+});
+
+// The disc also has a hover state, and it changes the fill out from under the glyph.
+test('the plus survives the add-account hover fill', () => {
+  const hover = rule(css, '.add-account-link:hover .add-account-badge');
+  assert.match(hover, /background:\s*var\(--lav\)/, 'hover should swap the disc to --lav');
+  const body = rule(css, '.add-account-badge');
+  const fallback = /color:\s*var\(--add-badge-ink,\s*(#[0-9a-f]{3,6})\)/i.exec(body)[1];
+  for (const theme of THEMES) {
+    const disc = resolve('var(--lav)', theme.vars);
+    const ink = theme.vars['--add-badge-ink']
+      ? resolve('var(--add-badge-ink)', theme.vars)
+      : fallback;
+    const r = contrast(ink, disc);
+    assert.ok(
+      r >= 3.0,
+      `${theme.name}: on hover the plus (${ink}) sits on --lav (${disc}) at ${r.toFixed(2)}:1`
+    );
+  }
+});
+
 test('accent pills survive a themed --gold', () => {
   // Their gradient hardcodes gold at the first and last stop with --gold in the middle,
   // so a theme that recolors --gold alone gets gold-cobalt-gold.

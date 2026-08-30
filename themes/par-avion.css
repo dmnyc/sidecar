@@ -132,6 +132,9 @@
   /* Blue takes the accent slot the dark themes fill with purple: the deep pen for the
      strong tone, the writing blue for the lighter. */
   --purple: #14304F;
+  /* The plus inside the add-account disc. Shared default is Speakeasy's ink and is
+     invisible on this theme's --purple — the letter sheet on navy, 12.84. */
+  --add-badge-ink: var(--velvet-1);
   --lav: #1B4C8C;
 
   /* Relax countdown dot. The shared default (#4ade80) is built for a dark status bar
