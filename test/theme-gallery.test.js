@@ -69,3 +69,44 @@ test('the preview document is a full panel, and the card crops it', () => {
     'theme-tile.html .preview-stage height and the .theme-preview aspect-ratio must match'
   );
 });
+
+test('no theme paints a resting border on its own gallery card', () => {
+  // THE RECURRING ONE, and it turned up in four theme files at once. A theme card at rest
+  // must fall through to the shared `border: 2px solid var(--border)` — a neutral each
+  // theme derives from its own palette, so it lightens on light themes and darkens on
+  // dark ones. The active card is the only one allowed a colored edge.
+  //
+  // What went wrong: several themes styled their own card the way they style everything
+  // else and set a colored resting border. Populuxe's was literally
+  // `border-color: var(--gold)` — the SAME token .theme-card.active uses — so it looked
+  // selected whenever it was visible. Nixie and Metropolis were near enough to do the
+  // same, and Par Avion carried its airmail border-image at rest, which is louder than
+  // any other theme's active state. In a six-card grid that is four cards claiming to be
+  // the current one.
+  //
+  // Hover and .active are exempt: both are states the user caused, and the point of the
+  // per-theme rule there is that a theme's selection color is its own.
+  const dir = path.join(ROOT, 'themes');
+  const offenders = [];
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.css'))) {
+    const text = fs.readFileSync(path.join(dir, file), 'utf8')
+      // Comments first — this suite has twice had prose match its own guard.
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    // Every rule whose selector mentions .theme-card without narrowing to a user state.
+    const rules = text.match(/[^{}]*\.theme-card[^{}]*\{[^}]*\}/g) || [];
+    for (const rule of rules) {
+      const selector = rule.slice(0, rule.indexOf('{'));
+      if (/:hover|\.active|\.selected/.test(selector)) continue;
+      // :not(.theme-card) selectors are the corner sweep excluding cards, not card rules.
+      if (/:not\(\.theme-card\)/.test(selector)) continue;
+      if (/border-color|border-image|(^|[^-])border\s*:/.test(rule.slice(rule.indexOf('{')))) {
+        offenders.push(file + ': ' + selector.trim());
+      }
+    }
+  }
+  assert.deepEqual(
+    offenders, [],
+    'these themes give their gallery card a colored border at rest, which reads as ' +
+    'selected:\n  ' + offenders.join('\n  ')
+  );
+});

@@ -654,17 +654,16 @@
    single idle rule here silently wins the tie and BOTH the hover and the selected
    states stop rendering. Cast Iron shipped exactly that bug. The band is constant
    across the three; only the paper behind it moves, plus a light ring when selected. */
+/* THE CHEVRON IS THE SELECTED STATE NOW, not the resting one. It was on all three, which
+   made this the loudest edge in a six-card grid and read as chosen even when it was not —
+   and against the preview's own framed card it doubled up, two borders deep before any
+   content. Resting is the shared neutral; hover warms the paper; choosing it franks the
+   card. The band still appears in the picker, on the card you picked. */
 [data-theme="par-avion"].theme-card {
   color: var(--text);
-  border-color: transparent;
-  background:
-    linear-gradient(180deg, var(--velvet-1), var(--velvet-1)) padding-box,
-    var(--airmail-band) border-box;
 }
 [data-theme="par-avion"].theme-card:hover {
-  background:
-    linear-gradient(180deg, var(--velvet-2), var(--velvet-2)) padding-box,
-    var(--airmail-band) border-box;
+  background: linear-gradient(180deg, var(--velvet-2), var(--velvet-2));
 }
 [data-theme="par-avion"].theme-card.active {
   border-color: transparent;

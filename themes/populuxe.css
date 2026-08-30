@@ -314,9 +314,12 @@
 
    The olive keeps its job as the ring, where a warm mid-dark next to a warm dark reads as
    a pairing rather than a confusion. */
+/* NO COLORED BORDER AT REST, and this theme is the clearest case: --gold here is the
+   very token the shared selected rule paints with, so an unchosen card wore the chosen
+   card's edge. Six abreast in the gallery that is unreadable. The border is the shared
+   neutral until chosen; hover and selected below still speak in the olive. */
 [data-theme="populuxe"].theme-card {
   color: var(--balance-ink);
-  border-color: var(--gold);
 }
 [data-theme="populuxe"].theme-card:hover {
   border-color: color-mix(in srgb, var(--gold) 78%, #1C1A17);
