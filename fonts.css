@@ -23,6 +23,7 @@
      Cast Iron   Impressed Metal    groove-outline letterforms   the stamp impression
      Par Avion   Special Elite      distressed typewriter        the typed letter
      Metropolis  Limelight          deco poster capitals         the 1927 one-sheet
+     Werkstätte  Syncopate          wide monoline poster caps    Hoffmann's Gitterwerk
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -61,7 +62,7 @@
    faces — carries a real weight axis, so a 600 head is a DRAWN 600 rather than a 400
    outline the browser thickens. Poiret One was built for this slot first and dropped on
    exactly that point: one outline, and Google's own CSS declares it at 400, so the 600
-   the heads ask for came out synthesised and lost the hairlines it was chosen for.
+   the heads ask for came out synthesized and lost the hairlines it was chosen for.
 
    The table's rule above is about two themes' DISPLAY faces reading as the same idea.
    This is a display face against a navigation face, in themes separated by palette
@@ -72,7 +73,7 @@
    Five faces ship as variable fonts — one file spanning the weight range rather than a
    static per weight. The remaining statics are Playfair Display (two woff2 weights),
    Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Apogee Telemetry,
-   Rowdies, Impressed Metal, Special Elite, and Limelight. The single-weight faces declare `400 700`, which tells
+   Rowdies, Impressed Metal, Special Elite, Limelight, and Syncopate. The single-weight faces declare `400 700`, which tells
    the browser the one outline covers that whole range, so a 700-weight heading renders
    the real face rather than a synthetic bold or a drop back to Manrope halfway down a
    screen. */
@@ -123,7 +124,7 @@
 
 /* The five per-theme display faces. The `font-weight` RANGE on each is what tells the
    browser it may interpolate across the variable axis; declaring a single value would
-   make it synthesise a fake bold instead — which is visible, and worst on the two
+   make it synthesize a fake bold instead — which is visible, and worst on the two
    lightest faces here (Josefin Sans and Cinzel). */
 @font-face {
   font-family: 'Jost';
@@ -282,4 +283,40 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/limelight.ttf') format('truetype');
+}
+
+/* Syncopate (Astigmatic, Apache 2.0 — see fonts/LICENSE-Syncopate.txt). The SECOND
+   non-OFL face here, alongside Impressed Metal; the note at the head of this file counts
+   only one because it predates this.
+
+   Werkstätte's display face: monoline, flat terminals, and very wide — the letters sit
+   apart rather than fitting together, which is what makes it read as a poster rather than
+   as a UI sans. The 700 weight ships; the file is the full 64KB TTF from google/fonts,
+   not a subset, and Ä was confirmed in its own cmap rather than assumed, because the
+   picker sets each theme's name in its own face and a display face missing one glyph
+   falls back mid-word.
+
+   IT IS UNICASE, which is the fact everything else here follows from: the lowercase are
+   small caps at cap height, so cap and x-height are both 16.1px at 24px where the other
+   eleven faces average 12.4 of x-height under a 16.9 cap. Nothing in the panel's px sizes
+   knows that, so at face value every heading arrived a third too big. That is what
+   --display-scale exists for, and why this theme sets it to 0.77 — see the token in
+   themes/werkstatte.css.
+
+   THE WIDTH HAS ONE CASE IT DOES NOT COVER, measured against the panel's text budget:
+
+     40px  21,458        160px   fits
+     40px  1,234,567     231px   fits
+     40px  0.00000000    338px   OVERFLOWS
+
+   Ordinary sat balances are fine; the 8-decimal figure is not, and it overflowed at every
+   cell size tried, so this is a property of the face rather than of the field. The fix
+   belongs at the figure — a smaller display size for the 8-decimal case, or trimming
+   trailing zeros — not at the theme. */
+@font-face {
+  font-family: 'Syncopate';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/syncopate-700.ttf') format('truetype');
 }

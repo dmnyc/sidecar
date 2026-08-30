@@ -69,7 +69,7 @@
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
     bug: '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
     // ---- activity-log kinds ----
-    // Broadcast tower for relay auth. Drawn as stroke centre-lines on the 24x24 grid
+    // Broadcast tower for relay auth. Drawn as stroke center-lines on the 24x24 grid
     // rather than imported as filled art: icon() forces viewBox="0 0 24 24" with
     // fill:none and stroke=currentColor, so a filled path renders as a hollow outline
     // of itself, in the wrong box. Apex emitter, A-frame mast with a cross-brace, and
@@ -82,10 +82,10 @@
     // unlike every stroke icon here it needs two things icon() doesn't give it:
     //   fill="currentColor" stroke="none"  — icon() sets fill:none, which would
     //     render a filled path invisible (and stroking it draws a doubled outline)
-    //   a transform into the 24x24 box   — scale 63.59 -> 21 and centre
+    //   a transform into the 24x24 box   — scale 63.59 -> 21 and center
     // Result spans x 2.34..21.66, y 1.5..22.5, matching `tower` (1.6..22) so the two
     // carry the same weight side by side in the log. Same fill="currentColor" trick
-    // the `more` and `grip` dot glyphs use, so it still follows the theme colour.
+    // the `more` and `grip` dot glyphs use, so it still follows the theme color.
     flower: '<g transform="translate(2.34 1.5) scale(0.3302)" fill="currentColor" stroke="none"><path d="M56.88,15.79c-3.15-5.5-10.05-7.56-15.71-4.71C40.66,4.48,34.9-.47,28.29.04c-5.9.45-10.6,5.14-11.05,11.05-5.96-2.89-13.14-.41-16.03,5.56-2.6,5.35-.88,11.8,4.03,15.15-5.42,3.82-6.72,11.3-2.9,16.72,3.33,4.73,9.57,6.41,14.83,3.99.51,6.61,6.27,11.55,12.88,11.05,5.9-.45,10.6-5.14,11.05-11.05,5.96,2.89,13.14.41,16.03-5.56,2.6-5.35.88-11.8-4.03-15.15,5.29-3.5,6.95-10.51,3.78-16ZM37.28,24.68c.91-3.41,3.14-6.32,6.2-8.08.91-.53,1.95-.81,3-.81,3.31,0,6,2.68,6.01,5.99,0,2.15-1.14,4.13-3.01,5.21-3.06,1.77-6.69,2.24-10.1,1.33l-2.87-.77.77-2.87ZM21.05,38.9c-.91,3.41-3.14,6.32-6.2,8.08-.91.53-1.95.81-3,.81-3.31,0-6-2.68-6.01-5.99,0-2.15,1.14-4.13,3.01-5.21,3.06-1.77,6.69-2.24,10.1-1.33l2.87.77-.77,2.87ZM18.95,28.31c-3.41.91-7.04.44-10.1-1.33-2.87-1.65-3.86-5.32-2.2-8.19,0,0,0,0,0,0,1.07-1.86,3.06-3,5.21-3,1.05,0,2.09.28,3,.81,3.06,1.76,5.29,4.67,6.2,8.08l.77,2.87-2.88.77ZM29.17,57.79c-3.31,0-6-2.69-6-6,0-3.53,1.4-6.92,3.9-9.41l2.1-2.1,2.1,2.1c2.5,2.49,3.91,5.88,3.9,9.41,0,3.31-2.69,6-6,6ZM25.17,31.79c0-2.21,1.79-4,4-4s4,1.79,4,4-1.79,4-4,4-4-1.79-4-4ZM31.27,21.2l-2.1,2.1-2.1-2.1c-2.5-2.49-3.91-5.88-3.9-9.41,0-3.31,2.69-6,6-6s6,2.69,6,6c0,3.53-1.4,6.92-3.9,9.41ZM51.69,44.79c-1.07,1.86-3.06,3-5.21,3-1.05,0-2.09-.28-3-.81-3.06-1.76-5.29-4.67-6.2-8.08l-.77-2.87,2.87-.77c3.41-.91,7.04-.44,10.1,1.33,2.87,1.65,3.86,5.32,2.2,8.19,0,0,0,0,0,0h.01Z"></path></g>',
     // Stock Feather at 24x24, stroke-width 2 (see icon()). Added so the Recent
     // activity list can distinguish what was signed instead of showing one quill
@@ -176,7 +176,7 @@
   // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
   // prompt.js (the approval window's wordmark). Three documents, no module system between
   // them; a new light theme has to be registered in all three.
-  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion']);
+  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
   function logoSrcFor(themeName) {
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.
@@ -224,7 +224,7 @@
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
@@ -4665,7 +4665,7 @@
   // chooses the destination instead of the file dropping into ~/Downloads —
   // which cloud sync clients commonly watch — by default. Falls back to a
   // plain a.download (Firefox, older Chromium). A user cancel is a quiet
-  // no-op, not an error. Returns 'saved' | 'cancelled' | 'downloaded'.
+  // no-op, not an error. Returns 'saved' | 'canceled' | 'downloaded'.
   async function saveFile(blob, filename) {
     if (typeof window.showSaveFilePicker === 'function') {
       try {
@@ -4678,7 +4678,7 @@
         await w.close();
         return 'saved';
       } catch (e) {
-        if (e && e.name === 'AbortError') return 'cancelled';
+        if (e && e.name === 'AbortError') return 'canceled';
         // Any other failure (no directory permission, picker unavailable):
         // fall back below rather than losing the download entirely.
       }
@@ -4732,7 +4732,7 @@
         fonts: ncryptsec ? await sheetFonts() : null,
       });
       const how = await saveFile(blob, window.SidecarBackupPdf.filename(npub, ncryptsec));
-      if (how === 'cancelled') return true; // changed their mind; nothing to report
+      if (how === 'canceled') return true; // changed their mind; nothing to report
       // Addresses the file rather than the printed sheet. Keeping the PDF is fine —
       // a password manager or an encrypted drive is a good home for it. What isn't
       // fine is leaving it in ~/Downloads or mailing it to yourself, so say that
@@ -5416,7 +5416,7 @@
   // reactions, a bolt for zaps.
   //
   // Anything not listed falls back to the feather via KIND_ICON_DEFAULT, so a new
-  // kind degrades to today's behaviour rather than rendering blank.
+  // kind degrades to today's behavior rather than rendering blank.
   const KIND_ICON_DEFAULT = 'feather';
   const KIND_ICONS = {
     0: 'user-check',          // profile
@@ -7887,7 +7887,7 @@
     }
 
     // Delegates to the shared countdown; the composer supplies the note preview and
-    // what to do when it fires or is cancelled.
+    // what to do when it fires or is canceled.
     function showCountdown(secs) {
       const previewScroll = h('div', { className: 'countdown-preview' });
       const previewBody = h('div', { className: 'preview-body' });
@@ -9830,7 +9830,7 @@
     const statuses = new Map();
     // "Backed up" and when, on two lines: the status column is narrow, and a
     // gold "Backed up · 2 days ago" ran into the buttons on exactly the rows
-    // that had both. The when is furniture, not the signal — grey, below. The
+    // that had both. The when is furniture, not the signal — gray, below. The
     // check mirrors the wallet badge, so "Backed up" reads the same everywhere.
     const setBackedUp = (status, when) => {
       status.textContent = '';
@@ -10548,7 +10548,7 @@
 
   // Build a figure one glyph at a time, so the active theme can style and animate
   // it in its own idiom — a nixie tube striking, a projector flickering, a
-  // split-flap board turning over, a comma held in the theme's second colour.
+  // split-flap board turning over, a comma held in the theme's second color.
   // All of that lives in the theme file; this code stays ignorant of which theme
   // is active and just publishes what it knows about each glyph:
   //
@@ -10567,9 +10567,9 @@
   //               animating used to be the same decision, which meant any
   //               per-glyph STYLING vanished on a repaint that did not animate —
   //               a denomination toggle, or Reduce motion — and a permanently
-  //               coloured comma would have flickered in and out of existence.
+  //               colored comma would have flickered in and out of existence.
   //   --i / --n   this glyph's index and the total. Enough for a stagger, a
-  //               centre-out reveal, or alternating directions.
+  //               center-out reveal, or alternating directions.
   //
   //               EVERY THEME'S STAGGER IS A WINDOW, NOT A STEP, and --n is what
   //               makes that expressible:
@@ -12342,7 +12342,7 @@
           card.textContent = '';
           card.classList.remove('checking');
           card.classList.add('failed');
-          // Last line of defence. Every throw above is written to be read aloud,
+          // Last line of defense. Every throw above is written to be read aloud,
           // but anything unforeseen (a parser, a platform error) would arrive
           // here as jargon, and jargon in a payment dialog reads as a fault in
           // Sidecar rather than a fact about the address.
