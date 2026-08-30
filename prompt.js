@@ -36,8 +36,37 @@
     autozapOfferLabel: $('autozap-offer-label'),
   };
 
-  function send(message) {
-    return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+  // Same transport, same reason as sidepanel.js — see the long note on bg() there (#224).
+  // A promise with no reject path plus an MV3 worker that dies at ~30s idle means a
+  // request caught by the teardown never settles.
+  //
+  // It matters more here than in the panel. This window IS the approval: if a send hangs,
+  // the prompt sits there looking like it is thinking while the site waits on a decision
+  // that will never arrive. Rejecting at least lets the surface say so.
+  const SEND_TIMEOUT_MS = 30000;
+  function send(message, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn, arg) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn(arg);
+      };
+      const timer = setTimeout(
+        () => finish(reject, new Error('Sidecar’s background worker did not respond.')),
+        timeoutMs || SEND_TIMEOUT_MS
+      );
+      try {
+        chrome.runtime.sendMessage(message, (resp) => {
+          const err = chrome.runtime.lastError;
+          if (err) return finish(reject, new Error(err.message || 'Sidecar’s background worker is unavailable.'));
+          finish(resolve, resp);
+        });
+      } catch (e) {
+        finish(reject, e instanceof Error ? e : new Error(String(e)));
+      }
+    });
   }
 
   // Whether the one-time multi-account "Heads up!" explainer has been dismissed
@@ -370,6 +399,8 @@
     );
   }
 
+  // init() is fire-and-forget at the bottom of this file, so anything it throws would be
+  // an unhandled rejection in a window whose entire job is to show the user something.
   async function init() {
     const resp = await send({ type: 'SIDECAR_GET_PROMPT_DATA', id: promptId });
     if (!resp || !resp.ok) {
@@ -772,7 +803,16 @@
         return;
       }
       // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
-      const unlocked = await send({ type: 'SIDECAR_UNLOCK', pin });
+      let unlocked;
+      try {
+        unlocked = await send({ type: 'SIDECAR_UNLOCK', pin });
+      } catch (e) {
+        // Distinct from a wrong PIN, and it must not read as one — a transport failure
+        // spends none of the attempts, and telling someone their PIN was wrong when it
+        // was not is how they burn the ones they have.
+        els.pinError.textContent = (e && e.message) || 'Could not reach Sidecar. Try again.';
+        return;
+      }
       const st = unlocked && unlocked.ok && unlocked.result;
       if (!st || st.status !== 'ok') {
         els.pinError.textContent =
@@ -818,11 +858,25 @@
       extra = Object.assign({}, extra, { switchToPubkey: chosenPubkey });
     }
 
-    els.allow.disabled = true;
-    els.trust.disabled = true;
-    els.reject.disabled = true;
-    els.relaxRow.querySelectorAll('.relax-chip').forEach((c) => (c.disabled = true));
-    await send({ type: 'SIDECAR_PROMPT_RESULT', id: promptId, action, extra });
+    const chips = els.relaxRow.querySelectorAll('.relax-chip');
+    const setDisabled = (v) => {
+      els.allow.disabled = v;
+      els.trust.disabled = v;
+      els.reject.disabled = v;
+      chips.forEach((c) => (c.disabled = v));
+    };
+    setDisabled(true);
+    try {
+      await send({ type: 'SIDECAR_PROMPT_RESULT', id: promptId, action, extra });
+    } catch (e) {
+      // THE WORST STATE THIS WINDOW CAN BE IN. The buttons are disabled before the send,
+      // so a transport that never settles left an approval the user could neither allow
+      // nor reject, on a site waiting for an answer. Now that the send can fail, give the
+      // controls back and say so — the decision is still theirs to make.
+      setDisabled(false);
+      els.error.textContent = (e && e.message) || 'Could not send your decision. Try again.';
+      return;
+    }
     // Background either navigates this window to the next queued request or closes it.
   }
 
@@ -836,5 +890,14 @@
       if (e.key === 'Enter' && !els.allow.disabled) decide('once');
     });
 
-  init();
+  init().catch((e) => {
+    // A blank approval window is indistinguishable from a hung one. Say what happened and
+    // leave a way out — the site's request is unaffected either way; it stays pending
+    // until this window answers or closes.
+    try {
+      els.error.textContent = (e && e.message) || 'Sidecar could not load this request.';
+      els.reject.textContent = 'Close';
+      els.reject.disabled = false;
+    } catch (_) {}
+  });
 })();
