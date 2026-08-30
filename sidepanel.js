@@ -9431,17 +9431,28 @@
     const err = h('div', { className: 'error' });
     const publishBtn = h('button', { className: 'primary', textContent: 'Publish relay list' });
 
+    // MANUAL, NEVER ON RENDER. Probing opens a socket to every relay in the list; doing
+    // that on each repaint would hammer them for nothing and make the panel's presence
+    // legible to anyone watching. It runs when asked and the answers are kept for the
+    // session.
+    const checkBtn = h('button', { className: 'secondary nip65-check', textContent: 'Check relay health' });
+
     setting.append(
       status,
       list,
       warn,
       h('div', { className: 'row-actions' }, [addInput, addBtn]),
       err,
+      h('div', { className: 'actions nip65-check-row' }, [checkBtn]),
       h('div', { className: 'actions nip65-publish' }, [publishBtn])
     );
     view.append(setting);
 
     let relayList = [];
+    // url -> result | 'checking'. Session-lived and keyed by URL rather than by index so
+    // it survives adds, removes and reorders — the row a verdict belongs to is the one
+    // with that URL, not the one that was third when the probe started.
+    const health = new Map();
 
     function updateWarn() {
       // ws:// first: it's the one of these three that leaks plaintext to the network,
@@ -9457,6 +9468,67 @@
         warn.textContent = '';
       }
     }
+
+    // WORD PLUS COLOR, never color alone (WCAG 1.4.1) — and the word carries the whole
+    // verdict, so a theme that renders the dot poorly still leaves the row readable.
+    const VERDICT_TEXT = {
+      healthy: 'Healthy',
+      gated: 'Gated',
+      'auth-gated': 'Needs login',
+      'not-serving': 'Not answering',
+      down: 'Unreachable',
+    };
+    function healthLine(url) {
+      const r = health.get(url);
+      if (!r) return null;
+      const line = h('div', { className: 'nip65-health' });
+      if (r === 'checking') {
+        line.classList.add('checking');
+        line.append(h('span', { className: 'nip65-dot' }), document.createTextNode('Checking…'));
+        return line;
+      }
+      line.classList.add('v-' + r.verdict);
+      const bits = [VERDICT_TEXT[r.verdict] || r.verdict];
+      if (r.verdict === 'healthy' && r.probe && r.probe.connectMs != null) bits.push(r.probe.connectMs + 'ms');
+      // The keep-or-drop signal, and the one no client shows: up, serving, and holding
+      // nothing of yours. Only stated when the probe actually asked for this account.
+      if (r.probe && r.probe.served && r.probe.hasAuthorData === false) bits.push('no notes here');
+      // "Writes unknown" rather than silence: NIP-11 not answering is not evidence that
+      // posting works, and this screen exists to decide whether to keep a relay.
+      if (r.verdict === 'healthy' && r.writeKnown === false) bits.push('writes unverified');
+      if (r.why) bits.push(r.why);
+      line.append(h('span', { className: 'nip65-dot' }), document.createTextNode(bits.join(' · ')));
+      return line;
+    }
+
+    async function runHealthCheck() {
+      const RH = self.SidecarRelayHealth;
+      const urls = relayList.map((r) => r.url);
+      if (!RH || !urls.length) return;
+      checkBtn.disabled = true;
+      checkBtn.textContent = 'Checking…';
+      urls.forEach((u) => health.set(u, 'checking'));
+      renderRows();
+      try {
+        // The active account's key, so "no notes here" means THIS account rather than
+        // "the relay is empty". Without one the probe still works, it just cannot answer
+        // that question.
+        await RH.audit(urls, state.activePubkey || null, {
+          onResult: (res) => {
+            health.set(res.url, res);
+            renderRows(); // rows settle one at a time rather than after the slowest
+          },
+        });
+      } catch (_) {
+        // A probe that throws must not leave every row saying "Checking…" forever.
+        urls.forEach((u) => { if (health.get(u) === 'checking') health.delete(u); });
+        renderRows();
+      } finally {
+        checkBtn.disabled = false;
+        checkBtn.textContent = 'Check relay health';
+      }
+    }
+    checkBtn.addEventListener('click', runHealthCheck);
 
     function renderRows() {
       if (!relayList.length) {
@@ -9489,6 +9561,11 @@
             rm,
           ]),
         ]);
+        // ITS OWN LINE, not squeezed alongside the URL. .nip65-url is break-all and wraps
+        // to as many lines as it needs, so a glyph and a latency sharing that line would
+        // interleave with the wrap. Stacking is the panel's answer to a narrow column.
+        const hEl = healthLine(r.url);
+        if (hEl) row.insertBefore(hEl, row.lastChild);
         list.append(row);
       });
       updateWarn();
