@@ -1000,9 +1000,22 @@
       '<button class="stopwait" type="button">Stop waiting</button>' +
       (offerRow ||
         '') +
-      '<label class="tg"><span class="tg-label">Don\'t show this prompt again</span>' +
-      '<input class="tg-input tg-showcard-input" type="checkbox">' +
-      '<span class="tg-track"><span class="tg-thumb"></span></span></label>' +
+      // MANUAL CARDS ONLY, and not for tidiness — on an auto card this toggle disabled a
+      // different feature than the one it named (#208). It writes showPayButton: false,
+      // which gates the manual scan-and-show path below and nothing else; the auto card
+      // is rendered straight off the worker's `autopaying` event and never consults the
+      // setting. So ticking it on an auto-zap receipt kept every future auto-zap card
+      // coming and silently removed the manual "Pay with Sidecar" card the user had not
+      // touched.
+      // It is redundant here as well: an auto card is a receipt for a spend already on
+      // its way, shown precisely because money moving with nothing on screen is the wrong
+      // trade (background.js). Offering to hide it argues with the feature it reports.
+      // Same !auto shape the Auto Zaps offer row above already uses.
+      (auto
+        ? ''
+        : '<label class="tg"><span class="tg-label">Don\'t show this prompt again</span>' +
+          '<input class="tg-input tg-showcard-input" type="checkbox">' +
+          '<span class="tg-track"><span class="tg-thumb"></span></span></label>') +
       '</div></div>';
 
     const ov = s.querySelector('.ov');
@@ -1114,8 +1127,10 @@
       if (e.target === ov) dismiss();
     });
     // Target the show-card toggle specifically: `.tg-input` alone would match the
-    // Auto Zaps checkbox, which renders above it.
-    s.querySelector('.tg-showcard-input').addEventListener('change', (e) => {
+    // Auto Zaps checkbox, which renders above it. Absent entirely on an auto card, so
+    // this is optional-chained rather than assumed — without the guard, suppressing the
+    // row would throw here and take the whole card's wiring down with it.
+    s.querySelector('.tg-showcard-input')?.addEventListener('change', (e) => {
       // Inverted from "Show this automatically" (on by default) to "Don't show this
       // prompt again" (off by default). Same stored setting, same outcome — now it's
       // ticking the box that hides the card, not unticking it.

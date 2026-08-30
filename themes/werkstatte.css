@@ -296,6 +296,8 @@
 [data-theme="werkstatte"] .ac-spinner:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .recv-spinner:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .tx-icon:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .tx-icon.has-av img:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .tx-dir:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .recv-check:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .relax-status-dot:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .sk-avatar:not(.theme-card):not(.theme-card *),

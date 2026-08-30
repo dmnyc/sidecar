@@ -11848,10 +11848,69 @@
     loadPage();
   }
 
+  // A ZAP'S DESCRIPTION IS A WHOLE NOSTR EVENT. NIP-57 has the wallet store the kind 9734
+  // zap request verbatim in the invoice description, so tx.description arrives as a
+  // stringified event object rather than as anything a human wrote. Pulled apart here so
+  // the wallet can say who zapped and what they said instead of printing the JSON (#243).
+  //
+  // Returns null for everything else, including the text/plain array shape some wallets
+  // send — that stays normalizeDescription's job. Kept pure and DOM-free so it can be
+  // lifted into a vm the way normalizeDescription already is.
+  function parseZapRequest(desc) {
+    if (desc == null) return null;
+    let ev = desc;
+    if (typeof ev === 'string') {
+      // A cheap reject before the parse: descriptions are mostly short human strings and
+      // JSON.parse on every transaction's note is wasted work.
+      const t = ev.trim();
+      if (t.charAt(0) !== '{') return null;
+      try { ev = JSON.parse(t); } catch (_) { return null; }
+    }
+    // Wallets that put the event in `metadata` hand it over already parsed, so an object
+    // is as valid an input here as a string.
+    if (!ev || typeof ev !== 'object' || ev.kind !== 9734) return null;
+    const tags = Array.isArray(ev.tags) ? ev.tags : [];
+    const tag = (name) => {
+      const hit = tags.find((x) => Array.isArray(x) && x[0] === name && x[1]);
+      return hit ? String(hit[1]) : '';
+    };
+    return {
+      // The zapper. On an incoming zap this is who sent it; on one you sent it is you,
+      // and the interesting party is the p tag instead.
+      pubkey: typeof ev.pubkey === 'string' ? ev.pubkey : '',
+      recipient: tag('p'),
+      eventId: tag('e'),
+      content: typeof ev.content === 'string' ? ev.content.trim() : '',
+    };
+  }
+
+  // WHERE THE ZAP REQUEST ACTUALLY LIVES VARIES BY WALLET, which is the whole reason this
+  // is a search rather than a field read. NIP-57 says the 9734 goes in the invoice
+  // description, and some wallets do exactly that; NIP-47 also allows a `metadata` object
+  // on a transaction, and others put it there under `nostr` or `zap_request`. A third
+  // group sends only the comment the zapper typed and keeps the event to itself — for
+  // those there is no pubkey anywhere in the payload and no name can be shown, which is a
+  // limit of the wallet rather than something to work around.
+  function zapFromTx(tx) {
+    if (!tx) return null;
+    const m = tx.metadata;
+    const candidates = [tx.description, m, m && m.nostr, m && m.zap_request, m && m.zapRequest];
+    for (const c of candidates) {
+      const zap = parseZapRequest(c);
+      if (zap) return zap;
+    }
+    return null;
+  }
+
   function normalizeDescription(desc) {
     if (desc == null) return '';
     let val = desc;
     if (typeof val === 'string') {
+      // A zap request reduces to whatever the zapper actually typed, which is usually an
+      // emoji, sometimes a sentence, and often nothing. Empty is correct and lets the
+      // caller fall back rather than printing an event.
+      const zap = parseZapRequest(val);
+      if (zap) return zap.content;
       try {
         const parsed = JSON.parse(val);
         if (Array.isArray(parsed)) val = parsed;
@@ -11888,6 +11947,34 @@
     ]);
   }
 
+  // "Zap from alice" once the profile lands, "Zap from npub1abcd…wxyz" until it does, and
+  // just "Zap" when the event carried no usable key. Never the raw hex, which is 64
+  // characters of noise in a 328px row.
+  function zapLabel(incoming, pubkey, rec) {
+    const verb = incoming ? 'Zap from ' : 'Zap to ';
+    if (rec && rec.name) return verb + rec.name;
+    if (!pubkey) return 'Zap';
+    let npub = '';
+    try { npub = NT.nip19.npubEncode(pubkey); } catch (_) { return 'Zap'; }
+    return verb + npub.slice(0, 10) + '…' + npub.slice(-4);
+  }
+
+  // Swap the direction arrow for the zapper's face, keeping the arrow as a corner badge.
+  // Called twice per zap — once from the cache so a warm list draws faces immediately,
+  // once when the fetch lands — so it has to be idempotent and cheap. No picture means no
+  // swap: the plain arrow disc is a better row than a wall of identical placeholders.
+  function showZapFace(iconEl, incoming, rec) {
+    if (!iconEl || !rec || !rec.picture) return;
+    if (iconEl.dataset.face === rec.picture) return;
+    iconEl.dataset.face = rec.picture;
+    iconEl.innerHTML = '';
+    iconEl.classList.add('has-av');
+    applyAvatar(iconEl, rec);
+    const dir = h('span', { className: 'tx-dir' });
+    dir.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
+    iconEl.append(dir);
+  }
+
   function txRow(tx, metaMap) {
     const incoming = tx.type === 'incoming';
     const sats = msatToSat(tx.amount);
@@ -11898,9 +11985,33 @@
     if (tx.payment_hash) row.dataset.ph = tx.payment_hash;
     const ic = h('span', { className: 'tx-icon ' + (incoming ? 'in' : 'out') });
     ic.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
-    const label = counterparty || normalizeDescription(tx.description) || (incoming ? 'Received' : 'Sent');
+    // A zap names the other party in the description itself, which nothing else here does
+    // — so it gets its own label rather than the generic Received/Sent. The party that
+    // matters flips with direction: on one you received, it is whoever zapped you; on one
+    // you sent, you are the zapper and the p tag is the recipient.
+    const zap = zapFromTx(tx);
+    const zapParty = zap ? (incoming ? zap.pubkey : zap.recipient) : '';
+    const labelEl = h('div', { className: 'item-label' });
+    if (zap) {
+      // The name may not be cached yet, and a wallet list must not wait on a relay to
+      // render. Show the short key immediately and let the fetch upgrade it in place,
+      // which is the same two-step the note mentions use.
+      labelEl.textContent = zapLabel(incoming, zapParty, cachedProfile(zapParty));
+      showZapFace(ic, incoming, cachedProfile(zapParty));
+      if (zapParty) {
+        getProfile(zapParty)
+          .then((rec) => {
+            if (!rec) return;
+            if (rec.name) labelEl.textContent = zapLabel(incoming, zapParty, rec);
+            showZapFace(ic, incoming, rec);
+          })
+          .catch(() => {});
+      }
+    } else {
+      labelEl.textContent = counterparty || normalizeDescription(tx.description) || (incoming ? 'Received' : 'Sent');
+    }
     const main = h('div', { className: 'item-main' }, [
-      h('div', { className: 'item-label', textContent: label }),
+      labelEl,
       h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : 'pending' }),
     ]);
     const amt = h('div', { className: 'tx-amt ' + (incoming ? 'in' : 'out'), textContent: (incoming ? '+' : '−') + fmtSats(sats) });
@@ -11916,8 +12027,11 @@
       const when = tx.settled_at || tx.created_at;
       const normDesc = normalizeDescription(tx.description);
       const note = meta.comment || (normDesc && normDesc !== counterparty ? normDesc : '');
+      // For a zap the counterparty is in the event rather than in the invoice, so the
+      // From/To row above would otherwise be blank on every one of them.
+      const zapWho = zap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
       const rows = [
-        txDetailRow(incoming ? 'From' : 'To', counterparty),
+        txDetailRow(incoming ? 'From' : 'To', counterparty || zapWho),
         txDetailRow('Note', note, null, true),
         txDetailRow('Amount', satsLabel(sats)),
         incoming ? null : txDetailRow('Fee', fmtFeeMsat(fee)),
@@ -12194,12 +12308,19 @@
     return wrap;
   }
 
+  // NOT MASKED BY hideBalances, and that is the point rather than an oversight. The mask
+  // exists so a glance at the screen does not reveal what you HOLD. A budget is not a
+  // holding: it is a cap you set for one site, and both halves of "400 of 1,000 sats left
+  // today" are numbers you chose. Masking them protects nothing and costs the row its
+  // only job — this list exists to be read before you revoke something, and "•••• of
+  // ••••" cannot be read. The amounts either side of it, the balance and the transaction
+  // figures, stay masked.
   function budgetRow(host, b) {
     const row = h('div', { className: 'item' });
     const sub = h('div', { className: 'item-sub' }, [
-      h('span', { className: 'amt-hide', textContent: fmtSats(b.remainingSats) }),
+      h('span', { textContent: fmtSats(b.remainingSats) }),
       document.createTextNode(' of '),
-      h('span', { className: 'amt-hide', textContent: fmtSats(b.budgetSats) }),
+      h('span', { textContent: fmtSats(b.budgetSats) }),
       document.createTextNode(' sats left today'),
     ]);
     const main = h('div', { className: 'item-main' }, [
