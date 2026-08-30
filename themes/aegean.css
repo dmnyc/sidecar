@@ -68,6 +68,9 @@
   /* Cobalt takes the accent slot the dark themes fill with purple: deep sea for the
      strong tone, door-blue for the lighter. 6.77:1 and 5.40:1 on the ground. */
   --purple: #0B57A4;
+  /* The plus inside the add-account disc. Shared default is Speakeasy's ink and is
+     invisible on this theme's --purple — white on the cobalt disc, 7.21. */
+  --add-badge-ink: #FFFFFF;
   --lav: #1565C0;
   /* Relax countdown dot. The shared default (#4ade80) measured 1.74:1 on this whitewash;
      --success (#4F6B3A) was the first fix and read as muddy — darker than it needs to be,

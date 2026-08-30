@@ -97,6 +97,9 @@
      Contrast held at the previous levels so nothing else needed retuning:
      purple was 6.27:1 on the eggshell, now 6.31; lav was 4.93:1, now 5.28. */
   --purple: #6E4E14;
+  /* The plus inside the add-account disc. Shared default is Speakeasy's ink and is
+     invisible on this theme's --purple — the theme's own eggshell on bronze, 5.59. */
+  --add-badge-ink: var(--velvet-1);
   --lav: #7A5A18;
   /* Relax countdown dot — 1.28:1 and 1.55:1 against this cream with the shared defaults,
      the worst of any theme. --warn is this palette's burnt amber, so the traffic-light

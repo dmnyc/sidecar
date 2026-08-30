@@ -168,6 +168,9 @@
   /* Teal takes the accent slot the dark themes fill with purple. The pattern's #006774
      at 5.53 worst surface, and its darker step for the pressed/deep tone. */
   --purple: #00505A;
+  /* The plus inside the add-account disc. Shared default is Speakeasy's ink and is
+     invisible on this theme's --purple — white on the teal disc, 9.15. */
+  --add-badge-ink: #FFFFFF;
   --lav: #006774;
 
   /* Relax countdown dot. The shared default (#4ade80) is built for a dark status bar and

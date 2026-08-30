@@ -112,6 +112,9 @@
   --fiat-sym-opacity: 1;
 
   --purple: #2C3038;
+  /* The plus inside the add-account disc. Shared default is Speakeasy's ink and is
+     invisible on this theme's --purple — the sheet on charcoal, 12.77. */
+  --add-badge-ink: var(--chip-ink);
   --lav: #3F3A22;
 
   --relax-dot-ok: #2F6B3A;

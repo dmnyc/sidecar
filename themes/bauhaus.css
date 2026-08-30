@@ -145,6 +145,9 @@
   /* Blue takes the accent slot the dark themes fill with purple. 5.00:1 as ink on the
      ground for the lighter tone, 7.22:1 for the deeper one. */
   --purple: #0043C8;
+  /* The plus inside the add-account disc. Shared default is Speakeasy's ink and is
+     invisible on this theme's --purple — white on the blue disc, 7.96. */
+  --add-badge-ink: #FFFFFF;
   --lav: #0057FF;
 
   /* Relax countdown dot. The shared default (#4ade80) measured 1.74:1 on this white
