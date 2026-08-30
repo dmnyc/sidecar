@@ -17,8 +17,53 @@
   const AUTOZAP_ABS_DAILY_MAX = 100000;
 
   // ---- messaging ----
-  function bg(message) {
-    return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+  // THE TRANSPORT HAS TO BE ABLE TO FAIL. It could not (#224).
+  //
+  // The old body was `new Promise((resolve) => chrome.runtime.sendMessage(message,
+  // resolve))` — no reject anywhere in it, so the promise had exactly one way to finish:
+  // Chrome invoking the callback. Under MV3 the service worker is killed at ~30s idle,
+  // and a worker torn down MID-REQUEST never invokes it. The promise then stayed pending
+  // forever and every `await call(...)` behind it hung silently — no timeout, no error,
+  // no log. That is the wallet wedging: blank tab, panel reload no help, fixed only by
+  // switching accounts, which re-enters through a different path after the worker wakes.
+  //
+  // A clean send failure was barely better: the callback got undefined, lastError went
+  // unread (Chrome logs "Unchecked runtime.lastError" that nobody sees), and call() threw
+  // a generic 'Request failed' naming no step.
+  //
+  // 30 SECONDS, and generous on purpose. The bug is "never fires", so ANY finite timeout
+  // catches it — there is nothing to gain by being aggressive and a real regression to
+  // risk. Nothing the panel sends runs long: the slowest are PBKDF2 at 600k rounds
+  // (seconds, and only on unlock/init/PIN change) and SIDECAR_FETCH_OG, which carries its
+  // own 8s abort in the worker. Payments do NOT come through here — the panel holds its
+  // own NWC client and calls payInvoice directly — so this cannot cut one short.
+  const BG_TIMEOUT_MS = 30000;
+  function bg(message, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn, arg) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn(arg);
+      };
+      const timer = setTimeout(
+        () => finish(reject, new Error('Sidecar’s background worker did not respond.')),
+        timeoutMs || BG_TIMEOUT_MS
+      );
+      try {
+        chrome.runtime.sendMessage(message, (resp) => {
+          // Read INSIDE the callback and before anything else: this is what marks the
+          // error as handled, and it is only readable here.
+          const err = chrome.runtime.lastError;
+          if (err) return finish(reject, new Error(err.message || 'Sidecar’s background worker is unavailable.'));
+          finish(resolve, resp);
+        });
+      } catch (e) {
+        // sendMessage throws synchronously if the extension context is gone.
+        finish(reject, e instanceof Error ? e : new Error(String(e)));
+      }
+    });
   }
   async function call(message) {
     const resp = await bg(message);
@@ -11295,7 +11340,33 @@
       view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
       return;
     }
-    const { has } = await call({ type: 'SIDECAR_HAS_NWC' });
+    // A DELAYED placeholder, not an immediate one. renderWallet runs often — a tab
+    // switch, a zap landing, a manual refresh — and painting a spinner on every one
+    // would flash on the fast path, which is nearly all of them. 400ms is long enough
+    // that a normal render never shows it, short enough that a stalled one stops looking
+    // like a dead panel.
+    //
+    // Something has to be painted before the first await at all, which is the other half
+    // of #224: everything above here only handles the no-account case, so on a fresh
+    // panel a hung await left the tab exactly as it found it — empty, with no spinner and
+    // no error to say why.
+    const slow = setTimeout(() => {
+      if (seq !== walletRenderSeq) return;
+      view.innerHTML = '';
+      view.append(h('p', { className: 'hint', textContent: 'Loading wallet…' }));
+    }, 400);
+
+    let has;
+    try {
+      ({ has } = await call({ type: 'SIDECAR_HAS_NWC' }));
+    } catch (e) {
+      if (seq !== walletRenderSeq) return;
+      walletLoadFailed(view, e);
+      return;
+    } finally {
+      clearTimeout(slow);
+    }
+
     // Bail if another renderWallet() started during the await — otherwise both
     // would clear + append a card, leaving two overlapping sticky cards.
     if (seq !== walletRenderSeq) return;
@@ -11306,7 +11377,36 @@
       renderWalletConnect(view);
       return;
     }
-    renderWalletConnected(view);
+    // Guarded for the same reason: it is async and not awaited, so anything it throws
+    // would abort the render as an unhandled rejection and leave the tab blank — the
+    // exact symptom, reached by a different road.
+    try {
+      const p = renderWalletConnected(view);
+      if (p && typeof p.catch === 'function') {
+        p.catch((e) => { if (seq === walletRenderSeq) walletLoadFailed(view, e); });
+      }
+    } catch (e) {
+      walletLoadFailed(view, e);
+    }
+  }
+
+  // The tab must never be blank and silent. Whatever went wrong, say so and offer the
+  // one action that helps — the old behavior offered neither, so the only recovery
+  // anyone found was switching accounts and back.
+  function walletLoadFailed(view, e) {
+    view.innerHTML = '';
+    view.append(
+      h('p', {
+        className: 'hint',
+        textContent: (e && e.message) || 'Could not load your wallet.',
+      })
+    );
+    const retry = h('button', { className: 'secondary', textContent: 'Try again' });
+    retry.addEventListener('click', () => {
+      forgetBalancePaint('wallet');
+      renderWallet();
+    });
+    view.append(h('div', { className: 'actions' }, [retry]));
   }
 
   // ---- Rizful quick start ----------------------------------------------------
