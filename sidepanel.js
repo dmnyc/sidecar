@@ -72,6 +72,103 @@
   }
 
   const $ = (id) => document.getElementById(id);
+
+  // ---- period quotes: what stands in where there is nothing ------------------------
+  //
+  // Empty states and the ends of lists, rather than a blank panel or a bare "nothing
+  // here". All early twentieth century, to sit with the periods the themes draw on.
+  //
+  // CURATED, NOT VENDORED, and that is a licensing decision more than a taste one. The
+  // open quote corpora are not usable here: JamesFT/Database-Quotes-JSON and
+  // Quotes-500K carry no license at all, and the two MIT ones license their CODE —
+  // wickedQuotes parses Wikiquote, whose text is CC BY-SA, and quotable documents
+  // nothing about where its quotations came from. The WORKS below are a different
+  // matter: all published 1930 or earlier, which is the US public-domain line as of
+  // 2026 (95 years), and long out of copyright. Short
+  // attributed quotation would be fair use regardless. Twenty lines we can vouch for
+  // beat a megabyte we cannot.
+  //
+  // Kept short on purpose: this is a 360px panel that can be dragged narrower, and a
+  // quote running to six lines stops being an ornament and becomes a wall.
+  //
+  // THIS LIST GROWS. Daniel's standing practice (2026-08-30): add one or two every
+  // release, so someone who has had Sidecar a year keeps meeting lines they have not seen
+  // before. It is a small, pleasant thing to do at release time rather than a backlog
+  // item. The bar for a new entry is the bar the tests already enforce — published 1930
+  // or earlier, an attribution ending in a year, under 140 characters — plus one thing
+  // they cannot check: that the wording is actually right. Verify against a real edition
+  // rather than a quote site, and prefer a writer not already on the list.
+  const PERIOD_QUOTES = [
+    { text: 'A book must be the axe for the frozen sea within us.', who: 'Franz Kafka, 1904' },
+    { text: 'Be patient toward all that is unsolved in your heart.', who: 'Rainer Maria Rilke, 1903' },
+    { text: 'Only connect.', who: 'E. M. Forster, 1910' },
+    { text: 'Whereof one cannot speak, thereof one must be silent.', who: 'Ludwig Wittgenstein, 1921' },
+    { text: 'I have measured out my life with coffee spoons.', who: 'T. S. Eliot, 1915' },
+    { text: 'The real voyage of discovery consists not in seeking new landscapes, but in having new eyes.', who: 'Marcel Proust, 1923' },
+    { text: 'A rose is a rose is a rose.', who: 'Gertrude Stein, 1922' },
+    { text: 'The best way out is always through.', who: 'Robert Frost, 1914' },
+    { text: 'Your daily life is your temple and your religion.', who: 'Kahlil Gibran, 1923' },
+    { text: 'A woman must have money and a room of her own if she is to write fiction.', who: 'Virginia Woolf, 1929' },
+    { text: 'The best lack all conviction, while the worst are full of passionate intensity.', who: 'W. B. Yeats, 1920' },
+    { text: 'Welcome, O life! I go to encounter for the millionth time the reality of experience.', who: 'James Joyce, 1916' },
+    { text: 'If you shut the door to all errors, truth will be shut out.', who: 'Rabindranath Tagore, 1916' },
+    { text: 'Angels can fly because they can take themselves lightly.', who: 'G. K. Chesterton, 1908' },
+    { text: 'There are two ways of spreading light: to be the candle or the mirror that reflects it.', who: 'Edith Wharton, 1902' },
+    { text: 'Let be be finale of seem.', who: 'Wallace Stevens, 1923' },
+    { text: 'All books are either dreams or swords.', who: 'Amy Lowell, 1914' },
+    { text: 'Hold fast to dreams, for if dreams die, life is a broken-winged bird that cannot fly.', who: 'Langston Hughes, 1926' },
+    { text: 'Rivers know this: there is no hurry. We shall get there some day.', who: 'A. A. Milne, 1928' },
+    { text: 'Risk anything! Care no more for the opinions of others.', who: 'Katherine Mansfield, 1927' },
+    {
+      text: 'There are only two or three human stories, and they go on repeating themselves as fiercely as if they had never happened before.',
+      who: 'Willa Cather, 1913',
+    },
+  ];
+
+  // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
+  // — at this length that is a one-in-twenty-one chance every time — and two panels showing the
+  // same line at once reads as a bug rather than as a coincidence, which is exactly how
+  // it was reported. Remembering the last index costs nothing and removes the case
+  // entirely for adjacent views.
+  let _lastQuote = -1;
+  function pickQuote() {
+    if (PERIOD_QUOTES.length < 2) return PERIOD_QUOTES[0];
+    let i = _lastQuote;
+    while (i === _lastQuote) i = Math.floor(Math.random() * PERIOD_QUOTES.length);
+    _lastQuote = i;
+    return PERIOD_QUOTES[i];
+  }
+
+  // The full stand-in: a quote, its attribution, and one line saying how the space gets
+  // filled. `hint` is what the user can DO — the quote is the furniture, not the answer.
+  //
+  // `q` lets a caller hand in a quote instead of drawing one, which is how a panel keeps
+  // the SAME line as its content changes underneath it. Reported: the bell opened empty,
+  // a notification landed a moment later, and the quote was swapped for a different one
+  // at the bottom of the list before it had been read. A quote you cannot finish reading
+  // is worse than no quote.
+  function emptyQuote(hint, q) {
+    q = q || pickQuote();
+    return h('div', { className: 'bm-empty' }, [
+      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      hint ? h('p', { className: 'hint', textContent: hint }) : h('span'),
+    ]);
+  }
+
+  // The compact one, for the bottom of a list that has no more to give. Smaller and
+  // quieter than the empty state: here it is a full stop, not the whole page.
+  // Takes the same optional quote, so a list that began empty ends on the line it started
+  // with rather than on a new one.
+  function endQuote(q) {
+    q = q || pickQuote();
+    return h('div', { className: 'bm-empty bm-end' }, [
+      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', textContent: q.who }),
+    ]);
+  }
+
+
   const show = (el) => el.classList.remove('hidden');
   const hide = (el) => el.classList.add('hidden');
 
@@ -3100,6 +3197,9 @@
         if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) {
           _openNotifBell.clearEmptyMessage();
           _openNotifBell.list.prepend(_openNotifBell.buildItem(ev));
+          // The first live arrival into a bell that opened empty is what turns "nothing
+          // here" into a list, and nothing else was going to mark the end of it.
+          _openNotifBell.showEndNote();
         }
       };
 
@@ -3289,7 +3389,16 @@
 
       // Shown only until the first real item arrives — either from the initial
       // page below, or live via addEvent while this modal stays open.
-      let emptyMsg = events.length ? null : h('p', { className: 'hint', textContent: 'No recent notifications found.' });
+      // ONE QUOTE FOR THIS OPENING, drawn before anything is rendered and reused by both
+      // the empty state and the end note. The bell is the surface where the two can appear
+      // in sequence — empty, then a live arrival, then the end of the list — and drawing
+      // twice meant the line changed under the reader.
+      const panelQuote = pickQuote();
+      // A new account opens this to nothing at all, which is the least welcoming screen in
+      // the app and the one most likely to be someone's first.
+      let emptyMsg = events.length
+        ? null
+        : emptyQuote('Replies, reactions and zaps show up here.', panelQuote);
       if (emptyMsg) scroll.appendChild(emptyMsg);
       function clearEmptyMessage() {
         if (emptyMsg) { emptyMsg.remove(); emptyMsg = null; }
@@ -3299,35 +3408,52 @@
       let moreBtn = null;
       let endNote = null;
 
+      // THE BOTTOM OF THE LIST, wherever the list came from.
+      //
+      // This used to be built inline in loadMore, which meant it only ever appeared for a
+      // modal that opened with events already in hand — `if (events.length) loadMore()`
+      // below. Open the bell on a new account and it never ran: you got the empty-state
+      // quote, then a live notification arrived, clearEmptyMessage took the quote away,
+      // the item was prepended, and the list simply stopped at the last row with nothing
+      // to say it had ended.
+      //
+      // Two guards, and both matter. A pending "Load more" means this is NOT the end, so
+      // the note would be a lie. An empty list has no end to mark — the empty state is
+      // already saying it, and two quotes stacked reads as a mistake.
+      function showEndNote() {
+        if (endNote || moreBtn) return;
+        if (!list.children.length) return;
+        const sub = h('p', { className: 'notif-end-sub' });
+        let profileUrl = '';
+        try { profileUrl = client.profile(NT.nip19.npubEncode(a.pubkey)); } catch (_) {}
+        sub.appendChild(document.createTextNode('Visit '));
+        if (profileUrl) {
+          const link = document.createElement('a');
+          link.className = 'notif-end-link';
+          link.href = profileUrl;
+          link.target = '_blank';
+          link.rel = 'noreferrer noopener';
+          link.textContent = client.label;
+          sub.appendChild(link);
+        } else {
+          sub.appendChild(document.createTextNode(client.label));
+        }
+        sub.appendChild(document.createTextNode(' for more history.'));
+        endNote = h('div', { className: 'notif-end' }, [
+          h('p', { className: 'notif-end-title', textContent: "You're all caught up." }),
+          sub,
+          endQuote(panelQuote),
+        ]);
+        scroll.appendChild(endNote);
+      }
+
       function loadMore() {
         const next = events.slice(shown, shown + PAGE);
         next.forEach((ev) => list.appendChild(buildItem(ev)));
         shown += next.length;
         if (shown >= events.length) {
           if (moreBtn) { moreBtn.remove(); moreBtn = null; }
-          if (!endNote) {
-            const sub = h('p', { className: 'notif-end-sub' });
-            let profileUrl = '';
-            try { profileUrl = client.profile(NT.nip19.npubEncode(a.pubkey)); } catch (_) {}
-            sub.appendChild(document.createTextNode('Visit '));
-            if (profileUrl) {
-              const link = document.createElement('a');
-              link.className = 'notif-end-link';
-              link.href = profileUrl;
-              link.target = '_blank';
-              link.rel = 'noreferrer noopener';
-              link.textContent = client.label;
-              sub.appendChild(link);
-            } else {
-              sub.appendChild(document.createTextNode(client.label));
-            }
-            sub.appendChild(document.createTextNode(' for more history.'));
-            endNote = h('div', { className: 'notif-end' }, [
-              h('p', { className: 'notif-end-title', textContent: "You're all caught up." }),
-              sub,
-            ]);
-            scroll.appendChild(endNote);
-          }
+          showEndNote();
         } else if (!moreBtn) {
           moreBtn = h('button', { className: 'notif-load-more', textContent: 'Load more' });
           moreBtn.addEventListener('click', loadMore);
@@ -3339,7 +3465,7 @@
 
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
-      _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage };
+      _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote };
 
       // Background reconciliation — runs after the modal is already open and
       // interactive, so neither of these ever blocks it from appearing:
@@ -8752,12 +8878,14 @@
     // entries to show, none to remove.
     const sections = bookmarkSections(evs);
 
+    // Same rule as the bell: one quote for this rendering, so the two places it can
+    // appear never disagree. Bookmarks cannot show both at once today — an empty list
+    // returns before the end note — but drawing twice per render would burn through the
+    // no-repeat guard for nothing.
+    const panelQuote = pickQuote();
     const empty = () => {
       scroll.textContent = '';
-      scroll.append(h('p', {
-        className: 'hint',
-        textContent: 'No bookmarks yet. Bookmark a note from any Nostr client and it shows up here.',
-      }));
+      scroll.append(emptyQuote('Bookmark a note from any Nostr client and it shows up here.', panelQuote));
     };
     if (!sections.length) return empty();
 
@@ -8863,9 +8991,25 @@
     };
 
     sections.forEach((s) => {
-      // Found entries first, in the owning client's own order; entries whose
-      // events no longer resolve sort to the bottom under their own divider —
-      // they're still bookmarks, but they can't be previewed, and a wall of
+      // NEWEST NOTE FIRST, not the order the tags happen to sit in.
+      //
+      // This used to render the e-tags in list order, on the reasoning that it was "the
+      // owning client's own order". It isn't an order — a kind 10003 is replaceable, so
+      // every client rewrites the whole list on every add and remove, and they do not
+      // agree on where a new entry goes. Some prepend, some append, some rebuild from
+      // their own internal state. What we were faithfully displaying was whatever the
+      // last client to touch the list happened to emit, which is why the same bookmarks
+      // read in one order here and a completely different one in Jumble or Wisp.
+      //
+      // Sorting by the referenced note's created_at gives the same list the same shape in
+      // every client, and it matches what the others already show.
+      //
+      // Not "recently bookmarked", which would be the better sort and is not available:
+      // nothing in a kind 10003 records WHEN an entry was added. That absence is the
+      // whole reason this drifts between clients.
+      //
+      // Entries whose events no longer resolve sort to the bottom under their own divider
+      // — they're still bookmarks, but they can't be previewed (or dated), and a wall of
       // "not found" ahead of real notes reads as a broken modal.
       const found = [];
       const missing = [];
@@ -8876,6 +9020,8 @@
         seen.add(id);
         (events.has(id) ? found : missing).push(id);
       });
+      // Ties keep tag order, which is at least stable within one read.
+      found.sort((a, b) => (events.get(b).created_at || 0) - (events.get(a).created_at || 0));
       if (!found.length && !missing.length) return;
       const group = h('div', { className: 'bm-group' });
       if (s.title) group.append(h('div', { className: 'bm-cat', textContent: s.title }));
@@ -8886,6 +9032,17 @@
       }
       list.append(group);
     });
+
+    // Lists can exist and hold nothing: remove your last bookmark and the kind 10003 is
+    // republished empty rather than deleted. That used to render as a blank panel.
+    if (!list.children.length) {
+      list.remove();
+      return empty();
+    }
+
+    // The bottom of a list that has no more to give. Bookmarks do not paginate, so
+    // reaching the end here is always the real end.
+    scroll.append(endQuote(panelQuote));
     if (!list.children.length) return empty();
   }
 
