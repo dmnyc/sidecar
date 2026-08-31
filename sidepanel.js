@@ -4553,6 +4553,98 @@
     () => { if (stopCamera) { stopCamera(); stopCamera = null; } });
   }
 
+  // ---- npub QR ---------------------------------------------------------------------
+  //
+  // TWO ENCODINGS, because the clients that show one of these do not agree. Jumble encodes
+  // `nostr:npub1…` (NIP-21, so a Nostr app can deep-link straight into the profile); Wisp
+  // encodes the bare `npub1…`, deliberately — its rich-text parser handles nostr: URIs
+  // elsewhere, so that is a choice rather than an oversight. Both scan.
+  //
+  // So the view offers both and defaults to `nostr:`. That default matches every other QR
+  // Sidecar draws — the two Lightning-address codes and the invoice all carry their
+  // scheme — and it is the form a Nostr client can act on rather than merely read. The
+  // bare npub is one tap away for a scanner that would only show the user a URI it cannot
+  // open, and for anyone who just wants the string.
+  //
+  // The choice is remembered for the session, not stored: it is a scanning preference
+  // that depends on what the other person is holding, not a setting about this account.
+  let _npubQrScheme = 'nostr';
+
+  function npubQrModal(a) {
+    const npub = a.npub;
+    openModal((modal) => {
+      const canvas = document.createElement('canvas');
+      canvas.className = 'npub-qr';
+      const value = h('button', { className: 'secondary npub-qr-value', title: 'Copy' });
+      const valueText = h('span');
+      value.append(valueText);
+
+      const encoded = () => (_npubQrScheme === 'nostr' ? 'nostr:' + npub : npub);
+
+      // 'H', NOT the 'M' every other QR in the panel uses, and the face is the reason.
+      // A picture in the middle covers modules; H recovers up to ~30% of the code against
+      // M's ~15%, which is what buys the room to cover any at all. The cost is a denser
+      // grid for the same 69 characters, which at 220px is still comfortable — verified
+      // by decoding the drawn code back with the face composited over it.
+      function paint() {
+        const v = encoded();
+        try { window.SidecarQR.draw(canvas, v, 220, 'H'); } catch (_) {}
+        valueText.textContent = v;
+      }
+
+      const chips = h('div', { className: 'npub-qr-modes' });
+      [['nostr', 'nostr:'], ['bare', 'npub']].forEach(([mode, label]) => {
+        const b = h('button', {
+          className: 'npub-qr-mode' + (_npubQrScheme === mode ? ' active' : ''),
+          textContent: label,
+        });
+        b.addEventListener('click', () => {
+          _npubQrScheme = mode;
+          chips.querySelectorAll('.npub-qr-mode').forEach((c) => c.classList.remove('active'));
+          b.classList.add('active');
+          paint();
+        });
+        chips.append(b);
+      });
+
+      value.addEventListener('click', async () => {
+        // The ENCODED string, matching what was scanned — copying a bare npub from a
+        // screen showing a nostr: URI would hand over something different from the code.
+        try {
+          await copyPlain(encoded());
+          const prev = valueText.textContent;
+          valueText.textContent = 'Copied ✓';
+          setTimeout(() => { if (valueText.textContent === 'Copied ✓') valueText.textContent = prev; }, 1200);
+        } catch (_) {}
+      });
+
+      const done = h('button', { className: 'ghost', textContent: 'Done' });
+      done.addEventListener('click', closeModal);
+
+      // The face sits OVER the code as an element rather than being drawn into it. Two
+      // reasons: a remote picture drawn onto a canvas taints it, and stacking costs
+      // nothing here — the avatar keeps applyAvatar's own loading and error handling
+      // instead of this modal reimplementing it.
+      //
+      // Only when there IS a picture. The placeholder garnish would cover the same
+      // modules while telling the scanner nothing, and an unnecessary hole in a code is
+      // just a worse code.
+      const stack = h('div', { className: 'npub-qr-stack' }, [canvas]);
+      if (a && a.picture) {
+        const face = h('div', { className: 'npub-qr-face' });
+        applyAvatar(face, a);
+        stack.append(face);
+      }
+
+      modal.append(
+        h('h3', { textContent: displayName(a) || 'Your npub' }),
+        h('div', { className: 'npub-qr-wrap' }, [stack, chips, value]),
+        h('div', { className: 'actions' }, [done])
+      );
+      paint();
+    });
+  }
+
   function accountMenuModal(a) {
     openModal((modal) => {
       const menuItem = (label, name, onClick, danger) => {
@@ -4568,6 +4660,7 @@
           toast('npub copied', 'success');
           closeModal();
         }),
+        menuItem('Show npub QR', 'qr', () => npubQrModal(a)),
         menuItem('Back up private key', 'key', () => backupKeyModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
@@ -6128,7 +6221,12 @@
         paintNip05Badge(nip05Badge, res);
       });
     }
-    body.append(npubChip(active.npub));
+    // The chip copies; the button beside it shows the code. Two affordances rather than
+    // one that does both, because the chip's whole behavior is copy-on-tap and adding a
+    // second meaning to the same tap would make neither obvious.
+    const qrBtn = iconButton('Show npub QR', 'qr', () => npubQrModal(active));
+    qrBtn.classList.add('profile-npub-qr');
+    body.append(h('div', { className: 'profile-npub-row' }, [npubChip(active.npub), qrBtn]));
 
     // Following count (fetched from the account's kind:3). Followers are out of
     // scope for now — they require an aggregating index, not a single event.

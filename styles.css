@@ -300,6 +300,52 @@ input:focus, select:focus, textarea:focus {
 /* And the opposite end: we never reached the domain, so we know nothing about the
    identifier. Neutral, and a different glyph, so it cannot read as a finding. */
 .nip05-badge.nip05-unknown { color: var(--muted); }
+
+/* ---- npub QR ---- */
+/* THE SPACING MOVES TO THE ROW. .profile-npub carries `margin: 4px 0 8px`, which was
+   right while it was a lone centered element and wrong the moment it gained a sibling:
+   align-items centers each child's MARGIN box, so the uneven top/bottom pushed the npub
+   2px above the button beside it. The row takes the original spacing over unchanged, so
+   nothing moves relative to what is above and below it. */
+.profile-npub-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  /* 4px, not the chip's original 12. The row is 26px tall (the button) where the npub
+     line alone was 18, and the chip's old margins were being absorbed by that difference
+     rather than adding to it — so carrying 12px over here would have grown the block by
+     8px. 4px keeps the footprint exactly what it was, and the button's own padding
+     supplies the breathing room the margin used to. */
+  margin: 0 0 4px;
+}
+.profile-npub-row .profile-npub { margin: 0; }
+.profile-npub-qr { flex-shrink: 0; color: var(--muted); }
+.profile-npub-qr:hover { color: var(--text); }
+.npub-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 4px 0 2px; }
+.npub-qr-stack { position: relative; display: inline-flex; }
+/* The face covers modules, which is why the code is drawn at error-correction H. Kept to
+   ~19% of the code's width: enough to read, well inside what H can recover. The white
+   ring is not decoration — it separates the picture from the modules so a scanner sees a
+   clean boundary rather than dark pixels bleeding into dark ones. */
+.npub-qr-face {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 42px; height: 42px; border-radius: 50%;
+  overflow: hidden; background: #fff; border: 3px solid #fff;
+}
+.npub-qr-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.npub-qr-face.avatar-ph img { width: 62%; height: 62%; margin: 19%; object-fit: contain; }
+/* White quiet zone regardless of theme: a dark-themed QR is a QR that does not scan. */
+.npub-qr { width: 220px; height: 220px; background: #fff; border-radius: 8px; padding: 10px; box-sizing: content-box; }
+/* Two encodings, because the clients that draw these do not agree — see npubQrModal. */
+.npub-qr-modes { display: inline-flex; gap: 4px; padding: 3px; background: var(--velvet-2); border-radius: 999px; }
+.npub-qr-mode {
+  background: transparent; border: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+  padding: 5px 12px; border-radius: 999px;
+}
+.npub-qr-mode.active { background: var(--velvet-1); color: var(--text); }
+.npub-qr-value {
+  font-family: var(--font-mono); font-size: 11px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .profile-stats { margin: 8px 0 2px; font-size: 13px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
 .profile-stat strong { color: var(--text); font-weight: 700; }
 .profile-backup-jump {
