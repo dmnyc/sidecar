@@ -1274,6 +1274,7 @@
     let countdown = null;
     const stopCountdown = () => { if (countdown) { countdown.stop(); countdown = null; } };
     openModal((modal) => {
+      modal.classList.add('compose-modal'); // same reason as the post composer
       const err = h('div', { className: 'error' });
 
       // Who this posts as. Same block the note composer uses — a public comment
@@ -1303,6 +1304,9 @@
         placeholder: 'Write a comment about this page\u2026',
         onChange: (text) => saveWebCommentDraft(state.activePubkey, target, text),
       });
+      // NO DRAFT STORE HERE, unlike the post composer: a comment lost to a stray click on
+      // the background is gone. That makes this the surface the guard exists for.
+      _modalDismissGuard = () => !!commentEditor.getText().trim();
       const previewPane = h('div', { className: 'compose-preview hidden' });
 
       const post = h('button', { className: 'primary', textContent: 'Post comment' });
@@ -4421,10 +4425,20 @@
 
   // ---- modals ----
   let modalCleanup = null;
+  // A MODAL CAN REFUSE A BACKGROUND-CLICK DISMISS. Set by whatever is inside it; returns
+  // true when there is something to lose. Only the overlay click consults it — an
+  // explicit Cancel still closes, because refusing that would be a trap, not a guard.
+  let _modalDismissGuard = null;
+
   function openModal(buildContent, onClose) {
     const modal = $('modal');
     modal.innerHTML = '';
-    modal.classList.remove('modal-sheet'); // reset full-height variant; opt back in per modal
+    // Both per-modal variants reset here, or the last one to open leaks into the next:
+    // a composer would leave every later dialog 620px wide.
+    modal.classList.remove('modal-sheet', 'compose-modal'); // opt back in per modal
+    // And the dismiss guard, for the same reason a class is: a stale one would make an
+    // unrelated dialog refuse to close.
+    _modalDismissGuard = null;
     modalCleanup = onClose || null;
     buildContent(modal);
     show($('modal-overlay'));
@@ -4452,7 +4466,17 @@
     flushDeferredMainRender();
   }
   $('modal-overlay').addEventListener('click', (e) => {
-    if (e.target === $('modal-overlay')) closeModal();
+    if (e.target !== $('modal-overlay')) return;
+    // Clicking the blank space beside a composer used to close it and take whatever you
+    // had typed with it. It is the easiest gesture in the panel to make by accident and
+    // the most expensive one to get wrong, so a composer holding something does not
+    // answer it. Cancel is still there, and still discards.
+    if (_modalDismissGuard) {
+      let hold = false;
+      try { hold = !!_modalDismissGuard(); } catch (_) { hold = false; }
+      if (hold) return toast('Use Cancel to discard this.', 'info');
+    }
+    closeModal();
   });
 
   function h(tag, props, children) {
@@ -8618,7 +8642,25 @@
     const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
 
     openModal(
-      () => { if (hasSaved) showDraftChooser(saved); else showEditor(); },
+      () => {
+        // INSIDE the builder, not before the call: openModal clears the per-modal
+        // variants first, so a class added ahead of it is wiped before anything renders.
+        modal.classList.add('compose-modal'); // grows with the panel; see styles.css
+        // Something to lose = text or attached media. Drafts autosave here, so nothing is
+        // truly destroyed by a stray click, but "it came back later" is not the same as
+        // "it never went away".
+        _modalDismissGuard = () => !!(draft.text.trim() || (draft.media || []).length);
+        if (hasSaved) showDraftChooser(saved); else showEditor();
+        // AFTER the content, because showEditor clears the modal to build itself. An X is
+        // where people look for the way out, and someone who does not find one clicks the
+        // background instead — which is now guarded and does nothing, so without this the
+        // guard would read as a stuck dialog. It discards like Cancel does; the draft is
+        // already saved, so nothing is actually lost.
+        const closeX = h('button', { className: 'modal-x', title: 'Close' });
+        closeX.append(icon('x'));
+        closeX.addEventListener('click', closeModal);
+        modal.append(closeX);
+      },
       () => {
         stopCountdown();
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
