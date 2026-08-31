@@ -116,12 +116,13 @@ test('a bell that opens empty still gets an end note once it fills', () => {
   // The cause was that the end note was built inline in loadMore, which only runs via
   // `if (events.length) loadMore()`. A modal that opened empty never called it.
   assert.match(panel, /function showEndNote\(\) \{/, 'the end note must be reachable on its own');
-  assert.match(panel, /_openNotifBell = \{ pubkey: a\.pubkey, list, buildItem, clearEmptyMessage, showEndNote \}/);
-  assert.match(
-    panel,
-    /_openNotifBell\.list\.prepend\(_openNotifBell\.buildItem\(ev\)\);\s*\n[^\n]*\n[^\n]*\n\s*_openNotifBell\.showEndNote\(\);/,
-    'a live arrival must close the list off'
-  );
+  assert.match(panel, /_openNotifBell = \{ pubkey: a\.pubkey, list, buildItem, clearEmptyMessage, showEndNote, addLive \}/);
+  // The live path now goes through addLive, which sorts the arrival AND closes the list
+  // off. Asserting the call plus addLive's own showEndNote keeps the same guarantee.
+  assert.match(panel, /_openNotifBell\.addLive\(ev\);/, 'a live arrival must be routed, not prepended blind');
+  const addLive = panel.slice(panel.indexOf('function addLive(ev)'));
+  assert.match(addLive.slice(0, addLive.indexOf('\n      }')), /showEndNote\(\);/,
+    'and it must still close the list off');
 });
 
 test('the end note is refused when it would be wrong', () => {
@@ -131,7 +132,9 @@ test('the end note is refused when it would be wrong', () => {
   const fn = panel.slice(panel.indexOf('function showEndNote()'));
   const body = fn.slice(0, fn.indexOf('\n      }'));
   assert.match(body, /if \(endNote \|\| moreBtn\) return;/, 'not while more can be loaded');
-  assert.match(body, /if \(!list\.children\.length\) return;/, 'not on an empty list');
+  // Now also true when the only rows are out-of-network: those live in their own
+  // collapsed group, so the bell is not empty and the end note still belongs.
+  assert.match(body, /if \(!list\.children\.length && !offNet\.length\) return;/, 'not on a genuinely empty bell');
 });
 
 test('loadMore delegates rather than duplicating it', () => {

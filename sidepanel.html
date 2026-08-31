@@ -395,6 +395,31 @@
         </div>
       </section>
 
+      <!-- Notifications. Its own section rather than a row under Appearance, where this
+           first landed: sorting the bell by who you follow is not a matter of how the
+           panel looks, and someone sent here from the bell should arrive somewhere that
+           names what they came for. -->
+      <section class="settings-section" data-section="notifications">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-notifications">Notifications</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-notifications">
+
+          <div class="setting">
+            <h3>Your network first</h3>
+            <p class="hint">Replies from outside your follows, and their follows, are grouped at the bottom of the bell instead of mixed in. Nothing is hidden.</p>
+            <label class="toggle-row"><input type="checkbox" id="wotfilter-toggle" /> <span>Sort notifications by who you follow</span></label>
+            <!-- Filled by renderWotStatus. A filter that fails open is silent by design,
+                 which makes "it isn't working" unanswerable without this. -->
+            <p class="hint compact" id="wot-status"></p>
+            <div class="row-actions wot-actions">
+              <button type="button" class="secondary" id="wot-rebuild">Rebuild network</button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <section class="settings-section" data-section="posting">
         <h3 class="settings-section-title">
           <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-posting">Posting</button>
@@ -765,6 +790,7 @@
   <script src="pdf-backup.js"></script>
   <script src="nwc-client.js"></script>
   <script src="relay-health.js"></script>
+  <script src="wot.js"></script>
   <script src="version.js"></script>
   <script src="sidepanel.js"></script>
 </body>
