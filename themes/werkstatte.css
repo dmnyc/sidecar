@@ -307,6 +307,21 @@
 [data-theme="werkstatte"] .tx-dir:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .recv-check:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .relax-status-dot:not(.theme-card):not(.theme-card *),
+/* The two controls beside that dot. The blanket squared them and they read as tiles
+   rather than buttons, which is wrong twice over: they are the pair you reach for to
+   restart or end a relax window, and the dot they sit next to stayed round. */
+[data-theme="werkstatte"] .relax-status-restart:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .relax-status-x:not(.theme-card):not(.theme-card *),
+/* The same family, found by auditing every rule in the app that sets a 50% radius against
+   this exception list rather than by spotting them one at a time. Small round icon
+   buttons read as tiles when squared, and a status dot reads as a pixel. */
+[data-theme="werkstatte"] .nip65-dot:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .wallet-pin:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .wallet-chart-btn:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .pinned-balance-btn:not(.theme-card):not(.theme-card *),
+/* And the face in the middle of the npub QR. It is a face, and the round mask is also
+   what separates it from the code's modules. */
+[data-theme="werkstatte"] .npub-qr-face:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .sk-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .profile-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .upload-preview:not(.theme-card):not(.theme-card *),
@@ -315,6 +330,11 @@
 [data-theme="werkstatte"] .ip-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .avatar:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .aa-avatar:not(.theme-card):not(.theme-card *),
+/* The approval window's own avatars. prompt.html styles them round in its inline sheet,
+   but the blanket rule outranks it, so they squared off on the one surface where the
+   face is the point: you are being asked to sign as this person. */
+[data-theme="werkstatte"] .acct-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .switch-row-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .notif-modal-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .add-account-badge:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .bm-av:not(.theme-card):not(.theme-card *),
