@@ -661,6 +661,7 @@
   // turning motion down system-wide (which the theme files already honor on their
   // own, via prefers-reduced-motion).
   let reduceBalanceMotion = false;
+  let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
   let _firstPostSeenPubkeys = null;
@@ -898,6 +899,12 @@
     autoHideBalances = !!(settings && settings.autoHideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
     reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
+    // Default ON. It sorts rather than hides, so the failure mode of being wrong is a
+    // collapsed group you expand, not a reply you never see.
+    notifWotFilter = !(settings && settings.notifWotFilter === false);
+    // Warmed in the background, never awaited: building costs a kind:3 per follow, and
+    // nothing in the panel should wait on it. The bell reads whatever is ready.
+    if (notifWotFilter) getWotSet().catch(() => {});
     // A class on <html> rather than a JS check for the one animation that is pure
     // CSS: the hidden-balance discs strike from their ::after existing at all
     // (themes/nixie.css), so no paint call ever runs to gate.
@@ -1856,6 +1863,158 @@
       ]);
       document.querySelector('nav.tabs').insertAdjacentElement('afterend', tip);
     });
+  }
+
+  // ---- web of trust: who is worth putting first ------------------------------------
+  //
+  // See wot.js for why this is an allowlist. Here is the part that needs relays: hop two,
+  // the follows of your follows, which is one kind:3 per person and the reason the set is
+  // built rarely and kept.
+  //
+  // CACHED FOR THE ACTIVE ACCOUNT ONLY, in chrome.storage.local, for a day. A set can run
+  // to tens of thousands of keys, so keeping one per account would put megabytes on disk
+  // for accounts you are not looking at; switching accounts rebuilds instead. The data is
+  // derived from kind:3, which is public, so this is not the class of secret that
+  // payMeta and drafts are encrypted for — but it is still a social graph, which is why
+  // it expires rather than living there forever.
+  const WOT_TTL_MS = 24 * 60 * 60 * 1000;
+  const WOT_STORE = 'sidecar_wot';
+  // BUMP THIS WHENEVER THE SET IS COMPUTED DIFFERENTLY. A stored set outlives the code
+  // that made it: after the vote-counting fix the panel kept serving a day-old set built
+  // the wrong way and reported identical numbers, which looked exactly like the fix not
+  // working. A cache that cannot tell you which algorithm filled it is a trap.
+  const WOT_ALGO = 2;
+  let _wotSet = null;        // Set of truncated keys for _wotPubkey
+  let _wotPubkey = null;
+  let _wotInflight = null;
+  // WHY the set is or is not there. A filter that fails open is silent by design, which
+  // makes "it isn't working" unanswerable — you cannot tell a set that decided everyone
+  // is in-network from one that never built. This is what the Settings row reports.
+  let _wotState = 'idle'; // idle | building | ready | empty | failed
+  let _wotCount = 0;
+  // Both halves, because one number hides the work. "48.9k seen, 9.3k in your network"
+  // says what the threshold is actually doing; "9.3k" alone could be anything.
+  let _wotSeen = 0;
+  let _wotQualified = 0;
+
+  function wotRead() {
+    return new Promise((resolve) =>
+      chrome.storage.local.get(WOT_STORE, (got) => {
+        void chrome.runtime.lastError;
+        resolve((got && got[WOT_STORE]) || null);
+      })
+    );
+  }
+
+  async function getWotSet() {
+    const pubkey = state.activePubkey;
+    if (!pubkey || !self.SidecarWot) return null;
+    if (_wotSet && _wotPubkey === pubkey) return _wotSet;
+    if (_wotInflight) return _wotInflight;
+
+    _wotState = 'building';
+    renderWotStatus();
+    _wotInflight = (async () => {
+      try {
+        const saved = await wotRead();
+        if (saved && saved.pubkey === pubkey && saved.algo === WOT_ALGO && Array.isArray(saved.keys) &&
+            Date.now() - (saved.ts || 0) < WOT_TTL_MS) {
+          _wotPubkey = pubkey;
+          _wotSet = new Set(saved.keys);
+          _wotState = 'ready';
+          _wotCount = _wotSet.size;
+          _wotSeen = saved.seen || 0;
+          _wotQualified = saved.qualified || 0;
+          renderWotStatus();
+          return _wotSet;
+        }
+        const follows = (await getFollowList()) || [];
+        const relays = await readRelayUrls(pubkey);
+        // The mute list, so the denylist and the allowlist compose rather than sitting
+        // side by side: someone you muted should not qualify however many people vouch.
+        const mute = _muteLists.get(pubkey);
+        const mutedShort = new Set();
+        if (mute && mute.pubkeys) mute.pubkeys.forEach((pk) => mutedShort.add(self.SidecarWot.short(pk)));
+        const res = await self.SidecarWot.build({
+          me: pubkey,
+          muted: mutedShort,
+          follows: follows.map((f) => f.pubkey || f).filter(Boolean),
+          // One REQ per chunk of seeds, collecting their p-tags. Bounded per chunk so a
+          // single unresponsive relay cannot hold the whole build open.
+          fetchFollowsOf: async (chunk) => {
+            const evs = await getPool().querySync(relays, { kinds: [3], authors: chunk }, { maxWait: 8000 });
+            // Deduped by author before counting: the pool spans relays, so one person's
+            // list arrives once per relay holding it, and counting copies multiplies every
+            // vote. See followsFromEvents.
+            return self.SidecarWot.followsFromEvents(evs);
+          },
+        });
+        _wotPubkey = pubkey;
+        _wotSet = res.set;
+        // Only worth keeping if it can actually filter. An empty set is the fail-open
+        // signal, and persisting one would just make the next open re-read "no filter".
+        if (res.set.size) {
+          chrome.storage.local.set({
+            [WOT_STORE]: { pubkey, algo: WOT_ALGO, keys: [...res.set], seen: res.seen, qualified: res.qualified, ts: Date.now() },
+          }, () => void chrome.runtime.lastError);
+        }
+        _wotState = res.set.size ? 'ready' : 'empty';
+        _wotCount = res.set.size;
+        _wotSeen = res.seen;
+        _wotQualified = res.qualified;
+        renderWotStatus();
+        return _wotSet;
+      } catch (_) {
+        // Fail open: no set means everyone is in-network.
+        _wotState = 'failed';
+        renderWotStatus();
+        return (_wotSet = null);
+      } finally {
+        _wotInflight = null;
+      }
+    })();
+    return _wotInflight;
+  }
+
+  // Dropped when the account changes or the follow list is refetched, so a set never
+  // outlives the account it describes.
+  // Rebuild on demand. The set is cached for a day, which is right for something this
+  // expensive and wrong when you have just changed your follows, fixed your relays, or
+  // want to see whether the number is real.
+  async function rebuildWot() {
+    forgetWot();
+    await new Promise((r) => chrome.storage.local.remove(WOT_STORE, () => { void chrome.runtime.lastError; r(); }));
+    await getWotSet().catch(() => {});
+  }
+
+  function forgetWot() {
+    _wotSet = null;
+    _wotPubkey = null;
+    _wotState = 'idle';
+    _wotCount = 0;
+    _wotSeen = 0;
+    _wotQualified = 0;
+  }
+
+  // Says which of the four states the filter is in, in the row that switches it on. The
+  // fail-open ones are stated plainly rather than dressed up: "showing everything" is the
+  // honest description of what the bell is doing, and someone who reads it knows to look
+  // at their follows or their relays rather than at the switch.
+  const WOT_STATUS = {
+    idle: '',
+    building: 'Working out your network…',
+    ready: null, // filled with the count
+    empty: 'No network to sort by yet. Follow some people, or check your relays. Showing everything.',
+    failed: 'Couldn’t reach your relays to work this out. Showing everything.',
+  };
+  function renderWotStatus() {
+    const el = document.getElementById('wot-status');
+    if (!el) return;
+    if (!notifWotFilter) { el.textContent = ''; return; }
+    el.textContent = _wotState === 'ready'
+      ? 'Your network: ' + fmtSats(_wotCount) + ' ' + (_wotCount === 1 ? 'person' : 'people') +
+        (_wotSeen ? ', from ' + fmtSats(_wotSeen) + ' your follows follow.' : '.')
+      : (WOT_STATUS[_wotState] || '');
   }
 
   // ---- header account switcher (dropdown) ----
@@ -3201,11 +3360,10 @@
         // event to the visible list instead of leaving it to only show up the
         // next time the modal is reopened.
         if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) {
-          _openNotifBell.clearEmptyMessage();
-          _openNotifBell.list.prepend(_openNotifBell.buildItem(ev));
-          // The first live arrival into a bell that opened empty is what turns "nothing
-          // here" into a list, and nothing else was going to mark the end of it.
-          _openNotifBell.showEndNote();
+          // Routed through the bell's own sort rather than prepended blind: it decides
+          // in-network versus the collapsed group, clears the empty state, and marks the
+          // end of the list.
+          _openNotifBell.addLive(ev);
         }
       };
 
@@ -3261,7 +3419,20 @@
     // already open and interactive (see below), instead of blocking the modal
     // from appearing at all.
     const muted = _muteLists.get(a.pubkey);
-    const events = muted && muted.size ? cache.events.filter((e) => !isMutedNotif(muted, e)) : cache.events;
+    const shown = muted && muted.size ? cache.events.filter((e) => !isMutedNotif(muted, e)) : cache.events;
+
+    // SORTED, NOT FILTERED. Out-of-network notifications go into a collapsed group at the
+    // bottom rather than being dropped: a denylist cannot beat key rotation, but an
+    // allowlist that HIDES things is how you miss the one reply that mattered.
+    //
+    // Partitioned against whatever set is already warm — building one costs a kind:3 per
+    // follow, and this modal is expected to open from cache without a round trip. No set
+    // means no partition, which is the fail-open direction; it is warmed in the background
+    // (see getWotSet) so the usual case is that it is ready by the time you open the bell.
+    const wotSet = notifWotFilter && self.SidecarWot && _wotPubkey === a.pubkey ? _wotSet : null;
+    const split = wotSet ? self.SidecarWot.partition(wotSet, shown, zapSender) : null;
+    const events = split ? split.inn : shown;
+    const offNet = split ? split.out : [];
     const PAGE = 25;
 
     function buildItem(ev) {
@@ -3426,9 +3597,89 @@
       // Two guards, and both matter. A pending "Load more" means this is NOT the end, so
       // the note would be a lie. An empty list has no end to mark — the empty state is
       // already saying it, and two quotes stacked reads as a mistake.
+      // The out-of-network group: collapsed, counted, and never emptied into the void. It
+      // sits between the list and the end note, so "you're all caught up" still reads as
+      // the end of the list you actually came for.
+      let offNetBox = null;
+      function showOffNet() {
+        if (offNetBox || !offNet.length) return;
+        offNetBox = h('div', { className: 'notif-offnet' });
+        const inner = h('div', { className: 'notif-offnet-list hidden' });
+        const chev = icon('chevron-down');
+        const toggle = h('button', { className: 'notif-offnet-toggle' }, [
+          chev,
+          h('span', { textContent: offNet.length + ' from outside your network' }),
+        ]);
+        let open = false;
+        toggle.addEventListener('click', () => {
+          open = !open;
+          inner.classList.toggle('hidden', !open);
+          chev.style.transform = open ? 'rotate(180deg)' : '';
+          // Built on first open. These are the rows least likely to be read and the most
+          // likely to be numerous, so there is no reason to pay for them up front.
+          // The note is already in there, so "empty" means no rows yet, and each row is
+          // inserted BEFORE it to keep the explanation at the foot of the group.
+          if (open && inner.children.length <= 1) {
+            offNet.forEach((ev) => inner.insertBefore(buildItem(ev), note));
+          }
+        });
+        // The question people ask HERE is "what is this and how do I turn it off", and
+        // until now the answer lived in Settings with nothing pointing at it. Inside the
+        // expanded group only: collapsed, the count is doing its job and a second line
+        // would be noise. No jargon — "web of trust" belongs in the help guide, not in a
+        // list someone is trying to read.
+        const note = h('p', { className: 'notif-offnet-note' }, [
+          document.createTextNode('Sorted by who you follow, and who they follow. Nothing is hidden. '),
+        ]);
+        const toSettings = h('button', { className: 'notif-offnet-settings', textContent: 'Settings' });
+        toSettings.addEventListener('click', () => {
+          // The same four steps the auto-lock jump uses. showTab() is NOT this: it is a
+          // local function inside webCommentModal that flips the composer between write
+          // and preview, so calling it here threw and the link silently did nothing.
+          // Settings is a view, not a tab, and its sections are collapsed by default —
+          // landing someone on a wall of closed headers is not arriving.
+          closeModal();
+          hide($('view-main'));
+          show($('view-settings'));
+          openSettingsSection('notifications');
+          renderSettings();
+        });
+        note.append(toSettings);
+        inner.append(note);
+
+        offNetBox.append(toggle, inner);
+        // Before the end note when one is already up: "you're all caught up" has to stay
+        // the last thing in the panel, or a live arrival pushes the group below it.
+        if (endNote) scroll.insertBefore(offNetBox, endNote);
+        else scroll.appendChild(offNetBox);
+      }
+
+      // A NOTIFICATION ARRIVING WHILE THE BELL IS OPEN goes through the same sort as one
+      // that was already cached. It used to be prepended straight to the list, so a
+      // stranger landing while you watched went to the top and was only sorted the next
+      // time you reopened — which is exactly when someone is most likely to be looking.
+      function addLive(ev) {
+        clearEmptyMessage();
+        if (split && !self.SidecarWot.inNetwork(wotSet, zapSender(ev))) {
+          offNet.unshift(ev);
+          showOffNet();
+          if (offNetBox) {
+            const lbl = offNetBox.querySelector('.notif-offnet-toggle span');
+            if (lbl) lbl.textContent = offNet.length + ' from outside your network';
+            // Only when the group is already expanded; collapsed, the count IS the update.
+            const inner = offNetBox.querySelector('.notif-offnet-list');
+            if (inner && inner.children.length > 1) inner.prepend(buildItem(ev));
+          }
+          return;
+        }
+        list.prepend(buildItem(ev));
+        showEndNote();
+      }
+
       function showEndNote() {
         if (endNote || moreBtn) return;
-        if (!list.children.length) return;
+        if (!list.children.length && !offNet.length) return;
+        showOffNet();
         const sub = h('p', { className: 'notif-end-sub' });
         let profileUrl = '';
         try { profileUrl = client.profile(NT.nip19.npubEncode(a.pubkey)); } catch (_) {}
@@ -3471,7 +3722,7 @@
 
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
-      _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote };
+      _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote, addLive };
 
       // Background reconciliation — runs after the modal is already open and
       // interactive, so neither of these ever blocks it from appearing:
@@ -5641,6 +5892,10 @@
     $('hidebalance-toggle').checked = settings.hideBalances === true; // default off
     $('balancepeek-toggle').checked = settings.autoHideBalances === true; // default off
     syncPeekRow(); // greyed out until the switch above it is on
+    $('wotfilter-toggle').checked = settings.notifWotFilter !== false; // default on
+    renderWotStatus();
+    const rebuildRow = document.querySelector('.wot-actions');
+    if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
     $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
@@ -10297,6 +10552,7 @@
           // reflect the restore.
           followCountCache.delete(active.pubkey);
           followListCache = null;
+    forgetWot(); // a set belongs to one account
           followListPubkey = null;
           showDone(ok, c);
           toast('Follow list restored', 'success');
@@ -13724,6 +13980,22 @@
     syncPinControls();
   });
 
+  $('wot-rebuild').addEventListener('click', async (e) => {
+    const btn = e.target;
+    btn.disabled = true;
+    try { await rebuildWot(); } finally { btn.disabled = false; }
+  });
+
+  $('wotfilter-toggle').addEventListener('change', async (e) => {
+    notifWotFilter = e.target.checked;
+    renderWotStatus();
+    const rebuildRow = document.querySelector('.wot-actions');
+    if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { notifWotFilter: e.target.checked } });
+    // Build it now if it was never needed before, so the next bell can sort.
+    if (notifWotFilter) getWotSet().catch(() => {});
+  });
+
   $('reducemotion-toggle').addEventListener('change', async (e) => {
     reduceBalanceMotion = e.target.checked;
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
@@ -15148,6 +15420,7 @@
   // on every gear entry and every relay add/remove and would stack listeners.
   const SETTINGS_SECTION_DEFAULTS = {
     appearance: true,
+    notifications: false,
     posting: false,
     apps: false,
     wallet: false,
