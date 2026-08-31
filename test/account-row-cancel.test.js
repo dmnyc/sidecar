@@ -97,3 +97,70 @@ test('the action slot is built before the confirm wiring that swaps it', () => {
     'isActive is read while building the slot, so it must be declared first'
   );
 });
+
+// ---- the OTHER surface: the header dropdown --------------------------------------
+//
+// Two places render an account switcher and both arm a two-tap confirm. This one was
+// left alone at first on the reasoning that it already had an escape — it closes on
+// outside click and is rebuilt on open. True, and beside the point: the way out has to be
+// visible in the row that is asking.
+//
+// It also could not simply copy the Accounts tab, because the row WAS a <button> with the
+// click handler on it. That ruled out the trailing slot twice over: a <button> inside a
+// <button> is invalid, and a cancel inside the clickable region would bubble into the
+// row's own handler, find acct-row-pending, and confirm the switch it exists to call off.
+//
+// So the row became a container and the handler moved inward to .acct-row-main — the
+// shape the Accounts tab always had. The cancel now sits exactly where the check sits.
+
+function acctMenuSource() {
+  const start = panel.indexOf('  function buildAcctMenu() {');
+  assert.notEqual(start, -1, 'buildAcctMenu not found');
+  let depth = 0;
+  for (let i = start; i < panel.length; i++) {
+    if (panel[i] === '{') depth++;
+    else if (panel[i] === '}' && --depth === 0) return panel.slice(start, i + 1);
+  }
+  throw new Error('buildAcctMenu braces never balanced');
+}
+const menu = acctMenuSource();
+
+test('the dropdown row is a container, not the button itself', () => {
+  // The whole reason the trailing slot is usable.
+  assert.match(menu, /const row = h\('div', \{ className: 'acct-row'/);
+  assert.match(menu, /const main = h\(isActive \? 'div' : 'button', \{ className: 'acct-row-main' \}/);
+  assert.match(menu, /main\.addEventListener\('click'/, 'the switch handler moved inward');
+  assert.doesNotMatch(menu, /row\.addEventListener\('click'/, 'and must not be on the row again');
+});
+
+test('the switchable row stays a real button, so it stays keyboard-reachable', () => {
+  // It was a <button> before this change and got focus and Enter for free. Losing that to
+  // a styling rearrangement would be a bad trade, which is why main is a button rather
+  // than the row carrying a role. The ACTIVE row is a div: it does nothing, and a
+  // focusable element that ignores you is worse than one that is not there.
+  assert.match(menu, /isActive \? 'div' : 'button'/);
+});
+
+test('the cancel goes in the slot beside the check, as a sibling of the clickable part', () => {
+  assert.match(menu, /function armCancel\(row, a\) \{/);
+  assert.match(menu, /cancel\.classList\.add\('acct-row-cancel'\);/);
+  assert.match(menu, /row\.append\(cancel\);/, 'appended to the row, not to the clickable main');
+  assert.doesNotMatch(menu, /main\.append\(cancel\)/, 'inside main it would bubble into the switch');
+});
+
+test('THE DROPDOWN CANCEL MUST NOT CONFIRM THE SWITCH', () => {
+  const fn = menu.slice(menu.indexOf('function armCancel'));
+  const body = fn.slice(0, fn.indexOf('\n    }'));
+  assert.match(body, /e\.stopPropagation\(\);/);
+  assert.match(body, /resetRow\(row, a\);/);
+});
+
+test('clearing a row takes its cancel with it', () => {
+  // resetRow is what other rows call when THEY arm, so a stale cancel would be left in
+  // the slot of a row that is no longer asking anything.
+  const fn = menu.slice(menu.indexOf('function resetRow(row, a)'));
+  const body = fn.slice(0, fn.indexOf('\n    }'));
+  assert.match(body, /row\.querySelector\('\.acct-row-cancel'\)/);
+  assert.match(body, /if \(c\) c\.remove\(\);/);
+  assert.match(body, /if \(pendingRow === row\) pendingRow = null;/, 'and the pending marker is cleared');
+});

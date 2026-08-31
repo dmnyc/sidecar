@@ -673,6 +673,23 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    override --pending-sub. */
 .acct-row-pending .acct-row-name { color: var(--pending-text, var(--gold)); }
 .acct-row-pending .acct-row-npub { color: var(--pending-sub, var(--muted)); }
+/* The switcher row is a container; .acct-row-main is the part that switches accounts.
+   The row used to BE the button, which ruled out putting anything interactive in the
+   trailing slot beside the check — invalid nesting, and a click there would bubble into
+   the row's own handler and confirm the switch. Moving the handler inward frees that
+   slot, and keeping it a real <button> keeps the keyboard access the row had for free. */
+.acct-row-main {
+  display: flex; align-items: center; gap: 10px;
+  flex: 1; min-width: 0;
+  background: transparent; border: none; padding: 0;
+  font: inherit; color: inherit; text-align: left;
+  cursor: pointer;
+}
+.acct-row:has(.acct-row-main:not(button)) { cursor: default; }
+/* Where the check would be on the active row — the two never coexist, since the account
+   you are already on is the one row that cannot be armed. */
+.acct-row-cancel { flex-shrink: 0; color: var(--muted); }
+.acct-row-cancel:hover { color: var(--text); }
 .acct-row-av {
   width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
   background: linear-gradient(180deg, var(--av-from), var(--av-to)); border: 1px solid var(--border);
