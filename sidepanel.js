@@ -350,7 +350,13 @@
   function swapLogos(themeName) {
     const src = logoSrcFor(themeName);
     document.querySelectorAll('.brand-logo, .brand-logo-sm, .brand-foot img, .about-logo')
-      .forEach(img => { img.src = src; });
+      .forEach(img => {
+        img.src = src;
+        // A logo is decoration, and a browser will happily let you peel one off the page
+        // and drag a translucent ghost of it around. This already walks every logo in the
+        // panel, so it is the one place that cannot miss one — including any added later.
+        img.draggable = false;
+      });
   }
 
   // Apply theme by setting data-theme attribute on HTML element
@@ -13494,18 +13500,70 @@
     btn.textContent = prevLabel;
   }
 
+  // ---- the build string, copyable ---------------------------------------------------
+  //
+  // A version number exists to be quoted back to you in a support thread, and reading one
+  // off a screen is where that goes wrong — 1.11.0 and a seven-character commit are
+  // exactly the kind of thing people mistype. So it copies on tap, the same
+  // copy-and-confirm the npub chip uses.
+  //
+  // It carries the commit when there is one, because "1.11.0" alone does not distinguish
+  // a store build from an unpacked checkout, and those are the two that behave
+  // differently. `version.js` is generated at package time and gitignored, so a dev
+  // checkout falls back to the manifest.
+  function buildVersionText(withPrefix) {
+    const build = window.SIDECAR_BUILD || {};
+    const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+    if (!ver) return '';
+    const commit = build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '';
+    return (withPrefix ? 'Version ' : '') + ver + commit;
+  }
+
+  function versionChip(cls, withPrefix) {
+    const text = buildVersionText(withPrefix);
+    if (!text) return null;
+    const el = h('button', { className: cls + ' version-chip', title: 'Copy version' });
+    const span = h('span', { textContent: text });
+    el.append(span);
+    el.addEventListener('click', async () => {
+      try {
+        // What is on screen, so what you paste is what you were looking at.
+        await copyPlain(text);
+        span.textContent = 'Copied \u2713';
+        setTimeout(() => { if (span.textContent === 'Copied \u2713') span.textContent = text; }, 1200);
+      } catch (_) {}
+    });
+    return el;
+  }
+
+  // The two screens you can be looking at before you are in: locked, and first run. A
+  // version is most worth having exactly there — it is what you can read out when the
+  // thing will not open.
+  // It shows on load and then gets out of the way. A build string is worth having on the
+  // screen you stare at when something will not open, and worth nothing at all the other
+  // ninety-nine times you unlock — so it fades rather than sitting there permanently.
+  //
+  // Faded, NOT removed, and pointer-events stay on it: it still takes hover and focus, so
+  // it comes back for anyone who goes looking, and the tap-to-copy keeps working. A
+  // version you can read but not copy would undo the point of the chip.
+  const VERSION_FADE_MS = 4000;
+  ['lock-version', 'onboarding-version'].forEach((id) => {
+    const slot = document.getElementById(id);
+    if (!slot) return;
+    const chip = versionChip('pre-version', true);
+    if (!chip) return;
+    slot.append(chip);
+    setTimeout(() => chip.classList.add('faded'), VERSION_FADE_MS);
+  });
+
   // ---- About + zap the creator (opened from the Sidecar logo) ----
   function aboutModal() {
     openModal((modal) => {
-      const build = window.SIDECAR_BUILD || {};
-      const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
-      const verText = 'Version ' + ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '');
-
       const xClose = h('button', { className: 'modal-x', title: 'Close' });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
 
-      const logo = h('img', { className: 'about-logo', src: logoSrcFor(document.documentElement.dataset.theme), alt: 'Sidecar' });
+      const logo = h('img', { className: 'about-logo', src: logoSrcFor(document.documentElement.dataset.theme), alt: 'Sidecar', draggable: 'false' });
       const creator = h('a', {
         className: 'about-creator-link', textContent: shortNpub(CREATOR_NPUB),
         href: '#', target: '_blank', rel: 'noopener noreferrer',
@@ -13534,7 +13592,7 @@
           logo,
           h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
           h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
-          ver ? h('div', { className: 'about-version', textContent: verText }) : document.createTextNode(''),
+          versionChip('about-version', true) || document.createTextNode(''),
           canCheckUpdates ? updateBtn : document.createTextNode(''),
           canCheckUpdates ? updateStatus : document.createTextNode(''),
           h('div', { className: 'about-links' }, [website, repo, support, privacy, zap]),

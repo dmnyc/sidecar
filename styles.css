@@ -138,6 +138,14 @@ button, input, select, textarea { font-family: inherit; }
   padding: 30px 24px;
 }
 .brand-lg { display: flex; align-items: center; margin-bottom: 18px; }
+/* A logo is decoration. Without this a browser lets you grab one and drag a translucent
+   ghost of it around the panel, which looks broken and does nothing. Scoped to logos on
+   purpose: account rows use real HTML5 drag to reorder, and a blanket img rule would
+   stop you dragging a row by its avatar. */
+.brand-logo, .brand-logo-sm, .brand-foot img, .about-logo {
+  -webkit-user-drag: none;
+  user-select: none;
+}
 .brand-logo { width: 216px; max-width: 74%; height: auto; display: block; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.4)); }
 /* Art Deco swaps in a dark-purple wordmark variant via JS (see applyTheme in
    sidepanel.js) — no CSS filter, so the cocktail-glass mark keeps its official
@@ -854,6 +862,47 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .about-creator-link, .about-link { color: var(--lav); font-weight: 600; text-decoration: none; }
 .about-creator-link:hover, .about-link:hover { text-decoration: underline; }
 .about-version { color: var(--faint); font-size: 11.5px; font-family: var(--font-mono); margin-top: 2px; }
+/* The build string, on the two screens you see before you are in. Pinned to the bottom so
+   it reads as a footnote rather than as part of the form above it.
+   FIXED, not `margin-top: auto`: .screen is a centered flex column, and an auto margin on
+   the last child eats the free space above it — which would drag the unlock form off
+   center and up to the top. Only one screen is ever visible, so there is no chance of two
+   of these overlapping. */
+.pre-version-row {
+  position: fixed; left: 0; right: 0; bottom: 10px;
+  /* Above any background marking a theme paints on the section — Par Avion's postmarks
+     sit down here, and this is the one element that shares the space with them. */
+  z-index: 2;
+  text-align: center; pointer-events: none;
+}
+.pre-version-row .version-chip { pointer-events: auto; }
+/* Copyable, so it is a button — but it must not look like one next to Unlock. */
+/* --muted, NOT --faint. Measured across all twelve themes: --faint runs from 2.60:1
+   (Cast Iron) to 5.59:1 against the background, so on the darkest themes the version was
+   barely there — and this is 11px text, where WCAG asks 4.5:1. --muted holds 5.02:1 or
+   better everywhere except Industria, which sits at 4.49. This also lifts the About
+   version, which had the same problem and shipped with it. */
+.version-chip {
+  background: transparent; border: none; padding: 4px 8px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+  cursor: pointer; border-radius: 6px;
+}
+.version-chip:hover { color: var(--text); background: var(--hover-medium); }
+/* Shown on load, then out of the way. Only on the pre-unlock screens — the one in About
+   was asked for and stays put. */
+.pre-version-row .version-chip { transition: opacity 700ms ease; }
+.pre-version-row .version-chip.faded { opacity: 0; }
+/* It keeps its pointer events while faded, so it returns for anyone who goes looking and
+   the tap-to-copy still works. A version you can read but not copy would undo the chip. */
+/* :focus as well as :focus-visible — the chip stays in the tab order while faded, and a
+   keyboard user landing on an invisible control is worse than the clutter this avoids.
+   focus-visible alone does not cover focus moved by script. */
+.pre-version-row .version-chip.faded:hover,
+.pre-version-row .version-chip.faded:focus,
+.pre-version-row .version-chip.faded:focus-visible { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .pre-version-row .version-chip { transition: none; }
+}
 .about-links { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; margin-top: 12px; }
 .about-update-btn {
   background: none; border: none; padding: 0; cursor: pointer;

@@ -482,9 +482,16 @@
   /* Offsets and sizes both account for the padding wrap() now adds — see the note on
      the cancel below. Same marks, same size on screen, in boxes big enough to hold
      them. */
+  /* Both marks sit 10px higher than they used to. At the oval's original `bottom 8px`
+     its lower edge ran through the version footer, which is fixed to the bottom 10px and
+     stands about 21px tall. The first attempt at this lifted it to 44px, which cleared
+     the footer and broke the composition: these two marks are staggered diagonally, the
+     cachet high-left and the oval low-right, and at 44px the oval came up level with the
+     cachet and the airplane ran into it. Both marks then moved up together by 10px —
+     the pair keeps its relationship, and the oval sits clear of the footer. */
   background-position:
-    left 10px bottom 77px,
-    right 8px bottom 8px;
+    left 10px bottom 87px,
+    right 8px bottom 26px;
   background-size: auto 80px, auto 104px;
 }
 
@@ -539,8 +546,12 @@
      left by the same amount for the same reason. */
   background-size: auto 112px, auto 128px;
 }
-[data-theme="par-avion"] #view-lock > *:not(.brand-lg),
-[data-theme="par-avion"] #view-onboarding > *:not(.brand-lg) {
+/* .pre-version-row is exempt: it is position:fixed so it can sit at the foot of the
+   panel, and this rule would drag it back into flow — it landed under "Forgot your PIN?"
+   instead of at the bottom. It carries its own z-index in styles.css, so it still clears
+   the postmarks. */
+[data-theme="par-avion"] #view-lock > *:not(.brand-lg):not(.pre-version-row),
+[data-theme="par-avion"] #view-onboarding > *:not(.brand-lg):not(.pre-version-row) {
   position: relative;
   z-index: 2;
 }

@@ -24,7 +24,7 @@
   <!-- ===== Onboarding: create a PIN (no keystore yet) ===== -->
   <section id="view-onboarding" class="screen hidden">
     <div class="brand-lg">
-      <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" />
+      <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
     </div>
     <p class="headline">Your keys, your identity.</p>
     <p class="lede">Set a PIN to protect the Nostr accounts stored on this device.</p>
@@ -37,12 +37,13 @@
       <div class="error" id="ob-error"></div>
       <button type="submit" class="primary" id="ob-submit">Create keystore</button>
     </form>
+    <div id="onboarding-version" class="pre-version-row"></div>
   </section>
 
   <!-- ===== Lock screen (initialized, locked) ===== -->
   <section id="view-lock" class="screen hidden">
     <div class="brand-lg">
-      <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" />
+      <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
     </div>
     <p class="lede">Locked. Enter your PIN to unlock your accounts.</p>
     <form id="unlock-form" class="stack">
@@ -53,6 +54,9 @@
     </form>
     <div id="unlock-cooldown" class="unlock-cooldown hidden"></div>
     <a href="#" id="unlock-forgot" class="unlock-forgot">Forgot your PIN?</a>
+    <!-- Filled by versionChip in sidepanel.js. Copyable, because this is the screen you
+         are looking at when something will not open and you need to say which build. -->
+    <div id="lock-version" class="pre-version-row"></div>
   </section>
 
   <!-- ===== Main app (unlocked) ===== -->
@@ -228,7 +232,7 @@
       </div>
 
       <div class="brand-foot">
-        <img src="icons/sidecar-logo.svg" alt="Sidecar" />
+        <img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
       </div>
     </main>
 
@@ -279,7 +283,7 @@
   <!-- ===== Edit profile (full-panel overlay) ===== -->
   <section id="view-profile-edit" class="hidden">
     <header class="topbar">
-      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
       <button id="profile-edit-close" class="icon-btn" title="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
@@ -293,7 +297,7 @@
   <!-- ===== Settings (opened from the gear icon) ===== -->
   <section id="view-settings" class="hidden">
     <header class="topbar">
-      <div class="brand"><img id="settings-logo" class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <div class="brand"><img id="settings-logo" class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
       <button id="settings-close" class="icon-btn settings-close" title="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
@@ -645,7 +649,7 @@
       </div>
 
       <div class="brand-foot">
-        <img src="icons/sidecar-logo.svg" alt="Sidecar" />
+        <img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
       </div>
     </main>
   </section>
@@ -653,7 +657,7 @@
   <!-- ===== Signing approval (inline, replaces the popup when the panel is open) ===== -->
   <div id="view-approval" class="approval-overlay hidden">
     <div class="approval-card">
-      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" /></div>
+      <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
       <div class="approval-host" id="approval-host">…</div>
       <div class="approval-ask" id="approval-ask">wants to…</div>
 

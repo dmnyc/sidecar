@@ -25,7 +25,7 @@
 
   <nav class="helpnav" id="helpnav">
     <a class="helpnav-brand" href="#top" title="Back to top">
-      <img src="icons/sidecar-logo.svg" alt="Sidecar">
+      <img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
     </a>
     <div class="toc-dropdown">
       <button class="toc-toggle" id="toc-toggle" aria-expanded="false">
@@ -388,18 +388,15 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
-      <p class="whatsnew-version">Version 1.10.0</p>
+      <p class="whatsnew-version">Version 1.11.0</p>
       <ul class="whatsnew-list">
-        <li><strong>Two new themes.</strong> <em>Nixie</em> puts red-hot digits behind a wire screen, every figure striking through its changes and settling like a real tube. <em>Populuxe</em> is a chrome-and-tile diner of a light theme — the first where every color passes the same contrast bar.</li>
-        <li><strong>Balances that move like the theme says they should.</strong> Nixie strikes, Brownstone glows by gaslamp, Bauhaus splits into glyphs — and there's a switch in Settings to turn the animations off, with Reduce Motion respected everywhere.</li>
-        <li><strong>Your bookmarks, at last.</strong> The bookmark lists your other Nostr clients keep (kind&nbsp;10003) now have a home in Sidecar's topbar: entries open at your usual client, and each list can be cleared or removed.</li>
-        <li><strong>Mute lists work in notifications.</strong> Muted words, hashtags, and threads — written by any client you use — now hide notifications, including words that live only in a sender's display name.</li>
-        <li><strong>A PIN change no longer orphans your wallet.</strong> Changing your PIN used to leave the wallet connection encrypted under the old PIN — connected-looking, unreadable forever. It's re-wrapped with everything else now.</li>
-        <li><strong>The bio editor opens as tall as your bio,</strong> and grows as you type, instead of hiding it behind a three-line window.</li>
-        <li><strong>Automatic zaps only where you're connected.</strong> An invoice embedded on a page you've never signed in with cannot be auto-paid, whatever its size.</li>
-        <li><strong>An invoice copied to the clipboard gets the pay card.</strong> Sites that generate an invoice into the clipboard no longer leave you hunting for it.</li>
-        <li><strong>Send resolves a Lightning address up front,</strong> so you see the real recipient before typing an amount.</li>
-        <li><strong>Toasts</strong> now clear the bottom bar and go away when tapped.</li>
+        <li><strong>The theme picker is a gallery.</strong> Twelve themes had outgrown a list of names. Filter Dark or Light and every card is a live preview of its theme, animating with that theme's own balance arrival when you pick it. Three of those themes are new: <em>Werkstätte</em>, <em>Metropolis</em> and <em>Par Avion</em>.</li>
+        <li><strong>Relay health, on demand.</strong> A relay can accept a connection and never answer, or serve reads and quietly refuse your posts — and it looks fine everywhere. The Profile tab can now check each one and say whether it is healthy, gated, silent, or holding none of your notes.</li>
+        <li><strong>Zaps you send read as zaps.</strong> A sent zap carries nothing that names who you paid, so it showed as a bare payment. Sidecar signed the request, so it remembers: the row now shows the recipient's name and face.</li>
+        <li><strong>Your npub as a QR code.</strong> In the Profile tab and in an account's menu, with your picture in the middle of it. Handing someone your key no longer means reading out sixty-three characters.</li>
+        <li><strong>The Wallet tab could go blank and stay blank.</strong> A reload did not help; switching accounts did. The panel's channel to its background worker had no way to fail, so it waited forever on a reply that was not coming. It now says so and offers to try again.</li>
+        <li><strong>NIP-05 said the same thing about six different outcomes.</strong> Being offline looked exactly like an address that resolves to someone else's key. Now it does not: the case worth acting on is the one that stands out.</li>
+        <li><strong>Bookmarks in the right order</strong>, newest first, matching every other client — and an empty list now carries a line from an early twentieth century writer rather than nothing at all.</li>
       </ul>
       <p class="whatsnew-version">Version 1.9.1</p>
       <ul class="whatsnew-list">
