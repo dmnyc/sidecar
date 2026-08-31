@@ -412,6 +412,9 @@
             <!-- Filled by renderWotStatus. A filter that fails open is silent by design,
                  which makes "it isn't working" unanswerable without this. -->
             <p class="hint compact" id="wot-status"></p>
+            <!-- Only while building. A large follow list takes long enough that a line
+                 saying "working" is indistinguishable from a hang. -->
+            <div class="wot-progress hidden" id="wot-progress"><span></span></div>
             <div class="row-actions wot-actions">
               <button type="button" class="secondary" id="wot-rebuild">Rebuild network</button>
             </div>

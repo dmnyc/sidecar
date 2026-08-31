@@ -904,7 +904,11 @@
     notifWotFilter = !(settings && settings.notifWotFilter === false);
     // Warmed in the background, never awaited: building costs a kind:3 per follow, and
     // nothing in the panel should wait on it. The bell reads whatever is ready.
-    if (notifWotFilter) getWotSet().catch(() => {});
+    // AFTER first paint, not during it. This is background work nothing waits on, and on a
+    // large follow list it is ~20 chunked kind:3 queries across every relay — landing
+    // exactly when the bell is resolving names, which is how those names became npubs. It
+    // runs once a day; it does not need to win a race against what you are reading.
+    if (notifWotFilter) setTimeout(() => { getWotSet().catch(() => {}); }, 4000);
     // A class on <html> rather than a JS check for the one animation that is pure
     // CSS: the hidden-balance discs strike from their ::after existing at all
     // (themes/nixie.css), so no paint call ever runs to gate.
@@ -1900,6 +1904,8 @@
   // says what the threshold is actually doing; "9.3k" alone could be anything.
   let _wotSeen = 0;
   let _wotQualified = 0;
+  let _wotDone = 0;   // follows expanded so far
+  let _wotTotal = 0;  // follows to expand
 
   function wotRead() {
     return new Promise((resolve) =>
@@ -1943,6 +1949,11 @@
           me: pubkey,
           muted: mutedShort,
           follows: follows.map((f) => f.pubkey || f).filter(Boolean),
+          onProgress: (done, total) => {
+            _wotDone = done;
+            _wotTotal = total;
+            renderWotStatus();
+          },
           // One REQ per chunk of seeds, collecting their p-tags. Bounded per chunk so a
           // single unresponsive relay cannot hold the whole build open.
           fetchFollowsOf: async (chunk) => {
@@ -1998,6 +2009,8 @@
     _wotCount = 0;
     _wotSeen = 0;
     _wotQualified = 0;
+    _wotDone = 0;
+    _wotTotal = 0;
   }
 
   // Says which of the four states the filter is in, in the row that switches it on. The
@@ -2006,7 +2019,8 @@
   // at their follows or their relays rather than at the switch.
   const WOT_STATUS = {
     idle: '',
-    building: 'Working out your network…',
+    building: '', // the bar and its caption say it; see renderWotStatus
+
     ready: null, // filled with the count
     empty: 'No network to sort by yet. Follow some people, or check your relays. Showing everything.',
     failed: 'Couldn’t reach your relays to work this out. Showing everything.',
@@ -2015,6 +2029,23 @@
     const el = document.getElementById('wot-status');
     if (!el) return;
     if (!notifWotFilter) { el.textContent = ''; return; }
+    // The bar, while it is working. A build on a large follow list runs for a while, and
+    // a line that just says "working" for that long is indistinguishable from a hang.
+    const bar = document.getElementById('wot-progress');
+    if (bar) {
+      const on = _wotState === 'building' && _wotTotal > 0;
+      bar.classList.toggle('hidden', !on);
+      if (on) {
+        const pct = Math.max(2, Math.min(100, Math.round((_wotDone / _wotTotal) * 100)));
+        bar.firstChild.style.width = pct + '%';
+      }
+    }
+    if (_wotState === 'building') {
+      el.textContent = _wotTotal
+        ? 'Working out your network… ' + fmtSats(_wotDone) + ' of ' + fmtSats(_wotTotal) + ' follows.'
+        : 'Working out your network…';
+      return;
+    }
     el.textContent = _wotState === 'ready'
       ? 'Your network: ' + fmtSats(_wotCount) + ' ' + (_wotCount === 1 ? 'person' : 'people') +
         (_wotSeen ? ', from ' + fmtSats(_wotSeen) + ' your follows follow.' : '.')
@@ -3022,14 +3053,79 @@
     try { return shortNpub(NT.nip19.npubEncode(pubkey)); } catch (_) { return '—'; }
   }
 
+  // A FAILED LOOKUP IS NOT A RESULT. The in-flight marker below doubles as the cache
+  // entry and the has() check above blocks any retry, so a fetch that failed left the
+  // pubkey marked empty for the rest of the session — and notifAuthorName falls back to a
+  // short npub when the name is empty. One bad moment on the relays turned into every
+  // name in the bell being an npub until the panel was reopened, which is exactly what
+  // happened once the web-of-trust build started competing for the pool at load.
+  //
+  // The marker is cleared on failure and on a genuinely absent profile. An account with no
+  // kind:0 costs one lookup per render rather than being remembered as nameless, which is
+  // the right way round: the rare case pays, not the common one.
+  // IN FLIGHT IS NOT A CACHE ENTRY. Writing '' into _notifProfiles to mean "asking" made
+  // that map answer three different questions with one value — cached name, no name, and
+  // currently asking — and every bug in this area came from two callers reading it
+  // differently. The batch skipped anything has() reported, the page filter passed
+  // anything get() reported falsy, so every pubkey mid-flight was handed to the batch and
+  // dropped by it. Tracked separately now; the map holds names and nothing else.
+  const _notifProfileInflight = new Set();
+  const notifProfileNeeded = (pk) => !!pk && !_notifProfiles.get(pk) && !_notifProfileInflight.has(pk);
+
   function prefetchNotifProfile(pubkey, relays) {
-    if (_notifProfiles.has(pubkey)) return Promise.resolve();
-    _notifProfiles.set(pubkey, ''); // mark as loading
+    if (!notifProfileNeeded(pubkey)) return Promise.resolve();
+    _notifProfileInflight.add(pubkey);
     return poolGet(relays, { kinds: [0], authors: [pubkey] }).then((ev) => {
-      if (!ev) return;
-      const m = JSON.parse(ev.content) || {};
-      _notifProfiles.set(pubkey, m.display_name || m.displayName || m.name || '');
-    }).catch(() => {});
+      let name = '';
+      if (ev) {
+        try {
+          const m = JSON.parse(ev.content) || {};
+          name = m.display_name || m.displayName || m.name || '';
+        } catch (_) {}
+      }
+      if (name) _notifProfiles.set(pubkey, name);
+    }).catch(() => {}).finally(() => { _notifProfileInflight.delete(pubkey); });
+  }
+
+  // ONE QUERY FOR THE WHOLE PAGE, not one per sender. The bell opens with ~25 rows and
+  // used to fire a subscription for each of them at once, across every relay. That is
+  // enough concurrent REQs that a good proportion fail, and the failures were then cached
+  // as "this person has no name" — which is how every row came to show an npub.
+  // Relays take multiple authors in one filter; resolveMentions has done it this way for
+  // the @-mention list all along.
+  async function prefetchNotifProfiles(pubkeys, relays) {
+    const need = [...new Set(pubkeys)].filter(notifProfileNeeded);
+    if (!need.length) return;
+    need.forEach((pk) => _notifProfileInflight.add(pk));
+    try {
+      const evs = await Promise.race([
+        getPool().querySync(relays, { kinds: [0], authors: need }, { maxWait: 6000 }),
+        new Promise((r) => setTimeout(() => r([]), 6500)),
+      ]);
+      const newest = new Map();
+      (evs || []).forEach((ev) => {
+        const cur = newest.get(ev.pubkey);
+        if (!cur || ev.created_at > cur.created_at) newest.set(ev.pubkey, ev);
+      });
+      need.forEach((pk) => {
+        let name = '';
+        const ev = newest.get(pk);
+        if (ev) {
+          try {
+            const m = JSON.parse(ev.content) || {};
+            name = m.display_name || m.displayName || m.name || '';
+          } catch (_) {}
+        }
+        // Same rule as the single fetch: an unanswered lookup is not a result, so it is
+        // forgotten rather than remembered as nameless.
+        if (name) _notifProfiles.set(pk, name);
+      });
+    } catch (_) {
+      // Nothing to undo: a failed lookup simply leaves no entry, so the next render asks
+      // again rather than remembering this person as nameless.
+    } finally {
+      need.forEach((pk) => _notifProfileInflight.delete(pk));
+    }
   }
 
   const IMG_RE = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif)(?:\?\S*)?/gi;
@@ -3750,11 +3846,11 @@
             }
           }
         });
-        const uncached = [...need].filter((pk) => !_notifProfiles.get(pk));
+        const uncached = [...need].filter(notifProfileNeeded);
 
         await Promise.all([
           Promise.race([loadMuteList(a.pubkey, relays, true), new Promise((r) => setTimeout(r, 3000))]),
-          Promise.all(uncached.map((pk) => prefetchNotifProfile(pk, relays))),
+          prefetchNotifProfiles(uncached, relays),
         ]);
 
         // Drop any row the freshly-loaded list now covers — including rows whose
@@ -14035,7 +14131,11 @@
     if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { notifWotFilter: e.target.checked } });
     // Build it now if it was never needed before, so the next bell can sort.
-    if (notifWotFilter) getWotSet().catch(() => {});
+    // AFTER first paint, not during it. This is background work nothing waits on, and on a
+    // large follow list it is ~20 chunked kind:3 queries across every relay — landing
+    // exactly when the bell is resolving names, which is how those names became npubs. It
+    // runs once a day; it does not need to win a race against what you are reading.
+    if (notifWotFilter) setTimeout(() => { getWotSet().catch(() => {}); }, 4000);
   });
 
   $('reducemotion-toggle').addEventListener('change', async (e) => {

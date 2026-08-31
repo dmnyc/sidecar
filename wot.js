@@ -49,10 +49,12 @@
   // Relays cap authors per filter, and a 300-author REQ is refused outright by some.
   const CHUNK = 50;
 
-  // Chunks run in parallel. A 1,000-follow list is ~20 requests, and sequentially that is
-  // minutes of "working out your network" for something nothing waits on but everything
-  // gets better with.
-  const CONCURRENCY = 4;
+  // Chunks run in parallel, but gently. A 1,000-follow list is ~20 requests, and
+  // sequentially that is minutes for something nothing waits on. Four at a time turned out
+  // to crowd the relay pool hard enough that the notification bell's own profile lookups
+  // failed and every name in it fell back to an npub. Two still finishes in a fraction of
+  // the sequential time and leaves room for the things the user is actually reading.
+  const CONCURRENCY = 2;
 
   const short = (pk) => String(pk || '').slice(0, KEY_LEN);
   const isHexKey = (pk) => typeof pk === 'string' && /^[0-9a-f]{64}$/i.test(pk);
@@ -135,6 +137,12 @@
             continue; // a chunk that fails narrows the set; it must not empty it
           }
           expanded += chunk.length;
+          // Reported per chunk rather than per person: the caller is drawing a bar, and a
+          // build on a large follow list is the one place in the panel where something
+          // takes long enough that silence reads as broken.
+          if (typeof o.onProgress === 'function') {
+            try { o.onProgress(expanded, follows.length); } catch (_) {}
+          }
           (got || []).forEach((pk) => {
             if (!isHexKey(pk)) return;
             const k = short(pk);

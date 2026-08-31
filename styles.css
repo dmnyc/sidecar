@@ -1880,6 +1880,17 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .notif-load-more:hover { border-color: var(--gold-soft); color: var(--text); }
 /* Out-of-network notifications: collapsed, counted, kept. See wot.js — an allowlist that
    hides things is how you miss the one reply that mattered, so this sorts instead. */
+/* Progress on the network build. Deliberately plain: it reports something nothing waits
+   on, so it should read as information rather than as a task demanding attention. */
+.wot-progress {
+  height: 3px; border-radius: 999px; overflow: hidden;
+  background: var(--border); margin: 8px 0 2px;
+}
+.wot-progress > span {
+  display: block; height: 100%; width: 2%;
+  background: var(--gold); transition: width 0.3s ease;
+}
+.wot-progress.hidden { display: none; }
 .wot-actions { margin-top: 10px; }
 .wot-actions .secondary { width: 100%; }
 .notif-offnet { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 4px; }
