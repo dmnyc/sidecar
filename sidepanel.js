@@ -2957,7 +2957,25 @@
     if (ev.kind === 6) return { glyph: '🔁', text: 'reposted your note' };
     if (ev.kind === 7) {
       const r = (ev.content || '').trim();
-      const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
+      // A CUSTOM EMOJI REACTION (NIP-30) carries a :shortcode: in the content and the
+      // picture in an ["emoji", shortcode, url] tag. Nothing here read that tag, so
+      // `:EZ:` printed as literal text and `:shakingeyes:` was reported as a heart —
+      // same bug, two different wrong answers, and the second silently misstates what
+      // somebody did.
+      const short = /^:([a-zA-Z0-9_+-]+):$/.exec(r);
+      if (short) {
+        const tag = (ev.tags || []).find((t) => t[0] === 'emoji' && t[1] === short[1] && t[2]);
+        // NO TAG, NO GUESS. An unresolved shortcode is honest; a heart is not.
+        return { glyph: r, text: 'reacted to your note', emojiUrl: tag ? tag[2] : '' };
+      }
+      // `r.length <= 4` used to stand in for "is this a single emoji", and it was wrong
+      // both ways: it rejected multi-codepoint emoji like 👨‍👩‍👧, which run to eight or
+      // more code units, and accepted short words like `lol`. Ask what the string
+      // actually contains instead.
+      // Unicode property escapes, supported by every browser this runs in. No length
+      // fallback: keeping one would only carry the old bug forward behind a try/catch.
+      const pictographic = /\p{Extended_Pictographic}/u.test(r);
+      const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : (r && pictographic ? r : '❤️');
       return { glyph, text: 'reacted to your note' };
     }
     // A NIP-22 comment that p-tags you. Worth its own wording: "mentioned you" sends
@@ -3537,7 +3555,7 @@
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
-      const { glyph, text } = notifLabel(ev);
+      const { glyph, text, emojiUrl } = notifLabel(ev);
 
       // Where this notification opens (a renderable note/article/profile URL), or
       // '' when there's no sensible target.
@@ -3592,7 +3610,17 @@
       // currentColor) instead of the ⚡ emoji, which washes out on light themes.
       const glyphEl = h('span', { className: 'notif-glyph' });
       if (glyph === '⚡') glyphEl.appendChild(boltIcon());
-      else glyphEl.textContent = glyph;
+      else if (emojiUrl) {
+        // Third-party URL, so the same treatment every other remote image here gets: no
+        // referrer, and a failure falls back to the shortcode rather than to nothing.
+        const img = document.createElement('img');
+        img.className = 'notif-glyph-img';
+        img.alt = glyph;
+        img.referrerPolicy = 'no-referrer';
+        img.onerror = () => { glyphEl.textContent = glyph; };
+        img.src = emojiUrl;
+        glyphEl.appendChild(img);
+      } else glyphEl.textContent = glyph;
       const topRow = h('div', { className: 'notif-top' }, [
         glyphEl,
         authorEl,

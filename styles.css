@@ -1893,6 +1893,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .wot-progress.hidden { display: none; }
 .wot-actions { margin-top: 10px; }
 .wot-actions .secondary { width: 100%; }
+/* A custom-emoji reaction (NIP-30). Sized to sit where a text glyph would, so a row with
+   one lines up with the rows around it. */
+.notif-glyph-img { width: 17px; height: 17px; object-fit: contain; display: block; }
 .notif-offnet { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 4px; }
 .notif-offnet-toggle {
   display: flex; align-items: center; gap: 8px; width: 100%;
