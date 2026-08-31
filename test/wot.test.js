@@ -186,7 +186,11 @@ test('no warm set means no sorting', () => {
   // fail-open direction: everything shows as it did before.
   assert.match(panel, /_wotPubkey === a\.pubkey \? _wotSet : null/);
   assert.match(panel, /const split = wotSet \? self\.SidecarWot\.partition/);
-  assert.match(panel, /if \(notifWotFilter\) getWotSet\(\)\.catch\(\(\) => \{\}\);/, 'warmed, not awaited');
+  // Warmed, not awaited — and deferred past first paint. At four concurrent chunks it
+  // crowded the relay pool hard enough that the bell's own profile lookups failed and
+  // every name in it fell back to an npub.
+  assert.match(panel, /setTimeout\(\(\) => \{ getWotSet\(\)\.catch\(\(\) => \{\}\); \}, \d+\)/,
+    'the build must not race first paint');
 });
 
 test('a set belongs to one account and expires', () => {
@@ -368,4 +372,63 @@ test('the set can be rebuilt on demand', () => {
   assert.match(body, /chrome\.storage\.local\.remove\(WOT_STORE/, 'and the stored one');
   assert.match(body, /getWotSet\(\)/, 'then build it again');
   assert.match(html, /id="wot-rebuild"/);
+});
+
+test('IN FLIGHT IS NOT A CACHE ENTRY', () => {
+  // Writing '' into _notifProfiles to mean "asking" made one map answer three questions —
+  // cached name, no name, currently asking — and every bug here came from two callers
+  // reading it differently. The batch skipped anything has() reported while the page
+  // filter passed anything get() reported falsy, so pubkeys mid-flight were handed to the
+  // batch and dropped by it, and never fetched at all.
+  assert.match(panel, /const _notifProfileInflight = new Set\(\);/);
+  assert.match(panel, /const notifProfileNeeded = \(pk\) => !!pk && !_notifProfiles\.get\(pk\) && !_notifProfileInflight\.has\(pk\);/);
+  // One predicate, used by every caller, so they cannot disagree again.
+  assert.ok((panel.match(/notifProfileNeeded/g) || []).length >= 4, 'every caller must share it');
+  assert.doesNotMatch(panel, /_notifProfiles\.set\([^,]+, ''\)/, 'the map holds names and nothing else');
+  // A failed lookup leaves no entry, so the next render asks again.
+  const fn = panel.slice(panel.indexOf('function prefetchNotifProfile(pubkey, relays)'));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+  assert.match(body, /if \(name\) _notifProfiles\.set\(pubkey, name\);/);
+  assert.match(body, /finally\(\(\) => \{ _notifProfileInflight\.delete\(pubkey\); \}\)/);
+});
+
+test('the build yields to what the user is looking at', () => {
+  const wot = fs.readFileSync(path.join(ROOT, 'wot.js'), 'utf8');
+  const c = Number(wot.match(/const CONCURRENCY = (\d+);/)[1]);
+  assert.ok(c <= 2, 'four at a time starved the bell of its profile lookups: ' + c);
+});
+
+test('the build reports progress', () => {
+  // On a large follow list this runs for a while, and a line that says "working" for that
+  // long is indistinguishable from a hang.
+  const wot = fs.readFileSync(path.join(ROOT, 'wot.js'), 'utf8');
+  assert.match(wot, /o\.onProgress\(expanded, follows\.length\)/, 'per chunk, from the build');
+  assert.match(wot, /try \{ o\.onProgress[\s\S]{0,60}catch/, 'a throwing callback must not kill the build');
+  assert.match(panel, /onProgress: \(done, total\) => \{/);
+  assert.match(panel, /getElementById\('wot-progress'\)/, 'the panel drives the bar');
+  assert.match(html, /id="wot-progress"/, 'and the markup provides it');
+  // The count is in the copy too, so the bar is not the only thing carrying it.
+  assert.match(panel, /' of ' \+ fmtSats\(_wotTotal\) \+ ' follows\.'/);
+  // Shown only while building, and reset with the rest of the state.
+  assert.match(panel, /_wotState === 'building' && _wotTotal > 0/);
+  assert.match(panel, /_wotDone = 0;\s*\n\s*_wotTotal = 0;/);
+});
+
+test('the bell resolves names in ONE query, not one per row', () => {
+  // The bell opens with ~25 rows and fired a subscription per sender, all at once, across
+  // every relay. Enough concurrent REQs that a good proportion fail — and the failures
+  // were cached as "no name", so every row showed an npub. Relays take multiple authors in
+  // one filter, which is how resolveMentions has always done the @-mention list.
+  assert.match(panel, /async function prefetchNotifProfiles\(pubkeys, relays\)/);
+  assert.match(panel, /prefetchNotifProfiles\(uncached, relays\)/, 'the page uses the batched one');
+  assert.doesNotMatch(panel, /uncached\.map\(\(pk\) => prefetchNotifProfile\(/, 'never one per row');
+  const fn = panel.slice(panel.indexOf('async function prefetchNotifProfiles'));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+  assert.match(body, /authors: need/, 'one filter, many authors');
+  // Replaceable: newest kind:0 per author wins, same rule as everywhere else.
+  assert.match(body, /ev\.created_at > cur\.created_at/);
+  // And the same fail-open caching rule as the single fetch.
+  // A name is written only when there is one; the in-flight marks are cleared either way.
+  assert.match(body, /if \(name\) _notifProfiles\.set\(pk, name\);/);
+  assert.match(body, /finally \{\s*\n\s*need\.forEach\(\(pk\) => _notifProfileInflight\.delete\(pk\)\);/);
 });
