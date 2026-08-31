@@ -1765,11 +1765,38 @@
       row.classList.remove('acct-row-pending');
       row.querySelector('.acct-row-name').textContent = displayName(a);
       row.querySelector('.acct-row-npub').textContent = shortNpub(a.npub);
+      const c = row.querySelector('.acct-row-cancel');
+      if (c) c.remove();
+      if (pendingRow === row) pendingRow = null;
+    }
+
+    // THE CANCEL SITS WHERE THE CHECK SITS, which is what made the row stop being a
+    // <button>. It used to be one, with the click handler on the row, and that ruled the
+    // slot out twice over: a <button> inside a <button> is invalid, and a cancel nested
+    // in the clickable region would bubble into the row's own handler, find
+    // acct-row-pending, and CONFIRM the switch it exists to call off.
+    //
+    // So the row is a plain container now and the switch handler moved inward to
+    // .acct-row-main — the same shape the Accounts tab has always had, where the trailing
+    // slot holds the check and the actions and nothing nests. Keyboard access is
+    // deliberately kept by making that inner element a real <button> rather than giving
+    // the row a role: the row used to be focusable and activatable for free, and losing
+    // that to a styling change would be a bad trade.
+    //
+    // The two never collide: you cannot switch to the account you are already on, so an
+    // active row never arms.
+    function armCancel(row, a) {
+      const cancel = iconButton('Cancel', 'x', (e) => {
+        e.stopPropagation();
+        resetRow(row, a);
+      });
+      cancel.classList.add('acct-row-cancel');
+      row.append(cancel);
     }
 
     state.accounts.forEach((a) => {
       const isActive = a.pubkey === state.activePubkey;
-      const row = h('button', { className: 'acct-row' + (isActive ? ' active' : '') });
+      const row = h('div', { className: 'acct-row' + (isActive ? ' active' : '') });
       const av = document.createElement('span');
       av.className = 'acct-row-av';
       applyAvatar(av, a);
@@ -1777,14 +1804,18 @@
         h('div', { className: 'acct-row-name', textContent: displayName(a) }),
         h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
       ]);
-      row.append(av, info);
+      // A real <button> when it does something, a plain div when it does not: the active
+      // row is not a control, and a focusable element that ignores you is worse than one
+      // that is not there.
+      const main = h(isActive ? 'div' : 'button', { className: 'acct-row-main' }, [av, info]);
+      row.append(main);
       if (isActive) {
         const c = icon('check');
         c.classList.add('acct-row-check');
         row.append(c);
       }
       if (!isActive) {
-        row.addEventListener('click', async () => {
+        main.addEventListener('click', async () => {
           if (pendingRow && pendingRow !== row) resetRow(pendingRow, state.accounts.find(x => x.pubkey === pendingRow.dataset.pubkey));
           if (row.classList.contains('acct-row-pending')) {
             closeAcctMenu();
@@ -1798,6 +1829,7 @@
             row.querySelector('.acct-row-npub').textContent = 'Tap again to confirm';
             pendingRow = row;
             row.dataset.pubkey = a.pubkey;
+            armCancel(row, a);
           }
         });
       }
