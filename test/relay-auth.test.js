@@ -181,18 +181,35 @@ test('the pool is built with the allowlist, not with a blanket signer', () => {
   assert.match(fn, /authRelays\.has\(/, 'a bare signer would authenticate to any relay at all');
 });
 
-test('publish and query both carry onauth', () => {
+test('EVERY pool call carries onauth, because none of them may forget', () => {
   // The pool's own onauth covers a relay that challenges on connect. A relay that
   // answers a REQ or an EVENT with "auth-required: …" is only retried when onauth
-  // arrives in the call's params, so both paths need it.
-  assert.match(body, /publish\(targets, signed, authParams\)/);
-  assert.match(body, /\.get\(relays, filter, authParams\)/);
+  // arrives in the CALL'S params — a separate path, and the one the notification bell
+  // depends on.
+  //
+  // Passing it per call site is what failed: publish and get had it, thirteen reads did
+  // not, and the difference was which one someone remembered. So the guard is that the
+  // pool is unreachable except through the wrappers.
+  const WRAPPER = /^\s*const (?:poolGet|poolQuerySync|poolPublish|poolSubscribeMany|poolSubscribeManyEose) =/;
+  const direct = body
+    .split('\n')
+    .map((text, i) => ({ text, n: i + 1 }))
+    .filter((l) => /\bgetPool\(\)\./.test(l.text) && !WRAPPER.test(l.text))
+    .map((l) => l.n + ':' + l.text.trim());
+  assert.deepEqual(direct, [], 'these bypass onauth entirely');
+});
+
+test('the wrappers cannot be shadowed by a caller’s own params', () => {
+  const fn = source.match(/const withAuth = \(params\) => [^\n]+/)[0];
+  const spread = fn.indexOf('params');
+  const auth = fn.indexOf('authParams');
+  assert.ok(auth > spread, 'authParams must come last in the merge');
 });
 
 test('a total publish failure evicts the relays and retries once', () => {
   const fn = lift('async function publishToRelays(');
   const reset = fn.indexOf('resetPoolRelays(targets)');
-  const retry = fn.indexOf('publish(targets, signed, authParams)', reset);
+  const retry = fn.indexOf('poolPublish(targets, signed)', reset);
   assert.ok(reset !== -1, 'without eviction the retry reuses the same wedged sockets');
   assert.ok(retry > reset, 'evict first, then retry');
 });
@@ -219,4 +236,76 @@ test('building the allowlist issues no relay queries', () => {
   assert.doesNotMatch(fn, /getNip65/, 'the allowlist must read cached state, never query');
   assert.doesNotMatch(fn, /poolGet|getPool/);
   assert.match(fn, /recallNip65|nip65Cache/, 'cached sources only');
+});
+
+// ---- the wrappers actually merge -------------------------------------------------
+
+function wrapperHarness() {
+  const calls = [];
+  const ctx = {
+    console,
+    Object,
+    signRelayAuth: async () => ({ signed: true }),
+    getPool: () => ({
+      get: (r, f, p) => (calls.push(['get', r, f, p]), 'get'),
+      querySync: (r, f, p) => (calls.push(['querySync', r, f, p]), 'querySync'),
+      publish: (r, e, p) => (calls.push(['publish', r, e, p]), 'publish'),
+      subscribeMany: (r, f, p) => (calls.push(['subscribeMany', r, f, p]), 'sub'),
+      subscribeManyEose: (r, f, p) => (calls.push(['subscribeManyEose', r, f, p]), 'subEose'),
+    }),
+    calls,
+  };
+  vm.createContext(ctx);
+  vm.runInContext(
+    [
+      liftLine(/const authParams = \{ onauth: signRelayAuth \};/, 'authParams'),
+      liftLine(/const withAuth = \(params\) => [^\n]+/, 'withAuth'),
+      liftLine(/const poolGet = [^\n]+/, 'poolGet'),
+      liftLine(/const poolQuerySync = [^\n]+/, 'poolQuerySync'),
+      liftLine(/const poolPublish = [^\n]+/, 'poolPublish'),
+      liftLine(/const poolSubscribeMany = [^\n]+/, 'poolSubscribeMany'),
+      liftLine(/const poolSubscribeManyEose = [^\n]+/, 'poolSubscribeManyEose'),
+      'globalThis.w = { poolGet, poolQuerySync, poolPublish, poolSubscribeMany, poolSubscribeManyEose };',
+    ].join('\n'),
+    ctx
+  );
+  return ctx;
+}
+
+test('every wrapper passes onauth down to the pool', () => {
+  const ctx = wrapperHarness();
+  ctx.w.poolGet(['r'], {});
+  ctx.w.poolQuerySync(['r'], {});
+  ctx.w.poolPublish(['r'], {});
+  ctx.w.poolSubscribeMany(['r'], {});
+  ctx.w.poolSubscribeManyEose(['r'], {});
+  assert.equal(ctx.calls.length, 5);
+  for (const [name, , , params] of ctx.calls) {
+    assert.equal(typeof (params && params.onauth), 'function', name + ' dropped onauth');
+  }
+});
+
+test('a caller’s own params survive the merge', () => {
+  // maxWait and onevent are load-bearing at several call sites; clobbering them would
+  // turn a bounded query unbounded or silence a subscription.
+  const ctx = wrapperHarness();
+  const onevent = () => {};
+  ctx.w.poolQuerySync(['r'], {}, { maxWait: 8000 });
+  ctx.w.poolSubscribeMany(['r'], {}, { onevent });
+  assert.equal(ctx.calls[0][3].maxWait, 8000);
+  assert.equal(ctx.calls[1][3].onevent, onevent);
+});
+
+test('a caller cannot override onauth, even by passing one', () => {
+  const ctx = wrapperHarness();
+  const mine = () => 'not the signer';
+  ctx.w.poolQuerySync(['r'], {}, { onauth: mine });
+  assert.notEqual(ctx.calls[0][3].onauth, mine, 'authParams must win the merge');
+});
+
+test('calling a wrapper with no params at all still authenticates', () => {
+  // Most call sites pass nothing; undefined must not become the params object.
+  const ctx = wrapperHarness();
+  ctx.w.poolGet(['r'], {});
+  assert.equal(typeof ctx.calls[0][3].onauth, 'function');
 });
