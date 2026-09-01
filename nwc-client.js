@@ -86,7 +86,15 @@
     // Not a complete fix on its own: reconnect backoff starts at 10s and the kind:23195
     // reply is ephemeral, so a request already in flight is still lost. It keeps a
     // long-lived client healthy; getSwNwc's invalidation handles the in-flight case.
-    const pool = () => (_pool || (_pool = new NT.SimplePool({ enableReconnect: true })));
+    //
+    // websocketImplementation: nostr-tools never closes the socket it creates when a
+    // connect times out (see ws-guard.js). A pool per client means every connect,
+    // restore and quick-start builds another one, so this path leaks faster than the
+    // panel's single pool does.
+    const pool = () => (_pool || (_pool = new NT.SimplePool({
+      enableReconnect: true,
+      websocketImplementation: (self.SidecarWsGuard && self.SidecarWsGuard.impl()) || undefined,
+    })));
     let closed = false;
 
     const encrypt = (text) => NT.nip04.encrypt(sk, walletPubkey, text);

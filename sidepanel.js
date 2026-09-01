@@ -2354,10 +2354,15 @@
   // with "auth-required: …" is only retried when onauth arrives in the call's params.
   const authParams = { onauth: signRelayAuth };
 
+  // The WebSocket nostr-tools abandons on a connect timeout, closed by ws-guard.js.
+  // Shared with nwc-client.js, which builds its own pool per wallet client.
+  const guardedWs = (self.SidecarWsGuard && self.SidecarWsGuard.impl()) || undefined;
+
   function getPool() {
     if (!_pool) {
       _pool = new NT.SimplePool({
         enableReconnect: true,
+        websocketImplementation: guardedWs,
         automaticallyAuth: (url) => (authRelays.has(normalizeRelay(url)) ? signRelayAuth : undefined),
       });
     }
@@ -7822,7 +7827,7 @@
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
   const SIDECAR_SITE_URL = 'https://sidecar.top';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
-  const CREATOR_LN = 'daniel@breez.tips';
+  const CREATOR_LN = 'daniel@sidecar.top';
   const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
   const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 

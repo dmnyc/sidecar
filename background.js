@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('nostr-tools.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js');
+  importScripts('nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js');
 }
 
 const KS = self.SidecarKeystore;
