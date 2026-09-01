@@ -7822,7 +7822,7 @@
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
   const SIDECAR_SITE_URL = 'https://sidecar.top';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
-  const CREATOR_LN = 'daniel@breez.tips';
+  const CREATOR_LN = 'daniel@sidecar.top';
   const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
   const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
