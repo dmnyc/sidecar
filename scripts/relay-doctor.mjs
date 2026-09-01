@@ -327,7 +327,10 @@ async function main() {
   const checkIdx = args.indexOf('--check');
   const checkSpec = checkIdx !== -1 ? args[checkIdx + 1] : null;
   // Skip --check's value when looking for the pubkey, or it gets taken as the npub.
-  const who = args.find((a, i) => !a.startsWith('--') && i !== checkIdx + 1);
+  // The checkIdx !== -1 guard matters: without --check, checkIdx is -1, so `checkIdx + 1`
+  // is 0 — which is exactly where a bare pubkey sits. The tool then found no pubkey at
+  // all and printed usage unless a flag happened to come first.
+  const who = args.find((a, i) => !a.startsWith('--') && !(checkIdx !== -1 && i === checkIdx + 1));
   if (!who && !checkSpec) {
     console.error('Usage: node scripts/relay-doctor.mjs <npub-or-hex> [--candidates] [--json]');
     console.error('       node scripts/relay-doctor.mjs --check "wss://a,wss://b=write,wss://c=read" [<npub>]');

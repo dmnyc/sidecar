@@ -909,6 +909,10 @@
     // exactly when the bell is resolving names, which is how those names became npubs. It
     // runs once a day; it does not need to win a race against what you are reading.
     if (notifWotFilter) setTimeout(() => { getWotSet().catch(() => {}); }, 4000);
+    // Which relays this account will identify itself to. Rebuilt here because this runs
+    // on load AND on every state change, including an account switch — the declared
+    // relay list belongs to the account, so the allowlist has to follow it.
+    refreshAuthRelays().catch(() => {});
     // A class on <html> rather than a JS check for the one animation that is pure
     // CSS: the hidden-balance discs strike from their ::after existing at all
     // (themes/nixie.css), so no paint call ever runs to gate.
@@ -2270,11 +2274,112 @@
   // had. The panel is long-lived, so this pool is exactly where it bites: a composer
   // publish or profile fetch after the laptop wakes would go into a dead socket.
   let _pool = null;
+
+  // ---- NIP-42: identifying to the account's own relays ----------------------------
+  //
+  // A paid relay does not need this to accept your NOTES. An EVENT is signed, so the
+  // relay reads event.pubkey, checks it against its subscribers and lets the write
+  // through — which is why azzamo and nostr.wine work today despite reporting
+  // payment_required.
+  //
+  // READS are the asymmetry. A REQ carries no signature and nothing in a subscription
+  // says who is asking, so a relay that restricts reads has no option but to challenge.
+  // Without an answer, relays like relay.nostr.build and nostr.land serve the panel
+  // nothing at all — including the account's own kind:10002, which is the lookup whose
+  // six-second timeout sits underneath the relay-list bugs this branch fixes.
+  //
+  // WHO WE IDENTIFY TO, and why it is an allowlist. Answering a challenge tells the
+  // relay which account is behind this connection. For a relay in the account's own
+  // list that is not a disclosure: it already receives that account's signed events.
+  // For a relay reached through someone else's relay hint it very much is, so those get
+  // no answer. authRelays holds the account's configured relays plus its declared
+  // NIP-65, and nothing else.
+  //
+  // Kept as a synchronous Set because automaticallyAuth() is called from ensureRelay
+  // and cannot await.
+  const authRelays = new Set();
+
+  function normalizeRelay(u) {
+    try { return NT.utils.normalizeURL(u); } catch (_) { return String(u); }
+  }
+
+  // NO NETWORK. This runs from refresh(), which fires from dozens of places — including
+  // after every signature — so anything here that queries relays runs constantly.
+  //
+  // An earlier version called getNip65() and built a feedback loop: a lookup that FAILS
+  // is deliberately not cached, so every refresh issued another kind:10002 query, which
+  // is exactly the traffic that gets an account rate-limited, which makes the lookup
+  // fail. nostrelites.org said so out loud — "there is a bug in the client, no one
+  // should be making so many requests".
+  //
+  // The allowlist does not need a live answer. The session cache if it is warm, the
+  // persisted last-known-good otherwise, and the configured relays either way. A first
+  // run with neither still authenticates to the configured relays, which is where the
+  // kind:10002 lookup goes anyway; once it lands once, it is remembered.
+  async function refreshAuthRelays(pubkey) {
+    const who = pubkey || state.activePubkey;
+    let configured = [];
+    try { configured = await relayUrls(false); } catch (_) {}
+    let declared = nip65Cache.get(who) || null;
+    if (!declared) {
+      try { declared = await recallNip65(who); } catch (_) {}
+    }
+    // Cleared only once both sources are in hand: a switch must not leave the previous
+    // account's relays authable, and an empty window would let a challenge go
+    // unanswered for no reason.
+    authRelays.clear();
+    configured.forEach((u) => authRelays.add(normalizeRelay(u)));
+    if (declared) [...declared.read, ...declared.write].forEach((u) => authRelays.add(normalizeRelay(u)));
+  }
+
+  // Signs the kind:22242 the relay asked for. Routed through the service worker like
+  // every other signature — the key never reaches the panel — and pinned to the account
+  // that is active now, so a switch mid-connection cannot authenticate as the wrong
+  // person (the same fail-closed rule as every other owner-sign).
+  // NIP-42's auth event names its relay in a `relay` tag, which is the only thing an
+  // onauth callback is handed — so that tag is how a caller checks the allowlist.
+  function urlOfTemplate(template) {
+    const t = ((template && template.tags) || []).find((x) => x && x[0] === 'relay');
+    return t ? t[1] : '';
+  }
+
+  async function signRelayAuth(template) {
+    const pubkey = state.activePubkey;
+    if (!pubkey) throw new Error('no active account');
+    return call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: pubkey });
+  }
+
+  // Passed to publish/query as well as set on the pool: a relay that challenges on
+  // connect is handled by the pool's own onauth, but one that answers a REQ or an EVENT
+  // with "auth-required: …" is only retried when onauth arrives in the call's params.
+  const authParams = { onauth: signRelayAuth };
+
   function getPool() {
-    if (!_pool) _pool = new NT.SimplePool({ enableReconnect: true });
+    if (!_pool) {
+      _pool = new NT.SimplePool({
+        enableReconnect: true,
+        automaticallyAuth: (url) => (authRelays.has(normalizeRelay(url)) ? signRelayAuth : undefined),
+      });
+    }
     return _pool;
   }
-  const poolGet = (relays, filter) => getPool().get(relays, filter);
+
+  // Throw the pool's relays away and let the next call reconnect from scratch.
+  //
+  // WHY THIS IS NEEDED AT ALL. SimplePool evicts a relay only from the onclose callback
+  // it installs in ensureRelay. But AbstractRelay.handleHardClose calls onclose ONLY in
+  // its non-reconnecting branch — with enableReconnect set, a dropped relay reconnects
+  // on a backoff of up to a minute and is never removed from the map. ensureRelay then
+  // keeps handing back that same disconnected instance, publish() resolves "connection
+  // failure: …" for every target, and nothing recovers until the panel is reloaded and
+  // gets a fresh pool. A dropped wifi or a slept laptop puts every relay into that state
+  // at once, which is what made posts fail repeatedly until a reload.
+  function resetPoolRelays(urls) {
+    if (!_pool) return;
+    try { _pool.close(urls.length ? urls : [..._pool.relays.keys()]); } catch (_) {}
+  }
+
+  const poolGet = (relays, filter) => getPool().get(relays, filter, authParams);
 
   async function relayUrls(writableOnly) {
     const map = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -2409,18 +2514,101 @@
   // ---- NIP-65 (kind 10002) relay list, cached per account ----
   const nip65Cache = new Map(); // pubkey -> { read:[], write:[] } | null
 
-  async function getNip65(pubkey) {
-    if (!pubkey) return null;
-    if (nip65Cache.has(pubkey)) return nip65Cache.get(pubkey);
+  // LAST KNOWN GOOD, on disk, per account.
+  //
+  // The lookup below races a 6s timeout, and a timeout is not evidence about anything.
+  // Without this, every caller had to choose between two wrong answers when the relays
+  // were slow: treat the account as having no declared relays (which cost posts, and let
+  // the editor offer to publish Sidecar's defaults over a real list), or fall back to the
+  // configured set (which is the wrong direction for a per-account privacy setting).
+  // Remembering the last list we genuinely received makes both unnecessary — a transient
+  // failure now yields the relays the account actually declared.
+  //
+  // kind:10002 is public by definition, so this is public data at rest; it is stored per
+  // pubkey and dropped with the account.
+  const NIP65_STORE = 'sidecar_nip65';
+
+  // Distinguishes "the lookup ran out of time" from every value the pool can return.
+  const NIP65_TIMED_OUT = Symbol('nip65-timeout');
+
+  async function loadNip65Store() {
+    try {
+      const all = await new Promise((res) => {
+        chrome.storage.local.get(NIP65_STORE, (o) => {
+          if (chrome.runtime.lastError) return res(null);
+          res(o && o[NIP65_STORE]);
+        });
+      });
+      return all && typeof all === 'object' ? all : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  // SERIALIZED, because every write is read-modify-write over one shared object. Two
+  // accounts resolving at once — which is exactly what happens when you switch accounts
+  // while the previous lookup is still in flight — would both read the same snapshot and
+  // the second set() would drop the first account's entry.
+  let nip65Writes = Promise.resolve();
+
+  function rememberNip65(pubkey, list) {
+    nip65Writes = nip65Writes.then(async () => {
+      try {
+        const all = await loadNip65Store();
+        if (list) all[pubkey] = { read: list.read, write: list.write, at: Date.now() };
+        else delete all[pubkey]; // a genuine empty list is worth forgetting, not preserving
+        await new Promise((res) => chrome.storage.local.set({ [NIP65_STORE]: all }, () => res()));
+      } catch (_) {}
+    });
+    return nip65Writes;
+  }
+
+  async function recallNip65(pubkey) {
+    await nip65Writes; // never read behind an in-flight write
+    const rec = (await loadNip65Store())[pubkey];
+    if (!rec || !Array.isArray(rec.read) || !Array.isArray(rec.write)) return null;
+    return { read: rec.read, write: rec.write, at: rec.at || 0 };
+  }
+
+  function forgetNip65(pubkey) {
+    nip65Cache.delete(pubkey);
+    return rememberNip65(pubkey, null);
+  }
+
+  // The full answer, for callers that need to act on the difference.
+  //
+  //   list      { read, write } | null
+  //   resolved  did the relays actually answer? false means the list below (if any) is
+  //             remembered from an earlier session, not confirmed now
+  //   stale     true when `list` came from the store rather than from this lookup
+  //
+  // getNip65() keeps the old list-or-null shape for the callers that genuinely cannot
+  // act on the distinction, but every caller that CAN should use this.
+  async function getNip65Info(pubkey) {
+    if (!pubkey) return { list: null, resolved: true, stale: false };
+    if (nip65Cache.has(pubkey)) return { list: nip65Cache.get(pubkey), resolved: true, stale: false };
     let parsed = null;
     let gotEvent = false;
     try {
+      // The timeout resolves to a SENTINEL, not to null.
+      //
+      // Both branches used to resolve null, which made "the pool finished and this
+      // account has published no relay list" indistinguishable from "nobody answered in
+      // six seconds". Collapsing those is the bug this whole function is about, and
+      // without the sentinel the fix inverts it: a brand-new account would be stuck
+      // permanently unresolved, and the editor would refuse to let it publish a first
+      // list at all.
+      //
+      // Residual ambiguity worth knowing about: SimplePool.get() also resolves null when
+      // every relay refuses outright, and that arrives fast enough to beat the timeout.
+      // It is a narrower gap than the one being closed, and the remembered list below
+      // still covers it for any account that has ever resolved once.
       const ev = await Promise.race([
         poolGet(await relayUrls(false), { kinds: [10002], authors: [pubkey] }),
-        new Promise((res) => setTimeout(() => res(null), 6000)),
+        new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
       ]);
-      if (ev) {
-        gotEvent = true;
+      if (ev !== NIP65_TIMED_OUT) gotEvent = true;
+      if (gotEvent && ev) {
         const read = [], write = [];
         ev.tags.forEach((t) => {
           if (t[0] !== 'r' || !t[1]) return;
@@ -2436,8 +2624,19 @@
     // relay tags — that's a genuine "no NIP-65 list"). A timeout or network
     // error leaves the cache cold so the next call retries instead of locking
     // in a null that readRelayUrls/postRelays would treat as "no list."
-    if (gotEvent) nip65Cache.set(pubkey, parsed);
-    return parsed;
+    if (gotEvent) {
+      nip65Cache.set(pubkey, parsed);
+      rememberNip65(pubkey, parsed); // best-effort; not awaited, nothing reads it this tick
+      return { list: parsed, resolved: true, stale: false };
+    }
+    // The relays never answered. Anything we say now is from memory, and it has to be
+    // labeled as such — the whole point of this function.
+    const remembered = await recallNip65(pubkey);
+    return { list: remembered ? { read: remembered.read, write: remembered.write } : null, resolved: false, stale: !!remembered, at: remembered ? remembered.at : 0 };
+  }
+
+  async function getNip65(pubkey) {
+    return (await getNip65Info(pubkey)).list;
   }
 
   // Where to publish the active account's events: its NIP-65 write relays UNION the
@@ -2455,10 +2654,29 @@
   // the NIP-65 list is unknown (fetch failed or genuinely absent), publish to declared
   // relays only — an empty set, which the downstream "no relays reachable" error path
   // will surface. Never silently fall back to bootstrap relays the user opted out of.
+  // Thrown rather than returning an empty list, so the composer keeps the draft and says
+  // something true. Returning [] made publishToRelays report "No relays configured (add
+  // some in Settings)" — advice that is both useless and wrong when the relays are
+  // configured and it was the LOOKUP that failed.
+  class RelayListUnavailable extends Error {
+    constructor() {
+      super('Could not load your relay list — check your connection and try again.');
+      this.name = 'RelayListUnavailable';
+    }
+  }
+
   async function postRelays() {
-    const n = await getNip65(state.activePubkey);
-    const declared = n ? n.write : [];
-    if (await nip65OnlyFor(state.activePubkey)) return [...new Set(declared)];
+    const info = await getNip65Info(state.activePubkey);
+    const declared = info.list ? info.list.write : [];
+    if (await nip65OnlyFor(state.activePubkey)) {
+      // NIP-65-only means the declared write set IS the answer, so an unresolved lookup
+      // has no safe substitute: the configured relays are exactly the ones this account
+      // asked to stop using. Publishing there anyway would break the setting; publishing
+      // nowhere would lose the note. So we use the last list we genuinely saw, and when
+      // there is none, we refuse loudly instead of failing silently.
+      if (!info.resolved && !info.stale) throw new RelayListUnavailable();
+      return [...new Set(declared)];
+    }
     // No NIP-65 list → fall back to configured so a fresh account can still publish.
     if (!declared.length) return relayUrls(true);
     return [...new Set([...declared, ...(await relayUrls(true))])];
@@ -2484,8 +2702,29 @@
     const targets = [...new Set(relays.map((u) => {
       try { return NT.utils.normalizeURL(u); } catch (_) { return u; }
     }))];
-    const results = await Promise.allSettled(getPool().publish(targets, signed));
-    const ok = results.filter((r) => !publishFailed(r)).length;
+    let results = await Promise.allSettled(getPool().publish(targets, signed, authParams));
+    let ok = results.filter((r) => !publishFailed(r)).length;
+
+    // NOTHING LANDED — try once more against fresh sockets before believing it.
+    //
+    // The pool never evicts a relay that dropped while reconnect was enabled (see
+    // resetPoolRelays), so "every relay failed" is far more often one wedged pool than
+    // a real outage across every relay at once. Dropping the entries and retrying is
+    // what a reload used to accomplish, which is why the reload appeared to be the fix.
+    //
+    // Safe to repeat: ok === 0 means no relay accepted the event, so there is nothing to
+    // duplicate. Only attempted on a TOTAL failure, so a partial success is never
+    // re-sent to the relays that already took it.
+    if (!ok) {
+      resetPoolRelays(targets);
+      results = await Promise.allSettled(getPool().publish(targets, signed, authParams));
+      ok = results.filter((r) => !publishFailed(r)).length;
+    } else if (results.some(publishFailed)) {
+      // Partial success: drop just the relays that failed, so a wedged one does not sit
+      // in the map poisoning the next post.
+      resetPoolRelays(targets.filter((_, i) => publishFailed(results[i])));
+    }
+
     if (!ok) {
       throw new Error(publishFailureMessage(targets, results));
     }
@@ -2809,6 +3048,7 @@
     const targets = [...new Set([...(prior ? prior.write : []), ...newWrite, ...fallback])];
     const ok = await publishToRelays(targets, signed);
     nip65Cache.delete(pubkey); // invalidate so getNip65()/postRelays() refetch fresh
+    refreshAuthRelays(pubkey).catch(() => {});
     return ok;
   }
 
@@ -6067,6 +6307,7 @@
         const next = { ...relays };
         delete next[url];
         await call({ type: 'SIDECAR_SET_RELAYS', relays: next });
+        refreshAuthRelays().catch(() => {});
         renderSettings();
       });
       row.append(h('div', { className: 'item-actions' }, [rm]));
@@ -10204,18 +10445,193 @@
   // ---- NIP-65 relay list editor (Profile tab) ----
   // Loads the account's published read/write relays; if none exist yet, seeds
   // the editor from Sidecar's own configured relays as a starting point.
+  // Three outcomes, and the editor has to tell them apart:
+  //
+  //   'published'   these are the account's declared relays
+  //   'remembered'  the relays did not answer; this is the last list we saw
+  //   'unknown'     the relays did not answer and we have never seen a list
+  //   'none'        the relays answered and this account has not published one
+  //
+  // It used to return a bare array and fall through to the app's GLOBAL configured relay
+  // map on any failure, under the label "Loaded from your current relay list." That map
+  // is one setting shared by every account (background.js, sidecar_relays), so switching
+  // accounts while the lookup timed out showed another account's relays as if they were
+  // yours — and Publish would then have signed those defaults over your real list.
   async function loadNip65Editor(pubkey) {
-    const n = await getNip65(pubkey);
-    if (n) {
+    const info = await getNip65Info(pubkey);
+    if (info.list) {
+      const n = info.list;
       const urls = [...new Set([...n.read, ...n.write])];
-      return urls.map((url) => ({ url, read: n.read.includes(url), write: n.write.includes(url) }));
+      return {
+        state: info.stale ? 'remembered' : 'published',
+        at: info.at || 0,
+        relays: urls.map((url) => ({ url, read: n.read.includes(url), write: n.write.includes(url) })),
+      };
     }
+    if (!info.resolved) return { state: 'unknown', relays: [] };
+    // Genuinely nothing published. Seeding from the configured relays is a real
+    // convenience here — there is no list to overwrite — but the caller must say so.
     const configured = await call({ type: 'SIDECAR_GET_RELAYS' });
-    return Object.keys(configured).map((url) => ({
-      url,
-      read: configured[url].read !== false,
-      write: configured[url].write !== false,
-    }));
+    return {
+      state: 'none',
+      relays: Object.keys(configured).map((url) => ({
+        url,
+        read: configured[url].read !== false,
+        write: configured[url].write !== false,
+      })),
+    };
+  }
+
+  // ---- relay icons ---------------------------------------------------------------
+  //
+  // A relay list is a wall of near-identical wss:// strings, and at a glance the only
+  // thing distinguishing them is a domain buried mid-line. An icon per row is what makes
+  // it scannable, which is why Jumble shows them.
+  //
+  // TWO SOURCES, best first:
+  //
+  //   1. NIP-11's `icon` field — what the operator actually chose. This is fetched per
+  //      relay, once, and cached for a month. An earlier version only picked it up from
+  //      a health check the user had already run, to avoid touching relays on render;
+  //      that turned out to be the wrong trade. Of the eight relays on a real list, all
+  //      eight declare an icon and only five answer /favicon.ico, so the row that most
+  //      needs an icon is the one that never got one. It is also FEWER requests, not
+  //      more: one document read beats walking four favicon paths to a 404.
+  //   2. The favicon paths Jumble tries, in its order, for relays with no NIP-11 icon.
+  //      (Jumble tries /favicon.ico only; the rest are a small improvement on it.)
+  //
+  // Failing both, the row falls back to the wifi glyph and no request is left pending.
+  // A relay that declares nothing is remembered as declaring nothing, so the document is
+  // not re-read on every repaint.
+  //
+  // PRIVACY: this reads each relay's NIP-11 document over HTTPS and loads an image from
+  // its web host. Both go to hosts already named in the account's own relay list, the
+  // image carries no referrer and no credentials, and results are cached for a month.
+  // Noted in PRIVACY.md.
+  const RELAY_ICON_STORE = 'sidecar_relay_icons';
+  const RELAY_ICON_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  const relayIconCache = new Map(); // host -> url ('' = known to have none)
+
+  // Jumble's list, in Jumble's order — most to least common.
+  const FAVICON_PATHS = ['/favicon.ico', '/favicon.svg', '/favicon.png', '/apple-touch-icon.png'];
+
+  // Pure, so it can be tested without a DOM: the ordered list of URLs to try.
+  function relayIconCandidates(relayUrl, declared) {
+    let origin;
+    try {
+      origin = new URL(String(relayUrl).replace(/^ws:\/\//i, 'http://').replace(/^wss:\/\//i, 'https://')).origin;
+    } catch (_) {
+      return [];
+    }
+    const out = [];
+    // Only https for the declared icon: a relay's NIP-11 can name any URL at all, and an
+    // http one would be a mixed-content request the panel should not be making.
+    if (declared && /^https:\/\//i.test(declared)) out.push(declared);
+    FAVICON_PATHS.forEach((path) => out.push(origin + path));
+    return [...new Set(out)];
+  }
+
+  async function loadRelayIcons() {
+    if (relayIconCache.size) return;
+    try {
+      const all = await new Promise((res) => {
+        chrome.storage.local.get(RELAY_ICON_STORE, (o) => {
+          if (chrome.runtime.lastError) return res(null);
+          res(o && o[RELAY_ICON_STORE]);
+        });
+      });
+      const now = Date.now();
+      Object.entries(all || {}).forEach(([host, rec]) => {
+        if (rec && now - (rec.at || 0) < RELAY_ICON_TTL_MS) relayIconCache.set(host, rec.icon || '');
+      });
+    } catch (_) {}
+  }
+
+  let relayIconWrites = Promise.resolve(); // same read-modify-write hazard as the NIP-65 store
+  function rememberRelayIcon(host, iconUrl) {
+    if (relayIconCache.get(host) === iconUrl) return relayIconWrites;
+    relayIconCache.set(host, iconUrl);
+    relayIconWrites = relayIconWrites.then(async () => {
+      try {
+        const all = await new Promise((res) => {
+          chrome.storage.local.get(RELAY_ICON_STORE, (o) => res((o && o[RELAY_ICON_STORE]) || {}));
+        });
+        all[host] = { icon: iconUrl, at: Date.now() };
+        await new Promise((res) => chrome.storage.local.set({ [RELAY_ICON_STORE]: all }, () => res()));
+      } catch (_) {}
+    });
+    return relayIconWrites;
+  }
+
+  // host -> in-flight NIP-11 read. Deduped because a repaint rebuilds every row, and
+  // without this a list of eight relays would re-read eight documents on each one.
+  const relayIconInflight = new Map();
+
+  // Read the relay's NIP-11 icon once and remember it — INCLUDING when there is none.
+  // '' is a real answer with a real cost to re-establish; treating it as "unknown" would
+  // re-read the document on every repaint for exactly the relays that have no icon.
+  //
+  // has(), not get(): '' is falsy and is precisely the value we must not re-ask about.
+  async function ensureRelayIcon(relayUrl) {
+    const host = hostOf(relayUrl);
+    if (relayIconCache.has(host)) return relayIconCache.get(host);
+    if (relayIconInflight.has(host)) return relayIconInflight.get(host);
+    const p = (async () => {
+      let declared = '';
+      try {
+        const RH = self.SidecarRelayHealth;
+        const n = RH ? await RH.nip11(relayUrl) : null;
+        if (n && n.ok && typeof n.icon === 'string') declared = n.icon;
+      } catch (_) {}
+      await rememberRelayIcon(host, declared);
+      relayIconInflight.delete(host);
+      return declared;
+    })();
+    relayIconInflight.set(host, p);
+    return p;
+  }
+
+  // An <img> that walks the candidates on error and gives up to a glyph. The glyph is
+  // rendered underneath from the start rather than swapped in at the end, so a row never
+  // flashes empty while a 404 is in flight.
+  function relayIconEl(relayUrl) {
+    const wrap = h('span', { className: 'relay-icon' });
+    wrap.append(icon('wifi'));
+    const host = hostOf(relayUrl);
+    const img = h('img', { alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' });
+
+    let candidates = [];
+    let i = 0;
+    function tryFrom(list) {
+      candidates = list;
+      i = 0;
+      if (!candidates.length) return;
+      if (!img.isConnected) wrap.append(img);
+      img.src = candidates[0];
+    }
+
+    img.addEventListener('error', () => {
+      if (++i < candidates.length) { img.src = candidates[i]; return; }
+      img.remove(); // exhausted — the glyph underneath is the answer
+    });
+    img.addEventListener('load', () => {
+      img.classList.add('ok');
+      rememberRelayIcon(host, candidates[i]);
+    });
+
+    tryFrom(relayIconCandidates(relayUrl, relayIconCache.get(host)));
+    // Not yet known: read the document, and restart the chain if it names an icon. The
+    // favicon attempt above is already in flight, so a relay with a working favicon shows
+    // one immediately and only sharpens if NIP-11 disagrees.
+    if (!relayIconCache.has(host)) {
+      ensureRelayIcon(relayUrl).then((declared) => {
+        if (!declared || !wrap.isConnected) return;
+        if (candidates[i] === declared) return; // already showing it
+        img.classList.remove('ok');
+        tryFrom(relayIconCandidates(relayUrl, declared));
+      }, () => {});
+    }
+    return wrap;
   }
 
   function renderNip65Section(view, active) {
@@ -10243,8 +10659,18 @@
     // session.
     const checkBtn = h('button', { className: 'secondary nip65-check', textContent: 'Check relay health' });
 
+    // Its own full-width row under the status line, not a control beside it: it carries
+    // words, and the panel is too narrow for a label and a button to share a line
+    // (see CLAUDE.md). Hidden unless the list is remembered or missing.
+    const retryBtn = h('button', { className: 'secondary nip65-retry', textContent: 'Retry loading relay list' });
+    // The ROW is hidden, not just the button — a hidden child still leaves the row's
+    // own margin behind, which reads as a gap nobody can explain.
+    const retryRow = h('div', { className: 'actions nip65-retry-row' }, [retryBtn]);
+    retryRow.hidden = true;
+
     setting.append(
       status,
+      retryRow,
       list,
       warn,
       h('div', { className: 'row-actions' }, [addInput, addBtn]),
@@ -10279,11 +10705,47 @@
     // verdict, so a theme that renders the dot poorly still leaves the row readable.
     const VERDICT_TEXT = {
       healthy: 'Healthy',
-      gated: 'Gated',
-      'auth-gated': 'Needs login',
+      // "Paid", not "Gated". This verdict comes from NIP-11 flags read anonymously, and
+      // it does NOT mean your posts bounce: an EVENT is signed, so a paid relay reads
+      // event.pubkey and accepts a subscriber's note without any connection auth. The
+      // old wording read as breakage and invited dropping a relay that works.
+      gated: 'Paid',
+      // Only ever shown now when signing in was impossible or refused — an answered
+      // challenge classifies as healthy. See relay-health.js classify().
+      'auth-gated': 'Sign-in needed',
       'not-serving': 'Not answering',
       down: 'Unreachable',
     };
+    // A relay's CLOSED/OK reason is free text and can be any length, in any tone —
+    // nostrelites.org answers a burst with "rate-limited: there is a bug in the client,
+    // no one should be making so many requests", which wrapped to three lines in a row
+    // that has room for one.
+    //
+    // NIP-01 puts a machine-readable word before the first colon precisely so clients do
+    // not have to show the prose. Use that; keep the prose only when there is no word we
+    // recognize, and cap it.
+    const REASON_WORDS = {
+      'rate-limited': 'rate limited',
+      blocked: 'blocked',
+      restricted: 'restricted',
+      'auth-required': 'needs sign-in',
+      pow: 'wants proof of work',
+      invalid: 'rejected as invalid',
+      duplicate: 'already have it',
+      error: '',
+    };
+    function shortReason(why) {
+      let t = String(why || '').replace(/^CLOSED:\s*/i, '').trim();
+      if (!t) return '';
+      const m = /^([a-z-]+):\s*(.*)$/i.exec(t);
+      if (m && Object.prototype.hasOwnProperty.call(REASON_WORDS, m[1].toLowerCase())) {
+        const word = REASON_WORDS[m[1].toLowerCase()];
+        if (word) return word;
+        t = m[2] || m[1]; // "error:" carries nothing itself — fall through to its detail
+      }
+      return t.length > 44 ? t.slice(0, 43).trimEnd() + '…' : t;
+    }
+
     function healthLine(url) {
       const r = health.get(url);
       if (!r) return null;
@@ -10294,15 +10756,26 @@
         return line;
       }
       line.classList.add('v-' + r.verdict);
+      // ONE SHORT LINE. Each bit is a fact; none of them is an explanation. A sentence
+      // here wrapped to two lines on every paid relay and said nothing the user could
+      // act on — "Paid" already carries it, and what a lapsed subscription looks like
+      // belongs in help rather than in eight repeated rows.
       const bits = [VERDICT_TEXT[r.verdict] || r.verdict];
-      if (r.verdict === 'healthy' && r.probe && r.probe.connectMs != null) bits.push(r.probe.connectMs + 'ms');
+      // Which account the verdict is FOR. Without it, a verdict on a subscriber-only
+      // relay reads as though it would hold for anyone, which is the opposite of true.
+      if (r.authed) bits.push('signed in');
+      // Latency for anything that actually served, not just the unpaid ones — a paid
+      // relay's speed is exactly as relevant to keeping it.
+      if (r.probe && r.probe.served && r.probe.connectMs != null) bits.push(r.probe.connectMs + 'ms');
       // The keep-or-drop signal, and the one no client shows: up, serving, and holding
       // nothing of yours. Only stated when the probe actually asked for this account.
       if (r.probe && r.probe.served && r.probe.hasAuthorData === false) bits.push('no notes here');
       // "Writes unknown" rather than silence: NIP-11 not answering is not evidence that
       // posting works, and this screen exists to decide whether to keep a relay.
       if (r.verdict === 'healthy' && r.writeKnown === false) bits.push('writes unverified');
-      if (r.why) bits.push(r.why);
+      // A paid relay's NIP-11 flags describe what a STRANGER faces. Restating them at the
+      // user implies their own posts are failing, which is not what the flags mean.
+      if (r.verdict !== 'gated' && r.why) bits.push(shortReason(r.why));
       line.append(h('span', { className: 'nip65-dot' }), document.createTextNode(bits.join(' · ')));
       return line;
     }
@@ -10320,8 +10793,19 @@
         // "the relay is empty". Without one the probe still works, it just cannot answer
         // that question.
         await RH.audit(urls, state.activePubkey || null, {
+          // Same allowlist the pool uses. A relay the panel will identify to is probed
+          // as this account sees it; anything else stays anonymous.
+          onauth: (template) => {
+            if (!authRelays.has(normalizeRelay(urlOfTemplate(template)))) {
+              return Promise.reject(new Error('not an allowlisted relay'));
+            }
+            return signRelayAuth(template);
+          },
           onResult: (res) => {
             health.set(res.url, res);
+            // The NIP-11 document is already in hand here, so the declared icon costs
+            // nothing extra — this is the only place it is ever read.
+            if (res.nip11 && res.nip11.icon) rememberRelayIcon(hostOf(res.url), res.nip11.icon);
             renderRows(); // rows settle one at a time rather than after the slowest
           },
         });
@@ -10360,7 +10844,13 @@
         // Stacked layout: the URL wraps on its own line, then a toggles row —
         // the sidebar is too narrow to keep the URL and Read/Write on one line.
         const row = h('div', { className: 'item nip65-row' }, [
-          h('div', { className: 'nip65-url', textContent: r.url }),
+          // The icon and the URL share a line; the URL is the flex child that shrinks
+          // (min-width: 0 in styles.css) so break-all still wraps under the icon rather
+          // than pushing it out of the row.
+          h('div', { className: 'nip65-head' }, [
+            relayIconEl(r.url),
+            h('div', { className: 'nip65-url', textContent: r.url }),
+          ]),
           h('div', { className: 'nip65-controls' }, [
             h('label', { className: 'nip65-chip' }, [readCb, document.createTextNode('Read')]),
             h('label', { className: 'nip65-chip' }, [writeCb, document.createTextNode('Write')]),
@@ -10416,16 +10906,38 @@
       publishBtn.textContent = 'Publish relay list';
     });
 
-    loadNip65Editor(active.pubkey)
-      .then((initial) => {
-        relayList = initial;
-        status.textContent = relayList.length ? 'Loaded from your current relay list.' : 'Not published yet.';
-        renderRows();
-      })
-      .catch(() => {
-        status.textContent = 'Could not load your current relay list.';
-        renderRows();
-      });
+    // 'unknown' is the state worth being careful about: the editor has nothing to show,
+    // and the one thing it must NOT do is offer to publish something anyway. Publish
+    // stays disabled until a retry succeeds, because a kind:10002 is replaceable — one
+    // click from here would replace a perfectly good published list with whatever was
+    // left on screen.
+    function applyLoad(res) {
+      relayList = res.relays;
+      const failed = res.state === 'unknown';
+      publishBtn.disabled = failed;
+      retryRow.hidden = !failed && res.state !== 'remembered';
+      status.classList.toggle('warn', failed || res.state === 'remembered');
+      if (res.state === 'published') status.textContent = 'Loaded from your published relay list.';
+      else if (res.state === 'remembered') status.textContent = 'Relays did not answer — showing your last known list.';
+      else if (res.state === 'none') status.textContent = 'Not published yet — starting from your configured relays.';
+      else status.textContent = 'Could not load your relay list. Retry before publishing.';
+      renderRows();
+    }
+
+    function loadEditor() {
+      status.classList.remove('warn');
+      loadRelayIcons().then(renderRows, () => {}); // cached icons, then repaint with them
+      status.textContent = 'Loading your relay list…';
+      retryRow.hidden = true;
+      loadNip65Editor(active.pubkey)
+        .then(applyLoad)
+        .catch(() => applyLoad({ state: 'unknown', relays: [] }));
+    }
+
+    retryBtn.addEventListener('click', () => {
+      forgetNip65(active.pubkey).then(loadEditor, loadEditor);
+    });
+    loadEditor();
   }
 
   // After the user publishes a NIP-65 relay list, offer to stop using Sidecar's
@@ -14362,6 +14874,7 @@
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
     relays[url] = { read: true, write: true };
     await call({ type: 'SIDECAR_SET_RELAYS', relays });
+    refreshAuthRelays().catch(() => {});
     input.value = '';
     renderSettings();
   });

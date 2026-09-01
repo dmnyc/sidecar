@@ -218,7 +218,14 @@ test('verdicts are keyed by URL, not by row index', () => {
 test('rows settle one at a time', () => {
   // A list containing one dead relay otherwise shows nothing at all until that relay's
   // connect timeout expires, because the audit resolves as a whole.
-  assert.match(panel, /onResult: \(res\) => \{[\s\S]{0,120}renderRows\(\);/);
+  //
+  // Scoped to the callback rather than measured in characters: the handler picked up the
+  // relay-icon cache write, and a character budget fails on unrelated growth inside a
+  // block that is still doing the right thing.
+  const cb = panel.slice(panel.indexOf('onResult: (res) => {'));
+  const body = cb.slice(0, cb.indexOf('\n          },'));
+  assert.ok(body.length > 0, 'could not isolate the onResult callback');
+  assert.match(body, /renderRows\(\);/, 'every result must repaint, not just the last');
 });
 
 test('a thrown probe cannot leave rows stuck on "Checking…"', () => {
@@ -266,4 +273,203 @@ test('the button reads the same before and after a check', () => {
   // "Check relays" alone sat directly above rows carrying two checkboxes each, where it
   // reads as "tick the relays". The noun is what removes that.
   assert.doesNotMatch(panel, /textContent: 'Check relays'/);
+});
+
+// ---- NIP-42: probing as the account rather than as a stranger --------------------
+//
+// The probe used to bail the instant a relay challenged, so relay.nostr.build and
+// nostr.land were reported "demands NIP-42 AUTH" — advice to drop them — even after the
+// panel gained the ability to sign in to both. A health screen that tells you to discard
+// working relays is worse than none.
+//
+// The anonymous behavior has to survive intact, because relay-doctor shares this code
+// and has no key.
+
+// A relay that refuses to serve until it has been authenticated.
+function authRelay({ challengeOnConnect = true, accept = true, closedFirst = false } = {}) {
+  return fakeWs((ws) => {
+    let authed = false;
+    ws.send = (raw) => {
+      const m = JSON.parse(raw);
+      if (m[0] === 'REQ') {
+        if (authed) return msg(ws, ['EOSE', 'rh']);
+        if (closedFirst) return msg(ws, ['CLOSED', 'rh', 'auth-required: please sign in']);
+        return;
+      }
+      if (m[0] === 'AUTH') {
+        authed = accept;
+        return msg(ws, ['OK', m[1].id, accept, accept ? '' : 'subscription expired']);
+      }
+    };
+    ws.onopen();
+    if (challengeOnConnect) msg(ws, ['AUTH', 'challenge-123']);
+  });
+}
+
+const signer = (over) => async (template) => Object.assign({ id: 'auth-evt', sig: 'x' }, template, over);
+
+test('an answered challenge on connect ends in a served read', async () => {
+  const p = await RH.probe('wss://gated.example', null, { WebSocket: authRelay(), onauth: signer() });
+  assert.equal(p.served, true, 'the point: sign in, then actually read');
+  assert.equal(p.authed, true);
+  assert.ok(!p.authChallenge, 'an answered challenge is not a gate');
+});
+
+test('an answered "auth-required" CLOSED also ends in a served read', async () => {
+  // The other shape: no challenge until you ask for something.
+  const ws = authRelay({ challengeOnConnect: false, closedFirst: true });
+  const p = await RH.probe('wss://gated.example', null, {
+    WebSocket: fakeWs((s) => {
+      let authed = false;
+      s.send = (raw) => {
+        const m = JSON.parse(raw);
+        if (m[0] === 'REQ') {
+          if (authed) return msg(s, ['EOSE', 'rh']);
+          return msg(s, ['CLOSED', 'rh', 'auth-required: please sign in']);
+        }
+        if (m[0] === 'AUTH') { authed = true; return msg(s, ['OK', m[1].id, true, '']); }
+      };
+      s.onopen();
+      msg(s, ['AUTH', 'challenge-123']);
+    }),
+    onauth: signer(),
+  });
+  assert.equal(p.served, true);
+  assert.equal(p.authed, true);
+  void ws;
+});
+
+test('a signed-in read classifies as healthy, not auth-gated', () => {
+  const c = RH.classify({ up: true, served: true, authed: true, connectMs: 9 }, { ok: true });
+  assert.equal(c.verdict, 'healthy', 'this is what told the user to drop a working relay');
+  assert.equal(c.authed, true, 'and the UI must be able to say which account it is healthy FOR');
+});
+
+test('a REFUSED sign-in is still auth-gated, and says why', async () => {
+  // A lapsed subscription must not read as healthy.
+  const p = await RH.probe('wss://gated.example', null, {
+    WebSocket: authRelay({ accept: false }),
+    onauth: signer(),
+  });
+  assert.equal(p.served, false);
+  assert.equal(p.authChallenge, true);
+  assert.equal(p.authFailed, true);
+  const c = RH.classify(p, { ok: true });
+  assert.equal(c.verdict, 'auth-gated');
+  assert.match(c.why, /subscription expired/);
+});
+
+test('a signer that throws degrades to the anonymous verdict', async () => {
+  // Locked keystore, no active account, or a relay the caller will not identify to.
+  const p = await RH.probe('wss://gated.example', null, {
+    WebSocket: authRelay(),
+    onauth: async () => { throw new Error('locked'); },
+  });
+  assert.equal(p.authChallenge, true);
+  assert.equal(RH.classify(p, { ok: true }).verdict, 'auth-gated');
+});
+
+test('WITHOUT a signer the anonymous behavior is unchanged', () => {
+  // relay-doctor shares this file and has no key. Its verdicts must not move.
+  return RH.probe('wss://gated.example', null, { WebSocket: authRelay() }).then((p) => {
+    assert.equal(p.authChallenge, true);
+    assert.equal(p.served, false);
+    assert.equal(p.reason, 'demands AUTH');
+    assert.ok(!p.authed);
+  });
+});
+
+test('a relay that never challenges is untouched by any of this', async () => {
+  const p = await RH.probe('wss://open.example', null, {
+    WebSocket: fakeWs((ws) => { ws.onopen(); msg(ws, ['EOSE', 'rh']); }),
+    onauth: signer(),
+  });
+  assert.equal(p.served, true);
+  assert.ok(!p.authed, 'nothing was signed, so nothing should claim it was');
+});
+
+test('a stale auth-required CLOSED does not settle while sign-in is in flight', async () => {
+  // relay.nostr.build, verified live: it challenges, and then also sends CLOSED
+  // auth-required for the REQ we issued BEFORE the challenge — arriving while our AUTH
+  // is still in flight. Settling on it reported "demands AUTH" one frame before the
+  // relay was ready to answer, which is the exact wrong verdict for a relay we can use.
+  const p = await RH.probe('wss://gated.example', null, {
+    WebSocket: fakeWs((ws) => {
+      let authed = false;
+      ws.send = (raw) => {
+        const m = JSON.parse(raw);
+        if (m[0] === 'REQ') {
+          if (authed) return msg(ws, ['EOSE', 'rh']);
+          // the pre-auth REQ is refused, but only after the challenge is already out
+          return setTimeout(() => msg(ws, ['CLOSED', 'rh', 'auth-required: sign in first']), 0);
+        }
+        if (m[0] === 'AUTH') {
+          return setTimeout(() => { authed = true; msg(ws, ['OK', m[1].id, true, '']); }, 1);
+        }
+      };
+      ws.onopen();
+      msg(ws, ['AUTH', 'challenge-123']);
+    }),
+    onauth: signer(),
+  });
+  assert.equal(p.served, true, 'the stale CLOSED must not win the race');
+  assert.equal(p.authed, true);
+});
+
+// ---- the panel's one-line reason -------------------------------------------------
+
+test('a relay’s prose is reduced to the NIP-01 word', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  const at = src.indexOf('function shortReason(');
+  assert.ok(at !== -1, 'shortReason not found');
+  const open = src.indexOf('{', at);
+  let depth = 0, end = -1;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) { end = i + 1; break; }
+  }
+  const words = src.match(/const REASON_WORDS = \{[\s\S]*?\};/)[0];
+  const shortReason = new Function(words + '\n' + src.slice(at, end) + '\nreturn shortReason;')();
+
+  // The one from the screenshot: three lines in a row with room for one.
+  assert.equal(
+    shortReason('CLOSED: rate-limited: there is a bug in the client, no one should be making so many requests'),
+    'rate limited'
+  );
+  assert.equal(shortReason('CLOSED: blocked: you are not welcome'), 'blocked');
+  assert.equal(shortReason('auth-required: sign in first'), 'needs sign-in');
+
+  // No recognized word: keep it, but cap it so a row cannot grow without limit.
+  const long = shortReason('CLOSED: ' + 'x'.repeat(200));
+  assert.ok(long.length <= 44, 'got ' + long.length);
+  assert.match(long, /…$/);
+
+  // "error:" is a container, not a description — show what it contains.
+  assert.equal(shortReason('error: failed to authenticate'), 'failed to authenticate');
+
+  // Short and unrecognized survives untouched.
+  assert.equal(shortReason('connect timeout'), 'connect timeout');
+  assert.equal(shortReason(''), '');
+});
+
+test('the dot is green for anything the relay actually served', () => {
+  // A paid relay in a subscriber's own list showed amber, which reads as a fault on a
+  // relay that works. classify() only reaches `gated` after !p.served has been ruled
+  // out, so gated ALWAYS means the relay answered — and with NIP-42 it answered after
+  // signing in. Amber belongs to what the user can act on.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const green = css.match(/([^}]*)\{ background: var\(--success\); \}/g).join('\n');
+  assert.match(green, /v-gated/, 'a served paid relay is working, not warning');
+  assert.match(green, /v-healthy/);
+
+  const amber = css.match(/([^}]*)\{ background: var\(--warn\); \}/g).join('\n');
+  assert.match(amber, /v-auth-gated/, 'a sign-in that failed is actionable');
+  assert.match(amber, /v-not-serving/);
+  assert.doesNotMatch(amber, /v-gated \.nip65-dot,\n\.nip65-health\.v-auth/, 'gated must not be amber');
+});
+
+test('gated is only ever reached once the relay has served', () => {
+  // The premise the dot color rests on.
+  const c = RH.classify({ up: true, served: false, reason: 'no EOSE' }, { ok: true, paymentRequired: true });
+  assert.equal(c.verdict, 'not-serving', 'an unanswered probe must never classify as gated');
 });
