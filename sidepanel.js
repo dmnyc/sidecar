@@ -2354,10 +2354,15 @@
   // with "auth-required: …" is only retried when onauth arrives in the call's params.
   const authParams = { onauth: signRelayAuth };
 
+  // The WebSocket nostr-tools abandons on a connect timeout, closed by ws-guard.js.
+  // Shared with nwc-client.js, which builds its own pool per wallet client.
+  const guardedWs = (self.SidecarWsGuard && self.SidecarWsGuard.impl()) || undefined;
+
   function getPool() {
     if (!_pool) {
       _pool = new NT.SimplePool({
         enableReconnect: true,
+        websocketImplementation: guardedWs,
         automaticallyAuth: (url) => (authRelays.has(normalizeRelay(url)) ? signRelayAuth : undefined),
       });
     }

@@ -18,6 +18,7 @@
     "service_worker": "background.js",
     "scripts": [
       "nostr-tools.js",
+      "ws-guard.js",
       "crypto.js",
       "keystore.js",
       "permissions.js",
