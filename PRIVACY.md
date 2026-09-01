@@ -70,6 +70,12 @@ Sidecar only talks to services **you choose**:
   description, image) tags. This contacts the linked site directly; no
   third-party preview service is involved, and requests to private or local
   network addresses are blocked.
+- **Relay icons** — the relay list on the Profile tab shows each relay's icon.
+  Sidecar loads that image from the relay's own web host, trying the icon the
+  relay declares in its NIP-11 document and then the usual favicon paths. It is
+  a plain image request with no referrer and no credentials, made to hosts
+  already named in your relay list. Successful icons are cached locally for a
+  month so the request is not repeated.
 - **Media uploads** — when you attach an image or video to a note, it is
   uploaded so it can be included. Uploads go to your own Blossom media
   server(s) (from your kind:10063 list) when you have them configured, and

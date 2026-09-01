@@ -1602,7 +1602,32 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .nip65-status.done { color: var(--gold); }
 .nip65-warn:empty { display: none; }
 .item.nip65-row { flex-direction: column; align-items: stretch; gap: 10px; }
-.nip65-url { font-family: var(--font-mono); font-size: 12px; color: var(--muted); word-break: break-all; line-height: 1.4; }
+.nip65-head { display: flex; align-items: flex-start; gap: 9px; }
+/* min-width: 0 so break-all can actually shrink this flex child. Without it the URL
+   refuses to wrap and shoves the icon out of the row. */
+.nip65-url { min-width: 0; flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--muted); word-break: break-all; line-height: 1.4; }
+/* The glyph sits underneath from the start and the image covers it once it loads, so a
+   row never flashes empty while a 404 is in flight. */
+.relay-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  overflow: hidden;
+  color: var(--faint);
+}
+.relay-icon svg { width: 14px; height: 14px; margin: 2px; }
+.relay-icon img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  background: var(--bg-2);
+}
+.relay-icon img.ok { opacity: 1; }
 .nip65-controls { display: flex; align-items: center; gap: 22px; }
 .nip65-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-2); cursor: pointer; white-space: nowrap; }
 .nip65-chip input[type=checkbox] {
@@ -1624,14 +1649,27 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--muted); flex-shrink: 0;
 }
-.nip65-health.v-healthy .nip65-dot { background: var(--success); }
-.nip65-health.v-gated .nip65-dot,
+/* The dot is a SEVERITY signal, so it answers "does this need me?" — not "is this
+   relay unusual?". `gated` is only ever reached after the probe has been served (see
+   classify() in relay-health.js), so it means a paid relay that answered us, signing in
+   first where that was needed. That is a working relay. Amber on relays that work is
+   how a health screen teaches people to ignore it — and it was amber on every paid
+   relay in a subscriber's own list. */
+.nip65-health.v-healthy .nip65-dot,
+.nip65-health.v-gated .nip65-dot { background: var(--success); }
+/* Amber is reserved for what the user can act on: a sign-in that failed or was
+   impossible, and a relay that connected but never answered. */
 .nip65-health.v-auth-gated .nip65-dot,
 .nip65-health.v-not-serving .nip65-dot { background: var(--warn); }
 .nip65-health.v-down .nip65-dot { background: var(--red); }
 .nip65-health.checking { opacity: 0.7; }
 .nip65-check-row { margin-top: 12px; }
 .nip65-check-row .secondary { width: 100%; }
+/* Full-width on its own row rather than beside the status line: it carries words, and
+   the panel is too narrow to seat a label and a button together (see CLAUDE.md). */
+.nip65-retry-row { margin-top: 10px; }
+.nip65-retry-row .secondary { width: 100%; }
+.nip65-status.warn { color: var(--warn); }
 .nip65-publish { margin-top: 18px; }
 .nip65-publish .primary { width: 100%; }
 .backup-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }

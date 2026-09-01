@@ -345,6 +345,9 @@
 [data-theme="werkstatte"] .embed-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .ln-recipient-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .compose-thumb-x:not(.theme-card):not(.theme-card *),
+/* Relay icons are logos standing in for an identity, the same job an avatar does, so
+   they follow the avatar exception rather than the blanket square. */
+[data-theme="werkstatte"] .relay-icon:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .fab:not(.theme-card):not(.theme-card *) {
   border-radius: 50%;
 }
