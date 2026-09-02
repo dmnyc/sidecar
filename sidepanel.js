@@ -3284,7 +3284,12 @@
       const amount = zapAmountText(msats);
       return { glyph: '⚡', text: amount ? 'zapped ' + amount : 'zapped you' };
     }
-    if (ev.kind === 6) return { glyph: '🔁', text: 'reposted your note' };
+    // Bundled SVG rather than 🔁. Emoji are rendered by the OS: they carry their own
+    // colors, so they ignore the theme, and they differ between platforms — the same
+    // notification is a flat glyph on one machine and a glossy 3D badge on another.
+    // These use currentColor, so every theme gets them right for free. The zap already
+    // moved for the same reason (boltIcon, because ⚡ washed out on light themes).
+    if (ev.kind === 6) return { icon: 'repeat', text: 'reposted your note' };
     if (ev.kind === 7) {
       const r = (ev.content || '').trim();
       const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
@@ -3301,7 +3306,7 @@
     if (hasQ) return { glyph: '❝', text: 'quoted your note' };
     const hasE = ev.tags.some((t) => t[0] === 'e');
     return hasE
-      ? { glyph: '💬', text: 'replied to your note' }
+      ? { icon: 'message-circle', text: 'replied to your note' }
       : { glyph: '@', text: 'mentioned you' };
   }
 
@@ -3867,7 +3872,7 @@
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
-      const { glyph, text } = notifLabel(ev);
+      const { glyph, icon: glyphIcon, text } = notifLabel(ev);
 
       // Where this notification opens (a renderable note/article/profile URL), or
       // '' when there's no sensible target.
@@ -3921,7 +3926,12 @@
       // Zap notifications use the crisp filled bolt (boltIcon, themed via
       // currentColor) instead of the ⚡ emoji, which washes out on light themes.
       const glyphEl = h('span', { className: 'notif-glyph' });
-      if (glyph === '⚡') glyphEl.appendChild(boltIcon());
+      // Three kinds of mark, and the order matters. A bundled icon when the label
+      // names one; the filled bolt for zaps, which has its own gold treatment; and
+      // otherwise the literal character — which for a REACTION is the emoji the sender
+      // actually chose, and must stay exactly as they wrote it.
+      if (glyphIcon) glyphEl.appendChild(icon(glyphIcon));
+      else if (glyph === '⚡') glyphEl.appendChild(boltIcon());
       else glyphEl.textContent = glyph;
       const topRow = h('div', { className: 'notif-top' }, [
         glyphEl,

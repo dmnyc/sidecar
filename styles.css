@@ -1360,6 +1360,10 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 }
 .notif-top-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .notif-glyph { font-size: 14px; line-height: 1; flex-shrink: 0; }
+/* Bundled marks (repost, reply) inherit currentColor, so a theme gets them right with
+   no per-theme rule — the thing emoji cannot do. Muted rather than full text: they say
+   what KIND of notification this is, and the name beside them is what matters. */
+.notif-glyph svg { width: 14px; height: 14px; display: block; color: var(--muted); }
 .notif-glyph .bolt-ico { color: var(--gold); height: 15px; }
 /* Dark themes: a golden/yellow bolt so the zap indicator pops (noir's --gold is silver). */
 [data-theme="film-noir"] .notif-glyph .bolt-ico { color: #f1c84a; }
