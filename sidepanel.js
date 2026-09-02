@@ -6709,6 +6709,26 @@
       h('div', { className: 'item-sub', textContent: e.host + ' · ' + relTime(e.ts) }),
     ]);
     row.append(iconBox, main);
+
+    // TRUST, BUT VERIFY. The log recorded that something was signed and never what,
+    // so an entry could only be believed. With the event id it can be checked: this
+    // opens the signed event in the user's preferred client, where the real thing is
+    // either there or it is not.
+    //
+    // An icon button in the inline slot, no words — the panel is ~360px and a labelled
+    // action beside content is what makes these rows collapse (see CLAUDE.md). The id
+    // also goes on the row title, so it can be read and copied without leaving.
+    if (e.id) {
+      row.title = e.id;
+      const open = iconButton('View this event', 'external', async () => {
+        try {
+          const nevent = NT.nip19.neventEncode({ id: e.id, author: e.pubkey || undefined });
+          const client = await preferredClient();
+          window.open(client.url(nevent), '_blank', 'noopener');
+        } catch (_) {}
+      });
+      row.append(h('div', { className: 'item-actions' }, [open]));
+    }
     return row;
   }
 
