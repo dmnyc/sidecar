@@ -350,6 +350,17 @@ let panelWindowId = null;       // the browser window the open panel lives in (w
 let graceTimer = null;          // panel-disconnect grace before falling back to a popup
 const REQUEST_TTL = 175000;     // < content.js's 180s page timeout, so we never surface a dead request
 const TOMBSTONE_TTL = 600000;   // interrupted tombstones self-clear after 10 min
+// How long the panel gets to confirm it actually PUT THE APPROVAL ON SCREEN.
+//
+// Only one entry may be 'showing' at a time — driveOnce returns early while one is —
+// so an entry that is marked showing but never rendered blocks every later request
+// silently: no prompt, no Activity entry, and the page waits out its own 180s timeout.
+// The popup surface cannot do this because creating a window either works or throws;
+// the panel surface was fire-and-forget, trusting a broadcast to be rendered.
+//
+// Generous, because it only has to cover a panel that is alive and busy — a panel that
+// is gone fails panelServesWindow instead and never gets here.
+const PANEL_ACK_MS = 1500;
 const QUEUE_SESSION_KEY = 'sidecar_prompt_queue';
 const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
 
@@ -616,6 +627,12 @@ function navigatePopup(url, originWindowId) {
 // the request came from. Unknowns default to "yes" so the panel-first behavior
 // is preserved for the common single-window case; we divert to a popup only on a
 // definite window mismatch.
+//
+// That optimism used to be load-bearing: guessing wrong meant the entry sat 'showing'
+// on a panel that never rendered it, and the queue stopped draining. It is now merely
+// a preference — the PANEL_ACK_MS deadline takes the entry back and re-routes it to a
+// popup when the panel does not confirm. So a wrong guess costs a second and a half,
+// not every subsequent signature.
 function panelServesWindow(originWindowId) {
   if (!panelPort) return false;
   if (originWindowId == null || panelWindowId == null) return true;
@@ -661,6 +678,18 @@ async function driveOnce() {
     } else if (showing.display === 'popup' && panelServesWindow(showing.originWindowId)) {
       showing.state = 'queued'; showing.display = 'none'; // revert BEFORE closing so onRemoved won't reject it
       closePopupWindow();
+    } else if (
+      showing.display === 'panel' &&
+      !showing.acked &&
+      showing.shownAt != null &&
+      now - showing.shownAt > PANEL_ACK_MS
+    ) {
+      // The panel was handed this and never confirmed it rendered. Take it back and
+      // let the popup path below have it — a surface whose success we can observe.
+      // Without this the entry stays 'showing' forever and the queue never drains.
+      showing.state = 'queued';
+      showing.display = 'none';
+      showing.panelFailed = true; // don't hand it back to the panel and loop
     } else { return; }
   }
 
@@ -695,9 +724,14 @@ async function driveOnce() {
   // panel before falling back to a popup positioned over the origin window.
   const origin = head.originWindowId;
   if (!panelPort) await waitForPanelPort(600);
-  if (panelServesWindow(origin)) {
+  if (panelServesWindow(origin) && !head.panelFailed) {
     head.state = 'showing'; head.display = 'panel';
+    head.shownAt = Date.now();
+    head.acked = false; // set by SIDECAR_APPROVAL_SHOWN when the panel renders it
     qPersist(); broadcastQueue();
+    // Nothing else would re-enter driveOnce if the panel stays silent, so the
+    // deadline has to schedule its own wake-up.
+    setTimeout(() => { driveDisplay(); }, PANEL_ACK_MS + 50);
   } else {
     head.state = 'showing'; head.display = 'popup';
     qPersist();
@@ -3199,6 +3233,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Observable-queue queries/actions (see the approval-queue section up top).
   if (message.type === 'SIDECAR_GET_PENDING') {
     sendResponse({ ok: true, result: pendingView() });
+    return false;
+  }
+  // The panel confirming it put an approval on screen. Without this the panel is a
+  // surface we hand work to and never hear about again — and an entry marked 'showing'
+  // that was never rendered blocks every later request (see PANEL_ACK_MS).
+  if (message.type === 'SIDECAR_APPROVAL_SHOWN') {
+    const e = queue.find((x) => x.id === message.id);
+    if (e && e.state === 'showing' && e.display === 'panel') e.acked = true;
+    sendResponse({ ok: true });
     return false;
   }
   if (message.type === 'SIDECAR_REJECT_ALL_PENDING') {

@@ -15523,6 +15523,11 @@
 
   function showApproval() {
     if (!pendingApproval) return;
+    // Tell the worker this is actually on screen. It hands an approval to the panel and
+    // marks it 'showing'; if nothing renders, that entry blocks every later request with
+    // no prompt and no Activity entry. The ack is what lets it fall back to a popup
+    // instead of wedging. Best-effort — a failed ack costs a popup, not a signature.
+    try { bg({ type: 'SIDECAR_APPROVAL_SHOWN', id: pendingApproval.id }).catch(() => {}); } catch (_) {}
     const data = pendingApproval.data;
     // Only initialize once per prompt — an incidental refresh() re-render (the
     // panel treats a pending approval as modal and re-shows it) must not stomp
