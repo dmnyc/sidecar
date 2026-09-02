@@ -1530,7 +1530,20 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       grantContent(host, activePubkey, signKind);
     }
 
-    logActivity({ ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey });
+    // The event id, so an entry can be VERIFIED rather than merely believed.
+    //
+    // The log recorded that something was signed — host, kind, time — and never what.
+    // "Trust them, but verify the last hundred" was exactly the thing it could not
+    // support. The id is 32 bytes, it is the only field that makes an entry checkable
+    // against a relay, and it carries no content, so it needs none of the decisions
+    // that storing the event itself would (see #280).
+    //
+    // Only present for signEvent; getPublicKey and the encrypt/decrypt methods produce
+    // no event and no id.
+    logActivity({
+      ts: Date.now(), host, method, kind: signKind, pubkey: activePubkey,
+      id: result && typeof result.id === 'string' ? result.id : undefined,
+    });
 
     sendResponse({ ok: true, result });
   } catch (e) {
