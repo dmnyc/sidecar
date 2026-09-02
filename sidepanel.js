@@ -3222,18 +3222,67 @@
     });
   }
 
+  // How many msats a zap receipt is for.
+  //
+  // The `amount` tag on the embedded kind:9734 is OPTIONAL in NIP-57, and plenty of
+  // wallets omit it — on a real inbox, 54 of 140 receipts had no amount tag and every
+  // one of the 140 carried a bolt11. Reading only the tag meant 39% of zaps displayed
+  // as a bare "zapped you" with the number sitting in plain sight one tag over.
+  //
+  // Tag first, invoice second: the zap request is what the sender ASKED for and the
+  // invoice is what was actually billed. They agree in practice, and the tag is cheaper
+  // than parsing.
+  function zapMsats(ev) {
+    const tags = (ev && ev.tags) || [];
+    try {
+      const descTag = tags.find((t) => t[0] === 'description');
+      if (descTag) {
+        const inner = JSON.parse(descTag[1]);
+        const amtTag = inner.tags && inner.tags.find((t) => t[0] === 'amount');
+        const n = amtTag ? parseInt(amtTag[1], 10) : NaN;
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+    } catch (_) {}
+    const bolt11 = tags.find((t) => t[0] === 'bolt11' && t[1]);
+    return bolt11 ? msatsFromBolt11(bolt11[1]) : 0;
+  }
+
+  // The amount lives in the bolt11's human-readable part, so this needs no invoice
+  // parser and no dependency:
+  //
+  //   ln <currency> <amount> <multiplier?> 1 <data>
+  //
+  // The separator is the LAST '1' — bech32 excludes '1' from its data charset for
+  // exactly this reason — so splitting there is what distinguishes `lnbc10u1…` (1000
+  // sats) from an amountless `lnbc1…`, where that 1 is the separator and there is no
+  // amount at all. Matching the digits directly would read the separator as a value.
+  const BOLT11_MSAT = { m: 1e8, u: 1e5, n: 1e2, p: 1e-1 }; // per BTC-fraction unit
+  function msatsFromBolt11(pr) {
+    const s = String(pr || '').toLowerCase();
+    const sep = s.lastIndexOf('1');
+    if (sep < 1) return 0;
+    const m = /^ln(?:bc|tb|bcrt|tbs|sb)(\d*)([munp]?)$/.exec(s.slice(0, sep));
+    if (!m || !m[1]) return 0; // no digits ⇒ amountless invoice
+    const n = parseInt(m[1], 10);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return n * (m[2] ? BOLT11_MSAT[m[2]] : 1e11); // no multiplier ⇒ whole BTC
+  }
+
+  // "21 sats", "1 sat", "1,234 sats" — and "<1 sat" rather than "0 sats", because
+  // someone did zap you and rounding it to nothing reads as a bug.
+  function zapAmountText(msats) {
+    if (!(msats > 0)) return '';
+    const sats = msats / 1000;
+    if (sats < 1) return '<1 sat';
+    const n = Math.round(sats);
+    return fmtSats(n) + (n === 1 ? ' sat' : ' sats');
+  }
+
   function notifLabel(ev) {
     if (ev.kind === 9735) {
-      let sats = '';
-      try {
-        const descTag = ev.tags.find((t) => t[0] === 'description');
-        if (descTag) {
-          const inner = JSON.parse(descTag[1]);
-          const amtTag = inner.tags && inner.tags.find((t) => t[0] === 'amount');
-          if (amtTag) sats = Math.round(parseInt(amtTag[1], 10) / 1000) + ' sats';
-        }
-      } catch (_) {}
-      return { glyph: '⚡', text: sats ? 'zapped ' + sats : 'zapped you' };
+      const msats = zapMsats(ev);
+      const amount = zapAmountText(msats);
+      return { glyph: '⚡', text: amount ? 'zapped ' + amount : 'zapped you' };
     }
     if (ev.kind === 6) return { glyph: '🔁', text: 'reposted your note' };
     if (ev.kind === 7) {
