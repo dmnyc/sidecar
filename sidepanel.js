@@ -13226,12 +13226,14 @@
         // Name the cause when the client could work it out (#120): a relay that's
         // down reads as a Sidecar failure otherwise. Kept short — this sits under
         // the balance in a narrow panel; the full sentence goes in the toast.
-        unit.textContent = e && e.relayDown
-          ? 'wallet relay unreachable'
-          : e && e.staleSocket
-            ? 'connection lost — retry'
-            : 'balance unavailable';
-        if (e && (e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
+        unit.textContent = e && e.localSocketFailure
+          ? 'browser out of connections'
+          : e && e.relayDown
+            ? 'wallet relay unreachable'
+            : e && e.staleSocket
+              ? 'connection lost — retry'
+              : 'balance unavailable';
+        if (e && (e.localSocketFailure || e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
       }
     }
     bal.classList.remove('loading');

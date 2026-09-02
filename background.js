@@ -1531,6 +1531,12 @@ async function getSwNwc(pubkey) {
   if (swNwc) { try { swNwc.client.close(); } catch (_) {} swNwc = null; }
   const connection = await KS.getNwc(pubkey); // requires unlocked
   if (!connection) return null;
+  // Controls for the "is it this relay, or is it the browser?" check when a wallet
+  // request times out. Deliberately the user's OWN configured relays: they are already
+  // contacted routinely, so probing them tells no new host anything.
+  try {
+    if (NWC.setControlRelays) NWC.setControlRelays(Object.keys(await getConfiguredRelays()));
+  } catch (_) {}
   swNwc = { client: NWC.makeClient(connection), pubkey };
   return swNwc.client;
 }
