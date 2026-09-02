@@ -155,3 +155,40 @@ test('controls come from relays the user already uses', () => {
   const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
   assert.match(bg, /setControlRelays\(Object\.keys\(await getConfiguredRelays\(\)\)\)/);
 });
+
+// ---- recovery: a way out that is not "restart Chrome" ------------------------------
+
+test('the panel can throw away every connection it holds', () => {
+  // Recovery from socket exhaustion. Both halves matter: the panel's own pool AND the
+  // worker's wallet client, which lives in a different context and holds its own.
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  const at = panel.indexOf('async function resetConnections(');
+  assert.ok(at !== -1, 'resetConnections not found');
+  const fn = panel.slice(at, panel.indexOf('\n  }', at));
+  assert.match(fn, /resetPoolRelays\(\[\]\)/, 'empty list means every relay in the pool');
+  assert.match(fn, /SIDECAR_RESET_CONNECTIONS/, 'the worker holds its own and must be told');
+});
+
+test('the worker rebuilds its wallet client rather than reusing a dead one', () => {
+  const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  const at = bg.indexOf("case 'SIDECAR_RESET_CONNECTIONS'");
+  assert.ok(at !== -1);
+  assert.match(bg.slice(at, at + 260), /closeSwNwc\(\)/);
+});
+
+test('reset is not reachable from a web page', () => {
+  // A site being able to drop the user's relay connections is a denial-of-service
+  // primitive, however small.
+  const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  const ok = bg.match(/const CONTENT_OK = new Set\(\[[\s\S]*?\]\);/)[0];
+  assert.doesNotMatch(ok, /SIDECAR_RESET_CONNECTIONS/);
+});
+
+test('the button is only offered for failures reconnecting could fix', () => {
+  // walletSilent means the wallet answered nothing — a new socket does not help, and
+  // a button that cannot work is its own small lie.
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  const guard = panel.match(/if \(e && \(e\.localSocketFailure \|\| e\.relayDown \|\| e\.staleSocket\)\) \{/);
+  assert.ok(guard, 'expected the narrower guard for the button');
+  assert.doesNotMatch(guard[0], /walletSilent/);
+});

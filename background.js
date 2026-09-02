@@ -2872,6 +2872,16 @@ async function handleControl(message, sender, sendResponse) {
         result = { value: fresh ? parked.value : null };
         break;
       }
+      // Throw away every relay connection the worker holds. Recovery from browser
+      // socket exhaustion: nothing in the UI could rebuild connections, so the only
+      // way back was quitting Chrome. This cannot fix a browser drained by another
+      // tab — the budget is shared — but it frees Sidecar's own share, which IS the
+      // fix when Sidecar is the one holding them.
+      case 'SIDECAR_RESET_CONNECTIONS': {
+        closeSwNwc(); // the wallet client rebuilds against a fresh pool on next use
+        result = { ok: true };
+        break;
+      }
       case 'SIDECAR_SET_NWC':
         await KS.setNwc(message.pubkey, message.connection);
         closeSwNwc(); // rebuild against the new connection on next use
