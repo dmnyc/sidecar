@@ -1961,7 +1961,7 @@
           // One REQ per chunk of seeds, collecting their p-tags. Bounded per chunk so a
           // single unresponsive relay cannot hold the whole build open.
           fetchFollowsOf: async (chunk) => {
-            const evs = await getPool().querySync(relays, { kinds: [3], authors: chunk }, { maxWait: 8000 });
+            const evs = await poolQuerySync(relays, { kinds: [3], authors: chunk }, { maxWait: 8000 });
             // Deduped by author before counting: the pool spans relays, so one person's
             // list arrives once per relay holding it, and counting copies multiplies every
             // vote. See followsFromEvents.
@@ -2384,7 +2384,28 @@
     try { _pool.close(urls.length ? urls : [..._pool.relays.keys()]); } catch (_) {}
   }
 
-  const poolGet = (relays, filter) => getPool().get(relays, filter, authParams);
+  // EVERY pool call goes through one of these, so none of them can forget onauth.
+  //
+  // Two things authenticate, and they are not the same. `automaticallyAuth` above sets
+  // relay.onauth, which fires when a relay sends an AUTH frame — global, so every call
+  // site already benefits, and it is how relay.nostr.build and nostr.land behave.
+  // `params.onauth` drives a DIFFERENT path: the retry when a relay answers a REQ with
+  // "CLOSED: auth-required" having never sent a challenge. Without it in params that
+  // subscription is just dropped.
+  //
+  // Only publish() and get() carried it, so thirteen reads — the notification bell among
+  // them — could be closed by a relay asking to be signed in to, and silently stay
+  // closed. Wrapping is the fix rather than passing authParams at each site: sixteen call
+  // sites with a steady trickle of new ones is precisely the shape that drifts back apart,
+  // and it already had, for no reason but which one someone remembered.
+  //
+  // authParams last: a caller cannot accidentally shadow onauth with its own params.
+  const withAuth = (params) => Object.assign({}, params, authParams);
+  const poolGet = (relays, filter, params) => getPool().get(relays, filter, withAuth(params));
+  const poolQuerySync = (relays, filter, params) => getPool().querySync(relays, filter, withAuth(params));
+  const poolPublish = (relays, event, params) => getPool().publish(relays, event, withAuth(params));
+  const poolSubscribeMany = (relays, filters, params) => getPool().subscribeMany(relays, filters, withAuth(params));
+  const poolSubscribeManyEose = (relays, filters, params) => getPool().subscribeManyEose(relays, filters, withAuth(params));
 
   async function relayUrls(writableOnly) {
     const map = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -2707,7 +2728,7 @@
     const targets = [...new Set(relays.map((u) => {
       try { return NT.utils.normalizeURL(u); } catch (_) { return u; }
     }))];
-    let results = await Promise.allSettled(getPool().publish(targets, signed, authParams));
+    let results = await Promise.allSettled(poolPublish(targets, signed));
     let ok = results.filter((r) => !publishFailed(r)).length;
 
     // NOTHING LANDED — try once more against fresh sockets before believing it.
@@ -2722,7 +2743,7 @@
     // re-sent to the relays that already took it.
     if (!ok) {
       resetPoolRelays(targets);
-      results = await Promise.allSettled(getPool().publish(targets, signed, authParams));
+      results = await Promise.allSettled(poolPublish(targets, signed));
       ok = results.filter((r) => !publishFailed(r)).length;
     } else if (results.some(publishFailed)) {
       // Partial success: drop just the relays that failed, so a wedged one does not sit
@@ -3344,7 +3365,7 @@
     need.forEach((pk) => _notifProfileInflight.add(pk));
     try {
       const evs = await Promise.race([
-        getPool().querySync(relays, { kinds: [0], authors: need }, { maxWait: 6000 }),
+        poolQuerySync(relays, { kinds: [0], authors: need }, { maxWait: 6000 }),
         new Promise((r) => setTimeout(() => r([]), 6500)),
       ]);
       const newest = new Map();
@@ -3576,7 +3597,7 @@
     const p = (async () => {
       const muted = emptyMuteSet();
       try {
-        const evs = await getPool().querySync(relays, { kinds: [10000], authors: [pubkey] });
+        const evs = await poolQuerySync(relays, { kinds: [10000], authors: [pubkey] });
         const ev = (evs || []).sort((x, y) => y.created_at - x.created_at)[0];
         if (ev) {
           seedBaseline(pubkey, ev); // free ride — see seedBaseline
@@ -3623,7 +3644,7 @@
     const p = (async () => {
       const ids = new Set();
       try {
-        const evs = await getPool().querySync(relays, { kinds: [1], authors: [pubkey], limit: 150 });
+        const evs = await poolQuerySync(relays, { kinds: [1], authors: [pubkey], limit: 150 });
         (evs || [])
           .sort((x, y) => y.created_at - x.created_at)
           .slice(0, 150)
@@ -3736,12 +3757,12 @@
       // open one subscription per filter (the pool shares the relay sockets).
       try {
         for (const f of buildFilters(since, 50)) {
-          getPool().subscribeManyEose(relays, f, { onevent: addEvent });
+          poolSubscribeManyEose(relays, f, { onevent: addEvent });
         }
       } catch (_) {}
       try {
         const subs = buildFilters(liveSince).map((f) =>
-          getPool().subscribeMany(relays, f, { onevent: addEvent })
+          poolSubscribeMany(relays, f, { onevent: addEvent })
         );
         cache.liveSub = { close: () => subs.forEach((s) => { try { s.close(); } catch (_) {} }) };
       } catch (_) {}
@@ -7173,7 +7194,7 @@
     if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
     let count = null;
     try {
-      const ev = await getPool().get(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
+      const ev = await poolGet(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
       if (ev) {
         const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
         count = set.size;
@@ -7344,7 +7365,7 @@
       // race lost, even if most relays had already answered, so one slow relay
       // could wipe the entire follow list down to zero. Not cached on failure,
       // so the next @-mention attempt retries instead of being stuck all session.
-      const ev = await getPool().get(relays, { kinds: [3], authors: [state.activePubkey] }, { maxWait: 8000 });
+      const ev = await poolGet(relays, { kinds: [3], authors: [state.activePubkey] }, { maxWait: 8000 });
       if (!ev) return [];
       const pubkeys = (ev.tags || [])
         .filter((t) => t[0] === 'p')
@@ -7354,7 +7375,7 @@
         followListPubkey = state.activePubkey;
         return (followListCache = []);
       }
-      const profiles = await getPool().querySync(relays, { kinds: [0], authors: pubkeys }, { maxWait: 10000 });
+      const profiles = await poolQuerySync(relays, { kinds: [0], authors: pubkeys }, { maxWait: 10000 });
       const byPk = {};
       (profiles || []).forEach((p) => {
         if (!byPk[p.pubkey] || p.created_at > byPk[p.pubkey].created_at) byPk[p.pubkey] = p;
@@ -7417,7 +7438,7 @@
     if (need.length) {
       try {
         const events = await Promise.race([
-          getPool().querySync(await relayUrls(false), { kinds: [0], authors: need }),
+          poolQuerySync(await relayUrls(false), { kinds: [0], authors: need }),
           new Promise((res) => setTimeout(() => res([]), 6000)),
         ]);
         const latest = {};
@@ -9396,7 +9417,7 @@
 
   // Every bookmark list event, raw, for bookmarkSections to shape.
   async function fetchBookmarkLists() {
-    return getPool().querySync(
+    return poolQuerySync(
       await readRelayUrls(state.activePubkey),
       { kinds: [10003, 30001], authors: [state.activePubkey] },
       { maxWait: 6000 }
@@ -9437,7 +9458,7 @@
     for (let i = 0; i < ids.length; i += 64) chunks.push(ids.slice(i, i + 64));
     await Promise.all(chunks.map(async (chunk) => {
       try {
-        const evs = await getPool().querySync(relays, { ids: chunk }, { maxWait: 5000 });
+        const evs = await poolQuerySync(relays, { ids: chunk }, { maxWait: 5000 });
         (evs || []).forEach((ev) => { if (!found.has(ev.id)) found.set(ev.id, ev); });
       } catch (_) {}
     }));
@@ -11017,7 +11038,7 @@
       relays.map(async (relay) => {
         try {
           const evs = await Promise.race([
-            getPool().querySync([relay], { kinds: [3], authors: [pubkey], limit: 20 }),
+            poolQuerySync([relay], { kinds: [3], authors: [pubkey], limit: 20 }),
             new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
           ]);
           if (evs && evs.length) responding.add(relay);

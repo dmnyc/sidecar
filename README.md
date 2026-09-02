@@ -24,6 +24,14 @@ Connect) and a composer for posting notes directly from the panel.
 >
 > — [Hollywood stuntman & make-up artist](https://jumble.social/notes/nevent1qvzqqqqqqypzpqh68q0mpzgpvuv6aphzvdndvcshrgk9tgpcerhn0c5zshl7ptshqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzp7uu04hygk8uk0at69k3wm89hdeecgethaxkfhfa74n9gnuz260xtatdyk), on Nostr
 
+> "Just installed it. Work of art."
+>
+> — [Gustavo](https://jumble.social/notes/nevent1qvzqqqqqqypzps72hgsrzw4c53ran2h9paz775z6s32v2ay0vrsvuqf4g8uqug8jqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqjgwfz5ffkax7x23pf5ujnegxee52q003xgqp40g9vl63mccnyv567pttm), on Nostr
+
+> "sidecar.top is so badass! Even my multi-agent headless-chromium powerhouse of playwrights can use it with classy ease."
+>
+> — [cloud fodder](https://jumble.social/notes/nevent1qvzqqqqqqypzqlxr9zsgmke2lhuln0nhhml5eq6gnluhjuscyltz3f2z7v4zglqwqyghwumn8ghj7mn0wd68ytnhd9hx2tcpz9mhxue69uhkummnw3ezumrpdejz7qpqulsle0ek7fxjeutzzmetxk0xytx3q28rjvr40r3vnrytc2y2clpsd3dg37), [relay.tools](https://relay.tools)
+
 > "I just upgraded my browser signing extension to #Sidecar - you should too! So many excellent features."
 >
 > — [Bfgreen](https://jumble.social/notes/nevent1qvzqqqqqqypzqry7tctlhh64tm6pmteu8gvkwjwgfruu0yvkduc04e0ycpyqapctqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqlejyv5h6x6dyhsea8hkf8mkp7rmgf3maav0uppm046mzwe6vp4p9tlkws), on Nostr
