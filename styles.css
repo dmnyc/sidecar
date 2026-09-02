@@ -2554,6 +2554,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .wallet-actions { display: flex; gap: 10px; margin-bottom: 20px; }
 .wallet-actions button { flex: 1; }
 .wallet-disconnect { display: block; margin: 8px auto 0; }
+/* Sits under the balance, only when a connection-shaped failure put it there. Small
+   and centered: it is a way out of a broken state, not a primary action. */
+.wallet-reset { display: block; margin: 10px auto 0; font-size: 13px; }
+.wallet-reset:disabled { opacity: 0.6; }
 /* tx rows are column containers: a clickable head + an expandable details panel */
 .list.flat .item.tx-row { flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; }
 .tx-head { display: flex; align-items: center; gap: 10px; padding: 11px 13px; cursor: pointer; }

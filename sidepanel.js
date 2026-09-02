@@ -2384,6 +2384,21 @@
     try { _pool.close(urls.length ? urls : [..._pool.relays.keys()]); } catch (_) {}
   }
 
+  // Throw away every relay connection Sidecar holds, panel and worker both.
+  //
+  // Recovery from browser socket exhaustion. When Chrome runs out of WebSocket
+  // connections nothing in the UI could rebuild them, so the only way back was
+  // quitting the browser — see the honest-diagnosis change alongside this, which is
+  // what tells the user they are in this state at all.
+  //
+  // It cannot fix a browser drained by ANOTHER tab, because the budget is shared. It
+  // is a real fix when Sidecar is the one holding them, and it frees our share either
+  // way, so it is worth offering before "restart Chrome".
+  async function resetConnections() {
+    resetPoolRelays([]); // [] means every relay in the panel's pool
+    try { await call({ type: 'SIDECAR_RESET_CONNECTIONS' }); } catch (_) {}
+  }
+
   // EVERY pool call goes through one of these, so none of them can forget onauth.
   //
   // Two things authenticate, and they are not the same. `automaticallyAuth` above sets
@@ -13226,12 +13241,27 @@
         // Name the cause when the client could work it out (#120): a relay that's
         // down reads as a Sidecar failure otherwise. Kept short — this sits under
         // the balance in a narrow panel; the full sentence goes in the toast.
-        unit.textContent = e && e.relayDown
-          ? 'wallet relay unreachable'
-          : e && e.staleSocket
-            ? 'connection lost — retry'
-            : 'balance unavailable';
-        if (e && (e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
+        unit.textContent = e && e.localSocketFailure
+          ? 'browser out of connections'
+          : e && e.relayDown
+            ? 'wallet relay unreachable'
+            : e && e.staleSocket
+              ? 'connection lost — retry'
+              : 'balance unavailable';
+        if (e && (e.localSocketFailure || e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
+        // A way out, on the screen where the failure is visible. Only for the
+        // connection-shaped failures — a wallet that answered "no" is not fixed by
+        // reconnecting, and offering a button that cannot help is its own small lie.
+        if (e && (e.localSocketFailure || e.relayDown || e.staleSocket)) {
+          const again = h('button', { className: 'secondary wallet-reset', textContent: 'Reset connections' });
+          again.addEventListener('click', async () => {
+            again.disabled = true;
+            again.textContent = 'Reconnecting…';
+            await resetConnections();
+            renderWallet(); // rebuilds the card against fresh sockets
+          });
+          if (bal.parentNode) bal.parentNode.appendChild(again);
+        }
       }
     }
     bal.classList.remove('loading');

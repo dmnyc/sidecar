@@ -55,6 +55,36 @@
     });
   }
 
+  // Relays to probe as a CONTROL when the wallet's own relay fails to open.
+  //
+  // A failed probe proves one thing: we could not open a socket in five seconds. It
+  // does NOT prove the relay is down, and Sidecar used to claim exactly that — "the
+  // relay looks down, not Sidecar" — which is confidently wrong when the browser has
+  // run out of WebSocket connections. Reported after every NWC relay went "down" at
+  // once, Alby and Rizful together, while both answered in ~200ms from outside the
+  // browser. Two unrelated operators failing simultaneously is near-proof of a local
+  // cause, and that signal was available and ignored.
+  //
+  // Injected rather than hardcoded so the control set is relays the user ALREADY talks
+  // to — no new hosts learn anything they did not already know.
+  let controlRelays = [];
+  function setControlRelays(urls) {
+    controlRelays = Array.isArray(urls) ? urls.filter((u) => typeof u === 'string') : [];
+  }
+
+  // Did EVERYTHING fail, or just this relay? Returns true only when at least one
+  // control was tried and no control could be opened either.
+  async function isLocalSocketFailure(walletRelay) {
+    let host = '';
+    try { host = new URL(walletRelay).host; } catch (_) {}
+    const controls = controlRelays
+      .filter((u) => { try { return new URL(u).host !== host; } catch (_) { return false; } })
+      .slice(0, 2); // two is enough to tell "one relay" from "all of them"
+    if (!controls.length) return false; // no evidence either way — do not guess
+    const ups = await Promise.all(controls.map(probeRelay));
+    return ups.every((up) => !up);
+  }
+
   function makeClient(connectionString) {
     const conn = NT.nip47.parseConnectionString(connectionString); // { pubkey, relay, secret }
     const sk = hexToBytes(conn.secret);
@@ -160,7 +190,13 @@
             try { sub.close(); } catch (_) {}
             const relayUp = await probeRelay(relay);
             let err;
-            if (!relayUp) {
+            if (!relayUp && (await isLocalSocketFailure(relay))) {
+              // Nothing opened, including relays that had been working. That is the
+              // browser, not the relay — and saying otherwise sends people to check a
+              // service that is fine.
+              err = new Error("Your browser can't open new connections right now. Close other Nostr tabs, or restart the browser.");
+              err.localSocketFailure = true;
+            } else if (!relayUp) {
               const host = (() => { try { return new URL(relay).host; } catch (_) { return relay; } })();
               err = new Error("Can't reach your wallet's relay (" + host + ") — the relay looks down, not Sidecar.");
               err.relayDown = true;
@@ -249,5 +285,5 @@
     };
   }
 
-  root.SidecarNWC = { makeClient };
+  root.SidecarNWC = { makeClient, setControlRelays, probeRelay };
 })(typeof self !== 'undefined' ? self : this);

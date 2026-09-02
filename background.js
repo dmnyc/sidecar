@@ -1531,6 +1531,12 @@ async function getSwNwc(pubkey) {
   if (swNwc) { try { swNwc.client.close(); } catch (_) {} swNwc = null; }
   const connection = await KS.getNwc(pubkey); // requires unlocked
   if (!connection) return null;
+  // Controls for the "is it this relay, or is it the browser?" check when a wallet
+  // request times out. Deliberately the user's OWN configured relays: they are already
+  // contacted routinely, so probing them tells no new host anything.
+  try {
+    if (NWC.setControlRelays) NWC.setControlRelays(Object.keys(await getConfiguredRelays()));
+  } catch (_) {}
   swNwc = { client: NWC.makeClient(connection), pubkey };
   return swNwc.client;
 }
@@ -2864,6 +2870,16 @@ async function handleControl(message, sender, sendResponse) {
         qrSecret = null;
         const fresh = parked && Date.now() - parked.at <= QR_SECRET_TTL_MS;
         result = { value: fresh ? parked.value : null };
+        break;
+      }
+      // Throw away every relay connection the worker holds. Recovery from browser
+      // socket exhaustion: nothing in the UI could rebuild connections, so the only
+      // way back was quitting Chrome. This cannot fix a browser drained by another
+      // tab — the budget is shared — but it frees Sidecar's own share, which IS the
+      // fix when Sidecar is the one holding them.
+      case 'SIDECAR_RESET_CONNECTIONS': {
+        closeSwNwc(); // the wallet client rebuilds against a fresh pool on next use
+        result = { ok: true };
         break;
       }
       case 'SIDECAR_SET_NWC':
