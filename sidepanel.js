@@ -4012,17 +4012,20 @@
       // account-scoped, and "which account am I looking at" is exactly the confusion
       // the signing-mismatch work exists to prevent.
       //
-      // With one account it answers a question nobody can ask, and repeats the identity
-      // the user has never left. The avatar stays either way — it anchors the sheet and
-      // costs no vertical space beside the title.
+      // With ONE account there is nothing to disambiguate, so the whole identity block
+      // goes — avatar included. The avatar is not neutral chrome: at 36px beside an 18px
+      // display title in a 360px panel it is the thing that makes this header feel
+      // crowded, and it says nothing the user does not already know. Title and close
+      // button alone is the honest amount of furniture for "here is your list".
       const heading = h('div', { className: 'notif-modal-head' });
       const titleBox = h('div', {}, [
         h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
       ]);
       if ((state.accounts || []).length > 1) {
         titleBox.appendChild(h('div', { className: 'notif-modal-sub', textContent: displayName(a) }));
+        heading.append(avatarEl(a, 'notif-modal-av'));
       }
-      heading.append(avatarEl(a, 'notif-modal-av'), titleBox);
+      heading.append(titleBox);
       modal.appendChild(heading);
 
       const scroll = h('div', { className: 'notif-scroll' });

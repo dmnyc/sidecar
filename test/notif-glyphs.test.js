@@ -161,13 +161,26 @@ test('the account name shows only when there is more than one account', () => {
   assert.ok(guard < sub, 'the sub-line must be inside the guard');
 });
 
-test('the avatar is not conditional', () => {
-  // It anchors the sheet and costs no vertical space beside the title, so it stays for
-  // everyone — this is about a line that can only ever say one thing, not about chrome.
+test('the avatar goes with the name, not with the header', () => {
+  // The avatar is not neutral chrome. At 36px beside an 18px display title in a 360px
+  // panel it is what makes the header feel crowded, and with one account it says
+  // nothing the user does not already know. Identity appears only when identity is a
+  // question — and that governs the face as much as the name.
   const at = source.indexOf("const heading = h('div', { className: 'notif-modal-head' });");
-  const block = source.slice(at, at + 900);
+  const block = source.slice(at, at + 1100);
   const guard = block.indexOf('.length > 1');
   const avatar = block.indexOf("avatarEl(a, 'notif-modal-av')");
-  assert.ok(avatar > guard, 'appended after the guard block, unconditionally');
-  assert.doesNotMatch(block.slice(guard, avatar), /if \(/, 'and not inside another branch');
+  const sub = block.indexOf('notif-modal-sub');
+  assert.ok(guard !== -1 && avatar !== -1 && sub !== -1);
+  assert.ok(avatar > guard, 'the avatar must be inside the account-count guard');
+  assert.ok(sub > guard, 'and so must the name');
+});
+
+test('the title is never conditional', () => {
+  // Whatever else goes, the sheet has to say what it is.
+  const at = source.indexOf("const heading = h('div', { className: 'notif-modal-head' });");
+  const block = source.slice(at, at + 1100);
+  const title = block.indexOf("textContent: 'Notifications'");
+  const guard = block.indexOf('.length > 1');
+  assert.ok(title !== -1 && title < guard, 'the title is built before any branching');
 });
