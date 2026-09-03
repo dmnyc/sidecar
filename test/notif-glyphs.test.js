@@ -140,9 +140,13 @@ test('all three mark kinds are handled, in the right order', () => {
 });
 
 test('the icon inherits currentColor so themes need no per-theme rule', () => {
-  // The thing emoji cannot do, and the reason for the change.
+  // The thing emoji cannot do, and the reason for the change. The color now lives on
+  // the span (see the shared-color test below) and the svg inherits it, so what this
+  // checks is that nothing hardcodes a literal.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  assert.match(css, /\.notif-glyph svg \{[^}]*color: var\(--muted\)/);
+  const svg = css.match(/^\.notif-glyph svg \{[^}]*\}/m)[0];
+  assert.doesNotMatch(svg, /#[0-9a-f]{3,6}|rgb\(/i, 'no baked-in color');
+  assert.match(css, /^\.notif-glyph \{[^}]*color: var\(--muted\)/m);
 });
 
 // ---- the modal header ---------------------------------------------------------------
@@ -183,4 +187,23 @@ test('the title is never conditional', () => {
   const title = block.indexOf("textContent: 'Notifications'");
   const guard = block.indexOf('.length > 1');
   assert.ok(title !== -1 && title < guard, 'the title is built before any branching');
+});
+
+test('every mark in the column shares one color', () => {
+  // '@' and '❝' are text and were inheriting the row's full text color, which left them
+  // visibly brighter than the drawn marks beside them. Muting the SPAN rather than the
+  // svg puts text and icon on the same footing.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const span = css.match(/^\.notif-glyph \{[^}]*\}/m)[0];
+  assert.match(span, /color: var\(--muted\)/, 'the span carries the color');
+
+  const svg = css.match(/^\.notif-glyph svg \{[^}]*\}/m)[0];
+  assert.doesNotMatch(svg, /color:/, 'and the svg inherits it rather than setting its own');
+});
+
+test('the zap keeps its gold, which outranks the muted span', () => {
+  // .notif-glyph .bolt-ico is (0,2,0) and beats .notif-glyph at (0,1,0) — the kind of
+  // specificity tie that has silently un-styled things in this codebase before.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.notif-glyph \.bolt-ico \{[^}]*color: var\(--gold\)/);
 });

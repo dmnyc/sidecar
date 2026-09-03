@@ -1359,11 +1359,14 @@ a.notif-clickable:hover { background: var(--hover-soft); }
   gap: 6px;
 }
 .notif-top-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.notif-glyph { font-size: 14px; line-height: 1; flex-shrink: 0; }
-/* Bundled marks (repost, reply) inherit currentColor, so a theme gets them right with
-   no per-theme rule — the thing emoji cannot do. Muted rather than full text: they say
-   what KIND of notification this is, and the name beside them is what matters. */
-.notif-glyph svg { width: 14px; height: 14px; display: block; color: var(--muted); }
+/* Muted on the SPAN, not on the svg, so the typographic marks match the drawn ones.
+   '@' and '❝' are text and were inheriting the row's full text color, which left them
+   noticeably brighter than the repost and reply icons sitting in the same column.
+   Emoji are unaffected either way — the OS paints those in their own colors. */
+.notif-glyph { font-size: 14px; line-height: 1; flex-shrink: 0; color: var(--muted); }
+/* Bundled marks inherit currentColor, so a theme gets them right with no per-theme
+   rule — the thing emoji cannot do. */
+.notif-glyph svg { width: 14px; height: 14px; display: block; }
 .notif-glyph .bolt-ico { color: var(--gold); height: 15px; }
 /* Dark themes: a golden/yellow bolt so the zap indicator pops (noir's --gold is silver). */
 [data-theme="film-noir"] .notif-glyph .bolt-ico { color: #f1c84a; }
