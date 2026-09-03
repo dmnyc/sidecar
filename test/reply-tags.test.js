@@ -306,11 +306,33 @@ test('the reply target is stored without its signature', () => {
 // ---- the avatar -------------------------------------------------------------------------
 
 test('the reply target avatar has a picture to show', () => {
-  // _notifProfiles is NAME ONLY, so a bare pubkey gave avatarEl nothing and every reply
-  // rendered a placeholder. Cached only — no fetch on a screen already being typed into.
+  // _notifProfiles is NAME ONLY, so a bare pubkey gave avatarEl nothing.
   const fn = lift('function buildReplyBlock(');
   assert.match(fn, /cachedProfile\(replyTo\.pubkey\)/);
   assert.match(fn, /picture: prof\.picture/);
+});
+
+test('THE NOTIFICATION FETCH KEEPS THE PICTURE IT ALREADY HAS', () => {
+  // Both notification profile paths parse a kind:0 and used to keep only the name.
+  // Nothing else fetches profiles for notification senders, so the picture was
+  // discarded and then unavailable to anything that wanted a face.
+  for (const decl of ['async function prefetchNotifProfiles(', 'function fetchNotifProfile(']) {
+    const at = source.indexOf(decl);
+    if (at === -1) continue; // the single-fetch helper may be named differently
+    const fn = source.slice(at, at + 1600);
+    assert.match(fn, /cacheProfile\(/, decl + ' drops the picture');
+  }
+  // At minimum the batch path, which is the one that runs on every bell open.
+  assert.match(lift('async function prefetchNotifProfiles('), /cacheProfile\(pk, m\)/);
+});
+
+test('a cache miss falls back to one fetch, not a placeholder forever', () => {
+  // _profileCache has a 5-minute TTL, so a reply written later than that finds nothing
+  // even though the bell fetched this exact profile.
+  const fn = lift('function buildReplyBlock(');
+  assert.match(fn, /if \(!prof\.picture\)/, 'only when there is nothing to show');
+  assert.match(fn, /getProfile\(replyTo\.pubkey\)/);
+  assert.match(fn, /av\.isConnected/, 'and not into a composer that has since closed');
 });
 
 test('the placeholder is contained, not cropped', () => {

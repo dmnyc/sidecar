@@ -3482,6 +3482,7 @@
         try {
           const m = JSON.parse(ev.content) || {};
           name = m.display_name || m.displayName || m.name || '';
+          cacheProfile(pubkey, m); // the picture too — see prefetchNotifProfiles
         } catch (_) {}
       }
       if (name) _notifProfiles.set(pubkey, name);
@@ -3515,6 +3516,12 @@
           try {
             const m = JSON.parse(ev.content) || {};
             name = m.display_name || m.displayName || m.name || '';
+            // The SAME kind:0 also carries the picture, and this used to drop it on the
+            // floor — _notifProfiles is names only. Nothing else fetches profiles for
+            // notification senders, so anything wanting a face for one (the reply
+            // composer's context strip) found an empty cache every time and fell back
+            // to a placeholder forever. Free: already fetched, already parsed.
+            cacheProfile(pk, m);
           } catch (_) {}
         }
         // Same rule as the single fetch: an unanswered lookup is not a result, so it is
@@ -8928,8 +8935,19 @@
       // a face arriving late is not worth a relay round trip on a screen the user is
       // already typing into.
       const prof = cachedProfile(replyTo.pubkey) || {};
+      const av = avatarEl({ pubkey: replyTo.pubkey, picture: prof.picture, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av');
+      // Cache first, then fetch if it misses. _profileCache has a 5-minute TTL, so a
+      // reply written any later than that finds nothing even though the bell fetched
+      // this exact profile — which is how the face stayed a placeholder. One kind:0,
+      // only when there is no picture already, and it paints in when it lands rather
+      // than holding up a composer the user is about to type into.
+      if (!prof.picture) {
+        getProfile(replyTo.pubkey)
+          .then((p) => { if (p && p.picture && av.isConnected) applyAvatar(av, p); })
+          .catch(() => {});
+      }
       const who = h('div', { className: 'reply-target-who' }, [
-        avatarEl({ pubkey: replyTo.pubkey, picture: prof.picture, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av'),
+        av,
         h('span', { className: 'reply-target-name', textContent: notifAuthorName(replyTo.pubkey) }),
       ]);
       const body = h('div', { className: 'reply-target-body' });
