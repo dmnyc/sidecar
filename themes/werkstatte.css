@@ -348,6 +348,8 @@
 /* Relay icons are logos standing in for an identity, the same job an avatar does, so
    they follow the avatar exception rather than the blanket square. */
 [data-theme="werkstatte"] .relay-icon:not(.theme-card):not(.theme-card *),
+/* The face on a reply's context strip — an avatar, so it follows the avatar exception. */
+[data-theme="werkstatte"] .reply-target-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .fab:not(.theme-card):not(.theme-card *) {
   border-radius: 50%;
 }

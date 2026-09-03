@@ -8764,7 +8764,23 @@
     const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
     (async () => {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-      if (hasContent) all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+      // replyTo TRAVELS WITH THE DRAFT.
+      //
+      // Without it a saved reply came back as a plain note: same text, no target, and
+      // posting it published a top-level note instead of an answer — silently, with
+      // nothing on screen to say the thread had been dropped. There is one draft slot
+      // per account, so the slot has to carry what kind of thing it holds.
+      //
+      // Only the fields replyTags and buildReplyBlock actually read. The whole event
+      // would work too, but this store is encrypted-at-rest for a reason and there is
+      // no cause to keep a stranger's signature in it.
+      if (hasContent) {
+        all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+        if (draft.replyTo) {
+          const r = draft.replyTo;
+          all[pubkey].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
+        }
+      }
       else delete all[pubkey];
       await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
     })().catch(() => {
@@ -8880,8 +8896,10 @@
       return;
     }
     const pubkey = state.activePubkey;
-    const replyTo = (opts && opts.replyTo) || null;
-    let draft = { text: initialText || '', media: [] };
+    // `let`, not const: a saved draft can carry its own reply target, and resuming one
+    // has to put the composer back into reply mode.
+    let replyTo = (opts && opts.replyTo) || null;
+    let draft = { text: initialText || '', media: [], replyTo };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
@@ -8892,6 +8910,35 @@
     function scheduleSave() {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(persistDraft, 400);
+    }
+
+    // What is being answered. Built fresh on each call rather than held as one node,
+    // because a DOM element lives in exactly one place: the editor pane and the review
+    // countdown are two different panes and both need it. Same reason the page-comment
+    // modal's renderTargetInto takes a container.
+    //
+    // The countdown is the LAST thing you see before it publishes, and a reply read
+    // without its parent is the one that goes out saying the wrong thing.
+    function buildReplyBlock() {
+      if (!replyTo) return null;
+      const block = h('div', { className: 'reply-target' });
+      // The picture has to come from _profileCache: _notifProfiles is NAME ONLY (see its
+      // declaration), so passing a bare pubkey gave avatarEl nothing to render and every
+      // reply showed a placeholder. Cached only — no fetch. This is a context strip, and
+      // a face arriving late is not worth a relay round trip on a screen the user is
+      // already typing into.
+      const prof = cachedProfile(replyTo.pubkey) || {};
+      const who = h('div', { className: 'reply-target-who' }, [
+        avatarEl({ pubkey: replyTo.pubkey, picture: prof.picture, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av'),
+        h('span', { className: 'reply-target-name', textContent: notifAuthorName(replyTo.pubkey) }),
+      ]);
+      const body = h('div', { className: 'reply-target-body' });
+      // Plain text, capped. A reminder of what you are answering, not a second place to
+      // read a thread — media and embeds would make the composer the taller half of its
+      // own dialog.
+      renderNoteText(body, replyTo.content || '', 240);
+      block.append(who, body);
+      return block;
     }
 
     async function doPublish() {
@@ -9114,28 +9161,10 @@
         ])
       );
 
-      // What is being answered, ABOVE the tabs — context, not one of the two views, the
-      // same placement and reasoning as the page-comment modal's target block. Writing a
-      // reply with no sight of what you are replying to is the wrong shape, and the
-      // notification you tapped is already off screen by now.
-      const replyBlock = replyTo ? h('div', { className: 'reply-target' }) : null;
-      if (replyBlock) {
-        const who = h('div', { className: 'reply-target-who' }, [
-          avatarEl({ pubkey: replyTo.pubkey, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av'),
-          h('span', { className: 'reply-target-name', textContent: notifAuthorName(replyTo.pubkey) }),
-        ]);
-        const body = h('div', { className: 'reply-target-body' });
-        // Plain text, capped. This is a reminder of what you are answering, not a
-        // second place to read a thread — media and embeds would make the composer the
-        // taller half of its own dialog.
-        renderNoteText(body, replyTo.content || '', 240);
-        replyBlock.append(who, body);
-      }
-
       modal.append(
         h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
         author,
-        ...(replyBlock ? [replyBlock] : []),
+        ...(replyTo ? [buildReplyBlock()] : []),
         tabBar,
         editorWrap,
         previewPane,
@@ -9169,15 +9198,20 @@
     // what to do when it fires or is canceled.
     function showCountdown(secs) {
       const previewScroll = h('div', { className: 'countdown-preview' });
+      // The parent first, then what you wrote — reading order, and the same order as
+      // the editor. Without it this pane shows a reply with nothing to reply to, which
+      // is the last screen before it goes out.
+      const parent = buildReplyBlock();
+      if (parent) previewScroll.append(parent);
       const previewBody = h('div', { className: 'preview-body' });
       const bodyText = draft.text.trim();
       if (bodyText) renderNotePreview(previewBody, bodyText);
-      else previewBody.append(h('p', { className: 'hint', textContent: 'Empty note.' }));
+      else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
       previewScroll.append(previewBody);
       countdown = showPostCountdown({
         modal,
         secs,
-        title: 'Posting your note',
+        title: replyTo ? 'Posting your reply' : 'Posting your note',
         preview: previewScroll,
         onFire: finishPublish,
         onCancel: showEditor,
@@ -9207,19 +9241,31 @@
 
       const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
       resume.addEventListener('click', () => {
-        draft = { text: saved.text || '', media: (saved.media || []).slice() };
+        // Restore the target too, or this resumes as a note and posts as one.
+        replyTo = saved.replyTo || null;
+        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo };
         showEditor();
       });
       const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
       fresh.addEventListener('click', () => {
         clearComposeDraft(pubkey);
-        draft = { text: initialText || '', media: [] };
+        // The target you ARRIVED with, not the saved one. Discarding an old draft must
+        // not also discard the Reply you just tapped to get here.
+        replyTo = (opts && opts.replyTo) || null;
+        draft = { text: initialText || '', media: [], replyTo };
         showEditor();
       });
 
+      // SAY WHICH KIND OF DRAFT IT IS. There is one slot per account, so the saved
+      // draft may be a reply while you arrived here to write a note, or the other way
+      // round — and resuming silently changes what pressing Post will publish.
+      const savedIsReply = !!saved.replyTo;
+      const what = savedIsReply
+        ? 'You have an unsaved reply to ' + notifAuthorName(saved.replyTo.pubkey) + when + '.'
+        : 'You have an unsaved draft' + when + '.';
       const parts = [
-        h('h3', { textContent: 'Resume your draft?' }),
-        h('p', { className: 'hint', textContent: 'You have an unsaved draft' + when + '.' }),
+        h('h3', { textContent: savedIsReply ? 'Resume your reply?' : 'Resume your draft?' }),
+        h('p', { className: 'hint', textContent: what }),
       ];
       if (preview) {
         const previewBox = h('div', { className: 'draft-preview' });

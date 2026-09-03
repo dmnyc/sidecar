@@ -184,11 +184,9 @@ test('the reply button does not also follow the row link', () => {
 });
 
 test('the composer shows what is being answered', () => {
-  const at = source.indexOf('const replyBlock = replyTo ?');
-  assert.ok(at !== -1, 'the reply context block is missing');
-  const block = source.slice(at, at + 900);
-  assert.match(block, /renderNoteText\(body, replyTo\.content/);
-  assert.match(block, /notifAuthorName\(replyTo\.pubkey\)/);
+  const fn = lift('function buildReplyBlock(');
+  assert.match(fn, /renderNoteText\(body, replyTo\.content/);
+  assert.match(fn, /notifAuthorName\(replyTo\.pubkey\)/);
 });
 
 test('the reply context sits above the tabs, not inside a view', () => {
@@ -197,7 +195,127 @@ test('the reply context sits above the tabs, not inside a view', () => {
   const at = source.indexOf("h('h3', { textContent: replyTo ? 'Reply' : 'New note' })");
   assert.ok(at !== -1, 'the composer heading moved');
   const block = source.slice(at, at + 400);
-  const ctx = block.indexOf('replyBlock');
+  const ctx = block.indexOf('buildReplyBlock()');
   const tabs = block.indexOf('tabBar');
-  assert.ok(ctx !== -1 && ctx < tabs, 'context must be appended before the tab bar');
+  assert.ok(ctx !== -1 && tabs !== -1, 'the append order moved');
+  assert.ok(ctx < tabs, 'context must be appended before the tab bar');
+});
+
+// ---- the review countdown -------------------------------------------------------------
+
+test('the countdown shows the parent too', () => {
+  // The last screen before it publishes. A reply read without what it answers is the
+  // one that goes out saying the wrong thing.
+  const fn = lift('function showCountdown(');
+  assert.match(fn, /buildReplyBlock\(\)/);
+  const parent = fn.indexOf('buildReplyBlock()');
+  const body = fn.indexOf('previewBody');
+  assert.ok(parent < body, 'parent first, then what you wrote — reading order');
+});
+
+test('the reply block is built fresh, not held as one node', () => {
+  // A DOM element lives in exactly one place. Reusing a single node would move it out
+  // of the editor and into the countdown, so going back would leave the editor bare.
+  const fn = lift('function buildReplyBlock(');
+  assert.match(fn, /const block = h\('div', \{ className: 'reply-target' \}\)/, 'a new node each call');
+  const editor = source.indexOf('...(replyTo ? [buildReplyBlock()] : [])');
+  assert.ok(editor !== -1, 'the editor pane must call the builder too');
+});
+
+test('the countdown names what it is posting', () => {
+  const fn = lift('function showCountdown(');
+  assert.match(fn, /replyTo \? 'Posting your reply' : 'Posting your note'/);
+});
+
+test('the review preview cannot be squashed to nothing', () => {
+  // .modal is a flex column. max-height capped this pane but nothing stopped it
+  // COLLAPSING, and it was measured at 26px tall holding 137px of content once the
+  // reply target made it taller — a countdown showing almost nothing right before it
+  // publishes. It scrolls internally instead, which is what the cap was always for.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rule = css.match(/\.countdown-preview \{[^}]*\}/)[0];
+  assert.match(rule, /flex-shrink: 0/);
+  assert.match(rule, /overflow-y: auto/, 'so the cap still bounds it');
+});
+
+// ---- the review countdown -------------------------------------------------------------
+
+test('the countdown shows the parent too', () => {
+  // The last screen before it publishes. A reply read without what it answers is the
+  // one that goes out saying the wrong thing.
+  const fn = lift('function showCountdown(');
+  assert.match(fn, /buildReplyBlock\(\)/);
+  assert.ok(fn.indexOf('buildReplyBlock()') < fn.indexOf('previewBody'), 'parent first, reading order');
+});
+
+test('the reply block is built fresh, not held as one node', () => {
+  // A DOM element lives in exactly one place. Reusing a single node would move it out
+  // of the editor into the countdown, leaving the editor bare on the way back.
+  assert.match(lift('function buildReplyBlock('), /const block = h\('div', \{ className: 'reply-target' \}\)/);
+  assert.ok(source.includes('...(replyTo ? [buildReplyBlock()] : [])'), 'the editor calls it too');
+});
+
+test('the review preview cannot be squashed to nothing', () => {
+  // .modal is a flex column. max-height capped this pane but nothing stopped it
+  // COLLAPSING — measured at 26px tall holding 137px of content once the reply target
+  // made it taller, which is a countdown showing almost nothing right before it posts.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rule = css.match(/\.countdown-preview \{[^}]*\}/)[0];
+  assert.match(rule, /flex-shrink: 0/);
+  assert.match(rule, /overflow-y: auto/, 'so the cap still bounds it');
+});
+
+// ---- drafts ---------------------------------------------------------------------------
+
+test('A SAVED REPLY REMEMBERS WHAT IT ANSWERS', () => {
+  // Without this a resumed reply came back as a plain note — same text, no target — and
+  // posting it published a top-level note instead of an answer, silently.
+  const fn = lift('function saveComposeDraft(');
+  assert.match(fn, /if \(draft\.replyTo\)/);
+  assert.match(fn, /id: r\.id, pubkey: r\.pubkey, kind: r\.kind, tags: r\.tags, content: r\.content/);
+});
+
+test('resuming a draft restores its target', () => {
+  const at = source.indexOf("const resume = h('button'");
+  const block = source.slice(at, at + 400);
+  assert.match(block, /replyTo = saved\.replyTo \|\| null/);
+  assert.match(block, /media: \(saved\.media \|\| \[\]\)\.slice\(\), replyTo/);
+});
+
+test('starting fresh keeps the target you arrived with', () => {
+  // Discarding an old draft must not also discard the Reply just tapped to get here.
+  const at = source.indexOf("const fresh = h('button'");
+  const block = source.slice(at, at + 400);
+  assert.match(block, /replyTo = \(opts && opts\.replyTo\) \|\| null/);
+});
+
+test('the draft chooser says whether the saved draft is a reply', () => {
+  // One slot per account, so the saved draft may be a reply while you came to write a
+  // note. Resuming silently changes what Post will publish.
+  assert.match(source, /const savedIsReply = !!saved\.replyTo/);
+  assert.match(source, /savedIsReply \? 'Resume your reply\?' : 'Resume your draft\?'/);
+});
+
+test('the reply target is stored without its signature', () => {
+  // The drafts store is encrypted at rest for a reason; there is no cause to keep a
+  // stranger's sig in it, and nothing reads it.
+  const fn = lift('function saveComposeDraft(');
+  assert.doesNotMatch(fn, /\bsig\b/);
+});
+
+// ---- the avatar -------------------------------------------------------------------------
+
+test('the reply target avatar has a picture to show', () => {
+  // _notifProfiles is NAME ONLY, so a bare pubkey gave avatarEl nothing and every reply
+  // rendered a placeholder. Cached only — no fetch on a screen already being typed into.
+  const fn = lift('function buildReplyBlock(');
+  assert.match(fn, /cachedProfile\(replyTo\.pubkey\)/);
+  assert.match(fn, /picture: prof\.picture/);
+});
+
+test('the placeholder is contained, not cropped', () => {
+  // applyAvatar sets .avatar-ph for the placeholder, which is a GLYPH: object-fit cover
+  // crops it to a corner. Every other avatar class in the panel carries this rule.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.reply-target-av\.avatar-ph img \{[^}]*object-fit: contain/);
 });
