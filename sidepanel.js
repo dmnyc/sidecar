@@ -8951,11 +8951,17 @@
         h('span', { className: 'reply-target-name', textContent: notifAuthorName(replyTo.pubkey) }),
       ]);
       const body = h('div', { className: 'reply-target-body' });
-      // Plain text, capped. A reminder of what you are answering, not a second place to
-      // read a thread — media and embeds would make the composer the taller half of its
-      // own dialog.
+      // 240 caps the TEXT, and renderNoteText also renders images and video as block
+      // elements — one photo took this to 305px, most of a 360px panel, pushing the
+      // editor off screen before a word was typed. So the block is clipped in CSS too.
+      // Clipped rather than stripped: sometimes the image IS the note being answered.
       renderNoteText(body, replyTo.content || '', 240);
       block.append(who, body);
+      // Fade only when something was actually cut, so a short note has no phantom edge.
+      // After layout, because scrollHeight is 0 until it has one.
+      requestAnimationFrame(() => {
+        if (body.scrollHeight > body.clientHeight + 1) block.classList.add('is-clipped');
+      });
       return block;
     }
 

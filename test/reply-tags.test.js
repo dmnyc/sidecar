@@ -341,3 +341,31 @@ test('the placeholder is contained, not cropped', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.reply-target-av\.avatar-ph img \{[^}]*object-fit: contain/);
 });
+
+test('the reply target is bounded whatever the note contains', () => {
+  // renderNoteText caps the TEXT at 240, but it also renders images and video as block
+  // elements — one photo took this block to 305px, most of a 360px panel, pushing the
+  // editor off screen before a word was typed.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rule = css.match(/\.reply-target-body \{[^}]*\}/)[0];
+  assert.match(rule, /max-height:/);
+  assert.match(rule, /overflow: hidden/);
+});
+
+test('media is clipped, not stripped', () => {
+  // Sometimes the image IS the note being answered. Removing it loses the context the
+  // strip exists to give.
+  const fn = lift('function buildReplyBlock(');
+  assert.match(fn, /renderNoteText\(body, replyTo\.content/, 'still the full renderer');
+  assert.doesNotMatch(fn, /replace\(.*http/, 'no url stripping');
+});
+
+test('the fade only appears when something was cut', () => {
+  // A short note with a phantom edge reads as a rendering fault.
+  const fn = lift('function buildReplyBlock(');
+  assert.match(fn, /body\.scrollHeight > body\.clientHeight/);
+  assert.match(fn, /requestAnimationFrame/, 'measured after layout, or scrollHeight is 0');
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.reply-target::after \{[^}]*opacity: 0/, 'off by default');
+  assert.match(css, /\.reply-target\.is-clipped::after \{ opacity: 1; \}/);
+});
