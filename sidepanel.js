@@ -244,16 +244,31 @@
     'user-x': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line>',
     'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>',
     mail: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline>',
+    // Solid twin of message-circle. At 14px the stroked balloon reads thin and washes
+    // out; filled, it carries the same weight as the zap bolt beside it.
+    'message-filled': '<path d="M12 3C6.5 3 2 6.75 2 11.25c0 2.3 1.18 4.38 3.07 5.86L4 21.5l4.66-2.06c1.05.27 2.17.41 3.34.41 5.5 0 10-3.75 10-8.6S17.5 3 12 3z"></path>',
     'message-circle': '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
     bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>',
     award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
     globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
   };
+  // Icons that are SOLID shapes rather than strokes.
+  //
+  // Filling a stroked path does not work: Feather's outlines have the stroke width baked
+  // into their proportions, so turning fill on gives a muddy blob with a hairline hole.
+  // A solid glyph needs its own path, and then it must render with fill and no stroke —
+  // which is what this set is for. The zap already lives outside ICONS for the same
+  // reason (boltIcon).
+  const FILLED_ICONS = new Set(['message-filled']);
+
   function icon(name) {
+    const solid = FILLED_ICONS.has(name);
     const wrap = document.createElement('span');
     wrap.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<svg viewBox="0 0 24 24" fill="' + (solid ? 'currentColor' : 'none') +
+      '" stroke="' + (solid ? 'none' : 'currentColor') +
+      '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
       (ICONS[name] || '') +
       '</svg>';
     return wrap.firstElementChild;
@@ -3284,7 +3299,12 @@
       const amount = zapAmountText(msats);
       return { glyph: '⚡', text: amount ? 'zapped ' + amount : 'zapped you' };
     }
-    if (ev.kind === 6) return { glyph: '🔁', text: 'reposted your note' };
+    // Bundled SVG rather than 🔁. Emoji are rendered by the OS: they carry their own
+    // colors, so they ignore the theme, and they differ between platforms — the same
+    // notification is a flat glyph on one machine and a glossy 3D badge on another.
+    // These use currentColor, so every theme gets them right for free. The zap already
+    // moved for the same reason (boltIcon, because ⚡ washed out on light themes).
+    if (ev.kind === 6) return { icon: 'repeat', text: 'reposted your note' };
     if (ev.kind === 7) {
       const r = (ev.content || '').trim();
       const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
@@ -3301,7 +3321,7 @@
     if (hasQ) return { glyph: '❝', text: 'quoted your note' };
     const hasE = ev.tags.some((t) => t[0] === 'e');
     return hasE
-      ? { glyph: '💬', text: 'replied to your note' }
+      ? { icon: 'message-filled', text: 'replied to your note' }
       : { glyph: '@', text: 'mentioned you' };
   }
 
@@ -3867,7 +3887,7 @@
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
-      const { glyph, text } = notifLabel(ev);
+      const { glyph, icon: glyphIcon, text } = notifLabel(ev);
 
       // Where this notification opens (a renderable note/article/profile URL), or
       // '' when there's no sensible target.
@@ -3921,7 +3941,12 @@
       // Zap notifications use the crisp filled bolt (boltIcon, themed via
       // currentColor) instead of the ⚡ emoji, which washes out on light themes.
       const glyphEl = h('span', { className: 'notif-glyph' });
-      if (glyph === '⚡') glyphEl.appendChild(boltIcon());
+      // Three kinds of mark, and the order matters. A bundled icon when the label
+      // names one; the filled bolt for zaps, which has its own gold treatment; and
+      // otherwise the literal character — which for a REACTION is the emoji the sender
+      // actually chose, and must stay exactly as they wrote it.
+      if (glyphIcon) glyphEl.appendChild(icon(glyphIcon));
+      else if (glyph === '⚡') glyphEl.appendChild(boltIcon());
       else glyphEl.textContent = glyph;
       const topRow = h('div', { className: 'notif-top' }, [
         glyphEl,
@@ -3979,14 +4004,28 @@
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
 
+      // WHOSE notifications — but only when that is a real question.
+      //
+      // The sheet covers the whole panel (.modal-overlay is fixed inset:0), so the
+      // account chip in the header is hidden while this is open and nothing else on
+      // screen answers it. With several accounts that matters: the list is
+      // account-scoped, and "which account am I looking at" is exactly the confusion
+      // the signing-mismatch work exists to prevent.
+      //
+      // With ONE account there is nothing to disambiguate, so the whole identity block
+      // goes — avatar included. The avatar is not neutral chrome: at 36px beside an 18px
+      // display title in a 360px panel it is the thing that makes this header feel
+      // crowded, and it says nothing the user does not already know. Title and close
+      // button alone is the honest amount of furniture for "here is your list".
       const heading = h('div', { className: 'notif-modal-head' });
-      heading.append(
-        avatarEl(a, 'notif-modal-av'),
-        h('div', {}, [
-          h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
-          h('div', { className: 'notif-modal-sub', textContent: displayName(a) }),
-        ])
-      );
+      const titleBox = h('div', {}, [
+        h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
+      ]);
+      if ((state.accounts || []).length > 1) {
+        titleBox.appendChild(h('div', { className: 'notif-modal-sub', textContent: displayName(a) }));
+        heading.append(avatarEl(a, 'notif-modal-av'));
+      }
+      heading.append(titleBox);
       modal.appendChild(heading);
 
       const scroll = h('div', { className: 'notif-scroll' });
