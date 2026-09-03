@@ -3005,6 +3005,57 @@
   // note/nevent quote by event id; naddr quotes by "kind:pubkey:d" coordinate, since an
   // addressable event's id changes with every edit.
   const BODY_REF_RE = /nostr:(note1[0-9a-z]+|nevent1[0-9a-z]+|naddr1[0-9a-z]+)/g;
+  // Tags that make a note a REPLY to `target`, and the kind the reply must be.
+  //
+  // Two protocols, because Nostr has two threading models and they are not
+  // interchangeable:
+  //
+  //   kind 1     NIP-10. Markered `e` tags: one "root" for the thread, one "reply" for
+  //              the note being answered. When the target IS the root there is only a
+  //              root tag — adding a "reply" tag pointing at the same event makes some
+  //              clients render it as a reply to itself.
+  //
+  //   kind 1111  NIP-22. Scope is carried in UPPERCASE tags (I/K for an external target
+  //              like a web page, E/K for an event) and the parent in lowercase. The
+  //              uppercase set is copied from the target unchanged: it names the thread
+  //              root, so re-deriving it would be a chance to get it wrong, and a
+  //              comment whose scope drifts lands in a different thread.
+  //
+  // Replying to anything else is not offered — see notifReplyTarget.
+  function replyTags(target) {
+    const tags = [];
+    const tgTags = (target && target.tags) || [];
+    const id = target && target.id;
+    const author = target && target.pubkey;
+
+    // Everyone already in the conversation, so they are notified. Deduped, and never
+    // the replier themselves — self-p-tagging shows up as a notification from you.
+    const people = [];
+    const seenP = new Set([state.activePubkey]);
+    const addP = (pk) => {
+      if (!pk || seenP.has(pk)) return;
+      seenP.add(pk);
+      people.push(['p', pk]);
+    };
+    addP(author);
+    tgTags.forEach((t) => { if (t[0] === 'p' && t[1]) addP(t[1]); });
+
+    if (target.kind === WEB_COMMENT_KIND) {
+      // Scope, verbatim. A 1111 always carries its root in uppercase tags.
+      tgTags.forEach((t) => { if (t[0] === 'I' || t[0] === 'K' || t[0] === 'E' || t[0] === 'A') tags.push(t.slice()); });
+      // Parent: the comment being answered.
+      tags.push(['e', id], ['k', String(target.kind)]);
+      return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
+    }
+
+    // NIP-10. Reuse the target's root when it has one; otherwise the target is the root.
+    const rootTag = tgTags.find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
+    const root = rootTag ? rootTag[1] : id;
+    tags.push(['e', root, '', 'root']);
+    if (root !== id) tags.push(['e', id, '', 'reply']);
+    return { kind: 1, tags: [...tags, ...people] };
+  }
+
   function quoteTags(content) {
     const tags = [];
     const authors = [];
@@ -3956,7 +4007,32 @@
       item.appendChild(topRow);
 
       // Action row
-      item.appendChild(h('div', { className: 'notif-action', textContent: text }));
+      const actionRow = h('div', { className: 'notif-action', textContent: text });
+      item.appendChild(actionRow);
+
+      // REPLY, but only where replying means something.
+      //
+      // A note or a comment can be answered. A reaction, a repost or a zap receipt
+      // cannot — there is no thread to join, and a reply tagging a kind:7 would show up
+      // in nobody's client as anything sensible. Offering a button that produces a
+      // dead-end event is worse than not offering one.
+      //
+      // The row itself is an anchor that opens the note in a client, so this is a real
+      // button that stops the event: without that, tapping Reply would ALSO follow the
+      // link and leave a new tab open behind the composer.
+      if (ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) {
+        const replyBtn = h('button', { className: 'notif-reply', type: 'button' }, [
+          icon('message-filled'),
+          h('span', { textContent: 'Reply' }),
+        ]);
+        replyBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeModal();
+          openComposer('', { replyTo: ev });
+        });
+        actionRow.appendChild(replyBtn);
+      }
 
       if ((ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) && ev.content) {
         const cleaned = cleanSnippet(ev.content);
@@ -8795,12 +8871,16 @@
     return { on: s.noteCountdown !== false, secs }; // default on
   }
 
-  async function openComposer(initialText) {
+  // opts.replyTo — the event this note answers. Changes the kind and tags (replyTags),
+  // and puts the target above the editor so what you are answering is on screen while
+  // you write it.
+  async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
       return;
     }
     const pubkey = state.activePubkey;
+    const replyTo = (opts && opts.replyTo) || null;
     let draft = { text: initialText || '', media: [] };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
@@ -8831,11 +8911,19 @@
       }
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      // A reply carries its threading tags FIRST: NIP-10 readers take the first `e`
+      // marked root as the thread, and NIP-22 scope is read positionally by some
+      // clients. Mentions and quotes from the body follow, deduped against the
+      // participants replyTags already added.
+      const reply = replyTo ? replyTags(replyTo) : null;
+      const already = new Set((reply ? reply.tags : []).filter((t) => t[0] === 'p').map((t) => t[1]));
+      const bodyP = pTags.filter((t) => !already.has(t[1]));
+      const base = reply ? reply.tags : [];
       const tags = settings && settings.showClientTag === false
-        ? [...pTags, ...quotes.tags]
-        : [CLIENT_TAG.slice(), ...pTags, ...quotes.tags];
+        ? [...base, ...bodyP, ...quotes.tags]
+        : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
       const event = {
-        kind: 1,
+        kind: reply ? reply.kind : 1,
         created_at: Math.floor(Date.now() / 1000),
         tags,
         content,
@@ -8859,7 +8947,7 @@
       // Rich text box with @mention autocomplete, shared with the page-comment
       // modal. Edits flow back through onChange into the draft + Post button.
       const mentionEditor = createMentionEditor({
-        placeholder: "What’s on your mind?",
+        placeholder: replyTo ? 'Write your reply…' : "What’s on your mind?",
         onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
       });
       mentionEditor.setText(draft.text);
@@ -9026,9 +9114,28 @@
         ])
       );
 
+      // What is being answered, ABOVE the tabs — context, not one of the two views, the
+      // same placement and reasoning as the page-comment modal's target block. Writing a
+      // reply with no sight of what you are replying to is the wrong shape, and the
+      // notification you tapped is already off screen by now.
+      const replyBlock = replyTo ? h('div', { className: 'reply-target' }) : null;
+      if (replyBlock) {
+        const who = h('div', { className: 'reply-target-who' }, [
+          avatarEl({ pubkey: replyTo.pubkey, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av'),
+          h('span', { className: 'reply-target-name', textContent: notifAuthorName(replyTo.pubkey) }),
+        ]);
+        const body = h('div', { className: 'reply-target-body' });
+        // Plain text, capped. This is a reminder of what you are answering, not a
+        // second place to read a thread — media and embeds would make the composer the
+        // taller half of its own dialog.
+        renderNoteText(body, replyTo.content || '', 240);
+        replyBlock.append(who, body);
+      }
+
       modal.append(
-        h('h3', { textContent: 'New note' }),
+        h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
         author,
+        ...(replyBlock ? [replyBlock] : []),
         tabBar,
         editorWrap,
         previewPane,

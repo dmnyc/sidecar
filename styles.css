@@ -1372,7 +1372,45 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 [data-theme="film-noir"] .notif-glyph .bolt-ico { color: #f1c84a; }
 .notif-author { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 .notif-time { font-size: 11px; color: var(--faint); flex-shrink: 0; white-space: nowrap; }
-.notif-action { font-size: 12px; color: var(--muted); margin: 2px 0 0 22px; }
+.notif-action {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 2px 0 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Quiet until wanted. The row's job is to tell you what happened; Reply is an offer
+   beside it, not a call to action competing with the text. */
+.notif-reply {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 3px 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--faint);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.notif-reply:hover { color: var(--text-2); border-color: var(--border); }
+.notif-reply svg { width: 12px; height: 12px; display: block; }
+
+/* What a reply is answering, above the editor. Same role as .webcomment-target. */
+.reply-target {
+  border-left: 2px solid var(--border-strong);
+  padding: 2px 0 2px 10px;
+  margin: 10px 0 4px;
+}
+.reply-target-who { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.reply-target-av { width: 18px; height: 18px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+.reply-target-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.reply-target-name { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.reply-target-body { font-size: 12px; color: var(--muted); line-height: 1.45; }
 .notif-content {
   font-size: 12.5px;
   color: var(--text-2);
