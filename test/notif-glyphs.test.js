@@ -63,14 +63,25 @@ test('a repost is a bundled icon, not 🔁', () => {
 
 test('a reply is a bundled icon, not 💬', () => {
   const l = notifLabel(ev(1, { tags: [['e', 'abc']] }));
-  assert.equal(l.icon, 'message-circle');
+  assert.equal(l.icon, 'message-filled', 'solid: the stroked balloon washes out at 14px');
   assert.equal(l.glyph, undefined);
+});
+
+test('the solid balloon renders filled, not as a stroked outline', () => {
+  // Filling a stroked path gives a muddy blob — Feather outlines have the stroke width
+  // baked into their proportions, so a solid glyph needs its own path AND fill/stroke
+  // swapped at render time.
+  assert.match(source, /const FILLED_ICONS = new Set\(\[[^\]]*'message-filled'/);
+  const fn = lift('function icon(');
+  assert.match(fn, /FILLED_ICONS\.has\(name\)/);
+  assert.match(fn, /fill="' \+ \(solid \? 'currentColor' : 'none'\)/);
+  assert.match(fn, /stroke="' \+ \(solid \? 'none' : 'currentColor'\)/);
 });
 
 test('both icon names exist in the bundled set', () => {
   // A name that is not in ICONS renders an empty <svg> — a silently blank mark.
   const icons = source.match(/const ICONS = \{[\s\S]*?\n  \};/)[0];
-  for (const name of ['repeat', 'message-circle']) {
+  for (const name of ['repeat', 'message-filled']) {
     assert.ok(
       icons.includes("\n    " + name + ':') || icons.includes("\n    '" + name + "':"),
       name + ' is not in ICONS'
