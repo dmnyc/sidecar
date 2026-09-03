@@ -20,7 +20,7 @@ test('both composers opt into the wider modal', () => {
   // The post composer and the web-comment composer. Two surfaces, and fixing one is not
   // fixing it.
   assert.equal((panel.match(/classList\.add\('compose-modal'\)/g) || []).length, 2);
-  const post = panel.slice(panel.indexOf('async function openComposer(initialText)'));
+  const post = panel.slice(panel.indexOf('async function openComposer('));
   assert.match(post, /compose-modal/, 'the post composer');
   const comment = panel.slice(panel.indexOf('function webCommentModal()'));
   assert.match(comment.slice(0, 900), /compose-modal/, 'the comment composer');
@@ -45,7 +45,7 @@ test('THE CLASS IS ADDED INSIDE THE BUILDER, NOT BEFORE THE CALL', () => {
   // its first act, so a class added before the call is wiped before anything renders —
   // the composer opened at the default 344px and the change looked like it had not
   // applied at all. Both composers add it inside their build callback.
-  for (const fn of ['async function openComposer(initialText)', 'function webCommentModal()']) {
+  for (const fn of ['async function openComposer(', 'function webCommentModal()']) {
     const src = panel.slice(panel.indexOf(fn));
     const body = src.slice(0, src.indexOf('\n  }\n'));
     const add = body.indexOf("classList.add('compose-modal')");
@@ -77,7 +77,7 @@ test('an explicit Cancel still closes', () => {
   const fn = panel.slice(panel.indexOf("$('modal-overlay').addEventListener"));
   const body = fn.slice(0, fn.indexOf('\n  });'));
   assert.match(body, /closeModal\(\);/, 'an unguarded click still closes');
-  const composer = panel.slice(panel.indexOf('async function openComposer(initialText)'));
+  const composer = panel.slice(panel.indexOf('async function openComposer('));
   assert.match(composer, /cancel\.addEventListener\('click', closeModal\)/, 'Cancel is untouched');
 });
 
@@ -99,7 +99,7 @@ test('the post composer has an X, and it discards', () => {
   // An X is where people look for the way out. Someone who does not find one clicks the
   // background instead, which is now guarded and does nothing — so without an X the guard
   // reads as a stuck dialog. Safe to discard here because drafts autosave.
-  const fn = panel.slice(panel.indexOf('async function openComposer(initialText)'));
+  const fn = panel.slice(panel.indexOf('async function openComposer('));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
   assert.match(body, /className: 'modal-x', title: 'Close'/);
   assert.match(body, /closeX\.addEventListener\('click', closeModal\)/);

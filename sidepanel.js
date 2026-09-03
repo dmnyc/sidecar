@@ -3005,6 +3005,57 @@
   // note/nevent quote by event id; naddr quotes by "kind:pubkey:d" coordinate, since an
   // addressable event's id changes with every edit.
   const BODY_REF_RE = /nostr:(note1[0-9a-z]+|nevent1[0-9a-z]+|naddr1[0-9a-z]+)/g;
+  // Tags that make a note a REPLY to `target`, and the kind the reply must be.
+  //
+  // Two protocols, because Nostr has two threading models and they are not
+  // interchangeable:
+  //
+  //   kind 1     NIP-10. Markered `e` tags: one "root" for the thread, one "reply" for
+  //              the note being answered. When the target IS the root there is only a
+  //              root tag — adding a "reply" tag pointing at the same event makes some
+  //              clients render it as a reply to itself.
+  //
+  //   kind 1111  NIP-22. Scope is carried in UPPERCASE tags (I/K for an external target
+  //              like a web page, E/K for an event) and the parent in lowercase. The
+  //              uppercase set is copied from the target unchanged: it names the thread
+  //              root, so re-deriving it would be a chance to get it wrong, and a
+  //              comment whose scope drifts lands in a different thread.
+  //
+  // Replying to anything else is not offered — see notifReplyTarget.
+  function replyTags(target) {
+    const tags = [];
+    const tgTags = (target && target.tags) || [];
+    const id = target && target.id;
+    const author = target && target.pubkey;
+
+    // Everyone already in the conversation, so they are notified. Deduped, and never
+    // the replier themselves — self-p-tagging shows up as a notification from you.
+    const people = [];
+    const seenP = new Set([state.activePubkey]);
+    const addP = (pk) => {
+      if (!pk || seenP.has(pk)) return;
+      seenP.add(pk);
+      people.push(['p', pk]);
+    };
+    addP(author);
+    tgTags.forEach((t) => { if (t[0] === 'p' && t[1]) addP(t[1]); });
+
+    if (target.kind === WEB_COMMENT_KIND) {
+      // Scope, verbatim. A 1111 always carries its root in uppercase tags.
+      tgTags.forEach((t) => { if (t[0] === 'I' || t[0] === 'K' || t[0] === 'E' || t[0] === 'A') tags.push(t.slice()); });
+      // Parent: the comment being answered.
+      tags.push(['e', id], ['k', String(target.kind)]);
+      return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
+    }
+
+    // NIP-10. Reuse the target's root when it has one; otherwise the target is the root.
+    const rootTag = tgTags.find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
+    const root = rootTag ? rootTag[1] : id;
+    tags.push(['e', root, '', 'root']);
+    if (root !== id) tags.push(['e', id, '', 'reply']);
+    return { kind: 1, tags: [...tags, ...people] };
+  }
+
   function quoteTags(content) {
     const tags = [];
     const authors = [];
@@ -3431,6 +3482,7 @@
         try {
           const m = JSON.parse(ev.content) || {};
           name = m.display_name || m.displayName || m.name || '';
+          cacheProfile(pubkey, m); // the picture too — see prefetchNotifProfiles
         } catch (_) {}
       }
       if (name) _notifProfiles.set(pubkey, name);
@@ -3464,6 +3516,12 @@
           try {
             const m = JSON.parse(ev.content) || {};
             name = m.display_name || m.displayName || m.name || '';
+            // The SAME kind:0 also carries the picture, and this used to drop it on the
+            // floor — _notifProfiles is names only. Nothing else fetches profiles for
+            // notification senders, so anything wanting a face for one (the reply
+            // composer's context strip) found an empty cache every time and fell back
+            // to a placeholder forever. Free: already fetched, already parsed.
+            cacheProfile(pk, m);
           } catch (_) {}
         }
         // Same rule as the single fetch: an unanswered lookup is not a result, so it is
@@ -3956,7 +4014,32 @@
       item.appendChild(topRow);
 
       // Action row
-      item.appendChild(h('div', { className: 'notif-action', textContent: text }));
+      const actionRow = h('div', { className: 'notif-action', textContent: text });
+      item.appendChild(actionRow);
+
+      // REPLY, but only where replying means something.
+      //
+      // A note or a comment can be answered. A reaction, a repost or a zap receipt
+      // cannot — there is no thread to join, and a reply tagging a kind:7 would show up
+      // in nobody's client as anything sensible. Offering a button that produces a
+      // dead-end event is worse than not offering one.
+      //
+      // The row itself is an anchor that opens the note in a client, so this is a real
+      // button that stops the event: without that, tapping Reply would ALSO follow the
+      // link and leave a new tab open behind the composer.
+      if (ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) {
+        const replyBtn = h('button', { className: 'notif-reply', type: 'button' }, [
+          icon('message-filled'),
+          h('span', { textContent: 'Reply' }),
+        ]);
+        replyBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeModal();
+          openComposer('', { replyTo: ev });
+        });
+        actionRow.appendChild(replyBtn);
+      }
 
       if ((ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) && ev.content) {
         const cleaned = cleanSnippet(ev.content);
@@ -8688,7 +8771,23 @@
     const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
     (async () => {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-      if (hasContent) all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+      // replyTo TRAVELS WITH THE DRAFT.
+      //
+      // Without it a saved reply came back as a plain note: same text, no target, and
+      // posting it published a top-level note instead of an answer — silently, with
+      // nothing on screen to say the thread had been dropped. There is one draft slot
+      // per account, so the slot has to carry what kind of thing it holds.
+      //
+      // Only the fields replyTags and buildReplyBlock actually read. The whole event
+      // would work too, but this store is encrypted-at-rest for a reason and there is
+      // no cause to keep a stranger's signature in it.
+      if (hasContent) {
+        all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+        if (draft.replyTo) {
+          const r = draft.replyTo;
+          all[pubkey].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
+        }
+      }
       else delete all[pubkey];
       await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
     })().catch(() => {
@@ -8795,13 +8894,19 @@
     return { on: s.noteCountdown !== false, secs }; // default on
   }
 
-  async function openComposer(initialText) {
+  // opts.replyTo — the event this note answers. Changes the kind and tags (replyTags),
+  // and puts the target above the editor so what you are answering is on screen while
+  // you write it.
+  async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
       return;
     }
     const pubkey = state.activePubkey;
-    let draft = { text: initialText || '', media: [] };
+    // `let`, not const: a saved draft can carry its own reply target, and resuming one
+    // has to put the composer back into reply mode.
+    let replyTo = (opts && opts.replyTo) || null;
+    let draft = { text: initialText || '', media: [], replyTo };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
@@ -8812,6 +8917,52 @@
     function scheduleSave() {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(persistDraft, 400);
+    }
+
+    // What is being answered. Built fresh on each call rather than held as one node,
+    // because a DOM element lives in exactly one place: the editor pane and the review
+    // countdown are two different panes and both need it. Same reason the page-comment
+    // modal's renderTargetInto takes a container.
+    //
+    // The countdown is the LAST thing you see before it publishes, and a reply read
+    // without its parent is the one that goes out saying the wrong thing.
+    function buildReplyBlock() {
+      if (!replyTo) return null;
+      const block = h('div', { className: 'reply-target' });
+      // The picture has to come from _profileCache: _notifProfiles is NAME ONLY (see its
+      // declaration), so passing a bare pubkey gave avatarEl nothing to render and every
+      // reply showed a placeholder. Cached only — no fetch. This is a context strip, and
+      // a face arriving late is not worth a relay round trip on a screen the user is
+      // already typing into.
+      const prof = cachedProfile(replyTo.pubkey) || {};
+      const av = avatarEl({ pubkey: replyTo.pubkey, picture: prof.picture, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av');
+      // Cache first, then fetch if it misses. _profileCache has a 5-minute TTL, so a
+      // reply written any later than that finds nothing even though the bell fetched
+      // this exact profile — which is how the face stayed a placeholder. One kind:0,
+      // only when there is no picture already, and it paints in when it lands rather
+      // than holding up a composer the user is about to type into.
+      if (!prof.picture) {
+        getProfile(replyTo.pubkey)
+          .then((p) => { if (p && p.picture && av.isConnected) applyAvatar(av, p); })
+          .catch(() => {});
+      }
+      const who = h('div', { className: 'reply-target-who' }, [
+        av,
+        h('span', { className: 'reply-target-name', textContent: notifAuthorName(replyTo.pubkey) }),
+      ]);
+      const body = h('div', { className: 'reply-target-body' });
+      // 240 caps the TEXT, and renderNoteText also renders images and video as block
+      // elements — one photo took this to 305px, most of a 360px panel, pushing the
+      // editor off screen before a word was typed. So the block is clipped in CSS too.
+      // Clipped rather than stripped: sometimes the image IS the note being answered.
+      renderNoteText(body, replyTo.content || '', 240);
+      block.append(who, body);
+      // Fade only when something was actually cut, so a short note has no phantom edge.
+      // After layout, because scrollHeight is 0 until it has one.
+      requestAnimationFrame(() => {
+        if (body.scrollHeight > body.clientHeight + 1) block.classList.add('is-clipped');
+      });
+      return block;
     }
 
     async function doPublish() {
@@ -8831,11 +8982,19 @@
       }
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      // A reply carries its threading tags FIRST: NIP-10 readers take the first `e`
+      // marked root as the thread, and NIP-22 scope is read positionally by some
+      // clients. Mentions and quotes from the body follow, deduped against the
+      // participants replyTags already added.
+      const reply = replyTo ? replyTags(replyTo) : null;
+      const already = new Set((reply ? reply.tags : []).filter((t) => t[0] === 'p').map((t) => t[1]));
+      const bodyP = pTags.filter((t) => !already.has(t[1]));
+      const base = reply ? reply.tags : [];
       const tags = settings && settings.showClientTag === false
-        ? [...pTags, ...quotes.tags]
-        : [CLIENT_TAG.slice(), ...pTags, ...quotes.tags];
+        ? [...base, ...bodyP, ...quotes.tags]
+        : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
       const event = {
-        kind: 1,
+        kind: reply ? reply.kind : 1,
         created_at: Math.floor(Date.now() / 1000),
         tags,
         content,
@@ -8859,7 +9018,7 @@
       // Rich text box with @mention autocomplete, shared with the page-comment
       // modal. Edits flow back through onChange into the draft + Post button.
       const mentionEditor = createMentionEditor({
-        placeholder: "What’s on your mind?",
+        placeholder: replyTo ? 'Write your reply…' : "What’s on your mind?",
         onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
       });
       mentionEditor.setText(draft.text);
@@ -9027,8 +9186,9 @@
       );
 
       modal.append(
-        h('h3', { textContent: 'New note' }),
+        h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
         author,
+        ...(replyTo ? [buildReplyBlock()] : []),
         tabBar,
         editorWrap,
         previewPane,
@@ -9062,15 +9222,20 @@
     // what to do when it fires or is canceled.
     function showCountdown(secs) {
       const previewScroll = h('div', { className: 'countdown-preview' });
+      // The parent first, then what you wrote — reading order, and the same order as
+      // the editor. Without it this pane shows a reply with nothing to reply to, which
+      // is the last screen before it goes out.
+      const parent = buildReplyBlock();
+      if (parent) previewScroll.append(parent);
       const previewBody = h('div', { className: 'preview-body' });
       const bodyText = draft.text.trim();
       if (bodyText) renderNotePreview(previewBody, bodyText);
-      else previewBody.append(h('p', { className: 'hint', textContent: 'Empty note.' }));
+      else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
       previewScroll.append(previewBody);
       countdown = showPostCountdown({
         modal,
         secs,
-        title: 'Posting your note',
+        title: replyTo ? 'Posting your reply' : 'Posting your note',
         preview: previewScroll,
         onFire: finishPublish,
         onCancel: showEditor,
@@ -9100,19 +9265,31 @@
 
       const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
       resume.addEventListener('click', () => {
-        draft = { text: saved.text || '', media: (saved.media || []).slice() };
+        // Restore the target too, or this resumes as a note and posts as one.
+        replyTo = saved.replyTo || null;
+        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo };
         showEditor();
       });
       const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
       fresh.addEventListener('click', () => {
         clearComposeDraft(pubkey);
-        draft = { text: initialText || '', media: [] };
+        // The target you ARRIVED with, not the saved one. Discarding an old draft must
+        // not also discard the Reply you just tapped to get here.
+        replyTo = (opts && opts.replyTo) || null;
+        draft = { text: initialText || '', media: [], replyTo };
         showEditor();
       });
 
+      // SAY WHICH KIND OF DRAFT IT IS. There is one slot per account, so the saved
+      // draft may be a reply while you arrived here to write a note, or the other way
+      // round — and resuming silently changes what pressing Post will publish.
+      const savedIsReply = !!saved.replyTo;
+      const what = savedIsReply
+        ? 'You have an unsaved reply to ' + notifAuthorName(saved.replyTo.pubkey) + when + '.'
+        : 'You have an unsaved draft' + when + '.';
       const parts = [
-        h('h3', { textContent: 'Resume your draft?' }),
-        h('p', { className: 'hint', textContent: 'You have an unsaved draft' + when + '.' }),
+        h('h3', { textContent: savedIsReply ? 'Resume your reply?' : 'Resume your draft?' }),
+        h('p', { className: 'hint', textContent: what }),
       ];
       if (preview) {
         const previewBox = h('div', { className: 'draft-preview' });
