@@ -4004,14 +4004,25 @@
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
 
+      // WHOSE notifications — but only when that is a real question.
+      //
+      // The sheet covers the whole panel (.modal-overlay is fixed inset:0), so the
+      // account chip in the header is hidden while this is open and nothing else on
+      // screen answers it. With several accounts that matters: the list is
+      // account-scoped, and "which account am I looking at" is exactly the confusion
+      // the signing-mismatch work exists to prevent.
+      //
+      // With one account it answers a question nobody can ask, and repeats the identity
+      // the user has never left. The avatar stays either way — it anchors the sheet and
+      // costs no vertical space beside the title.
       const heading = h('div', { className: 'notif-modal-head' });
-      heading.append(
-        avatarEl(a, 'notif-modal-av'),
-        h('div', {}, [
-          h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
-          h('div', { className: 'notif-modal-sub', textContent: displayName(a) }),
-        ])
-      );
+      const titleBox = h('div', {}, [
+        h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
+      ]);
+      if ((state.accounts || []).length > 1) {
+        titleBox.appendChild(h('div', { className: 'notif-modal-sub', textContent: displayName(a) }));
+      }
+      heading.append(avatarEl(a, 'notif-modal-av'), titleBox);
       modal.appendChild(heading);
 
       const scroll = h('div', { className: 'notif-scroll' });

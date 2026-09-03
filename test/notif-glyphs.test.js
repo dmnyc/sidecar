@@ -144,3 +144,30 @@ test('the icon inherits currentColor so themes need no per-theme rule', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.notif-glyph svg \{[^}]*color: var\(--muted\)/);
 });
+
+// ---- the modal header ---------------------------------------------------------------
+
+test('the account name shows only when there is more than one account', () => {
+  // The sheet covers the whole panel (.modal-overlay is fixed inset:0), so the account
+  // chip in the header is hidden while it is open and nothing else on screen says whose
+  // notifications these are. With several accounts that is a real question — the list is
+  // account-scoped. With one it answers a question nobody can ask.
+  const at = source.indexOf("const heading = h('div', { className: 'notif-modal-head' });");
+  assert.ok(at !== -1, 'the notifications modal header moved');
+  const block = source.slice(at, at + 900);
+  assert.match(block, /\(state\.accounts \|\| \[\]\)\.length > 1/, 'guarded on account count');
+  const guard = block.indexOf('.length > 1');
+  const sub = block.indexOf('notif-modal-sub');
+  assert.ok(guard < sub, 'the sub-line must be inside the guard');
+});
+
+test('the avatar is not conditional', () => {
+  // It anchors the sheet and costs no vertical space beside the title, so it stays for
+  // everyone — this is about a line that can only ever say one thing, not about chrome.
+  const at = source.indexOf("const heading = h('div', { className: 'notif-modal-head' });");
+  const block = source.slice(at, at + 900);
+  const guard = block.indexOf('.length > 1');
+  const avatar = block.indexOf("avatarEl(a, 'notif-modal-av')");
+  assert.ok(avatar > guard, 'appended after the guard block, unconditionally');
+  assert.doesNotMatch(block.slice(guard, avatar), /if \(/, 'and not inside another branch');
+});
