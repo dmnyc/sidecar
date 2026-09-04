@@ -675,7 +675,16 @@ async function driveOnce() {
       // Panel gone, or we've since learned it's in the wrong window — pull it
       // back and let the popup path (below) take over on the right window.
       showing.state = 'queued'; showing.display = 'none';
-    } else if (showing.display === 'popup' && panelServesWindow(showing.originWindowId)) {
+    } else if (
+      showing.display === 'popup' &&
+      // NOT one the panel already failed to render. The head-picking below sends a
+      // panelFailed entry straight back to a popup, so handing it to the panel here
+      // means it bounces: popup opens, this branch takes it back, the popup opens
+      // again — forever, with the page's promise never settling and a window
+      // flickering. That is the shape of "waiting for something that never finishes".
+      !showing.panelFailed &&
+      panelServesWindow(showing.originWindowId)
+    ) {
       showing.state = 'queued'; showing.display = 'none'; // revert BEFORE closing so onRemoved won't reject it
       closePopupWindow();
     } else if (
