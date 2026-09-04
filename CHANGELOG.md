@@ -7,6 +7,31 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.12.0] — 2026-09-04
+
+### Added
+- **Reply from the notifications list.** A note or a comment can be answered without leaving Sidecar. The composer opens with what you are answering shown above the editor, and it stays there through Preview and through the review countdown, because the last screen before something publishes is the wrong place to lose sight of what it is a reply to. Replies to notes follow NIP-10, replies to page comments follow NIP-22, and the two are not interchangeable: answering a comment with a plain note lands outside the thread it was meant for. Not offered on reactions, reposts or zaps, which have no thread to join.
+- **A web-of-trust filter for notifications.** Reply spam from fresh keys cannot be muted, because every mute is a denylist and a denylist cannot outrun key rotation. The bell now sorts by who your circle already vouches for: people you follow, plus anyone at least ten of your follows follow. Out-of-network notifications are collapsed into a counted group rather than hidden, and an empty or failed trust set means everyone is in network. Settings gains a Notifications section with a progress bar while the set is built.
+- **Relay sign-in (NIP-42).** Sidecar can now answer a relay's authentication challenge. This never affected posting, since an event carries its own signature, but it affected reading: a relay that gates reads has no way to know who is asking, so relays like relay.nostr.build and nostr.land served the panel nothing at all. Answering is limited to the account's own relays, configured and declared; a relay reached through someone else's hint gets no answer, because identifying yourself to it is a disclosure.
+- **Relay icons.** Each relay in the list shows its own icon, read from its NIP-11 document and falling back to the usual favicon paths.
+- **Recent Activity can be verified.** Each signature now records its event id, and a row with one offers a tap-through that opens the signed event in your preferred client. The log recorded that something was signed and never what, which is precisely what "trust, but verify" needs.
+- **A way back from a browser out of connections.** When Chrome exhausts its WebSocket budget nothing in the UI could rebuild the connections, and the only recovery was quitting the browser. A Reset connections button now appears under the balance when the failure is connection-shaped.
+
+### Changed
+- **Zap notifications say how much, far more often.** The amount was read only from the zap request's optional `amount` tag, which many wallets omit. It now falls back to the invoice, where the number has been all along. On a real inbox that took receipts showing an amount from 93 of 150 to all 150. A one-sat zap also reads "1 sat" rather than "1 sats", thousands are grouped, and a sub-sat zap says "<1 sat" instead of rounding to nothing.
+- **Repost and reply marks are drawn, not emoji.** Emoji are painted by the operating system, so they ignore the theme and differ between machines. Those two now use the same bundled icon set as the rest of the panel and take their color from the theme. A reaction keeps the sender's own emoji, which is content rather than decoration.
+- **The notifications header carries an identity only when there is a question.** With one account it repeated something you had never left; with several it is the only thing on screen saying whose list you are reading, since the sheet covers the account chip.
+- **The composer grows with the panel** rather than staying at a fixed width, and closing it accidentally no longer loses what you were writing.
+
+### Fixed
+- **Sidecar told you a relay was down when your browser had run out of sockets.** A failed probe proves only that a connection could not be opened, and Sidecar turned that into "the relay looks down, not Sidecar", a claim it had no standing to make, and one that sent people to check a service that was fine. It now probes relays you already use as a control first, and only names a relay when at least one other answered.
+- **Relay connections leaked until the browser ran dry.** The vendored library creates a socket and, when the connection times out, never closes it. One leaked per attempt, and once the browser's budget was gone nothing could connect: every relay reported a timeout while the same relays answered normally from outside the browser, and only restarting fixed it. Reported upstream as nbd-wtf/nostr-tools#550.
+- **A signing request could hang with nothing on screen.** Only one approval shows at a time, and an approval handed to the panel that never rendered blocked every request behind it: no prompt, no error, no entry in Recent Activity, and the page waiting out its own three-minute timeout. Reactions and reposts appeared to do nothing at all.
+- **Notification names showed as npubs.** Names were fetched one request per row across every relay at once, enough of which failed that the failures were cached as "this person has no name". They are fetched in one query for the whole page now, and a profile that arrives late fills in.
+- **Your relay list could be replaced with Sidecar's defaults.** The panel could not tell "this account has published no relay list" from "the relays did not answer", so a timed-out lookup showed the app's shared default relays labelled as your own, and publishing from that screen would have overwritten a real list. The two are now distinguished, the last list actually seen is remembered, and Publish is disabled until a lookup succeeds.
+- **Posts could fail with "No relays configured".** With use-only-my-relays on, a timed-out relay-list lookup produced an empty publish list, so the note went nowhere and the message blamed settings that were perfectly correct.
+- **Custom relay lists in Werkstätte and elsewhere.** Round controls that had squared off, an approval avatar among them.
+
 ## [1.11.0] — 2026-08-31
 
 ### Added
