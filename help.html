@@ -388,6 +388,17 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.12.0</p>
+      <ul class="whatsnew-list">
+        <li><strong>Reply from the notifications list.</strong> Answer a note or a comment without leaving Sidecar. The composer opens with what you are answering shown above the editor, and it stays there through Preview and the review countdown.</li>
+        <li><strong>Fewer strangers in the bell.</strong> Reply spam from fresh keys cannot be muted, because a mute list is a denylist and a denylist cannot outrun new keys. Notifications are now sorted by who your circle already vouches for, with everyone else collapsed into a counted group rather than hidden.</li>
+        <li><strong>Sidecar can sign in to relays.</strong> Some relays gate reading behind a challenge, and Sidecar had no way to answer, so those relays served the panel nothing. It answers now, but only for your own relays.</li>
+        <li><strong>Zap notifications say how much, far more often.</strong> The amount was read from a tag many wallets leave out. It now falls back to the invoice, where the number was all along.</li>
+        <li><strong>Recent Activity can be verified.</strong> Every signature records its event id, and a row with one opens the signed event in your preferred client. The log used to record that something was signed and never what.</li>
+        <li><strong>Relay connections leaked until the browser ran dry.</strong> Every relay would report a timeout while those same relays answered fine outside the browser, and only a restart helped. Sidecar no longer leaks them, and a Reset connections button rebuilds them when it happens.</li>
+        <li><strong>A signing request could hang with nothing on screen.</strong> No prompt, no error, and reactions or reposts that appeared to do nothing at all.</li>
+        <li><strong>Your relay list could be replaced with Sidecar's defaults</strong> when a lookup timed out, and posting could fail with "No relays configured" while your relays were configured perfectly well.</li>
+      </ul>
       <p class="whatsnew-version">Version 1.11.0</p>
       <ul class="whatsnew-list">
         <li><strong>The theme picker is a gallery.</strong> Twelve themes had outgrown a list of names. Filter Dark or Light and every card is a live preview of its theme, animating with that theme's own balance arrival when you pick it. Three of those themes are new: <em>Werkstätte</em>, <em>Metropolis</em> and <em>Par Avion</em>.</li>
