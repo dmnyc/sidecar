@@ -189,6 +189,10 @@ test('a definite window mismatch still prefers the popup', async () => {
 
 // ---- source guards ---------------------------------------------------------------
 
+function stripComments(src) {
+  return src.split('\n').filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
+}
+
 const body = source
   .split('\n')
   .filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l))
@@ -233,4 +237,49 @@ test('the deadline branch requires a timestamp, so a fieldless entry cannot trip
   // without shownAt, the guard must not fire on undefined arithmetic.
   const fn = lift('async function driveOnce(');
   assert.match(fn, /showing\.shownAt != null/);
+});
+
+// ---- the regression the deadlock fix introduced ---------------------------------
+
+test('A PANEL-FAILED ENTRY DOES NOT BOUNCE BETWEEN POPUP AND PANEL', () => {
+  // driveOnce hands a showing popup back to the panel whenever the panel can serve
+  // that window. panelFailed entries are routed straight back to a popup by the
+  // head-picking below, so without excluding them here the entry oscillates: popup
+  // opens, gets taken back, opens again — forever. The page's promise never settles
+  // and a window flickers. Reported as "I can't do anything, and Jumble's bar pulses
+  // as if waiting for something that never finishes".
+  // Comments stripped: the prose explaining this guard is longer than the guard, so a
+  // fixed character window measures the explanation rather than the code.
+  const fn = stripComments(lift('async function driveOnce('));
+  const branch = fn.slice(fn.indexOf("showing.display === 'popup'"));
+  assert.match(branch.slice(0, 160), /!showing\.panelFailed/, 'the handoff must skip a failed entry');
+});
+
+test('a popup that never failed on the panel still hands off', async () => {
+  // The behavior being preserved: a popup opened because no panel was there should
+  // move to the panel once one appears.
+  const ctx = harness({ panelPort: null });
+  enqueue(ctx, 'a');
+  await ctx.driveOnce();
+  const a = ctx.queue.find((e) => e.id === 'a');
+  assert.equal(a.display, 'popup');
+  ctx.panelPort = {}; // a panel opens
+  await ctx.driveOnce();
+  assert.equal(a.display, 'panel', 'handoff still works for an entry with no history');
+});
+
+test('a panel-failed entry stays on the popup once a panel is open', async () => {
+  const ctx = harness();
+  enqueue(ctx, 'a');
+  await ctx.driveOnce();                       // handed to a panel that never renders
+  const a = ctx.queue.find((e) => e.id === 'a');
+  a.shownAt = Date.now() - (ctx.PANEL_ACK_MS + 100);
+  await ctx.driveOnce();                       // taken back, routed to a popup
+  assert.equal(a.display, 'popup');
+  assert.equal(a.panelFailed, true);
+  const popupsAfterRoute = ctx.popups.length;
+
+  await ctx.driveOnce();                       // panel is still open — must NOT bounce
+  assert.equal(a.display, 'popup', 'it must stay where it can be observed');
+  assert.equal(ctx.popups.length, popupsAfterRoute, 'and not be reopened');
 });
