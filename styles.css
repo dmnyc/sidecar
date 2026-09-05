@@ -3253,6 +3253,11 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .card .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
 .card .row span:first-child { color: var(--muted); }
 .card .row span:last-child { word-break: break-all; text-align: right; font-family: var(--font-mono); font-size: 12px; }
+/* A row whose value is a sentence rather than an identifier: break at words and set it in
+   the reading face. break-all is right for a hex key and wrong for someone's boost message,
+   which it would chop mid-word. The value is clamped in JS so it cannot grow the card;
+   nothing here is made smaller to fit. Mirrors the same rule in prompt.html. */
+.card .row.prose span:last-child { word-break: break-word; font-family: inherit; min-width: 0; }
 /* Encrypt/decrypt counterparty: @name on top, npub beneath as a verifiable key. */
 .card .row .peer-val { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .card .row .peer-val .peer-name { font-family: var(--font-ui); font-weight: 600; }

@@ -38,6 +38,10 @@ clients without ever pasting your nsec into a website.
   counterparty, fee, payment hash, preimage.
 - **WebLN** — web apps can pay and make invoices through your wallet, gated by
   approval with an optional per-site daily budget you can edit or revoke any time.
+- **Podcasting 2.0 boosts** — keysend payments with their boostagram, so value-split
+  shows can be boosted straight from the page. The approval card names the show and
+  the message rather than a bare node key, and a boost's splits are covered together
+  by one spending limit. Offered only when your wallet supports keysend.
 - **Pay from any page** — when a site shows a Lightning invoice, a "Pay with
   Sidecar" card appears (only on apps you're signed into). You can also right-click
   a `lightning:` link, a selected invoice, or a QR.

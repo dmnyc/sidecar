@@ -6636,6 +6636,10 @@
     'nip04.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
     'nip44.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
     'nip44.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
+    // Without these the activity list falls through to the default and prints the raw
+    // method string under a quill — 'webln.keysend' four times over for one boost.
+    'webln.sendPayment': { icon: 'zap', label: () => 'Paid a Lightning invoice' },
+    'webln.keysend': { icon: 'zap', label: () => 'Sent a keysend payment' },
   };
 
   function relTime(ts) {
@@ -13603,6 +13607,13 @@
     return s.length > head + tail + 1 ? s.slice(0, head) + '…' + s.slice(-tail) : s;
   }
 
+  // Page-supplied text shown on a spend card: keep it short enough that it cannot push the
+  // buttons off the screen. Mirrors clampText in prompt.js.
+  function clampApprovalText(s, max) {
+    const str = String(s || '').replace(/\s+/g, ' ').trim();
+    return str.length > max ? str.slice(0, max - 1) + '…' : str;
+  }
+
   async function loadTransactions(listEl, client) {
     const PAGE = 15;
     let offset = 0;
@@ -13642,8 +13653,13 @@
     // Prepend any transactions that aren't already in the list, without clearing it.
     // Keyed on payment_hash (unique per payment) so a re-fetch after a zap adds only
     // the new entry — the existing rows stay in place, no flash.
+    // A boost broadcasts walletChanged once per split, within a second or two. Dropping the
+    // overlapping calls outright meant a split that settled after the in-flight
+    // listTransactions never appeared until the next full render — so remember that
+    // something asked, and run once more when the current pass finishes.
+    let refreshAgain = false;
     async function refresh() {
-      if (loading) return;
+      if (loading) { refreshAgain = true; return; }
       loading = true;
       try {
         const res = await client.listTransactions({ limit: PAGE, offset: 0, unpaid: false });
@@ -13667,6 +13683,10 @@
         // everything up). Don't clear the list or show an error.
       } finally {
         loading = false;
+      }
+      if (refreshAgain) {
+        refreshAgain = false;
+        await refresh();
       }
     }
 
@@ -13805,8 +13825,19 @@
   function txRow(tx, metaMap) {
     const incoming = tx.type === 'incoming';
     const sats = msatToSat(tx.amount);
-    const meta = (metaMap && tx.invoice && metaMap[tx.invoice]) || {};
-    const counterparty = incoming ? '' : meta.address || '';
+    // Keyed by invoice for anything with one, and by payment hash for what does not — a
+    // keysend has no invoice at all, so meta written for a boost would be stored and never
+    // read if this only ever looked at tx.invoice.
+    const meta =
+      (metaMap && ((tx.invoice && metaMap[tx.invoice]) || (tx.payment_hash && metaMap[tx.payment_hash]))) || {};
+    // An outgoing keysend carries no invoice, no description and no zap request, so it
+    // would otherwise render as a bare "Sent". Where a boostagram was recorded, name what
+    // it paid for instead — never the raw node key, which is 64 characters of noise in a
+    // 328px row.
+    const boostLabel = meta.keysend
+      ? (meta.podcast ? 'Boost to ' + meta.podcast : meta.dest ? 'Keysend to ' + truncMid(meta.dest, 8, 6) : 'Boost')
+      : '';
+    const counterparty = incoming ? '' : meta.address || boostLabel || '';
 
     const row = h('div', { className: 'item tx-row' });
     if (tx.payment_hash) row.dataset.ph = tx.payment_hash;
@@ -15344,7 +15375,11 @@
     'webln.makeInvoice': 'create a Lightning invoice',
   };
 
-  const isPaymentApproval = (data) => data.scope === 'webln' && data.method === 'sendPayment';
+  // keysend is a payment too, and this predicate is what makes it one everywhere: the Pay
+  // button, hiding "Trust this site" on a spend card, and the budget capture that turns one
+  // approval into a whole boost. Mirrors isPayment in prompt.js — keep the two in step.
+  const isPaymentApproval = (data) =>
+    data.scope === 'webln' && (data.method === 'sendPayment' || data.method === 'keysend');
 
   // Human-readable labels for the event kinds sites most commonly ask Sidecar to
   // sign (not exhaustive — see https://nips.nostr.com for the full registry).
@@ -15537,6 +15572,22 @@
     };
     if (isPaymentApproval(data)) {
       box.append(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
+      // Keysend pays a bare node key, so say where it goes and — when the site sent a
+      // boostagram — what it is for. Wording matches prompt.js; keep the two surfaces in
+      // step. Never the raw 66-character key, for the reason stated at txRow below.
+      if (data.method === 'keysend') {
+        const b = data.boost || {};
+        const who = b.podcast || b.episode || '';
+        box.append(row('To', who ? clampApprovalText(who, 60) : truncMid(data.destination, 10, 8)));
+        if (who && data.destination) box.append(row('Node', truncMid(data.destination, 10, 8)));
+        // Labelled as the site's words. Nothing in a boostagram is verified — the page
+        // wrote it — and a spend card must not lend it authority it has not earned.
+        if (b.message) {
+          const r = row('Message from site', clampApprovalText(b.message, 140));
+          r.classList.add('prose');
+          box.append(r);
+        }
+      }
       if (data.memo) box.append(row('Memo', String(data.memo)));
     } else if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
@@ -15677,6 +15728,13 @@
     } else if (data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice') {
       note.textContent =
         'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';
+    } else if (data.method === 'keysend') {
+      // Boosts are not one payment: a value split pays each recipient separately, so the
+      // site sends one keysend per share and Sidecar sees them as the independent payments
+      // they are — nothing tells it that four calls were one boost. Plain Pay therefore
+      // brings the next card straight up. Wording matches prompt.js exactly.
+      note.textContent =
+        'A boost is several payments — one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.';
     } else {
       hide(note);
       return;

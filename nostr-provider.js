@@ -193,7 +193,12 @@
       getBalance: () => ensure().then(() => call('webln', 'getBalance')),
       makeInvoice: (args) => ensure().then(() => call('webln', 'makeInvoice', normInvoice(args))),
       sendPayment: (paymentRequest) => ensure().then(() => call('webln', 'sendPayment', { paymentRequest })),
-      keysend: () => Promise.reject(new Error('keysend is not supported by Sidecar')),
+      // Spontaneous payment to a node pubkey — how Podcasting 2.0 boosts move, since a
+      // value split names nodes and carries its boostagram in a TLV record rather than
+      // issuing an invoice. Args are handed over as the page wrote them; the service
+      // worker validates before anything is spent, because this half runs in the page and
+      // is not a trust boundary.
+      keysend: (args) => ensure().then(() => call('webln', 'keysend', args)),
       signMessage: () => Promise.reject(new Error('signMessage is not supported by Sidecar')),
       verifyMessage: () => Promise.reject(new Error('verifyMessage is not supported by Sidecar')),
       // Raw NIP-47-style passthrough some clients probe for; unsupported for now.
