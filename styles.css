@@ -1701,13 +1701,24 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   max-width: calc(100% - 44px);
   display: inline-flex; align-items: center;
   padding: 7px 13px;
-  border: 1px solid var(--border-strong);
+  /* NOT var(--bg), which is exactly the colour behind it. The balloon floats on
+     the banner, so it has to read as its own object rather than as a hole in the
+     page. The card gradient lifts it, --gold-soft rings it (the same ring the
+     avatar it points at already wears), and the shadow does the rest.
+
+     The ring is --muted, NOT --border-strong or --gold-soft. Both of those are
+     alpha tokens tuned for edges on a flat panel: on Cast Iron they are 5.5% and
+     12%, which measured 2.2:1 against the banner — under the 3:1 a boundary needs,
+     and the fill gives nothing, since the card gradient and the banner placeholder
+     are both built from --velvet-1. --muted is an opaque TEXT token, so every
+     theme already guarantees it reads against its own background. */
+  border: 1px solid var(--muted);
   border-radius: 14px;
-  background: var(--bg);
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   color: var(--text-2);
   font-size: 13px; line-height: 1.35; text-align: left;
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 6px 18px var(--float-shadow, rgba(0, 0, 0, 0.55));
 }
 .status-balloon:hover { border-color: var(--gold-soft); color: var(--text); }
 
@@ -1725,12 +1736,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border-right: 8px solid transparent;
   border-bottom: 0;
 }
-.status-balloon::before { top: 100%; border-top: 8px solid var(--border-strong); }
+.status-balloon::before { top: 100%; border-top: 8px solid var(--muted); }
 .status-balloon::after {
   top: calc(100% - 1px);
   margin-left: 1px;
   border-left-width: 7px; border-right-width: 7px;
-  border-top: 7px solid var(--bg);
+  /* The gradient's bottom stop, since the tail hangs off the bottom edge. */
+  border-top: 7px solid var(--velvet-2);
 }
 
 /* ONE LINE, ALWAYS. The balloon sits directly above the avatar with only the tail

@@ -220,6 +220,21 @@ test('the balloon rides on the banner and truncates rather than growing', () => 
   assert.match(balloon, /max-width:\s*calc\(100% - \d+px\)/, 'the balloon can reach the banner edges');
 });
 
+test('THE BALLOON IS RINGED WITH A TEXT-GRADE TOKEN, NOT AN EDGE TOKEN', () => {
+  // --border-strong and --gold-soft are alpha tokens tuned for edges on a flat
+  // panel. On Cast Iron they are 5.5% and 12%, which measured 2.2:1 against the
+  // banner — under the 3:1 a UI boundary needs — and the fill contributes nothing,
+  // because the card gradient and the banner placeholder are both built from
+  // --velvet-1. --muted is opaque and every theme guarantees it reads against its
+  // own background, which took the same measurement to 8.3:1 dark and 6.5:1 light.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const balloon = css.match(/^\.status-balloon \{[^}]*\}/m)[0];
+  assert.match(balloon, /border:\s*1px solid var\(--muted\)/, 'the ring is not a text-grade token');
+  assert.doesNotMatch(balloon, /border:\s*1px solid var\(--(border-strong|gold-soft|border)\)/, 'the ring went back to an alpha edge token');
+  // And it must not fall back to the page colour, which is what it floats on.
+  assert.doesNotMatch(balloon, /background:\s*var\(--bg\)/, 'the balloon fill is the page background again');
+});
+
 test('the editor is a modal, and its fields are not on the tab', () => {
   const fn = lift('function openStatusEditor(');
   assert.match(fn, /openModal\(/, 'the editor is not a modal');
@@ -259,8 +274,10 @@ test('the balloon has a tail pointing down at the avatar', () => {
   // Transparent left/right with a solid top edge is a downward triangle. A
   // border-bottom would point it the wrong way, at the banner instead of the face.
   assert.match(tails[0], /border-left:\s*8px solid transparent/, 'tail is not a triangle');
-  assert.match(css, /\.status-balloon::before \{[^}]*border-top:\s*\d+px solid var\(--border-strong\)/, 'no outlined tail');
-  assert.match(css, /\.status-balloon::after \{[^}]*border-top:\s*\d+px solid var\(--bg\)/, 'no filled tail');
+  assert.match(css, /\.status-balloon::before \{[^}]*border-top:\s*\d+px solid var\(--muted\)/, 'no outlined tail');
+  // The gradient's bottom stop, since the tail hangs off the bottom edge — not
+  // --bg, which is the page behind the balloon rather than the balloon itself.
+  assert.match(css, /\.status-balloon::after \{[^}]*border-top:\s*\d+px solid var\(--velvet-2\)/, 'no filled tail');
 });
 
 test('the button uses a speech bubble, and it is a real icon', () => {
