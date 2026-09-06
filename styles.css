@@ -1720,7 +1720,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   cursor: pointer;
   box-shadow: 0 6px 18px var(--float-shadow, rgba(0, 0, 0, 0.55));
 }
-.status-balloon:hover { border-color: var(--gold-soft); color: var(--text); }
+/* Hover BRIGHTENS the ring, and the tail moves with it. Two bugs lived in the one
+   line this replaces: the tail kept --muted while the box changed, so the outline
+   broke at the tail; and the box changed to --gold-soft, an alpha edge token that
+   is 12% on Cast Iron, so pointing at the balloon made it harder to see rather
+   than easier. --text-2 is a text token a step brighter than --muted, so the ring
+   gains contrast on hover in every theme. */
+.status-balloon:hover { border-color: var(--text-2); color: var(--text); }
+.status-balloon:hover::before { border-top-color: var(--text-2); }
 
 /* The tail, pointing down at the avatar below. Two stacked triangles: ::before is
    the border, ::after the fill sitting 1px inside it, which is how you get a

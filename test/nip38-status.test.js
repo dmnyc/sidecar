@@ -235,6 +235,22 @@ test('THE BALLOON IS RINGED WITH A TEXT-GRADE TOKEN, NOT AN EDGE TOKEN', () => {
   assert.doesNotMatch(balloon, /background:\s*var\(--bg\)/, 'the balloon fill is the page background again');
 });
 
+test('HOVER CARRIES THE TAIL, AND BRIGHTENS RATHER THAN FADES', () => {
+  // Two bugs shipped in one line here. The tail is a separate pseudo-element, so a
+  // hover rule on the box alone leaves the outline broken where the tail joins it.
+  // And the old hover went to --gold-soft, an alpha edge token that is 12% on Cast
+  // Iron, so pointing at the balloon made it *harder* to see.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const hover = css.match(/^\.status-balloon:hover \{[^}]*\}/m);
+  assert.ok(hover, 'no hover state');
+  assert.match(hover[0], /border-color:\s*var\(--text-2\)/, 'hover does not brighten the ring');
+  assert.doesNotMatch(hover[0], /--gold-soft|--border-strong/, 'hover fades the ring to an alpha edge token');
+  assert.match(
+    css, /^\.status-balloon:hover::before \{[^}]*border-top-color:\s*var\(--text-2\)/m,
+    'the tail does not follow the box on hover'
+  );
+});
+
 test('the editor is a modal, and its fields are not on the tab', () => {
   const fn = lift('function openStatusEditor(');
   assert.match(fn, /openModal\(/, 'the editor is not a modal');
