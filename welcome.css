@@ -383,6 +383,25 @@ body {
 
 /* ===== Standalone-page top nav (shared by help, welcome, wallets) ===== */
 
+/* The top nav is permanently dark chrome: .helpnav's background is a hardcoded
+   near-black regardless of theme, because the bar overlaps the hero and a pale
+   one would dissolve into it. Under a light theme its children were still
+   inheriting that theme's near-black ink, which is invisible on a near-black
+   bar — links and the section dropdown simply disappeared.
+
+   Pinned back to the dark-field values (the same tokens Speakeasy defines) for
+   the bar only, so the page below stays fully light. `.theme-light` is set by
+   theme-boot.js, which already knows which themes are light; keying off it
+   avoids naming those six themes a fifth time in CSS. */
+.theme-light .helpnav {
+  --text-2: #e8d5f0;
+  --muted: #9a86c4;
+  --gold: #cba14e;
+  --amber: #f4a64b;
+  --border: rgba(167, 139, 250, 0.16);
+  color: var(--text-2);
+}
+
 .helpnav {
   position: sticky;
   top: 0;
