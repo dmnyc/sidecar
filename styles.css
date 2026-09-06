@@ -1687,6 +1687,111 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .autozap-max-input { width: 90px; text-align: right; padding: 6px 9px; }
 
 /* backup & restore — set apart from the profile bio above it */
+/* ===== NIP-38 status ===== */
+/* The balloon sits ON the banner. A status is a remark, not a profile field, and
+   a labelled section for it made the whole tab read like a settings screen.
+   Absolutely positioned inside .profile-header, which is already position:relative
+   for the avatar's overlap. */
+.status-balloon {
+  position: absolute;
+  top: 14px;
+  left: 50%; transform: translateX(-50%);
+  /* Never the full width of the banner: it is a remark on top of a picture, and
+     one that reached both edges would read as a caption bar. */
+  max-width: calc(100% - 44px);
+  display: inline-flex; align-items: center;
+  padding: 7px 13px;
+  /* NOT var(--bg), which is exactly the colour behind it. The balloon floats on
+     the banner, so it has to read as its own object rather than as a hole in the
+     page. The card gradient lifts it, --gold-soft rings it (the same ring the
+     avatar it points at already wears), and the shadow does the rest.
+
+     The ring is --muted, NOT --border-strong or --gold-soft. Both of those are
+     alpha tokens tuned for edges on a flat panel: on Cast Iron they are 5.5% and
+     12%, which measured 2.2:1 against the banner — under the 3:1 a boundary needs,
+     and the fill gives nothing, since the card gradient and the banner placeholder
+     are both built from --velvet-1. --muted is an opaque TEXT token, so every
+     theme already guarantees it reads against its own background. */
+  border: 1px solid var(--muted);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  color: var(--text-2);
+  font-size: 13px; line-height: 1.35; text-align: left;
+  cursor: pointer;
+  box-shadow: 0 6px 18px var(--float-shadow, rgba(0, 0, 0, 0.55));
+}
+/* Hover BRIGHTENS the ring, and the tail moves with it. Two bugs lived in the one
+   line this replaces: the tail kept --muted while the box changed, so the outline
+   broke at the tail; and the box changed to --gold-soft, an alpha edge token that
+   is 12% on Cast Iron, so pointing at the balloon made it harder to see rather
+   than easier. --text-2 is a text token a step brighter than --muted, so the ring
+   gains contrast on hover in every theme. */
+.status-balloon:hover { border-color: var(--text-2); color: var(--text); }
+.status-balloon:hover::before { border-top-color: var(--text-2); }
+
+/* The tail, pointing down at the avatar below. Two stacked triangles: ::before is
+   the border, ::after the fill sitting 1px inside it, which is how you get a
+   hairline-outlined tail without an SVG. Offset left of center rather than
+   centered, so it reads as a spoken remark rather than a tooltip pinned to the
+   face. */
+.status-balloon::before,
+.status-balloon::after {
+  content: ''; position: absolute;
+  left: 34%;
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 0;
+}
+.status-balloon::before { top: 100%; border-top: 8px solid var(--muted); }
+.status-balloon::after {
+  top: calc(100% - 1px);
+  margin-left: 1px;
+  border-left-width: 7px; border-right-width: 7px;
+  /* The gradient's bottom stop, since the tail hangs off the bottom edge. */
+  border-top: 7px solid var(--velvet-2);
+}
+
+/* ONE LINE, ALWAYS. The balloon sits directly above the avatar with only the tail
+   between them, so a second line grows downward into the face. Prose truncates and
+   chrome does not (CLAUDE.md): the line ellipsizes, and min-width:0 is what lets
+   the flex child shrink far enough to do it. */
+.status-balloon-text {
+  min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Edit profile and Set status share a row. They stay content-sized pills rather
+   than stretching to half the panel each: the profile is a centered column and two
+   full-width slabs read as a toolbar. align-items:center stops the shorter button
+   stretching to the taller one, which with border-radius:999px turns it into a
+   circle.
+
+   Both buttons are sized here rather than inheriting .profile-edit-cta's rules,
+   because those are scoped to that one class — the first pass left the new
+   button's svg with no size at all, and an unconstrained icon blew the row up.
+   Specificity: (0,2,1) beats the (0,2,0) of `.profile-body .profile-edit-cta`,
+   so this wins without !important. */
+.profile-cta-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; margin: 12px 0 2px;
+}
+.profile-body .profile-cta-row > button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  flex: 0 1 auto; min-width: 0; margin: 0;
+  padding: 8px 18px; border-radius: 999px;
+}
+.profile-body .profile-cta-row > button svg {
+  width: 15px; height: 15px; display: block; flex-shrink: 0;
+}
+/* The label truncates before the button does. */
+.profile-body .profile-cta-row > button span {
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* The editor's fields, in the modal rather than on the tab. */
+.status-input { width: 100%; margin-top: 8px; }
+
 .nip65-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
 .nip65-status { color: var(--faint); }
 .nip65-status.done { color: var(--gold); }

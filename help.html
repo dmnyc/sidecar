@@ -43,6 +43,7 @@
         <a href="#erasing">Erasing data</a>
         <a href="#notifications">Notifications</a>
         <a href="#relays">Your relays</a>
+        <a href="#status">Your status</a>
         <a href="#nip05">NIP-05</a>
         <a href="#lightning-address">Lightning address</a>
         <a href="#wallet">Wallet</a>
@@ -505,6 +506,46 @@
       you've published a list of your own these take a back seat. Turning on
       <strong>NIP-65 only</strong> for an account excludes them from its reads and
       publishes entirely, except for the one discovery fetch that finds your list.</p>
+    </section>
+
+    <!-- ===== Status ===== -->
+    <section class="guide-section" id="status">
+      <h2>Your status</h2>
+      <p>A status is a short line about what you're doing right now: <em>Working</em>,
+      <em>Hiking</em>, <em>Out of office until Monday</em>. Clients that read it show it
+      beside your name.</p>
+
+      <p>Yours sits as a small balloon over your banner at the top of the Profile tab,
+      pointing down at your picture. Tap it to change it, or use <strong>Set
+      status</strong> next to <strong>Edit profile</strong>, which is always there. Set
+      no status and there's simply no balloon.</p>
+
+      <p>It shows on one line. A long status is trimmed with an ellipsis rather than
+      wrapping down over your picture, so keep it to a few words.</p>
+
+      <p>It is public, like everything else you publish. It goes to your relays as an
+      ordinary signed event (NIP-38), so treat it the way you'd treat a note. "At the
+      airport" tells people where you are.</p>
+
+      <h3>How long it lasts</h3>
+      <p>A status stays until you change it. If you'd rather it expired on its own,
+      pick a duration when you set it and Sidecar attaches an expiry your relays are
+      asked to honor. <strong>Asked, not required</strong> — a relay may keep serving it
+      past that time, so Sidecar treats an expired status as gone whether or not the
+      relay agrees. Clearing it yourself is the only certain way.</p>
+
+      <h3>Clearing it</h3>
+      <p><strong>Clear status</strong> publishes an empty one. That sounds odd and it's
+      deliberate: a status is a replaceable event, so an empty one overwrites the old
+      text everywhere the old text reached. Asking relays to <em>delete</em> the original
+      instead is a request they're free to ignore, and anyone who already had it would
+      keep showing it.</p>
+
+      <p class="fine-note">Sidecar only writes the general status. The spec also defines
+      a music status, meant to be published automatically by whatever is playing your
+      music, with an expiry matching the end of the track. A signer has no way to see
+      what you're listening to, and typing it by hand is a worse version of what a music
+      client does for free.</p>
     </section>
 
     <!-- ===== Wallet ===== -->

@@ -3159,6 +3159,81 @@
     return ok;
   }
 
+  // ---- NIP-38 user status (kind 30315) ---------------------------------------
+  //
+  // An addressable event whose `d` tag names the KIND of status, not an id, so
+  // one per type per account and each new one replaces the last. The spec defines
+  // two: `general` ("Working", "Hiking") and `music`. Sidecar only writes
+  // `general` — `music` is meant to be written automatically by whatever is
+  // playing the track, with an expiry matching when it stops, and a signer has no
+  // media player to read.
+  const STATUS_KIND = 30315;
+  const STATUS_D = 'general';
+
+  // EMPTY CONTENT IS THE CLEAR. Per the spec, "if the content is an empty string
+  // then the client should clear the status" — so clearing is a publish, not a
+  // deletion. A kind:5 would ask relays to forget the event, which is a request
+  // they may ignore and which leaves readers holding the old text either way.
+  // Publishing empty replaces it everywhere the addressable event already is.
+  const STATUS_DURATIONS = [
+    { label: 'No expiry', seconds: 0 },
+    { label: '1 hour', seconds: 3600 },
+    { label: '4 hours', seconds: 4 * 3600 },
+    { label: '1 day', seconds: 24 * 3600 },
+  ];
+
+  // Pure, so the tag shape can be tested without a relay or a key.
+  function statusEvent({ text, url, seconds }, now) {
+    const at = now || Math.floor(Date.now() / 1000);
+    const tags = [['d', STATUS_D]];
+    const link = (url || '').trim();
+    if (link) tags.push(['r', link]);
+    // NIP-40. Only meaningful alongside content: an expiry on an empty status
+    // would ask relays to eventually drop the very event that says "no status",
+    // which resurrects whatever it replaced.
+    const ttl = Number(seconds) || 0;
+    const content = (text || '').trim();
+    if (content && ttl > 0) tags.push(['expiration', String(at + ttl)]);
+    return { kind: STATUS_KIND, created_at: at, tags, content };
+  }
+
+  // A status is live only if it has content AND has not expired. Relays are asked
+  // to drop expired events but are not required to, and a client that trusted the
+  // event's presence would show a stale "In a meeting" for hours afterwards.
+  function readStatus(ev, now) {
+    if (!ev || !ev.content) return null;
+    const at = now || Math.floor(Date.now() / 1000);
+    const expTag = (ev.tags || []).find((t) => t[0] === 'expiration');
+    const exp = expTag ? Number(expTag[1]) || 0 : 0;
+    if (exp && exp <= at) return null;
+    const rTag = (ev.tags || []).find((t) => t[0] === 'r');
+    return { text: ev.content, url: rTag ? rTag[1] : '', expiresAt: exp, at: ev.created_at || 0 };
+  }
+
+  async function publishStatus(fields) {
+    const event = statusEvent(fields);
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+    await publishSigned(signed);
+    return readStatus(signed);
+  }
+
+  // Own status only. Reading other people's would make the panel a feed reader,
+  // and Sidecar is a companion to a client rather than a replacement for one.
+  async function fetchStatus(pubkey) {
+    if (!pubkey) return null;
+    try {
+      const ev = await Promise.race([
+        poolGet(await relayUrls(false), {
+          kinds: [STATUS_KIND], authors: [pubkey], '#d': [STATUS_D],
+        }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+      return readStatus(ev);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // pubkey → { tries, at, settled }. `settled` means stop asking: either the profile
   // landed, or the relays gave a definitive answer that there's nothing to store.
   const profileFetchState = new Map();
@@ -7210,6 +7285,15 @@
     } else {
       header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
     }
+    // The status rides ON the banner rather than taking a row of its own. It is a
+    // remark, not a field, and giving it a labelled section made the profile read
+    // like a settings screen. Empty status = no balloon at all, so the profile of
+    // someone who never sets one is exactly what it was before this shipped.
+    const balloon = h('button', { className: 'status-balloon hidden', title: 'Edit status' });
+    const balloonText = h('span', { className: 'status-balloon-text' });
+    balloon.append(balloonText);
+    balloon.addEventListener('click', () => openStatusEditor(active, paintStatus));
+    header.append(balloon);
     header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
     view.append(header);
 
@@ -7291,7 +7375,26 @@
     const editBtn = h('button', { className: 'secondary profile-edit-cta' });
     editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
     editBtn.addEventListener('click', () => openProfileEdit(content));
-    body.append(editBtn);
+
+    // Always present, whether or not a status exists. The balloon is also a way in,
+    // but it is small, sits on the banner, and is easy to miss as a control; a
+    // fixed button beside Edit profile is the one you can always find.
+    const statusBtn = h('button', { className: 'secondary profile-status-cta' });
+    statusBtn.append(icon('message-circle'), h('span', { textContent: 'Set status' }));
+    statusBtn.addEventListener('click', () => openStatusEditor(active, paintStatus));
+
+    body.append(h('div', { className: 'profile-cta-row' }, [editBtn, statusBtn]));
+
+    // The balloon is the only thing that reacts: it appears when there is something
+    // to show and stays gone otherwise, so a profile without a status is unchanged.
+    // The button does not move.
+    function paintStatus(st) {
+      const live = st && st.text;
+      balloon.classList.toggle('hidden', !live);
+      if (live) balloonText.textContent = st.text;
+    }
+    paintStatus(null);
+    fetchStatus(active.pubkey).then((st) => { if (header.isConnected) paintStatus(st); });
 
     if (content.about) {
       const about = h('p', { className: 'profile-about' });
@@ -10958,6 +11061,72 @@
       }, () => {});
     }
     return wrap;
+  }
+
+  // The status editor. A modal rather than a section on the Profile tab: setting a
+  // status is an occasional act, and a permanent form for it made the profile read
+  // like a settings screen (see the balloon in renderProfile).
+  function openStatusEditor(active, onDone) {
+    openModal((modal) => {
+      modal.append(h('h3', { textContent: 'Status' }));
+      modal.append(h('p', {
+        className: 'hint',
+        textContent: 'A short line about what you are doing. Anyone can see it.',
+      }));
+
+      const text = h('input', { type: 'text', className: 'status-input', placeholder: 'Working, hiking, out of office…' });
+      text.maxLength = 140;
+      const link = h('input', { type: 'text', className: 'status-input', placeholder: 'Optional link' });
+      const expiry = h('select', { className: 'status-input' });
+      STATUS_DURATIONS.forEach((d, i) => {
+        expiry.append(h('option', { value: String(d.seconds), textContent: d.label, selected: i === 0 }));
+      });
+
+      const err = h('div', { className: 'error' });
+      const save = h('button', { className: 'primary', textContent: 'Set status' });
+      // Full width beneath the content, never inline beside it (CLAUDE.md): a
+      // labelled destructive action in a side slot is what collapses these rows.
+      const clear = h('button', { className: 'secondary hidden', textContent: 'Clear status' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+
+      async function publish(fields, btn, busy) {
+        err.textContent = '';
+        const label = btn.textContent;
+        [save, clear, cancel].forEach((b) => { b.disabled = true; });
+        btn.textContent = busy;
+        try {
+          const st = await publishStatus(fields);
+          if (onDone) onDone(st);
+          toast(st ? 'Status set' : 'Status cleared', 'success');
+          closeModal();
+        } catch (e) {
+          err.textContent = e.message;
+          btn.textContent = label;
+          [save, clear, cancel].forEach((b) => { b.disabled = false; });
+        }
+      }
+
+      save.addEventListener('click', () => {
+        const value = text.value.trim();
+        if (!value) { err.textContent = 'Write something, or clear the status.'; return; }
+        publish({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, save, 'Publishing…');
+      });
+      // Empty content IS the clear — see statusEvent. Not a deletion request.
+      clear.addEventListener('click', () => publish({ text: '' }, clear, 'Clearing…'));
+      cancel.addEventListener('click', closeModal);
+
+      modal.append(text, link, expiry, err, save, clear, cancel);
+
+      // Prefill from whatever is live, so editing a status is editing rather than
+      // retyping. Clear only appears once we know there is something to clear.
+      fetchStatus(active.pubkey).then((st) => {
+        if (!modal.isConnected || !st) return;
+        text.value = st.text;
+        link.value = st.url || '';
+        clear.classList.remove('hidden');
+      });
+      setTimeout(() => text.focus(), 0);
+    });
   }
 
   function renderNip65Section(view, active) {
