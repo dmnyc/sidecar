@@ -1688,17 +1688,62 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* backup & restore — set apart from the profile bio above it */
 /* ===== NIP-38 status ===== */
-/* Same divider as the relay editor below it, so the Profile tab reads as a
-   stack of equal sections rather than one block with an appendix. */
-.status-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
-.status-current { color: var(--faint); }
-.status-current.muted { font-style: italic; }
-/* Every control takes the full width of the panel and stacks. At ~360px a text
-   field beside a button leaves neither usable (see CLAUDE.md). */
-.status-setting input,
-.status-setting select { width: 100%; margin-top: 8px; }
-.status-setting button { width: 100%; margin-top: 10px; }
-.status-setting .error:empty { display: none; }
+/* The balloon sits ON the banner. A status is a remark, not a profile field, and
+   a labelled section for it made the whole tab read like a settings screen.
+   Absolutely positioned inside .profile-header, which is already position:relative
+   for the avatar's overlap. */
+.status-balloon {
+  position: absolute;
+  top: 10px; left: 10px;
+  max-width: calc(100% - 20px);
+  display: inline-flex; align-items: center;
+  padding: 7px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px 14px 14px 4px; /* the tail corner, squared off toward the avatar */
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 13px; line-height: 1.35; text-align: left;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+.status-balloon:hover { border-color: var(--gold-soft); color: var(--text); }
+/* Prose truncates, chrome never does (CLAUDE.md). A long status ellipsizes on one
+   line rather than growing the balloon down over the avatar. */
+.status-balloon-text {
+  min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Edit profile and Set status share a row. They stay content-sized pills rather
+   than stretching to half the panel each: the profile is a centered column and two
+   full-width slabs read as a toolbar. align-items:center stops the shorter button
+   stretching to the taller one, which with border-radius:999px turns it into a
+   circle.
+
+   Both buttons are sized here rather than inheriting .profile-edit-cta's rules,
+   because those are scoped to that one class — the first pass left the new
+   button's svg with no size at all, and an unconstrained icon blew the row up.
+   Specificity: (0,2,1) beats the (0,2,0) of `.profile-body .profile-edit-cta`,
+   so this wins without !important. */
+.profile-cta-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; margin: 12px 0 2px;
+}
+.profile-body .profile-cta-row > button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  flex: 0 1 auto; min-width: 0; margin: 0;
+  padding: 8px 18px; border-radius: 999px;
+}
+.profile-body .profile-cta-row > button svg {
+  width: 15px; height: 15px; display: block; flex-shrink: 0;
+}
+/* The label truncates before the button does. */
+.profile-body .profile-cta-row > button span {
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* The editor's fields, in the modal rather than on the tab. */
+.status-input { width: 100%; margin-top: 8px; }
 
 .nip65-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
 .nip65-status { color: var(--faint); }

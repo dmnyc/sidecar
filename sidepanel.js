@@ -7285,6 +7285,15 @@
     } else {
       header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
     }
+    // The status rides ON the banner rather than taking a row of its own. It is a
+    // remark, not a field, and giving it a labelled section made the profile read
+    // like a settings screen. Empty status = no balloon at all, so the profile of
+    // someone who never sets one is exactly what it was before this shipped.
+    const balloon = h('button', { className: 'status-balloon hidden', title: 'Edit status' });
+    const balloonText = h('span', { className: 'status-balloon-text' });
+    balloon.append(balloonText);
+    balloon.addEventListener('click', () => openStatusEditor(active, paintStatus));
+    header.append(balloon);
     header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
     view.append(header);
 
@@ -7366,7 +7375,26 @@
     const editBtn = h('button', { className: 'secondary profile-edit-cta' });
     editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
     editBtn.addEventListener('click', () => openProfileEdit(content));
-    body.append(editBtn);
+
+    // Only offered while there is no status. Once one exists the balloon above IS
+    // the control — tapping it opens the same editor — so a second entry point
+    // would be two buttons for one thing.
+    const statusBtn = h('button', { className: 'secondary profile-status-cta' });
+    statusBtn.append(icon('message-circle'), h('span', { textContent: 'Set status' }));
+    statusBtn.addEventListener('click', () => openStatusEditor(active, paintStatus));
+
+    body.append(h('div', { className: 'profile-cta-row' }, [editBtn, statusBtn]));
+
+    // One painter for both surfaces, so the balloon and the button can never
+    // disagree about whether a status exists.
+    function paintStatus(st) {
+      const live = st && st.text;
+      balloon.classList.toggle('hidden', !live);
+      statusBtn.classList.toggle('hidden', !!live);
+      if (live) balloonText.textContent = st.text;
+    }
+    paintStatus(null);
+    fetchStatus(active.pubkey).then((st) => { if (header.isConnected) paintStatus(st); });
 
     if (content.about) {
       const about = h('p', { className: 'profile-about' });
@@ -7392,7 +7420,6 @@
     view.append(lud16Notice);
     maybeSuggestLud16(lud16Notice, active, content);
 
-    renderStatusSection(view, active);
     renderNip65Section(view, active);
     renderBackupSection(view, active);
   }
@@ -11036,87 +11063,69 @@
     return wrap;
   }
 
-  function renderStatusSection(view, active) {
-    const setting = h('div', { className: 'setting status-setting' });
-    setting.append(
-      h('h3', { textContent: 'Status' }),
-      h('p', {
+  // The status editor. A modal rather than a section on the Profile tab: setting a
+  // status is an occasional act, and a permanent form for it made the profile read
+  // like a settings screen (see the balloon in renderProfile).
+  function openStatusEditor(active, onDone) {
+    openModal((modal) => {
+      modal.append(h('h3', { textContent: 'Status' }));
+      modal.append(h('p', {
         className: 'hint',
-        textContent:
-          'A short line about what you are doing (NIP-38). Clients that read it show it beside your name. Anyone can see it.',
-      })
-    );
+        textContent: 'A short line about what you are doing. Anyone can see it.',
+      }));
 
-    const current = h('p', { className: 'hint compact status-current', textContent: 'Loading…' });
-    const text = h('input', { type: 'text', className: 'status-text', placeholder: 'Working, hiking, out of office…' });
-    text.maxLength = 140;
-    const link = h('input', { type: 'text', className: 'status-link', placeholder: 'Optional link (https://…)' });
-    const expiry = h('select', { className: 'status-expiry' });
-    STATUS_DURATIONS.forEach((d, i) => {
-      expiry.append(h('option', { value: String(d.seconds), textContent: d.label, selected: i === 0 }));
-    });
-    const err = h('div', { className: 'error' });
-    const setBtn = h('button', { className: 'primary', textContent: 'Set status' });
-    // Its own full-width row rather than an inline action beside the field: the
-    // panel is ~360px and a labelled button next to content is what collapses
-    // these rows (see CLAUDE.md). Hidden until there is something to clear, so
-    // the row costs nothing when the account has no status.
-    const clearBtn = h('button', { className: 'secondary hidden', textContent: 'Clear status' });
+      const text = h('input', { type: 'text', className: 'status-input', placeholder: 'Working, hiking, out of office…' });
+      text.maxLength = 140;
+      const link = h('input', { type: 'text', className: 'status-input', placeholder: 'Optional link' });
+      const expiry = h('select', { className: 'status-input' });
+      STATUS_DURATIONS.forEach((d, i) => {
+        expiry.append(h('option', { value: String(d.seconds), textContent: d.label, selected: i === 0 }));
+      });
 
-    function paint(st) {
-      if (st) {
-        const parts = [st.text];
-        if (st.expiresAt) parts.push('until ' + new Date(st.expiresAt * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
-        current.textContent = parts.join(' · ');
-        current.classList.remove('muted');
-        clearBtn.classList.remove('hidden');
-      } else {
-        current.textContent = 'No status set.';
-        current.classList.add('muted');
-        clearBtn.classList.add('hidden');
+      const err = h('div', { className: 'error' });
+      const save = h('button', { className: 'primary', textContent: 'Set status' });
+      // Full width beneath the content, never inline beside it (CLAUDE.md): a
+      // labelled destructive action in a side slot is what collapses these rows.
+      const clear = h('button', { className: 'secondary hidden', textContent: 'Clear status' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+
+      async function publish(fields, btn, busy) {
+        err.textContent = '';
+        const label = btn.textContent;
+        [save, clear, cancel].forEach((b) => { b.disabled = true; });
+        btn.textContent = busy;
+        try {
+          const st = await publishStatus(fields);
+          if (onDone) onDone(st);
+          toast(st ? 'Status set' : 'Status cleared', 'success');
+          closeModal();
+        } catch (e) {
+          err.textContent = e.message;
+          btn.textContent = label;
+          [save, clear, cancel].forEach((b) => { b.disabled = false; });
+        }
       }
-    }
 
-    async function submit(fields, btn, busyLabel, doneToast) {
-      err.textContent = '';
-      const label = btn.textContent;
-      btn.disabled = true;
-      setBtn.disabled = true;
-      clearBtn.disabled = true;
-      btn.textContent = busyLabel;
-      try {
-        const st = await publishStatus(fields);
-        paint(st);
-        if (!st) { text.value = ''; link.value = ''; expiry.value = '0'; }
-        toast(doneToast, 'success');
-      } catch (e) {
-        err.textContent = e.message;
-      } finally {
-        btn.textContent = label;
-        btn.disabled = false;
-        setBtn.disabled = false;
-        clearBtn.disabled = false;
-      }
-    }
+      save.addEventListener('click', () => {
+        const value = text.value.trim();
+        if (!value) { err.textContent = 'Write something, or clear the status.'; return; }
+        publish({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, save, 'Publishing…');
+      });
+      // Empty content IS the clear — see statusEvent. Not a deletion request.
+      clear.addEventListener('click', () => publish({ text: '' }, clear, 'Clearing…'));
+      cancel.addEventListener('click', closeModal);
 
-    setBtn.addEventListener('click', () => {
-      const value = text.value.trim();
-      if (!value) { err.textContent = 'Write a status first, or use Clear status.'; return; }
-      submit({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, setBtn, 'Publishing…', 'Status published');
-    });
-    // Publishing empty content IS the clear (see statusEvent) — no deletion request.
-    clearBtn.addEventListener('click', () => submit({ text: '' }, clearBtn, 'Clearing…', 'Status cleared'));
+      modal.append(text, link, expiry, err, save, clear, cancel);
 
-    setting.append(current, text, link, expiry, err, setBtn, clearBtn);
-    view.append(setting);
-
-    fetchStatus(active.pubkey).then((st) => {
-      if (!setting.isConnected) return;
-      paint(st);
-      if (st) {
+      // Prefill from whatever is live, so editing a status is editing rather than
+      // retyping. Clear only appears once we know there is something to clear.
+      fetchStatus(active.pubkey).then((st) => {
+        if (!modal.isConnected || !st) return;
         text.value = st.text;
         link.value = st.url || '';
-      }
+        clear.classList.remove('hidden');
+      });
+      setTimeout(() => text.focus(), 0);
     });
   }
 

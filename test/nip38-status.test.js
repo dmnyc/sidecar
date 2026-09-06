@@ -189,3 +189,71 @@ test('the status fetch asks only for the active account', () => {
   assert.match(fn, /'#d': \[STATUS_D\]/, 'and to the general status');
   assert.doesNotMatch(fn, /follows|contacts|kinds: \[3\]/, 'never reads anyone else');
 });
+
+// ---- where it lives ---------------------------------------------------------------
+
+test('THE STATUS IS NOT A SECTION ON THE PROFILE TAB', () => {
+  // It is a remark, not a profile field. A labelled section with a text input, a
+  // link input, a duration select and two buttons made the tab read like a
+  // settings screen — which is what the first version of this did.
+  assert.doesNotMatch(source, /renderStatusSection/, 'the form section is back');
+  assert.doesNotMatch(
+    fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8'),
+    /\.status-setting\b/,
+    'the form section styles are back'
+  );
+});
+
+test('the balloon rides on the banner and truncates rather than growing', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const balloon = css.match(/^\.status-balloon \{[^}]*\}/m)[0];
+  assert.match(balloon, /position:\s*absolute/, 'not positioned over the banner');
+  // .profile-header is position:relative for the avatar overlap; the balloon rides
+  // the same containing block.
+  assert.match(css, /^\.profile-header \{[^}]*position:\s*relative/m, '.profile-header is no longer the containing block');
+  const text = css.match(/^\.status-balloon-text \{[^}]*\}/m)[0];
+  assert.match(text, /text-overflow:\s*ellipsis/, 'a long status would grow the balloon over the avatar');
+  assert.match(text, /min-width:\s*0/, 'without min-width:0 the flex child cannot shrink to ellipsize');
+});
+
+test('the editor is a modal, and its fields are not on the tab', () => {
+  const fn = lift('function openStatusEditor(');
+  assert.match(fn, /openModal\(/, 'the editor is not a modal');
+  assert.match(fn, /STATUS_DURATIONS\.forEach/, 'the duration choice moved out of the editor');
+});
+
+test('editing prefills from the live status rather than making you retype it', () => {
+  const fn = lift('function openStatusEditor(');
+  assert.match(fn, /fetchStatus\(active\.pubkey\)/, 'the editor does not read the current status');
+  assert.match(fn, /text\.value = st\.text/, 'the text is not prefilled');
+});
+
+test('CLEAR IS FULL-WIDTH BELOW, NEVER INLINE BESIDE THE FIELD', () => {
+  // CLAUDE.md: a confirm that has words takes its own row. A labelled action in a
+  // side slot is what collapses these rows at 360px.
+  const fn = lift('function openStatusEditor(');
+  const clear = fn.indexOf("textContent: 'Clear status'");
+  assert.ok(clear !== -1, 'no clear control');
+  assert.match(fn, /className: 'secondary hidden', textContent: 'Clear status'/, 'clear is not hidden by default');
+  // It is appended into the modal's own column, not into an .item-actions slot.
+  assert.doesNotMatch(fn, /item-actions/, 'clear was put in the inline action slot');
+});
+
+test('only one entry point shows at a time', () => {
+  // Once a status exists the balloon IS the control, so the Set status button
+  // hides. Two buttons for one thing is the thing being avoided.
+  const fn = lift('async function renderProfile(');
+  assert.match(fn, /balloon\.classList\.toggle\('hidden', !live\)/, 'the balloon does not follow the status');
+  assert.match(fn, /statusBtn\.classList\.toggle\('hidden', !!live\)/, 'the button does not hide once a status exists');
+});
+
+test('the button uses a speech bubble, and it is a real icon', () => {
+  const fn = lift('async function renderProfile(');
+  assert.match(fn, /icon\('message-circle'\)/, 'the Set status button is not a speech bubble');
+  // A name missing from ICONS renders an empty <svg> — a silently blank button.
+  const icons = source.match(/const ICONS = \{[\s\S]*?\n  \};/)[0];
+  assert.ok(
+    icons.includes("\n    'message-circle':") || icons.includes("\n    message-circle:"),
+    'message-circle is not in ICONS'
+  );
+});
