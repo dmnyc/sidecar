@@ -3885,3 +3885,37 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      one card is not worth carrying. */
   transform: translateY(var(--display-ink-nudge, 0));
 }
+
+/* ===== SPIKE: profile peek sheet ===== */
+.peek-head { position: relative; display: flex; flex-direction: column; align-items: center; }
+.peek-banner { width: 100%; height: 104px; border-radius: 14px; border: 1px solid var(--border); overflow: hidden; }
+.peek-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.peek-banner-ph { background: linear-gradient(135deg, var(--velvet-1), var(--banner-accent)); }
+.peek-avatar {
+  width: 68px; height: 68px; border-radius: 50%; overflow: hidden;
+  margin-top: -34px; border: 3px solid var(--bg); position: relative;
+  background: linear-gradient(180deg, var(--av-from), var(--av-to));
+  box-shadow: 0 0 0 1px var(--gold-soft);
+}
+.peek-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.peek-body { text-align: center; padding: 0 2px; }
+.peek-name {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: calc(20px * var(--display-scale, 1)); line-height: 1.25;
+  margin: 8px 0 3px; overflow-wrap: anywhere;
+}
+.peek-meta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 12px; color: var(--muted); margin: 3px 0; overflow-wrap: anywhere;
+}
+.peek-npub { margin: 6px 0 10px; }
+/* A 1690-character bio exists in the wild. Cap it and scroll rather than letting
+   the sheet grow past the panel and bury the hand-off button. */
+.peek-about {
+  text-align: left; font-size: 13px; line-height: 1.5; color: var(--text-2);
+  margin: 10px 0; max-height: 30vh; overflow-y: auto; overflow-wrap: anywhere;
+}
+.peek-about:empty { display: none; }
+/* The hand-off sits below the content, full width, never inline (CLAUDE.md). */
+.peek-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.peek-actions button { width: 100%; }

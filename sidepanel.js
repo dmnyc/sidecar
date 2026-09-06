@@ -1708,6 +1708,85 @@
       .forEach((el, i) => el.classList.toggle('active', i === searchIndex));
   }
 
+  // A profile, in Sidecar's own theme, for someone who is not you.
+  //
+  // SPIKE. This replaces the straight hand-off in openProfileFor below, which sent
+  // every search result to the preferred client. The point of the change is the
+  // moment BEFORE the hand-off: checking that an npub is who you think it is,
+  // before you mention them, follow them or pay them. That is a signer's job. What
+  // it deliberately does not do is show their notes — that is a client's job, and
+  // the "View in ..." button at the bottom is where the hand-off still lives.
+  async function openProfileSheet(pubkey) {
+    const npub = NT.nip19.npubEncode(pubkey);
+    const cached = _profileCache.get(pubkey);
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+      const head = h('div', { className: 'peek-head' });
+      const banner = h('div', { className: 'peek-banner peek-banner-ph' });
+      head.append(banner);
+      const av = avatarEl({ npub }, 'peek-avatar');
+      head.append(av);
+      modal.append(head);
+
+      const body = h('div', { className: 'peek-body' });
+      const name = h('div', { className: 'peek-name', textContent: shortNpub(npub) });
+      const nip05Row = h('div', { className: 'peek-meta hidden' });
+      const about = h('p', { className: 'peek-about' });
+      const lud = h('div', { className: 'peek-meta hidden' });
+      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), about, lud);
+      modal.append(body);
+
+      const actions = h('div', { className: 'peek-actions' });
+      const open = h('button', { className: 'primary', textContent: 'View in client' });
+      open.addEventListener('click', async () => {
+        const client = await preferredClient();
+        openInClient(client.profile(npub));
+        closeModal();
+      });
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      actions.append(open, close);
+      modal.append(actions);
+
+      preferredClient().then((c) => { open.textContent = 'View in ' + c.label; });
+
+      function paint(c) {
+        if (!c) return;
+        if (c.banner) {
+          const img = document.createElement('img');
+          img.referrerPolicy = 'no-referrer';
+          img.src = c.banner;
+          img.onload = () => { banner.classList.remove('peek-banner-ph'); banner.innerHTML = ''; banner.append(img); };
+        }
+        if (c.picture) applyAvatar(av, { picture: c.picture });
+        const display = c.display_name || c.displayName || c.name || '';
+        if (display) name.textContent = display;
+        if (c.nip05) {
+          const badge = h('span', { className: 'nip05-badge' });
+          nip05Row.innerHTML = '';
+          nip05Row.append(h('span', { textContent: c.nip05 }), badge);
+          nip05Row.classList.remove('hidden');
+          verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res); });
+        }
+        if (c.about) renderAbout(about, c.about);
+        if (c.lud16) {
+          lud.innerHTML = '';
+          lud.append(boltIcon(), document.createTextNode(' ' + c.lud16));
+          lud.classList.remove('hidden');
+        }
+      }
+
+      // Cache first so the sheet is never empty on open, then the network.
+      if (cached && cached.content) paint(cached.content);
+      relayUrls(false).then((relays) => poolGet(relays, { kinds: [0], authors: [pubkey] })).then((ev) => {
+        if (!ev || !modal.isConnected) return;
+        try { const c = JSON.parse(ev.content) || {}; cacheProfile(pubkey, c); paint(c); } catch (_) {}
+      }).catch(() => {});
+    });
+  }
+
+  self.__peek = (pk) => openProfileSheet(pk); // SPIKE ONLY: drives the preview captures
+
   async function openProfileFor(pubkey) {
     const client = await preferredClient();
     openInClient(client.profile(NT.nip19.npubEncode(pubkey)));
@@ -1726,7 +1805,7 @@
       const av = h('span', { className: 'ac-item-av' });
       applyAvatar(av, c.picture ? { picture: c.picture } : {});
       item.append(av, h('span', { className: 'ac-item-name', textContent: c.name }));
-      item.addEventListener('mousedown', (e) => { e.preventDefault(); openProfileFor(c.pubkey); });
+      item.addEventListener('mousedown', (e) => { e.preventDefault(); closeSearch(); openProfileSheet(c.pubkey); });
       box.append(item);
     });
     if (loading) {
