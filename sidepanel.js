@@ -67,7 +67,14 @@
   }
   async function call(message) {
     const resp = await bg(message);
-    if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Request failed');
+    if (!resp || !resp.ok) {
+      const err = new Error((resp && resp.error) || 'Request failed');
+      // The wipe check refuses an owner sign by throwing; carrying the finding
+      // through lets a caller offer a specific confirmation ("Removes all 1,071
+      // accounts you follow") rather than a generic failure.
+      if (resp && resp.destructive) err.destructive = resp.destructive;
+      throw err;
+    }
     return resp.result;
   }
 
