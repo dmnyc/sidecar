@@ -1708,6 +1708,24 @@
       .forEach((el, i) => el.classList.toggle('active', i === searchIndex));
   }
 
+  // Do they follow you? Their kind:3 answers it, and getFollowCount already fetches
+  // that event — but it keeps only the count, so this asks again rather than
+  // widening a cached number into something it was never asked to hold.
+  const _followsBackCache = new Map(); // their pubkey -> boolean
+  async function followsYou(pubkey) {
+    if (!pubkey || !state.activePubkey) return null;
+    if (_followsBackCache.has(pubkey)) return _followsBackCache.get(pubkey);
+    try {
+      const ev = await poolGet(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
+      // No kind:3 at all is NOT "does not follow you" — it is "no answer". Saying
+      // the former would put a confident negative on screen from a relay timeout.
+      if (!ev) return null;
+      const yes = ev.tags.some((t) => t[0] === 'p' && t[1] === state.activePubkey);
+      _followsBackCache.set(pubkey, yes);
+      return yes;
+    } catch (_) { return null; }
+  }
+
   // A profile, in Sidecar's own theme, for someone who is not you.
   //
   // SPIKE. This replaces the straight hand-off in openProfileFor below, which sent
@@ -1728,13 +1746,49 @@
       head.append(av);
       modal.append(head);
 
+      // Their status, in the same balloon the Profile tab uses for yours.
+      const balloon = h('div', { className: 'status-balloon peek-status hidden' });
+      const balloonText = h('span', { className: 'status-balloon-text' });
+      balloon.append(balloonText);
+      head.insertBefore(balloon, av);
+
       const body = h('div', { className: 'peek-body' });
       const name = h('div', { className: 'peek-name', textContent: shortNpub(npub) });
       const nip05Row = h('div', { className: 'peek-meta hidden' });
+      // Relationship + reach, on one line. Both are answers to "is this the person
+      // I mean", which is what the sheet is for.
+      const rel = h('div', { className: 'peek-rel' });
+      const followNum = h('strong', { textContent: '…' });
+      const countChip = h('span', { className: 'peek-chip' }, [followNum, document.createTextNode(' following')]);
+      rel.append(countChip);
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
-      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), about, lud);
+      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
       modal.append(body);
+
+      getFollowCount(pubkey).then((n) => {
+        if (modal.isConnected) followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+      });
+
+      // Two independent facts, each rendered only once known. A relay that never
+      // answers leaves both off rather than asserting a negative.
+      if (state.activePubkey && pubkey !== state.activePubkey) {
+        getFollowList().then((list) => {
+          if (!modal.isConnected) return;
+          if ((list || []).some((c) => c.pubkey === pubkey)) {
+            rel.append(h('span', { className: 'peek-chip on', textContent: 'You follow' }));
+          }
+        }).catch(() => {});
+        followsYou(pubkey).then((yes) => {
+          if (modal.isConnected && yes) rel.append(h('span', { className: 'peek-chip on', textContent: 'Follows you' }));
+        });
+      }
+
+      fetchStatus(pubkey).then((st) => {
+        if (!modal.isConnected || !st || !st.text) return;
+        balloonText.textContent = st.text;
+        balloon.classList.remove('hidden');
+      });
 
       const actions = h('div', { className: 'peek-actions' });
       const open = h('button', { className: 'primary', textContent: 'View in client' });
@@ -1761,6 +1815,7 @@
         if (c.picture) applyAvatar(av, { picture: c.picture });
         const display = c.display_name || c.displayName || c.name || '';
         if (display) name.textContent = display;
+        nip05Row.classList.add('hidden');
         if (c.nip05) {
           const badge = h('span', { className: 'nip05-badge' });
           nip05Row.innerHTML = '';
@@ -1768,6 +1823,10 @@
           nip05Row.classList.remove('hidden');
           verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res); });
         }
+        // renderAbout APPENDS, and paint() runs twice — once from cache, once from
+        // the relays — so without this the bio renders twice. Visible in the wild
+        // on any profile that was already cached.
+        about.innerHTML = '';
         if (c.about) renderAbout(about, c.about);
         if (c.lud16) {
           lud.innerHTML = '';

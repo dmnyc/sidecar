@@ -3919,3 +3919,13 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 /* The hand-off sits below the content, full width, never inline (CLAUDE.md). */
 .peek-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .peek-actions button { width: 100%; }
+/* SPIKE: relationship + reach chips, and their status balloon on the peek sheet. */
+.peek-rel { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 2px; }
+.peek-chip {
+  font-size: 11px; letter-spacing: 0.02em; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px;
+}
+.peek-chip.on { color: var(--gold); border-color: var(--gold-soft); }
+/* Overrides the Profile tab's absolute placement: here the banner is inside a
+   modal and the balloon rides it the same way, but the sheet has its own metrics. */
+.peek-status { top: 8px; }
