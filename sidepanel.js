@@ -3159,6 +3159,81 @@
     return ok;
   }
 
+  // ---- NIP-38 user status (kind 30315) ---------------------------------------
+  //
+  // An addressable event whose `d` tag names the KIND of status, not an id, so
+  // one per type per account and each new one replaces the last. The spec defines
+  // two: `general` ("Working", "Hiking") and `music`. Sidecar only writes
+  // `general` — `music` is meant to be written automatically by whatever is
+  // playing the track, with an expiry matching when it stops, and a signer has no
+  // media player to read.
+  const STATUS_KIND = 30315;
+  const STATUS_D = 'general';
+
+  // EMPTY CONTENT IS THE CLEAR. Per the spec, "if the content is an empty string
+  // then the client should clear the status" — so clearing is a publish, not a
+  // deletion. A kind:5 would ask relays to forget the event, which is a request
+  // they may ignore and which leaves readers holding the old text either way.
+  // Publishing empty replaces it everywhere the addressable event already is.
+  const STATUS_DURATIONS = [
+    { label: 'No expiry', seconds: 0 },
+    { label: '1 hour', seconds: 3600 },
+    { label: '4 hours', seconds: 4 * 3600 },
+    { label: '1 day', seconds: 24 * 3600 },
+  ];
+
+  // Pure, so the tag shape can be tested without a relay or a key.
+  function statusEvent({ text, url, seconds }, now) {
+    const at = now || Math.floor(Date.now() / 1000);
+    const tags = [['d', STATUS_D]];
+    const link = (url || '').trim();
+    if (link) tags.push(['r', link]);
+    // NIP-40. Only meaningful alongside content: an expiry on an empty status
+    // would ask relays to eventually drop the very event that says "no status",
+    // which resurrects whatever it replaced.
+    const ttl = Number(seconds) || 0;
+    const content = (text || '').trim();
+    if (content && ttl > 0) tags.push(['expiration', String(at + ttl)]);
+    return { kind: STATUS_KIND, created_at: at, tags, content };
+  }
+
+  // A status is live only if it has content AND has not expired. Relays are asked
+  // to drop expired events but are not required to, and a client that trusted the
+  // event's presence would show a stale "In a meeting" for hours afterwards.
+  function readStatus(ev, now) {
+    if (!ev || !ev.content) return null;
+    const at = now || Math.floor(Date.now() / 1000);
+    const expTag = (ev.tags || []).find((t) => t[0] === 'expiration');
+    const exp = expTag ? Number(expTag[1]) || 0 : 0;
+    if (exp && exp <= at) return null;
+    const rTag = (ev.tags || []).find((t) => t[0] === 'r');
+    return { text: ev.content, url: rTag ? rTag[1] : '', expiresAt: exp, at: ev.created_at || 0 };
+  }
+
+  async function publishStatus(fields) {
+    const event = statusEvent(fields);
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+    await publishSigned(signed);
+    return readStatus(signed);
+  }
+
+  // Own status only. Reading other people's would make the panel a feed reader,
+  // and Sidecar is a companion to a client rather than a replacement for one.
+  async function fetchStatus(pubkey) {
+    if (!pubkey) return null;
+    try {
+      const ev = await Promise.race([
+        poolGet(await relayUrls(false), {
+          kinds: [STATUS_KIND], authors: [pubkey], '#d': [STATUS_D],
+        }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+      return readStatus(ev);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // pubkey → { tries, at, settled }. `settled` means stop asking: either the profile
   // landed, or the relays gave a definitive answer that there's nothing to store.
   const profileFetchState = new Map();
@@ -7317,6 +7392,7 @@
     view.append(lud16Notice);
     maybeSuggestLud16(lud16Notice, active, content);
 
+    renderStatusSection(view, active);
     renderNip65Section(view, active);
     renderBackupSection(view, active);
   }
@@ -10958,6 +11034,90 @@
       }, () => {});
     }
     return wrap;
+  }
+
+  function renderStatusSection(view, active) {
+    const setting = h('div', { className: 'setting status-setting' });
+    setting.append(
+      h('h3', { textContent: 'Status' }),
+      h('p', {
+        className: 'hint',
+        textContent:
+          'A short line about what you are doing (NIP-38). Clients that read it show it beside your name. Anyone can see it.',
+      })
+    );
+
+    const current = h('p', { className: 'hint compact status-current', textContent: 'Loading…' });
+    const text = h('input', { type: 'text', className: 'status-text', placeholder: 'Working, hiking, out of office…' });
+    text.maxLength = 140;
+    const link = h('input', { type: 'text', className: 'status-link', placeholder: 'Optional link (https://…)' });
+    const expiry = h('select', { className: 'status-expiry' });
+    STATUS_DURATIONS.forEach((d, i) => {
+      expiry.append(h('option', { value: String(d.seconds), textContent: d.label, selected: i === 0 }));
+    });
+    const err = h('div', { className: 'error' });
+    const setBtn = h('button', { className: 'primary', textContent: 'Set status' });
+    // Its own full-width row rather than an inline action beside the field: the
+    // panel is ~360px and a labelled button next to content is what collapses
+    // these rows (see CLAUDE.md). Hidden until there is something to clear, so
+    // the row costs nothing when the account has no status.
+    const clearBtn = h('button', { className: 'secondary hidden', textContent: 'Clear status' });
+
+    function paint(st) {
+      if (st) {
+        const parts = [st.text];
+        if (st.expiresAt) parts.push('until ' + new Date(st.expiresAt * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+        current.textContent = parts.join(' · ');
+        current.classList.remove('muted');
+        clearBtn.classList.remove('hidden');
+      } else {
+        current.textContent = 'No status set.';
+        current.classList.add('muted');
+        clearBtn.classList.add('hidden');
+      }
+    }
+
+    async function submit(fields, btn, busyLabel, doneToast) {
+      err.textContent = '';
+      const label = btn.textContent;
+      btn.disabled = true;
+      setBtn.disabled = true;
+      clearBtn.disabled = true;
+      btn.textContent = busyLabel;
+      try {
+        const st = await publishStatus(fields);
+        paint(st);
+        if (!st) { text.value = ''; link.value = ''; expiry.value = '0'; }
+        toast(doneToast, 'success');
+      } catch (e) {
+        err.textContent = e.message;
+      } finally {
+        btn.textContent = label;
+        btn.disabled = false;
+        setBtn.disabled = false;
+        clearBtn.disabled = false;
+      }
+    }
+
+    setBtn.addEventListener('click', () => {
+      const value = text.value.trim();
+      if (!value) { err.textContent = 'Write a status first, or use Clear status.'; return; }
+      submit({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, setBtn, 'Publishing…', 'Status published');
+    });
+    // Publishing empty content IS the clear (see statusEvent) — no deletion request.
+    clearBtn.addEventListener('click', () => submit({ text: '' }, clearBtn, 'Clearing…', 'Status cleared'));
+
+    setting.append(current, text, link, expiry, err, setBtn, clearBtn);
+    view.append(setting);
+
+    fetchStatus(active.pubkey).then((st) => {
+      if (!setting.isConnected) return;
+      paint(st);
+      if (st) {
+        text.value = st.text;
+        link.value = st.url || '';
+      }
+    });
   }
 
   function renderNip65Section(view, active) {

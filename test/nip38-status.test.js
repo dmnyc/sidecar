@@ -1,0 +1,191 @@
+'use strict';
+
+// NIP-38 user status, kind 30315.
+//
+// An addressable event whose `d` tag names the TYPE of status, not an id, so each
+// account has one per type and every new one replaces the last. Two things in the
+// spec are easy to get wrong and both lose data when you do:
+//
+//   1. Empty content IS the clear. Not a kind:5 deletion request, which relays may
+//      ignore and which leaves readers holding the old text regardless. Publishing
+//      empty content replaces the addressable event wherever it already sits.
+//   2. An expired event is not a status. Relays are asked to drop them and are not
+//      required to, so a reader that trusts the event's presence shows "In a
+//      meeting" for hours after the meeting.
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const ROOT = path.join(__dirname, '..');
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+
+// The body brace, not the first one. `function statusEvent({ text, url }, now) {`
+// destructures in the parameter list, so anchoring on the first `{` lifts the
+// parameter object and stops there, yielding a fragment that won't parse.
+function lift(decl) {
+  const at = source.indexOf(decl);
+  if (at === -1) throw new Error('Could not find ' + decl);
+  // Walk the parameter list to its matching `)`, then take the next `{`.
+  let paren = 0;
+  let i = source.indexOf('(', at);
+  for (; i < source.length; i++) {
+    if (source[i] === '(') paren++;
+    else if (source[i] === ')' && --paren === 0) break;
+  }
+  const open = source.indexOf('{', i);
+  let depth = 0;
+  for (let j = open; j < source.length; j++) {
+    if (source[j] === '{') depth++;
+    else if (source[j] === '}' && --depth === 0) return source.slice(at, j + 1);
+  }
+  throw new Error('Unbalanced braces after ' + decl);
+}
+
+const ctx = { console, JSON, Number, String, Math, Date };
+vm.createContext(ctx);
+vm.runInContext(
+  [
+    source.match(/const STATUS_KIND = \d+;/)[0],
+    source.match(/const STATUS_D = '[^']*';/)[0],
+    source.match(/const STATUS_DURATIONS = \[[\s\S]*?\];/)[0],
+    lift('function statusEvent('),
+    lift('function readStatus('),
+    'globalThis.out = { statusEvent, readStatus, STATUS_KIND, STATUS_D, STATUS_DURATIONS };',
+  ].join('\n'),
+  ctx
+);
+const { statusEvent, readStatus, STATUS_KIND, STATUS_D, STATUS_DURATIONS } = ctx.out;
+
+const NOW = 1_800_000_000;
+// Array.from on BOTH levels, not filter().map(). The event is built inside the vm,
+// so its arrays carry that realm's Array.prototype, and ArraySpeciesCreate keeps
+// filter/map results in the same realm — which deepEqual rejects on prototype
+// identity even when the contents match exactly.
+const tagsOf = (ev, name) =>
+  Array.from(ev.tags).filter((t) => t[0] === name).map((t) => Array.from(t));
+
+// ---- the event shape ------------------------------------------------------------
+
+test('it is an addressable kind 30315 keyed on the status type', () => {
+  const ev = statusEvent({ text: 'Working' }, NOW);
+  assert.equal(ev.kind, 30315);
+  assert.equal(STATUS_KIND, 30315);
+  // The d tag is the TYPE, shared by every status this account publishes, which is
+  // what makes each one replace the last rather than pile up.
+  assert.deepEqual(tagsOf(ev, 'd'), [['d', 'general']]);
+  assert.equal(STATUS_D, 'general');
+});
+
+test('the content is the status text, trimmed', () => {
+  assert.equal(statusEvent({ text: '  Hiking  ' }, NOW).content, 'Hiking');
+});
+
+test('an optional link rides an r tag', () => {
+  const ev = statusEvent({ text: 'At the nest', url: 'https://nostrnests.com' }, NOW);
+  assert.deepEqual(tagsOf(ev, 'r'), [['r', 'https://nostrnests.com']]);
+});
+
+test('no link means no r tag at all, not an empty one', () => {
+  for (const url of [undefined, '', '   ']) {
+    assert.deepEqual(tagsOf(statusEvent({ text: 'Working', url }, NOW), 'r'), [], JSON.stringify(url));
+  }
+});
+
+// ---- expiry ---------------------------------------------------------------------
+
+test('a duration becomes an absolute expiration timestamp', () => {
+  const ev = statusEvent({ text: 'Back in an hour', seconds: 3600 }, NOW);
+  assert.deepEqual(tagsOf(ev, 'expiration'), [['expiration', String(NOW + 3600)]]);
+});
+
+test('no expiry means no expiration tag', () => {
+  for (const seconds of [0, undefined, null, NaN]) {
+    assert.deepEqual(tagsOf(statusEvent({ text: 'Working', seconds }, NOW), 'expiration'), [], String(seconds));
+  }
+});
+
+test('THE DEFAULT DURATION IS NO EXPIRY', () => {
+  // The UI selects the first entry. A status that silently evaporates would be
+  // worse than one that lingers: you would not know it had gone.
+  assert.equal(STATUS_DURATIONS[0].seconds, 0);
+});
+
+// ---- clearing -------------------------------------------------------------------
+
+test('EMPTY CONTENT IS THE CLEAR', () => {
+  // The whole boundary. Not a deletion request.
+  const ev = statusEvent({ text: '' }, NOW);
+  assert.equal(ev.kind, 30315, 'still a status event, not a kind 5');
+  assert.equal(ev.content, '');
+  assert.deepEqual(tagsOf(ev, 'd'), [['d', 'general']], 'same d tag, so it replaces');
+});
+
+test('a clear never carries an expiration', () => {
+  // An expiry on an empty status asks relays to eventually drop the very event
+  // that says "no status", which resurrects whatever it replaced.
+  const ev = statusEvent({ text: '', seconds: 3600 }, NOW);
+  assert.deepEqual(tagsOf(ev, 'expiration'), []);
+});
+
+test('a whitespace-only status clears rather than publishing blanks', () => {
+  assert.equal(statusEvent({ text: '   ' }, NOW).content, '');
+});
+
+// ---- reading back ---------------------------------------------------------------
+
+test('a live status reads back with its text and link', () => {
+  const st = readStatus({ content: 'Working', created_at: NOW, tags: [['d', 'general'], ['r', 'https://x.test']] }, NOW);
+  assert.equal(st.text, 'Working');
+  assert.equal(st.url, 'https://x.test');
+  assert.equal(st.expiresAt, 0);
+});
+
+test('AN EXPIRED EVENT IS NOT A STATUS', () => {
+  // Relays are asked to drop expired events, not required to. Trusting the
+  // event's presence shows a status hours after it should have gone.
+  const ev = { content: 'In a meeting', created_at: NOW - 7200, tags: [['d', 'general'], ['expiration', String(NOW - 60)]] };
+  assert.equal(readStatus(ev, NOW), null);
+});
+
+test('an expiry still in the future is live, and is reported', () => {
+  const ev = { content: 'In a meeting', created_at: NOW, tags: [['d', 'general'], ['expiration', String(NOW + 60)]] };
+  const st = readStatus(ev, NOW);
+  assert.ok(st);
+  assert.equal(st.expiresAt, NOW + 60);
+});
+
+test('an empty event reads as no status', () => {
+  assert.equal(readStatus({ content: '', created_at: NOW, tags: [['d', 'general']] }, NOW), null);
+  assert.equal(readStatus(null, NOW), null);
+  assert.equal(readStatus(undefined, NOW), null);
+});
+
+test('a malformed expiration does not hide a live status', () => {
+  // Number('') is 0 and Number('soon') is NaN; either must mean "no expiry"
+  // rather than "expired at the epoch", which would blank a real status.
+  for (const bad of ['', 'soon', undefined]) {
+    const ev = { content: 'Working', created_at: NOW, tags: [['d', 'general'], ['expiration', bad]] };
+    assert.ok(readStatus(ev, NOW), JSON.stringify(bad));
+  }
+});
+
+// ---- scope ----------------------------------------------------------------------
+
+test('only the general type is written', () => {
+  // `music` is meant to be published by whatever is playing the track, with an
+  // expiry matching when it stops. A signer has no media player to read, and a
+  // hand-typed music status is a worse version of what a music client does.
+  assert.doesNotMatch(source, /\bSTATUS_D\s*=\s*'music'/);
+  const fn = lift('function statusEvent(');
+  assert.match(fn, /\['d', STATUS_D\]/, 'the d tag is always the one constant');
+});
+
+test('the status fetch asks only for the active account', () => {
+  const fn = lift('async function fetchStatus(');
+  assert.match(fn, /authors: \[pubkey\]/, 'scoped to one pubkey');
+  assert.match(fn, /'#d': \[STATUS_D\]/, 'and to the general status');
+  assert.doesNotMatch(fn, /follows|contacts|kinds: \[3\]/, 'never reads anyone else');
+});

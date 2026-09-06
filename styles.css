@@ -1687,6 +1687,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .autozap-max-input { width: 90px; text-align: right; padding: 6px 9px; }
 
 /* backup & restore — set apart from the profile bio above it */
+/* ===== NIP-38 status ===== */
+/* Same divider as the relay editor below it, so the Profile tab reads as a
+   stack of equal sections rather than one block with an appendix. */
+.status-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
+.status-current { color: var(--faint); }
+.status-current.muted { font-style: italic; }
+/* Every control takes the full width of the panel and stacks. At ~360px a text
+   field beside a button leaves neither usable (see CLAUDE.md). */
+.status-setting input,
+.status-setting select { width: 100%; margin-top: 8px; }
+.status-setting button { width: 100%; margin-top: 10px; }
+.status-setting .error:empty { display: none; }
+
 .nip65-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
 .nip65-status { color: var(--faint); }
 .nip65-status.done { color: var(--gold); }
