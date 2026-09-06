@@ -35,14 +35,18 @@
       <div class="toc-menu" id="toc-menu" hidden>
         <a href="#basics">The basics</a>
         <a href="#accounts">Accounts</a>
+        <a href="#backup">Backing up keys</a>
         <a href="#pairing">How sites pair</a>
         <a href="#switching">Switching</a>
         <a href="#clients">Clients compared</a>
         <a href="#relax">Relax mode</a>
         <a href="#erasing">Erasing data</a>
+        <a href="#notifications">Notifications</a>
+        <a href="#relays">Your relays</a>
         <a href="#nip05">NIP-05</a>
         <a href="#lightning-address">Lightning address</a>
         <a href="#wallet">Wallet</a>
+        <a href="#themes">Themes</a>
         <a href="#whats-new">What's new</a>
       </div>
     </div>
@@ -106,6 +110,61 @@
       </figure>
     </section>
 
+    <!-- ===== Backing up your keys ===== -->
+    <section class="guide-section" id="backup">
+      <h2>Backing up your keys</h2>
+      <p>Sidecar holds your keys encrypted on this device and nowhere else. There is no
+      account to recover, no email to reset against, and nobody to ask. If this browser
+      profile is lost and you have no backup, the accounts in it are gone permanently.
+      That's the trade you make for a signer that never sends your key anywhere, and it
+      means the backup isn't optional housekeeping — it's the thing standing between you
+      and losing an identity.</p>
+
+      <p>There are three backups, and they answer different questions.</p>
+
+      <h3>One account, as text</h3>
+      <p>Every account's menu has <strong>Back up private key</strong>, which shows the
+      <code>nsec</code> and offers it as an <code>ncryptsec</code> — the same key sealed
+      with a passphrase you choose. Prefer the <code>ncryptsec</code> anywhere the backup
+      might be read by someone else: in a password manager, in a note, on a printout in a
+      drawer. A bare <code>nsec</code> is the account. Anyone who reads it <em>is</em>
+      you, immediately and irrevocably.</p>
+
+      <p class="fine-note">Sidecar hides a revealed key again after twenty seconds and
+      asks for your PIN to show it a second time. That isn't theater: the most common way
+      a key leaks is being left on screen.</p>
+
+      <h3>One account, on paper</h3>
+      <p>When you generate a new account, Sidecar offers a <strong>printable backup
+      sheet</strong> — one page carrying the key as text and as a QR code, which
+      Sidecar can read back later with <strong>Import by scanning</strong>. Paper doesn't
+      get ransomwared, doesn't expire, and doesn't need a charged battery. A locked second
+      page holds the same key under a passphrase if you'd rather not store it in the
+      clear.</p>
+
+      <h3>Everything at once</h3>
+      <p><strong>Settings &rarr; Security &amp; backup &rarr; Vault backup</strong>
+      exports every account's key, and any connected wallet, into a single encrypted
+      file. This is the one to make before changing computers, and the one to make now if
+      you've never made any. <strong>Import vault</strong> restores it.</p>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/backup-vault.png" width="716" height="1260" alt="Sidecar Settings open at Security and backup: an Auto-lock dropdown set to After 15 minutes, a Change PIN button, and a Vault backup section with Export encrypted vault and Import vault buttons">
+        </div>
+        <figcaption>Auto-lock, your PIN, and the whole-vault export in one place.</figcaption>
+      </figure>
+
+      <p>The same screen holds <strong>Auto-lock</strong>. Sidecar asks for your PIN once
+      per browser session even on <em>Never</em>, because the key is held in memory and
+      never written to disk unencrypted — locking sooner only shortens the window in which
+      an unlocked panel is sitting on an unattended machine.</p>
+
+      <p class="fine-note">A backup you have never restored is a hypothesis. Once you've
+      made one, import it into a second browser profile and confirm the accounts arrive.
+      It takes two minutes and it is the only way to know.</p>
+    </section>
+
     <!-- ===== Per-site pairing ===== -->
     <section class="guide-section" id="pairing">
       <h2>How sites remember who you are</h2>
@@ -132,9 +191,9 @@
       <!-- screenshot: the Recent activity signing log below Connected sites -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/recent-activity.png" alt="The Recent activity list: a signed kind 30078 event and a shared public key, each tagged with the site and how long ago">
+          <img src="screenshots/recent-activity.png" width="716" height="1400" alt="The Recent activity list: a signed note, reaction, repost and app-data event plus a shared public key, each with its own icon and tagged with the site and how long ago. Every row that signed an event carries an open-in-client button on the right; the shared public key, which signed nothing, does not">
         </div>
-        <figcaption>Below it, the signing log — every request Sidecar has approved, newest first.</figcaption>
+        <figcaption>Below it, the signing log — every request Sidecar has approved, newest first. Rows that signed an event open it in your client, so the log can be checked rather than believed.</figcaption>
       </figure>
     </section>
 
@@ -336,6 +395,118 @@
       than a guarantee: the absence of a warning doesn't prove an event is harmless.</p>
     </section>
 
+    <!-- ===== Notifications ===== -->
+    <section class="guide-section" id="notifications">
+      <h2>Notifications</h2>
+      <p>The bell collects replies, reactions, reposts, zaps, and mentions for the account
+      you're currently using. It's deliberately not a feed: there's no browsing, no
+      threading, and no infinite scroll. It answers one question, which is whether
+      anything has happened that you'd want to know about, and then hands you off to your
+      client for the rest.</p>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/notifications.png" width="644" height="1128" alt="The Sidecar notifications sheet headed Notifications with the account name Gatsby: one reply from Amelia with a Reply button and the reply text, then a collapsed row reading 1 from outside your network">
+        </div>
+        <figcaption>One reply in network, one sender grouped below it.</figcaption>
+      </figure>
+
+      <h3>Replying without leaving</h3>
+      <p>Replies and comments carry a <strong>Reply</strong> button that opens the
+      composer with the note you're answering shown above the editor, where it stays
+      through Preview and through the review countdown. The last screen before something
+      publishes is the wrong place to lose sight of what it's a reply to.</p>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/reply-composer.png" width="644" height="1216" alt="The Sidecar reply composer: Posting as Gatsby, then Amelia's note quoted in a bordered block above the Write and Preview tabs, with a reply typed underneath and Post and Cancel buttons">
+        </div>
+        <figcaption>What you're answering stays on screen while you answer it.</figcaption>
+      </figure>
+
+      <p>Reactions, reposts, and zaps get no Reply button, because there's no thread to
+      join — the arrow at the top right opens the original in your client instead. Close
+      the composer by accident and Sidecar offers the draft back the next time you open
+      it.</p>
+
+      <h3>Why strangers are grouped, not hidden</h3>
+      <p>Reply spam arrives from keys made minutes ago, which is what makes muting a
+      losing game: every mute list is a denylist, and a denylist cannot outrun a
+      keyboard that makes new keys. So the bell sorts instead. People you follow, plus
+      anyone at least ten of your follows follow, appear normally. Everyone else is
+      collected into a single counted row at the bottom that you can open whenever you
+      like.</p>
+
+      <p><strong>Nothing is hidden and nothing is deleted.</strong> That distinction is
+      the whole design. A filter that hides is a filter that eventually eats the one
+      reply that mattered — a stranger with a good answer, an introduction, a bug report
+      from someone who found you cold.</p>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/notifications-network.png" width="716" height="700" alt="Sidecar Settings open at Notifications, headed Your network first, with a checked box reading Sort notifications by who you follow, a line reading Your network: 1,209 people, from 12,129 your follows follow, and a Rebuild network button">
+        </div>
+        <figcaption>The network is built from your follow list and theirs, and can be rebuilt on demand.</figcaption>
+      </figure>
+
+      <p class="fine-note">Building the network reads the follow list of everyone you
+      follow, so the first run takes a moment and shows a progress bar. If it fails, or
+      if you follow nobody yet, the sort is skipped entirely and everything shows —
+      failing toward seeing too much rather than too little. Mute lists still apply on
+      top: anyone you've muted in your client is dropped here as well.</p>
+    </section>
+
+    <!-- ===== Relays ===== -->
+    <section class="guide-section" id="relays">
+      <h2>Your relays</h2>
+      <p>Relays are the servers that carry your notes. Your <strong>relay list</strong> —
+      NIP-65, edited on the Profile tab — is the public announcement of which ones to use:
+      where to find what you've written, and where to send you replies and DMs. Other
+      apps read it to reach you, so it's worth keeping small and worth keeping accurate.</p>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/relays.png" width="716" height="1640" alt="The Sidecar Profile tab showing a relay list: five relays each with its own icon, a health line reading Healthy with a latency in milliseconds or Unreachable with connection refused, and Read and Write checkboxes per relay">
+        </div>
+        <figcaption>Each relay with its own icon, its own verdict, and separate read and write roles.</figcaption>
+      </figure>
+
+      <p><strong>Read and Write are separate on purpose.</strong> A relay marked Write
+      receives what you publish; one marked Read is where people should look for you, and
+      where your replies arrive. A large relay you read from but don't publish to is a
+      perfectly sensible entry, and so is a small paid one you publish to and nobody else
+      can read.</p>
+
+      <h3>Checking they actually work</h3>
+      <p><strong>Check relay health</strong> connects to each one and reports what
+      happened: reachable or not, how long it took, and whether your notes are actually
+      there. A relay that's up but holds nothing of yours is worth knowing about, because
+      it usually means writes have been failing quietly.</p>
+
+      <p class="fine-note">A verdict only names a relay when at least one other relay
+      answered in the same run. If everything fails at once the problem is almost never
+      the relays — it's the connection, and saying otherwise would send you to check a
+      service that was fine all along.</p>
+
+      <h3>Relays that require a login</h3>
+      <p>Paid and members-only relays ask connecting apps to prove who they are. Sidecar
+      answers that challenge automatically for <em>your own</em> relays: the ones you've
+      configured and the ones you've published. It won't answer for a relay it reached
+      through somebody else's hint, because identifying yourself to a stranger's server
+      is a disclosure and not one to make silently.</p>
+
+      <p>This only ever affected reading. A note carries its own signature, so publishing
+      to a paid relay always worked — but a relay that gates reads had no way to know who
+      was asking, and simply returned nothing.</p>
+
+      <h3>Bootstrap relays</h3>
+      <p><strong>Settings &rarr; Relays</strong> holds a small default set used to find
+      your relay list in the first place, and as a fallback if it can't be reached. Once
+      you've published a list of your own these take a back seat. Turning on
+      <strong>NIP-65 only</strong> for an account excludes them from its reads and
+      publishes entirely, except for the one discovery fetch that finds your list.</p>
+    </section>
+
     <!-- ===== Wallet ===== -->
     <section class="guide-section" id="wallet">
       <h2>The wallet, briefly</h2>
@@ -377,6 +548,31 @@
       clients can offer a zap button next to your posts. See the
       <a href="wallets.html">wallet directory</a> for providers that support
       Nostr Wallet Connect.</p>
+    </section>
+
+    <!-- ===== Themes ===== -->
+    <section class="guide-section" id="themes">
+      <h2>Themes</h2>
+      <p>Sidecar ships twelve themes, in <strong>Settings &rarr; Appearance</strong>. They
+      aren't color swaps: each brings its own display face, its own textures, and its own
+      treatment of the wallet balance, so the panel reads as a different object rather
+      than the same one repainted.</p>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/theme-gallery.png" width="716" height="1500" alt="The Sidecar theme picker with Dark and Light tabs, showing a grid of live preview tiles for Speakeasy, Film Noir, Brownstone, Nixie, Cast Iron and Metropolis, each rendering the numerals 21 in that theme's own typeface and palette">
+        </div>
+        <figcaption>Each tile is a live preview, not a swatch.</figcaption>
+      </figure>
+
+      <p>The <strong>Dark</strong> and <strong>Light</strong> tabs split the gallery by
+      how much light the theme actually throws, which matters more than palette in a
+      panel that sits beside a bright page all day. Every tile renders the same numerals
+      in that theme's own face and colors, so what you preview is what you get.</p>
+
+      <p><strong>Reduce motion</strong> sits underneath and turns off the animated wallet
+      balance, the countdown, and the lightning strike on a completed zap. It follows your
+      system setting by default.</p>
     </section>
 
     <!-- ===== What's new ===== -->
