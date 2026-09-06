@@ -1757,10 +1757,12 @@
       const nip05Row = h('div', { className: 'peek-meta hidden' });
       // Relationship + reach, on one line. Both are answers to "is this the person
       // I mean", which is what the sheet is for.
-      const rel = h('div', { className: 'peek-rel' });
+      // Same markup as the Profile tab's own stat line (.profile-stats /
+      // .profile-stat): plain centred text, not pills. A badge reads as a control
+      // you can press, and none of this is pressable.
+      const rel = h('div', { className: 'profile-stats peek-rel' });
       const followNum = h('strong', { textContent: '…' });
-      const countChip = h('span', { className: 'peek-chip' }, [followNum, document.createTextNode(' following')]);
-      rel.append(countChip);
+      rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
       body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
@@ -1776,11 +1778,15 @@
         getFollowList().then((list) => {
           if (!modal.isConnected) return;
           if ((list || []).some((c) => c.pubkey === pubkey)) {
-            rel.append(h('span', { className: 'peek-chip on', textContent: 'You follow' }));
+            rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: 'You follow' }));
           }
         }).catch(() => {});
         followsYou(pubkey).then((yes) => {
-          if (modal.isConnected && yes) rel.append(h('span', { className: 'peek-chip on', textContent: 'Follows you' }));
+          if (modal.isConnected && yes) {
+            rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: 'Follows you' }));
+          }
         });
       }
 
@@ -1790,8 +1796,61 @@
         balloon.classList.remove('hidden');
       });
 
+      // Zap. Hidden until we know they have a lightning address, because offering
+      // to pay someone who cannot be paid is worse than not offering.
+      let zapAddr = '';
+      const zapWrap = h('div', { className: 'peek-zap hidden' });
+      const zapErr = h('div', { className: 'error' });
+      const zapBtn = h('button', { className: 'secondary peek-zap-open' });
+      zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
+      const zapForm = h('div', { className: 'peek-zap-form hidden' });
+      const presets = h('div', { className: 'peek-zap-presets' });
+      const amount = satsInput('sats');
+      // Presets first, keyboard second: most zaps are one of a few round numbers,
+      // and on a 358px panel a row of taps beats a numeric keyboard covering half
+      // the sheet.
+      [21, 100, 1000, 5000].forEach((n) => {
+        const b = h('button', { className: 'secondary peek-preset', textContent: fmtSats(n) });
+        b.addEventListener('click', () => { amount.value = String(n); amount.focus(); });
+        presets.append(b);
+      });
+      const send = h('button', { className: 'primary', textContent: 'Send zap' });
+      send.addEventListener('click', async () => {
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (zapErr.textContent = 'Enter an amount in sats.');
+        zapErr.textContent = '';
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = 'Sending…';
+        try {
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          const invoice = await lnAddressToInvoice(zapAddr, sats * 1000, 'Zap from Sidecar');
+          await client.payInvoice(invoice);
+          lightningStrike(); // only once it settles
+          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          zapForm.classList.add('hidden');
+          amount.value = '';
+        } catch (e) {
+          zapErr.textContent = e.message;
+        } finally {
+          send.disabled = false;
+          send.textContent = label;
+        }
+      });
+      zapBtn.addEventListener('click', () => {
+        zapForm.classList.toggle('hidden');
+        if (!zapForm.classList.contains('hidden')) amount.focus();
+      });
+      zapForm.append(presets, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
+      zapWrap.append(zapBtn, zapForm);
+      modal.append(zapWrap);
+
       const actions = h('div', { className: 'peek-actions' });
-      const open = h('button', { className: 'primary', textContent: 'View in client' });
+      // Secondary, not primary. Once the zap form is open there would otherwise be
+      // two filled buttons competing, and the hand-off is the way OUT of the sheet
+      // rather than the thing it is for.
+      const open = h('button', { className: 'secondary', textContent: 'View in client' });
       open.addEventListener('click', async () => {
         const client = await preferredClient();
         openInClient(client.profile(npub));
@@ -1830,8 +1889,17 @@
         if (c.about) renderAbout(about, c.about);
         if (c.lud16) {
           lud.innerHTML = '';
-          lud.append(boltIcon(), document.createTextNode(' ' + c.lud16));
+          lud.append(boltIcon(), h('span', { textContent: c.lud16 }));
           lud.classList.remove('hidden');
+          lud.title = 'Copy lightning address';
+          lud.onclick = () => {
+            navigator.clipboard.writeText(c.lud16).then(
+              () => toast('Lightning address copied', 'success'),
+              () => toast('Could not copy', 'error')
+            );
+          };
+          zapWrap.classList.remove('hidden');
+          zapAddr = c.lud16;
         }
       }
 

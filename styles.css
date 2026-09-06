@@ -3919,13 +3919,23 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 /* The hand-off sits below the content, full width, never inline (CLAUDE.md). */
 .peek-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .peek-actions button { width: 100%; }
-/* SPIKE: relationship + reach chips, and their status balloon on the peek sheet. */
-.peek-rel { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 2px; }
-.peek-chip {
-  font-size: 11px; letter-spacing: 0.02em; color: var(--muted);
-  border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px;
-}
-.peek-chip.on { color: var(--gold); border-color: var(--gold-soft); }
+/* SPIKE: reach + relationship on the peek sheet. Inherits .profile-stats from the
+   Profile tab so the two read as the same thing said about two people. Wraps,
+   because three phrases do not always fit 358px on one line. */
+.peek-rel { flex-wrap: wrap; gap: 6px; }
+.peek-sep { color: var(--faint); }
 /* Overrides the Profile tab's absolute placement: here the banner is inside a
    modal and the balloon rides it the same way, but the sheet has its own metrics. */
 .peek-status { top: 8px; }
+/* SPIKE: zap control on the peek sheet. */
+.peek-zap { margin-top: 12px; }
+.peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
+.peek-zap-form { margin-top: 10px; }
+/* Four presets on ONE row at 358px. flex-basis 0 divides the width evenly instead
+   of sizing to content, which is what pushed 5,000 onto a line of its own. */
+.peek-zap-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.peek-preset { flex: 1 1 0; min-width: 0; padding: 7px 6px; font-size: 13px; }
+/* The lightning row is a control now, so it has to say so on hover. */
+.peek-meta[title] { cursor: pointer; }
+.peek-meta[title]:hover { color: var(--gold); }
