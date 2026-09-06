@@ -1694,12 +1694,15 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    for the avatar's overlap. */
 .status-balloon {
   position: absolute;
-  top: 10px; left: 10px;
-  max-width: calc(100% - 20px);
+  top: 14px;
+  left: 50%; transform: translateX(-50%);
+  /* Never the full width of the banner: it is a remark on top of a picture, and
+     one that reached both edges would read as a caption bar. */
+  max-width: calc(100% - 44px);
   display: inline-flex; align-items: center;
-  padding: 7px 12px;
+  padding: 7px 13px;
   border: 1px solid var(--border-strong);
-  border-radius: 14px 14px 14px 4px; /* the tail corner, squared off toward the avatar */
+  border-radius: 14px;
   background: var(--bg);
   color: var(--text-2);
   font-size: 13px; line-height: 1.35; text-align: left;
@@ -1707,8 +1710,33 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
 }
 .status-balloon:hover { border-color: var(--gold-soft); color: var(--text); }
-/* Prose truncates, chrome never does (CLAUDE.md). A long status ellipsizes on one
-   line rather than growing the balloon down over the avatar. */
+
+/* The tail, pointing down at the avatar below. Two stacked triangles: ::before is
+   the border, ::after the fill sitting 1px inside it, which is how you get a
+   hairline-outlined tail without an SVG. Offset left of center rather than
+   centered, so it reads as a spoken remark rather than a tooltip pinned to the
+   face. */
+.status-balloon::before,
+.status-balloon::after {
+  content: ''; position: absolute;
+  left: 34%;
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 0;
+}
+.status-balloon::before { top: 100%; border-top: 8px solid var(--border-strong); }
+.status-balloon::after {
+  top: calc(100% - 1px);
+  margin-left: 1px;
+  border-left-width: 7px; border-right-width: 7px;
+  border-top: 7px solid var(--bg);
+}
+
+/* ONE LINE, ALWAYS. The balloon sits directly above the avatar with only the tail
+   between them, so a second line grows downward into the face. Prose truncates and
+   chrome does not (CLAUDE.md): the line ellipsizes, and min-width:0 is what lets
+   the flex child shrink far enough to do it. */
 .status-balloon-text {
   min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

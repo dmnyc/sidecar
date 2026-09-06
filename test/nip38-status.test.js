@@ -214,6 +214,10 @@ test('the balloon rides on the banner and truncates rather than growing', () => 
   const text = css.match(/^\.status-balloon-text \{[^}]*\}/m)[0];
   assert.match(text, /text-overflow:\s*ellipsis/, 'a long status would grow the balloon over the avatar');
   assert.match(text, /min-width:\s*0/, 'without min-width:0 the flex child cannot shrink to ellipsize');
+  // The balloon sits directly above the avatar with only the tail between them, so
+  // wrapping to a second line grows downward into the face.
+  assert.match(text, /white-space:\s*nowrap/, 'the status can wrap to a second line');
+  assert.match(balloon, /max-width:\s*calc\(100% - \d+px\)/, 'the balloon can reach the banner edges');
 });
 
 test('the editor is a modal, and its fields are not on the tab', () => {
@@ -239,12 +243,24 @@ test('CLEAR IS FULL-WIDTH BELOW, NEVER INLINE BESIDE THE FIELD', () => {
   assert.doesNotMatch(fn, /item-actions/, 'clear was put in the inline action slot');
 });
 
-test('only one entry point shows at a time', () => {
-  // Once a status exists the balloon IS the control, so the Set status button
-  // hides. Two buttons for one thing is the thing being avoided.
+test('THE SET STATUS BUTTON IS ALWAYS THERE', () => {
+  // The balloon is a way in too, but it is small, sits on the banner, and reads
+  // as content rather than a control. The button is the one you can always find,
+  // so it must not hide once a status exists.
   const fn = lift('async function renderProfile(');
   assert.match(fn, /balloon\.classList\.toggle\('hidden', !live\)/, 'the balloon does not follow the status');
-  assert.match(fn, /statusBtn\.classList\.toggle\('hidden', !!live\)/, 'the button does not hide once a status exists');
+  assert.doesNotMatch(fn, /statusBtn\.classList\.toggle\('hidden'/, 'the Set status button hides itself again');
+});
+
+test('the balloon has a tail pointing down at the avatar', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const tails = css.match(/^\.status-balloon::before,\n\.status-balloon::after \{[^}]*\}/m);
+  assert.ok(tails, 'no tail pseudo-elements');
+  // Transparent left/right with a solid top edge is a downward triangle. A
+  // border-bottom would point it the wrong way, at the banner instead of the face.
+  assert.match(tails[0], /border-left:\s*8px solid transparent/, 'tail is not a triangle');
+  assert.match(css, /\.status-balloon::before \{[^}]*border-top:\s*\d+px solid var\(--border-strong\)/, 'no outlined tail');
+  assert.match(css, /\.status-balloon::after \{[^}]*border-top:\s*\d+px solid var\(--bg\)/, 'no filled tail');
 });
 
 test('the button uses a speech bubble, and it is a real icon', () => {

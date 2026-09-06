@@ -7376,21 +7376,21 @@
     editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
     editBtn.addEventListener('click', () => openProfileEdit(content));
 
-    // Only offered while there is no status. Once one exists the balloon above IS
-    // the control — tapping it opens the same editor — so a second entry point
-    // would be two buttons for one thing.
+    // Always present, whether or not a status exists. The balloon is also a way in,
+    // but it is small, sits on the banner, and is easy to miss as a control; a
+    // fixed button beside Edit profile is the one you can always find.
     const statusBtn = h('button', { className: 'secondary profile-status-cta' });
     statusBtn.append(icon('message-circle'), h('span', { textContent: 'Set status' }));
     statusBtn.addEventListener('click', () => openStatusEditor(active, paintStatus));
 
     body.append(h('div', { className: 'profile-cta-row' }, [editBtn, statusBtn]));
 
-    // One painter for both surfaces, so the balloon and the button can never
-    // disagree about whether a status exists.
+    // The balloon is the only thing that reacts: it appears when there is something
+    // to show and stays gone otherwise, so a profile without a status is unchanged.
+    // The button does not move.
     function paintStatus(st) {
       const live = st && st.text;
       balloon.classList.toggle('hidden', !live);
-      statusBtn.classList.toggle('hidden', !!live);
       if (live) balloonText.textContent = st.text;
     }
     paintStatus(null);
