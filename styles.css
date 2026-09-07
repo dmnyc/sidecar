@@ -3909,11 +3909,13 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   font-size: 12px; color: var(--muted); margin: 3px 0; overflow-wrap: anywhere;
 }
 .peek-npub { margin: 6px 0 10px; }
-/* A 1690-character bio exists in the wild. Cap it and scroll rather than letting
-   the sheet grow past the panel and bury the hand-off button. */
+/* NO max-height OR overflow HERE. renderAbout appends its own Show more/Show less
+   button to this container and clamps the text with .about-clamp, so a scroller on
+   the container traps the toggle below the fold — the bio expands and there is then
+   no way to collapse it. Let .about-clamp cap the height and let the modal scroll. */
 .peek-about {
   text-align: left; font-size: 13px; line-height: 1.5; color: var(--text-2);
-  margin: 10px 0; max-height: 30vh; overflow-y: auto; overflow-wrap: anywhere;
+  margin: 10px 0; overflow-wrap: anywhere;
 }
 .peek-about:empty { display: none; }
 /* The hand-off sits below the content, full width, never inline (CLAUDE.md). */

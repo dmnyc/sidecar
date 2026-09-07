@@ -1745,7 +1745,13 @@
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
     openModal((modal) => {
-      modal.classList.add('modal-sheet');
+      // NOT modal-sheet. That class exists for the notifications list, which fills
+      // the panel and scrolls an inner element; it sets overflow:hidden and
+      // height:100%, so a sheet without its own scroller simply loses anything past
+      // the bottom edge — an expanded bio, or the zap form, or both. The plain
+      // .modal already does the right thing here: max-height 90vh, overflow auto,
+      // and it sizes to its content instead of leaving ~425px of empty velvet
+      // under a short profile.
       const head = h('div', { className: 'peek-head' });
       const banner = h('div', { className: 'peek-banner peek-banner-ph' });
       head.append(banner);
@@ -1806,6 +1812,7 @@
       // Zap. Hidden until we know they have a lightning address, because offering
       // to pay someone who cannot be paid is worse than not offering.
       let zapAddr = '';
+      let lastAbout = null; // guards renderAbout against a second, identical pass
       const zapWrap = h('div', { className: 'peek-zap hidden' });
       const zapErr = h('div', { className: 'error' });
       const zapBtn = h('button', { className: 'secondary peek-zap-open' });
@@ -1890,10 +1897,19 @@
           verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res); });
         }
         // renderAbout APPENDS, and paint() runs twice — once from cache, once from
-        // the relays — so without this the bio renders twice. Visible in the wild
-        // on any profile that was already cached.
-        about.innerHTML = '';
-        if (c.about) renderAbout(about, c.about);
+        // the relays — so the bio rendered twice on any already-cached profile.
+        //
+        // Clearing on every paint was the first fix and it was worse: renderAbout
+        // decides whether to add its Show more/Show less button inside a
+        // requestAnimationFrame, so wiping the container between the call and that
+        // frame left the check measuring a detached node, which reports zero height
+        // and concludes nothing needs collapsing. The bio then expanded with no way
+        // back. Render once per distinct text instead.
+        if ((c.about || '') !== lastAbout) {
+          lastAbout = c.about || '';
+          about.innerHTML = '';
+          if (c.about) renderAbout(about, c.about);
+        }
         if (c.lud16) {
           lud.innerHTML = '';
           lud.append(boltIcon(), h('span', { textContent: c.lud16 }));
