@@ -2297,7 +2297,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .ac-item:hover, .ac-item.active { background: var(--hover-medium); }
 .ac-item-av { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--velvet-1); border: 1px solid var(--border); }
 .ac-item-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ac-item-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-item-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* The trust mark keeps its metrics and the NAME does the truncating (CLAUDE.md):
+   in a ~360px dropdown the mark is the part that distinguishes six identical rows,
+   so it is the last thing that should be allowed to shrink. */
+.ac-item-trust {
+  margin-left: auto; flex-shrink: 0;
+  font-size: 11px; color: var(--muted); white-space: nowrap;
+}
 .ac-loading { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
 .ac-spinner { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--lav); animation: ac-spin 0.7s linear infinite; }
 @keyframes ac-spin { to { transform: rotate(360deg); } }
