@@ -75,28 +75,35 @@ test('the callback must be https', () => {
   assert.match(zapFn, /cb\.protocol !== 'https:'/, 'an insecure callback is accepted');
 });
 
-// ---- the two privacy modes ---------------------------------------------------------
+// ---- authorship --------------------------------------------------------------------
 
-test('a public zap is signed by the owner, through the guarded path', () => {
-  assert.match(zapFn, /SIDECAR_OWNER_SIGN/, 'a public zap does not use the owner signing path');
-  assert.match(zapFn, /expectedPubkey: state\.activePubkey/, 'a public zap can be signed by the wrong account');
+test('a zap is signed by the owner, through the guarded path', () => {
+  assert.match(zapFn, /SIDECAR_OWNER_SIGN/, 'a zap does not use the owner signing path');
+  assert.match(zapFn, /expectedPubkey: state\.activePubkey/, 'a zap can be signed by the wrong account');
 });
 
-test('AN ANONYMOUS ZAP IS SIGNED BY A THROWAWAY KEY', () => {
-  // The anonymity has to come from the key, not from a tag. A client that ignores
-  // the `anon` tag must still be unable to tell who sent it — it simply sees a
-  // pubkey that exists for this one zap and never again.
-  assert.match(zapFn, /NT\.generateSecretKey\(\)/, 'no ephemeral key for anonymous zaps');
-  assert.match(zapFn, /NT\.finalizeEvent\(template, sk\)/, 'the anonymous request is not signed locally');
-  // And it must NOT reach the owner key on that branch.
-  const anonBranch = zapFn.slice(zapFn.indexOf('if (anonymous)'), zapFn.indexOf('} else {'));
-  assert.doesNotMatch(anonBranch, /SIDECAR_OWNER_SIGN/, 'an anonymous zap is signed by the real key');
+test('PUBLIC ONLY — NO HALF-BUILT PRIVACY MODES', () => {
+  // Anonymous (ephemeral signing key) and private (sender encrypted into an `anon`
+  // tag) were both removed deliberately. Private is not in NIP-57 — the spec lists
+  // it under Future Work — nostr-tools does not implement it, and Sidecar's own
+  // zapSender reads only the P tag and the description pubkey, so shipping it would
+  // mean making a privacy claim our own notifications could not honour, failing
+  // silently for the sender.
+  //
+  // This asserts the SHAPE, not the ambition: if privacy modes come back they come
+  // back together and with a reader, at which point this test should be rewritten
+  // rather than deleted.
+  assert.doesNotMatch(zapFn, /generateSecretKey/, 'an ephemeral signing key reappeared without a reader');
+  assert.doesNotMatch(zapFn, /\['anon'\]/, 'an anon tag reappeared without a reader');
+  const sheet = stripComments(lift('async function openProfileSheet('));
+  assert.doesNotMatch(sheet, /privacy\.value/, 'a privacy picker reappeared');
 });
 
-test('the anon tag is a label, and the key is the mechanism', () => {
-  // `anon` is a convention, not part of NIP-57. If it were doing the work, a client
-  // that ignored it would expose the sender.
-  assert.match(zapFn, /template\.tags\.push\(\['anon'\]\)/, 'no anon marker for clients that read it');
+test('zapSender still cannot read an anonymous zap', () => {
+  // The fact that justifies the test above. If this ever starts handling `anon`,
+  // the privacy modes have a reader and can return.
+  const fn = lift('function zapSender(');
+  assert.doesNotMatch(fn, /anon/, 'zapSender learned to read anon zaps — revisit the privacy modes');
 });
 
 // ---- the caller ---------------------------------------------------------------------
@@ -105,7 +112,6 @@ test('the sheet sends zaps, not payments', () => {
   const sheet = stripComments(lift('async function openProfileSheet('));
   assert.match(sheet, /zapInvoice\(\{/, 'the profile sheet still sends a plain payment');
   assert.doesNotMatch(sheet, /lnAddressToInvoice\(/, 'the profile sheet still calls the plain-payment path');
-  assert.match(sheet, /anonymous: privacy\.value === 'anon'/, 'the privacy choice is not passed through');
 });
 
 test('the zap control only appears for an address that can be zapped', () => {

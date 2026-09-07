@@ -1829,12 +1829,6 @@
         presets.append(b);
       });
       const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
-      // Public signs as you. Anonymous signs with a key that exists for one zap.
-      // Both produce a real receipt; only the authorship differs.
-      const privacy = h('select', { className: 'status-input' });
-      [['public', 'Public — shows it is from you'], ['anon', 'Anonymous — no sender']].forEach(([v, label], i) => {
-        privacy.append(h('option', { value: v, textContent: label, selected: i === 0 }));
-      });
       const send = h('button', { className: 'primary', textContent: 'Send zap' });
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
@@ -1851,7 +1845,6 @@
             msats: sats * 1000,
             comment: note.value.trim(),
             recipientPubkey: pubkey,
-            anonymous: privacy.value === 'anon',
           });
           await client.payInvoice(invoice);
           lightningStrike(); // only once it settles
@@ -1870,7 +1863,7 @@
         zapForm.classList.toggle('hidden');
         if (!zapForm.classList.contains('hidden')) amount.focus();
       });
-      zapForm.append(presets, note, privacy, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
+      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
       zapWrap.append(zapBtn, zapForm);
       modal.append(zapWrap);
 
@@ -15123,7 +15116,7 @@
   // Requires the provider to opt in: allowsNostr plus a nostrPubkey, which
   // lnAddressParams already surfaces as `zappable`. A provider without it cannot
   // produce a receipt however the button is labelled.
-  async function zapInvoice({ addr, msats, comment, recipientPubkey, anonymous }) {
+  async function zapInvoice({ addr, msats, comment, recipientPubkey }) {
     const { meta } = await lnAddressParams(addr);
     if (!(meta.allowsNostr && meta.nostrPubkey)) {
       throw new Error('That lightning address cannot receive zaps, only payments.');
@@ -15142,22 +15135,19 @@
       comment: comment || '',
     });
 
-    let signed;
-    if (anonymous) {
-      // Signed with a key that exists for one zap and is then dropped, so the
-      // request carries no link to the sender at all. The `anon` tag is a
-      // convention rather than part of NIP-57, and it is only a LABEL — the
-      // anonymity comes from the throwaway key, so a client that ignores the tag
-      // still cannot tell who sent it. It just shows an unknown npub.
-      template.tags.push(['anon']);
-      const sk = NT.generateSecretKey();
-      signed = NT.finalizeEvent(template, sk);
-    } else {
-      // Goes through the guarded owner-sign path like everything else the panel
-      // signs. 9734 is not a replaceable kind, so the wipe check has nothing to say
-      // about it.
-      signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
-    }
+    // PUBLIC ONLY, for now. Anonymous (an ephemeral signing key) and private (the
+    // sender encrypted into an `anon` tag) both worked out to be worse than sending
+    // people elsewhere: private is not in NIP-57 at all — the spec lists it under
+    // Future Work — nostr-tools does not implement it, and Sidecar's own zapSender
+    // reads only the P tag and the description pubkey, so we would be sending a
+    // privacy claim our own notifications could not honour. Anonymous is easy and
+    // correct on its own, but it belongs with private rather than shipping as a
+    // lone dropdown nobody asked for. Both come back together or not at all.
+    //
+    // Signed through the guarded owner path with expectedPubkey, so a zap cannot be
+    // signed by an account that changed underneath it. 9734 is not replaceable, so
+    // the wipe check has nothing to say about it.
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
 
     const cb = new URL(meta.callback);
     if (cb.protocol !== 'https:') throw new Error('That lightning address uses an insecure callback');
