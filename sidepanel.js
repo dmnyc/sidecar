@@ -1969,6 +1969,43 @@
     closeSearch();
   }
 
+  // Search a well-known name and the global index returns a column of identical
+  // rows — same display name, same picture, different keys. Nothing on the row said
+  // which one your circle actually knows, and picking wrong means mentioning,
+  // following or zapping an impersonator.
+  //
+  // Ranked, not filtered. An impersonator is not the only reason a stranger appears
+  // in a name search, and hiding results would make the honest ones unreachable —
+  // the same reasoning as the notification bell, which groups rather than drops.
+  //
+  // Three tiers: someone you follow, someone at least ten of your follows follow,
+  // and everyone else. The middle one is the interesting one, because a domain can
+  // be bought but ten of your follows cannot easily be persuaded.
+  //
+  // Uses the web-of-trust set ONLY IF IT IS ALREADY WARM. Building it reads a
+  // kind:3 per follow, which is not something to start from a keystroke; it is
+  // warmed in the background for the bell. No set means no tiers and no marks —
+  // the order is left exactly as it was, because a blank mark on every row says
+  // nothing while a wrong one says something false.
+  function trustTier(pubkey, followedSet) {
+    if (followedSet.has(pubkey)) return 2;
+    const warm = _wotSet && _wotPubkey === state.activePubkey && _wotSet.size ? _wotSet : null;
+    if (warm && self.SidecarWot && self.SidecarWot.inNetwork(warm, pubkey)) return 1;
+    return 0;
+  }
+
+  function rankByTrust(items, follows) {
+    const followedSet = new Set((follows || []).map((c) => c.pubkey));
+    const warm = _wotSet && _wotPubkey === state.activePubkey && _wotSet.size;
+    items.forEach((c) => { c.tier = trustTier(c.pubkey, followedSet); });
+    if (!warm) return items; // follows already lead; nothing else is known
+    // Stable: equal tiers keep the order the index and the follow match produced.
+    return items
+      .map((c, i) => [c, i])
+      .sort((a, b) => (b[0].tier - a[0].tier) || (a[1] - b[1]))
+      .map(([c]) => c);
+  }
+
   function renderSearchResults(items, loading, askEl) {
     const box = $('search-results');
     searchResults = items;
@@ -1981,6 +2018,11 @@
       const av = h('span', { className: 'ac-item-av' });
       applyAvatar(av, c.picture ? { picture: c.picture } : {});
       item.append(av, h('span', { className: 'ac-item-name', textContent: c.name }));
+      // Only ever a positive claim. Tier 0 gets nothing rather than "unknown":
+      // absence of a vouch is not evidence, and labelling it would read as an
+      // accusation the panel cannot support.
+      if (c.tier === 2) item.append(h('span', { className: 'ac-item-trust', textContent: 'Following' }));
+      else if (c.tier === 1) item.append(h('span', { className: 'ac-item-trust', textContent: 'In your network' }));
       item.addEventListener('mousedown', (e) => { e.preventDefault(); closeSearch(); openProfileSheet(c.pubkey); });
       box.append(item);
     });
@@ -2013,10 +2055,10 @@
     let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
     const paint = () => {
       if (seq !== searchAcSeq) return;
-      const seen = new Set(follows.map((c) => c.pubkey));
+      const followed = new Set(follows.map((c) => c.pubkey));
       const merged = follows.slice();
-      for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-      renderSearchResults(merged.slice(0, 8), globalPending, askEl);
+      for (const g of globals) { if (!followed.has(g.pubkey)) { followed.add(g.pubkey); merged.push(g); } }
+      renderSearchResults(rankByTrust(merged, follows).slice(0, 8), globalPending, askEl);
     };
 
     const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
