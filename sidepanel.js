@@ -67,7 +67,14 @@
   }
   async function call(message) {
     const resp = await bg(message);
-    if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Request failed');
+    if (!resp || !resp.ok) {
+      const err = new Error((resp && resp.error) || 'Request failed');
+      // The wipe check refuses an owner sign by throwing; carrying the finding
+      // through lets a caller offer a specific confirmation ("Removes all 1,071
+      // accounts you follow") rather than a generic failure.
+      if (resp && resp.destructive) err.destructive = resp.destructive;
+      throw err;
+    }
     return resp.result;
   }
 
@@ -1708,6 +1715,254 @@
       .forEach((el, i) => el.classList.toggle('active', i === searchIndex));
   }
 
+  // Do they follow you? Their kind:3 answers it, and getFollowCount already fetches
+  // that event — but it keeps only the count, so this asks again rather than
+  // widening a cached number into something it was never asked to hold.
+  const _followsBackCache = new Map(); // their pubkey -> boolean
+  async function followsYou(pubkey) {
+    if (!pubkey || !state.activePubkey) return null;
+    if (_followsBackCache.has(pubkey)) return _followsBackCache.get(pubkey);
+    try {
+      const ev = await poolGet(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
+      // No kind:3 at all is NOT "does not follow you" — it is "no answer". Saying
+      // the former would put a confident negative on screen from a relay timeout.
+      if (!ev) return null;
+      const yes = ev.tags.some((t) => t[0] === 'p' && t[1] === state.activePubkey);
+      _followsBackCache.set(pubkey, yes);
+      return yes;
+    } catch (_) { return null; }
+  }
+
+  // A profile, in Sidecar's own theme, for someone who is not you.
+  //
+  // This replaces the straight hand-off in openProfileFor below, which sent every
+  // search result to the preferred client. The point of the change is the moment
+  // BEFORE the hand-off: checking that an npub is who you think it is,
+  // before you mention them, follow them or pay them. That is a signer's job. What
+  // it deliberately does not do is show their notes — that is a client's job, and
+  // the "View in ..." button at the bottom is where the hand-off still lives.
+  async function openProfileSheet(pubkey) {
+    const npub = NT.nip19.npubEncode(pubkey);
+    const cached = _profileCache.get(pubkey);
+    openModal((modal) => {
+      // NOT modal-sheet. That class exists for the notifications list, which fills
+      // the panel and scrolls an inner element; it sets overflow:hidden and
+      // height:100%, so a sheet without its own scroller simply loses anything past
+      // the bottom edge — an expanded bio, or the zap form, or both. The plain
+      // .modal already does the right thing here: max-height 90vh, overflow auto,
+      // and it sizes to its content instead of leaving ~425px of empty velvet
+      // under a short profile.
+      const head = h('div', { className: 'peek-head' });
+      const banner = h('div', { className: 'peek-banner peek-banner-ph' });
+      head.append(banner);
+      const av = avatarEl({ npub }, 'peek-avatar');
+      head.append(av);
+      modal.append(head);
+
+      // Their status, in the same balloon the Profile tab uses for yours.
+      const balloon = h('div', { className: 'status-balloon peek-status hidden' });
+      const balloonText = h('span', { className: 'status-balloon-text' });
+      balloon.append(balloonText);
+      head.insertBefore(balloon, av);
+
+      const body = h('div', { className: 'peek-body' });
+      const name = h('div', { className: 'peek-name', textContent: shortNpub(npub) });
+      const nip05Row = h('div', { className: 'peek-meta hidden' });
+      // Relationship + reach, on one line. Both are answers to "is this the person
+      // I mean", which is what the sheet is for.
+      // Same markup as the Profile tab's own stat line (.profile-stats /
+      // .profile-stat): plain centred text, not pills. A badge reads as a control
+      // you can press, and none of this is pressable.
+      const rel = h('div', { className: 'profile-stats peek-rel' });
+      const followNum = h('strong', { textContent: '…' });
+      rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
+      const about = h('p', { className: 'peek-about' });
+      const lud = h('div', { className: 'peek-meta hidden' });
+      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
+      modal.append(body);
+
+      getFollowCount(pubkey).then((n) => {
+        if (modal.isConnected) followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+      });
+
+      // Two independent facts, each rendered only once known. A relay that never
+      // answers leaves both off rather than asserting a negative.
+      if (state.activePubkey && pubkey !== state.activePubkey) {
+        getFollowList().then((list) => {
+          if (!modal.isConnected) return;
+          if ((list || []).some((c) => c.pubkey === pubkey)) {
+            rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: 'You follow' }));
+          }
+        }).catch(() => {});
+        followsYou(pubkey).then((yes) => {
+          if (modal.isConnected && yes) {
+            rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: 'Follows you' }));
+          }
+        });
+      }
+
+      fetchStatus(pubkey).then((st) => {
+        if (!modal.isConnected || !st || !st.text) return;
+        balloonText.textContent = st.text;
+        balloon.classList.remove('hidden');
+      });
+
+      // Zap. Hidden until we know they have a lightning address, because offering
+      // to pay someone who cannot be paid is worse than not offering.
+      let zapAddr = '';
+      let lastAbout = null; // guards renderAbout against a second, identical pass
+      const zapWrap = h('div', { className: 'peek-zap hidden' });
+      const zapErr = h('div', { className: 'error' });
+      const zapBtn = h('button', { className: 'secondary peek-zap-open' });
+      zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
+      const zapForm = h('div', { className: 'peek-zap-form hidden' });
+      const presets = h('div', { className: 'peek-zap-presets' });
+      const amount = satsInput('sats');
+      // Presets first, keyboard second: most zaps are one of a few round numbers,
+      // and on a 358px panel a row of taps beats a numeric keyboard covering half
+      // the sheet.
+      [21, 100, 1000, 5000].forEach((n) => {
+        const b = h('button', { className: 'secondary peek-preset', textContent: fmtSats(n) });
+        b.addEventListener('click', () => { amount.value = String(n); amount.focus(); });
+        presets.append(b);
+      });
+      const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
+      const send = h('button', { className: 'primary', textContent: 'Send zap' });
+      send.addEventListener('click', async () => {
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (zapErr.textContent = 'Enter an amount in sats.');
+        zapErr.textContent = '';
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = 'Sending…';
+        try {
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          const invoice = await zapInvoice({
+            addr: zapAddr,
+            msats: sats * 1000,
+            comment: note.value.trim(),
+            recipientPubkey: pubkey,
+          });
+          const res = await client.payInvoice(invoice);
+          // NWC history keeps the amount and nothing else, so an outgoing zap
+          // rendered as a bare "Sent" with no counterparty. Both the other payment
+          // paths already record this — the Send form keys the address and note by
+          // invoice, and the background records zapPubkey for a zap a website sent
+          // through WebLN — and this one recorded nothing at all.
+          //
+          // zapPubkey is what makes txRow read it as a zap: zapFromTx can only find
+          // a zap on something we RECEIVED, because an outgoing one is a plain
+          // invoice we paid. Without it the row says "Sent" and names a lightning
+          // address at best.
+          await savePayMeta(invoice, {
+            zapPubkey: pubkey,
+            address: zapAddr,
+            comment: note.value.trim(),
+            feeMsat: res && res.fees_paid,
+          });
+          lightningStrike(); // only once it settles
+          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          zapForm.classList.add('hidden');
+          amount.value = '';
+          note.value = '';
+        } catch (e) {
+          zapErr.textContent = e.message;
+        } finally {
+          send.disabled = false;
+          send.textContent = label;
+        }
+      });
+      zapBtn.addEventListener('click', () => {
+        zapForm.classList.toggle('hidden');
+        if (!zapForm.classList.contains('hidden')) amount.focus();
+      });
+      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
+      zapWrap.append(zapBtn, zapForm);
+      modal.append(zapWrap);
+
+      const actions = h('div', { className: 'peek-actions' });
+      // Secondary, not primary. Once the zap form is open there would otherwise be
+      // two filled buttons competing, and the hand-off is the way OUT of the sheet
+      // rather than the thing it is for.
+      const open = h('button', { className: 'secondary', textContent: 'View in client' });
+      open.addEventListener('click', async () => {
+        const client = await preferredClient();
+        openInClient(client.profile(npub));
+        closeModal();
+      });
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      actions.append(open, close);
+      modal.append(actions);
+
+      preferredClient().then((c) => { open.textContent = 'View in ' + c.label; });
+
+      function paint(c) {
+        if (!c) return;
+        if (c.banner) {
+          const img = document.createElement('img');
+          img.referrerPolicy = 'no-referrer';
+          img.src = c.banner;
+          img.onload = () => { banner.classList.remove('peek-banner-ph'); banner.innerHTML = ''; banner.append(img); };
+        }
+        if (c.picture) applyAvatar(av, { picture: c.picture });
+        const display = c.display_name || c.displayName || c.name || '';
+        if (display) name.textContent = display;
+        nip05Row.classList.add('hidden');
+        if (c.nip05) {
+          const badge = h('span', { className: 'nip05-badge' });
+          nip05Row.innerHTML = '';
+          nip05Row.append(h('span', { textContent: c.nip05 }), badge);
+          nip05Row.classList.remove('hidden');
+          verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res); });
+        }
+        // renderAbout APPENDS, and paint() runs twice — once from cache, once from
+        // the relays — so the bio rendered twice on any already-cached profile.
+        //
+        // Clearing on every paint was the first fix and it was worse: renderAbout
+        // decides whether to add its Show more/Show less button inside a
+        // requestAnimationFrame, so wiping the container between the call and that
+        // frame left the check measuring a detached node, which reports zero height
+        // and concludes nothing needs collapsing. The bio then expanded with no way
+        // back. Render once per distinct text instead.
+        if ((c.about || '') !== lastAbout) {
+          lastAbout = c.about || '';
+          about.innerHTML = '';
+          if (c.about) renderAbout(about, c.about);
+        }
+        if (c.lud16) {
+          lud.innerHTML = '';
+          lud.append(boltIcon(), h('span', { textContent: c.lud16 }));
+          lud.classList.remove('hidden');
+          lud.title = 'Copy lightning address';
+          lud.onclick = () => {
+            navigator.clipboard.writeText(c.lud16).then(
+              () => toast('Lightning address copied', 'success'),
+              () => toast('Could not copy', 'error')
+            );
+          };
+          zapAddr = c.lud16;
+          // Only offered once the provider is known to support NIP-57. A lightning
+          // address without allowsNostr can take a payment but can never produce a
+          // receipt, and a button saying Zap would be a promise it cannot keep.
+          lnAddressParams(c.lud16).then((p) => {
+            if (modal.isConnected && p.zappable) zapWrap.classList.remove('hidden');
+          }).catch(() => {});
+        }
+      }
+
+      // Cache first so the sheet is never empty on open, then the network.
+      if (cached && cached.content) paint(cached.content);
+      relayUrls(false).then((relays) => poolGet(relays, { kinds: [0], authors: [pubkey] })).then((ev) => {
+        if (!ev || !modal.isConnected) return;
+        try { const c = JSON.parse(ev.content) || {}; cacheProfile(pubkey, c); paint(c); } catch (_) {}
+      }).catch(() => {});
+    });
+  }
+
   async function openProfileFor(pubkey) {
     const client = await preferredClient();
     openInClient(client.profile(NT.nip19.npubEncode(pubkey)));
@@ -1726,7 +1981,7 @@
       const av = h('span', { className: 'ac-item-av' });
       applyAvatar(av, c.picture ? { picture: c.picture } : {});
       item.append(av, h('span', { className: 'ac-item-name', textContent: c.name }));
-      item.addEventListener('mousedown', (e) => { e.preventDefault(); openProfileFor(c.pubkey); });
+      item.addEventListener('mousedown', (e) => { e.preventDefault(); closeSearch(); openProfileSheet(c.pubkey); });
       box.append(item);
     });
     if (loading) {
@@ -14863,6 +15118,61 @@
       zappable: !!(meta.allowsNostr && meta.nostrPubkey),
       ...parseLnMetadata(meta.metadata),
     };
+  }
+
+  // A REAL ZAP, not just a payment to a lightning address (NIP-57).
+  //
+  // The difference is the `nostr` query parameter. Without it the provider issues an
+  // ordinary invoice and, when it settles, nobody publishes anything: the recipient
+  // finds sats in their wallet with no idea who sent them or why, no receipt exists,
+  // and it counts toward no zap total anywhere. With it, the provider commits the
+  // signed 9734 to the invoice description and publishes a kind 9735 receipt to the
+  // relays named in the request. That receipt is the zap.
+  //
+  // Requires the provider to opt in: allowsNostr plus a nostrPubkey, which
+  // lnAddressParams already surfaces as `zappable`. A provider without it cannot
+  // produce a receipt however the button is labelled.
+  async function zapInvoice({ addr, msats, comment, recipientPubkey }) {
+    const { meta } = await lnAddressParams(addr);
+    if (!(meta.allowsNostr && meta.nostrPubkey)) {
+      throw new Error('That lightning address cannot receive zaps, only payments.');
+    }
+    if (msats < meta.minSendable || msats > meta.maxSendable) {
+      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+    }
+
+    // The relays the recipient's provider should publish the receipt to. Theirs, not
+    // ours: a receipt on relays they never read is a receipt they never see.
+    const relays = (await readRelayUrls(recipientPubkey)).slice(0, 6);
+    const template = NT.nip57.makeZapRequest({
+      pubkey: recipientPubkey,
+      amount: msats,
+      relays,
+      comment: comment || '',
+    });
+
+    // PUBLIC ONLY, for now. Anonymous (an ephemeral signing key) and private (the
+    // sender encrypted into an `anon` tag) both worked out to be worse than sending
+    // people elsewhere: private is not in NIP-57 at all — the spec lists it under
+    // Future Work — nostr-tools does not implement it, and Sidecar's own zapSender
+    // reads only the P tag and the description pubkey, so we would be sending a
+    // privacy claim our own notifications could not honour. Anonymous is easy and
+    // correct on its own, but it belongs with private rather than shipping as a
+    // lone dropdown nobody asked for. Both come back together or not at all.
+    //
+    // Signed through the guarded owner path with expectedPubkey, so a zap cannot be
+    // signed by an account that changed underneath it. 9734 is not replaceable, so
+    // the wipe check has nothing to say about it.
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
+
+    const cb = new URL(meta.callback);
+    if (cb.protocol !== 'https:') throw new Error('That lightning address uses an insecure callback');
+    cb.searchParams.set('amount', String(msats));
+    cb.searchParams.set('nostr', JSON.stringify(signed));
+    const res = await fetch(cb.toString());
+    const body = await res.json();
+    if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : 'The lightning address did not return an invoice');
+    return body.pr;
   }
 
   // Resolve a lightning address (user@domain) to a BOLT11 invoice via LNURL-pay.
