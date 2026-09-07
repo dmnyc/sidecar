@@ -241,14 +241,28 @@ test('HOVER CARRIES THE TAIL, AND BRIGHTENS RATHER THAN FADES', () => {
   // And the old hover went to --gold-soft, an alpha edge token that is 12% on Cast
   // Iron, so pointing at the balloon made it *harder* to see.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  const hover = css.match(/^\.status-balloon:hover \{[^}]*\}/m);
+  const hover = css.match(/^\.status-balloon:not\(\.peek-status\):hover \{[^}]*\}/m);
   assert.ok(hover, 'no hover state');
   assert.match(hover[0], /border-color:\s*var\(--text-2\)/, 'hover does not brighten the ring');
   assert.doesNotMatch(hover[0], /--gold-soft|--border-strong/, 'hover fades the ring to an alpha edge token');
   assert.match(
-    css, /^\.status-balloon:hover::before \{[^}]*border-top-color:\s*var\(--text-2\)/m,
+    css, /^\.status-balloon:not\(\.peek-status\):hover::before \{[^}]*border-top-color:\s*var\(--text-2\)/m,
     'the tail does not follow the box on hover'
   );
+});
+
+test('SOMEONE ELSE\'S STATUS IS NOT INTERACTIVE', () => {
+  // Your own status opens an editor when tapped. Theirs is a fact you are reading,
+  // so it takes no pointer and no hover treatment — an affordance that leads
+  // nowhere is worse than none.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /^\.peek-status \{[^}]*cursor:\s*default/m, 'the read-only status still shows a pointer');
+  // The exclusion has to be on BOTH hover rules or the tail lights up alone.
+  const hovers = css.match(/^\.status-balloon[^\n{]*:hover[^\n{]*\{/gm) || [];
+  assert.ok(hovers.length >= 2, 'expected a box and a tail hover rule');
+  for (const h of hovers) {
+    assert.match(h, /:not\(\.peek-status\)/, 'a hover rule still applies to the read-only status: ' + h.trim());
+  }
 });
 
 test('a clamped bio fades out with a mask, not a painted overlay', () => {

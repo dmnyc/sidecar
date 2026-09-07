@@ -1735,9 +1735,9 @@
 
   // A profile, in Sidecar's own theme, for someone who is not you.
   //
-  // SPIKE. This replaces the straight hand-off in openProfileFor below, which sent
-  // every search result to the preferred client. The point of the change is the
-  // moment BEFORE the hand-off: checking that an npub is who you think it is,
+  // This replaces the straight hand-off in openProfileFor below, which sent every
+  // search result to the preferred client. The point of the change is the moment
+  // BEFORE the hand-off: checking that an npub is who you think it is,
   // before you mention them, follow them or pay them. That is a signer's job. What
   // it deliberately does not do is show their notes — that is a client's job, and
   // the "View in ..." button at the bottom is where the hand-off still lives.
@@ -1934,8 +1934,6 @@
       }).catch(() => {});
     });
   }
-
-  self.__peek = (pk) => openProfileSheet(pk); // SPIKE ONLY: drives the preview captures
 
   async function openProfileFor(pubkey) {
     const client = await preferredClient();

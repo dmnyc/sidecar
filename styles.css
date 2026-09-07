@@ -1744,8 +1744,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    is 12% on Cast Iron, so pointing at the balloon made it harder to see rather
    than easier. --text-2 is a text token a step brighter than --muted, so the ring
    gains contrast on hover in every theme. */
-.status-balloon:hover { border-color: var(--text-2); color: var(--text); }
-.status-balloon:hover::before { border-top-color: var(--text-2); }
+.status-balloon:not(.peek-status):hover { border-color: var(--text-2); color: var(--text); }
+.status-balloon:not(.peek-status):hover::before { border-top-color: var(--text-2); }
 
 /* The tail, pointing down at the avatar below. Two stacked triangles: ::before is
    the border, ::after the fill sitting 1px inside it, which is how you get a
@@ -3904,7 +3904,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   transform: translateY(var(--display-ink-nudge, 0));
 }
 
-/* ===== SPIKE: profile peek sheet ===== */
+/* ===== profile peek sheet ===== */
 .peek-head { position: relative; display: flex; flex-direction: column; align-items: center; }
 .peek-banner { width: 100%; height: 104px; border-radius: 14px; border: 1px solid var(--border); overflow: hidden; }
 .peek-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -3939,15 +3939,16 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 /* The hand-off sits below the content, full width, never inline (CLAUDE.md). */
 .peek-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .peek-actions button { width: 100%; }
-/* SPIKE: reach + relationship on the peek sheet. Inherits .profile-stats from the
+/* reach + relationship on the peek sheet. Inherits .profile-stats from the
    Profile tab so the two read as the same thing said about two people. Wraps,
    because three phrases do not always fit 358px on one line. */
 .peek-rel { flex-wrap: wrap; gap: 6px; }
 .peek-sep { color: var(--faint); }
-/* Overrides the Profile tab's absolute placement: here the banner is inside a
-   modal and the balloon rides it the same way, but the sheet has its own metrics. */
-.peek-status { top: 8px; }
-/* SPIKE: zap control on the peek sheet. */
+/* Someone else's status is a fact, not a control: it is read-only here, so it takes
+   no pointer and no hover treatment. Only your own, on the Profile tab, opens an
+   editor when tapped. */
+.peek-status { top: 8px; cursor: default; }
+/* zap control on the peek sheet. */
 .peek-zap { margin-top: 12px; }
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
