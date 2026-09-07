@@ -251,6 +251,22 @@ test('HOVER CARRIES THE TAIL, AND BRIGHTENS RATHER THAN FADES', () => {
   );
 });
 
+test('a clamped bio fades out with a mask, not a painted overlay', () => {
+  // An overlay has to be painted in the colour of whatever is behind the text, and
+  // that differs per surface — the Profile tab sits on --bg, the peek sheet on
+  // .modal's velvet gradient — so it left a visible band where the two disagreed.
+  // A mask fades the text itself, so it is correct on every surface and all twelve
+  // themes without naming a colour.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const clamp = css.match(/^\.about-clamp \{[^}]*\}/gm).join('\n');
+  assert.match(clamp, /mask-image:\s*linear-gradient\(to bottom/, 'no fade on a clamped bio');
+  assert.match(clamp, /-webkit-mask-image/, 'no webkit-prefixed mask');
+  assert.doesNotMatch(css, /--clamp-fade/, 'the painted-overlay fade came back');
+  // On .about-clamp specifically, so it lifts when the bio expands — that class is
+  // what renderAbout toggles — and never shows on a bio too short to clamp.
+  assert.doesNotMatch(css, /\.profile-about \{[^}]*mask-image/, 'the fade moved onto the unclamped container');
+});
+
 test('the editor is a modal, and its fields are not on the tab', () => {
   const fn = lift('function openStatusEditor(');
   assert.match(fn, /openModal\(/, 'the editor is not a modal');
