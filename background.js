@@ -1556,7 +1556,10 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 
     sendResponse({ ok: true, result });
   } catch (e) {
-    sendResponse({ ok: false, error: e.message });
+    // `destructive` rides along when the wipe check refused an owner sign, so the
+    // panel can name what would be lost instead of relaying a bare sentence and
+    // asking the user to take it on faith.
+    sendResponse({ ok: false, error: e.message, destructive: e.destructive || undefined });
   }
 }
 
@@ -2716,6 +2719,30 @@ async function handleControl(message, sender, sendResponse) {
       case 'SIDECAR_OWNER_SIGN': {
         if (message.pin != null) await stepUpPin(message.pin); // unlocks if auto-lock raced the modal
         else if (KS.isLocked()) throw new Error('Keystore is locked');
+
+        // THE SAME WIPE CHECK SITES GET. Until this existed, BASELINE.check ran in
+        // exactly one place — the NIP-07 request path — so a website publishing a
+        // truncating kind 0/3/10000 was always stopped for confirmation while
+        // Sidecar's own writes went through unexamined. That is the wrong way
+        // round: the whole argument for doing follows and mutes in Sidecar rather
+        // than leaving them to a client is that our own path is more careful, and
+        // it cannot be more careful while being the one path with no check.
+        //
+        // Fails CLOSED, unlike the site path. There the verdict feeds a prompt the
+        // background is already about to raise; here there is no site, no
+        // permission tier and no prompt to attach to, so the signature is refused
+        // and the panel is handed the finding to confirm against. A caller that
+        // means it comes back with confirmedDestructive.
+        if (!message.confirmedDestructive) {
+          const ownerPk = message.expectedPubkey || (await KS.getActivePubkey());
+          const finding = await BASELINE.check(ownerPk, message.event);
+          if (finding) {
+            const err = new Error(finding.message);
+            err.destructive = finding;
+            throw err;
+          }
+        }
+
         // expectedPubkey (when the caller supplies it) makes this fail closed if
         // the active account changed out from under the caller — see KS.ownerSign.
         result = await KS.ownerSign(message.event, message.expectedPubkey);

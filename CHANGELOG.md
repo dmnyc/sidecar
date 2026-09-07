@@ -7,6 +7,15 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [Unreleased] — 1.13.0
+
+### Added
+- **Set a status (NIP-38).** A short line about what you are doing, published as kind 30315 and shown beside your name by clients that read it, shown as a small balloon over your banner on the Profile tab, which is also how you edit it. With no status there is no balloon: just a Set status button beside Edit profile. An optional link and an optional expiry ride along; the expiry is a request relays are asked to honor rather than required to, so Sidecar treats an expired status as gone regardless of what a relay still serves. Clearing publishes an empty status rather than a deletion request, because a status is a replaceable event and an empty one overwrites the old text everywhere the old text reached, while a deletion is a request any relay may ignore and anyone already holding it would keep showing. Only the general status is written: the spec's music status is meant to be published by whatever is playing the track, with an expiry matching when it stops, and a signer cannot see that.
+- **Four new sections in the guide.** Key backup, notifications, relays, and themes each had a What's new bullet and no explanation anywhere. Backup opens by saying plainly that a lost profile with no backup means the accounts are gone, since that is the section people go looking for at the worst possible moment.
+
+### Changed
+- **The Recent activity screenshot in the guide** predated the verify tap-through, so it is retaken; its alt text now says which rows carry the button and why the row that signed nothing does not.
+
 ## [1.12.0] — 2026-09-04
 
 ### Added
