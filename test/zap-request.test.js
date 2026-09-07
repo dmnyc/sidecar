@@ -114,6 +114,26 @@ test('the sheet sends zaps, not payments', () => {
   assert.doesNotMatch(sheet, /lnAddressToInvoice\(/, 'the profile sheet still calls the plain-payment path');
 });
 
+test('A SENT ZAP IS RECORDED IN WALLET HISTORY', () => {
+  // NWC history keeps the amount and nothing else, so without this the row reads a
+  // bare "Sent" with no counterparty. Both other payment paths already record it:
+  // the Send form keys address and note by invoice, and background.js records
+  // zapPubkey for a zap a website sent through WebLN.
+  const sheet = stripComments(lift('async function openProfileSheet('));
+  assert.match(sheet, /savePayMeta\(invoice, \{/, 'a sent zap records nothing');
+  // zapPubkey is the field that makes txRow read the row as a zap at all —
+  // zapFromTx only finds a zap on something RECEIVED, since an outgoing one is a
+  // plain invoice we paid.
+  assert.match(sheet, /zapPubkey: pubkey/, 'the recipient is not recorded, so the row says Sent');
+  assert.match(sheet, /address: zapAddr/, 'the lightning address is not recorded');
+});
+
+test('the fee comes from the payment result, not guessed', () => {
+  const sheet = stripComments(lift('async function openProfileSheet('));
+  assert.match(sheet, /const res = await client\.payInvoice\(invoice\)/, 'the pay result is discarded');
+  assert.match(sheet, /feeMsat: res && res\.fees_paid/, 'the fee is not taken from the payment result');
+});
+
 test('the zap control only appears for an address that can be zapped', () => {
   const sheet = stripComments(lift('async function openProfileSheet('));
   assert.match(sheet, /p\.zappable/, 'the sheet offers Zap without checking the provider');

@@ -1846,7 +1846,23 @@
             comment: note.value.trim(),
             recipientPubkey: pubkey,
           });
-          await client.payInvoice(invoice);
+          const res = await client.payInvoice(invoice);
+          // NWC history keeps the amount and nothing else, so an outgoing zap
+          // rendered as a bare "Sent" with no counterparty. Both the other payment
+          // paths already record this — the Send form keys the address and note by
+          // invoice, and the background records zapPubkey for a zap a website sent
+          // through WebLN — and this one recorded nothing at all.
+          //
+          // zapPubkey is what makes txRow read it as a zap: zapFromTx can only find
+          // a zap on something we RECEIVED, because an outgoing one is a plain
+          // invoice we paid. Without it the row says "Sent" and names a lightning
+          // address at best.
+          await savePayMeta(invoice, {
+            zapPubkey: pubkey,
+            address: zapAddr,
+            comment: note.value.trim(),
+            feeMsat: res && res.fees_paid,
+          });
           lightningStrike(); // only once it settles
           toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
           zapForm.classList.add('hidden');
