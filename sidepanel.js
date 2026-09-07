@@ -1828,6 +1828,13 @@
         b.addEventListener('click', () => { amount.value = String(n); amount.focus(); });
         presets.append(b);
       });
+      const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
+      // Public signs as you. Anonymous signs with a key that exists for one zap.
+      // Both produce a real receipt; only the authorship differs.
+      const privacy = h('select', { className: 'status-input' });
+      [['public', 'Public — shows it is from you'], ['anon', 'Anonymous — no sender']].forEach(([v, label], i) => {
+        privacy.append(h('option', { value: v, textContent: label, selected: i === 0 }));
+      });
       const send = h('button', { className: 'primary', textContent: 'Send zap' });
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
@@ -1839,12 +1846,19 @@
         try {
           const client = await ensureNwc();
           if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
-          const invoice = await lnAddressToInvoice(zapAddr, sats * 1000, 'Zap from Sidecar');
+          const invoice = await zapInvoice({
+            addr: zapAddr,
+            msats: sats * 1000,
+            comment: note.value.trim(),
+            recipientPubkey: pubkey,
+            anonymous: privacy.value === 'anon',
+          });
           await client.payInvoice(invoice);
           lightningStrike(); // only once it settles
           toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
+          note.value = '';
         } catch (e) {
           zapErr.textContent = e.message;
         } finally {
@@ -1856,7 +1870,7 @@
         zapForm.classList.toggle('hidden');
         if (!zapForm.classList.contains('hidden')) amount.focus();
       });
-      zapForm.append(presets, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
+      zapForm.append(presets, note, privacy, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
       zapWrap.append(zapBtn, zapForm);
       modal.append(zapWrap);
 
@@ -1921,8 +1935,13 @@
               () => toast('Could not copy', 'error')
             );
           };
-          zapWrap.classList.remove('hidden');
           zapAddr = c.lud16;
+          // Only offered once the provider is known to support NIP-57. A lightning
+          // address without allowsNostr can take a payment but can never produce a
+          // receipt, and a button saying Zap would be a promise it cannot keep.
+          lnAddressParams(c.lud16).then((p) => {
+            if (modal.isConnected && p.zappable) zapWrap.classList.remove('hidden');
+          }).catch(() => {});
         }
       }
 
@@ -15090,6 +15109,64 @@
       zappable: !!(meta.allowsNostr && meta.nostrPubkey),
       ...parseLnMetadata(meta.metadata),
     };
+  }
+
+  // A REAL ZAP, not just a payment to a lightning address (NIP-57).
+  //
+  // The difference is the `nostr` query parameter. Without it the provider issues an
+  // ordinary invoice and, when it settles, nobody publishes anything: the recipient
+  // finds sats in their wallet with no idea who sent them or why, no receipt exists,
+  // and it counts toward no zap total anywhere. With it, the provider commits the
+  // signed 9734 to the invoice description and publishes a kind 9735 receipt to the
+  // relays named in the request. That receipt is the zap.
+  //
+  // Requires the provider to opt in: allowsNostr plus a nostrPubkey, which
+  // lnAddressParams already surfaces as `zappable`. A provider without it cannot
+  // produce a receipt however the button is labelled.
+  async function zapInvoice({ addr, msats, comment, recipientPubkey, anonymous }) {
+    const { meta } = await lnAddressParams(addr);
+    if (!(meta.allowsNostr && meta.nostrPubkey)) {
+      throw new Error('That lightning address cannot receive zaps, only payments.');
+    }
+    if (msats < meta.minSendable || msats > meta.maxSendable) {
+      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+    }
+
+    // The relays the recipient's provider should publish the receipt to. Theirs, not
+    // ours: a receipt on relays they never read is a receipt they never see.
+    const relays = (await readRelayUrls(recipientPubkey)).slice(0, 6);
+    const template = NT.nip57.makeZapRequest({
+      pubkey: recipientPubkey,
+      amount: msats,
+      relays,
+      comment: comment || '',
+    });
+
+    let signed;
+    if (anonymous) {
+      // Signed with a key that exists for one zap and is then dropped, so the
+      // request carries no link to the sender at all. The `anon` tag is a
+      // convention rather than part of NIP-57, and it is only a LABEL — the
+      // anonymity comes from the throwaway key, so a client that ignores the tag
+      // still cannot tell who sent it. It just shows an unknown npub.
+      template.tags.push(['anon']);
+      const sk = NT.generateSecretKey();
+      signed = NT.finalizeEvent(template, sk);
+    } else {
+      // Goes through the guarded owner-sign path like everything else the panel
+      // signs. 9734 is not a replaceable kind, so the wipe check has nothing to say
+      // about it.
+      signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
+    }
+
+    const cb = new URL(meta.callback);
+    if (cb.protocol !== 'https:') throw new Error('That lightning address uses an insecure callback');
+    cb.searchParams.set('amount', String(msats));
+    cb.searchParams.set('nostr', JSON.stringify(signed));
+    const res = await fetch(cb.toString());
+    const body = await res.json();
+    if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : 'The lightning address did not return an invoice');
+    return body.pr;
   }
 
   // Resolve a lightning address (user@domain) to a BOLT11 invoice via LNURL-pay.
