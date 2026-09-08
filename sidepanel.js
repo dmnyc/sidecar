@@ -941,7 +941,10 @@
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     zapFlash = !(settings && settings.zapFlash === false); // default on
-    applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
+    // The ACTIVE account's theme. While locked state.activePubkey is empty, so this
+    // resolves to the global — the panel cannot know whose theme to wear before it
+    // knows who is unlocking.
+    applyTheme(resolveTheme(settings, state.activePubkey));
     applyHideBalances();
     closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
@@ -6885,8 +6888,13 @@
       c.classList.toggle('active', Number(c.dataset.secs) === cdSecs));
 
     // theme
-    const theme = settings.theme || 'speakeasy'; // default to speakeasy
+    const theme = resolveTheme(settings, state.activePubkey);
     applyTheme(theme);
+    // Whether THIS account has chosen for itself, or is following the global. The
+    // picker uses it to say which, so "no card selected" is never a mystery.
+    _themeIsOwn = !!(settings.themeBy && state.activePubkey && settings.themeBy[state.activePubkey]);
+    _themeGlobal = settings.theme || 'speakeasy';
+    paintThemeFollowState();
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -8491,6 +8499,53 @@
   // lives. A brand account read in one client and a personal one in another is the
   // normal case, and the global setting made the second account borrow the first's
   // habits. Same storage shape as nip65OnlyBy (see SIDECAR_SET_CLIENT_FOR).
+  // Which theme this ACCOUNT wears. Per-account with a fallback to the global, the
+  // same shape as resolveClient below and as nip65OnlyBy before it.
+  //
+  // The point is not decoration. With several accounts the panel looks identical
+  // whether you are in your main identity or a throwaway, and the account name is the
+  // only thing telling them apart. A theme answers "which account am I in" before you
+  // read anything — which is why the approval window follows it too (background.js),
+  // since that is where getting it wrong costs something.
+  //
+  // NOT the pay card. content.js reads settings through a deliberately clamped path so
+  // a visited site cannot fingerprint config; handing it a per-account theme would leak
+  // WHICH ACCOUNT IS ACTIVE ON THIS SITE to the site itself. It keeps the global.
+  // Whether the active account has picked a theme for itself, and what the global
+  // is, so the picker can say which state it is in. Set when Settings renders.
+  let _themeIsOwn = false;
+  let _themeGlobal = 'speakeasy';
+
+  // The picker is a grid of cards with no "off" position, so there has to be some
+  // other way back to following the global. A line under the heading says which
+  // state you are in, and carries the way out when there is one.
+  function paintThemeFollowState() {
+    const el = $('theme-follow-note');
+    if (!el) return;
+    el.innerHTML = '';
+    if (!state.activePubkey) return; // onboarding: the choice IS the global
+    if (!_themeIsOwn) {
+      el.textContent = 'Following the default for all accounts.';
+      return;
+    }
+    el.append(document.createTextNode('This account has its own theme. '));
+    const back = h('button', { className: 'linkish', textContent: 'Use the default' });
+    back.addEventListener('click', async () => {
+      await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: state.activePubkey, theme: '' });
+      _themeIsOwn = false;
+      applyTheme(_themeGlobal);
+      paintThemeFollowState();
+      document.querySelectorAll('.theme-card').forEach((c) =>
+        c.classList.toggle('active', c.dataset.theme === _themeGlobal));
+    });
+    el.append(back);
+  }
+
+  function resolveTheme(settings, pubkey) {
+    const by = (settings && settings.themeBy) || null;
+    return (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
+  }
+
   function resolveClient(settings, pubkey) {
     const by = (settings && settings.defaultClientBy) || null;
     const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
@@ -15729,7 +15784,19 @@
       // The panel just changed theme under the previews; the one you picked replays so
       // the choice confirms itself with the animation you chose it for.
       replayThemePreview(card);
-      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+      // THIS ACCOUNT's theme, never the global. Routed through its own message
+      // because SIDECAR_SET_SETTINGS merges shallowly and a panel sending the whole
+      // map would clobber another account's choice — the reasoning the nip65OnlyBy
+      // setter records, and the same one behind SIDECAR_SET_CLIENT_FOR.
+      if (state.activePubkey) {
+        await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: state.activePubkey, theme: selectedTheme });
+        _themeIsOwn = true;
+        paintThemeFollowState();
+      } else {
+        // No account yet (onboarding): there is nobody to attribute the choice to,
+        // so it sets the global, which is also the default every new account gets.
+        await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+      }
     });
   });
 

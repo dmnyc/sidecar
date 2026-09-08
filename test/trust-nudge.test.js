@@ -230,8 +230,13 @@ test('the popup applies the panel theme', () => {
   // theme the panel was wearing.
   const promptSrc = fs.readFileSync(path.join(ROOT, 'prompt.js'), 'utf8');
   assert.match(promptSrc, /setAttribute\(\s*'data-theme'/, 'popup must set data-theme');
-  assert.match(source, /theme: promptSettings\.theme \|\| 'speakeasy'/,
-    'the payload must carry the theme');
+  // The payload carries THE ACCOUNT'S theme now, falling back to the global for an
+  // account that has never chosen one (#266). This window is about a specific
+  // identity, so it wears that identity's theme.
+  assert.match(source, /promptSettings\.themeBy && promptSettings\.themeBy\[activePubkey\]/,
+    'the payload must carry the account\'s theme');
+  assert.match(source, /promptSettings\.theme \|\| 'speakeasy'/,
+    'the payload must still fall back to the global theme');
   // Unknown values fall back rather than writing an arbitrary string into the DOM.
   assert.match(promptSrc, /THEMES\.includes\(data\.theme\) \? data\.theme : 'speakeasy'/);
 });

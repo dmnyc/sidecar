@@ -1390,7 +1390,15 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // purple over someone's Brownstone panel. Carried on the payload rather than
         // fetched in prompt.js so the window paints themed on first frame instead of
         // flashing the default.
-        theme: promptSettings.theme || 'speakeasy',
+        // THE ACCOUNT'S theme, not the global one. This window is about a specific
+        // identity, and it is the surface where picking the wrong one costs
+        // something — so it is the most valuable place for a per-account theme to
+        // show, not an afterthought. Falls back to the global for an account that
+        // has never chosen. (Duplicated rather than shared: the panel, this worker
+        // and the content script are three documents with no module system between
+        // them, the same reasoning as the theme lists in each.)
+        theme: (promptSettings.themeBy && promptSettings.themeBy[activePubkey])
+          || promptSettings.theme || 'speakeasy',
         // Auto-lock is off, so this unlock is the once-per-browser-session one rather
         // than an idle timeout. The UI says so — otherwise "Never" looks broken to
         // someone who set it and is then asked for a PIN the next morning.
@@ -2803,6 +2811,18 @@ async function handleControl(message, sender, sendResponse) {
       // Absent means "use the global default", which is what makes this additive: an
       // account that never picks one keeps following defaultClient, and changing the
       // global still moves everyone who has not chosen for themselves.
+      // Same shape and the same reason as the two setters below it. Absent means
+      // "use the global theme", so an account that has never picked one follows the
+      // global and changing the global still moves everyone who has not chosen.
+      case 'SIDECAR_SET_THEME_FOR': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.themeBy || {}) };
+        if (message.theme) map[message.pubkey] = message.theme;
+        else delete map[message.pubkey];
+        await sset({ sidecar_settings: { ...prev, themeBy: map } });
+        result = { ok: true };
+        break;
+      }
       case 'SIDECAR_SET_CLIENT_FOR': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const map = { ...(prev.defaultClientBy || {}) };
