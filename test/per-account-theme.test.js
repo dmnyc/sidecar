@@ -137,21 +137,21 @@ test('picking a card writes the account, not the global', () => {
   assert.match(h, /SIDECAR_SET_THEME_FOR/, 'the picker does not use the per-account setter');
 });
 
-test('THE GLOBAL IS KEPT IN STEP, or the pay card freezes', () => {
-  // Regression guard. When the picker wrote only themeBy, nothing wrote
-  // settings.theme any more once a user had an account, so the global froze and
-  // every surface reading it froze with it — including the pay card, which reads
-  // the global deliberately (see the privacy test above). It stayed on whatever
-  // theme was set before the first account existed, forever.
+test('A PICK MUST NOT TOUCH THE GLOBAL', () => {
+  // Tried and reverted. Writing the global on every pick made one account's choice
+  // leak into every account that had never chosen one — a second account showed the
+  // first account's theme instead of the default, which is the opposite of what this
+  // feature is for.
   //
-  // Writing both keeps the default meaningful without reintroducing the leak: the
-  // card changes when a theme is PICKED, never when accounts are SWITCHED, so it
-  // still cannot tell a page which account is active.
+  // The cost is that settings.theme is only writable during onboarding, so the pay
+  // card shows the default rather than tracking picks. A stable card is the lesser
+  // problem; accounts bleeding into each other is the thing being fixed.
   const src = stripComments(source);
   const at = src.indexOf('const selectedTheme = card.dataset.theme;');
-  const h = src.slice(at, at + 1400);
-  assert.match(h, /SIDECAR_SET_THEME_FOR/, 'the per-account write is gone');
-  assert.match(h, /settings: \{ theme: selectedTheme \}/, 'the global is no longer kept in step');
+  const own = src.slice(at, src.indexOf('} else {', at));
+  assert.match(own, /SIDECAR_SET_THEME_FOR/, 'the per-account write is gone');
+  assert.doesNotMatch(own, /settings: \{ theme: selectedTheme \}/,
+    'picking a theme writes the global again, which leaks it to accounts that never chose');
 });
 
 test('ONBOARDING SETS THE GLOBAL, because there is no account yet', () => {
