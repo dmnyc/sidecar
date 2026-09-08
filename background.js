@@ -2796,6 +2796,22 @@ async function handleControl(message, sender, sendResponse) {
         result = { ok: true };
         break;
       }
+      // Same shape and the same reason as SIDECAR_SET_NIP65_ONLY above: the map has
+      // to be edited in the background, because SIDECAR_SET_SETTINGS merges shallowly
+      // and a panel sending the whole map would clobber another account's choice.
+      //
+      // Absent means "use the global default", which is what makes this additive: an
+      // account that never picks one keeps following defaultClient, and changing the
+      // global still moves everyone who has not chosen for themselves.
+      case 'SIDECAR_SET_CLIENT_FOR': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.defaultClientBy || {}) };
+        if (message.client) map[message.pubkey] = message.client;
+        else delete map[message.pubkey]; // back to following the global
+        await sset({ sidecar_settings: { ...prev, defaultClientBy: map } });
+        result = { ok: true };
+        break;
+      }
       case 'SIDECAR_SET_SETTINGS': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const merged = { ...prev, ...message.settings };
