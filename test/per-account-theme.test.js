@@ -137,6 +137,23 @@ test('picking a card writes the account, not the global', () => {
   assert.match(h, /SIDECAR_SET_THEME_FOR/, 'the picker does not use the per-account setter');
 });
 
+test('THE GLOBAL IS KEPT IN STEP, or the pay card freezes', () => {
+  // Regression guard. When the picker wrote only themeBy, nothing wrote
+  // settings.theme any more once a user had an account, so the global froze and
+  // every surface reading it froze with it — including the pay card, which reads
+  // the global deliberately (see the privacy test above). It stayed on whatever
+  // theme was set before the first account existed, forever.
+  //
+  // Writing both keeps the default meaningful without reintroducing the leak: the
+  // card changes when a theme is PICKED, never when accounts are SWITCHED, so it
+  // still cannot tell a page which account is active.
+  const src = stripComments(source);
+  const at = src.indexOf('const selectedTheme = card.dataset.theme;');
+  const h = src.slice(at, at + 1400);
+  assert.match(h, /SIDECAR_SET_THEME_FOR/, 'the per-account write is gone');
+  assert.match(h, /settings: \{ theme: selectedTheme \}/, 'the global is no longer kept in step');
+});
+
 test('ONBOARDING SETS THE GLOBAL, because there is no account yet', () => {
   // Before any account exists there is nobody to attribute the choice to, and the
   // global is also the default every new account will inherit.

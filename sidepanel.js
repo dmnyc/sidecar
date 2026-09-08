@@ -15790,7 +15790,20 @@
       // setter records, and the same one behind SIDECAR_SET_CLIENT_FOR.
       if (state.activePubkey) {
         await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: state.activePubkey, theme: selectedTheme });
+        // AND the global, which is now demoted to "the default": what a new account
+        // inherits, and what the surfaces that must not track the active account
+        // read. The pay card is the one that matters — content.js reads the global
+        // on purpose, and without this it froze the moment a user had an account,
+        // because nothing else writes it any more.
+        //
+        // This does move accounts that have never chosen, which is the same rule the
+        // client picker follows: the default is a default, and changing it moves
+        // everyone still following it. It does NOT leak the active account to a
+        // page, because the card changes when a theme is PICKED, never when accounts
+        // are SWITCHED — which is the property #266 was protecting.
+        await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
         _themeIsOwn = true;
+        _themeGlobal = selectedTheme;
         paintThemeFollowState();
       } else {
         // No account yet (onboarding): there is nobody to attribute the choice to,
