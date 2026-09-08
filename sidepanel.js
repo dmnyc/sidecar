@@ -8525,7 +8525,7 @@
     el.innerHTML = '';
     if (!state.activePubkey) return; // onboarding: the choice IS the global
     if (!_themeIsOwn) {
-      el.textContent = 'Following the default for all accounts.';
+      el.textContent = 'Using default theme';
       return;
     }
     el.append(document.createTextNode('This account has its own theme. '));

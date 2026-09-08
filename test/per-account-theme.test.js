@@ -155,5 +155,5 @@ test('there is a way back to following the default', () => {
   const fn = stripComments(lift('function paintThemeFollowState('));
   assert.match(fn, /theme: ''/, 'nothing clears the per-account theme');
   assert.match(fn, /Use the default/, 'the control has no label');
-  assert.match(fn, /Following the default/, 'an account following the global is not told so');
+  assert.match(fn, /Using default theme/, 'an account following the global is not told so');
 });
