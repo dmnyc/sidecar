@@ -158,3 +158,34 @@ test('the nav background really is theme-independent', () => {
 test('the dark-field wordmark exists', () => {
   assert.ok(fs.existsSync(path.join(ROOT, 'icons/sidecar-logo.svg')), 'icons/sidecar-logo.svg is missing');
 });
+
+// ---- whose theme these pages wear ------------------------------------------------
+
+test('THE FULL PAGES WEAR THE ACTIVE ACCOUNT\'S THEME', () => {
+  // A theme belongs to an account (themeBy). Reading only settings.theme would show
+  // these pages the default an account that never chose inherits, which is this PR's
+  // own bug back again for anyone using per-account themes: on Par Avion, opening the
+  // guide would still hand you a dark page.
+  //
+  // These are chrome-extension:// documents, so unlike the pay card in content.js there
+  // is nothing to leak by reading the account on screen — no web page can see them.
+  const src = read('theme-boot.js').replace(/\/\/[^\n]*/g, ''); // the file explains this at length
+  assert.match(src, /sidecar_active_pubkey/, 'theme-boot no longer reads which account is active');
+  assert.match(src, /\(pk && by\[pk\]\) \|\| st\.theme/, 'theme-boot no longer prefers the account over the default');
+  assert.match(src, /st\.themeBy \|\| \{\}/, 'theme-boot does not read the per-account map');
+});
+
+test('a switch reaches a page already open', () => {
+  // The two keys move independently — a pick writes sidecar_settings, a switch writes
+  // sidecar_active_pubkey — so watching only the settings would leave a guide showing
+  // the previous account's theme until it was reloaded.
+  const src = read('theme-boot.js').replace(/\/\/[^\n]*/g, '');
+  const at = src.indexOf('onChanged.addListener');
+  assert.ok(at !== -1, 'theme-boot no longer follows storage changes');
+  const fn = src.slice(at, at + 300);
+  assert.match(fn, /changes\.sidecar_active_pubkey/, 'an account switch does not repaint an open page');
+  assert.match(fn, /changes\.sidecar_settings/, 'a theme pick does not repaint an open page');
+  // Re-read, rather than pulling one value out of the change record: the answer needs
+  // both keys and only one of them is in any given record.
+  assert.match(fn, /boot\(\)/, 'the listener resolves from the change record instead of re-reading');
+});

@@ -53,20 +53,43 @@
     document.documentElement.classList.toggle('theme-light', LIGHT_THEMES.includes(theme));
   }
 
-  try {
-    chrome.storage.local.get('sidecar_settings', (data) => {
+  // THE ACTIVE ACCOUNT'S theme, with settings.theme as the default for an account that
+  // has never chosen one. A theme belongs to an account (themeBy, see resolveTheme in
+  // sidepanel.js), so reading only settings.theme would show these pages the default
+  // rather than the theme the panel is wearing — which is the exact bug above, back for
+  // anyone using per-account themes.
+  //
+  // RESOLVED HERE, not asked of the background, unlike the pay card. That card renders
+  // into a web page that can see it, so it must never learn which account is active and
+  // takes the theme of the account its own site is bound to instead (content.js). These
+  // are chrome-extension:// documents. Nothing on the web can read them, so the account
+  // on screen is the right answer and both keys are a plain local read away.
+  function boot() {
+    chrome.storage.local.get(['sidecar_settings', 'sidecar_active_pubkey'], (data) => {
       // Read errors are not worth surfacing on a documentation page: the default
       // is already applied by the stylesheets, so silence degrades to Speakeasy.
       if (chrome.runtime && chrome.runtime.lastError) return;
-      apply((data && data.sidecar_settings && data.sidecar_settings.theme) || 'speakeasy');
+      const st = (data && data.sidecar_settings) || {};
+      const pk = data && data.sidecar_active_pubkey;
+      const by = st.themeBy || {};
+      apply((pk && by[pk]) || st.theme || 'speakeasy');
     });
+  }
 
-    // Change the theme in the panel while the guide is open in another tab and
-    // the guide follows, rather than showing the old one until it is reloaded.
+  try {
+    boot();
+
+    // Change the theme in the panel — or switch account — while the guide is open in
+    // another tab and the guide follows, rather than showing the old one until it is
+    // reloaded.
+    //
+    // Both keys matter and each moves on its own: a pick writes sidecar_settings, a
+    // switch writes sidecar_active_pubkey. So this re-reads both rather than taking the
+    // one new value out of the change record.
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'local' || !changes.sidecar_settings) return;
-      const next = changes.sidecar_settings.newValue;
-      apply((next && next.theme) || 'speakeasy');
+      if (area !== 'local') return;
+      if (!changes.sidecar_settings && !changes.sidecar_active_pubkey) return;
+      boot();
     });
   } catch (_) {
     // Opened outside the extension (a plain file:// preview, say). The linked
