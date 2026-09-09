@@ -3972,12 +3972,3 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 /* The lightning row is a control now, so it has to say so on hover. */
 .peek-meta[title] { cursor: pointer; }
 .peek-meta[title]:hover { color: var(--gold); }
-
-/* Per-account theme: which state this account is in, and the way back to the
-   global. The card grid has no "off" position, so this line carries it. */
-.theme-follow-note { margin: 2px 0 10px; }
-.theme-follow-note .linkish {
-  background: none; border: none; padding: 0;
-  color: var(--lav); font: inherit; font-weight: 600; cursor: pointer;
-}
-.theme-follow-note .linkish:hover { color: var(--gold); text-decoration: underline; }

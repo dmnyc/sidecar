@@ -58,6 +58,18 @@ function resolver() {
   return ctx.out;
 }
 
+// The pay card's theme is resolved in background.js rather than in the panel, because it
+// depends on the SITE's binding as well as the settings and only the background may join
+// those two. Lifted from the shipped expression so it cannot drift from what runs.
+function cardResolver() {
+  const m = bg.match(/cardTheme: (\(bound && by\[bound\]\) \|\| st\.theme \|\| ''),?/);
+  if (!m) throw new Error('the pay card theme expression moved — update this test');
+  const ctx = { console };
+  vm.createContext(ctx);
+  vm.runInContext('globalThis.out = (st, bound) => { const by = st.themeBy || {}; return ' + m[1] + '; };', ctx);
+  return ctx.out;
+}
+
 // ---- resolution ---------------------------------------------------------------------
 
 test('an account with its own theme gets it', () => {
@@ -94,13 +106,46 @@ test('no settings at all still resolves to a real theme', () => {
 
 // ---- the surfaces that follow, and the one that must not -----------------------------
 
-test('THE PAY CARD STILL READS THE GLOBAL THEME', () => {
-  // The line that matters most in this file. content.js reads settings through a
-  // clamped path so a visited site cannot fingerprint config; a per-account theme
-  // there would tell the site which account is active on it.
+test('THE PAY CARD WEARS THE BOUND ACCOUNT\'S THEME, NEVER THE ACTIVE ONE', () => {
+  // The line that matters most in this file. The card is rendered into a page that can
+  // see it. The site already holds the pubkey of the account it is bound to, so that
+  // account's theme is not news to it — but the ACTIVE account can be an identity the
+  // site has never seen, and a card that changed colour on a switch is a switch detector
+  // a page can poll by cycling the invoice on itself.
+  const src = stripComments(bg);
+  const at = src.indexOf("if (!fromExtPage && message.type === 'SIDECAR_GET_SETTINGS')");
+  assert.ok(at !== -1, 'the clamped settings read for content scripts moved');
+  const h = src.slice(at, at + 1400);
+  assert.match(h, /getSiteAccount\(cardHost\)/, 'the card theme is not resolved against this site\'s account');
+  assert.match(h, /cardTheme: \(bound && by\[bound\]\) \|\| st\.theme/, 'the card no longer resolves per site');
+  assert.match(h, /new URL\((?:sender && sender\.url|\(sender && sender\.url\))/,
+    'the host comes from the message body, which a page could influence');
+  assert.doesNotMatch(h, /activePubkey/, 'the clamped read now hands a page the active identity');
+});
+
+test('the card resolves to the bound account, then the default', () => {
+  const r = cardResolver();
+  const st = { theme: 'speakeasy', themeBy: { alice: 'bauhaus', bob: 'nixie' } };
+  assert.equal(r(st, 'alice'), 'bauhaus', 'a bound account does not get its own theme');
+  assert.equal(r(st, 'bob'), 'nixie', 'the card follows the wrong account');
+  // A site bound to an account that never chose, and a site with no binding at all
+  // (which cannot render a card today, but must not resolve to undefined if it ever can).
+  assert.equal(r(st, 'carol'), 'speakeasy', 'an account that never chose does not get the default');
+  assert.equal(r(st, null), 'speakeasy', 'an unbound site does not fall back to the default');
+  assert.equal(r({}, null), '', 'a fresh install must resolve to a falsy value, not undefined');
+  // The switch that started all this: changing which account is ACTIVE cannot change
+  // this answer, because the active account is not an input.
+  assert.equal(r(st, 'alice'), 'bauhaus', 'the resolution is not stable');
+});
+
+test('THE CARD MAP NEVER CROSSES INTO A CONTENT SCRIPT', () => {
+  // content.js asks for one resolved string. Handing it themeBy would let any page read
+  // every account's theme, which is a fingerprint of how many identities you keep.
   const src = stripComments(content);
-  assert.match(src, /sidecar_settings\.theme\)/, 'the pay card stopped reading the global theme');
-  assert.doesNotMatch(src, /themeBy/, 'the pay card now leaks which account is active on the site');
+  assert.doesNotMatch(src, /themeBy/, 'the pay card now reads the per-account map itself');
+  assert.match(src, /result\.cardTheme/, 'the card no longer takes the resolved theme from the background');
+  // And nothing pushes a theme at it, so an account switch writes nothing a page can see.
+  assert.doesNotMatch(stripComments(source), /cardTheme/, 'the panel writes a card theme again');
 });
 
 test('the approval window follows the account it is about', () => {
@@ -129,48 +174,90 @@ test('the map is edited in the background, not sent whole', () => {
   assert.match(h, /delete map\[message\.pubkey\]/, 'clearing does not delete the entry');
 });
 
-test('picking a card writes the account, not the global', () => {
-  const src = stripComments(source);
-  const at = src.indexOf('const selectedTheme = card.dataset.theme;');
-  assert.ok(at !== -1, 'the picker handler moved');
-  const h = src.slice(at, at + 900);
-  assert.match(h, /SIDECAR_SET_THEME_FOR/, 'the picker does not use the per-account setter');
-});
-
-test('A PICK MUST NOT TOUCH THE GLOBAL', () => {
-  // Tried and reverted. Writing the global on every pick made one account's choice
-  // leak into every account that had never chosen one — a second account showed the
-  // first account's theme instead of the default, which is the opposite of what this
-  // feature is for.
-  //
-  // The cost is that settings.theme is only writable during onboarding, so the pay
-  // card shows the default rather than tracking picks. A stable card is the lesser
-  // problem; accounts bleeding into each other is the thing being fixed.
+test('A GALLERY PICK DRESSES THE ACCOUNT YOU ARE IN, NOT EVERY ACCOUNT', () => {
+  // Reported: an account that had never chosen a theme wore the previous account's,
+  // because the pick wrote settings.theme and that is what such an account follows. The
+  // pick must reach themeBy and the card, and must NOT reach settings.theme — which is
+  // the default a never-chose account still wants.
   const src = stripComments(source);
   const at = src.indexOf('const selectedTheme = card.dataset.theme;');
   const own = src.slice(at, src.indexOf('} else {', at));
-  assert.match(own, /SIDECAR_SET_THEME_FOR/, 'the per-account write is gone');
-  assert.doesNotMatch(own, /settings: \{ theme: selectedTheme \}/,
-    'picking a theme writes the global again, which leaks it to accounts that never chose');
+  assert.match(own, /SIDECAR_SET_THEME_FOR[^\n]*theme: selectedTheme/, 'the pick no longer dresses this account');
+  assert.doesNotMatch(own, /settings: \{ theme:/,
+    'a pick writes the default again, which redresses every account that never chose');
 });
 
-test('ONBOARDING SETS THE GLOBAL, because there is no account yet', () => {
-  // Before any account exists there is nobody to attribute the choice to, and the
-  // global is also the default every new account will inherit.
+test('ONBOARDING SETS THE DEFAULT, because there is no account yet', () => {
+  // Before any account exists there is nobody to attribute the choice to, and the value
+  // is also the default every new account inherits.
   const src = stripComments(source);
   const at = src.indexOf('const selectedTheme = card.dataset.theme;');
-  const h = src.slice(at, at + 900);
-  assert.match(h, /if \(state\.activePubkey\)/, 'the picker does not branch on having an account');
-  assert.match(h, /settings: \{ theme: selectedTheme \}/, 'onboarding cannot set a theme at all');
+  const h = src.slice(at, at + 1600);
+  assert.match(h, /if \(state\.activePubkey\)/, 'the pick does not branch on having an account');
+  const ob = h.slice(h.indexOf('} else {'));
+  assert.match(ob, /settings: \{ theme: selectedTheme \}/, 'onboarding sets no default');
 });
 
-// ---- the way back ----------------------------------------------------------------------
+test('THE MARKED CARD IS THE THEME ON SCREEN', () => {
+  // The gallery sets the theme for the account you are in, so it marks what that account
+  // is wearing. Kept out of applyTheme, which runs on every render including the lock
+  // screen, where mounting twelve preview documents is pure waste.
+  const apply = stripComments(lift('function applyTheme('));
+  assert.doesNotMatch(apply, /theme-card/, 'applying a theme marks a picker card again');
+  const paint = stripComments(lift('function paintThemePicker('));
+  assert.match(paint, /card\.dataset\.theme === marked/, 'nothing marks the picked card');
+  assert.match(paint, /showThemeMode\(/, 'the gallery no longer opens on the marked card\'s half');
+  const settings = stripComments(lift('async function renderSettings('));
+  assert.match(settings, /paintThemePicker\(applyResolvedTheme\(settings\)\)/,
+    'Settings marks something other than the theme it just applied');
+});
 
-test('there is a way back to following the default', () => {
-  // The picker is a grid of cards with no "off" position, so without this an account
-  // could take a theme and never give it back.
-  const fn = stripComments(lift('function paintThemeFollowState('));
-  assert.match(fn, /theme: ''/, 'nothing clears the per-account theme');
-  assert.match(fn, /Use the default/, 'the control has no label');
-  assert.match(fn, /Using default theme/, 'an account following the global is not told so');
+test('any account can be dressed from its own menu', () => {
+  // The gallery only reaches the account you are in. This modal is how the others get a
+  // theme, and the only way back to the default once an account has chosen.
+  const menu = stripComments(lift('function accountMenuModal('));
+  assert.match(menu, /themeOverrideModal/, 'the account menu cannot set a theme');
+  const fn = stripComments(lift('function themeOverrideModal('));
+  assert.match(fn, /SIDECAR_SET_THEME_FOR/, 'the modal does not write the account theme');
+  assert.doesNotMatch(fn, /settings: \{ theme:/, 'the modal writes the default for every account');
+  assert.match(fn, /value: '', textContent: 'Use the default'/, 'no way back to the default');
+});
+
+test('DRESSING ANOTHER ACCOUNT DOES NOT REPAINT THE PANEL', () => {
+  // The menu is reachable for every account, not just the active one. Repainting would
+  // change the panel out from under you.
+  const fn = stripComments(lift('function themeOverrideModal('));
+  const at = fn.indexOf('a.pubkey === state.activePubkey');
+  assert.ok(at !== -1, 'the repaint is not scoped to the active account');
+  const guarded = fn.slice(at, fn.indexOf('closeModal();', at));
+  assert.match(guarded, /paintThemePicker\(applyResolvedTheme\(/, 'the active account is no longer repainted');
+});
+
+test('a value arriving late does not overwrite a pick', () => {
+  // The modal opens on "Use the default" and fills in the account's real value when the
+  // background answers. Pick inside that window and the answer would land on top of it.
+  const fn = stripComments(lift('function themeOverrideModal('));
+  assert.match(fn, /sel\.addEventListener\('change', \(\) => \{ touched = true; \}\)/, 'nothing records a pick');
+  assert.match(fn, /!modal\.isConnected \|\| touched/, 'the late fill can still clobber a pick');
+});
+
+test('the labels and the allowlist cannot drift', () => {
+  // A theme in one and missing from the other is unpickable rather than visibly
+  // broken, so it would ship unnoticed.
+  const labels = (source.match(/const THEME_LABELS = \[([\s\S]*?)\];/)[1].match(/'([a-z-]+)',/g) || [])
+    .map((x) => x.replace(/[',]/g, ''));
+  const valid = source.match(/const validThemes = \[([^\]]*)\]/)[1]
+    .split(',').map((x) => x.trim().replace(/'/g, ''));
+  assert.deepEqual(labels, valid, 'THEME_LABELS and validThemes disagree');
+});
+
+// ---- clearing ---------------------------------------------------------------------
+
+test('an account can always go back to the default', () => {
+  // Without this an account could take a theme and never give it back — the gallery has
+  // no "off" position, since every card is a theme.
+  const fn = stripComments(lift('function themeOverrideModal('));
+  assert.match(fn, /Use the default/, 'the modal has no way back to the default');
+  // Empty string reaches the setter, which deletes the key rather than storing it.
+  assert.match(fn, /theme: sel\.value/, 'the chosen value is not what gets written');
 });

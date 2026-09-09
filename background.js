@@ -3196,17 +3196,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // and nothing else. The full object would tell it the auto-lock timing (how
     // long an unattended unlocked keystore stays warm) plus budget/autozap
     // config it has no business fingerprinting.
-    sget('sidecar_settings').then(({ sidecar_settings }) => {
+    let cardHost = '';
+    try { cardHost = new URL((sender && sender.url) || '').host; } catch (_) {}
+    Promise.all([sget('sidecar_settings'), getSiteAccount(cardHost)]).then(([{ sidecar_settings }, bound]) => {
       // Plus whether the auto-zap offer is worth showing on the payment card. This
       // reveals nothing the card doesn't already imply — if auto-zap were on and
       // covered the amount, no card would have appeared at all. The cap is a product
       // constant, not the user's configuration.
       const st = sidecar_settings || {};
+      // And the theme for the payment card: the one worn by THE ACCOUNT THIS SITE IS
+      // BOUND TO, resolved here so the map itself never crosses into a content script.
+      //
+      // The bound account, not the active one, and that is the whole trick. This site
+      // authenticated that account and holds its pubkey already, so its theme tells the
+      // site nothing it does not know — whereas the ACTIVE account can be a different
+      // identity the site has never seen, and a card that changed colour when the user
+      // switched would be a switch detector any page could poll.
+      //
+      // It is also less of a fingerprint than the single global this replaced: two sites
+      // bound to two different accounts used to see one shared value, which correlated
+      // those accounts as one person. Now they see each account's own theme.
+      const by = st.themeBy || {};
       sendResponse({
         ok: true,
         result: {
           showPayButton: st.showPayButton,
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
+          cardTheme: (bound && by[bound]) || st.theme || '',
         },
       });
     });
