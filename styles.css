@@ -4038,3 +4038,19 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .emoji-tab:hover { background: var(--hover-medium); opacity: 1; }
 .emoji-tab.active { background: var(--hover-medium); opacity: 1; box-shadow: inset 0 -2px 0 var(--gold); }
+
+/* A chevron that reveals nothing is furniture, so a row whose text already fits does not
+   get one. Whether it fits is measured after layout, not guessed from the character
+   count — see the note in buildItem. */
+.notif-expand-none { display: none; }
+
+/* What YOU reacted with, under the note. Chips rather than a line of text: they are
+   glyphs, they repeat, and at rest they should read as a mark on the row instead of as
+   more content to read. Indented to the same 22px gutter the content uses. */
+.notif-reacted { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0 22px; }
+.notif-reacted-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 22px; padding: 0 5px;
+  background: var(--hover-soft); border: 1px solid var(--border);
+  border-radius: 999px; font-size: 13px; line-height: 1;
+}

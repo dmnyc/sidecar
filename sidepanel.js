@@ -4081,6 +4081,53 @@
     return id;
   }
 
+  // WHAT YOU REACTED WITH, per note, so the row says so. Without it, reacting is a toast
+  // that disappears and a row that looks exactly as it did — you cannot tell tomorrow
+  // whether you already answered something, which is the question a notification list is
+  // for. Kept in a Set per note: two taps of the same emoji is one reaction, not two
+  // chips (relays dedupe nothing here, but the row should not double up either).
+  //
+  // Filled from two places: optimistically when a reaction of ours publishes, and from a
+  // relay query for our own kind:7s on sheet open, so a reaction sent from another client
+  // — or from this panel before a reload — still shows.
+  const _myReactions = new Map(); // note id → Set(emoji)
+
+  // '+' is the legacy like and '-' the legacy dislike (NIP-25). notifLabel already draws
+  // them as ❤️ and 👎 where a SENDER's reaction is shown, and a chip of ours has to agree
+  // with that or the same event reads as two different things on one screen.
+  function reactionGlyph(content) {
+    const r = (content || '').trim();
+    if (r === '+' || !r) return '❤️';
+    if (r === '-') return '👎';
+    return r;
+  }
+
+  function addMyReaction(noteId, content) {
+    if (!noteId) return;
+    const set = _myReactions.get(noteId) || new Set();
+    set.add(reactionGlyph(content));
+    _myReactions.set(noteId, set);
+    // Every row on screen for that note, not just the one that was tapped: the same note
+    // can be the target of several notifications (a reply and a reaction to it).
+    document.querySelectorAll('.notif-item[data-notif-id="' + cssEscape(noteId) + '"] .notif-reacted')
+      .forEach((el) => paintMyReactions(el, noteId));
+  }
+
+  function paintMyReactions(el, noteId) {
+    const set = _myReactions.get(noteId);
+    el.innerHTML = '';
+    if (!set || !set.size) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    set.forEach((ch) => el.append(h('span', { className: 'notif-reacted-chip', textContent: ch })));
+  }
+
+  // An event id is 64 hex characters, so this never has anything to escape today. It is
+  // here because the selector above is built from data rather than written out, and the
+  // day something non-hex reaches it, a silent query failure is the good outcome.
+  function cssEscape(v) {
+    return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(v) : String(v).replace(/[^a-zA-Z0-9_-]/g, '');
+  }
+
   // Notes fetched to fill out an expanded notification, kept for the panel's lifetime.
   // Expanding the same row twice, or two reactions to the same note, must not each cost
   // a relay round trip — that is the common shape of a busy notification list.
@@ -4657,6 +4704,16 @@
         }
       }
 
+      // What you reacted with, under the note. Built for every note-like row (empty and
+      // hidden when there is nothing) so a reaction landing later has somewhere to go
+      // without rebuilding the row.
+      let reactedEl = null;
+      if (isNoteLike) {
+        reactedEl = h('div', { className: 'notif-reacted hidden' });
+        paintMyReactions(reactedEl, ev.id);
+        item.appendChild(reactedEl);
+      }
+
       // ---- expand -------------------------------------------------------------------
       //
       // Two different jobs behind one chevron, because the rows look alike and the
@@ -4683,6 +4740,47 @@
         });
         toggle.appendChild(icon('chevron-down'));
         right.appendChild(toggle);
+
+        // ONLY WHEN IT REVEALS SOMETHING. A one-line comment is already whole on the row,
+        // and a chevron that changes nothing on tap reads as broken furniture — reported.
+        //
+        // MEASURED, not guessed from the length. The source cut at 140 characters is half
+        // the story: .notif-content is a three-line clamp, so a 90-character note can wrap
+        // past it, and a 200-character one can fit inside it after mention shortening. The
+        // element has to be laid out to know, so this waits a frame — every insertion path
+        // (the first page, load-more, a live arrival, the off-network group) appends
+        // synchronously, so by then the row is in the document.
+        //
+        // A reaction, repost or zap row always keeps it: there is always a note to fetch.
+        //
+        // OBSERVED, not measured once. A single frame after insertion is too early and
+        // gets it wrong in both directions: the webfont has not swapped in yet, so a note
+        // that will wrap to five lines measures as three and loses its chevron (which is
+        // how this shipped for one round). And the panel is resizable — drag it wider and
+        // a clipped note stops being clipped, so the answer has to be able to change.
+        // The theme gallery watches its own width for the same reason.
+        if (!targetId) {
+          toggle.classList.add('notif-expand-none');
+          const syncToggle = () => {
+            if (!contentEl || !contentEl.isConnected) return;
+            // While expanded the clamp is off, so nothing measures as clipped. Hiding the
+            // control here would strand the row open with no way to collapse it.
+            if (toggle.classList.contains('open')) return;
+            toggle.classList.toggle('notif-expand-none', !(contentEl.scrollHeight > contentEl.clientHeight + 1));
+          };
+          if (contentEl && typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncToggle).observe(contentEl);
+          }
+          // A TIMER, not requestAnimationFrame. rAF never fires while the document is
+          // hidden, and a ResizeObserver is delivered on the same frame loop — so with
+          // the panel closed or occluded when a live notification arrives, the row would
+          // be built with no chevron and keep none. Reading scrollHeight forces layout on
+          // its own; it does not need a frame. Fonts are the other half: the swap changes
+          // how the text wraps, and asking again afterwards is how a note that grows past
+          // three lines gets its chevron.
+          setTimeout(syncToggle, 0);
+          if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncToggle).catch(() => {});
+        }
 
         let built = false;
         function build() {
@@ -4779,6 +4877,10 @@
         emojiPickerModal(async (ch) => {
           try {
             await publishReaction(ev, ch);
+            // The chip is what makes this durable feedback. The toast says it happened;
+            // the chip is still there tomorrow, which is when you want to know whether
+            // you already answered something.
+            addMyReaction(ev.id, ch);
             toast('Reacted ' + ch, 'success');
           } catch (e2) {
             toast(e2.message, 'error');
@@ -5128,6 +5230,28 @@
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
       _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote, addLive };
+
+      // WHICH OF THESE YOU HAVE ALREADY REACTED TO. One query for the whole list rather
+      // than one per row, fired after the sheet is interactive like everything else here,
+      // and painted into rows that are already on screen when it lands.
+      //
+      // Asked of the relays rather than remembered locally, so a reaction sent from
+      // another client counts too — the question is "did I answer this", not "did I
+      // answer this from Sidecar". Reactions of ours from earlier in this session are
+      // already in _myReactions and cost nothing to repaint.
+      (async () => {
+        const ids = events.filter((e) => e.kind === 1 || e.kind === WEB_COMMENT_KIND).map((e) => e.id);
+        if (!ids.length || !relays.length) return;
+        try {
+          const mine = await Promise.race([
+            poolQuerySync(relays, { kinds: [7], authors: [a.pubkey], '#e': ids.slice(0, 100) }),
+            new Promise((res) => setTimeout(() => res([]), 6000)),
+          ]);
+          (mine || []).forEach((r) => addMyReaction(notifTargetId(r), r.content));
+        } catch (_) {
+          // No reaction chips is the same as none sent, which is the safe way to be wrong.
+        }
+      })();
 
       // Background reconciliation — runs after the modal is already open and
       // interactive, so neither of these ever blocks it from appearing:

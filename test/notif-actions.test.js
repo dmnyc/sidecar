@@ -153,6 +153,81 @@ test('THE ACTIONS ARE ICONS, NOT LABELLED BUTTONS', () => {
   assert.match(css, /\.notif-act \{[^}]*width: 30px; height: 30px/, 'the action buttons are no longer tap-sized');
 });
 
+test('THE CHEVRON IS ONLY THERE WHEN IT REVEALS SOMETHING', () => {
+  // Reported: on a one-line comment the toggle changed nothing, so it read as broken
+  // furniture. And it has to be MEASURED — the 140-char source cut is half the story,
+  // since .notif-content is a three-line clamp, so a 90-character note can wrap past it
+  // and a 200-character one can fit inside it after mention shortening.
+  const item = stripComments(lift('function buildItem('));
+  assert.match(item, /toggle\.classList\.add\('notif-expand-none'\)/, 'the chevron is shown unconditionally');
+  assert.match(item, /contentEl\.scrollHeight > contentEl\.clientHeight \+ 1/,
+    'whether the text is clipped is guessed rather than measured');
+  // NOT ON THE FRAME LOOP. requestAnimationFrame never fires while the document is
+  // hidden, and a ResizeObserver is delivered on that same loop, so a row built with the
+  // panel closed or occluded would be measured never and keep no chevron. Reading
+  // scrollHeight forces layout by itself; it does not need a frame.
+  const at = item.indexOf("toggle.classList.add('notif-expand-none')");
+  const block = item.slice(at, at + 900);
+  assert.match(block, /setTimeout\(syncToggle, 0\)/, 'the first measurement is not on a timer');
+  assert.doesNotMatch(block, /requestAnimationFrame/, 'the measurement is back on the frame loop');
+  // The font swap changes how the text wraps, so the answer is asked for again after it.
+  assert.match(block, /document\.fonts\.ready\.then\(syncToggle\)/, 'a font swap can leave the answer stale');
+  assert.match(block, /new ResizeObserver\(syncToggle\)/, 'dragging the panel wider cannot change the answer');
+  // Expanded, the clamp is off and nothing measures as clipped — hiding the control then
+  // would strand the row open with no way back.
+  assert.match(block, /if \(toggle\.classList\.contains\('open'\)\) return/, 'expanding can hide its own control');
+  // A reaction/repost/zap row keeps it: there is always a note to go and fetch.
+  assert.match(item, /if \(!targetId\) \{/, 'the pointer rows lost their chevron too');
+  assert.match(css, /\.notif-expand-none \{ display: none; \}/, 'hiding the chevron leaves a gap');
+});
+
+// ---- what you reacted with -----------------------------------------------------------
+
+test('A REACTION OF YOURS SHOWS ON THE ROW', () => {
+  // Without it, reacting is a toast that disappears and a row that looks exactly as it
+  // did, so tomorrow you cannot tell whether you already answered something — which is
+  // the question a notification list exists to answer.
+  const item = stripComments(lift('function buildItem('));
+  assert.match(item, /className: 'notif-reacted hidden'/, 'the row has nowhere to show a reaction');
+  assert.match(item, /paintMyReactions\(reactedEl, ev\.id\)/, 'an existing reaction is not drawn on build');
+  const actions = stripComments(lift('function buildActions('));
+  assert.match(actions, /addMyReaction\(ev\.id, ch\)/, 'a reaction is published but never shown');
+});
+
+test('the same emoji twice is one chip', () => {
+  const f = stripComments(lift('function addMyReaction('));
+  assert.match(f, /new Set\(\)/, 'reactions are not deduped per note');
+  assert.match(f, /set\.add\(reactionGlyph\(content\)\)/, 'the glyph is stored raw');
+});
+
+test('EVERY ROW FOR THAT NOTE GETS THE CHIP', () => {
+  // One note can be the target of several notifications — a reply, and a reaction to it —
+  // so updating only the row that was tapped would leave the others disagreeing.
+  const f = stripComments(lift('function addMyReaction('));
+  assert.match(f, /querySelectorAll\(/, 'only one row is updated');
+  assert.match(f, /data-notif-id="' \+ cssEscape\(noteId\)/, 'the selector is built from unescaped data');
+});
+
+test('the legacy + and - reactions draw as the sender ones do', () => {
+  // notifLabel already shows a SENDER's '+' as ❤️. A chip of ours that showed a literal
+  // plus sign would make one event read as two different things on one screen.
+  const glyph = fn('function reactionGlyph(', 'reactionGlyph');
+  assert.equal(glyph('+'), '❤️');
+  assert.equal(glyph('-'), '👎');
+  assert.equal(glyph(''), '❤️', 'an empty reaction is a like');
+  assert.equal(glyph('🔥'), '🔥', 'a real emoji must survive exactly as sent');
+});
+
+test('REACTIONS ARE ASKED OF THE RELAYS, NOT JUST REMEMBERED', () => {
+  // The question is "did I answer this", not "did I answer this from Sidecar" — so a
+  // reaction sent from another client, or from this panel before a reload, counts. One
+  // query for the whole list, after the sheet is interactive, capped like the rest.
+  const fnSrc = stripComments(lift('async function showNotifModal('));
+  assert.match(fnSrc, /kinds: \[7\], authors: \[a\.pubkey\], '#e': ids/, 'own reactions are never fetched');
+  assert.match(fnSrc, /addMyReaction\(notifTargetId\(r\), r\.content\)/, 'the results are not painted');
+  assert.match(fnSrc, /setTimeout\(\(\) => res\(\[\]\), \d+\)/, 'the query is uncapped');
+});
+
 // ---- reacting ------------------------------------------------------------------------
 
 test('A REACTION IS A KIND 7 WHOSE CONTENT IS THE EMOJI', () => {
