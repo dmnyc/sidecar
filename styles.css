@@ -4054,3 +4054,16 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   background: var(--hover-soft); border: 1px solid var(--border);
   border-radius: 999px; font-size: 13px; line-height: 1;
 }
+
+/* The reaction picker, layered INSIDE the bell sheet rather than replacing it. There is
+   one #modal element, so anything that went through openModal tore the notification list
+   down and lost the user's place in it. Absolute over the sheet's padding box, opaque, so
+   the list is still there underneath when this closes. */
+.emoji-over {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 22px; border-radius: 18px;
+  background: var(--velvet-1);
+  overflow: hidden;
+}
+.emoji-over:focus { outline: none; }

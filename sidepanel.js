@@ -3942,15 +3942,34 @@
   // worth more than making them findable.
   const QUICK_REACTIONS = ['❤️', '🔥', '👍', '😂', '🙌', '🤙', '😮', '🫡'];
 
-  function emojiPickerModal(onPick) {
+  // OPENED OVER THE SHEET, not instead of it. There is one #modal element, so anything
+  // routed through openModal replaces whatever is already there — which meant reacting
+  // destroyed the notification list and dropped you back on the panel, losing your place
+  // in it. This layers itself inside the sheet instead: the list, its loaded pages and
+  // its scroll position all sit untouched underneath, and dismissing the picker reveals
+  // exactly what you left.
+  function emojiPickerOver(host, onPick) {
     const groups = emojiGroups();
-    openModal((modal) => {
-      modal.classList.add('modal-sheet');
-      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
-      xBtn.appendChild(icon('x'));
-      xBtn.addEventListener('click', closeModal);
-      modal.append(xBtn, h('h3', { textContent: 'React' }));
+    const sheet = h('div', { className: 'emoji-over' });
+    const close = () => sheet.remove();
 
+    const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+    xBtn.appendChild(icon('x'));
+    xBtn.addEventListener('click', close);
+    sheet.append(xBtn, h('h3', { textContent: 'React' }));
+
+    // Escape closes the picker and nothing else. Without stopping it here the panel's own
+    // handler would take it as a dismiss of the sheet behind it.
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || !sheet.isConnected) return;
+      e.stopPropagation();
+      e.preventDefault();
+      close();
+    };
+    sheet.addEventListener('keydown', onKey);
+
+    (() => {
+      const modal = sheet;
       // The table is a static script, so this only fails if the file is missing from a
       // build. Saying so beats an empty sheet that looks like a hung fetch.
       if (!groups) {
@@ -3958,7 +3977,7 @@
         return;
       }
 
-      const pick = (ch) => { closeModal(); onPick(ch); };
+      const pick = (ch) => { close(); onPick(ch); };
 
       const quick = h('div', { className: 'emoji-quick' });
       QUICK_REACTIONS.forEach((ch) => {
@@ -4035,7 +4054,15 @@
       });
 
       showGroup(0);
-    });
+    })();
+
+    host.appendChild(sheet);
+    // The search field, so typing works without a tap. tabindex on the layer itself is
+    // what lets the Escape handler above see the key when nothing inside has focus.
+    sheet.setAttribute('tabindex', '-1');
+    const searchEl = sheet.querySelector('input[type=search]');
+    (searchEl || sheet).focus();
+    return sheet;
   }
 
   // A reaction is a kind:7 whose CONTENT is the emoji (NIP-25). The e/p tags say what
@@ -4091,6 +4118,11 @@
   // relay query for our own kind:7s on sheet open, so a reaction sent from another client
   // — or from this panel before a reload — still shows.
   const _myReactions = new Map(); // note id → Set(emoji)
+
+  // Where the open bell sheet is, set by the sheet itself while it is on screen. Reading
+  // it from an action inside the sheet is what lets that action hand the panel to the
+  // composer and get the list back afterwards, pages and scroll offset included.
+  let notifPlace = () => null;
 
   // '+' is the legacy like and '-' the legacy dislike (NIP-25). notifLabel already draws
   // them as ❤️ and 👎 where a SENDER's reaction is shown, and a chip of ours has to agree
@@ -4573,7 +4605,10 @@
     }
   }
 
-  async function showNotifModal(a) {
+  // `place` puts the sheet back where it was: how many pages had been loaded, and how far
+  // down it was scrolled. Passed when something had to take the panel away — replying
+  // opens the composer — so coming back is not "start again at the top".
+  async function showNotifModal(a, place) {
     const seenAt = _notifSeenAt[a.pubkey] || 0;
     const cache = _notifCache.get(a.pubkey) || { events: [] };
     const now = Math.floor(Date.now() / 1000);
@@ -4887,16 +4922,20 @@
       const replyBtn = actBtn('Reply', icon('message-filled'));
       replyBtn.addEventListener('click', (e) => {
         stop(e);
-        // The composer needs the whole panel, so it replaces this sheet rather than
-        // opening over it.
+        // The composer is the one thing here that cannot open OVER the sheet: it is a
+        // full editor with tabs, media and a review countdown, and it needs the panel.
+        // So the sheet is remembered and rebuilt when the composer closes — the pages
+        // that were loaded and the scroll offset both — rather than dropping you back on
+        // the panel to find your place again.
+        const place = notifPlace();
         closeModal();
-        openComposer('', { replyTo: ev });
+        openComposer('', { replyTo: ev, returnTo: () => showNotifModal(a, place) });
       });
 
       const reactBtn = actBtn('React', icon('heart'));
       reactBtn.addEventListener('click', (e) => {
         stop(e);
-        emojiPickerModal(async (ch) => {
+        emojiPickerOver($('modal'), async (ch) => {
           try {
             await publishReaction(ev, ch);
             // The chip is what makes this durable feedback. The toast says it happened;
@@ -5258,6 +5297,28 @@
       }
 
       if (events.length) loadMore();
+
+      // Back to where you were. The pages first — scrolling to an offset that nothing has
+      // been rendered into yet would just clamp to the bottom of a short list — and then
+      // the offset itself, once the rows exist to give the scroller its height.
+      //
+      // Not exact by construction: a notification that arrived while you were away makes
+      // the list taller, so the offset lands a row or two off. Which is the right kind of
+      // wrong — the alternative is the top of the list, every time.
+      if (place && place.pages > 1) {
+        for (let i = 1; i < place.pages && shown < events.length; i++) loadMore();
+      }
+      if (place && place.scrollTop) {
+        const want = place.scrollTop;
+        // A task rather than a frame: rAF does not run while the document is hidden, and
+        // the scroller needs its children laid out, which reading scrollHeight forces.
+        setTimeout(() => { if (scroll.isConnected) scroll.scrollTop = want; }, 0);
+      }
+
+      // Where the sheet is right now, for whoever has to take the panel away and put it
+      // back. PAGE is the size loadMore works in, so pages is what it would take to
+      // rebuild this much of the list.
+      notifPlace = () => ({ pages: Math.max(1, Math.ceil(shown / PAGE)), scrollTop: scroll.scrollTop });
 
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
@@ -10367,6 +10428,16 @@
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
         if (!published && enteredEditor) persistDraft();
+        // WHERE THIS CAME FROM. A reply started in the bell sheet had to give the
+        // composer the whole panel, and dropping the user out onto the main view
+        // afterwards loses their place in a list they were working through. Runs whether
+        // the reply was posted or abandoned, since either way this is the way back.
+        //
+        // Last, and guarded: it reopens a modal, and it must not be able to stop the
+        // draft above from being saved.
+        if (opts && typeof opts.returnTo === 'function') {
+          try { opts.returnTo(); } catch (_) {}
+        }
       }
     );
   }

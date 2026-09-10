@@ -259,10 +259,63 @@ test('the client tag is READ, not assumed', () => {
 
 // ---- the picker ----------------------------------------------------------------------
 
+test('THE PICKER OPENS OVER THE SHEET, NOT INSTEAD OF IT', () => {
+  // Reported: reacting closed the notification list and dropped you back on the panel,
+  // so you lost your place in a list you were working through. There is one #modal
+  // element, so anything routed through openModal replaces what is already in it — this
+  // layers itself inside instead, leaving the list, its loaded pages and its scroll
+  // offset untouched underneath.
+  const f = stripComments(lift('function emojiPickerOver('));
+  assert.doesNotMatch(f, /openModal\(/, 'the picker replaces the sheet again');
+  assert.match(f, /host\.appendChild\(sheet\)/, 'the picker is not mounted into the sheet');
+  assert.match(f, /const close = \(\) => sheet\.remove\(\)/, 'dismissing the picker does more than remove it');
+  assert.doesNotMatch(f, /closeModal\(\)/, 'the picker can still close the sheet behind it');
+  const actions = stripComments(lift('function buildActions('));
+  assert.match(actions, /emojiPickerOver\(\$\('modal'\)/, 'the React button no longer opens it over the sheet');
+  assert.match(css, /\.emoji-over \{[^}]*position: absolute/, 'the layer does not cover the sheet');
+});
+
+test('escape closes the picker and not the sheet under it', () => {
+  const f = stripComments(lift('function emojiPickerOver('));
+  assert.match(f, /e\.key !== 'Escape'/, 'the picker ignores Escape');
+  assert.match(f, /e\.stopPropagation\(\)/, "Escape falls through to the panel's own dismiss");
+});
+
+test('REPLYING COMES BACK TO WHERE YOU WERE', () => {
+  // The composer is the one action that cannot open over the sheet — it is a full editor
+  // with tabs, media and a review countdown, and it needs the panel. So the sheet is
+  // rebuilt afterwards with the pages it had loaded and the offset it was scrolled to,
+  // whether the reply was posted or abandoned.
+  const actions = stripComments(lift('function buildActions('));
+  assert.match(actions, /const place = notifPlace\(\)/, 'the place is not captured before leaving');
+  assert.match(actions, /returnTo: \(\) => showNotifModal\(a, place\)/, 'nothing brings the sheet back');
+  const composer = stripComments(lift('async function openComposer('));
+  assert.match(composer, /typeof opts\.returnTo === 'function'/, 'the composer ignores returnTo');
+  // Guarded and last: it opens a modal, and must not be able to stop the draft save.
+  const at = composer.indexOf('opts.returnTo');
+  assert.match(composer.slice(at - 200, at), /persistDraft\(\)/, 'the return runs before the draft is saved');
+  assert.match(composer.slice(at, at + 120), /try \{/, 'a failing return can break closing the composer');
+});
+
+test('the sheet restores pages before the offset', () => {
+  // Scrolling to an offset nothing has been rendered into clamps to the bottom of a
+  // short list, so the pages have to come back first.
+  const fnSrc = stripComments(lift('async function showNotifModal('));
+  const pages = fnSrc.indexOf('place.pages > 1');
+  const off = fnSrc.indexOf('place.scrollTop');
+  assert.ok(pages !== -1 && off !== -1, 'the restore moved');
+  assert.ok(pages < off, 'the offset is restored before the rows exist to scroll through');
+  assert.match(fnSrc, /notifPlace = \(\) => \(\{ pages: Math\.max\(1, Math\.ceil\(shown \/ PAGE\)\)/,
+    'the sheet no longer reports where it is');
+  // A timer, not a frame: rAF does not run while the document is hidden.
+  assert.match(fnSrc, /setTimeout\(\(\) => \{ if \(scroll\.isConnected\) scroll\.scrollTop = want/,
+    'the offset is restored on the frame loop');
+});
+
 test('THE PICKER RENDERS ONE GROUP AT A TIME', () => {
   // Every cell is a real button, for the keyboard and for a screen reader, and 1,914 of
   // those is a visible hitch on open in a 360px panel. The largest group is 388.
-  const f = stripComments(lift('function emojiPickerModal('));
+  const f = stripComments(lift('function emojiPickerOver('));
   assert.match(f, /function showGroup\(i\)/, 'the picker no longer shows a single group');
   assert.match(f, /paintGrid\(groups\[i\]\[1\]\)/, 'a tab paints something other than its group');
   assert.match(f, /createDocumentFragment/, 'the cells are appended one at a time');
@@ -272,7 +325,7 @@ test('THE PICKER RENDERS ONE GROUP AT A TIME', () => {
 test('search reads across every group', () => {
   // Nobody knows which of the nine groups "shrug" is in, which is the whole point of
   // having a search box over a table that is already grouped.
-  const f = stripComments(lift('function emojiPickerModal('));
+  const f = stripComments(lift('function emojiPickerOver('));
   assert.match(f, /for \(const \[, rows\] of groups\)/, 'search no longer covers every group');
   assert.match(f, /row\[1\]\.includes\(q\)/, 'search no longer matches on the name');
   assert.match(f, /No emoji matches that/, 'a search with no hits says nothing');
@@ -281,7 +334,7 @@ test('search reads across every group', () => {
 test('A MISSING EMOJI TABLE SAYS SO', () => {
   // The table is a plain script tag, so this only fails if the file is missing from a
   // build — but an empty sheet reads as a hung fetch, and there is nothing to wait for.
-  const f = stripComments(lift('function emojiPickerModal('));
+  const f = stripComments(lift('function emojiPickerOver('));
   assert.match(f, /The emoji table did not load/, 'a missing table leaves an empty sheet');
   const g = stripComments(lift('function emojiGroups('));
   assert.match(g, /Array\.isArray\(table\) && table\.length/, 'the table is trusted without checking');
