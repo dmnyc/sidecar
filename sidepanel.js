@@ -3919,6 +3919,192 @@
     return { images, av };
   }
 
+  // ---- the reaction picker ---------------------------------------------------------
+  //
+  // 1,914 emoji in nine groups, from the vendored table (emoji-data.js, self.SidecarEmoji).
+  //
+  // ONE GROUP AT A TIME, not all of them in one scroller. Every cell is a real button —
+  // it has to be, for the keyboard and for a screen reader — and 1,914 of those is a
+  // visible hitch on open in a 360px panel. The largest group is 388, which builds
+  // imperceptibly, and switching groups replaces the grid rather than adding to it.
+  //
+  // Search is the escape hatch from that, and it reads across every group: nobody knows
+  // which of the nine "shrug" is in. Results are capped for the same reason as above.
+  const EMOJI_SEARCH_MAX = 120;
+
+  function emojiGroups() {
+    const table = self.SidecarEmoji;
+    return Array.isArray(table) && table.length ? table : null;
+  }
+
+  // A short row of the ones people actually reach for, above the grid. Same idea as the
+  // zap presets: most reactions are one of a handful, and making those a single tap is
+  // worth more than making them findable.
+  const QUICK_REACTIONS = ['❤️', '🔥', '👍', '😂', '🙌', '🤙', '😮', '🫡'];
+
+  function emojiPickerModal(onPick) {
+    const groups = emojiGroups();
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      xBtn.appendChild(icon('x'));
+      xBtn.addEventListener('click', closeModal);
+      modal.append(xBtn, h('h3', { textContent: 'React' }));
+
+      // The table is a static script, so this only fails if the file is missing from a
+      // build. Saying so beats an empty sheet that looks like a hung fetch.
+      if (!groups) {
+        modal.append(h('p', { className: 'hint', textContent: 'The emoji table did not load. Reload Sidecar and try again.' }));
+        return;
+      }
+
+      const pick = (ch) => { closeModal(); onPick(ch); };
+
+      const quick = h('div', { className: 'emoji-quick' });
+      QUICK_REACTIONS.forEach((ch) => {
+        const b = h('button', { className: 'emoji-cell emoji-quick-cell', type: 'button', textContent: ch, title: ch });
+        b.addEventListener('click', () => pick(ch));
+        quick.append(b);
+      });
+      modal.append(quick);
+
+      const search = h('input', { type: 'search', placeholder: 'Search emoji', autocomplete: 'off' });
+      modal.append(search);
+
+      const tabs = h('div', { className: 'emoji-tabs' });
+      const grid = h('div', { className: 'emoji-grid' });
+      const scroll = h('div', { className: 'emoji-scroll' }, [grid]);
+      modal.append(tabs, scroll);
+
+      // Built from the group's own first emoji rather than a hand-picked icon per tab:
+      // nine more glyphs to choose and keep in step with the table would be nine more
+      // things to get wrong when the table is regenerated.
+      let active = 0;
+      function paintGrid(rows) {
+        grid.innerHTML = '';
+        // A fragment, because appending 388 buttons one at a time reflows 388 times.
+        const frag = document.createDocumentFragment();
+        rows.forEach(([ch, name]) => {
+          const b = h('button', { className: 'emoji-cell', type: 'button', textContent: ch, title: name });
+          b.setAttribute('aria-label', name);
+          b.addEventListener('click', () => pick(ch));
+          frag.append(b);
+        });
+        grid.append(frag);
+        scroll.scrollTop = 0;
+      }
+      function showGroup(i) {
+        active = i;
+        [...tabs.children].forEach((t, n) => t.classList.toggle('active', n === i));
+        paintGrid(groups[i][1]);
+      }
+      groups.forEach((g, i) => {
+        const t = h('button', {
+          className: 'emoji-tab',
+          type: 'button',
+          textContent: g[1][0] ? g[1][0][0] : '•',
+          title: g[0],
+        });
+        t.setAttribute('aria-label', g[0]);
+        t.addEventListener('click', () => { search.value = ''; showGroup(i); });
+        tabs.append(t);
+      });
+
+      let searchTimer = null;
+      search.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        // Debounced: a query runs over every name in the table, and doing that per
+        // keystroke while someone types "party" is five passes for one answer.
+        searchTimer = setTimeout(() => {
+          const q = search.value.trim().toLowerCase();
+          if (!q) { showGroup(active); return; }
+          [...tabs.children].forEach((t) => t.classList.remove('active'));
+          const hits = [];
+          for (const [, rows] of groups) {
+            for (const row of rows) {
+              if (row[1].includes(q)) {
+                hits.push(row);
+                if (hits.length >= EMOJI_SEARCH_MAX) break;
+              }
+            }
+            if (hits.length >= EMOJI_SEARCH_MAX) break;
+          }
+          paintGrid(hits);
+          if (!hits.length) grid.append(h('p', { className: 'hint', textContent: 'No emoji matches that.' }));
+        }, 120);
+      });
+
+      showGroup(0);
+    });
+  }
+
+  // A reaction is a kind:7 whose CONTENT is the emoji (NIP-25). The e/p tags say what
+  // is being reacted to and whose it is; k carries the target's kind, which lets a
+  // client filter reactions without fetching the note.
+  async function publishReaction(target, emoji) {
+    const tags = [
+      ['e', target.id],
+      ['p', target.pubkey],
+      ['k', String(target.kind)],
+    ];
+    // Read here rather than closed over: there is no panel-wide settings object, and the
+    // composer's copy is local to its own send path.
+    let clientTag = true;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      clientTag = !(s && s.showClientTag === false);
+    } catch (_) { /* default on, matching the composer */ }
+    const event = {
+      kind: 7,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: clientTag ? [...tags, CLIENT_TAG.slice()] : tags,
+      content: emoji,
+    };
+    // expectedPubkey, like every other owner-signed event here: a reaction signed by an
+    // account that changed underneath it would be published as the wrong identity.
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: state.activePubkey });
+    await publishSigned(signed);
+    return signed;
+  }
+
+  // WHICH NOTE a notification is about, for the ones that carry no content of their
+  // own. A reaction, a repost and a zap receipt are all just a pointer: the row can say
+  // "reacted to your note" from the kind alone, but "which note" lives in an `e` tag.
+  //
+  // The LAST e tag, not the first. On a reply chain the root comes first and the note
+  // actually being answered comes last (NIP-10's positional form), and for a reaction
+  // the note reacted to is the last one too. Reposts and zap receipts carry one.
+  function notifTargetId(ev) {
+    if (!ev || !Array.isArray(ev.tags)) return '';
+    let id = '';
+    for (const t of ev.tags) if (t[0] === 'e' && t[1]) id = t[1];
+    return id;
+  }
+
+  // Notes fetched to fill out an expanded notification, kept for the panel's lifetime.
+  // Expanding the same row twice, or two reactions to the same note, must not each cost
+  // a relay round trip — that is the common shape of a busy notification list.
+  const _noteCache = new Map(); // id → event | null (null = asked, nothing came back)
+
+  async function fetchNoteById(id) {
+    if (!id) return null;
+    if (_noteCache.has(id)) return _noteCache.get(id);
+    let ev = null;
+    try {
+      // Capped like fetchStatus: a note that no configured relay holds is a normal
+      // outcome (it may live only on the sender's), and the expanded row says so
+      // rather than spinning.
+      ev = await Promise.race([
+        poolGet(await relayUrls(false), { ids: [id] }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+    } catch (_) {
+      ev = null;
+    }
+    _noteCache.set(id, ev || null);
+    return ev || null;
+  }
+
   function cleanSnippet(content) {
     return content
       .replace(/nostr:(npub1\S+|nprofile1\S+)/g, (_, entity) => {
@@ -4266,6 +4452,41 @@
         return list;
       }
 
+      // The bell's refresh button asks the relays again, through THIS addEvent rather
+      // than a copy of it. addEvent is what drops your own events, applies the mute
+      // list, de-dupes by id, prefetches the sender's name and appends to an open
+      // sheet — five behaviors that would have to stay in step in a second copy.
+      //
+      // A live subscription is already running, so this is not how notifications
+      // normally arrive. It is for the case the live sub cannot cover: the service
+      // worker was evicted while the panel sat idle, or a relay dropped and
+      // reconnected, and the sheet opens from cache with no way to ask.
+      //
+      // Re-reads the relay list instead of closing over the one above, since relays can
+      // be added or removed while the panel stays open.
+      cache.refetch = async () => {
+        const urls = await relayUrls(false);
+        if (!urls.length) return;
+        const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
+        await Promise.all(
+          buildFilters(from, 50).map(
+            (f) =>
+              new Promise((resolve) => {
+                let settled = false;
+                const finish = () => { if (!settled) { settled = true; resolve(); } };
+                // Capped, because a relay that never sends EOSE would otherwise leave the
+                // button spinning for as long as the sheet stays open.
+                setTimeout(finish, 6000);
+                try {
+                  poolSubscribeManyEose(urls, f, { onevent: addEvent, onclose: finish });
+                } catch (_) {
+                  finish();
+                }
+              })
+          )
+        );
+      };
+
       const liveSince = Math.floor(Date.now() / 1000);
       // nostr-tools ≥2.20 subscriptions take a single filter object, not an array —
       // open one subscription per filter (the pool shares the relay sockets).
@@ -4389,35 +4610,22 @@
       const actionRow = h('div', { className: 'notif-action', textContent: text });
       item.appendChild(actionRow);
 
-      // REPLY, but only where replying means something.
-      //
-      // A note or a comment can be answered. A reaction, a repost or a zap receipt
-      // cannot — there is no thread to join, and a reply tagging a kind:7 would show up
-      // in nobody's client as anything sensible. Offering a button that produces a
-      // dead-end event is worse than not offering one.
-      //
-      // The row itself is an anchor that opens the note in a client, so this is a real
-      // button that stops the event: without that, tapping Reply would ALSO follow the
-      // link and leave a new tab open behind the composer.
-      if (ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) {
-        const replyBtn = h('button', { className: 'notif-reply', type: 'button' }, [
-          icon('message-filled'),
-          h('span', { textContent: 'Reply' }),
-        ]);
-        replyBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          closeModal();
-          openComposer('', { replyTo: ev });
-        });
-        actionRow.appendChild(replyBtn);
-      }
+      // A note or a comment can be answered, reacted to and zapped. A reaction, a repost
+      // or a zap receipt cannot — there is no thread to join, and a kind:7 tagging
+      // another kind:7 shows up in nobody's client as anything sensible. Offering a
+      // button that produces a dead-end event is worse than not offering one, so those
+      // rows expand to show WHICH of your notes they are about and stop there.
+      const isNoteLike = ev.kind === 1 || ev.kind === WEB_COMMENT_KIND;
+      const targetId = isNoteLike ? '' : notifTargetId(ev);
 
-      if ((ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) && ev.content) {
+      let contentEl = null;
+      let fullText = '';
+      if (isNoteLike && ev.content) {
         const cleaned = cleanSnippet(ev.content);
+        fullText = cleaned;
         if (cleaned) {
           const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
-          const contentEl = h('p', { className: 'notif-content', textContent: snippet });
+          contentEl = h('p', { className: 'notif-content', textContent: snippet });
           // data-note-id lets the background mention-name patch below (see
           // showNotifModal) find and re-render this snippet once a mentioned
           // profile resolves — it's rendered here with whatever names are
@@ -4448,7 +4656,235 @@
           );
         }
       }
+
+      // ---- expand -------------------------------------------------------------------
+      //
+      // Two different jobs behind one chevron, because the rows look alike and the
+      // question you have about them does not:
+      //
+      //   a reply or a mention   you can read the snippet but it is cut at 140 chars,
+      //                          and you may want to answer it. Expanding gives the
+      //                          whole text and the three things you can do with it.
+      //   a reaction, repost     the row carries no content at all — only a pointer.
+      //   or a zap               "reacted to your note" is the half of the sentence
+      //                          you did not need. Expanding fetches the note.
+      //
+      // Everything in here stops the click. The row is an anchor that opens the note in
+      // a client, so without that, tapping Reply would also follow the link and leave a
+      // tab open behind the composer.
+      if (isNoteLike || targetId) {
+        const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+        const panel = h('div', { className: 'notif-expand hidden' });
+        const toggle = h('button', {
+          className: 'notif-expand-btn',
+          type: 'button',
+          title: 'Expand',
+          'aria-expanded': 'false',
+        });
+        toggle.appendChild(icon('chevron-down'));
+        right.appendChild(toggle);
+
+        let built = false;
+        function build() {
+          if (built) return;
+          built = true;
+
+          // The snippet's 140-char cut is undone in place rather than by adding a second
+          // copy of the text below it, which would read as the note being quoted twice.
+          //
+          // TWO cuts, not one, and the second is CSS. .notif-content is a 3-line
+          // -webkit-line-clamp, so replacing the text alone left it clipped at the same
+          // three lines with an ellipsis the browser drew — the row looked like expanding
+          // had done nothing. The class lifts the clamp.
+          if (contentEl) {
+            if (fullText.length > 140) contentEl.textContent = fullText;
+            contentEl.classList.add('notif-content-full');
+          }
+
+          if (targetId) {
+            const note = h('div', { className: 'notif-target' }, [
+              h('div', { className: 'notif-target-label', textContent: 'Your note' }),
+              h('p', { className: 'notif-target-body', textContent: 'Looking for it…' }),
+            ]);
+            panel.appendChild(note);
+            const body = note.querySelector('.notif-target-body');
+            fetchNoteById(targetId).then((got) => {
+              if (!body.isConnected) return;
+              // A note no configured relay holds is a normal outcome — it may live only
+              // on the sender's relays — and saying so beats a row stuck on "looking".
+              if (!got) {
+                body.textContent = 'That note is not on your relays.';
+                body.classList.add('notif-target-missing');
+                return;
+              }
+              const text = cleanSnippet(got.content || '');
+              body.textContent = text || '(no text)';
+            });
+          }
+        }
+
+        toggle.addEventListener('click', (e) => {
+          stop(e);
+          build();
+          const open = panel.classList.toggle('hidden') === false;
+          toggle.classList.toggle('open', open);
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+          toggle.title = open ? 'Collapse' : 'Expand';
+        });
+        item.appendChild(panel);
+      }
+
+      // The actions are NOT behind the chevron. They are what you came to the row to do,
+      // and a drawer to reach them is a tap that buys nothing — the chevron is for
+      // reading (the rest of the text, or the note a reaction is about), which is a
+      // different question.
+      //
+      // Which is affordable because they are ICONS. Three labelled buttons is ~200px of
+      // minimum width and reads as a toolbar under every row; three icons at rest are
+      // quiet enough to repeat 25 times down a list.
+      if (isNoteLike) {
+        const stopAct = (e) => { e.preventDefault(); e.stopPropagation(); };
+        item.appendChild(buildActions(ev, stopAct));
+      }
       return item;
+    }
+
+    // Reply, react and zap, on their own row under the note. Icon-only, and titled: the
+    // glyphs are the same three this app already uses for these verbs (the composer's
+    // bubble, the reaction heart, the filled zap bolt), so the row reads without labels,
+    // and an aria-label carries each one for anything that cannot see them.
+    function buildActions(ev, stop) {
+      const row = h('div', { className: 'notif-actions' });
+      const err = h('div', { className: 'error' });
+
+      const actBtn = (label, glyph) => {
+        const b = h('button', { className: 'notif-act', type: 'button', title: label });
+        b.setAttribute('aria-label', label); // 'aria-label' via Object.assign never reaches the attribute
+        b.append(glyph);
+        return b;
+      };
+
+      const replyBtn = actBtn('Reply', icon('message-filled'));
+      replyBtn.addEventListener('click', (e) => {
+        stop(e);
+        // The composer needs the whole panel, so it replaces this sheet rather than
+        // opening over it.
+        closeModal();
+        openComposer('', { replyTo: ev });
+      });
+
+      const reactBtn = actBtn('React', icon('heart'));
+      reactBtn.addEventListener('click', (e) => {
+        stop(e);
+        emojiPickerModal(async (ch) => {
+          try {
+            await publishReaction(ev, ch);
+            toast('Reacted ' + ch, 'success');
+          } catch (e2) {
+            toast(e2.message, 'error');
+          }
+        });
+      });
+
+      const zapBtn = actBtn('Zap', boltIcon());
+      const zapForm = h('div', { className: 'notif-zap hidden' });
+      let zapBuilt = false;
+      zapBtn.addEventListener('click', (e) => {
+        stop(e);
+        if (!zapBuilt) {
+          zapBuilt = true;
+          buildZapForm(ev, zapForm, err, stop);
+        }
+        zapForm.classList.toggle('hidden');
+        zapBtn.classList.toggle('open', !zapForm.classList.contains('hidden'));
+      });
+
+      row.append(replyBtn, reactBtn, zapBtn);
+      const wrap = h('div', { className: 'notif-act-wrap' }, [row, zapForm, err]);
+      return wrap;
+    }
+
+    // The amount form, built on first tap rather than with the row: it costs a profile
+    // fetch to learn whether this person can even be zapped, and doing that for all 25
+    // rows in the list would be 25 round trips for the one zap somebody sends.
+    function buildZapForm(ev, zapForm, err, stop) {
+      const who = zapSender(ev);
+      const amount = satsInput('sats');
+      const presets = h('div', { className: 'peek-zap-presets' });
+      [21, 100, 1000, 5000].forEach((n) => {
+        const b = h('button', { className: 'secondary peek-preset', type: 'button', textContent: fmtSats(n) });
+        b.addEventListener('click', (e) => { stop(e); amount.value = String(n); amount.focus(); });
+        presets.append(b);
+      });
+      const comment = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
+      const send = h('button', { className: 'primary', type: 'button', textContent: 'Send zap' });
+      const status = h('div', { className: 'hint', textContent: 'Checking their lightning address…' });
+      zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]));
+
+      let addr = '';
+      send.disabled = true;
+      // Same gate the profile sheet uses: an address without allowsNostr can take a
+      // payment but can never produce a receipt, so a Zap button on it is a promise it
+      // cannot keep.
+      relayUrls(false)
+        .then((relays) => poolGet(relays, { kinds: [0], authors: [who] }))
+        .then(async (prof) => {
+          if (!zapForm.isConnected) return;
+          let lud = '';
+          try { lud = (JSON.parse(prof.content) || {}).lud16 || ''; } catch (_) {}
+          if (!lud) throw new Error('They have no lightning address.');
+          const p = await lnAddressParams(lud);
+          if (!p.zappable) throw new Error('Their lightning address cannot receive zaps.');
+          if (!zapForm.isConnected) return;
+          addr = lud;
+          send.disabled = false;
+          status.textContent = lud;
+        })
+        .catch((e2) => {
+          if (!zapForm.isConnected) return;
+          status.textContent = e2 && e2.message ? e2.message : 'They cannot be zapped.';
+        });
+
+      send.addEventListener('click', async (e) => {
+        stop(e);
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        err.textContent = '';
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = 'Sending…';
+        try {
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          // `event`, not just `pubkey`: makeZapRequest adds the e tag from it, which is
+          // what makes this a zap OF THE NOTE rather than a zap of its author. Without it
+          // the receipt shows up on their profile with no note attached.
+          const invoice = await zapInvoice({
+            addr,
+            msats: sats * 1000,
+            comment: comment.value.trim(),
+            recipientPubkey: who,
+            event: ev,
+          });
+          const res = await client.payInvoice(invoice);
+          await savePayMeta(invoice, {
+            zapPubkey: who,
+            address: addr,
+            comment: comment.value.trim(),
+            feeMsat: res && res.fees_paid,
+          });
+          lightningStrike();
+          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          zapForm.classList.add('hidden');
+          amount.value = '';
+          comment.value = '';
+        } catch (e2) {
+          err.textContent = e2.message;
+        } finally {
+          send.disabled = false;
+          send.textContent = label;
+        }
+      });
     }
 
     openModal((modal) => {
@@ -4458,6 +4894,51 @@
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
+
+      // REFRESH, beside the close button and sharing its metrics on purpose: an icon in
+      // the sheet's corner is the one place a control fits here without taking width from
+      // the list. The sheet opens from cache, so this is the only way to ask the relays
+      // whether anything landed while it was shut.
+      //
+      // Whatever comes back arrives through addEvent, which already appends to this open
+      // list (see _openNotifBell.addLive), so there is nothing to re-render here.
+      const refreshBtn = h('button', {
+        className: 'modal-x notif-refresh',
+        type: 'button',
+        title: 'Check for new notifications',
+      });
+      refreshBtn.appendChild(icon('refresh'));
+      refreshBtn.addEventListener('click', async () => {
+        if (refreshBtn.disabled) return;
+        refreshBtn.disabled = true;
+        refreshBtn.classList.add('spinning');
+        const before = (_notifCache.get(a.pubkey) || { events: [] }).events.length;
+        try {
+          const cached = _notifCache.get(a.pubkey);
+          // No refetch on the cache means the subscriptions never started for this
+          // account (no relays at the time, say), so start them.
+          if (cached && cached.refetch) await cached.refetch();
+          else await initNotifSubs();
+        } catch (_) {
+          // A relay failing is the normal case here, and the answer is simply that the
+          // list does not grow. An error toast would be noise on a surface that is
+          // allowed to come back empty.
+        } finally {
+          // The sheet may have been closed while the fetch was in flight.
+          if (refreshBtn.isConnected) {
+            refreshBtn.disabled = false;
+            refreshBtn.classList.remove('spinning');
+          }
+        }
+        // Nothing new is the usual answer, and silence reads as a dead button — the same
+        // reasoning as the wallet's refresh striking an unchanged balance.
+        // 'success', not 'info': toast() only draws two kinds and treats anything that is
+        // not 'error' as a success, so 'info' would read in the source as a neutral toast
+        // this app cannot draw.
+        const after = (_notifCache.get(a.pubkey) || { events: [] }).events.length;
+        if (after === before) toast('No new notifications', 'success');
+      });
+      modal.appendChild(refreshBtn);
 
       // WHOSE notifications — but only when that is a real question.
       //
@@ -15174,7 +15655,11 @@
   // Requires the provider to opt in: allowsNostr plus a nostrPubkey, which
   // lnAddressParams already surfaces as `zappable`. A provider without it cannot
   // produce a receipt however the button is labelled.
-  async function zapInvoice({ addr, msats, comment, recipientPubkey }) {
+  // `event` is optional: with it, makeZapRequest adds an `e` tag and the zap is of that
+  // NOTE (which is how a client shows it under the note, and how the recipient can tell
+  // what was zapped). Without it the zap is of the person, which is what the profile
+  // sheet sends.
+  async function zapInvoice({ addr, msats, comment, recipientPubkey, event }) {
     const { meta } = await lnAddressParams(addr);
     if (!(meta.allowsNostr && meta.nostrPubkey)) {
       throw new Error('That lightning address cannot receive zaps, only payments.');
@@ -15186,12 +15671,11 @@
     // The relays the recipient's provider should publish the receipt to. Theirs, not
     // ours: a receipt on relays they never read is a receipt they never see.
     const relays = (await readRelayUrls(recipientPubkey)).slice(0, 6);
-    const template = NT.nip57.makeZapRequest({
-      pubkey: recipientPubkey,
-      amount: msats,
-      relays,
-      comment: comment || '',
-    });
+    // makeZapRequest reads the recipient off `event.pubkey` when an event is given, so
+    // the two forms are exclusive rather than additive.
+    const template = event
+      ? NT.nip57.makeZapRequest({ event, amount: msats, relays, comment: comment || '' })
+      : NT.nip57.makeZapRequest({ pubkey: recipientPubkey, amount: msats, relays, comment: comment || '' });
 
     // PUBLIC ONLY, for now. Anonymous (an ephemeral signing key) and private (the
     // sender encrypted into an `anon` tag) both worked out to be worse than sending

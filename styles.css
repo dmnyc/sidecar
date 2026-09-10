@@ -1398,37 +1398,6 @@ a.notif-clickable:hover { background: var(--hover-soft); }
   align-items: center;
   gap: 8px;
 }
-/* An offer beside the text, not a call to action competing with it — but legible at
-   rest. --faint on a transparent border read as disabled, and a control nobody can see
-   is not restraint. It sits at the same weight as the action text it follows, and both
-   hovers say so: the row's hover lifts it with the card, and its own hover gives it a
-   border and full text color. */
-.notif-reply {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--hover-soft);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 3px 9px;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-}
-/* Hovering the CARD, not the button: the whole row is a link, so the button has to
-   come up with it or it looks inert on the one surface the user is already pointing at. */
-.notif-clickable:hover .notif-reply { color: var(--text-2); border-color: var(--border-strong); }
-.notif-reply:hover {
-  color: var(--text);
-  border-color: var(--gold-soft);
-  background: var(--hover-soft);
-}
-.notif-reply svg { width: 12px; height: 12px; display: block; }
 
 /* What a reply is answering, above the editor. Same role as .webcomment-target. */
 .reply-target {
@@ -1484,6 +1453,10 @@ a.notif-clickable:hover { background: var(--hover-soft); }
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
+/* Expanded: the clamp comes off. The 140-char cut in the source and this 3-line clamp
+   are two different truncations of the same text, and undoing only the first left the
+   row looking like the chevron did nothing. */
+.notif-content-full { display: block; -webkit-line-clamp: none; overflow: visible; white-space: pre-wrap; }
 .notif-link { display: flex; align-items: center; color: var(--faint); flex-shrink: 0; }
 a.notif-clickable:hover .notif-link { color: var(--lav); }
 .notif-link svg { width: 13px; height: 13px; }
@@ -3967,3 +3940,101 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 /* The lightning row is a control now, so it has to say so on hover. */
 .peek-meta[title] { cursor: pointer; }
 .peek-meta[title]:hover { color: var(--gold); }
+
+/* The bell sheet's refresh, sharing .modal-x's metrics because it is the same kind of
+   object: an icon in the sheet's corner, where a control costs the list no width. Sits
+   left of the close button rather than in the heading, which has to hold a two-line
+   title beside an avatar on a multi-account panel. */
+.notif-refresh { right: 48px; }
+.notif-refresh svg { width: 17px; height: 17px; display: block; }
+/* Spins while the fetch is in flight, so a slow relay looks busy rather than dead —
+   the same treatment .profile-backup-jump uses. */
+.notif-refresh.spinning svg { animation: profile-refresh-spin 0.9s linear infinite; }
+.notif-refresh:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  .notif-refresh.spinning svg { animation: none; opacity: 0.5; }
+}
+
+/* ===== expanding a notification ===== */
+/* The chevron sits in the row's top-right slot beside the time and the open-in-client
+   arrow. Icon only, and it has to be: that slot is flex-shrink:0 next to a truncating
+   author name, so anything with words in it takes width from the name. */
+.notif-expand-btn {
+  background: none; border: none; padding: 0 0 0 2px; margin: 0;
+  display: inline-flex; align-items: center;
+  color: var(--muted); cursor: pointer; flex-shrink: 0;
+  transition: color 0.12s ease, transform 0.15s ease;
+}
+.notif-expand-btn svg { width: 15px; height: 15px; display: block; }
+.notif-expand-btn:hover { color: var(--gold); }
+.notif-expand-btn.open { transform: rotate(180deg); }
+.notif-clickable:hover .notif-expand-btn { color: var(--text-2); }
+@media (prefers-reduced-motion: reduce) {
+  .notif-expand-btn { transition: color 0.12s ease; }
+}
+
+/* Indented to the same 22px gutter .notif-content uses, so the glyph column stays clear
+   and an expanded row reads as belonging to the one above it. */
+.notif-expand { margin: 8px 0 2px 22px; }
+
+/* The note a reaction, repost or zap is about — your own note, quoted back at you, which
+   is the half of "reacted to your note" the row cannot say. Left rule rather than a card:
+   it is context inside a row that is already a card, and a second border reads as a
+   second object. Same treatment as .reply-target above the composer. */
+.notif-target { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 10px; }
+.notif-target-label {
+  font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--faint); margin-bottom: 2px;
+}
+.notif-target-body { font-size: 12.5px; color: var(--text-2); margin: 0; white-space: pre-wrap; }
+.notif-target-missing { color: var(--faint); font-style: italic; }
+
+/* Reply, react, zap. Icons only and always visible, rather than three labelled buttons
+   behind the chevron: labels are ~200px of minimum width and read as a toolbar under
+   every row, where icons at rest are quiet enough to repeat 25 times down a list.
+   Left-aligned at the same 22px gutter the content uses, so the glyph column stays clear.
+   Sized as tap targets (30px), not shrunk to fit — the row has the height to spare. */
+.notif-act-wrap { margin: 6px 0 0 22px; }
+.notif-actions { display: flex; gap: 2px; }
+.notif-act {
+  width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  color: var(--muted); cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.notif-act svg { width: 15px; height: 15px; display: block; }
+.notif-act .bolt-ico { height: 15px; width: auto; }
+/* Hovering the CARD, not the button: the whole row is a link, so these have to come up
+   with it or they look inert on the surface the pointer is already over. */
+.notif-clickable:hover .notif-act { color: var(--text-2); }
+.notif-act:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+/* The zap icon stays lit while its form is open, since the form appears below the row
+   and nothing else says which button opened it. */
+.notif-act.open { color: var(--gold); background: var(--hover-medium); border-color: var(--gold-soft); }
+.notif-zap { margin-top: 8px; }
+
+/* ===== the reaction picker ===== */
+/* A grid of characters, so the cells are square and sized by the glyph rather than by a
+   label. 8 across fits the 300px of usable sheet width at a tap target that is still
+   comfortable; the browser fills as many as the width allows. */
+.emoji-quick { display: flex; gap: 4px; margin: 2px 0 4px; }
+.emoji-scroll { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; }
+.emoji-cell {
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  padding: 0; aspect-ratio: 1; min-height: 34px;
+  font-size: 20px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.emoji-cell:hover { background: var(--hover-medium); border-color: var(--border-strong); }
+.emoji-quick-cell { flex: 1 1 0; min-width: 0; background: var(--hover-soft); border-color: var(--border); }
+/* The group row. Each tab is that group's first emoji, so nine more glyphs never have to
+   be chosen and kept in step with the vendored table. */
+.emoji-tabs { display: flex; gap: 2px; margin: 8px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.emoji-tab {
+  flex: 1 1 0; min-width: 0; background: none; border: none; border-radius: 8px;
+  padding: 5px 0; font-size: 17px; line-height: 1; cursor: pointer; opacity: 0.55;
+}
+.emoji-tab:hover { background: var(--hover-medium); opacity: 1; }
+.emoji-tab.active { background: var(--hover-medium); opacity: 1; box-shadow: inset 0 -2px 0 var(--gold); }

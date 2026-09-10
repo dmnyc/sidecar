@@ -795,6 +795,11 @@
   <script src="nwc-client.js"></script>
   <script src="relay-health.js"></script>
   <script src="wot.js"></script>
+  <!-- The reaction picker's emoji table (self.SidecarEmoji). Vendored and generated;
+       see VENDOR.md. Static data, so it is parsed once here rather than fetched when
+       the picker opens: 52KB of JSON over a message port, on a surface that has to
+       feel instant, is the worse trade. -->
+  <script src="emoji-data.js"></script>
   <script src="version.js"></script>
   <script src="sidepanel.js"></script>
 </body>
