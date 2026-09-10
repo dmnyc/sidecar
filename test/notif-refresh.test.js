@@ -40,7 +40,10 @@ function lift(decl) {
 // The refetch body, brace-matched from its own arrow. A fixed-length slice kept cutting
 // at the `};` of the inner promise callback rather than the end of the function.
 function refetchBlock(fn) {
-  const at = fn.indexOf('cache.refetch');
+  // The ASSIGNMENT, not any mention of it: `cache.refetching` and `cache.refetchAdded`
+  // both appear earlier, inside addEvent, and an indexOf('cache.refetch') lifted that
+  // function's tail instead — every assertion below then failed as if the code were gone.
+  const at = fn.indexOf('cache.refetch = async');
   if (at === -1) throw new Error('cache.refetch is gone');
   const open = fn.indexOf('{', fn.indexOf('=>', at));
   let depth = 0;
@@ -95,7 +98,41 @@ test('IT SAYS SO WHEN NOTHING CAME BACK', () => {
   // the same reason the wallet's refresh strikes an unchanged balance.
   const fn = stripComments(lift('async function showNotifModal('));
   assert.match(fn, /No new notifications/, 'a refresh that finds nothing gives no feedback');
-  assert.match(fn, /after === before/, 'the feedback is not conditional on the count being unchanged');
+  assert.match(fn, /if \(!added\) return toast/, 'the feedback is not conditional on anything arriving');
+});
+
+test('WHAT ARRIVED IS COUNTED, NOT MEASURED BY LENGTH', () => {
+  // The cache is capped at 100. Comparing its length before and after would report "no
+  // new notifications" for a full cache that had just rotated new ones in — and would
+  // then skip the rebuild, leaving them invisible.
+  const add = stripComments(lift('async function initNotifSubs('));
+  assert.match(add, /if \(cache\.refetching\) cache\.refetchAdded\+\+/, 'arrivals are not counted');
+  assert.match(add, /cache\.refetchAdded = 0/, 'the count is never reset per refresh');
+  const sheet = stripComments(lift('async function showNotifModal('));
+  assert.match(sheet, /refetchAdded \|\| 0/, 'the button reads something other than the count');
+  assert.doesNotMatch(sheet, /after === before/, 'the length comparison came back');
+});
+
+test('A REFETCH DOES NOT STREAM HISTORY INTO AN OPEN SHEET', () => {
+  // The bug this fixes: refetch replays up to a week through addEvent, and addLive puts
+  // an arrival at the TOP because a live event is newer than everything by definition.
+  // Refresh therefore showed two-day-old notes above "just now", and left the page
+  // indices pointing at the wrong slice of a list that had grown underneath them.
+  const add = stripComments(lift('async function initNotifSubs('));
+  assert.match(add, /_openNotifBell\.pubkey === a\.pubkey && !cache\.refetching/,
+    'a backfill can prepend history to an open sheet again');
+  const refetch = refetchBlock(add);
+  assert.match(refetch, /cache\.refetching = true/, 'the backfill is not marked as history');
+  // In a finally, or one failed refresh leaves every later live notification invisible.
+  assert.match(refetch, /finally \{\s*cache\.refetching = false;/, 'the flag can stick on failure');
+});
+
+test('IT REBUILDS THE LIST FROM THE SORTED CACHE', () => {
+  // The cache is newest-first and the sheet's paging is computed from it at open, so the
+  // honest way to show a backfill is to build the list again rather than insert into it.
+  const sheet = stripComments(lift('async function showNotifModal('));
+  assert.match(sheet, /if \(refreshBtn\.isConnected\) showNotifModal\(a\)/,
+    'a refresh that found something does not rebuild the list');
 });
 
 test('the spinner stops even if the sheet closed mid-fetch', () => {

@@ -4462,6 +4462,11 @@
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
         if (cache.events.length > 100) cache.events.length = 100;
+        // What a refresh actually brought in. Counted here rather than compared as a
+        // length before and after, because the cap above makes those equal once the cache
+        // is full — a hundred-deep list would have reported "no new notifications" while
+        // quietly rotating new ones in.
+        if (cache.refetching) cache.refetchAdded++;
         // zapSender: fetch the profile of whoever the row will NAME — for a zap
         // that is the zapper, not the LNURL service that signed the receipt.
         // When it resolves, pruneNameMuted re-checks this event against the
@@ -4472,7 +4477,14 @@
         // The notif modal for this account is open right now — append the new
         // event to the visible list instead of leaving it to only show up the
         // next time the modal is reopened.
-        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) {
+        //
+        // NOT DURING A REFETCH. That path is a backfill: it replays up to a week of
+        // history through this same function, and addLive puts an arrival at the TOP of
+        // the list because a live event is newer than everything by definition. A
+        // two-day-old note prepended above "just now" is what refresh looked like when
+        // it went out — reported. The refresh rebuilds the list from the sorted cache
+        // when it finishes instead, which is also what makes its paging right.
+        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey && !cache.refetching) {
           // Routed through the bell's own sort rather than prepended blind: it decides
           // in-network versus the collapsed group, clears the empty state, and marks the
           // end of the list.
@@ -4515,23 +4527,33 @@
         const urls = await relayUrls(false);
         if (!urls.length) return;
         const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
-        await Promise.all(
-          buildFilters(from, 50).map(
-            (f) =>
-              new Promise((resolve) => {
-                let settled = false;
-                const finish = () => { if (!settled) { settled = true; resolve(); } };
-                // Capped, because a relay that never sends EOSE would otherwise leave the
-                // button spinning for as long as the sheet stays open.
-                setTimeout(finish, 6000);
-                try {
-                  poolSubscribeManyEose(urls, f, { onevent: addEvent, onclose: finish });
-                } catch (_) {
-                  finish();
-                }
-              })
-          )
-        );
+        // Marks everything arriving from here as history rather than a live arrival, so
+        // addEvent above keeps filtering and caching it but stops inserting it into an
+        // open sheet at the top. Cleared in a finally, or one failed refresh would leave
+        // every later live notification invisible until the sheet was reopened.
+        cache.refetching = true;
+        cache.refetchAdded = 0;
+        try {
+          await Promise.all(
+            buildFilters(from, 50).map(
+              (f) =>
+                new Promise((resolve) => {
+                  let settled = false;
+                  const finish = () => { if (!settled) { settled = true; resolve(); } };
+                  // Capped, because a relay that never sends EOSE would otherwise leave
+                  // the button spinning for as long as the sheet stays open.
+                  setTimeout(finish, 6000);
+                  try {
+                    poolSubscribeManyEose(urls, f, { onevent: addEvent, onclose: finish });
+                  } catch (_) {
+                    finish();
+                  }
+                })
+            )
+          );
+        } finally {
+          cache.refetching = false;
+        }
       };
 
       const liveSince = Math.floor(Date.now() / 1000);
@@ -5014,7 +5036,6 @@
         if (refreshBtn.disabled) return;
         refreshBtn.disabled = true;
         refreshBtn.classList.add('spinning');
-        const before = (_notifCache.get(a.pubkey) || { events: [] }).events.length;
         try {
           const cached = _notifCache.get(a.pubkey);
           // No refetch on the cache means the subscriptions never started for this
@@ -5037,8 +5058,19 @@
         // 'success', not 'info': toast() only draws two kinds and treats anything that is
         // not 'error' as a success, so 'info' would read in the source as a neutral toast
         // this app cannot draw.
-        const after = (_notifCache.get(a.pubkey) || { events: [] }).events.length;
-        if (after === before) toast('No new notifications', 'success');
+        const added = (_notifCache.get(a.pubkey) || {}).refetchAdded || 0;
+        if (!added) return toast('No new notifications', 'success');
+
+        // REBUILT FROM THE CACHE, not streamed in. The cache is sorted newest-first and
+        // the sheet's paging is computed from it at open, so the honest way to show a
+        // week of backfill is to build the list again — reopening does exactly that, in
+        // place, and lands you at the top where the newest are.
+        //
+        // Streaming them into the open list instead is what shipped first, and it put
+        // two-day-old notes above "just now" while leaving the page indices pointing at
+        // the wrong slice of a list that had grown underneath them.
+        if (refreshBtn.isConnected) showNotifModal(a);
+        toast(added === 1 ? '1 new notification' : added + ' new notifications', 'success');
       });
       modal.appendChild(refreshBtn);
 
