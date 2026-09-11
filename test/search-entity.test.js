@@ -16,7 +16,21 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { nip19 } = require('nostr-tools');
+// The vendored bundle, not the npm package. package.json declares no dependencies
+// at all — deliberately, for an extension that holds keys and ships no remote code
+// (see REVIEWERS.md, which documents each vendored library as a byte-exact copy) —
+// so `require('nostr-tools')` could never resolve and this file has been failing to
+// even load. Loading nostr-tools.js is also the more honest test: it exercises the
+// exact bytes the extension ships rather than whatever npm would have resolved.
+// Same approach as owner-sign.test.js and the other keystore tests.
+const vmLoad = require('node:vm');
+vmLoad.runInThisContext(
+  require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'nostr-tools.js'), 'utf8'),
+  { filename: 'nostr-tools.js' }
+);
+const nostrTools = globalThis.NostrTools;
+if (!nostrTools || !nostrTools.nip19) throw new Error('vendored nostr-tools.js did not expose nip19');
+const { nip19 } = nostrTools;
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
