@@ -95,6 +95,7 @@
   --warn: #8C1D22;
   --warn-rgb: 140, 29, 34;
   --success: #2F6B3A;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
   --success-rgb: 47, 107, 58;
 
   /* THE UNREAD BADGE, and it is designed here rather than discovered later. An
@@ -324,6 +325,8 @@
 [data-theme="werkstatte"] .npub-qr-face:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .sk-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .profile-avatar:not(.theme-card):not(.theme-card *),
+/* The same face on the peek sheet, for the same reason as .profile-avatar. */
+[data-theme="werkstatte"] .peek-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .upload-preview:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .chip-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .acct-row-av:not(.theme-card):not(.theme-card *),

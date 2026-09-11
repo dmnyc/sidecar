@@ -8,6 +8,16 @@
 
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
   // a stored value is missing or invalid.
+  // The three fixed zap presets, plus one the user owns. 21 is the fallback — the zap
+  // everyone sends — which means a fresh install shows three chips rather than four,
+  // since the fourth would be a second 21. The slot earns its place once it is set.
+  const ZAP_PRESETS_FIXED = [21, 100, 1000];
+  const ZAP_DEFAULT_SATS = 21;
+  // A typo away from a very large default, and the chip fills an amount field that is one
+  // tap from a payment. A preset is for the zaps you send without thinking, so four
+  // digits is the whole range that needs to be one tap away — anything bigger is worth
+  // typing out in full, and a stray zero is caught rather than saved.
+  const ZAP_DEFAULT_MAX = 9999;
   const AUTOZAP_DEFAULT_MAX = 200;
   const AUTOZAP_DAILY_MULT = 100; // default daily cap = 100× the per-zap cap
   // Ceilings on the no-confirmation path — mirrored from background.js, which is
@@ -67,7 +77,14 @@
   }
   async function call(message) {
     const resp = await bg(message);
-    if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Request failed');
+    if (!resp || !resp.ok) {
+      const err = new Error((resp && resp.error) || 'Request failed');
+      // The wipe check refuses an owner sign by throwing; carrying the finding
+      // through lets a caller offer a specific confirmation ("Removes all 1,071
+      // accounts you follow") rather than a generic failure.
+      if (resp && resp.destructive) err.destructive = resp.destructive;
+      throw err;
+    }
     return resp.result;
   }
 
@@ -175,6 +192,12 @@
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
     plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
+    // A painter's palette, for the per-account theme override. Not `flower`, which is
+    // already Blossom's own mark (see KIND_ICONS 10063/24242) and would read as a
+    // media-server action sitting in the account menu. The wells are filled rather than
+    // stroked, the same as `grip` below: at r=1.5 an unfilled circle is a ring with a
+    // hole in it, not a dot of paint.
+    palette: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.93 0 1.68-.75 1.68-1.68 0-.44-.17-.83-.44-1.13a1.66 1.66 0 0 1 1.24-2.77h1.98A5.54 5.54 0 0 0 22 10.88C22 5.98 17.52 2 12 2z"></path><circle cx="6.5" cy="11.5" r="1.5" fill="currentColor"></circle><circle cx="9.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="14.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="17.5" cy="11.5" r="1.5" fill="currentColor"></circle>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
@@ -384,6 +407,18 @@
   // documents each read the setting for themselves.
   const THEME_ALIASES = { 'art-deco': 'industria' };
 
+  // Display names, for the one place a theme is chosen from a list rather than from
+  // the picker's card grid: the per-account override in the account menu. Same order
+  // as validThemes below and as the picker in sidepanel.html — dark first, then light
+  // — and a guard test keeps the keys in step, since a theme present in one and
+  // missing from the other would be unpickable rather than visibly broken.
+  const THEME_LABELS = [
+    ['speakeasy', 'Speakeasy'], ['film-noir', 'Film Noir'], ['brownstone', 'Brownstone'],
+    ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'], ['metropolis', 'Metropolis'],
+    ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
+    ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
+  ];
+
   function applyTheme(themeName) {
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
@@ -398,16 +433,33 @@
     // reads it.
     document.querySelectorAll('.avatar-ph img').forEach((img) => { img.src = avatarPhSrc(); });
 
-    // Update active state in theme selector
-    document.querySelectorAll('.theme-card').forEach(card => {
-      card.classList.toggle('active', card.dataset.theme === themeName);
-    });
-    // Show the half of the gallery the active theme is in. Called on load too, so opening
-    // Settings lands on your own theme's mode rather than always on Dark.
-    const active = document.querySelector('.theme-card.active');
-    if (active) showThemeMode(active.dataset.mode || 'dark');
-
     return themeName;
+  }
+
+  // WHAT THE PANEL WEARS: this account's own theme, or the default if it never chose.
+  // Returns the theme actually applied, which is what the pay card is then told about.
+  function applyResolvedTheme(settings) {
+    return applyTheme(resolveTheme(settings, state.activePubkey));
+  }
+
+  // WHICH CARD THE GALLERY MARKS: the theme on screen, since the gallery sets the theme
+  // for the account you are in. Kept out of applyTheme so there is exactly one place that
+  // decides it — applyTheme runs on every render, including the lock screen, where
+  // mounting twelve preview documents to mark a card nobody is looking at is waste.
+  function paintThemePicker(theme) {
+    const marked = THEME_ALIASES[theme] || theme || 'speakeasy';
+    const cards = [...document.querySelectorAll('.theme-card')];
+    cards.forEach((card) => card.classList.toggle('active', card.dataset.theme === marked));
+    // A name no card offers — a theme since removed and not aliased, a hand-edited
+    // setting — would leave the gallery with nothing marked and no half revealed, which
+    // is the "why is nothing selected" mystery. applyTheme clamps the panel the same way.
+    let active = cards.find((c) => c.classList.contains('active'));
+    if (!active && cards.length) {
+      active = cards.find((c) => c.dataset.theme === 'speakeasy') || cards[0];
+      active.classList.add('active');
+    }
+    // Open on the half the marked card is in, rather than always on Dark.
+    if (active) showThemeMode(active.dataset.mode || 'dark');
   }
 
   // Wrap a password <input> so a check/x indicator can sit at its right edge.
@@ -679,6 +731,14 @@
   let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
+  // The fourth zap preset. Cached here rather than read per form, the same way
+  // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
+  // that is expected to open without a round trip.
+  let defaultZapSats = ZAP_DEFAULT_SATS;
+  // And whether that is this account's OWN amount or just the built-in 21. The row needs
+  // the difference: an account that has chosen gets its chip, one that has not gets a [+]
+  // offering to choose, and 21 alone cannot tell those apart.
+  let defaultZapIsOwn = false;
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
@@ -934,7 +994,14 @@
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     zapFlash = !(settings && settings.zapFlash === false); // default on
-    applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
+    // Re-resolved on every state change, which includes an account switch — so the zap
+    // rows drawn after a switch offer the amount belonging to whoever you switched to.
+    defaultZapSats = resolveZapDefault(settings, state.activePubkey);
+    defaultZapIsOwn = !!(settings && settings.zapDefaultBy && state.activePubkey &&
+      settings.zapDefaultBy[state.activePubkey]);
+    // The ACTIVE account's theme, for the same reason and on the same beat: a switch has
+    // to change what the panel wears, not just what it offers.
+    applyResolvedTheme(settings);
     applyHideBalances();
     closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
@@ -1708,10 +1775,291 @@
       .forEach((el, i) => el.classList.toggle('active', i === searchIndex));
   }
 
+  // Do they follow you? Their kind:3 answers it, and getFollowCount already fetches
+  // that event — but it keeps only the count, so this asks again rather than
+  // widening a cached number into something it was never asked to hold.
+  const _followsBackCache = new Map(); // their pubkey -> boolean
+  async function followsYou(pubkey) {
+    if (!pubkey || !state.activePubkey) return null;
+    if (_followsBackCache.has(pubkey)) return _followsBackCache.get(pubkey);
+    try {
+      const ev = await poolGet(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
+      // No kind:3 at all is NOT "does not follow you" — it is "no answer". Saying
+      // the former would put a confident negative on screen from a relay timeout.
+      if (!ev) return null;
+      const yes = ev.tags.some((t) => t[0] === 'p' && t[1] === state.activePubkey);
+      _followsBackCache.set(pubkey, yes);
+      return yes;
+    } catch (_) { return null; }
+  }
+
+  // A profile, in Sidecar's own theme, for someone who is not you.
+  //
+  // This replaces the straight hand-off in openProfileFor below, which sent every
+  // search result to the preferred client. The point of the change is the moment
+  // BEFORE the hand-off: checking that an npub is who you think it is,
+  // before you mention them, follow them or pay them. That is a signer's job. What
+  // it deliberately does not do is show their notes — that is a client's job, and
+  // the "View in ..." button at the bottom is where the hand-off still lives.
+  async function openProfileSheet(pubkey) {
+    const npub = NT.nip19.npubEncode(pubkey);
+    const cached = _profileCache.get(pubkey);
+    openModal((modal) => {
+      // NOT modal-sheet. That class exists for the notifications list, which fills
+      // the panel and scrolls an inner element; it sets overflow:hidden and
+      // height:100%, so a sheet without its own scroller simply loses anything past
+      // the bottom edge — an expanded bio, or the zap form, or both. The plain
+      // .modal already does the right thing here: max-height 90vh, overflow auto,
+      // and it sizes to its content instead of leaving ~425px of empty velvet
+      // under a short profile.
+      const head = h('div', { className: 'peek-head' });
+      const banner = h('div', { className: 'peek-banner peek-banner-ph' });
+      head.append(banner);
+      const av = avatarEl({ npub }, 'peek-avatar');
+      head.append(av);
+      modal.append(head);
+
+      // Their status, in the same balloon the Profile tab uses for yours.
+      const balloon = h('div', { className: 'status-balloon peek-status hidden' });
+      const balloonText = h('span', { className: 'status-balloon-text' });
+      balloon.append(balloonText);
+      head.insertBefore(balloon, av);
+
+      const body = h('div', { className: 'peek-body' });
+      const name = h('div', { className: 'peek-name', textContent: shortNpub(npub) });
+      const nip05Row = h('div', { className: 'peek-meta hidden' });
+      // Relationship + reach, on one line. Both are answers to "is this the person
+      // I mean", which is what the sheet is for.
+      // Same markup as the Profile tab's own stat line (.profile-stats /
+      // .profile-stat): plain centred text, not pills. A badge reads as a control
+      // you can press, and none of this is pressable.
+      const rel = h('div', { className: 'profile-stats peek-rel' });
+      const followNum = h('strong', { textContent: '…' });
+      rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
+      const about = h('p', { className: 'peek-about' });
+      const lud = h('div', { className: 'peek-meta hidden' });
+      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
+      modal.append(body);
+
+      getFollowCount(pubkey).then((n) => {
+        if (modal.isConnected) followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+      });
+
+      // Two independent facts, each rendered only once known. A relay that never
+      // answers leaves both off rather than asserting a negative.
+      if (state.activePubkey && pubkey !== state.activePubkey) {
+        getFollowList().then((list) => {
+          if (!modal.isConnected) return;
+          if ((list || []).some((c) => c.pubkey === pubkey)) {
+            rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: 'You follow' }));
+          }
+        }).catch(() => {});
+        followsYou(pubkey).then((yes) => {
+          if (modal.isConnected && yes) {
+            rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: 'Follows you' }));
+          }
+        });
+      }
+
+      fetchStatus(pubkey).then((st) => {
+        if (!modal.isConnected || !st || !st.text) return;
+        balloonText.textContent = st.text;
+        balloon.classList.remove('hidden');
+      });
+
+      // Zap. Hidden until we know they have a lightning address, because offering
+      // to pay someone who cannot be paid is worse than not offering.
+      let zapAddr = '';
+      let lastAbout = null; // guards renderAbout against a second, identical pass
+      const zapWrap = h('div', { className: 'peek-zap hidden' });
+      const zapErr = h('div', { className: 'error' });
+      const zapBtn = h('button', { className: 'secondary peek-zap-open' });
+      zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
+      const zapForm = h('div', { className: 'peek-zap-form hidden' });
+      const amount = satsInput('sats');
+      // Presets first, keyboard second: most zaps are one of a few round numbers,
+      // and on a 358px panel a row of taps beats a numeric keyboard covering half
+      // the sheet. The fourth of them is the one set in Settings.
+      const presets = zapPresetRow(amount);
+      const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
+      const send = h('button', { className: 'primary', textContent: 'Send zap' });
+      send.addEventListener('click', async () => {
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (zapErr.textContent = 'Enter an amount in sats.');
+        zapErr.textContent = '';
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = 'Sending…';
+        try {
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          const invoice = await zapInvoice({
+            addr: zapAddr,
+            msats: sats * 1000,
+            comment: note.value.trim(),
+            recipientPubkey: pubkey,
+          });
+          const res = await client.payInvoice(invoice);
+          // NWC history keeps the amount and nothing else, so an outgoing zap
+          // rendered as a bare "Sent" with no counterparty. Both the other payment
+          // paths already record this — the Send form keys the address and note by
+          // invoice, and the background records zapPubkey for a zap a website sent
+          // through WebLN — and this one recorded nothing at all.
+          //
+          // zapPubkey is what makes txRow read it as a zap: zapFromTx can only find
+          // a zap on something we RECEIVED, because an outgoing one is a plain
+          // invoice we paid. Without it the row says "Sent" and names a lightning
+          // address at best.
+          await savePayMeta(invoice, {
+            zapPubkey: pubkey,
+            address: zapAddr,
+            comment: note.value.trim(),
+            feeMsat: res && res.fees_paid,
+          });
+          lightningStrike(); // only once it settles
+          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          zapForm.classList.add('hidden');
+          amount.value = '';
+          note.value = '';
+        } catch (e) {
+          zapErr.textContent = e.message;
+        } finally {
+          send.disabled = false;
+          send.textContent = label;
+        }
+      });
+      zapBtn.addEventListener('click', () => {
+        zapForm.classList.toggle('hidden');
+        if (!zapForm.classList.contains('hidden')) amount.focus();
+      });
+      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]),
+        zapDefaultSaver(amount, presets), zapErr);
+      zapWrap.append(zapBtn, zapForm);
+      modal.append(zapWrap);
+
+      const actions = h('div', { className: 'peek-actions' });
+      // Secondary, not primary. Once the zap form is open there would otherwise be
+      // two filled buttons competing, and the hand-off is the way OUT of the sheet
+      // rather than the thing it is for.
+      const open = h('button', { className: 'secondary', textContent: 'View in client' });
+      open.addEventListener('click', async () => {
+        const client = await preferredClient();
+        openInClient(client.profile(npub));
+        closeModal();
+      });
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      actions.append(open, close);
+      modal.append(actions);
+
+      preferredClient().then((c) => { open.textContent = 'View in ' + c.label; });
+
+      function paint(c) {
+        if (!c) return;
+        if (c.banner) {
+          const img = document.createElement('img');
+          img.referrerPolicy = 'no-referrer';
+          img.src = c.banner;
+          img.onload = () => { banner.classList.remove('peek-banner-ph'); banner.innerHTML = ''; banner.append(img); };
+        }
+        if (c.picture) applyAvatar(av, { picture: c.picture });
+        const display = c.display_name || c.displayName || c.name || '';
+        if (display) name.textContent = display;
+        nip05Row.classList.add('hidden');
+        if (c.nip05) {
+          const badge = h('span', { className: 'nip05-badge' });
+          nip05Row.innerHTML = '';
+          nip05Row.append(h('span', { textContent: c.nip05 }), badge);
+          nip05Row.classList.remove('hidden');
+          verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res); });
+        }
+        // renderAbout APPENDS, and paint() runs twice — once from cache, once from
+        // the relays — so the bio rendered twice on any already-cached profile.
+        //
+        // Clearing on every paint was the first fix and it was worse: renderAbout
+        // decides whether to add its Show more/Show less button inside a
+        // requestAnimationFrame, so wiping the container between the call and that
+        // frame left the check measuring a detached node, which reports zero height
+        // and concludes nothing needs collapsing. The bio then expanded with no way
+        // back. Render once per distinct text instead.
+        if ((c.about || '') !== lastAbout) {
+          lastAbout = c.about || '';
+          about.innerHTML = '';
+          if (c.about) renderAbout(about, c.about);
+        }
+        if (c.lud16) {
+          lud.innerHTML = '';
+          lud.append(boltIcon(), h('span', { textContent: c.lud16 }));
+          lud.classList.remove('hidden');
+          lud.title = 'Copy lightning address';
+          lud.onclick = () => {
+            navigator.clipboard.writeText(c.lud16).then(
+              () => toast('Lightning address copied', 'success'),
+              () => toast('Could not copy', 'error')
+            );
+          };
+          zapAddr = c.lud16;
+          // Only offered once the provider is known to support NIP-57. A lightning
+          // address without allowsNostr can take a payment but can never produce a
+          // receipt, and a button saying Zap would be a promise it cannot keep.
+          lnAddressParams(c.lud16).then((p) => {
+            if (modal.isConnected && p.zappable) zapWrap.classList.remove('hidden');
+          }).catch(() => {});
+        }
+      }
+
+      // Cache first so the sheet is never empty on open, then the network.
+      if (cached && cached.content) paint(cached.content);
+      relayUrls(false).then((relays) => poolGet(relays, { kinds: [0], authors: [pubkey] })).then((ev) => {
+        if (!ev || !modal.isConnected) return;
+        try { const c = JSON.parse(ev.content) || {}; cacheProfile(pubkey, c); paint(c); } catch (_) {}
+      }).catch(() => {});
+    });
+  }
+
   async function openProfileFor(pubkey) {
     const client = await preferredClient();
     openInClient(client.profile(NT.nip19.npubEncode(pubkey)));
     closeSearch();
+  }
+
+  // Search a well-known name and the global index returns a column of identical
+  // rows — same display name, same picture, different keys. Nothing on the row said
+  // which one your circle actually knows, and picking wrong means mentioning,
+  // following or zapping an impersonator.
+  //
+  // Ranked, not filtered. An impersonator is not the only reason a stranger appears
+  // in a name search, and hiding results would make the honest ones unreachable —
+  // the same reasoning as the notification bell, which groups rather than drops.
+  //
+  // Three tiers: someone you follow, someone at least ten of your follows follow,
+  // and everyone else. The middle one is the interesting one, because a domain can
+  // be bought but ten of your follows cannot easily be persuaded.
+  //
+  // Uses the web-of-trust set ONLY IF IT IS ALREADY WARM. Building it reads a
+  // kind:3 per follow, which is not something to start from a keystroke; it is
+  // warmed in the background for the bell. No set means no tiers and no marks —
+  // the order is left exactly as it was, because a blank mark on every row says
+  // nothing while a wrong one says something false.
+  function trustTier(pubkey, followedSet) {
+    if (followedSet.has(pubkey)) return 2;
+    const warm = _wotSet && _wotPubkey === state.activePubkey && _wotSet.size ? _wotSet : null;
+    if (warm && self.SidecarWot && self.SidecarWot.inNetwork(warm, pubkey)) return 1;
+    return 0;
+  }
+
+  function rankByTrust(items, follows) {
+    const followedSet = new Set((follows || []).map((c) => c.pubkey));
+    const warm = _wotSet && _wotPubkey === state.activePubkey && _wotSet.size;
+    items.forEach((c) => { c.tier = trustTier(c.pubkey, followedSet); });
+    if (!warm) return items; // follows already lead; nothing else is known
+    // Stable: equal tiers keep the order the index and the follow match produced.
+    return items
+      .map((c, i) => [c, i])
+      .sort((a, b) => (b[0].tier - a[0].tier) || (a[1] - b[1]))
+      .map(([c]) => c);
   }
 
   function renderSearchResults(items, loading, askEl) {
@@ -1726,7 +2074,12 @@
       const av = h('span', { className: 'ac-item-av' });
       applyAvatar(av, c.picture ? { picture: c.picture } : {});
       item.append(av, h('span', { className: 'ac-item-name', textContent: c.name }));
-      item.addEventListener('mousedown', (e) => { e.preventDefault(); openProfileFor(c.pubkey); });
+      // Only ever a positive claim. Tier 0 gets nothing rather than "unknown":
+      // absence of a vouch is not evidence, and labelling it would read as an
+      // accusation the panel cannot support.
+      if (c.tier === 2) item.append(h('span', { className: 'ac-item-trust', textContent: 'Following' }));
+      else if (c.tier === 1) item.append(h('span', { className: 'ac-item-trust', textContent: 'In your network' }));
+      item.addEventListener('mousedown', (e) => { e.preventDefault(); closeSearch(); openProfileSheet(c.pubkey); });
       box.append(item);
     });
     if (loading) {
@@ -1758,10 +2111,10 @@
     let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
     const paint = () => {
       if (seq !== searchAcSeq) return;
-      const seen = new Set(follows.map((c) => c.pubkey));
+      const followed = new Set(follows.map((c) => c.pubkey));
       const merged = follows.slice();
-      for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-      renderSearchResults(merged.slice(0, 8), globalPending, askEl);
+      for (const g of globals) { if (!followed.has(g.pubkey)) { followed.add(g.pubkey); merged.push(g); } }
+      renderSearchResults(rankByTrust(merged, follows).slice(0, 8), globalPending, askEl);
     };
 
     const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
@@ -3159,6 +3512,81 @@
     return ok;
   }
 
+  // ---- NIP-38 user status (kind 30315) ---------------------------------------
+  //
+  // An addressable event whose `d` tag names the KIND of status, not an id, so
+  // one per type per account and each new one replaces the last. The spec defines
+  // two: `general` ("Working", "Hiking") and `music`. Sidecar only writes
+  // `general` — `music` is meant to be written automatically by whatever is
+  // playing the track, with an expiry matching when it stops, and a signer has no
+  // media player to read.
+  const STATUS_KIND = 30315;
+  const STATUS_D = 'general';
+
+  // EMPTY CONTENT IS THE CLEAR. Per the spec, "if the content is an empty string
+  // then the client should clear the status" — so clearing is a publish, not a
+  // deletion. A kind:5 would ask relays to forget the event, which is a request
+  // they may ignore and which leaves readers holding the old text either way.
+  // Publishing empty replaces it everywhere the addressable event already is.
+  const STATUS_DURATIONS = [
+    { label: 'No expiry', seconds: 0 },
+    { label: '1 hour', seconds: 3600 },
+    { label: '4 hours', seconds: 4 * 3600 },
+    { label: '1 day', seconds: 24 * 3600 },
+  ];
+
+  // Pure, so the tag shape can be tested without a relay or a key.
+  function statusEvent({ text, url, seconds }, now) {
+    const at = now || Math.floor(Date.now() / 1000);
+    const tags = [['d', STATUS_D]];
+    const link = (url || '').trim();
+    if (link) tags.push(['r', link]);
+    // NIP-40. Only meaningful alongside content: an expiry on an empty status
+    // would ask relays to eventually drop the very event that says "no status",
+    // which resurrects whatever it replaced.
+    const ttl = Number(seconds) || 0;
+    const content = (text || '').trim();
+    if (content && ttl > 0) tags.push(['expiration', String(at + ttl)]);
+    return { kind: STATUS_KIND, created_at: at, tags, content };
+  }
+
+  // A status is live only if it has content AND has not expired. Relays are asked
+  // to drop expired events but are not required to, and a client that trusted the
+  // event's presence would show a stale "In a meeting" for hours afterwards.
+  function readStatus(ev, now) {
+    if (!ev || !ev.content) return null;
+    const at = now || Math.floor(Date.now() / 1000);
+    const expTag = (ev.tags || []).find((t) => t[0] === 'expiration');
+    const exp = expTag ? Number(expTag[1]) || 0 : 0;
+    if (exp && exp <= at) return null;
+    const rTag = (ev.tags || []).find((t) => t[0] === 'r');
+    return { text: ev.content, url: rTag ? rTag[1] : '', expiresAt: exp, at: ev.created_at || 0 };
+  }
+
+  async function publishStatus(fields) {
+    const event = statusEvent(fields);
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
+    await publishSigned(signed);
+    return readStatus(signed);
+  }
+
+  // Own status only. Reading other people's would make the panel a feed reader,
+  // and Sidecar is a companion to a client rather than a replacement for one.
+  async function fetchStatus(pubkey) {
+    if (!pubkey) return null;
+    try {
+      const ev = await Promise.race([
+        poolGet(await relayUrls(false), {
+          kinds: [STATUS_KIND], authors: [pubkey], '#d': [STATUS_D],
+        }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+      return readStatus(ev);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // pubkey → { tries, at, settled }. `settled` means stop asking: either the profile
   // landed, or the relays gave a definitive answer that there's nothing to store.
   const profileFetchState = new Map();
@@ -3298,6 +3726,132 @@
   // Tag first, invoice second: the zap request is what the sender ASKED for and the
   // invoice is what was actually billed. They agree in practice, and the tag is cheaper
   // than parsing.
+  // ONE ROW, TWO FORMS. The profile sheet and a notification row both offer these, and
+  // they were two copies of the same four buttons — so the settable fourth would have had
+  // to be added twice, which is how one of them ends up a release behind the other.
+  //
+  // Deduped, because the default is the user's: setting it to 100 would otherwise draw
+  // the chip twice, and a row with two identical buttons reads as a rendering bug.
+  function zapPresets() {
+    const list = ZAP_PRESETS_FIXED.slice();
+    // Only an amount the account actually chose. Without this the built-in 21 would be
+    // indistinguishable from a chosen one, and the [+] that offers to choose would never
+    // appear for anybody.
+    if (defaultZapIsOwn && !list.includes(defaultZapSats)) list.push(defaultZapSats);
+    // SORTED, not appended. The row is an ascending scale, and a default of 500 tacked
+    // on the end read as a mistake sitting beside 1,000 — it belongs between 100 and
+    // 1,000, where the eye is already looking for it.
+    return list.sort((a, b) => a - b);
+  }
+
+  // `stop` is passed where the row lives inside something clickable — a notification row
+  // is an anchor that opens the note in a client, so without it a preset tap would also
+  // follow the link.
+  function zapPresetRow(amountEl, stop, onPick) {
+    const row = h('div', { className: 'peek-zap-presets' });
+    zapPresets().forEach((n) => {
+      const b = h('button', { className: 'secondary peek-preset', type: 'button', textContent: fmtSats(n) });
+      b.addEventListener('click', (e) => {
+        if (stop) stop(e);
+        amountEl.value = String(n);
+        amountEl.focus();
+        // Setting .value fires no input event, so anything watching the field has to be
+        // told. A listener on the row itself would not survive the row being rebuilt.
+        if (onPick) onPick(n);
+      });
+      row.append(b);
+    });
+
+    // [+] WHEN THERE IS NOTHING IN THE FOURTH SLOT. With 21 as the built-in and the row
+    // deduped, an account that has never set an amount shows three chips and no sign that
+    // a fourth is available — the only way in was to know you could type a number and
+    // watch a line appear. This is that sign.
+    //
+    // It focuses the amount field rather than prompting: the field is right there, and
+    // typing into it is what makes the "Save N as your default" line offer to keep it.
+    if (!defaultZapIsOwn) {
+      const add = h('button', {
+        className: 'secondary peek-preset peek-preset-add',
+        type: 'button',
+        textContent: '+',
+        title: 'Set your own amount',
+      });
+      add.setAttribute('aria-label', 'Set your own zap amount');
+      add.addEventListener('click', (e) => {
+        if (stop) stop(e);
+        amountEl.focus();
+        amountEl.select();
+      });
+      row.append(add);
+    }
+    return row;
+  }
+
+  // SET THE DEFAULT FROM WHERE YOU USE IT. The amount you keep typing is the one worth
+  // keeping, and the alternative was: remember it, close the sheet, open Settings, expand
+  // Wallet & payments, type it again.
+  //
+  // Only offered when it would change something. A blank field or an amount that is
+  // already the default has nothing to save, so the line is absent rather than sitting
+  // there inert — the same rule the chevron on a notification row follows.
+  function zapDefaultSaver(amountEl, presetsEl, stop) {
+    const btn = h('button', { className: 'zap-save-default hidden', type: 'button' });
+    let row = presetsEl;
+    const sync = () => {
+      const n = parseInt(amountEl.value, 10);
+      const worth = !!n && n > 0 && clampZapDefault(n) !== defaultZapSats;
+      btn.classList.toggle('hidden', !worth);
+      if (worth) btn.textContent = 'Save ' + fmtSats(clampZapDefault(n)) + ' as your default';
+    };
+    amountEl.addEventListener('input', sync);
+    btn.addEventListener('click', async (e) => {
+      if (stop) stop(e);
+      const sats = clampZapDefault(amountEl.value);
+      if (!state.activePubkey) return; // nothing for the amount to belong to
+      defaultZapSats = sats;
+      defaultZapIsOwn = true; // or the rebuilt row below would still be offering [+]
+      await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
+      // REBUILT, not patched: the new amount may belong in a different position in the
+      // row, and zapPresets is what decides that. The rebuilt row keeps this same hook.
+      const fresh = zapPresetRow(amountEl, stop, sync);
+      row.replaceWith(fresh);
+      row = fresh;
+      // Settings is a hidden view behind this sheet, already rendered with the old
+      // number. Left alone, opening it would show a value that is no longer the setting.
+      const field = $('default-zap');
+      if (field) field.value = String(sats);
+      sync();
+      toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
+    });
+    sync();
+    return btn;
+  }
+
+  // WHOSE amount. This account's, or 21 — and NOT settings.defaultZapSats, which is where
+  // the amount lived while it was global.
+  //
+  // That field as a fallback is what this looked like when it was reported: an 84 set for
+  // a personal account, before the setting was per account, became the number every other
+  // account inherited. "Per account with a global fallback" is the right shape for a
+  // theme, where a new account should look like something; it is the wrong shape for an
+  // amount of money, where inheriting somebody else's habit is the whole complaint.
+  //
+  // So an account with no amount of its own gets the constant. The old global is left in
+  // storage rather than deleted — it is nobody's to throw away — and simply not read.
+  function resolveZapDefault(settings, pubkey) {
+    const by = (settings && settings.zapDefaultBy) || null;
+    return clampZapDefault(by && pubkey && by[pubkey]);
+  }
+
+  // Kept to a whole number of sats in a range: the input is free text (numeric keyboards
+  // on a desktop panel are not a given), so this is what stands between a slip and a
+  // saved default of 50000000.
+  function clampZapDefault(v) {
+    const n = parseInt(v, 10);
+    if (!n || n < 1) return ZAP_DEFAULT_SATS;
+    return Math.min(ZAP_DEFAULT_MAX, n);
+  }
+
   function zapMsats(ev) {
     const tags = (ev && ev.tags) || [];
     try {
@@ -3545,6 +4099,300 @@
     const images = content.match(IMG_RE) || [];
     const av = content.match(AV_RE) || [];
     return { images, av };
+  }
+
+  // ---- the reaction picker ---------------------------------------------------------
+  //
+  // 1,914 emoji in nine groups, from the vendored table (emoji-data.js, self.SidecarEmoji).
+  //
+  // ONE GROUP AT A TIME, not all of them in one scroller. Every cell is a real button —
+  // it has to be, for the keyboard and for a screen reader — and 1,914 of those is a
+  // visible hitch on open in a 360px panel. The largest group is 388, which builds
+  // imperceptibly, and switching groups replaces the grid rather than adding to it.
+  //
+  // Search is the escape hatch from that, and it reads across every group: nobody knows
+  // which of the nine "shrug" is in. Results are capped for the same reason as above.
+  const EMOJI_SEARCH_MAX = 120;
+
+  function emojiGroups() {
+    const table = self.SidecarEmoji;
+    return Array.isArray(table) && table.length ? table : null;
+  }
+
+  // A short row of the ones people actually reach for, above the grid. Same idea as the
+  // zap presets: most reactions are one of a handful, and making those a single tap is
+  // worth more than making them findable.
+  const QUICK_REACTIONS = ['❤️', '🔥', '👍', '😂', '🙌', '🤙', '😮', '🫡'];
+
+  // OPENED OVER THE SHEET, not instead of it. There is one #modal element, so anything
+  // routed through openModal replaces whatever is already there — which meant reacting
+  // destroyed the notification list and dropped you back on the panel, losing your place
+  // in it. This layers itself inside the sheet instead: the list, its loaded pages and
+  // its scroll position all sit untouched underneath, and dismissing the picker reveals
+  // exactly what you left.
+  function emojiPickerOver(host, onPick) {
+    const groups = emojiGroups();
+    const sheet = h('div', { className: 'emoji-over' });
+    const close = () => sheet.remove();
+
+    const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+    xBtn.appendChild(icon('x'));
+    xBtn.addEventListener('click', close);
+    sheet.append(xBtn, h('h3', { textContent: 'React' }));
+
+    // Escape closes the picker and nothing else. Without stopping it here the panel's own
+    // handler would take it as a dismiss of the sheet behind it.
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || !sheet.isConnected) return;
+      e.stopPropagation();
+      e.preventDefault();
+      close();
+    };
+    sheet.addEventListener('keydown', onKey);
+
+    (() => {
+      const modal = sheet;
+      // The table is a static script, so this only fails if the file is missing from a
+      // build. Saying so beats an empty sheet that looks like a hung fetch.
+      if (!groups) {
+        modal.append(h('p', { className: 'hint', textContent: 'The emoji table did not load. Reload Sidecar and try again.' }));
+        return;
+      }
+
+      const pick = (ch) => { close(); onPick(ch); };
+
+      const quick = h('div', { className: 'emoji-quick' });
+      QUICK_REACTIONS.forEach((ch) => {
+        const b = h('button', { className: 'emoji-cell emoji-quick-cell', type: 'button', textContent: ch, title: ch });
+        b.addEventListener('click', () => pick(ch));
+        quick.append(b);
+      });
+      modal.append(quick);
+
+      const search = h('input', { type: 'search', placeholder: 'Search emoji', autocomplete: 'off' });
+      modal.append(search);
+
+      const tabs = h('div', { className: 'emoji-tabs' });
+      const grid = h('div', { className: 'emoji-grid' });
+      const scroll = h('div', { className: 'emoji-scroll' }, [grid]);
+      modal.append(tabs, scroll);
+
+      // Built from the group's own first emoji rather than a hand-picked icon per tab:
+      // nine more glyphs to choose and keep in step with the table would be nine more
+      // things to get wrong when the table is regenerated.
+      let active = 0;
+      function paintGrid(rows) {
+        grid.innerHTML = '';
+        // A fragment, because appending 388 buttons one at a time reflows 388 times.
+        const frag = document.createDocumentFragment();
+        rows.forEach(([ch, name]) => {
+          const b = h('button', { className: 'emoji-cell', type: 'button', textContent: ch, title: name });
+          b.setAttribute('aria-label', name);
+          b.addEventListener('click', () => pick(ch));
+          frag.append(b);
+        });
+        grid.append(frag);
+        scroll.scrollTop = 0;
+      }
+      function showGroup(i) {
+        active = i;
+        [...tabs.children].forEach((t, n) => t.classList.toggle('active', n === i));
+        paintGrid(groups[i][1]);
+      }
+      groups.forEach((g, i) => {
+        const t = h('button', {
+          className: 'emoji-tab',
+          type: 'button',
+          textContent: g[1][0] ? g[1][0][0] : '•',
+          title: g[0],
+        });
+        t.setAttribute('aria-label', g[0]);
+        t.addEventListener('click', () => { search.value = ''; showGroup(i); });
+        tabs.append(t);
+      });
+
+      let searchTimer = null;
+      search.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        // Debounced: a query runs over every name in the table, and doing that per
+        // keystroke while someone types "party" is five passes for one answer.
+        searchTimer = setTimeout(() => {
+          const q = search.value.trim().toLowerCase();
+          if (!q) { showGroup(active); return; }
+          [...tabs.children].forEach((t) => t.classList.remove('active'));
+          const hits = [];
+          for (const [, rows] of groups) {
+            for (const row of rows) {
+              if (row[1].includes(q)) {
+                hits.push(row);
+                if (hits.length >= EMOJI_SEARCH_MAX) break;
+              }
+            }
+            if (hits.length >= EMOJI_SEARCH_MAX) break;
+          }
+          paintGrid(hits);
+          if (!hits.length) grid.append(h('p', { className: 'hint', textContent: 'No emoji matches that.' }));
+        }, 120);
+      });
+
+      showGroup(0);
+    })();
+
+    host.appendChild(sheet);
+    // The search field, so typing works without a tap. tabindex on the layer itself is
+    // what lets the Escape handler above see the key when nothing inside has focus.
+    sheet.setAttribute('tabindex', '-1');
+    const searchEl = sheet.querySelector('input[type=search]');
+    (searchEl || sheet).focus();
+    return sheet;
+  }
+
+  // A reaction is a kind:7 whose CONTENT is the emoji (NIP-25). The e/p tags say what
+  // is being reacted to and whose it is; k carries the target's kind, which lets a
+  // client filter reactions without fetching the note.
+  async function publishReaction(target, emoji) {
+    const tags = [
+      ['e', target.id],
+      ['p', target.pubkey],
+      ['k', String(target.kind)],
+    ];
+    // Read here rather than closed over: there is no panel-wide settings object, and the
+    // composer's copy is local to its own send path.
+    let clientTag = true;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      clientTag = !(s && s.showClientTag === false);
+    } catch (_) { /* default on, matching the composer */ }
+    const event = {
+      kind: 7,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: clientTag ? [...tags, CLIENT_TAG.slice()] : tags,
+      content: emoji,
+    };
+    // expectedPubkey, like every other owner-signed event here: a reaction signed by an
+    // account that changed underneath it would be published as the wrong identity.
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: state.activePubkey });
+    await publishSigned(signed);
+    return signed;
+  }
+
+  // A REPOST (NIP-18). kind:6 for a kind:1, and kind:16 with a `k` tag for anything else —
+  // a generic repost — because 6 is defined for text notes only, and a 6 wrapping a
+  // kind:1111 web comment is a thing clients are entitled to ignore.
+  //
+  // The content is the stringified original, which is what NIP-18 asks for: it lets a
+  // client render the repost without going and finding the note first.
+  async function publishRepost(target) {
+    const relay = (await postRelays())[0] || '';
+    const isNote = target.kind === 1;
+    // Positional: the relay hint has to be present for the tag to be well-formed with
+    // anything after it, which is the same care quoteTags takes.
+    const tags = [['e', target.id, relay], ['p', target.pubkey]];
+    if (!isNote) tags.push(['k', String(target.kind)]);
+    let clientTag = true;
+    try {
+      const st = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      clientTag = !(st && st.showClientTag === false);
+    } catch (_) { /* default on, matching the composer */ }
+    const event = {
+      kind: isNote ? 6 : 16,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: clientTag ? [...tags, CLIENT_TAG.slice()] : tags,
+      content: JSON.stringify(target),
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: state.activePubkey });
+    await publishSigned(signed);
+    return signed;
+  }
+
+  // WHICH NOTE a notification is about, for the ones that carry no content of their
+  // own. A reaction, a repost and a zap receipt are all just a pointer: the row can say
+  // "reacted to your note" from the kind alone, but "which note" lives in an `e` tag.
+  //
+  // The LAST e tag, not the first. On a reply chain the root comes first and the note
+  // actually being answered comes last (NIP-10's positional form), and for a reaction
+  // the note reacted to is the last one too. Reposts and zap receipts carry one.
+  function notifTargetId(ev) {
+    if (!ev || !Array.isArray(ev.tags)) return '';
+    let id = '';
+    for (const t of ev.tags) if (t[0] === 'e' && t[1]) id = t[1];
+    return id;
+  }
+
+  // WHAT YOU REACTED WITH, per note, so the row says so. Without it, reacting is a toast
+  // that disappears and a row that looks exactly as it did — you cannot tell tomorrow
+  // whether you already answered something, which is the question a notification list is
+  // for. Kept in a Set per note: two taps of the same emoji is one reaction, not two
+  // chips (relays dedupe nothing here, but the row should not double up either).
+  //
+  // Filled from two places: optimistically when a reaction of ours publishes, and from a
+  // relay query for our own kind:7s on sheet open, so a reaction sent from another client
+  // — or from this panel before a reload — still shows.
+  const _myReactions = new Map(); // note id → Set(emoji)
+
+  // Where the open bell sheet is, set by the sheet itself while it is on screen. Reading
+  // it from an action inside the sheet is what lets that action hand the panel to the
+  // composer and get the list back afterwards, pages and scroll offset included.
+  let notifPlace = () => null;
+
+  // '+' is the legacy like and '-' the legacy dislike (NIP-25). notifLabel already draws
+  // them as ❤️ and 👎 where a SENDER's reaction is shown, and a chip of ours has to agree
+  // with that or the same event reads as two different things on one screen.
+  function reactionGlyph(content) {
+    const r = (content || '').trim();
+    if (r === '+' || !r) return '❤️';
+    if (r === '-') return '👎';
+    return r;
+  }
+
+  function addMyReaction(noteId, content) {
+    if (!noteId) return;
+    const set = _myReactions.get(noteId) || new Set();
+    set.add(reactionGlyph(content));
+    _myReactions.set(noteId, set);
+    // Every row on screen for that note, not just the one that was tapped: the same note
+    // can be the target of several notifications (a reply and a reaction to it).
+    document.querySelectorAll('.notif-item[data-notif-id="' + cssEscape(noteId) + '"] .notif-reacted')
+      .forEach((el) => paintMyReactions(el, noteId));
+  }
+
+  function paintMyReactions(el, noteId) {
+    const set = _myReactions.get(noteId);
+    el.innerHTML = '';
+    if (!set || !set.size) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    set.forEach((ch) => el.append(h('span', { className: 'notif-reacted-chip', textContent: ch })));
+  }
+
+  // An event id is 64 hex characters, so this never has anything to escape today. It is
+  // here because the selector above is built from data rather than written out, and the
+  // day something non-hex reaches it, a silent query failure is the good outcome.
+  function cssEscape(v) {
+    return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(v) : String(v).replace(/[^a-zA-Z0-9_-]/g, '');
+  }
+
+  // Notes fetched to fill out an expanded notification, kept for the panel's lifetime.
+  // Expanding the same row twice, or two reactions to the same note, must not each cost
+  // a relay round trip — that is the common shape of a busy notification list.
+  const _noteCache = new Map(); // id → event | null (null = asked, nothing came back)
+
+  async function fetchNoteById(id) {
+    if (!id) return null;
+    if (_noteCache.has(id)) return _noteCache.get(id);
+    let ev = null;
+    try {
+      // Capped like fetchStatus: a note that no configured relay holds is a normal
+      // outcome (it may live only on the sender's), and the expanded row says so
+      // rather than spinning.
+      ev = await Promise.race([
+        poolGet(await relayUrls(false), { ids: [id] }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+    } catch (_) {
+      ev = null;
+    }
+    _noteCache.set(id, ev || null);
+    return ev || null;
   }
 
   function cleanSnippet(content) {
@@ -3857,6 +4705,11 @@
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
         if (cache.events.length > 100) cache.events.length = 100;
+        // What a refresh actually brought in. Counted here rather than compared as a
+        // length before and after, because the cap above makes those equal once the cache
+        // is full — a hundred-deep list would have reported "no new notifications" while
+        // quietly rotating new ones in.
+        if (cache.refetching) cache.refetchAdded++;
         // zapSender: fetch the profile of whoever the row will NAME — for a zap
         // that is the zapper, not the LNURL service that signed the receipt.
         // When it resolves, pruneNameMuted re-checks this event against the
@@ -3867,7 +4720,14 @@
         // The notif modal for this account is open right now — append the new
         // event to the visible list instead of leaving it to only show up the
         // next time the modal is reopened.
-        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) {
+        //
+        // NOT DURING A REFETCH. That path is a backfill: it replays up to a week of
+        // history through this same function, and addLive puts an arrival at the TOP of
+        // the list because a live event is newer than everything by definition. A
+        // two-day-old note prepended above "just now" is what refresh looked like when
+        // it went out — reported. The refresh rebuilds the list from the sorted cache
+        // when it finishes instead, which is also what makes its paging right.
+        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey && !cache.refetching) {
           // Routed through the bell's own sort rather than prepended blind: it decides
           // in-network versus the collapsed group, clears the empty state, and marks the
           // end of the list.
@@ -3894,6 +4754,51 @@
         return list;
       }
 
+      // The bell's refresh button asks the relays again, through THIS addEvent rather
+      // than a copy of it. addEvent is what drops your own events, applies the mute
+      // list, de-dupes by id, prefetches the sender's name and appends to an open
+      // sheet — five behaviors that would have to stay in step in a second copy.
+      //
+      // A live subscription is already running, so this is not how notifications
+      // normally arrive. It is for the case the live sub cannot cover: the service
+      // worker was evicted while the panel sat idle, or a relay dropped and
+      // reconnected, and the sheet opens from cache with no way to ask.
+      //
+      // Re-reads the relay list instead of closing over the one above, since relays can
+      // be added or removed while the panel stays open.
+      cache.refetch = async () => {
+        const urls = await relayUrls(false);
+        if (!urls.length) return;
+        const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
+        // Marks everything arriving from here as history rather than a live arrival, so
+        // addEvent above keeps filtering and caching it but stops inserting it into an
+        // open sheet at the top. Cleared in a finally, or one failed refresh would leave
+        // every later live notification invisible until the sheet was reopened.
+        cache.refetching = true;
+        cache.refetchAdded = 0;
+        try {
+          await Promise.all(
+            buildFilters(from, 50).map(
+              (f) =>
+                new Promise((resolve) => {
+                  let settled = false;
+                  const finish = () => { if (!settled) { settled = true; resolve(); } };
+                  // Capped, because a relay that never sends EOSE would otherwise leave
+                  // the button spinning for as long as the sheet stays open.
+                  setTimeout(finish, 6000);
+                  try {
+                    poolSubscribeManyEose(urls, f, { onevent: addEvent, onclose: finish });
+                  } catch (_) {
+                    finish();
+                  }
+                })
+            )
+          );
+        } finally {
+          cache.refetching = false;
+        }
+      };
+
       const liveSince = Math.floor(Date.now() / 1000);
       // nostr-tools ≥2.20 subscriptions take a single filter object, not an array —
       // open one subscription per filter (the pool shares the relay sockets).
@@ -3911,7 +4816,10 @@
     }
   }
 
-  async function showNotifModal(a) {
+  // `place` puts the sheet back where it was: how many pages had been loaded, and how far
+  // down it was scrolled. Passed when something had to take the panel away — replying
+  // opens the composer — so coming back is not "start again at the top".
+  async function showNotifModal(a, place) {
     const seenAt = _notifSeenAt[a.pubkey] || 0;
     const cache = _notifCache.get(a.pubkey) || { events: [] };
     const now = Math.floor(Date.now() / 1000);
@@ -4017,35 +4925,23 @@
       const actionRow = h('div', { className: 'notif-action', textContent: text });
       item.appendChild(actionRow);
 
-      // REPLY, but only where replying means something.
-      //
-      // A note or a comment can be answered. A reaction, a repost or a zap receipt
-      // cannot — there is no thread to join, and a reply tagging a kind:7 would show up
-      // in nobody's client as anything sensible. Offering a button that produces a
-      // dead-end event is worse than not offering one.
-      //
-      // The row itself is an anchor that opens the note in a client, so this is a real
-      // button that stops the event: without that, tapping Reply would ALSO follow the
-      // link and leave a new tab open behind the composer.
-      if (ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) {
-        const replyBtn = h('button', { className: 'notif-reply', type: 'button' }, [
-          icon('message-filled'),
-          h('span', { textContent: 'Reply' }),
-        ]);
-        replyBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          closeModal();
-          openComposer('', { replyTo: ev });
-        });
-        actionRow.appendChild(replyBtn);
-      }
+      // A note or a comment can be answered, reacted to and zapped. A reaction, a repost
+      // or a zap receipt cannot — there is no thread to join, and a kind:7 tagging
+      // another kind:7 shows up in nobody's client as anything sensible. Offering a
+      // button that produces a dead-end event is worse than not offering one, so those
+      // rows expand to show WHICH of your notes they are about and stop there.
+      const isNoteLike = ev.kind === 1 || ev.kind === WEB_COMMENT_KIND;
+      const targetId = isNoteLike ? '' : notifTargetId(ev);
 
-      if ((ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) && ev.content) {
+      let contentEl = null;
+      // The collapsed string only. The expanded one is recomputed when the caret is
+      // tapped, because mention names resolve after this runs — see the toggle below.
+      let snippetText = '';
+      if (isNoteLike && ev.content) {
         const cleaned = cleanSnippet(ev.content);
         if (cleaned) {
-          const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
-          const contentEl = h('p', { className: 'notif-content', textContent: snippet });
+          snippetText = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+          contentEl = h('p', { className: 'notif-content', textContent: snippetText });
           // data-note-id lets the background mention-name patch below (see
           // showNotifModal) find and re-render this snippet once a mentioned
           // profile resolves — it's rendered here with whatever names are
@@ -4076,7 +4972,350 @@
           );
         }
       }
+
+      // What you reacted with, under the note. Built for every note-like row (empty and
+      // hidden when there is nothing) so a reaction landing later has somewhere to go
+      // without rebuilding the row.
+      let reactedEl = null;
+      if (isNoteLike) {
+        reactedEl = h('div', { className: 'notif-reacted hidden' });
+        paintMyReactions(reactedEl, ev.id);
+        item.appendChild(reactedEl);
+      }
+
+      // ---- expand -------------------------------------------------------------------
+      //
+      // Two different jobs behind one chevron, because the rows look alike and the
+      // question you have about them does not:
+      //
+      //   a reply or a mention   you can read the snippet but it is cut at 140 chars,
+      //                          and you may want to answer it. Expanding gives the
+      //                          whole text and the three things you can do with it.
+      //   a reaction, repost     the row carries no content at all — only a pointer.
+      //   or a zap               "reacted to your note" is the half of the sentence
+      //                          you did not need. Expanding fetches the note.
+      //
+      // Everything in here stops the click. The row is an anchor that opens the note in
+      // a client, so without that, tapping Reply would also follow the link and leave a
+      // tab open behind the composer.
+      if (isNoteLike || targetId) {
+        const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+        const panel = h('div', { className: 'notif-expand hidden' });
+        const toggle = h('button', {
+          className: 'notif-expand-btn',
+          type: 'button',
+          title: 'Expand',
+          'aria-expanded': 'false',
+        });
+        toggle.appendChild(icon('chevron-down'));
+        right.appendChild(toggle);
+
+        // ONLY WHEN IT REVEALS SOMETHING. A one-line comment is already whole on the row,
+        // and a chevron that changes nothing on tap reads as broken furniture — reported.
+        //
+        // MEASURED, not guessed from the length. The source cut at 140 characters is half
+        // the story: .notif-content is a three-line clamp, so a 90-character note can wrap
+        // past it, and a 200-character one can fit inside it after mention shortening. The
+        // element has to be laid out to know, so this waits a frame — every insertion path
+        // (the first page, load-more, a live arrival, the off-network group) appends
+        // synchronously, so by then the row is in the document.
+        //
+        // A reaction, repost or zap row always keeps it: there is always a note to fetch.
+        //
+        // OBSERVED, not measured once. A single frame after insertion is too early and
+        // gets it wrong in both directions: the webfont has not swapped in yet, so a note
+        // that will wrap to five lines measures as three and loses its chevron (which is
+        // how this shipped for one round). And the panel is resizable — drag it wider and
+        // a clipped note stops being clipped, so the answer has to be able to change.
+        // The theme gallery watches its own width for the same reason.
+        if (!targetId) {
+          toggle.classList.add('notif-expand-none');
+          const syncToggle = () => {
+            if (!contentEl || !contentEl.isConnected) return;
+            // While expanded the clamp is off, so nothing measures as clipped. Hiding the
+            // control here would strand the row open with no way to collapse it.
+            if (toggle.classList.contains('open')) return;
+            toggle.classList.toggle('notif-expand-none', !(contentEl.scrollHeight > contentEl.clientHeight + 1));
+          };
+          if (contentEl && typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncToggle).observe(contentEl);
+          }
+          // A TIMER, not requestAnimationFrame. rAF never fires while the document is
+          // hidden, and a ResizeObserver is delivered on the same frame loop — so with
+          // the panel closed or occluded when a live notification arrives, the row would
+          // be built with no chevron and keep none. Reading scrollHeight forces layout on
+          // its own; it does not need a frame. Fonts are the other half: the swap changes
+          // how the text wraps, and asking again afterwards is how a note that grows past
+          // three lines gets its chevron.
+          setTimeout(syncToggle, 0);
+          if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncToggle).catch(() => {});
+        }
+
+        let built = false;
+        function build() {
+          if (built) return;
+          built = true;
+
+          if (targetId) {
+            const note = h('div', { className: 'notif-target' }, [
+              h('div', { className: 'notif-target-label', textContent: 'Your note' }),
+              h('p', { className: 'notif-target-body', textContent: 'Looking for it…' }),
+            ]);
+            panel.appendChild(note);
+            const body = note.querySelector('.notif-target-body');
+            fetchNoteById(targetId).then((got) => {
+              if (!body.isConnected) return;
+              // A note no configured relay holds is a normal outcome — it may live only
+              // on the sender's relays — and saying so beats a row stuck on "looking".
+              if (!got) {
+                body.textContent = 'That note is not on your relays.';
+                body.classList.add('notif-target-missing');
+                return;
+              }
+              const text = cleanSnippet(got.content || '');
+              body.textContent = text || '(no text)';
+            });
+          }
+        }
+
+        toggle.addEventListener('click', (e) => {
+          stop(e);
+          build(); // one-time: the note a reaction or repost is about
+          const open = panel.classList.toggle('hidden') === false;
+
+          // THE TEXT, BOTH WAYS. This used to live in build(), which runs once, so
+          // collapsing never put the snippet back — and on a reply row the panel holds
+          // nothing (the actions are not in it), so the caret had no visible effect at
+          // all. Reported as "sometimes it does nothing", and the rows where it seemed to
+          // work were the reaction ones, where the panel did have a note in it.
+          //
+          // TWO cuts to undo and redo, not one, and the second is CSS: .notif-content is
+          // a three-line -webkit-line-clamp, so swapping the text without the class left
+          // the browser drawing its own ellipsis at the same three lines.
+          //
+          // RECOMPUTED, not the snapshot taken when the row was built. cleanSnippet turns
+          // `nostr:npub1…` into @name from whatever profiles were cached at the time, and
+          // the names arrive seconds later from the background pass — so a build-time
+          // snapshot puts the @npub1abc… fallback back on screen every time you expand,
+          // which is how a note full of resolved mentions still read as npubs. Reported.
+          if (contentEl) {
+            const text = cleanSnippet(ev.content || '');
+            contentEl.textContent = open
+              ? text
+              : (text.length > 140 ? text.slice(0, 140) + '…' : text);
+            contentEl.classList.toggle('notif-content-full', open);
+          }
+
+          toggle.classList.toggle('open', open);
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+          toggle.title = open ? 'Collapse' : 'Expand';
+        });
+        item.appendChild(panel);
+      }
+
+      // The actions are NOT behind the chevron. They are what you came to the row to do,
+      // and a drawer to reach them is a tap that buys nothing — the chevron is for
+      // reading (the rest of the text, or the note a reaction is about), which is a
+      // different question.
+      //
+      // Which is affordable because they are ICONS. Three labelled buttons is ~200px of
+      // minimum width and reads as a toolbar under every row; three icons at rest are
+      // quiet enough to repeat 25 times down a list.
+      if (isNoteLike) {
+        const stopAct = (e) => { e.preventDefault(); e.stopPropagation(); };
+        item.appendChild(buildActions(ev, stopAct));
+      }
       return item;
+    }
+
+    // Reply, react and zap, on their own row under the note. Icon-only, and titled: the
+    // glyphs are the same three this app already uses for these verbs (the composer's
+    // bubble, the reaction heart, the filled zap bolt), so the row reads without labels,
+    // and an aria-label carries each one for anything that cannot see them.
+    function buildActions(ev, stop) {
+      const row = h('div', { className: 'notif-actions' });
+      const err = h('div', { className: 'error' });
+
+      const actBtn = (label, glyph) => {
+        const b = h('button', { className: 'notif-act', type: 'button', title: label });
+        b.setAttribute('aria-label', label); // 'aria-label' via Object.assign never reaches the attribute
+        b.append(glyph);
+        return b;
+      };
+
+      const replyBtn = actBtn('Reply', icon('message-filled'));
+      replyBtn.addEventListener('click', (e) => {
+        stop(e);
+        // The composer is the one thing here that cannot open OVER the sheet: it is a
+        // full editor with tabs, media and a review countdown, and it needs the panel.
+        // So the sheet is remembered and rebuilt when the composer closes — the pages
+        // that were loaded and the scroll offset both — rather than dropping you back on
+        // the panel to find your place again.
+        const place = notifPlace();
+        closeModal();
+        openComposer('', { replyTo: ev, returnTo: () => showNotifModal(a, place) });
+      });
+
+      const reactBtn = actBtn('React', icon('heart'));
+      reactBtn.addEventListener('click', (e) => {
+        stop(e);
+        emojiPickerOver($('modal'), async (ch) => {
+          try {
+            await publishReaction(ev, ch);
+            // The chip is what makes this durable feedback. The toast says it happened;
+            // the chip is still there tomorrow, which is when you want to know whether
+            // you already answered something.
+            addMyReaction(ev.id, ch);
+            toast('Reacted ' + ch, 'success');
+          } catch (e2) {
+            toast(e2.message, 'error');
+          }
+        });
+      });
+
+      // REPOST OR QUOTE, one button and two answers. Both are "send this on", and they
+      // differ only in whether you have something to add — so they share a control rather
+      // than spending two of the four slots in a row that repeats down the whole list.
+      //
+      // The two choices are also the confirmation. A repost is public the moment it is
+      // signed and a deletion request is only ever advisory, so the second tap is
+      // deliberate rather than a flourish.
+      const repostBtn = actBtn('Repost or quote', icon('repeat'));
+      const choices = h('div', { className: 'notif-repost hidden' });
+      const repostNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Repost' });
+      const quoteNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Quote' });
+      choices.append(repostNow, quoteNow);
+      const closeChoices = () => {
+        choices.classList.add('hidden');
+        repostBtn.classList.remove('open');
+      };
+      repostBtn.addEventListener('click', (e) => {
+        stop(e);
+        const open = choices.classList.toggle('hidden') === false;
+        repostBtn.classList.toggle('open', open);
+      });
+      repostNow.addEventListener('click', async (e) => {
+        stop(e);
+        repostNow.disabled = true;
+        try {
+          await publishRepost(ev);
+          closeChoices();
+          toast('Reposted', 'success');
+        } catch (e2) {
+          err.textContent = e2.message;
+        } finally {
+          repostNow.disabled = false;
+        }
+      });
+      quoteNow.addEventListener('click', (e) => {
+        stop(e);
+        closeChoices();
+        // The composer does the tagging: it scans the body for nostr: references and
+        // writes the q tag itself (quoteTags), so handing it the nevent is the whole job.
+        // On its own line below the cursor, because a quote is something you write ABOVE
+        // the thing you are quoting.
+        const nevent = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
+        const place = notifPlace();
+        closeModal();
+        openComposer('\n\nnostr:' + nevent, { returnTo: () => showNotifModal(a, place) });
+      });
+
+      const zapBtn = actBtn('Zap', boltIcon());
+      const zapForm = h('div', { className: 'notif-zap hidden' });
+      let zapBuilt = false;
+      zapBtn.addEventListener('click', (e) => {
+        stop(e);
+        if (!zapBuilt) {
+          zapBuilt = true;
+          buildZapForm(ev, zapForm, err, stop);
+        }
+        zapForm.classList.toggle('hidden');
+        zapBtn.classList.toggle('open', !zapForm.classList.contains('hidden'));
+      });
+
+      row.append(replyBtn, reactBtn, repostBtn, zapBtn);
+      const wrap = h('div', { className: 'notif-act-wrap' }, [row, choices, zapForm, err]);
+      return wrap;
+    }
+
+    // The amount form, built on first tap rather than with the row: it costs a profile
+    // fetch to learn whether this person can even be zapped, and doing that for all 25
+    // rows in the list would be 25 round trips for the one zap somebody sends.
+    function buildZapForm(ev, zapForm, err, stop) {
+      const who = zapSender(ev);
+      const amount = satsInput('sats');
+      const presets = zapPresetRow(amount, stop);
+      const comment = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
+      const send = h('button', { className: 'primary', type: 'button', textContent: 'Send zap' });
+      const status = h('div', { className: 'hint', textContent: 'Checking their lightning address…' });
+      // Under the field it reads, so the offer to keep an amount sits with the amount.
+      zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
+        zapDefaultSaver(amount, presets, stop));
+
+      let addr = '';
+      send.disabled = true;
+      // Same gate the profile sheet uses: an address without allowsNostr can take a
+      // payment but can never produce a receipt, so a Zap button on it is a promise it
+      // cannot keep.
+      relayUrls(false)
+        .then((relays) => poolGet(relays, { kinds: [0], authors: [who] }))
+        .then(async (prof) => {
+          if (!zapForm.isConnected) return;
+          let lud = '';
+          try { lud = (JSON.parse(prof.content) || {}).lud16 || ''; } catch (_) {}
+          if (!lud) throw new Error('They have no lightning address.');
+          const p = await lnAddressParams(lud);
+          if (!p.zappable) throw new Error('Their lightning address cannot receive zaps.');
+          if (!zapForm.isConnected) return;
+          addr = lud;
+          send.disabled = false;
+          status.textContent = lud;
+        })
+        .catch((e2) => {
+          if (!zapForm.isConnected) return;
+          status.textContent = e2 && e2.message ? e2.message : 'They cannot be zapped.';
+        });
+
+      send.addEventListener('click', async (e) => {
+        stop(e);
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        err.textContent = '';
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = 'Sending…';
+        try {
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          // `event`, not just `pubkey`: makeZapRequest adds the e tag from it, which is
+          // what makes this a zap OF THE NOTE rather than a zap of its author. Without it
+          // the receipt shows up on their profile with no note attached.
+          const invoice = await zapInvoice({
+            addr,
+            msats: sats * 1000,
+            comment: comment.value.trim(),
+            recipientPubkey: who,
+            event: ev,
+          });
+          const res = await client.payInvoice(invoice);
+          await savePayMeta(invoice, {
+            zapPubkey: who,
+            address: addr,
+            comment: comment.value.trim(),
+            feeMsat: res && res.fees_paid,
+          });
+          lightningStrike();
+          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          zapForm.classList.add('hidden');
+          amount.value = '';
+          comment.value = '';
+        } catch (e2) {
+          err.textContent = e2.message;
+        } finally {
+          send.disabled = false;
+          send.textContent = label;
+        }
+      });
     }
 
     openModal((modal) => {
@@ -4086,6 +5325,61 @@
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
+
+      // REFRESH, beside the close button and sharing its metrics on purpose: an icon in
+      // the sheet's corner is the one place a control fits here without taking width from
+      // the list. The sheet opens from cache, so this is the only way to ask the relays
+      // whether anything landed while it was shut.
+      //
+      // Whatever comes back arrives through addEvent, which already appends to this open
+      // list (see _openNotifBell.addLive), so there is nothing to re-render here.
+      const refreshBtn = h('button', {
+        className: 'modal-x notif-refresh',
+        type: 'button',
+        title: 'Check for new notifications',
+      });
+      refreshBtn.appendChild(icon('refresh'));
+      refreshBtn.addEventListener('click', async () => {
+        if (refreshBtn.disabled) return;
+        refreshBtn.disabled = true;
+        refreshBtn.classList.add('spinning');
+        try {
+          const cached = _notifCache.get(a.pubkey);
+          // No refetch on the cache means the subscriptions never started for this
+          // account (no relays at the time, say), so start them.
+          if (cached && cached.refetch) await cached.refetch();
+          else await initNotifSubs();
+        } catch (_) {
+          // A relay failing is the normal case here, and the answer is simply that the
+          // list does not grow. An error toast would be noise on a surface that is
+          // allowed to come back empty.
+        } finally {
+          // The sheet may have been closed while the fetch was in flight.
+          if (refreshBtn.isConnected) {
+            refreshBtn.disabled = false;
+            refreshBtn.classList.remove('spinning');
+          }
+        }
+        // Nothing new is the usual answer, and silence reads as a dead button — the same
+        // reasoning as the wallet's refresh striking an unchanged balance.
+        // 'success', not 'info': toast() only draws two kinds and treats anything that is
+        // not 'error' as a success, so 'info' would read in the source as a neutral toast
+        // this app cannot draw.
+        const added = (_notifCache.get(a.pubkey) || {}).refetchAdded || 0;
+        if (!added) return toast('No new notifications', 'success');
+
+        // REBUILT FROM THE CACHE, not streamed in. The cache is sorted newest-first and
+        // the sheet's paging is computed from it at open, so the honest way to show a
+        // week of backfill is to build the list again — reopening does exactly that, in
+        // place, and lands you at the top where the newest are.
+        //
+        // Streaming them into the open list instead is what shipped first, and it put
+        // two-day-old notes above "just now" while leaving the page indices pointing at
+        // the wrong slice of a list that had grown underneath them.
+        if (refreshBtn.isConnected) showNotifModal(a);
+        toast(added === 1 ? '1 new notification' : added + ' new notifications', 'success');
+      });
+      modal.appendChild(refreshBtn);
 
       // WHOSE notifications — but only when that is a real question.
       //
@@ -4272,9 +5566,53 @@
 
       if (events.length) loadMore();
 
+      // Back to where you were. The pages first — scrolling to an offset that nothing has
+      // been rendered into yet would just clamp to the bottom of a short list — and then
+      // the offset itself, once the rows exist to give the scroller its height.
+      //
+      // Not exact by construction: a notification that arrived while you were away makes
+      // the list taller, so the offset lands a row or two off. Which is the right kind of
+      // wrong — the alternative is the top of the list, every time.
+      if (place && place.pages > 1) {
+        for (let i = 1; i < place.pages && shown < events.length; i++) loadMore();
+      }
+      if (place && place.scrollTop) {
+        const want = place.scrollTop;
+        // A task rather than a frame: rAF does not run while the document is hidden, and
+        // the scroller needs its children laid out, which reading scrollHeight forces.
+        setTimeout(() => { if (scroll.isConnected) scroll.scrollTop = want; }, 0);
+      }
+
+      // Where the sheet is right now, for whoever has to take the panel away and put it
+      // back. PAGE is the size loadMore works in, so pages is what it would take to
+      // rebuild this much of the list.
+      notifPlace = () => ({ pages: Math.max(1, Math.ceil(shown / PAGE)), scrollTop: scroll.scrollTop });
+
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
       _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote, addLive };
+
+      // WHICH OF THESE YOU HAVE ALREADY REACTED TO. One query for the whole list rather
+      // than one per row, fired after the sheet is interactive like everything else here,
+      // and painted into rows that are already on screen when it lands.
+      //
+      // Asked of the relays rather than remembered locally, so a reaction sent from
+      // another client counts too — the question is "did I answer this", not "did I
+      // answer this from Sidecar". Reactions of ours from earlier in this session are
+      // already in _myReactions and cost nothing to repaint.
+      (async () => {
+        const ids = events.filter((e) => e.kind === 1 || e.kind === WEB_COMMENT_KIND).map((e) => e.id);
+        if (!ids.length || !relays.length) return;
+        try {
+          const mine = await Promise.race([
+            poolQuerySync(relays, { kinds: [7], authors: [a.pubkey], '#e': ids.slice(0, 100) }),
+            new Promise((res) => setTimeout(() => res([]), 6000)),
+          ]);
+          (mine || []).forEach((r) => addMyReaction(notifTargetId(r), r.content));
+        } catch (_) {
+          // No reaction chips is the same as none sent, which is the safe way to be wrong.
+        }
+      })();
 
       // Background reconciliation — runs after the modal is already open and
       // interactive, so neither of these ever blocks it from appearing:
@@ -4323,6 +5661,10 @@
           const e = eventsById.get(el.dataset.noteId);
           if (!e) return;
           const cleaned = cleanSnippet(e.content);
+          // An EXPANDED row keeps its full text. This pass lands seconds after the sheet
+          // opens, so without the check it would quietly collapse a row the reader had
+          // already opened — with the clamp still lifted, which then also hid its caret.
+          if (el.classList.contains('notif-content-full')) { el.textContent = cleaned; return; }
           el.textContent = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
         });
       })();
@@ -5648,6 +6990,7 @@
           closeModal();
         }),
         menuItem('Show npub QR', 'qr', () => npubQrModal(a)),
+        menuItem('Theme override', 'palette', () => themeOverrideModal(a)),
         menuItem('Back up private key', 'key', () => backupKeyModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
@@ -6454,7 +7797,15 @@
     // auto-lock
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
-    $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
+    // Blank means "follow the global default", which is the state of every account
+    // that has never chosen. The label on that option names what the default is, so
+    // the row is not a mystery when nothing is selected.
+    const clientBy = settings.defaultClientBy || {};
+    const own = state.activePubkey ? clientBy[state.activePubkey] : '';
+    $('client-select').value = own || '';
+    const globalLabel = (VIEW_CLIENTS[settings.defaultClient || DEFAULT_CLIENT] || {}).label || '';
+    const defaultOpt = $('client-select').querySelector('option[value=""]');
+    if (defaultOpt) defaultOpt.textContent = globalLabel ? 'Use the default (' + globalLabel + ')' : 'Use the default';
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
@@ -6492,6 +7843,10 @@
     }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
+    // The settable fourth zap preset, for the account on screen. Resolved rather than
+    // read, so the field shows the number that would actually be offered — this
+    // account's if it has one, otherwise the fallback.
+    $('default-zap').value = String(resolveZapDefault(settings, state.activePubkey));
     $('autozap-max').value = String(azMax);
     $('autozap-daily-max').value = String(Number(settings.autoZapDailyMaxSats) || azMax * AUTOZAP_DAILY_MULT);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
@@ -6505,8 +7860,7 @@
       c.classList.toggle('active', Number(c.dataset.secs) === cdSecs));
 
     // theme
-    const theme = settings.theme || 'speakeasy'; // default to speakeasy
-    applyTheme(theme);
+    paintThemePicker(applyResolvedTheme(settings));
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -7214,6 +8568,15 @@
     } else {
       header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
     }
+    // The status rides ON the banner rather than taking a row of its own. It is a
+    // remark, not a field, and giving it a labelled section made the profile read
+    // like a settings screen. Empty status = no balloon at all, so the profile of
+    // someone who never sets one is exactly what it was before this shipped.
+    const balloon = h('button', { className: 'status-balloon hidden', title: 'Edit status' });
+    const balloonText = h('span', { className: 'status-balloon-text' });
+    balloon.append(balloonText);
+    balloon.addEventListener('click', () => openStatusEditor(active, paintStatus));
+    header.append(balloon);
     header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
     view.append(header);
 
@@ -7295,7 +8658,26 @@
     const editBtn = h('button', { className: 'secondary profile-edit-cta' });
     editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
     editBtn.addEventListener('click', () => openProfileEdit(content));
-    body.append(editBtn);
+
+    // Always present, whether or not a status exists. The balloon is also a way in,
+    // but it is small, sits on the banner, and is easy to miss as a control; a
+    // fixed button beside Edit profile is the one you can always find.
+    const statusBtn = h('button', { className: 'secondary profile-status-cta' });
+    statusBtn.append(icon('message-circle'), h('span', { textContent: 'Set status' }));
+    statusBtn.addEventListener('click', () => openStatusEditor(active, paintStatus));
+
+    body.append(h('div', { className: 'profile-cta-row' }, [editBtn, statusBtn]));
+
+    // The balloon is the only thing that reacts: it appears when there is something
+    // to show and stays gone otherwise, so a profile without a status is unchanged.
+    // The button does not move.
+    function paintStatus(st) {
+      const live = st && st.text;
+      balloon.classList.toggle('hidden', !live);
+      if (live) balloonText.textContent = st.text;
+    }
+    paintStatus(null);
+    fetchStatus(active.pubkey).then((st) => { if (header.isConnected) paintStatus(st); });
 
     if (content.about) {
       const about = h('p', { className: 'profile-about' });
@@ -8079,10 +9461,102 @@
   };
   const DEFAULT_CLIENT = 'jumble';
 
-  async function preferredClient() {
-    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
+  // Which client this ACCOUNT opens things in. Per-account with a fallback to the
+  // global, so an account that has never chosen keeps following the global setting
+  // and changing that still moves everyone who has not chosen for themselves.
+  //
+  // The reason it is per account rather than global: a client is where an identity
+  // lives. A brand account read in one client and a personal one in another is the
+  // normal case, and the global setting made the second account borrow the first's
+  // habits. Same storage shape as nip65OnlyBy (see SIDECAR_SET_CLIENT_FOR).
+
+  // Which theme this ACCOUNT wears, with settings.theme as the default for one that has
+  // never chosen — the same shape as resolveClient below and as nip65OnlyBy before it.
+  //
+  // The point is not decoration. With several accounts the panel looks identical
+  // whether you are in your main identity or a throwaway, and the account name is the
+  // only thing telling them apart. A theme answers "which account am I in" before you
+  // read anything — which is why the approval window follows it too (background.js),
+  // since that is where getting it wrong costs something.
+  //
+  // NOT the panel's theme for the pay card. That card is rendered into a page, and the
+  // page can see it, so it wears the theme of THE ACCOUNT THAT SITE IS BOUND TO — the one
+  // whose pubkey the site already holds. The background resolves it (the clamped
+  // GET_SETTINGS) and this map never crosses into a content script. See content.js.
+  //
+  // TWO STORED FIELDS, and the reason this took five attempts is that for four of them
+  // one field was doing two jobs:
+  //   themeBy[pk]     what this account wears; the card resolves through it per site
+  //   settings.theme  what an account that never chose wears (set at onboarding)
+  // Using settings.theme as the card's value too meant every pick redressed every
+  // untouched account, and sparing them froze the card. A per-pick "last theme" field
+  // fixed both and still mismatched, because it tracked the pick rather than the site.
+
+  // The per-account theme, set from the gallery for the account you are in and from this
+  // modal for any account — including back to the default, which the gallery cannot say.
+  function themeOverrideModal(a) {
+    openModal((modal) => {
+      modal.append(h('h3', { textContent: 'Theme for ' + displayName(a) }));
+      modal.append(h('p', {
+        className: 'hint',
+        textContent: 'The theme this account wears, so you can tell at a glance which one you are in.',
+      }));
+
+      const sel = h('select');
+      sel.append(h('option', { value: '', textContent: 'Use the default' }));
+      THEME_LABELS.forEach(([key, label]) => sel.append(h('option', { value: key, textContent: label })));
+      // The current value arrives from the background a moment after the modal opens, so
+      // it must not overwrite a choice made inside that moment.
+      let touched = false;
+      sel.addEventListener('change', () => { touched = true; });
+
+      const err = h('div', { className: 'error' });
+      const save = h('button', { className: 'primary', textContent: 'Save' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      save.addEventListener('click', async () => {
+        save.disabled = true;
+        try {
+          await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: a.pubkey, theme: sel.value });
+          // Only repaint if this is the account on screen. Dressing another account must
+          // not change the panel out from under you.
+          if (a.pubkey === state.activePubkey) {
+            paintThemePicker(applyResolvedTheme(await call({ type: 'SIDECAR_GET_SETTINGS' })));
+          }
+          closeModal();
+          toast(sel.value ? 'Theme set' : 'Using the default theme', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+          save.disabled = false;
+        }
+      });
+
+      modal.append(sel, err, h('div', { className: 'actions' }, [save, cancel]));
+
+      call({ type: 'SIDECAR_GET_SETTINGS' }).then((s) => {
+        if (!modal.isConnected || touched) return;
+        sel.value = ((s && s.themeBy) || {})[a.pubkey] || '';
+      }).catch(() => {});
+    });
+  }
+
+  function resolveTheme(settings, pubkey) {
+    const by = (settings && settings.themeBy) || null;
+    return (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
+  }
+
+  function resolveClient(settings, pubkey) {
+    const by = (settings && settings.defaultClientBy) || null;
+    const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  async function preferredClient(forPubkey) {
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    // Defaults to the active account, since every existing caller means "the account
+    // I am acting as". A caller that means someone else's account passes it.
+    return resolveClient(settings, forPubkey || state.activePubkey);
   }
 
   // Open a client URL. When the "reuse open client tab" setting is on (default),
@@ -8185,8 +9659,9 @@
     let nevent;
     try { nevent = await neventFor(signed); } catch (_) { return; }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
-    const client = VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+    // The account that just signed the note, not whatever is active by the time the
+    // banner paints — they can differ if the user switches while it is up.
+    const client = resolveClient(settings, (signed && signed.pubkey) || state.activePubkey);
 
     if (_postBannerTimer) clearTimeout(_postBannerTimer); // only one note's link shown at a time
 
@@ -9334,6 +10809,16 @@
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
         if (!published && enteredEditor) persistDraft();
+        // WHERE THIS CAME FROM. A reply started in the bell sheet had to give the
+        // composer the whole panel, and dropping the user out onto the main view
+        // afterwards loses their place in a list they were working through. Runs whether
+        // the reply was posted or abandoned, since either way this is the way back.
+        //
+        // Last, and guarded: it reopens a modal, and it must not be able to stop the
+        // draft above from being saved.
+        if (opts && typeof opts.returnTo === 'function') {
+          try { opts.returnTo(); } catch (_) {}
+        }
       }
     );
   }
@@ -10962,6 +12447,72 @@
       }, () => {});
     }
     return wrap;
+  }
+
+  // The status editor. A modal rather than a section on the Profile tab: setting a
+  // status is an occasional act, and a permanent form for it made the profile read
+  // like a settings screen (see the balloon in renderProfile).
+  function openStatusEditor(active, onDone) {
+    openModal((modal) => {
+      modal.append(h('h3', { textContent: 'Status' }));
+      modal.append(h('p', {
+        className: 'hint',
+        textContent: 'A short line about what you are doing. Anyone can see it.',
+      }));
+
+      const text = h('input', { type: 'text', className: 'status-input', placeholder: 'Working, hiking, out of office…' });
+      text.maxLength = 140;
+      const link = h('input', { type: 'text', className: 'status-input', placeholder: 'Optional link' });
+      const expiry = h('select', { className: 'status-input' });
+      STATUS_DURATIONS.forEach((d, i) => {
+        expiry.append(h('option', { value: String(d.seconds), textContent: d.label, selected: i === 0 }));
+      });
+
+      const err = h('div', { className: 'error' });
+      const save = h('button', { className: 'primary', textContent: 'Set status' });
+      // Full width beneath the content, never inline beside it (CLAUDE.md): a
+      // labelled destructive action in a side slot is what collapses these rows.
+      const clear = h('button', { className: 'secondary hidden', textContent: 'Clear status' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+
+      async function publish(fields, btn, busy) {
+        err.textContent = '';
+        const label = btn.textContent;
+        [save, clear, cancel].forEach((b) => { b.disabled = true; });
+        btn.textContent = busy;
+        try {
+          const st = await publishStatus(fields);
+          if (onDone) onDone(st);
+          toast(st ? 'Status set' : 'Status cleared', 'success');
+          closeModal();
+        } catch (e) {
+          err.textContent = e.message;
+          btn.textContent = label;
+          [save, clear, cancel].forEach((b) => { b.disabled = false; });
+        }
+      }
+
+      save.addEventListener('click', () => {
+        const value = text.value.trim();
+        if (!value) { err.textContent = 'Write something, or clear the status.'; return; }
+        publish({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, save, 'Publishing…');
+      });
+      // Empty content IS the clear — see statusEvent. Not a deletion request.
+      clear.addEventListener('click', () => publish({ text: '' }, clear, 'Clearing…'));
+      cancel.addEventListener('click', closeModal);
+
+      modal.append(text, link, expiry, err, save, clear, cancel);
+
+      // Prefill from whatever is live, so editing a status is editing rather than
+      // retyping. Clear only appears once we know there is something to clear.
+      fetchStatus(active.pubkey).then((st) => {
+        if (!modal.isConnected || !st) return;
+        text.value = st.text;
+        link.value = st.url || '';
+        clear.classList.remove('hidden');
+      });
+      setTimeout(() => text.focus(), 0);
+    });
   }
 
   function renderNip65Section(view, active) {
@@ -14727,6 +16278,64 @@
     };
   }
 
+  // A REAL ZAP, not just a payment to a lightning address (NIP-57).
+  //
+  // The difference is the `nostr` query parameter. Without it the provider issues an
+  // ordinary invoice and, when it settles, nobody publishes anything: the recipient
+  // finds sats in their wallet with no idea who sent them or why, no receipt exists,
+  // and it counts toward no zap total anywhere. With it, the provider commits the
+  // signed 9734 to the invoice description and publishes a kind 9735 receipt to the
+  // relays named in the request. That receipt is the zap.
+  //
+  // Requires the provider to opt in: allowsNostr plus a nostrPubkey, which
+  // lnAddressParams already surfaces as `zappable`. A provider without it cannot
+  // produce a receipt however the button is labelled.
+  // `event` is optional: with it, makeZapRequest adds an `e` tag and the zap is of that
+  // NOTE (which is how a client shows it under the note, and how the recipient can tell
+  // what was zapped). Without it the zap is of the person, which is what the profile
+  // sheet sends.
+  async function zapInvoice({ addr, msats, comment, recipientPubkey, event }) {
+    const { meta } = await lnAddressParams(addr);
+    if (!(meta.allowsNostr && meta.nostrPubkey)) {
+      throw new Error('That lightning address cannot receive zaps, only payments.');
+    }
+    if (msats < meta.minSendable || msats > meta.maxSendable) {
+      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+    }
+
+    // The relays the recipient's provider should publish the receipt to. Theirs, not
+    // ours: a receipt on relays they never read is a receipt they never see.
+    const relays = (await readRelayUrls(recipientPubkey)).slice(0, 6);
+    // makeZapRequest reads the recipient off `event.pubkey` when an event is given, so
+    // the two forms are exclusive rather than additive.
+    const template = event
+      ? NT.nip57.makeZapRequest({ event, amount: msats, relays, comment: comment || '' })
+      : NT.nip57.makeZapRequest({ pubkey: recipientPubkey, amount: msats, relays, comment: comment || '' });
+
+    // PUBLIC ONLY, for now. Anonymous (an ephemeral signing key) and private (the
+    // sender encrypted into an `anon` tag) both worked out to be worse than sending
+    // people elsewhere: private is not in NIP-57 at all — the spec lists it under
+    // Future Work — nostr-tools does not implement it, and Sidecar's own zapSender
+    // reads only the P tag and the description pubkey, so we would be sending a
+    // privacy claim our own notifications could not honour. Anonymous is easy and
+    // correct on its own, but it belongs with private rather than shipping as a
+    // lone dropdown nobody asked for. Both come back together or not at all.
+    //
+    // Signed through the guarded owner path with expectedPubkey, so a zap cannot be
+    // signed by an account that changed underneath it. 9734 is not replaceable, so
+    // the wipe check has nothing to say about it.
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
+
+    const cb = new URL(meta.callback);
+    if (cb.protocol !== 'https:') throw new Error('That lightning address uses an insecure callback');
+    cb.searchParams.set('amount', String(msats));
+    cb.searchParams.set('nostr', JSON.stringify(signed));
+    const res = await fetch(cb.toString());
+    const body = await res.json();
+    if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : 'The lightning address did not return an invoice');
+    return body.pr;
+  }
+
   // Resolve a lightning address (user@domain) to a BOLT11 invoice via LNURL-pay.
   async function lnAddressToInvoice(addr, msats, comment) {
     // Re-fetched rather than reusing whatever the form previewed: the preview
@@ -14953,8 +16562,16 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
   });
 
+  // Writes THIS ACCOUNT's choice, never the global. An empty value clears the entry
+  // and the account goes back to following the global default.
+  //
+  // Routed through its own message rather than SIDECAR_SET_SETTINGS because that one
+  // merges shallowly: sending the whole map from the panel would clobber whatever
+  // another account had chosen, and two panels racing would lose one. Same reasoning
+  // as SIDECAR_SET_NIP65_ONLY, which this is modelled on.
   $('client-select').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
+    if (!state.activePubkey) return;
+    await call({ type: 'SIDECAR_SET_CLIENT_FOR', pubkey: state.activePubkey, client: e.target.value || '' });
   });
 
   $('reuse-tab-toggle').addEventListener('change', async (e) => {
@@ -15203,11 +16820,30 @@
   document.querySelectorAll('.theme-card').forEach(card => {
     card.addEventListener('click', async (e) => {
       const selectedTheme = card.dataset.theme;
+      // THIS ACCOUNT'S theme. The gallery dresses the account you are in, which is the
+      // whole point of #266 — with several accounts the panel looks identical whether you
+      // are in your main identity or a throwaway, and a theme answers "which account am I
+      // in" before you read anything.
       applyTheme(selectedTheme);
+      paintThemePicker(selectedTheme);
       // The panel just changed theme under the previews; the one you picked replays so
       // the choice confirms itself with the animation you chose it for.
       replayThemePreview(card);
-      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+      if (state.activePubkey) {
+        // Routed through its own message because SIDECAR_SET_SETTINGS merges shallowly and
+        // a panel sending the whole map would clobber another account's choice — the same
+        // reasoning behind SIDECAR_SET_CLIENT_FOR.
+        await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: state.activePubkey, theme: selectedTheme });
+        // NOT settings.theme, which is the default an account that never chose still
+        // wants. Writing it here redressed every untouched account, which is the bug this
+        // replaced. The pay card is not this handler's business either: it resolves its
+        // own palette from the account each SITE is bound to (background.js), so nothing
+        // has to be pushed to it and switching accounts tells no page anything.
+      } else {
+        // Onboarding: no account to attribute the choice to, so it sets the default every
+        // new account inherits — which is also what the pay card falls back to.
+        await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+      }
     });
   });
 
@@ -15220,6 +16856,24 @@
     const daily = Math.min(AUTOZAP_ABS_DAILY_MAX, Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT));
     $('autozap-daily-max').value = String(daily);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
+  });
+
+  // Clamped on the way in and written back into the field, the same as the autozap caps
+  // below: a value the app silently refused would otherwise sit on screen looking saved.
+  $('default-zap').addEventListener('change', async (e) => {
+    const sats = clampZapDefault(e.target.value);
+    e.target.value = String(sats);
+    defaultZapSats = sats; // the zap rows read this, and are built without a round trip
+    defaultZapIsOwn = true;
+    // THIS ACCOUNT's amount, and nobody else's. Its own message because
+    // SIDECAR_SET_SETTINGS merges shallowly, so a panel sending the whole map would
+    // clobber another account's.
+    //
+    // No account, no write. There is no global for this any more, so during onboarding
+    // there is nothing for the number to belong to.
+    if (!state.activePubkey) return;
+    await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
+    toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
   });
 
   $('autozap-max').addEventListener('change', async (e) => {

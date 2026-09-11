@@ -167,20 +167,35 @@ test('a body mention does not duplicate a participant already tagged', () => {
 test('reply is offered on notes and comments only', () => {
   // A reaction, repost or zap receipt has no thread to join. A reply tagging a kind:7
   // renders as nothing sensible anywhere, and a button that produces a dead-end event
-  // is worse than no button.
-  const at = source.indexOf("const actionRow = h('div', { className: 'notif-action'");
-  assert.ok(at !== -1, 'the notification action row moved');
-  const block = source.slice(at, at + 1400);
-  assert.match(block, /if \(ev\.kind === 1 \|\| ev\.kind === WEB_COMMENT_KIND\) \{/);
+  // is worse than no button. Those rows expand to show which of your notes they are
+  // about instead, which is the half of the sentence the label leaves out.
+  // The whole builder, not a slice of it: the media block and the expand notes sit
+  // between the kind test and the action row, and a fixed window kept cutting before it.
+  const block = lift('function buildItem(');
+  assert.match(block, /const isNoteLike = ev\.kind === 1 \|\| ev\.kind === WEB_COMMENT_KIND;/);
+  assert.match(block, /if \(isNoteLike\) \{\s*const stopAct/,
+    'the reply/react/zap row is no longer gated on the kind');
+  assert.match(block, /const targetId = isNoteLike \? '' : notifTargetId\(ev\)/,
+    'a reaction, repost or zap no longer resolves the note it is about');
 });
 
-test('the reply button does not also follow the row link', () => {
+test('NOTHING IN AN EXPANDED ROW ALSO FOLLOWS THE ROW LINK', () => {
   // The row is an anchor that opens the note in a client. Without stopping the event,
-  // tapping Reply would open a tab behind the composer as well.
-  const at = source.indexOf("const actionRow = h('div', { className: 'notif-action'");
-  const block = source.slice(at, at + 1400);
-  assert.match(block, /e\.preventDefault\(\)/);
-  assert.match(block, /e\.stopPropagation\(\)/);
+  // tapping Reply would open a tab behind the composer as well — and the same goes for
+  // the chevron, the emoji picker, the zap presets and the amount field, which is why
+  // every one of them is handed the same `stop`.
+  const fn = lift('async function showNotifModal(');
+  assert.match(fn, /const stop = \(e\) => \{ e\.preventDefault\(\); e\.stopPropagation\(\); \};/,
+    'the one-shot click guard for expanded controls is gone');
+  const actions = lift('function buildActions(');
+  for (const control of ['replyBtn', 'reactBtn', 'zapBtn']) {
+    const at = actions.indexOf(control + ".addEventListener('click'");
+    assert.ok(at !== -1, control + ' lost its handler');
+    assert.match(actions.slice(at, at + 120), /stop\(e\)/, control + ' does not stop the row link');
+  }
+  const zap = lift('function buildZapForm(');
+  assert.match(zap, /send\.addEventListener\('click', async \(e\) => \{\s*stop\(e\);/,
+    'sending a zap does not stop the row link');
 });
 
 test('the composer shows what is being answered', () => {

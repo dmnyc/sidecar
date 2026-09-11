@@ -781,7 +781,9 @@ test('no theme reaches into another theme\'s picker card', () => {
       //   .theme-card[data-theme="x"]  further qualifies the card by its OWN theme, so it
       //                                cannot reach another one (cast-iron.css does this)
       //   .theme-card.active           can only be the active theme's own card, since
-      //                                that is what "active" means here
+      //                                that is what "active" means here — the gallery
+      //                                marks the theme the panel is wearing
+      //                                (paintThemePicker in sidepanel.js)
       // A universal selector reaches every card in the picker exactly as `button` does,
       // and is the broader mistake of the two.
       const m = sel.match(
@@ -795,4 +797,41 @@ test('no theme reaches into another theme\'s picker card', () => {
       );
     }
   }
+});
+
+// ---------------------------------------------------------------------------------
+// The direction badge on a transaction row, when the row has a profile picture.
+//
+// It is a 15px disc with a 9px arrow in it, and the arrow was hardcoded #fff while the
+// fill comes from --success — a token that runs from #6ee7a8 in Speakeasy to #1F6B3F in
+// Bauhaus. On the light end that measured 1.54:1, which is a white arrow on mint: the
+// shape is simply not there. Reported against Speakeasy.
+//
+// 3:1 is the WCAG floor for a graphical object, and this one is 9px of stroke, so the bar
+// here is 4.5 — the same reasoning the .lav-btn tests above use for a small label.
+test('THE SEND/RECEIVE ARROW IS LEGIBLE ON ITS DISC IN EVERY THEME', () => {
+  const rootSuccess = rootVars['--success'];
+  const rootInk = rootVars['--success-ink'];
+  assert.ok(rootInk, ':root must carry a --success-ink default for themes that do not set one');
+
+  for (const t of THEMES) {
+    const fill = t.vars['--success'] || rootSuccess;
+    const ink = t.vars['--success-ink'] || rootInk;
+    const r = contrast(resolve(ink, t.vars), resolve(fill, t.vars));
+    assert.ok(
+      r >= 4.5,
+      `${t.name}: the arrow (${ink}) on its disc (${fill}) is ${r.toFixed(2)}:1. ` +
+      `A 9px glyph needs 4.5 — set --success-ink beside this theme's --success ` +
+      `(#fff on a dark green, #0a1410 on a light one).`
+    );
+  }
+});
+
+test('the badge takes its ink from the token, not from white', () => {
+  // The whole point: one hardcoded colour cannot serve twelve fills. If this rule goes
+  // back to #fff, the test above still passes — it reads the token, not the rule.
+  const rule = css.match(/\.tx-icon\.in \.tx-dir \{[^}]*\}/);
+  assert.ok(rule, '.tx-icon.in .tx-dir moved');
+  assert.match(rule[0], /color: var\(--success-ink/, 'the arrow ink is hardcoded again');
+  assert.match(rule[0], /background: var\(--success\)/, 'the disc no longer follows the theme');
 });

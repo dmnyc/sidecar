@@ -467,13 +467,24 @@
     '.tg-input:not(:checked)~.tg-track{background:{CARD_TOGGLE_OFF};}' +
     '.tg-input:not(:checked)~.tg-track .tg-thumb{background:{CARD_THUMB_OFF};}';
 
-  // Current theme for the payment card. Read from storage at load and kept in
-  // sync via storage.onChanged so a theme change in the panel also reaches pages
-  // that are already open. The card can auto-render the moment an invoice is
-  // detected (before this async read resolves), so if a card is on screen when
-  // the theme resolves, it's re-rendered in the correct scheme. Defaults to
-  // speakeasy. (Background intentionally exposes only showPayButton to content
-  // scripts, so the theme is read directly from storage, not via messaging.)
+  // Current theme for the payment card. Asked for at load and re-asked on any settings
+  // or binding change, so a theme change in the panel also reaches pages already open.
+  // The card can auto-render the moment an invoice is detected (before the answer
+  // arrives), so if a card is on screen when the theme resolves, it's re-rendered in the
+  // correct scheme. Defaults to speakeasy.
+  //
+  // ASKED FOR, not read from storage, and resolved by the background: it is the theme of
+  // THE ACCOUNT THIS SITE IS BOUND TO (background.js, the clamped GET_SETTINGS). Themes
+  // are per account, and three wrong answers shipped before this one:
+  //   - settings.theme alone froze the card, since a per-account pick never writes it;
+  //   - a "last theme picked anywhere" field matched only the account picked for most
+  //     recently, so with two styled accounts the card was usually the wrong one;
+  //   - the ACTIVE account's theme would match the panel, but the active identity can be
+  //     one this site has never seen, and a card that changed colour on a switch is a
+  //     switch detector a page can poll by cycling the invoice.
+  // The bound account is the one whose pubkey this site already holds, so its theme is
+  // not news to it, and it is what the panel shows whenever the site you are zapping on
+  // is the account you are in.
   let cardTheme = 'speakeasy';
   // Keyed off one set rather than a chain of !==. The chain form silently dropped any
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
@@ -490,14 +501,22 @@
     cardTheme = t;
     if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
   }
+  // The settings read below carries it too, but that one races the first scan; this asks
+  // as early as possible so a card detected immediately still opens in the right palette.
+  function askCardTheme() {
+    try {
+      chrome.runtime.sendMessage({ type: 'SIDECAR_GET_SETTINGS' }, (s) => {
+        if (chrome.runtime.lastError) return; // keep whatever we have
+        setCardTheme((s && s.result && s.result.cardTheme) || '');
+      });
+    } catch (_) { /* keep speakeasy default */ }
+  }
+  askCardTheme();
   try {
-    chrome.storage.local.get('sidecar_settings', (data) => {
-      setCardTheme(data && data.sidecar_settings && data.sidecar_settings.theme);
-    });
+    // Re-ask rather than read the new value: the resolved answer depends on this site's
+    // binding as well as the settings, and only the background may join those two.
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes.sidecar_settings && changes.sidecar_settings.newValue) {
-        setCardTheme(changes.sidecar_settings.newValue.theme);
-      }
+      if (area === 'local' && (changes.sidecar_settings || changes.sidecar_site_accounts)) askCardTheme();
     });
   } catch (_) { /* storage unavailable — keep speakeasy default */ }
 
@@ -1271,6 +1290,7 @@
       const settings = (s && s.result) || {};
       showCard = settings.showPayButton !== false;
       autoZapOffer = Number(settings.autoZapOffer) || 0;
+      setCardTheme(settings.cardTheme || ''); // same reply carries the palette
       scanForInvoice();
     });
   } catch (_) {}

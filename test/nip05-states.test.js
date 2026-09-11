@@ -161,6 +161,11 @@ test('the three severities are visually distinct, and themeable', () => {
 test('no caller decides the badge for itself any more', () => {
   // Both surfaces — the overview drawer and the Profile tab — rendered their own
   // ok/!ok badge. Two places to get the new severity wrong is one too many.
+  //
+  // The count is a proxy for centralisation, not a cap on surfaces: the peek sheet
+  // is a legitimate third caller, and the thing being guarded is that each one
+  // DELEGATES rather than deciding severity itself. The doesNotMatch below is the
+  // assertion that actually enforces it; this one just keeps the number honest.
   assert.doesNotMatch(panel, /nip05-ok' : 'nip05-bad'/);
-  assert.equal((panel.match(/paintNip05Badge\(/g) || []).length, 3, 'one definition, two callers');
+  assert.equal((panel.match(/paintNip05Badge\(/g) || []).length, 4, 'one definition, three callers');
 });

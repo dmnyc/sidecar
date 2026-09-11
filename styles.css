@@ -34,6 +34,7 @@
   --warn: #ffb38a;
   --warn-rgb: 255, 179, 138;
   --success: #6ee7a8;
+  --success-ink: #0a1410; /* arrow ink on a --success fill; see .tx-dir */
   --success-rgb: 110, 231, 168;
   --orange: #ea772f;
   --amber: #f4a64b;
@@ -190,6 +191,11 @@ input, select, textarea {
   font-size: 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
+/* A select shares the padding above so every field lines up at the same height,
+   but its caret is drawn by the platform INSIDE that padding box. At 13px the
+   longest option ran right up against the arrow. Only the right side changes, so
+   nothing else about the field moves. */
+select { padding-right: 34px; }
 textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 /* autosizeTextarea: grows with content, then scrolls instead of pushing the rest
    of the editor away. 45vh keeps the Save row reachable in the panel. */
@@ -379,6 +385,24 @@ input:focus, select:focus, textarea:focus {
 .profile-about a:hover { text-decoration: underline; }
 .profile-about .mention { color: var(--orange); text-decoration: none; font-weight: 600; }
 .about-clamp { max-height: 168px; overflow: hidden; position: relative; }
+/* A clamped bio ends mid-sentence on a hard edge, which reads as a rendering fault
+   rather than as "there is more". Fading the last lines says it is cut without
+   spending a row on saying so.
+
+   A MASK, not a gradient overlay. An overlay has to be painted in the colour of
+   whatever sits behind the text, and that differs per surface: the Profile tab sits
+   on --bg, the peek sheet sits on .modal's 160deg velvet gradient, and the exact
+   value at the fade's own height is somewhere between two stops. Matching it left a
+   visible muddy band. Masking fades the TEXT to transparent instead, so whatever is
+   behind shows through unchanged — correct on both surfaces and all twelve themes
+   without a single colour being named.
+
+   Only on .about-clamp, so it lifts the moment the bio is expanded (the class is
+   what renderAbout toggles) and never appears on a bio too short to clamp. */
+.about-clamp {
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+}
 .show-toggle { background: none; border: none; color: var(--lav); font-size: 13px; font-weight: 600; padding: 4px 0; cursor: pointer; }
 
 /* compact buttons (backup rows) */
@@ -1380,37 +1404,6 @@ a.notif-clickable:hover { background: var(--hover-soft); }
   align-items: center;
   gap: 8px;
 }
-/* An offer beside the text, not a call to action competing with it — but legible at
-   rest. --faint on a transparent border read as disabled, and a control nobody can see
-   is not restraint. It sits at the same weight as the action text it follows, and both
-   hovers say so: the row's hover lifts it with the card, and its own hover gives it a
-   border and full text color. */
-.notif-reply {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--hover-soft);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 3px 9px;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-}
-/* Hovering the CARD, not the button: the whole row is a link, so the button has to
-   come up with it or it looks inert on the one surface the user is already pointing at. */
-.notif-clickable:hover .notif-reply { color: var(--text-2); border-color: var(--border-strong); }
-.notif-reply:hover {
-  color: var(--text);
-  border-color: var(--gold-soft);
-  background: var(--hover-soft);
-}
-.notif-reply svg { width: 12px; height: 12px; display: block; }
 
 /* What a reply is answering, above the editor. Same role as .webcomment-target. */
 .reply-target {
@@ -1466,6 +1459,10 @@ a.notif-clickable:hover { background: var(--hover-soft); }
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
+/* Expanded: the clamp comes off. The 140-char cut in the source and this 3-line clamp
+   are two different truncations of the same text, and undoing only the first left the
+   row looking like the chevron did nothing. */
+.notif-content-full { display: block; -webkit-line-clamp: none; overflow: visible; white-space: pre-wrap; }
 .notif-link { display: flex; align-items: center; color: var(--faint); flex-shrink: 0; }
 a.notif-clickable:hover .notif-link { color: var(--lav); }
 .notif-link svg { width: 13px; height: 13px; }
@@ -1687,6 +1684,111 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .autozap-max-input { width: 90px; text-align: right; padding: 6px 9px; }
 
 /* backup & restore — set apart from the profile bio above it */
+/* ===== NIP-38 status ===== */
+/* The balloon sits ON the banner. A status is a remark, not a profile field, and
+   a labelled section for it made the whole tab read like a settings screen.
+   Absolutely positioned inside .profile-header, which is already position:relative
+   for the avatar's overlap. */
+.status-balloon {
+  position: absolute;
+  top: 14px;
+  left: 50%; transform: translateX(-50%);
+  /* Never the full width of the banner: it is a remark on top of a picture, and
+     one that reached both edges would read as a caption bar. */
+  max-width: calc(100% - 44px);
+  display: inline-flex; align-items: center;
+  padding: 7px 13px;
+  /* NOT var(--bg), which is exactly the colour behind it. The balloon floats on
+     the banner, so it has to read as its own object rather than as a hole in the
+     page. The card gradient lifts it, --gold-soft rings it (the same ring the
+     avatar it points at already wears), and the shadow does the rest.
+
+     The ring is --muted, NOT --border-strong or --gold-soft. Both of those are
+     alpha tokens tuned for edges on a flat panel: on Cast Iron they are 5.5% and
+     12%, which measured 2.2:1 against the banner — under the 3:1 a boundary needs,
+     and the fill gives nothing, since the card gradient and the banner placeholder
+     are both built from --velvet-1. --muted is an opaque TEXT token, so every
+     theme already guarantees it reads against its own background. */
+  border: 1px solid var(--muted);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  color: var(--text-2);
+  font-size: 13px; line-height: 1.35; text-align: left;
+  cursor: pointer;
+  box-shadow: 0 6px 18px var(--float-shadow, rgba(0, 0, 0, 0.55));
+}
+/* Hover BRIGHTENS the ring, and the tail moves with it. Two bugs lived in the one
+   line this replaces: the tail kept --muted while the box changed, so the outline
+   broke at the tail; and the box changed to --gold-soft, an alpha edge token that
+   is 12% on Cast Iron, so pointing at the balloon made it harder to see rather
+   than easier. --text-2 is a text token a step brighter than --muted, so the ring
+   gains contrast on hover in every theme. */
+.status-balloon:not(.peek-status):hover { border-color: var(--text-2); color: var(--text); }
+.status-balloon:not(.peek-status):hover::before { border-top-color: var(--text-2); }
+
+/* The tail, pointing down at the avatar below. Two stacked triangles: ::before is
+   the border, ::after the fill sitting 1px inside it, which is how you get a
+   hairline-outlined tail without an SVG. Offset left of center rather than
+   centered, so it reads as a spoken remark rather than a tooltip pinned to the
+   face. */
+.status-balloon::before,
+.status-balloon::after {
+  content: ''; position: absolute;
+  left: 34%;
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 0;
+}
+.status-balloon::before { top: 100%; border-top: 8px solid var(--muted); }
+.status-balloon::after {
+  top: calc(100% - 1px);
+  margin-left: 1px;
+  border-left-width: 7px; border-right-width: 7px;
+  /* The gradient's bottom stop, since the tail hangs off the bottom edge. */
+  border-top: 7px solid var(--velvet-2);
+}
+
+/* ONE LINE, ALWAYS. The balloon sits directly above the avatar with only the tail
+   between them, so a second line grows downward into the face. Prose truncates and
+   chrome does not (CLAUDE.md): the line ellipsizes, and min-width:0 is what lets
+   the flex child shrink far enough to do it. */
+.status-balloon-text {
+  min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Edit profile and Set status share a row. They stay content-sized pills rather
+   than stretching to half the panel each: the profile is a centered column and two
+   full-width slabs read as a toolbar. align-items:center stops the shorter button
+   stretching to the taller one, which with border-radius:999px turns it into a
+   circle.
+
+   Both buttons are sized here rather than inheriting .profile-edit-cta's rules,
+   because those are scoped to that one class — the first pass left the new
+   button's svg with no size at all, and an unconstrained icon blew the row up.
+   Specificity: (0,2,1) beats the (0,2,0) of `.profile-body .profile-edit-cta`,
+   so this wins without !important. */
+.profile-cta-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; margin: 12px 0 2px;
+}
+.profile-body .profile-cta-row > button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  flex: 0 1 auto; min-width: 0; margin: 0;
+  padding: 8px 18px; border-radius: 999px;
+}
+.profile-body .profile-cta-row > button svg {
+  width: 15px; height: 15px; display: block; flex-shrink: 0;
+}
+/* The label truncates before the button does. */
+.profile-body .profile-cta-row > button span {
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* The editor's fields, in the modal rather than on the tab. */
+.status-input { width: 100%; margin-top: 8px; }
+
 .nip65-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
 .nip65-status { color: var(--faint); }
 .nip65-status.done { color: var(--gold); }
@@ -2174,7 +2276,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .ac-item:hover, .ac-item.active { background: var(--hover-medium); }
 .ac-item-av { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--velvet-1); border: 1px solid var(--border); }
 .ac-item-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ac-item-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-item-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* The trust mark keeps its metrics and the NAME does the truncating (CLAUDE.md):
+   in a ~360px dropdown the mark is the part that distinguishes six identical rows,
+   so it is the last thing that should be allowed to shrink. */
+.ac-item-trust {
+  margin-left: auto; flex-shrink: 0;
+  font-size: 11px; color: var(--muted); white-space: nowrap;
+}
 .ac-loading { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
 .ac-spinner { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--lav); animation: ac-spin 0.7s linear infinite; }
 @keyframes ac-spin { to { transform: rotate(360deg); } }
@@ -2680,7 +2789,12 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   border: 1.5px solid var(--bg);
 }
 .tx-dir svg { width: 9px; height: 9px; }
-.tx-icon.in .tx-dir { color: #fff; background: var(--success); }
+/* THE ARROW'S INK IS A TOKEN, because the fill is one. --success runs from #6ee7a8 in
+   Speakeasy to #1F6B3F in Bauhaus, so a hardcoded white arrow measured 1.54:1 on the
+   light end — a 9px glyph nobody could read, reported against Speakeasy. Dark is the
+   default because the :root --success is light; the six themes with a dark green set
+   --success-ink: #fff beside their own --success. Guarded in theme-contrast.test.js. */
+.tx-icon.in .tx-dir { color: var(--success-ink, #0a1410); background: var(--success); }
 .tx-icon.out .tx-dir { color: #fff; background: #c9782a; }
 .tx-icon.in { color: var(--success); background: rgba(var(--success-rgb), 0.12); }
 .tx-icon.out { color: #f4a64b; background: rgba(244, 166, 75, 0.12); }
@@ -3785,3 +3899,219 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      one card is not worth carrying. */
   transform: translateY(var(--display-ink-nudge, 0));
 }
+
+/* ===== profile peek sheet ===== */
+.peek-head { position: relative; display: flex; flex-direction: column; align-items: center; }
+.peek-banner { width: 100%; height: 104px; border-radius: 14px; border: 1px solid var(--border); overflow: hidden; }
+.peek-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.peek-banner-ph { background: linear-gradient(135deg, var(--velvet-1), var(--banner-accent)); }
+.peek-avatar {
+  width: 68px; height: 68px; border-radius: 50%; overflow: hidden;
+  margin-top: -34px; border: 3px solid var(--bg); position: relative;
+  background: linear-gradient(180deg, var(--av-from), var(--av-to));
+  box-shadow: 0 0 0 1px var(--gold-soft);
+}
+.peek-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.peek-body { text-align: center; padding: 0 2px; }
+.peek-name {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: calc(20px * var(--display-scale, 1)); line-height: 1.25;
+  margin: 8px 0 3px; overflow-wrap: anywhere;
+}
+.peek-meta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 12px; color: var(--muted); margin: 3px 0; overflow-wrap: anywhere;
+}
+.peek-npub { margin: 6px 0 10px; }
+/* NO max-height OR overflow HERE. renderAbout appends its own Show more/Show less
+   button to this container and clamps the text with .about-clamp, so a scroller on
+   the container traps the toggle below the fold — the bio expands and there is then
+   no way to collapse it. Let .about-clamp cap the height and let the modal scroll. */
+.peek-about {
+  text-align: left; font-size: 13px; line-height: 1.5; color: var(--text-2);
+  margin: 10px 0; overflow-wrap: anywhere;
+}
+.peek-about:empty { display: none; }
+/* The hand-off sits below the content, full width, never inline (CLAUDE.md). */
+.peek-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.peek-actions button { width: 100%; }
+/* reach + relationship on the peek sheet. Inherits .profile-stats from the
+   Profile tab so the two read as the same thing said about two people. Wraps,
+   because three phrases do not always fit 358px on one line. */
+.peek-rel { flex-wrap: wrap; gap: 6px; }
+.peek-sep { color: var(--faint); }
+/* Someone else's status is a fact, not a control: it is read-only here, so it takes
+   no pointer and no hover treatment. Only your own, on the Profile tab, opens an
+   editor when tapped. */
+.peek-status { top: 8px; cursor: default; }
+/* zap control on the peek sheet. */
+.peek-zap { margin-top: 12px; }
+.peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
+.peek-zap-form { margin-top: 10px; }
+/* Four presets on ONE row at 358px. flex-basis 0 divides the width evenly instead
+   of sizing to content, which is what pushed 5,000 onto a line of its own. */
+.peek-zap-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.peek-preset { flex: 1 1 0; min-width: 0; padding: 7px 6px; font-size: 13px; }
+/* The lightning row is a control now, so it has to say so on hover. */
+.peek-meta[title] { cursor: pointer; }
+.peek-meta[title]:hover { color: var(--gold); }
+
+/* The bell sheet's refresh, sharing .modal-x's metrics because it is the same kind of
+   object: an icon in the sheet's corner, where a control costs the list no width. Sits
+   left of the close button rather than in the heading, which has to hold a two-line
+   title beside an avatar on a multi-account panel. */
+.notif-refresh { right: 48px; }
+.notif-refresh svg { width: 17px; height: 17px; display: block; }
+/* Spins while the fetch is in flight, so a slow relay looks busy rather than dead —
+   the same treatment .profile-backup-jump uses. */
+.notif-refresh.spinning svg { animation: profile-refresh-spin 0.9s linear infinite; }
+.notif-refresh:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  .notif-refresh.spinning svg { animation: none; opacity: 0.5; }
+}
+
+/* ===== expanding a notification ===== */
+/* The chevron sits in the row's top-right slot beside the time and the open-in-client
+   arrow. Icon only, and it has to be: that slot is flex-shrink:0 next to a truncating
+   author name, so anything with words in it takes width from the name. */
+.notif-expand-btn {
+  background: none; border: none; padding: 0 0 0 2px; margin: 0;
+  display: inline-flex; align-items: center;
+  color: var(--muted); cursor: pointer; flex-shrink: 0;
+  transition: color 0.12s ease, transform 0.15s ease;
+}
+.notif-expand-btn svg { width: 15px; height: 15px; display: block; }
+.notif-expand-btn:hover { color: var(--gold); }
+.notif-expand-btn.open { transform: rotate(180deg); }
+.notif-clickable:hover .notif-expand-btn { color: var(--text-2); }
+@media (prefers-reduced-motion: reduce) {
+  .notif-expand-btn { transition: color 0.12s ease; }
+}
+
+/* Indented to the same 22px gutter .notif-content uses, so the glyph column stays clear
+   and an expanded row reads as belonging to the one above it. */
+.notif-expand { margin: 8px 0 2px 22px; }
+
+/* The note a reaction, repost or zap is about — your own note, quoted back at you, which
+   is the half of "reacted to your note" the row cannot say. Left rule rather than a card:
+   it is context inside a row that is already a card, and a second border reads as a
+   second object. Same treatment as .reply-target above the composer. */
+.notif-target { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 10px; }
+.notif-target-label {
+  font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--faint); margin-bottom: 2px;
+}
+.notif-target-body { font-size: 12.5px; color: var(--text-2); margin: 0; white-space: pre-wrap; }
+.notif-target-missing { color: var(--faint); font-style: italic; }
+
+/* Reply, react, zap. Icons only and always visible, rather than three labelled buttons
+   behind the chevron: labels are ~200px of minimum width and read as a toolbar under
+   every row, where icons at rest are quiet enough to repeat 25 times down a list.
+   Left-aligned at the same 22px gutter the content uses, so the glyph column stays clear.
+   Sized as tap targets (30px), not shrunk to fit — the row has the height to spare. */
+.notif-act-wrap { margin: 6px 0 0 22px; }
+.notif-actions { display: flex; gap: 2px; }
+.notif-act {
+  width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  color: var(--muted); cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.notif-act svg { width: 15px; height: 15px; display: block; }
+.notif-act .bolt-ico { height: 15px; width: auto; }
+/* Hovering the CARD, not the button: the whole row is a link, so these have to come up
+   with it or they look inert on the surface the pointer is already over. */
+.notif-clickable:hover .notif-act { color: var(--text-2); }
+.notif-act:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+/* The zap icon stays lit while its form is open, since the form appears below the row
+   and nothing else says which button opened it. */
+.notif-act.open { color: var(--gold); background: var(--hover-medium); border-color: var(--gold-soft); }
+.notif-zap { margin-top: 8px; }
+
+/* ===== the reaction picker ===== */
+/* A grid of characters, so the cells are square and sized by the glyph rather than by a
+   label. 8 across fits the 300px of usable sheet width at a tap target that is still
+   comfortable; the browser fills as many as the width allows. */
+.emoji-quick { display: flex; gap: 4px; margin: 2px 0 4px; }
+.emoji-scroll { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; }
+.emoji-cell {
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  padding: 0; aspect-ratio: 1; min-height: 34px;
+  font-size: 20px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.emoji-cell:hover { background: var(--hover-medium); border-color: var(--border-strong); }
+.emoji-quick-cell { flex: 1 1 0; min-width: 0; background: var(--hover-soft); border-color: var(--border); }
+/* The group row. Each tab is that group's first emoji, so nine more glyphs never have to
+   be chosen and kept in step with the vendored table. */
+.emoji-tabs { display: flex; gap: 2px; margin: 8px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.emoji-tab {
+  flex: 1 1 0; min-width: 0; background: none; border: none; border-radius: 8px;
+  padding: 5px 0; font-size: 17px; line-height: 1; cursor: pointer; opacity: 0.55;
+}
+.emoji-tab:hover { background: var(--hover-medium); opacity: 1; }
+.emoji-tab.active { background: var(--hover-medium); opacity: 1; box-shadow: inset 0 -2px 0 var(--gold); }
+
+/* A chevron that reveals nothing is furniture, so a row whose text already fits does not
+   get one. Whether it fits is measured after layout, not guessed from the character
+   count — see the note in buildItem. */
+.notif-expand-none { display: none; }
+
+/* What YOU reacted with, under the note. Chips rather than a line of text: they are
+   glyphs, they repeat, and at rest they should read as a mark on the row instead of as
+   more content to read. Indented to the same 22px gutter the content uses. */
+.notif-reacted { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0 22px; }
+.notif-reacted-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 22px; padding: 0 5px;
+  background: var(--hover-soft); border: 1px solid var(--border);
+  border-radius: 999px; font-size: 13px; line-height: 1;
+}
+
+/* The reaction picker, layered INSIDE the bell sheet rather than replacing it. There is
+   one #modal element, so anything that went through openModal tore the notification list
+   down and lost the user's place in it. Absolute over the sheet's padding box, opaque, so
+   the list is still there underneath when this closes. */
+.emoji-over {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 22px; border-radius: 18px;
+  background: var(--velvet-1);
+  overflow: hidden;
+}
+.emoji-over:focus { outline: none; }
+
+/* "Save 2,100 as your default", under the amount it would save. A line rather than a
+   button: it is an offer about a field you are already using, not one of the two things
+   this form is for, and a third filled control beside Send would compete with it.
+   Its own row, because it has words — an inline slot in a 300px sheet is the mistake
+   this panel keeps making. Absent, not disabled, when there is nothing to save. */
+.zap-save-default {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; padding: 6px 0 0;
+  font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+  color: var(--lav); cursor: pointer;
+}
+.zap-save-default:hover { color: var(--gold); text-decoration: underline; }
+
+/* [+] in the fourth preset slot, for an account that has never set its own amount. With
+   21 built in and the row deduped, that account sees three chips and no sign a fourth is
+   available — this is the sign. Quieter than a real preset: it is an invitation, not an
+   amount, so it takes the dashed edge rather than the filled one. */
+.peek-preset-add {
+  border-style: dashed;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.peek-preset-add:hover { border-style: solid; color: var(--gold); }
+
+/* Repost or quote: two words under the icon that offered them. Their own row, because
+   they have words — the icon row above is the only thing that fits beside content in a
+   ~300px sheet. Equal shares via flex-basis 0, the same fix .peek-preset needed, so
+   "Repost" and "Quote" cannot size to content and leave one stranded on its own line. */
+.notif-repost { display: flex; gap: 6px; margin-top: 8px; }
+.notif-repost-choice { flex: 1 1 0; min-width: 0; padding: 7px 6px; font-size: 12.5px; }
