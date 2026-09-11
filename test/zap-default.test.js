@@ -63,14 +63,15 @@ function consts() {
 
 // ---- the number -----------------------------------------------------------------------
 
-test('AN UNSET DEFAULT IS THE 5,000 THAT WAS THERE BEFORE', () => {
-  // The slot held 5,000 before it was settable, so an install that never opens the
-  // setting keeps exactly the row it already had.
-  const { clampZapDefault, ZAP_DEFAULT_SATS } = consts();
-  assert.equal(ZAP_DEFAULT_SATS, 5000);
+test('AN UNSET DEFAULT IS 21', () => {
+  // The zap everyone sends. It also means a fresh install draws three chips rather than
+  // four, because the fourth would be a second 21 — the slot earns its place once set.
+  const { clampZapDefault, ZAP_DEFAULT_SATS, zapPresets } = consts();
+  assert.equal(ZAP_DEFAULT_SATS, 21);
   for (const v of [undefined, null, '', 0, NaN, 'abc', -50, {}]) {
-    assert.equal(clampZapDefault(v), 5000, JSON.stringify(v) + ' should fall back');
+    assert.equal(clampZapDefault(v), 21, JSON.stringify(v) + ' should fall back');
   }
+  assert.equal(row(zapPresets()), '21,100,1000', 'an untouched install should not show 21 twice');
 });
 
 test('a typed amount is taken as whole sats', () => {
@@ -109,13 +110,16 @@ test('CLAMPED ON THE WAY OUT, NOT ONLY ON THE WAY IN', () => {
 // "same structure but not reference-equal", which reads like a real defect and is not one.
 const row = (fnOut) => fnOut.join(',');
 
-test('the default takes the fourth slot beside the fixed three', () => {
+test('THE ROW STAYS AN ASCENDING SCALE', () => {
+  // Appended, a default of 500 sat next to 1,000 and read as a mistake. Sorted, it lands
+  // between 100 and 1,000 where the eye is already looking for it.
   const { zapPresets, set } = consts();
-  assert.equal(row(zapPresets()), '21,100,1000,5000');
   set(2100);
-  assert.equal(row(zapPresets()), '21,100,1000,2100');
+  assert.equal(row(zapPresets()), '21,100,1000,2100', 'a large default belongs last');
+  set(500);
+  assert.equal(row(zapPresets()), '21,100,500,1000', 'a middling default is not appended');
   set(1);
-  assert.equal(row(zapPresets()), '21,100,1000,1');
+  assert.equal(row(zapPresets()), '1,21,100,1000', 'a default under every preset belongs first');
 });
 
 test('A DEFAULT THAT IS ALREADY A PRESET DOES NOT DRAW TWICE', () => {

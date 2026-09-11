@@ -8,11 +8,11 @@
 
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
   // a stored value is missing or invalid.
-  // The three fixed zap presets, plus a fourth the user owns. 5,000 sat in that slot
-  // before it was settable, so that is the fallback: an install that never touches the
-  // setting keeps the row it already had.
+  // The three fixed zap presets, plus one the user owns. 21 is the fallback — the zap
+  // everyone sends — which means a fresh install shows three chips rather than four,
+  // since the fourth would be a second 21. The slot earns its place once it is set.
   const ZAP_PRESETS_FIXED = [21, 100, 1000];
-  const ZAP_DEFAULT_SATS = 5000;
+  const ZAP_DEFAULT_SATS = 21;
   // A typo away from a very large default, and the chip fills an amount field that is one
   // tap from a payment. High enough to be nobody's ceiling, low enough that a stray zero
   // is caught rather than saved.
@@ -3688,7 +3688,10 @@
   function zapPresets() {
     const list = ZAP_PRESETS_FIXED.slice();
     if (!list.includes(defaultZapSats)) list.push(defaultZapSats);
-    return list;
+    // SORTED, not appended. The row is an ascending scale, and a default of 500 tacked
+    // on the end read as a mistake sitting beside 1,000 — it belongs between 100 and
+    // 1,000, where the eye is already looking for it.
+    return list.sort((a, b) => a - b);
   }
 
   // `stop` is passed where the row lives inside something clickable — a notification row
