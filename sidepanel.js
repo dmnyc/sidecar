@@ -4868,11 +4868,11 @@
       const targetId = isNoteLike ? '' : notifTargetId(ev);
 
       let contentEl = null;
-      let fullText = '';
+      // The collapsed string only. The expanded one is recomputed when the caret is
+      // tapped, because mention names resolve after this runs — see the toggle below.
       let snippetText = '';
       if (isNoteLike && ev.content) {
         const cleaned = cleanSnippet(ev.content);
-        fullText = cleaned;
         if (cleaned) {
           snippetText = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
           contentEl = h('p', { className: 'notif-content', textContent: snippetText });
@@ -5026,8 +5026,17 @@
           // TWO cuts to undo and redo, not one, and the second is CSS: .notif-content is
           // a three-line -webkit-line-clamp, so swapping the text without the class left
           // the browser drawing its own ellipsis at the same three lines.
+          //
+          // RECOMPUTED, not the snapshot taken when the row was built. cleanSnippet turns
+          // `nostr:npub1…` into @name from whatever profiles were cached at the time, and
+          // the names arrive seconds later from the background pass — so a build-time
+          // snapshot puts the @npub1abc… fallback back on screen every time you expand,
+          // which is how a note full of resolved mentions still read as npubs. Reported.
           if (contentEl) {
-            contentEl.textContent = open ? fullText : snippetText;
+            const text = cleanSnippet(ev.content || '');
+            contentEl.textContent = open
+              ? text
+              : (text.length > 140 ? text.slice(0, 140) + '…' : text);
             contentEl.classList.toggle('notif-content-full', open);
           }
 

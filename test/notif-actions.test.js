@@ -103,8 +103,11 @@ test('EXPANDING LIFTS BOTH TRUNCATIONS, AND COLLAPSING PUTS THEM BACK', () => {
   // seemed to work were the reaction ones, where the panel did have a note in it. Worse,
   // the still-unclamped text then measured as unclipped and syncToggle hid the caret.
   const item = stripComments(lift('function buildItem('));
-  assert.match(item, /contentEl\.textContent = open \? fullText : snippetText/,
-    'the text is not swapped both ways');
+  assert.match(item, /const text = cleanSnippet\(ev\.content \|\| ''\)/,
+    'the expanded text is a build-time snapshot, so resolved mention names are lost');
+  assert.match(item, /contentEl\.textContent = open\s*\?\s*text/, 'the text is not swapped both ways');
+  assert.match(item, /: \(text\.length > 140 \? text\.slice\(0, 140\) \+ '…' : text\)/,
+    'collapsing does not put the 140-char cut back');
   assert.match(item, /contentEl\.classList\.toggle\('notif-content-full', open\)/,
     'the CSS clamp is lifted but never restored');
   assert.match(css, /\.notif-content-full \{[^}]*-webkit-line-clamp: none/, 'the class does not lift the clamp');

@@ -459,13 +459,26 @@
 
           <div class="setting">
             <h3>Background app syncs</h3>
-            <p class="hint">Clients quietly sync app settings (read status, preferences) as you browse. These aren’t posts, so Sidecar handles them without interrupting you when a site uses more than one of your accounts. Turn on to confirm each one instead.</p>
+            <!-- WHY THIS EXISTS, kept out of the panel: clients quietly sign app settings
+                 (read status, preferences) as you browse. They are not posts, so Sidecar
+                 handles them silently rather than interrupting you once per site per
+                 account, which on a multi-account site is a prompt storm. The toggle is
+                 for anyone who wants to see each one anyway. -->
+            <p class="hint">Read status and preferences, not posts. Signed without asking.</p>
             <label class="toggle-row"><input type="checkbox" id="datasync-toggle" /> <span>Confirm background app-data syncs</span></label>
           </div>
 
           <div class="setting">
             <h3>Global name search</h3>
-            <p class="hint">The first time you search a Nostr name, Sidecar offers to also ask a third-party index (api.nostrarchives.com) that covers every user, and to send it the people you follow so it can fill in names your relays missed. That service then sees both what you type and who you follow — which nothing else reveals together. This switch is that answer; @mentions from your own relays keep working either way.</p>
+            <!-- The long version, which does not belong on the panel: your relays only
+                 know the names they have seen, so a name search misses most of Nostr
+                 without an index that covers everyone. Asking api.nostrarchives.com means
+                 sending it what you type AND the people you follow, so it can fill in the
+                 names your relays missed — and nothing else Sidecar does reveals those two
+                 things together. That is why it is a switch and why it is offered once,
+                 the first time you search a name, rather than assumed. @mentions resolved
+                 from your own relays work either way. -->
+            <p class="hint">Searches an index that covers everyone. It sees what you type and who you follow.</p>
             <label class="toggle-row"><input type="checkbox" id="na-toggle" /> <span>Use the Nostr Archives name index</span></label>
           </div>
 
