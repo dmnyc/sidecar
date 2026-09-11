@@ -190,6 +190,11 @@ input, select, textarea {
   font-size: 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
+/* A select shares the padding above so every field lines up at the same height,
+   but its caret is drawn by the platform INSIDE that padding box. At 13px the
+   longest option ran right up against the arrow. Only the right side changes, so
+   nothing else about the field moves. */
+select { padding-right: 34px; }
 textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 /* autosizeTextarea: grows with content, then scrolls instead of pushing the rest
    of the editor away. 45vh keeps the Save row reachable in the panel. */

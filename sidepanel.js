@@ -6826,7 +6826,15 @@
     // auto-lock
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
-    $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
+    // Blank means "follow the global default", which is the state of every account
+    // that has never chosen. The label on that option names what the default is, so
+    // the row is not a mystery when nothing is selected.
+    const clientBy = settings.defaultClientBy || {};
+    const own = state.activePubkey ? clientBy[state.activePubkey] : '';
+    $('client-select').value = own || '';
+    const globalLabel = (VIEW_CLIENTS[settings.defaultClient || DEFAULT_CLIENT] || {}).label || '';
+    const defaultOpt = $('client-select').querySelector('option[value=""]');
+    if (defaultOpt) defaultOpt.textContent = globalLabel ? 'Use the default (' + globalLabel + ')' : 'Use the default';
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
@@ -8475,10 +8483,25 @@
   };
   const DEFAULT_CLIENT = 'jumble';
 
-  async function preferredClient() {
-    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
+  // Which client this ACCOUNT opens things in. Per-account with a fallback to the
+  // global, so an account that has never chosen keeps following the global setting
+  // and changing that still moves everyone who has not chosen for themselves.
+  //
+  // The reason it is per account rather than global: a client is where an identity
+  // lives. A brand account read in one client and a personal one in another is the
+  // normal case, and the global setting made the second account borrow the first's
+  // habits. Same storage shape as nip65OnlyBy (see SIDECAR_SET_CLIENT_FOR).
+  function resolveClient(settings, pubkey) {
+    const by = (settings && settings.defaultClientBy) || null;
+    const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  async function preferredClient(forPubkey) {
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    // Defaults to the active account, since every existing caller means "the account
+    // I am acting as". A caller that means someone else's account passes it.
+    return resolveClient(settings, forPubkey || state.activePubkey);
   }
 
   // Open a client URL. When the "reuse open client tab" setting is on (default),
@@ -8581,8 +8604,9 @@
     let nevent;
     try { nevent = await neventFor(signed); } catch (_) { return; }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
-    const client = VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+    // The account that just signed the note, not whatever is active by the time the
+    // banner paints — they can differ if the user switches while it is up.
+    const client = resolveClient(settings, (signed && signed.pubkey) || state.activePubkey);
 
     if (_postBannerTimer) clearTimeout(_postBannerTimer); // only one note's link shown at a time
 
@@ -15443,8 +15467,16 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
   });
 
+  // Writes THIS ACCOUNT's choice, never the global. An empty value clears the entry
+  // and the account goes back to following the global default.
+  //
+  // Routed through its own message rather than SIDECAR_SET_SETTINGS because that one
+  // merges shallowly: sending the whole map from the panel would clobber whatever
+  // another account had chosen, and two panels racing would lose one. Same reasoning
+  // as SIDECAR_SET_NIP65_ONLY, which this is modelled on.
   $('client-select').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
+    if (!state.activePubkey) return;
+    await call({ type: 'SIDECAR_SET_CLIENT_FOR', pubkey: state.activePubkey, client: e.target.value || '' });
   });
 
   $('reuse-tab-toggle').addEventListener('change', async (e) => {
