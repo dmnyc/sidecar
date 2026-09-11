@@ -20,6 +20,7 @@ const vm = require('node:vm');
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
 const stripComments = (src) =>
   src.split('\n').filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*')).join('\n');
@@ -53,10 +54,11 @@ function consts() {
     'const ZAP_DEFAULT_MAX = ' + grab('ZAP_DEFAULT_MAX') + ';' +
     lift('function clampZapDefault(') +
     lift('function resolveZapDefault(') +
-    '\nlet defaultZapSats = ZAP_DEFAULT_SATS;' +
+    '\nlet defaultZapSats = ZAP_DEFAULT_SATS; let defaultZapIsOwn = true;' +
     lift('function zapPresets(') +
     '\nglobalThis.out = { clampZapDefault, resolveZapDefault, zapPresets, ZAP_PRESETS_FIXED,' +
-    ' ZAP_DEFAULT_SATS, ZAP_DEFAULT_MAX, set: (v) => { defaultZapSats = v; } };',
+    ' ZAP_DEFAULT_SATS, ZAP_DEFAULT_MAX,' +
+    ' set: (v) => { defaultZapSats = v; }, own: (b) => { defaultZapIsOwn = b; } };',
     ctx
   );
   return ctx.out;
@@ -72,6 +74,8 @@ test('AN UNSET DEFAULT IS 21', () => {
   for (const v of [undefined, null, '', 0, NaN, 'abc', -50, {}]) {
     assert.equal(clampZapDefault(v), 21, JSON.stringify(v) + ' should fall back');
   }
+  const { own } = consts();
+  void own;
   assert.equal(row(zapPresets()), '21,100,1000', 'an untouched install should not show 21 twice');
 });
 
@@ -99,7 +103,7 @@ test('CLAMPED ON THE WAY OUT, NOT ONLY ON THE WAY IN', () => {
   // Both read paths go through resolveZapDefault, which clamps whatever it resolves —
   // this account's entry or the fallback.
   const resolver = stripComments(lift('function resolveZapDefault('));
-  assert.match(resolver, /clampZapDefault\(own \|\| \(settings && settings\.defaultZapSats\)\)/,
+  assert.match(resolver, /clampZapDefault\(by && pubkey && by\[pubkey\]\)/,
     'resolution hands back a stored number unchecked');
   const boot = stripComments(source);
   assert.match(boot, /defaultZapSats = resolveZapDefault\(/, 'the cached preset skips resolution');
@@ -171,11 +175,19 @@ test('AN ACCOUNT WITH ITS OWN AMOUNT GETS IT', () => {
   assert.equal(resolveZapDefault(st, 'alice'), 2100);
 });
 
-test('an account without one follows the fallback', () => {
+test('ONE ACCOUNT\'S AMOUNT NEVER REACHES ANOTHER', () => {
+  // Reported: an 84 set for a personal account showed up on every other account. It had
+  // been set while the field was global, and "per account with a global fallback" then
+  // handed that number to everyone who had not chosen. The right shape for a theme,
+  // where a new account should look like something; the wrong one for an amount of money.
   const { resolveZapDefault } = consts();
-  const st = { defaultZapSats: 100, zapDefaultBy: { alice: 2100 } };
-  assert.equal(resolveZapDefault(st, 'bob'), 100, 'the fallback is not used');
-  assert.equal(resolveZapDefault(st, 'alice'), 2100, 'the fallback overrode an explicit choice');
+  const st = { defaultZapSats: 84, zapDefaultBy: { alice: 2100 } };
+  assert.equal(resolveZapDefault(st, 'bob'), 21, "a leftover global is still somebody else's amount");
+  assert.equal(resolveZapDefault(st, 'alice'), 2100, 'an explicit choice was overridden');
+  // And the old field is not read at all, by anyone.
+  assert.equal(resolveZapDefault({ defaultZapSats: 84 }, 'carol'), 21);
+  const resolver = stripComments(lift('function resolveZapDefault('));
+  assert.doesNotMatch(resolver, /defaultZapSats/, 'the global is read again');
 });
 
 test('LOCKED, OR A FRESH INSTALL, STILL RESOLVES TO 21', () => {
@@ -183,7 +195,7 @@ test('LOCKED, OR A FRESH INSTALL, STILL RESOLVES TO 21', () => {
   // empty — and nothing about a zap row should depend on that.
   const { resolveZapDefault } = consts();
   assert.equal(resolveZapDefault({ zapDefaultBy: { alice: 2100 } }, ''), 21);
-  assert.equal(resolveZapDefault({ defaultZapSats: 500 }, null), 500);
+  assert.equal(resolveZapDefault({ defaultZapSats: 500 }, null), 21);
   for (const st of [null, undefined, {}, { zapDefaultBy: {} }]) {
     assert.equal(resolveZapDefault(st, 'alice'), 21, JSON.stringify(st));
   }
@@ -206,7 +218,9 @@ test('THE MAP IS EDITED IN THE BACKGROUND, NOT SENT WHOLE', () => {
   const h = bg.slice(bg.indexOf("case 'SIDECAR_SET_ZAP_DEFAULT_FOR'"), bg.indexOf("case 'SIDECAR_SET_SETTINGS'"));
   assert.match(h, /\{ \.\.\.\(prev\.zapDefaultBy \|\| \{\}\) \}/, 'the map is read-modify-written');
   assert.match(h, /delete map\[message\.pubkey\]/, 'clearing stores a zero instead of removing the entry');
-  assert.match(h, /if \(!message\.pubkey\)/, 'onboarding cannot set the fallback');
+  // Fails closed with no account rather than parking the number somewhere shared.
+  assert.match(h, /if \(!message\.pubkey\) \{\s*result = \{ ok: false/,
+    'a write with no account is still accepted somewhere');
   // Clamped where it is stored too, not only where it is typed.
   assert.match(h, /ZAP_DEFAULT_ABS_MAX/, 'the stored amount is unclamped');
   // And a web page cannot reach it.
@@ -225,11 +239,47 @@ test('THE AMOUNT FOLLOWS AN ACCOUNT SWITCH', () => {
     'Settings shows an amount that is not the active account\'s');
 });
 
-test('both writers target the account you are in', () => {
+test('both writers target the account you are in, or do not write', () => {
   const src = stripComments(source);
   const writes = src.match(/SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state\.activePubkey, sats/g) || [];
   assert.equal(writes.length, 2, 'expected the Settings field and the in-form line');
   assert.doesNotMatch(src, /settings: \{ defaultZapSats:/, 'a writer sets the global for every account again');
+  // Guarded in the panel too, so onboarding cannot reach a setter that would refuse it.
+  assert.equal((src.match(/if \(!state\.activePubkey\) return/g) || []).length >= 2, true,
+    'a writer can fire with no account active');
+});
+
+test('A [+] SITS IN THE SLOT UNTIL AN AMOUNT IS CHOSEN', () => {
+  // With 21 built in and the row deduped, an account that has never set an amount shows
+  // three chips and no sign a fourth is available. The only way in was to know you could
+  // type a number and watch a line appear, which is not a way in.
+  const { zapPresets, own, set } = consts();
+  own(false);
+  set(21);
+  assert.equal(row(zapPresets()), '21,100,1000', 'an unchosen amount still takes the slot');
+  // Even a resolved amount that differs from the fixed three stays out of the row until
+  // it is the account's own — otherwise [+] would never appear for anybody.
+  set(500);
+  assert.equal(row(zapPresets()), '21,100,1000', 'a value nobody chose is drawn as a preset');
+  own(true);
+  assert.equal(row(zapPresets()), '21,100,500,1000', 'a chosen amount is not drawn');
+
+  const fn = stripComments(lift('function zapPresetRow('));
+  assert.match(fn, /if \(!defaultZapIsOwn\) \{/, 'the row never offers a way to set one');
+  assert.match(fn, /textContent: '\+'/, 'the invitation is not a [+]');
+  assert.match(fn, /amountEl\.focus\(\)/, '[+] does not put the cursor where you type the amount');
+  assert.match(fn, /aria-label', 'Set your own zap amount'/, '[+] has no accessible name');
+  assert.match(css, /\.peek-preset-add \{[^}]*border-style: dashed/, '[+] reads as an amount rather than an invitation');
+});
+
+test('choosing an amount replaces the [+], without a reopen', () => {
+  // Both writers flip the ownership flag, or the row rebuilt under an open form would
+  // still be offering to set the amount that was just set.
+  const src = stripComments(source);
+  assert.equal((src.match(/defaultZapIsOwn = true/g) || []).length, 2,
+    'expected the Settings field and the in-form line to both claim the slot');
+  assert.match(src, /defaultZapIsOwn = !!\(settings && settings\.zapDefaultBy && state\.activePubkey/,
+    'ownership is not re-read per account, so a switch keeps the wrong slot');
 });
 
 // ---- setting it from the zap form -----------------------------------------------------

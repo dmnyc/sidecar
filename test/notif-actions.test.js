@@ -92,15 +92,29 @@ test('THE FETCH IS CACHED, INCLUDING WHEN NOTHING CAME BACK', () => {
 
 // ---- what expanding reveals ----------------------------------------------------------
 
-test('EXPANDING LIFTS BOTH TRUNCATIONS', () => {
-  // The text is cut twice: at 140 chars in the source, and again by a 3-line
-  // -webkit-line-clamp in CSS. Undoing only the first left the row visibly unchanged —
-  // the browser drew its own ellipsis at the same three lines — so expanding read as a
-  // chevron that did nothing.
+test('EXPANDING LIFTS BOTH TRUNCATIONS, AND COLLAPSING PUTS THEM BACK', () => {
+  // The text is cut twice: at 140 chars in the source, and again by a three-line
+  // -webkit-line-clamp in CSS. Undoing only the first left the row visibly unchanged,
+  // with the browser drawing its own ellipsis at the same three lines.
+  //
+  // And it has to be REVERSIBLE. This lived in build(), which runs once, so collapsing
+  // never put the snippet back — on a reply row, whose panel holds nothing, the caret had
+  // no visible effect at all. Reported as "sometimes it does nothing"; the rows where it
+  // seemed to work were the reaction ones, where the panel did have a note in it. Worse,
+  // the still-unclamped text then measured as unclipped and syncToggle hid the caret.
   const item = stripComments(lift('function buildItem('));
-  assert.match(item, /contentEl\.textContent = fullText/, 'the 140-char cut is not undone');
-  assert.match(item, /classList\.add\('notif-content-full'\)/, 'the CSS clamp is not lifted');
+  assert.match(item, /contentEl\.textContent = open \? fullText : snippetText/,
+    'the text is not swapped both ways');
+  assert.match(item, /contentEl\.classList\.toggle\('notif-content-full', open\)/,
+    'the CSS clamp is lifted but never restored');
   assert.match(css, /\.notif-content-full \{[^}]*-webkit-line-clamp: none/, 'the class does not lift the clamp');
+  // Both must happen in the toggle, not in the one-time builder.
+  const build = item.slice(item.indexOf('function build()'), item.indexOf("toggle.addEventListener"));
+  assert.doesNotMatch(build, /notif-content-full/, 'expanding the text is a one-way door again');
+  // And the late mention-name pass must not collapse a row the reader has open.
+  const sheet = stripComments(lift('async function showNotifModal('));
+  assert.match(sheet, /if \(el\.classList\.contains\('notif-content-full'\)\)/,
+    'the mention re-render can collapse an expanded row');
 });
 
 test('a reaction, repost or zap expands to the note it is about', () => {

@@ -14,9 +14,10 @@
   const ZAP_PRESETS_FIXED = [21, 100, 1000];
   const ZAP_DEFAULT_SATS = 21;
   // A typo away from a very large default, and the chip fills an amount field that is one
-  // tap from a payment. High enough to be nobody's ceiling, low enough that a stray zero
-  // is caught rather than saved.
-  const ZAP_DEFAULT_MAX = 1000000;
+  // tap from a payment. A preset is for the zaps you send without thinking, so four
+  // digits is the whole range that needs to be one tap away — anything bigger is worth
+  // typing out in full, and a stray zero is caught rather than saved.
+  const ZAP_DEFAULT_MAX = 9999;
   const AUTOZAP_DEFAULT_MAX = 200;
   const AUTOZAP_DAILY_MULT = 100; // default daily cap = 100× the per-zap cap
   // Ceilings on the no-confirmation path — mirrored from background.js, which is
@@ -699,6 +700,10 @@
   // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
   // that is expected to open without a round trip.
   let defaultZapSats = ZAP_DEFAULT_SATS;
+  // And whether that is this account's OWN amount or just the built-in 21. The row needs
+  // the difference: an account that has chosen gets its chip, one that has not gets a [+]
+  // offering to choose, and 21 alone cannot tell those apart.
+  let defaultZapIsOwn = false;
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
@@ -957,6 +962,8 @@
     // Re-resolved on every state change, which includes an account switch — so the zap
     // rows drawn after a switch offer the amount belonging to whoever you switched to.
     defaultZapSats = resolveZapDefault(settings, state.activePubkey);
+    defaultZapIsOwn = !!(settings && settings.zapDefaultBy && state.activePubkey &&
+      settings.zapDefaultBy[state.activePubkey]);
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
@@ -3690,7 +3697,10 @@
   // the chip twice, and a row with two identical buttons reads as a rendering bug.
   function zapPresets() {
     const list = ZAP_PRESETS_FIXED.slice();
-    if (!list.includes(defaultZapSats)) list.push(defaultZapSats);
+    // Only an amount the account actually chose. Without this the built-in 21 would be
+    // indistinguishable from a chosen one, and the [+] that offers to choose would never
+    // appear for anybody.
+    if (defaultZapIsOwn && !list.includes(defaultZapSats)) list.push(defaultZapSats);
     // SORTED, not appended. The row is an ascending scale, and a default of 500 tacked
     // on the end read as a mistake sitting beside 1,000 — it belongs between 100 and
     // 1,000, where the eye is already looking for it.
@@ -3714,6 +3724,29 @@
       });
       row.append(b);
     });
+
+    // [+] WHEN THERE IS NOTHING IN THE FOURTH SLOT. With 21 as the built-in and the row
+    // deduped, an account that has never set an amount shows three chips and no sign that
+    // a fourth is available — the only way in was to know you could type a number and
+    // watch a line appear. This is that sign.
+    //
+    // It focuses the amount field rather than prompting: the field is right there, and
+    // typing into it is what makes the "Save N as your default" line offer to keep it.
+    if (!defaultZapIsOwn) {
+      const add = h('button', {
+        className: 'secondary peek-preset peek-preset-add',
+        type: 'button',
+        textContent: '+',
+        title: 'Set your own amount',
+      });
+      add.setAttribute('aria-label', 'Set your own zap amount');
+      add.addEventListener('click', (e) => {
+        if (stop) stop(e);
+        amountEl.focus();
+        amountEl.select();
+      });
+      row.append(add);
+    }
     return row;
   }
 
@@ -3737,7 +3770,9 @@
     btn.addEventListener('click', async (e) => {
       if (stop) stop(e);
       const sats = clampZapDefault(amountEl.value);
+      if (!state.activePubkey) return; // nothing for the amount to belong to
       defaultZapSats = sats;
+      defaultZapIsOwn = true; // or the rebuilt row below would still be offering [+]
       await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
       // REBUILT, not patched: the new amount may belong in a different position in the
       // row, and zapPresets is what decides that. The rebuilt row keeps this same hook.
@@ -3755,17 +3790,20 @@
     return btn;
   }
 
-  // WHOSE amount. Per account with the global as the fallback for one that has never
-  // chosen — the same map-with-fallback shape as nip65OnlyBy.
+  // WHOSE amount. This account's, or 21 — and NOT settings.defaultZapSats, which is where
+  // the amount lived while it was global.
   //
-  // Per account because a zap is a habit, not a preference: a brand account tipping in
-  // hundreds and a personal one in tens is the normal case, and one global number made
-  // the second borrow the first's. Nothing else reads this — no content script, no
-  // approval window — so unlike the theme there is no second job to split out of it.
+  // That field as a fallback is what this looked like when it was reported: an 84 set for
+  // a personal account, before the setting was per account, became the number every other
+  // account inherited. "Per account with a global fallback" is the right shape for a
+  // theme, where a new account should look like something; it is the wrong shape for an
+  // amount of money, where inheriting somebody else's habit is the whole complaint.
+  //
+  // So an account with no amount of its own gets the constant. The old global is left in
+  // storage rather than deleted — it is nobody's to throw away — and simply not read.
   function resolveZapDefault(settings, pubkey) {
     const by = (settings && settings.zapDefaultBy) || null;
-    const own = by && pubkey && by[pubkey];
-    return clampZapDefault(own || (settings && settings.defaultZapSats));
+    return clampZapDefault(by && pubkey && by[pubkey]);
   }
 
   // Kept to a whole number of sats in a range: the input is free text (numeric keyboards
@@ -4831,12 +4869,13 @@
 
       let contentEl = null;
       let fullText = '';
+      let snippetText = '';
       if (isNoteLike && ev.content) {
         const cleaned = cleanSnippet(ev.content);
         fullText = cleaned;
         if (cleaned) {
-          const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
-          contentEl = h('p', { className: 'notif-content', textContent: snippet });
+          snippetText = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+          contentEl = h('p', { className: 'notif-content', textContent: snippetText });
           // data-note-id lets the background mention-name patch below (see
           // showNotifModal) find and re-render this snippet once a mentioned
           // profile resolves — it's rendered here with whatever names are
@@ -4951,18 +4990,6 @@
           if (built) return;
           built = true;
 
-          // The snippet's 140-char cut is undone in place rather than by adding a second
-          // copy of the text below it, which would read as the note being quoted twice.
-          //
-          // TWO cuts, not one, and the second is CSS. .notif-content is a 3-line
-          // -webkit-line-clamp, so replacing the text alone left it clipped at the same
-          // three lines with an ellipsis the browser drew — the row looked like expanding
-          // had done nothing. The class lifts the clamp.
-          if (contentEl) {
-            if (fullText.length > 140) contentEl.textContent = fullText;
-            contentEl.classList.add('notif-content-full');
-          }
-
           if (targetId) {
             const note = h('div', { className: 'notif-target' }, [
               h('div', { className: 'notif-target-label', textContent: 'Your note' }),
@@ -4987,8 +5014,23 @@
 
         toggle.addEventListener('click', (e) => {
           stop(e);
-          build();
+          build(); // one-time: the note a reaction or repost is about
           const open = panel.classList.toggle('hidden') === false;
+
+          // THE TEXT, BOTH WAYS. This used to live in build(), which runs once, so
+          // collapsing never put the snippet back — and on a reply row the panel holds
+          // nothing (the actions are not in it), so the caret had no visible effect at
+          // all. Reported as "sometimes it does nothing", and the rows where it seemed to
+          // work were the reaction ones, where the panel did have a note in it.
+          //
+          // TWO cuts to undo and redo, not one, and the second is CSS: .notif-content is
+          // a three-line -webkit-line-clamp, so swapping the text without the class left
+          // the browser drawing its own ellipsis at the same three lines.
+          if (contentEl) {
+            contentEl.textContent = open ? fullText : snippetText;
+            contentEl.classList.toggle('notif-content-full', open);
+          }
+
           toggle.classList.toggle('open', open);
           toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
           toggle.title = open ? 'Collapse' : 'Expand';
@@ -5497,6 +5539,10 @@
           const e = eventsById.get(el.dataset.noteId);
           if (!e) return;
           const cleaned = cleanSnippet(e.content);
+          // An EXPANDED row keeps its full text. This pass lands seconds after the sheet
+          // opens, so without the check it would quietly collapse a row the reader had
+          // already opened — with the clamp still lifted, which then also hid its caret.
+          if (el.classList.contains('notif-content-full')) { el.textContent = cleaned; return; }
           el.textContent = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
         });
       })();
@@ -16537,10 +16583,14 @@
     const sats = clampZapDefault(e.target.value);
     e.target.value = String(sats);
     defaultZapSats = sats; // the zap rows read this, and are built without a round trip
-    // THIS ACCOUNT's amount. Its own message because SIDECAR_SET_SETTINGS merges
-    // shallowly, so a panel sending the whole map would clobber another account's.
-    // Without a pubkey — onboarding — it writes the fallback instead, since there is
-    // nobody to attribute it to yet.
+    defaultZapIsOwn = true;
+    // THIS ACCOUNT's amount, and nobody else's. Its own message because
+    // SIDECAR_SET_SETTINGS merges shallowly, so a panel sending the whole map would
+    // clobber another account's.
+    //
+    // No account, no write. There is no global for this any more, so during onboarding
+    // there is nothing for the number to belong to.
+    if (!state.activePubkey) return;
     await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
     toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
   });

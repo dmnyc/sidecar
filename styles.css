@@ -4080,3 +4080,15 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   color: var(--lav); cursor: pointer;
 }
 .zap-save-default:hover { color: var(--gold); text-decoration: underline; }
+
+/* [+] in the fourth preset slot, for an account that has never set its own amount. With
+   21 built in and the row deduped, that account sees three chips and no sign a fourth is
+   available — this is the sign. Quieter than a real preset: it is an invitation, not an
+   amount, so it takes the dashed edge rather than the filled one. */
+.peek-preset-add {
+  border-style: dashed;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.peek-preset-add:hover { border-style: solid; color: var(--gold); }

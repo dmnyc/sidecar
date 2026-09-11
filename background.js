@@ -1799,8 +1799,9 @@ const AUTOZAP_DAILY_MULTIPLE = 100; // default daily cap = 100× the per-zap cap
 // What enabling auto-zap from a payment card sets it to. The panel mirrors this as
 // AUTOZAP_DEFAULT_MAX for its own input default.
 const AUTOZAP_DEFAULT_MAX = 200;
-// Matches ZAP_DEFAULT_MAX in sidepanel.js: a stray zero caught rather than saved.
-const ZAP_DEFAULT_ABS_MAX = 1000000;
+// Matches ZAP_DEFAULT_MAX in sidepanel.js: a preset is for the zaps you send without
+// thinking, so four digits is the range worth having one tap away.
+const ZAP_DEFAULT_ABS_MAX = 9999;
 const AUTOZAP_ABS_MAX = 1000; // sats, per zap
 const AUTOZAP_ABS_DAILY_MAX = 100000; // sats, rolling day
 
@@ -2813,16 +2814,20 @@ async function handleControl(message, sender, sendResponse) {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const map = { ...(prev.zapDefaultBy || {}) };
         const sats = Math.min(Math.max(1, Math.floor(Number(message.sats) || 0)), ZAP_DEFAULT_ABS_MAX);
-        // No pubkey is onboarding, where there is no account to attribute it to: that
-        // writes the fallback every account without its own inherits.
+        // FAILS CLOSED without a pubkey. There is no global for this any more — an amount
+        // set for one account leaking into every other one is what the old
+        // settings.defaultZapSats fallback did, and it was reported — so a write with
+        // nobody to attribute it to is refused rather than parked somewhere shared.
         if (!message.pubkey) {
-          await sset({ sidecar_settings: { ...prev, defaultZapSats: sats } });
-        } else if (message.sats) {
+          result = { ok: false, error: 'No account to set a zap amount for' };
+          break;
+        }
+        if (message.sats) {
           map[message.pubkey] = sats;
           await sset({ sidecar_settings: { ...prev, zapDefaultBy: map } });
         } else {
           // Falsy sats clears the entry rather than storing a zero, so the account goes
-          // back to following the fallback — the same shape the maps above use.
+          // back to the built-in 21 — the same clearing shape the maps above use.
           delete map[message.pubkey];
           await sset({ sidecar_settings: { ...prev, zapDefaultBy: map } });
         }
