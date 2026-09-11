@@ -4239,6 +4239,35 @@
     return signed;
   }
 
+  // A REPOST (NIP-18). kind:6 for a kind:1, and kind:16 with a `k` tag for anything else —
+  // a generic repost — because 6 is defined for text notes only, and a 6 wrapping a
+  // kind:1111 web comment is a thing clients are entitled to ignore.
+  //
+  // The content is the stringified original, which is what NIP-18 asks for: it lets a
+  // client render the repost without going and finding the note first.
+  async function publishRepost(target) {
+    const relay = (await postRelays())[0] || '';
+    const isNote = target.kind === 1;
+    // Positional: the relay hint has to be present for the tag to be well-formed with
+    // anything after it, which is the same care quoteTags takes.
+    const tags = [['e', target.id, relay], ['p', target.pubkey]];
+    if (!isNote) tags.push(['k', String(target.kind)]);
+    let clientTag = true;
+    try {
+      const st = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      clientTag = !(st && st.showClientTag === false);
+    } catch (_) { /* default on, matching the composer */ }
+    const event = {
+      kind: isNote ? 6 : 16,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: clientTag ? [...tags, CLIENT_TAG.slice()] : tags,
+      content: JSON.stringify(target),
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: state.activePubkey });
+    await publishSigned(signed);
+    return signed;
+  }
+
   // WHICH NOTE a notification is about, for the ones that carry no content of their
   // own. A reaction, a repost and a zap receipt are all just a pointer: the row can say
   // "reacted to your note" from the kind alone, but "which note" lives in an `e` tag.
@@ -5107,6 +5136,53 @@
         });
       });
 
+      // REPOST OR QUOTE, one button and two answers. Both are "send this on", and they
+      // differ only in whether you have something to add — so they share a control rather
+      // than spending two of the four slots in a row that repeats down the whole list.
+      //
+      // The two choices are also the confirmation. A repost is public the moment it is
+      // signed and a deletion request is only ever advisory, so the second tap is
+      // deliberate rather than a flourish.
+      const repostBtn = actBtn('Repost or quote', icon('repeat'));
+      const choices = h('div', { className: 'notif-repost hidden' });
+      const repostNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Repost' });
+      const quoteNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Quote' });
+      choices.append(repostNow, quoteNow);
+      const closeChoices = () => {
+        choices.classList.add('hidden');
+        repostBtn.classList.remove('open');
+      };
+      repostBtn.addEventListener('click', (e) => {
+        stop(e);
+        const open = choices.classList.toggle('hidden') === false;
+        repostBtn.classList.toggle('open', open);
+      });
+      repostNow.addEventListener('click', async (e) => {
+        stop(e);
+        repostNow.disabled = true;
+        try {
+          await publishRepost(ev);
+          closeChoices();
+          toast('Reposted', 'success');
+        } catch (e2) {
+          err.textContent = e2.message;
+        } finally {
+          repostNow.disabled = false;
+        }
+      });
+      quoteNow.addEventListener('click', (e) => {
+        stop(e);
+        closeChoices();
+        // The composer does the tagging: it scans the body for nostr: references and
+        // writes the q tag itself (quoteTags), so handing it the nevent is the whole job.
+        // On its own line below the cursor, because a quote is something you write ABOVE
+        // the thing you are quoting.
+        const nevent = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
+        const place = notifPlace();
+        closeModal();
+        openComposer('\n\nnostr:' + nevent, { returnTo: () => showNotifModal(a, place) });
+      });
+
       const zapBtn = actBtn('Zap', boltIcon());
       const zapForm = h('div', { className: 'notif-zap hidden' });
       let zapBuilt = false;
@@ -5120,8 +5196,8 @@
         zapBtn.classList.toggle('open', !zapForm.classList.contains('hidden'));
       });
 
-      row.append(replyBtn, reactBtn, zapBtn);
-      const wrap = h('div', { className: 'notif-act-wrap' }, [row, zapForm, err]);
+      row.append(replyBtn, reactBtn, repostBtn, zapBtn);
+      const wrap = h('div', { className: 'notif-act-wrap' }, [row, choices, zapForm, err]);
       return wrap;
     }
 

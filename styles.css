@@ -4092,3 +4092,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   color: var(--muted);
 }
 .peek-preset-add:hover { border-style: solid; color: var(--gold); }
+
+/* Repost or quote: two words under the icon that offered them. Their own row, because
+   they have words — the icon row above is the only thing that fits beside content in a
+   ~300px sheet. Equal shares via flex-basis 0, the same fix .peek-preset needed, so
+   "Repost" and "Quote" cannot size to content and leave one stranded on its own line. */
+.notif-repost { display: flex; gap: 6px; margin-top: 8px; }
+.notif-repost-choice { flex: 1 1 0; min-width: 0; padding: 7px 6px; font-size: 12.5px; }
