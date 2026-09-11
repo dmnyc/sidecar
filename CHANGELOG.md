@@ -10,10 +10,13 @@ Update that section alongside this file as part of every release.
 ## [Unreleased] — 1.13.0
 
 ### Added
+- **Bookmark a note from its notification.** Held out at the right edge of the row, past reply, repost, react and zap, and saved to the flat kind 10003 list your other clients already read. Sidecar reads the list before it writes one, and publishes nothing at all if your relays do not answer, since a bookmark list is a replaceable event and a list built on silence would replace the real one.
 - **Set a status (NIP-38).** A short line about what you are doing, published as kind 30315 and shown beside your name by clients that read it, shown as a small balloon over your banner on the Profile tab, which is also how you edit it. With no status there is no balloon: just a Set status button beside Edit profile. An optional link and an optional expiry ride along; the expiry is a request relays are asked to honor rather than required to, so Sidecar treats an expired status as gone regardless of what a relay still serves. Clearing publishes an empty status rather than a deletion request, because a status is a replaceable event and an empty one overwrites the old text everywhere the old text reached, while a deletion is a request any relay may ignore and anyone already holding it would keep showing. Only the general status is written: the spec's music status is meant to be published by whatever is playing the track, with an expiry matching when it stops, and a signer cannot see that.
 - **Four new sections in the guide.** Key backup, notifications, relays, and themes each had a What's new bullet and no explanation anywhere. Backup opens by saying plainly that a lost profile with no backup means the accounts are gone, since that is the section people go looking for at the worst possible moment.
 
 ### Changed
+- **The caret in a dropdown** sat 5px from the right edge against 13px of text inset on the left, because the platform drew it and padding cannot move it. Sidecar draws it now, at the same 13px the text starts from, in every theme. Selects are also the same height as text fields at last, which the platform's control was 2px off.
+- **The bookmarks screen waits on a quote** rather than a bare spinner, and keeps the same one if the list turns out to be empty.
 - **The Recent activity screenshot in the guide** predated the verify tap-through, so it is retaken; its alt text now says which rows carry the button and why the row that signed nothing does not.
 
 ## [1.12.0] — 2026-09-04
