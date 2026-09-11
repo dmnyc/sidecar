@@ -136,8 +136,10 @@ test('BOTH ZAP FORMS SHARE ONE ROW', () => {
   // The profile sheet and the notification row. Two copies is how a settable preset gets
   // added to one and not the other.
   const src = stripComments(source);
-  assert.equal((src.match(/zapPresetRow\(/g) || []).length, 3,
-    'expected the definition plus exactly two call sites');
+  // Definition, the two forms, and the rebuild inside zapDefaultSaver when the default
+  // changes under an open form. A fifth means someone hand-rolled a row again.
+  assert.equal((src.match(/zapPresetRow\(/g) || []).length, 4,
+    'expected the definition, two call sites, and the rebuild');
   assert.doesNotMatch(src, /\[21, 100, 1000, 5000\]/, 'a hand-rolled preset row came back');
   const peek = src.indexOf('const presets = zapPresetRow(amount);');
   const notif = src.indexOf('const presets = zapPresetRow(amount, stop);');
@@ -151,6 +153,50 @@ test('a preset inside a clickable row does not also follow the link', () => {
   const fn = stripComments(lift('function zapPresetRow('));
   assert.match(fn, /if \(stop\) stop\(e\)/, 'the shared row cannot stop a click');
   assert.match(fn, /type: 'button'/, 'a preset can submit a form it sits in');
+});
+
+// ---- setting it from the zap form -----------------------------------------------------
+
+test('THE AMOUNT CAN BE SAVED FROM WHERE IT IS TYPED', () => {
+  // Settings is the wrong place to have to go: the amount worth keeping is the one you
+  // just typed into a zap form, and the alternative was remembering it, closing the
+  // sheet, opening Settings and expanding a section.
+  const f = stripComments(lift('function zapDefaultSaver('));
+  assert.match(f, /settings: \{ defaultZapSats: sats \}/, 'the form cannot save the amount');
+  assert.match(f, /defaultZapSats = sats/, 'the open panel keeps the old preset');
+  assert.match(f, /clampZapDefault\(amountEl\.value\)/, 'the typed amount is saved unchecked');
+  // Both zap forms offer it, since they share everything else about the form.
+  const src = stripComments(source);
+  assert.equal((src.match(/zapDefaultSaver\(/g) || []).length, 3,
+    'expected the definition plus exactly two call sites');
+});
+
+test('it is absent when there is nothing to save', () => {
+  // A blank field, or an amount that is already the default. Offered inert, it would be
+  // one more dead control in a form that already has an amount and a Send.
+  const f = stripComments(lift('function zapDefaultSaver('));
+  assert.match(f, /clampZapDefault\(n\) !== defaultZapSats/, 'it offers to save the amount already saved');
+  assert.match(f, /btn\.classList\.toggle\('hidden', !worth\)/, 'it is disabled rather than absent');
+  assert.match(f, /!!n && n > 0/, 'a blank or junk field still offers to be saved');
+});
+
+test('SAVING REBUILDS THE ROW, BECAUSE THE CHIP MAY MOVE', () => {
+  // The row is sorted, so a newly saved 500 belongs between 100 and 1,000 — patching the
+  // old chip in place would leave it in the position the previous amount had.
+  const f = stripComments(lift('function zapDefaultSaver('));
+  assert.match(f, /const fresh = zapPresetRow\(amountEl, stop, sync\)/, 'the row is not rebuilt');
+  assert.match(f, /row\.replaceWith\(fresh\)/, 'the rebuilt row is never swapped in');
+  assert.match(f, /row = fresh/, 'a second save would replace a row that is no longer there');
+});
+
+test('a preset tap is heard, and Settings is kept honest', () => {
+  // Setting .value fires no input event, so the row tells its watcher directly — and a
+  // listener on the row itself would not survive the row being rebuilt.
+  const rowFn = stripComments(lift('function zapPresetRow('));
+  assert.match(rowFn, /if \(onPick\) onPick\(n\)/, 'a preset tap is invisible to the saver');
+  // Settings is a hidden view already rendered with the old number.
+  const f = stripComments(lift('function zapDefaultSaver('));
+  assert.match(f, /\$\('default-zap'\)/, 'Settings would show a value that is no longer the setting');
 });
 
 // ---- the setting ----------------------------------------------------------------------

@@ -1888,7 +1888,8 @@
         zapForm.classList.toggle('hidden');
         if (!zapForm.classList.contains('hidden')) amount.focus();
       });
-      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
+      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]),
+        zapDefaultSaver(amount, presets), zapErr);
       zapWrap.append(zapBtn, zapForm);
       modal.append(zapWrap);
 
@@ -3697,7 +3698,7 @@
   // `stop` is passed where the row lives inside something clickable — a notification row
   // is an anchor that opens the note in a client, so without it a preset tap would also
   // follow the link.
-  function zapPresetRow(amountEl, stop) {
+  function zapPresetRow(amountEl, stop, onPick) {
     const row = h('div', { className: 'peek-zap-presets' });
     zapPresets().forEach((n) => {
       const b = h('button', { className: 'secondary peek-preset', type: 'button', textContent: fmtSats(n) });
@@ -3705,10 +3706,51 @@
         if (stop) stop(e);
         amountEl.value = String(n);
         amountEl.focus();
+        // Setting .value fires no input event, so anything watching the field has to be
+        // told. A listener on the row itself would not survive the row being rebuilt.
+        if (onPick) onPick(n);
       });
       row.append(b);
     });
     return row;
+  }
+
+  // SET THE DEFAULT FROM WHERE YOU USE IT. The amount you keep typing is the one worth
+  // keeping, and the alternative was: remember it, close the sheet, open Settings, expand
+  // Wallet & payments, type it again.
+  //
+  // Only offered when it would change something. A blank field or an amount that is
+  // already the default has nothing to save, so the line is absent rather than sitting
+  // there inert — the same rule the chevron on a notification row follows.
+  function zapDefaultSaver(amountEl, presetsEl, stop) {
+    const btn = h('button', { className: 'zap-save-default hidden', type: 'button' });
+    let row = presetsEl;
+    const sync = () => {
+      const n = parseInt(amountEl.value, 10);
+      const worth = !!n && n > 0 && clampZapDefault(n) !== defaultZapSats;
+      btn.classList.toggle('hidden', !worth);
+      if (worth) btn.textContent = 'Save ' + fmtSats(clampZapDefault(n)) + ' as your default';
+    };
+    amountEl.addEventListener('input', sync);
+    btn.addEventListener('click', async (e) => {
+      if (stop) stop(e);
+      const sats = clampZapDefault(amountEl.value);
+      defaultZapSats = sats;
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultZapSats: sats } });
+      // REBUILT, not patched: the new amount may belong in a different position in the
+      // row, and zapPresets is what decides that. The rebuilt row keeps this same hook.
+      const fresh = zapPresetRow(amountEl, stop, sync);
+      row.replaceWith(fresh);
+      row = fresh;
+      // Settings is a hidden view behind this sheet, already rendered with the old
+      // number. Left alone, opening it would show a value that is no longer the setting.
+      const field = $('default-zap');
+      if (field) field.value = String(sats);
+      sync();
+      toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
+    });
+    sync();
+    return btn;
   }
 
   // Kept to a whole number of sats in a range: the input is free text (numeric keyboards
@@ -5027,7 +5069,9 @@
       const comment = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
       const send = h('button', { className: 'primary', type: 'button', textContent: 'Send zap' });
       const status = h('div', { className: 'hint', textContent: 'Checking their lightning address…' });
-      zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]));
+      // Under the field it reads, so the offer to keep an amount sits with the amount.
+      zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
+        zapDefaultSaver(amount, presets, stop));
 
       let addr = '';
       send.disabled = true;

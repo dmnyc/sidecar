@@ -4067,3 +4067,16 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   overflow: hidden;
 }
 .emoji-over:focus { outline: none; }
+
+/* "Save 2,100 as your default", under the amount it would save. A line rather than a
+   button: it is an offer about a field you are already using, not one of the two things
+   this form is for, and a third filled control beside Send would compete with it.
+   Its own row, because it has words — an inline slot in a 300px sheet is the mistake
+   this panel keeps making. Absent, not disabled, when there is nothing to save. */
+.zap-save-default {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; padding: 6px 0 0;
+  font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+  color: var(--lav); cursor: pointer;
+}
+.zap-save-default:hover { color: var(--gold); text-decoration: underline; }
