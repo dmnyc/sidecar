@@ -26,6 +26,7 @@ and rewrites the hash file. After running it against a clean checkout,
 | `nip49.js` | built from `nostr-tools@2.23.11` (see below) | — (reproducible local build) | Unlicense (+ MIT deps) | `bf2f461cfc78120933e1a745697f7a5cc735d535353b38fbba2dbeb96231fd6a` |
 | `jsqr.js` | [`jsqr@1.4.0`](https://www.npmjs.com/package/jsqr/v/1.4.0) | `dist/jsQR.js` (byte-exact) | Apache-2.0 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` |
 | `qrcode-generator.js` | [`qrcode-generator@2.0.4`](https://www.npmjs.com/package/qrcode-generator/v/2.0.4) | `dist/qrcode.js` (byte-exact) | MIT | `79ec86f82856005b1c887905cfccfcfbec3821ca61c7fd5a952faa5f778f791c` |
+| `emoji-data.js` | [`unicode-emoji-json@0.9.0`](https://www.npmjs.com/package/unicode-emoji-json/v/0.9.0) | `data-by-group.json` (reduced, see below) | MIT | `6e94d1e8a2aefa1eaf16fb4eaca367369fba1fc855965292353ca2b416ace379` |
 
 All licenses are permissive and compatible with this repository's MIT license.
 (The previous QR renderer, `qrious`, was GPL-3.0 and has been replaced by
@@ -47,6 +48,20 @@ nostr-tools' prebuilt browser bundle doesn't export the NIP-49 module, so
 Rebuilding with the same pins yields the same SHA-256 as the table above.
 The build is verified against the NIP-49 spec test vector
 (`ncryptsec1qgg99…` + password `nostr` → `35014541…378683`).
+
+## How `emoji-data.js` is reduced
+
+The reaction picker needs a character, a name to search it by, and the group it
+belongs in. `unicode-emoji-json`'s `data-by-group.json` is 838KB because it also
+carries a slug, a Unicode version, an emoji version and a skin-tone flag for each
+of the 1,914 entries, so `scripts/update-vendor.sh` packs it down to
+`[[group, [[char, name], …]], …]` — 52KB — and assigns it to `self.SidecarEmoji`.
+
+Reproducible for the same reasons `nip49.js` is: the input is a pinned tarball
+already checked against the registry's integrity hash, the order is the source
+file's own (CLDR order, which is the order a picker should present), and
+`JSON.stringify` over the same structure is byte-stable. Nothing from the package
+executes — it is read as JSON.
 
 ## Updating
 

@@ -122,6 +122,7 @@
   --warn: #792830;
   --warn-rgb: 121, 40, 48;
   --success: #1F6B3F;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
   --success-rgb: 31, 107, 63;
 
   /* --orange holds the theme's action color, not an orange. This token drives

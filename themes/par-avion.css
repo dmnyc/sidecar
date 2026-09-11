@@ -105,6 +105,7 @@
   --warn: #8E2226;
   --warn-rgb: 142, 34, 38;
   --success: #3D6B3E;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
   --success-rgb: 61, 107, 62;
 
   /* --orange holds the theme's action color, not an orange. It drives accent-color on

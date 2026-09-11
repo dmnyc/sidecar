@@ -8,6 +8,16 @@
 
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
   // a stored value is missing or invalid.
+  // The three fixed zap presets, plus one the user owns. 21 is the fallback — the zap
+  // everyone sends — which means a fresh install shows three chips rather than four,
+  // since the fourth would be a second 21. The slot earns its place once it is set.
+  const ZAP_PRESETS_FIXED = [21, 100, 1000];
+  const ZAP_DEFAULT_SATS = 21;
+  // A typo away from a very large default, and the chip fills an amount field that is one
+  // tap from a payment. A preset is for the zaps you send without thinking, so four
+  // digits is the whole range that needs to be one tap away — anything bigger is worth
+  // typing out in full, and a stray zero is caught rather than saved.
+  const ZAP_DEFAULT_MAX = 9999;
   const AUTOZAP_DEFAULT_MAX = 200;
   const AUTOZAP_DAILY_MULT = 100; // default daily cap = 100× the per-zap cap
   // Ceilings on the no-confirmation path — mirrored from background.js, which is
@@ -721,6 +731,14 @@
   let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
+  // The fourth zap preset. Cached here rather than read per form, the same way
+  // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
+  // that is expected to open without a round trip.
+  let defaultZapSats = ZAP_DEFAULT_SATS;
+  // And whether that is this account's OWN amount or just the built-in 21. The row needs
+  // the difference: an account that has chosen gets its chip, one that has not gets a [+]
+  // offering to choose, and 21 alone cannot tell those apart.
+  let defaultZapIsOwn = false;
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
@@ -976,10 +994,13 @@
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     zapFlash = !(settings && settings.zapFlash === false); // default on
-    // The ACTIVE account's theme. While locked state.activePubkey is empty, so this
-    // resolves to the global — the panel cannot know whose theme to wear before it
-    // knows who is unlocking. Runs on every state change, including an account switch,
-    // which is what keeps the override flag it sets honest.
+    // Re-resolved on every state change, which includes an account switch — so the zap
+    // rows drawn after a switch offer the amount belonging to whoever you switched to.
+    defaultZapSats = resolveZapDefault(settings, state.activePubkey);
+    defaultZapIsOwn = !!(settings && settings.zapDefaultBy && state.activePubkey &&
+      settings.zapDefaultBy[state.activePubkey]);
+    // The ACTIVE account's theme, for the same reason and on the same beat: a switch has
+    // to change what the panel wears, not just what it offers.
     applyResolvedTheme(settings);
     applyHideBalances();
     closeAcctMenu();
@@ -1857,16 +1878,11 @@
       const zapBtn = h('button', { className: 'secondary peek-zap-open' });
       zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
-      const presets = h('div', { className: 'peek-zap-presets' });
       const amount = satsInput('sats');
       // Presets first, keyboard second: most zaps are one of a few round numbers,
       // and on a 358px panel a row of taps beats a numeric keyboard covering half
-      // the sheet.
-      [21, 100, 1000, 5000].forEach((n) => {
-        const b = h('button', { className: 'secondary peek-preset', textContent: fmtSats(n) });
-        b.addEventListener('click', () => { amount.value = String(n); amount.focus(); });
-        presets.append(b);
-      });
+      // the sheet. The fourth of them is the one set in Settings.
+      const presets = zapPresetRow(amount);
       const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
       const send = h('button', { className: 'primary', textContent: 'Send zap' });
       send.addEventListener('click', async () => {
@@ -1918,7 +1934,8 @@
         zapForm.classList.toggle('hidden');
         if (!zapForm.classList.contains('hidden')) amount.focus();
       });
-      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]), zapErr);
+      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]),
+        zapDefaultSaver(amount, presets), zapErr);
       zapWrap.append(zapBtn, zapForm);
       modal.append(zapWrap);
 
@@ -3709,6 +3726,132 @@
   // Tag first, invoice second: the zap request is what the sender ASKED for and the
   // invoice is what was actually billed. They agree in practice, and the tag is cheaper
   // than parsing.
+  // ONE ROW, TWO FORMS. The profile sheet and a notification row both offer these, and
+  // they were two copies of the same four buttons — so the settable fourth would have had
+  // to be added twice, which is how one of them ends up a release behind the other.
+  //
+  // Deduped, because the default is the user's: setting it to 100 would otherwise draw
+  // the chip twice, and a row with two identical buttons reads as a rendering bug.
+  function zapPresets() {
+    const list = ZAP_PRESETS_FIXED.slice();
+    // Only an amount the account actually chose. Without this the built-in 21 would be
+    // indistinguishable from a chosen one, and the [+] that offers to choose would never
+    // appear for anybody.
+    if (defaultZapIsOwn && !list.includes(defaultZapSats)) list.push(defaultZapSats);
+    // SORTED, not appended. The row is an ascending scale, and a default of 500 tacked
+    // on the end read as a mistake sitting beside 1,000 — it belongs between 100 and
+    // 1,000, where the eye is already looking for it.
+    return list.sort((a, b) => a - b);
+  }
+
+  // `stop` is passed where the row lives inside something clickable — a notification row
+  // is an anchor that opens the note in a client, so without it a preset tap would also
+  // follow the link.
+  function zapPresetRow(amountEl, stop, onPick) {
+    const row = h('div', { className: 'peek-zap-presets' });
+    zapPresets().forEach((n) => {
+      const b = h('button', { className: 'secondary peek-preset', type: 'button', textContent: fmtSats(n) });
+      b.addEventListener('click', (e) => {
+        if (stop) stop(e);
+        amountEl.value = String(n);
+        amountEl.focus();
+        // Setting .value fires no input event, so anything watching the field has to be
+        // told. A listener on the row itself would not survive the row being rebuilt.
+        if (onPick) onPick(n);
+      });
+      row.append(b);
+    });
+
+    // [+] WHEN THERE IS NOTHING IN THE FOURTH SLOT. With 21 as the built-in and the row
+    // deduped, an account that has never set an amount shows three chips and no sign that
+    // a fourth is available — the only way in was to know you could type a number and
+    // watch a line appear. This is that sign.
+    //
+    // It focuses the amount field rather than prompting: the field is right there, and
+    // typing into it is what makes the "Save N as your default" line offer to keep it.
+    if (!defaultZapIsOwn) {
+      const add = h('button', {
+        className: 'secondary peek-preset peek-preset-add',
+        type: 'button',
+        textContent: '+',
+        title: 'Set your own amount',
+      });
+      add.setAttribute('aria-label', 'Set your own zap amount');
+      add.addEventListener('click', (e) => {
+        if (stop) stop(e);
+        amountEl.focus();
+        amountEl.select();
+      });
+      row.append(add);
+    }
+    return row;
+  }
+
+  // SET THE DEFAULT FROM WHERE YOU USE IT. The amount you keep typing is the one worth
+  // keeping, and the alternative was: remember it, close the sheet, open Settings, expand
+  // Wallet & payments, type it again.
+  //
+  // Only offered when it would change something. A blank field or an amount that is
+  // already the default has nothing to save, so the line is absent rather than sitting
+  // there inert — the same rule the chevron on a notification row follows.
+  function zapDefaultSaver(amountEl, presetsEl, stop) {
+    const btn = h('button', { className: 'zap-save-default hidden', type: 'button' });
+    let row = presetsEl;
+    const sync = () => {
+      const n = parseInt(amountEl.value, 10);
+      const worth = !!n && n > 0 && clampZapDefault(n) !== defaultZapSats;
+      btn.classList.toggle('hidden', !worth);
+      if (worth) btn.textContent = 'Save ' + fmtSats(clampZapDefault(n)) + ' as your default';
+    };
+    amountEl.addEventListener('input', sync);
+    btn.addEventListener('click', async (e) => {
+      if (stop) stop(e);
+      const sats = clampZapDefault(amountEl.value);
+      if (!state.activePubkey) return; // nothing for the amount to belong to
+      defaultZapSats = sats;
+      defaultZapIsOwn = true; // or the rebuilt row below would still be offering [+]
+      await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
+      // REBUILT, not patched: the new amount may belong in a different position in the
+      // row, and zapPresets is what decides that. The rebuilt row keeps this same hook.
+      const fresh = zapPresetRow(amountEl, stop, sync);
+      row.replaceWith(fresh);
+      row = fresh;
+      // Settings is a hidden view behind this sheet, already rendered with the old
+      // number. Left alone, opening it would show a value that is no longer the setting.
+      const field = $('default-zap');
+      if (field) field.value = String(sats);
+      sync();
+      toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
+    });
+    sync();
+    return btn;
+  }
+
+  // WHOSE amount. This account's, or 21 — and NOT settings.defaultZapSats, which is where
+  // the amount lived while it was global.
+  //
+  // That field as a fallback is what this looked like when it was reported: an 84 set for
+  // a personal account, before the setting was per account, became the number every other
+  // account inherited. "Per account with a global fallback" is the right shape for a
+  // theme, where a new account should look like something; it is the wrong shape for an
+  // amount of money, where inheriting somebody else's habit is the whole complaint.
+  //
+  // So an account with no amount of its own gets the constant. The old global is left in
+  // storage rather than deleted — it is nobody's to throw away — and simply not read.
+  function resolveZapDefault(settings, pubkey) {
+    const by = (settings && settings.zapDefaultBy) || null;
+    return clampZapDefault(by && pubkey && by[pubkey]);
+  }
+
+  // Kept to a whole number of sats in a range: the input is free text (numeric keyboards
+  // on a desktop panel are not a given), so this is what stands between a slip and a
+  // saved default of 50000000.
+  function clampZapDefault(v) {
+    const n = parseInt(v, 10);
+    if (!n || n < 1) return ZAP_DEFAULT_SATS;
+    return Math.min(ZAP_DEFAULT_MAX, n);
+  }
+
   function zapMsats(ev) {
     const tags = (ev && ev.tags) || [];
     try {
@@ -3956,6 +4099,300 @@
     const images = content.match(IMG_RE) || [];
     const av = content.match(AV_RE) || [];
     return { images, av };
+  }
+
+  // ---- the reaction picker ---------------------------------------------------------
+  //
+  // 1,914 emoji in nine groups, from the vendored table (emoji-data.js, self.SidecarEmoji).
+  //
+  // ONE GROUP AT A TIME, not all of them in one scroller. Every cell is a real button —
+  // it has to be, for the keyboard and for a screen reader — and 1,914 of those is a
+  // visible hitch on open in a 360px panel. The largest group is 388, which builds
+  // imperceptibly, and switching groups replaces the grid rather than adding to it.
+  //
+  // Search is the escape hatch from that, and it reads across every group: nobody knows
+  // which of the nine "shrug" is in. Results are capped for the same reason as above.
+  const EMOJI_SEARCH_MAX = 120;
+
+  function emojiGroups() {
+    const table = self.SidecarEmoji;
+    return Array.isArray(table) && table.length ? table : null;
+  }
+
+  // A short row of the ones people actually reach for, above the grid. Same idea as the
+  // zap presets: most reactions are one of a handful, and making those a single tap is
+  // worth more than making them findable.
+  const QUICK_REACTIONS = ['❤️', '🔥', '👍', '😂', '🙌', '🤙', '😮', '🫡'];
+
+  // OPENED OVER THE SHEET, not instead of it. There is one #modal element, so anything
+  // routed through openModal replaces whatever is already there — which meant reacting
+  // destroyed the notification list and dropped you back on the panel, losing your place
+  // in it. This layers itself inside the sheet instead: the list, its loaded pages and
+  // its scroll position all sit untouched underneath, and dismissing the picker reveals
+  // exactly what you left.
+  function emojiPickerOver(host, onPick) {
+    const groups = emojiGroups();
+    const sheet = h('div', { className: 'emoji-over' });
+    const close = () => sheet.remove();
+
+    const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+    xBtn.appendChild(icon('x'));
+    xBtn.addEventListener('click', close);
+    sheet.append(xBtn, h('h3', { textContent: 'React' }));
+
+    // Escape closes the picker and nothing else. Without stopping it here the panel's own
+    // handler would take it as a dismiss of the sheet behind it.
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || !sheet.isConnected) return;
+      e.stopPropagation();
+      e.preventDefault();
+      close();
+    };
+    sheet.addEventListener('keydown', onKey);
+
+    (() => {
+      const modal = sheet;
+      // The table is a static script, so this only fails if the file is missing from a
+      // build. Saying so beats an empty sheet that looks like a hung fetch.
+      if (!groups) {
+        modal.append(h('p', { className: 'hint', textContent: 'The emoji table did not load. Reload Sidecar and try again.' }));
+        return;
+      }
+
+      const pick = (ch) => { close(); onPick(ch); };
+
+      const quick = h('div', { className: 'emoji-quick' });
+      QUICK_REACTIONS.forEach((ch) => {
+        const b = h('button', { className: 'emoji-cell emoji-quick-cell', type: 'button', textContent: ch, title: ch });
+        b.addEventListener('click', () => pick(ch));
+        quick.append(b);
+      });
+      modal.append(quick);
+
+      const search = h('input', { type: 'search', placeholder: 'Search emoji', autocomplete: 'off' });
+      modal.append(search);
+
+      const tabs = h('div', { className: 'emoji-tabs' });
+      const grid = h('div', { className: 'emoji-grid' });
+      const scroll = h('div', { className: 'emoji-scroll' }, [grid]);
+      modal.append(tabs, scroll);
+
+      // Built from the group's own first emoji rather than a hand-picked icon per tab:
+      // nine more glyphs to choose and keep in step with the table would be nine more
+      // things to get wrong when the table is regenerated.
+      let active = 0;
+      function paintGrid(rows) {
+        grid.innerHTML = '';
+        // A fragment, because appending 388 buttons one at a time reflows 388 times.
+        const frag = document.createDocumentFragment();
+        rows.forEach(([ch, name]) => {
+          const b = h('button', { className: 'emoji-cell', type: 'button', textContent: ch, title: name });
+          b.setAttribute('aria-label', name);
+          b.addEventListener('click', () => pick(ch));
+          frag.append(b);
+        });
+        grid.append(frag);
+        scroll.scrollTop = 0;
+      }
+      function showGroup(i) {
+        active = i;
+        [...tabs.children].forEach((t, n) => t.classList.toggle('active', n === i));
+        paintGrid(groups[i][1]);
+      }
+      groups.forEach((g, i) => {
+        const t = h('button', {
+          className: 'emoji-tab',
+          type: 'button',
+          textContent: g[1][0] ? g[1][0][0] : '•',
+          title: g[0],
+        });
+        t.setAttribute('aria-label', g[0]);
+        t.addEventListener('click', () => { search.value = ''; showGroup(i); });
+        tabs.append(t);
+      });
+
+      let searchTimer = null;
+      search.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        // Debounced: a query runs over every name in the table, and doing that per
+        // keystroke while someone types "party" is five passes for one answer.
+        searchTimer = setTimeout(() => {
+          const q = search.value.trim().toLowerCase();
+          if (!q) { showGroup(active); return; }
+          [...tabs.children].forEach((t) => t.classList.remove('active'));
+          const hits = [];
+          for (const [, rows] of groups) {
+            for (const row of rows) {
+              if (row[1].includes(q)) {
+                hits.push(row);
+                if (hits.length >= EMOJI_SEARCH_MAX) break;
+              }
+            }
+            if (hits.length >= EMOJI_SEARCH_MAX) break;
+          }
+          paintGrid(hits);
+          if (!hits.length) grid.append(h('p', { className: 'hint', textContent: 'No emoji matches that.' }));
+        }, 120);
+      });
+
+      showGroup(0);
+    })();
+
+    host.appendChild(sheet);
+    // The search field, so typing works without a tap. tabindex on the layer itself is
+    // what lets the Escape handler above see the key when nothing inside has focus.
+    sheet.setAttribute('tabindex', '-1');
+    const searchEl = sheet.querySelector('input[type=search]');
+    (searchEl || sheet).focus();
+    return sheet;
+  }
+
+  // A reaction is a kind:7 whose CONTENT is the emoji (NIP-25). The e/p tags say what
+  // is being reacted to and whose it is; k carries the target's kind, which lets a
+  // client filter reactions without fetching the note.
+  async function publishReaction(target, emoji) {
+    const tags = [
+      ['e', target.id],
+      ['p', target.pubkey],
+      ['k', String(target.kind)],
+    ];
+    // Read here rather than closed over: there is no panel-wide settings object, and the
+    // composer's copy is local to its own send path.
+    let clientTag = true;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      clientTag = !(s && s.showClientTag === false);
+    } catch (_) { /* default on, matching the composer */ }
+    const event = {
+      kind: 7,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: clientTag ? [...tags, CLIENT_TAG.slice()] : tags,
+      content: emoji,
+    };
+    // expectedPubkey, like every other owner-signed event here: a reaction signed by an
+    // account that changed underneath it would be published as the wrong identity.
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: state.activePubkey });
+    await publishSigned(signed);
+    return signed;
+  }
+
+  // A REPOST (NIP-18). kind:6 for a kind:1, and kind:16 with a `k` tag for anything else —
+  // a generic repost — because 6 is defined for text notes only, and a 6 wrapping a
+  // kind:1111 web comment is a thing clients are entitled to ignore.
+  //
+  // The content is the stringified original, which is what NIP-18 asks for: it lets a
+  // client render the repost without going and finding the note first.
+  async function publishRepost(target) {
+    const relay = (await postRelays())[0] || '';
+    const isNote = target.kind === 1;
+    // Positional: the relay hint has to be present for the tag to be well-formed with
+    // anything after it, which is the same care quoteTags takes.
+    const tags = [['e', target.id, relay], ['p', target.pubkey]];
+    if (!isNote) tags.push(['k', String(target.kind)]);
+    let clientTag = true;
+    try {
+      const st = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      clientTag = !(st && st.showClientTag === false);
+    } catch (_) { /* default on, matching the composer */ }
+    const event = {
+      kind: isNote ? 6 : 16,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: clientTag ? [...tags, CLIENT_TAG.slice()] : tags,
+      content: JSON.stringify(target),
+    };
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: state.activePubkey });
+    await publishSigned(signed);
+    return signed;
+  }
+
+  // WHICH NOTE a notification is about, for the ones that carry no content of their
+  // own. A reaction, a repost and a zap receipt are all just a pointer: the row can say
+  // "reacted to your note" from the kind alone, but "which note" lives in an `e` tag.
+  //
+  // The LAST e tag, not the first. On a reply chain the root comes first and the note
+  // actually being answered comes last (NIP-10's positional form), and for a reaction
+  // the note reacted to is the last one too. Reposts and zap receipts carry one.
+  function notifTargetId(ev) {
+    if (!ev || !Array.isArray(ev.tags)) return '';
+    let id = '';
+    for (const t of ev.tags) if (t[0] === 'e' && t[1]) id = t[1];
+    return id;
+  }
+
+  // WHAT YOU REACTED WITH, per note, so the row says so. Without it, reacting is a toast
+  // that disappears and a row that looks exactly as it did — you cannot tell tomorrow
+  // whether you already answered something, which is the question a notification list is
+  // for. Kept in a Set per note: two taps of the same emoji is one reaction, not two
+  // chips (relays dedupe nothing here, but the row should not double up either).
+  //
+  // Filled from two places: optimistically when a reaction of ours publishes, and from a
+  // relay query for our own kind:7s on sheet open, so a reaction sent from another client
+  // — or from this panel before a reload — still shows.
+  const _myReactions = new Map(); // note id → Set(emoji)
+
+  // Where the open bell sheet is, set by the sheet itself while it is on screen. Reading
+  // it from an action inside the sheet is what lets that action hand the panel to the
+  // composer and get the list back afterwards, pages and scroll offset included.
+  let notifPlace = () => null;
+
+  // '+' is the legacy like and '-' the legacy dislike (NIP-25). notifLabel already draws
+  // them as ❤️ and 👎 where a SENDER's reaction is shown, and a chip of ours has to agree
+  // with that or the same event reads as two different things on one screen.
+  function reactionGlyph(content) {
+    const r = (content || '').trim();
+    if (r === '+' || !r) return '❤️';
+    if (r === '-') return '👎';
+    return r;
+  }
+
+  function addMyReaction(noteId, content) {
+    if (!noteId) return;
+    const set = _myReactions.get(noteId) || new Set();
+    set.add(reactionGlyph(content));
+    _myReactions.set(noteId, set);
+    // Every row on screen for that note, not just the one that was tapped: the same note
+    // can be the target of several notifications (a reply and a reaction to it).
+    document.querySelectorAll('.notif-item[data-notif-id="' + cssEscape(noteId) + '"] .notif-reacted')
+      .forEach((el) => paintMyReactions(el, noteId));
+  }
+
+  function paintMyReactions(el, noteId) {
+    const set = _myReactions.get(noteId);
+    el.innerHTML = '';
+    if (!set || !set.size) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    set.forEach((ch) => el.append(h('span', { className: 'notif-reacted-chip', textContent: ch })));
+  }
+
+  // An event id is 64 hex characters, so this never has anything to escape today. It is
+  // here because the selector above is built from data rather than written out, and the
+  // day something non-hex reaches it, a silent query failure is the good outcome.
+  function cssEscape(v) {
+    return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(v) : String(v).replace(/[^a-zA-Z0-9_-]/g, '');
+  }
+
+  // Notes fetched to fill out an expanded notification, kept for the panel's lifetime.
+  // Expanding the same row twice, or two reactions to the same note, must not each cost
+  // a relay round trip — that is the common shape of a busy notification list.
+  const _noteCache = new Map(); // id → event | null (null = asked, nothing came back)
+
+  async function fetchNoteById(id) {
+    if (!id) return null;
+    if (_noteCache.has(id)) return _noteCache.get(id);
+    let ev = null;
+    try {
+      // Capped like fetchStatus: a note that no configured relay holds is a normal
+      // outcome (it may live only on the sender's), and the expanded row says so
+      // rather than spinning.
+      ev = await Promise.race([
+        poolGet(await relayUrls(false), { ids: [id] }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+    } catch (_) {
+      ev = null;
+    }
+    _noteCache.set(id, ev || null);
+    return ev || null;
   }
 
   function cleanSnippet(content) {
@@ -4268,6 +4705,11 @@
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
         if (cache.events.length > 100) cache.events.length = 100;
+        // What a refresh actually brought in. Counted here rather than compared as a
+        // length before and after, because the cap above makes those equal once the cache
+        // is full — a hundred-deep list would have reported "no new notifications" while
+        // quietly rotating new ones in.
+        if (cache.refetching) cache.refetchAdded++;
         // zapSender: fetch the profile of whoever the row will NAME — for a zap
         // that is the zapper, not the LNURL service that signed the receipt.
         // When it resolves, pruneNameMuted re-checks this event against the
@@ -4278,7 +4720,14 @@
         // The notif modal for this account is open right now — append the new
         // event to the visible list instead of leaving it to only show up the
         // next time the modal is reopened.
-        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey) {
+        //
+        // NOT DURING A REFETCH. That path is a backfill: it replays up to a week of
+        // history through this same function, and addLive puts an arrival at the TOP of
+        // the list because a live event is newer than everything by definition. A
+        // two-day-old note prepended above "just now" is what refresh looked like when
+        // it went out — reported. The refresh rebuilds the list from the sorted cache
+        // when it finishes instead, which is also what makes its paging right.
+        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey && !cache.refetching) {
           // Routed through the bell's own sort rather than prepended blind: it decides
           // in-network versus the collapsed group, clears the empty state, and marks the
           // end of the list.
@@ -4305,6 +4754,51 @@
         return list;
       }
 
+      // The bell's refresh button asks the relays again, through THIS addEvent rather
+      // than a copy of it. addEvent is what drops your own events, applies the mute
+      // list, de-dupes by id, prefetches the sender's name and appends to an open
+      // sheet — five behaviors that would have to stay in step in a second copy.
+      //
+      // A live subscription is already running, so this is not how notifications
+      // normally arrive. It is for the case the live sub cannot cover: the service
+      // worker was evicted while the panel sat idle, or a relay dropped and
+      // reconnected, and the sheet opens from cache with no way to ask.
+      //
+      // Re-reads the relay list instead of closing over the one above, since relays can
+      // be added or removed while the panel stays open.
+      cache.refetch = async () => {
+        const urls = await relayUrls(false);
+        if (!urls.length) return;
+        const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
+        // Marks everything arriving from here as history rather than a live arrival, so
+        // addEvent above keeps filtering and caching it but stops inserting it into an
+        // open sheet at the top. Cleared in a finally, or one failed refresh would leave
+        // every later live notification invisible until the sheet was reopened.
+        cache.refetching = true;
+        cache.refetchAdded = 0;
+        try {
+          await Promise.all(
+            buildFilters(from, 50).map(
+              (f) =>
+                new Promise((resolve) => {
+                  let settled = false;
+                  const finish = () => { if (!settled) { settled = true; resolve(); } };
+                  // Capped, because a relay that never sends EOSE would otherwise leave
+                  // the button spinning for as long as the sheet stays open.
+                  setTimeout(finish, 6000);
+                  try {
+                    poolSubscribeManyEose(urls, f, { onevent: addEvent, onclose: finish });
+                  } catch (_) {
+                    finish();
+                  }
+                })
+            )
+          );
+        } finally {
+          cache.refetching = false;
+        }
+      };
+
       const liveSince = Math.floor(Date.now() / 1000);
       // nostr-tools ≥2.20 subscriptions take a single filter object, not an array —
       // open one subscription per filter (the pool shares the relay sockets).
@@ -4322,7 +4816,10 @@
     }
   }
 
-  async function showNotifModal(a) {
+  // `place` puts the sheet back where it was: how many pages had been loaded, and how far
+  // down it was scrolled. Passed when something had to take the panel away — replying
+  // opens the composer — so coming back is not "start again at the top".
+  async function showNotifModal(a, place) {
     const seenAt = _notifSeenAt[a.pubkey] || 0;
     const cache = _notifCache.get(a.pubkey) || { events: [] };
     const now = Math.floor(Date.now() / 1000);
@@ -4428,35 +4925,23 @@
       const actionRow = h('div', { className: 'notif-action', textContent: text });
       item.appendChild(actionRow);
 
-      // REPLY, but only where replying means something.
-      //
-      // A note or a comment can be answered. A reaction, a repost or a zap receipt
-      // cannot — there is no thread to join, and a reply tagging a kind:7 would show up
-      // in nobody's client as anything sensible. Offering a button that produces a
-      // dead-end event is worse than not offering one.
-      //
-      // The row itself is an anchor that opens the note in a client, so this is a real
-      // button that stops the event: without that, tapping Reply would ALSO follow the
-      // link and leave a new tab open behind the composer.
-      if (ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) {
-        const replyBtn = h('button', { className: 'notif-reply', type: 'button' }, [
-          icon('message-filled'),
-          h('span', { textContent: 'Reply' }),
-        ]);
-        replyBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          closeModal();
-          openComposer('', { replyTo: ev });
-        });
-        actionRow.appendChild(replyBtn);
-      }
+      // A note or a comment can be answered, reacted to and zapped. A reaction, a repost
+      // or a zap receipt cannot — there is no thread to join, and a kind:7 tagging
+      // another kind:7 shows up in nobody's client as anything sensible. Offering a
+      // button that produces a dead-end event is worse than not offering one, so those
+      // rows expand to show WHICH of your notes they are about and stop there.
+      const isNoteLike = ev.kind === 1 || ev.kind === WEB_COMMENT_KIND;
+      const targetId = isNoteLike ? '' : notifTargetId(ev);
 
-      if ((ev.kind === 1 || ev.kind === WEB_COMMENT_KIND) && ev.content) {
+      let contentEl = null;
+      // The collapsed string only. The expanded one is recomputed when the caret is
+      // tapped, because mention names resolve after this runs — see the toggle below.
+      let snippetText = '';
+      if (isNoteLike && ev.content) {
         const cleaned = cleanSnippet(ev.content);
         if (cleaned) {
-          const snippet = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
-          const contentEl = h('p', { className: 'notif-content', textContent: snippet });
+          snippetText = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+          contentEl = h('p', { className: 'notif-content', textContent: snippetText });
           // data-note-id lets the background mention-name patch below (see
           // showNotifModal) find and re-render this snippet once a mentioned
           // profile resolves — it's rendered here with whatever names are
@@ -4487,7 +4972,350 @@
           );
         }
       }
+
+      // What you reacted with, under the note. Built for every note-like row (empty and
+      // hidden when there is nothing) so a reaction landing later has somewhere to go
+      // without rebuilding the row.
+      let reactedEl = null;
+      if (isNoteLike) {
+        reactedEl = h('div', { className: 'notif-reacted hidden' });
+        paintMyReactions(reactedEl, ev.id);
+        item.appendChild(reactedEl);
+      }
+
+      // ---- expand -------------------------------------------------------------------
+      //
+      // Two different jobs behind one chevron, because the rows look alike and the
+      // question you have about them does not:
+      //
+      //   a reply or a mention   you can read the snippet but it is cut at 140 chars,
+      //                          and you may want to answer it. Expanding gives the
+      //                          whole text and the three things you can do with it.
+      //   a reaction, repost     the row carries no content at all — only a pointer.
+      //   or a zap               "reacted to your note" is the half of the sentence
+      //                          you did not need. Expanding fetches the note.
+      //
+      // Everything in here stops the click. The row is an anchor that opens the note in
+      // a client, so without that, tapping Reply would also follow the link and leave a
+      // tab open behind the composer.
+      if (isNoteLike || targetId) {
+        const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+        const panel = h('div', { className: 'notif-expand hidden' });
+        const toggle = h('button', {
+          className: 'notif-expand-btn',
+          type: 'button',
+          title: 'Expand',
+          'aria-expanded': 'false',
+        });
+        toggle.appendChild(icon('chevron-down'));
+        right.appendChild(toggle);
+
+        // ONLY WHEN IT REVEALS SOMETHING. A one-line comment is already whole on the row,
+        // and a chevron that changes nothing on tap reads as broken furniture — reported.
+        //
+        // MEASURED, not guessed from the length. The source cut at 140 characters is half
+        // the story: .notif-content is a three-line clamp, so a 90-character note can wrap
+        // past it, and a 200-character one can fit inside it after mention shortening. The
+        // element has to be laid out to know, so this waits a frame — every insertion path
+        // (the first page, load-more, a live arrival, the off-network group) appends
+        // synchronously, so by then the row is in the document.
+        //
+        // A reaction, repost or zap row always keeps it: there is always a note to fetch.
+        //
+        // OBSERVED, not measured once. A single frame after insertion is too early and
+        // gets it wrong in both directions: the webfont has not swapped in yet, so a note
+        // that will wrap to five lines measures as three and loses its chevron (which is
+        // how this shipped for one round). And the panel is resizable — drag it wider and
+        // a clipped note stops being clipped, so the answer has to be able to change.
+        // The theme gallery watches its own width for the same reason.
+        if (!targetId) {
+          toggle.classList.add('notif-expand-none');
+          const syncToggle = () => {
+            if (!contentEl || !contentEl.isConnected) return;
+            // While expanded the clamp is off, so nothing measures as clipped. Hiding the
+            // control here would strand the row open with no way to collapse it.
+            if (toggle.classList.contains('open')) return;
+            toggle.classList.toggle('notif-expand-none', !(contentEl.scrollHeight > contentEl.clientHeight + 1));
+          };
+          if (contentEl && typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncToggle).observe(contentEl);
+          }
+          // A TIMER, not requestAnimationFrame. rAF never fires while the document is
+          // hidden, and a ResizeObserver is delivered on the same frame loop — so with
+          // the panel closed or occluded when a live notification arrives, the row would
+          // be built with no chevron and keep none. Reading scrollHeight forces layout on
+          // its own; it does not need a frame. Fonts are the other half: the swap changes
+          // how the text wraps, and asking again afterwards is how a note that grows past
+          // three lines gets its chevron.
+          setTimeout(syncToggle, 0);
+          if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncToggle).catch(() => {});
+        }
+
+        let built = false;
+        function build() {
+          if (built) return;
+          built = true;
+
+          if (targetId) {
+            const note = h('div', { className: 'notif-target' }, [
+              h('div', { className: 'notif-target-label', textContent: 'Your note' }),
+              h('p', { className: 'notif-target-body', textContent: 'Looking for it…' }),
+            ]);
+            panel.appendChild(note);
+            const body = note.querySelector('.notif-target-body');
+            fetchNoteById(targetId).then((got) => {
+              if (!body.isConnected) return;
+              // A note no configured relay holds is a normal outcome — it may live only
+              // on the sender's relays — and saying so beats a row stuck on "looking".
+              if (!got) {
+                body.textContent = 'That note is not on your relays.';
+                body.classList.add('notif-target-missing');
+                return;
+              }
+              const text = cleanSnippet(got.content || '');
+              body.textContent = text || '(no text)';
+            });
+          }
+        }
+
+        toggle.addEventListener('click', (e) => {
+          stop(e);
+          build(); // one-time: the note a reaction or repost is about
+          const open = panel.classList.toggle('hidden') === false;
+
+          // THE TEXT, BOTH WAYS. This used to live in build(), which runs once, so
+          // collapsing never put the snippet back — and on a reply row the panel holds
+          // nothing (the actions are not in it), so the caret had no visible effect at
+          // all. Reported as "sometimes it does nothing", and the rows where it seemed to
+          // work were the reaction ones, where the panel did have a note in it.
+          //
+          // TWO cuts to undo and redo, not one, and the second is CSS: .notif-content is
+          // a three-line -webkit-line-clamp, so swapping the text without the class left
+          // the browser drawing its own ellipsis at the same three lines.
+          //
+          // RECOMPUTED, not the snapshot taken when the row was built. cleanSnippet turns
+          // `nostr:npub1…` into @name from whatever profiles were cached at the time, and
+          // the names arrive seconds later from the background pass — so a build-time
+          // snapshot puts the @npub1abc… fallback back on screen every time you expand,
+          // which is how a note full of resolved mentions still read as npubs. Reported.
+          if (contentEl) {
+            const text = cleanSnippet(ev.content || '');
+            contentEl.textContent = open
+              ? text
+              : (text.length > 140 ? text.slice(0, 140) + '…' : text);
+            contentEl.classList.toggle('notif-content-full', open);
+          }
+
+          toggle.classList.toggle('open', open);
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+          toggle.title = open ? 'Collapse' : 'Expand';
+        });
+        item.appendChild(panel);
+      }
+
+      // The actions are NOT behind the chevron. They are what you came to the row to do,
+      // and a drawer to reach them is a tap that buys nothing — the chevron is for
+      // reading (the rest of the text, or the note a reaction is about), which is a
+      // different question.
+      //
+      // Which is affordable because they are ICONS. Three labelled buttons is ~200px of
+      // minimum width and reads as a toolbar under every row; three icons at rest are
+      // quiet enough to repeat 25 times down a list.
+      if (isNoteLike) {
+        const stopAct = (e) => { e.preventDefault(); e.stopPropagation(); };
+        item.appendChild(buildActions(ev, stopAct));
+      }
       return item;
+    }
+
+    // Reply, react and zap, on their own row under the note. Icon-only, and titled: the
+    // glyphs are the same three this app already uses for these verbs (the composer's
+    // bubble, the reaction heart, the filled zap bolt), so the row reads without labels,
+    // and an aria-label carries each one for anything that cannot see them.
+    function buildActions(ev, stop) {
+      const row = h('div', { className: 'notif-actions' });
+      const err = h('div', { className: 'error' });
+
+      const actBtn = (label, glyph) => {
+        const b = h('button', { className: 'notif-act', type: 'button', title: label });
+        b.setAttribute('aria-label', label); // 'aria-label' via Object.assign never reaches the attribute
+        b.append(glyph);
+        return b;
+      };
+
+      const replyBtn = actBtn('Reply', icon('message-filled'));
+      replyBtn.addEventListener('click', (e) => {
+        stop(e);
+        // The composer is the one thing here that cannot open OVER the sheet: it is a
+        // full editor with tabs, media and a review countdown, and it needs the panel.
+        // So the sheet is remembered and rebuilt when the composer closes — the pages
+        // that were loaded and the scroll offset both — rather than dropping you back on
+        // the panel to find your place again.
+        const place = notifPlace();
+        closeModal();
+        openComposer('', { replyTo: ev, returnTo: () => showNotifModal(a, place) });
+      });
+
+      const reactBtn = actBtn('React', icon('heart'));
+      reactBtn.addEventListener('click', (e) => {
+        stop(e);
+        emojiPickerOver($('modal'), async (ch) => {
+          try {
+            await publishReaction(ev, ch);
+            // The chip is what makes this durable feedback. The toast says it happened;
+            // the chip is still there tomorrow, which is when you want to know whether
+            // you already answered something.
+            addMyReaction(ev.id, ch);
+            toast('Reacted ' + ch, 'success');
+          } catch (e2) {
+            toast(e2.message, 'error');
+          }
+        });
+      });
+
+      // REPOST OR QUOTE, one button and two answers. Both are "send this on", and they
+      // differ only in whether you have something to add — so they share a control rather
+      // than spending two of the four slots in a row that repeats down the whole list.
+      //
+      // The two choices are also the confirmation. A repost is public the moment it is
+      // signed and a deletion request is only ever advisory, so the second tap is
+      // deliberate rather than a flourish.
+      const repostBtn = actBtn('Repost or quote', icon('repeat'));
+      const choices = h('div', { className: 'notif-repost hidden' });
+      const repostNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Repost' });
+      const quoteNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Quote' });
+      choices.append(repostNow, quoteNow);
+      const closeChoices = () => {
+        choices.classList.add('hidden');
+        repostBtn.classList.remove('open');
+      };
+      repostBtn.addEventListener('click', (e) => {
+        stop(e);
+        const open = choices.classList.toggle('hidden') === false;
+        repostBtn.classList.toggle('open', open);
+      });
+      repostNow.addEventListener('click', async (e) => {
+        stop(e);
+        repostNow.disabled = true;
+        try {
+          await publishRepost(ev);
+          closeChoices();
+          toast('Reposted', 'success');
+        } catch (e2) {
+          err.textContent = e2.message;
+        } finally {
+          repostNow.disabled = false;
+        }
+      });
+      quoteNow.addEventListener('click', (e) => {
+        stop(e);
+        closeChoices();
+        // The composer does the tagging: it scans the body for nostr: references and
+        // writes the q tag itself (quoteTags), so handing it the nevent is the whole job.
+        // On its own line below the cursor, because a quote is something you write ABOVE
+        // the thing you are quoting.
+        const nevent = NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, relays: [] });
+        const place = notifPlace();
+        closeModal();
+        openComposer('\n\nnostr:' + nevent, { returnTo: () => showNotifModal(a, place) });
+      });
+
+      const zapBtn = actBtn('Zap', boltIcon());
+      const zapForm = h('div', { className: 'notif-zap hidden' });
+      let zapBuilt = false;
+      zapBtn.addEventListener('click', (e) => {
+        stop(e);
+        if (!zapBuilt) {
+          zapBuilt = true;
+          buildZapForm(ev, zapForm, err, stop);
+        }
+        zapForm.classList.toggle('hidden');
+        zapBtn.classList.toggle('open', !zapForm.classList.contains('hidden'));
+      });
+
+      row.append(replyBtn, reactBtn, repostBtn, zapBtn);
+      const wrap = h('div', { className: 'notif-act-wrap' }, [row, choices, zapForm, err]);
+      return wrap;
+    }
+
+    // The amount form, built on first tap rather than with the row: it costs a profile
+    // fetch to learn whether this person can even be zapped, and doing that for all 25
+    // rows in the list would be 25 round trips for the one zap somebody sends.
+    function buildZapForm(ev, zapForm, err, stop) {
+      const who = zapSender(ev);
+      const amount = satsInput('sats');
+      const presets = zapPresetRow(amount, stop);
+      const comment = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
+      const send = h('button', { className: 'primary', type: 'button', textContent: 'Send zap' });
+      const status = h('div', { className: 'hint', textContent: 'Checking their lightning address…' });
+      // Under the field it reads, so the offer to keep an amount sits with the amount.
+      zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
+        zapDefaultSaver(amount, presets, stop));
+
+      let addr = '';
+      send.disabled = true;
+      // Same gate the profile sheet uses: an address without allowsNostr can take a
+      // payment but can never produce a receipt, so a Zap button on it is a promise it
+      // cannot keep.
+      relayUrls(false)
+        .then((relays) => poolGet(relays, { kinds: [0], authors: [who] }))
+        .then(async (prof) => {
+          if (!zapForm.isConnected) return;
+          let lud = '';
+          try { lud = (JSON.parse(prof.content) || {}).lud16 || ''; } catch (_) {}
+          if (!lud) throw new Error('They have no lightning address.');
+          const p = await lnAddressParams(lud);
+          if (!p.zappable) throw new Error('Their lightning address cannot receive zaps.');
+          if (!zapForm.isConnected) return;
+          addr = lud;
+          send.disabled = false;
+          status.textContent = lud;
+        })
+        .catch((e2) => {
+          if (!zapForm.isConnected) return;
+          status.textContent = e2 && e2.message ? e2.message : 'They cannot be zapped.';
+        });
+
+      send.addEventListener('click', async (e) => {
+        stop(e);
+        const sats = parseInt(amount.value, 10);
+        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        err.textContent = '';
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = 'Sending…';
+        try {
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          // `event`, not just `pubkey`: makeZapRequest adds the e tag from it, which is
+          // what makes this a zap OF THE NOTE rather than a zap of its author. Without it
+          // the receipt shows up on their profile with no note attached.
+          const invoice = await zapInvoice({
+            addr,
+            msats: sats * 1000,
+            comment: comment.value.trim(),
+            recipientPubkey: who,
+            event: ev,
+          });
+          const res = await client.payInvoice(invoice);
+          await savePayMeta(invoice, {
+            zapPubkey: who,
+            address: addr,
+            comment: comment.value.trim(),
+            feeMsat: res && res.fees_paid,
+          });
+          lightningStrike();
+          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          zapForm.classList.add('hidden');
+          amount.value = '';
+          comment.value = '';
+        } catch (e2) {
+          err.textContent = e2.message;
+        } finally {
+          send.disabled = false;
+          send.textContent = label;
+        }
+      });
     }
 
     openModal((modal) => {
@@ -4497,6 +5325,61 @@
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
+
+      // REFRESH, beside the close button and sharing its metrics on purpose: an icon in
+      // the sheet's corner is the one place a control fits here without taking width from
+      // the list. The sheet opens from cache, so this is the only way to ask the relays
+      // whether anything landed while it was shut.
+      //
+      // Whatever comes back arrives through addEvent, which already appends to this open
+      // list (see _openNotifBell.addLive), so there is nothing to re-render here.
+      const refreshBtn = h('button', {
+        className: 'modal-x notif-refresh',
+        type: 'button',
+        title: 'Check for new notifications',
+      });
+      refreshBtn.appendChild(icon('refresh'));
+      refreshBtn.addEventListener('click', async () => {
+        if (refreshBtn.disabled) return;
+        refreshBtn.disabled = true;
+        refreshBtn.classList.add('spinning');
+        try {
+          const cached = _notifCache.get(a.pubkey);
+          // No refetch on the cache means the subscriptions never started for this
+          // account (no relays at the time, say), so start them.
+          if (cached && cached.refetch) await cached.refetch();
+          else await initNotifSubs();
+        } catch (_) {
+          // A relay failing is the normal case here, and the answer is simply that the
+          // list does not grow. An error toast would be noise on a surface that is
+          // allowed to come back empty.
+        } finally {
+          // The sheet may have been closed while the fetch was in flight.
+          if (refreshBtn.isConnected) {
+            refreshBtn.disabled = false;
+            refreshBtn.classList.remove('spinning');
+          }
+        }
+        // Nothing new is the usual answer, and silence reads as a dead button — the same
+        // reasoning as the wallet's refresh striking an unchanged balance.
+        // 'success', not 'info': toast() only draws two kinds and treats anything that is
+        // not 'error' as a success, so 'info' would read in the source as a neutral toast
+        // this app cannot draw.
+        const added = (_notifCache.get(a.pubkey) || {}).refetchAdded || 0;
+        if (!added) return toast('No new notifications', 'success');
+
+        // REBUILT FROM THE CACHE, not streamed in. The cache is sorted newest-first and
+        // the sheet's paging is computed from it at open, so the honest way to show a
+        // week of backfill is to build the list again — reopening does exactly that, in
+        // place, and lands you at the top where the newest are.
+        //
+        // Streaming them into the open list instead is what shipped first, and it put
+        // two-day-old notes above "just now" while leaving the page indices pointing at
+        // the wrong slice of a list that had grown underneath them.
+        if (refreshBtn.isConnected) showNotifModal(a);
+        toast(added === 1 ? '1 new notification' : added + ' new notifications', 'success');
+      });
+      modal.appendChild(refreshBtn);
 
       // WHOSE notifications — but only when that is a real question.
       //
@@ -4683,9 +5566,53 @@
 
       if (events.length) loadMore();
 
+      // Back to where you were. The pages first — scrolling to an offset that nothing has
+      // been rendered into yet would just clamp to the bottom of a short list — and then
+      // the offset itself, once the rows exist to give the scroller its height.
+      //
+      // Not exact by construction: a notification that arrived while you were away makes
+      // the list taller, so the offset lands a row or two off. Which is the right kind of
+      // wrong — the alternative is the top of the list, every time.
+      if (place && place.pages > 1) {
+        for (let i = 1; i < place.pages && shown < events.length; i++) loadMore();
+      }
+      if (place && place.scrollTop) {
+        const want = place.scrollTop;
+        // A task rather than a frame: rAF does not run while the document is hidden, and
+        // the scroller needs its children laid out, which reading scrollHeight forces.
+        setTimeout(() => { if (scroll.isConnected) scroll.scrollTop = want; }, 0);
+      }
+
+      // Where the sheet is right now, for whoever has to take the panel away and put it
+      // back. PAGE is the size loadMore works in, so pages is what it would take to
+      // rebuild this much of the list.
+      notifPlace = () => ({ pages: Math.max(1, Math.ceil(shown / PAGE)), scrollTop: scroll.scrollTop });
+
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
       _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote, addLive };
+
+      // WHICH OF THESE YOU HAVE ALREADY REACTED TO. One query for the whole list rather
+      // than one per row, fired after the sheet is interactive like everything else here,
+      // and painted into rows that are already on screen when it lands.
+      //
+      // Asked of the relays rather than remembered locally, so a reaction sent from
+      // another client counts too — the question is "did I answer this", not "did I
+      // answer this from Sidecar". Reactions of ours from earlier in this session are
+      // already in _myReactions and cost nothing to repaint.
+      (async () => {
+        const ids = events.filter((e) => e.kind === 1 || e.kind === WEB_COMMENT_KIND).map((e) => e.id);
+        if (!ids.length || !relays.length) return;
+        try {
+          const mine = await Promise.race([
+            poolQuerySync(relays, { kinds: [7], authors: [a.pubkey], '#e': ids.slice(0, 100) }),
+            new Promise((res) => setTimeout(() => res([]), 6000)),
+          ]);
+          (mine || []).forEach((r) => addMyReaction(notifTargetId(r), r.content));
+        } catch (_) {
+          // No reaction chips is the same as none sent, which is the safe way to be wrong.
+        }
+      })();
 
       // Background reconciliation — runs after the modal is already open and
       // interactive, so neither of these ever blocks it from appearing:
@@ -4734,6 +5661,10 @@
           const e = eventsById.get(el.dataset.noteId);
           if (!e) return;
           const cleaned = cleanSnippet(e.content);
+          // An EXPANDED row keeps its full text. This pass lands seconds after the sheet
+          // opens, so without the check it would quietly collapse a row the reader had
+          // already opened — with the clamp still lifted, which then also hid its caret.
+          if (el.classList.contains('notif-content-full')) { el.textContent = cleaned; return; }
           el.textContent = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
         });
       })();
@@ -6912,6 +7843,10 @@
     }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
+    // The settable fourth zap preset, for the account on screen. Resolved rather than
+    // read, so the field shows the number that would actually be offered — this
+    // account's if it has one, otherwise the fallback.
+    $('default-zap').value = String(resolveZapDefault(settings, state.activePubkey));
     $('autozap-max').value = String(azMax);
     $('autozap-daily-max').value = String(Number(settings.autoZapDailyMaxSats) || azMax * AUTOZAP_DAILY_MULT);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
@@ -9870,6 +10805,16 @@
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
         if (!published && enteredEditor) persistDraft();
+        // WHERE THIS CAME FROM. A reply started in the bell sheet had to give the
+        // composer the whole panel, and dropping the user out onto the main view
+        // afterwards loses their place in a list they were working through. Runs whether
+        // the reply was posted or abandoned, since either way this is the way back.
+        //
+        // Last, and guarded: it reopens a modal, and it must not be able to stop the
+        // draft above from being saved.
+        if (opts && typeof opts.returnTo === 'function') {
+          try { opts.returnTo(); } catch (_) {}
+        }
       }
     );
   }
@@ -15314,7 +16259,11 @@
   // Requires the provider to opt in: allowsNostr plus a nostrPubkey, which
   // lnAddressParams already surfaces as `zappable`. A provider without it cannot
   // produce a receipt however the button is labelled.
-  async function zapInvoice({ addr, msats, comment, recipientPubkey }) {
+  // `event` is optional: with it, makeZapRequest adds an `e` tag and the zap is of that
+  // NOTE (which is how a client shows it under the note, and how the recipient can tell
+  // what was zapped). Without it the zap is of the person, which is what the profile
+  // sheet sends.
+  async function zapInvoice({ addr, msats, comment, recipientPubkey, event }) {
     const { meta } = await lnAddressParams(addr);
     if (!(meta.allowsNostr && meta.nostrPubkey)) {
       throw new Error('That lightning address cannot receive zaps, only payments.');
@@ -15326,12 +16275,11 @@
     // The relays the recipient's provider should publish the receipt to. Theirs, not
     // ours: a receipt on relays they never read is a receipt they never see.
     const relays = (await readRelayUrls(recipientPubkey)).slice(0, 6);
-    const template = NT.nip57.makeZapRequest({
-      pubkey: recipientPubkey,
-      amount: msats,
-      relays,
-      comment: comment || '',
-    });
+    // makeZapRequest reads the recipient off `event.pubkey` when an event is given, so
+    // the two forms are exclusive rather than additive.
+    const template = event
+      ? NT.nip57.makeZapRequest({ event, amount: msats, relays, comment: comment || '' })
+      : NT.nip57.makeZapRequest({ pubkey: recipientPubkey, amount: msats, relays, comment: comment || '' });
 
     // PUBLIC ONLY, for now. Anonymous (an ephemeral signing key) and private (the
     // sender encrypted into an `anon` tag) both worked out to be worse than sending
@@ -15877,6 +16825,24 @@
     const daily = Math.min(AUTOZAP_ABS_DAILY_MAX, Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT));
     $('autozap-daily-max').value = String(daily);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
+  });
+
+  // Clamped on the way in and written back into the field, the same as the autozap caps
+  // below: a value the app silently refused would otherwise sit on screen looking saved.
+  $('default-zap').addEventListener('change', async (e) => {
+    const sats = clampZapDefault(e.target.value);
+    e.target.value = String(sats);
+    defaultZapSats = sats; // the zap rows read this, and are built without a round trip
+    defaultZapIsOwn = true;
+    // THIS ACCOUNT's amount, and nobody else's. Its own message because
+    // SIDECAR_SET_SETTINGS merges shallowly, so a panel sending the whole map would
+    // clobber another account's.
+    //
+    // No account, no write. There is no global for this any more, so during onboarding
+    // there is nothing for the number to belong to.
+    if (!state.activePubkey) return;
+    await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
+    toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
   });
 
   $('autozap-max').addEventListener('change', async (e) => {

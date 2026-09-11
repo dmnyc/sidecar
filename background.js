@@ -1807,6 +1807,9 @@ const AUTOZAP_DAILY_MULTIPLE = 100; // default daily cap = 100× the per-zap cap
 // What enabling auto-zap from a payment card sets it to. The panel mirrors this as
 // AUTOZAP_DEFAULT_MAX for its own input default.
 const AUTOZAP_DEFAULT_MAX = 200;
+// Matches ZAP_DEFAULT_MAX in sidepanel.js: a preset is for the zaps you send without
+// thinking, so four digits is the range worth having one tap away.
+const ZAP_DEFAULT_ABS_MAX = 9999;
 const AUTOZAP_ABS_MAX = 1000; // sats, per zap
 const AUTOZAP_ABS_DAILY_MAX = 100000; // sats, rolling day
 
@@ -2804,16 +2807,13 @@ async function handleControl(message, sender, sendResponse) {
         result = { ok: true };
         break;
       }
-      // Same shape and the same reason as SIDECAR_SET_NIP65_ONLY above: the map has
-      // to be edited in the background, because SIDECAR_SET_SETTINGS merges shallowly
-      // and a panel sending the whole map would clobber another account's choice.
+      // Same shape and the same reason as SIDECAR_SET_NIP65_ONLY above: the map has to be
+      // edited in the background, because SIDECAR_SET_SETTINGS merges shallowly and a
+      // panel sending the whole map would clobber another account's choice.
       //
-      // Absent means "use the global default", which is what makes this additive: an
-      // account that never picks one keeps following defaultClient, and changing the
-      // global still moves everyone who has not chosen for themselves.
-      // Same shape and the same reason as the two setters below it. Absent means
-      // "use the global theme", so an account that has never picked one follows the
-      // global and changing the global still moves everyone who has not chosen.
+      // Absent means "use the global theme", so an account that has never picked one
+      // follows the global and changing the global still moves everyone who has not
+      // chosen for themselves.
       case 'SIDECAR_SET_THEME_FOR': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const map = { ...(prev.themeBy || {}) };
@@ -2823,12 +2823,49 @@ async function handleControl(message, sender, sendResponse) {
         result = { ok: true };
         break;
       }
+      // Same again, and additive for the same reason: an account that never picks a client
+      // keeps following defaultClient.
       case 'SIDECAR_SET_CLIENT_FOR': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const map = { ...(prev.defaultClientBy || {}) };
         if (message.client) map[message.pubkey] = message.client;
         else delete map[message.pubkey]; // back to following the global
         await sset({ sidecar_settings: { ...prev, defaultClientBy: map } });
+        result = { ok: true };
+        break;
+      }
+      // The zap amount offered as the fourth preset, PER ACCOUNT. A brand account tipping
+      // in hundreds and a personal one in tens is the normal case, and one global number
+      // made the second borrow the first's habit.
+      //
+      // Merged here rather than in the panel for the same reason as the map above:
+      // SIDECAR_SET_SETTINGS merges shallowly, so a panel sending the whole map would
+      // clobber another account's amount and two panels racing would lose one.
+      //
+      // Clamped where it is STORED as well as where it is typed. The panel clamps on read
+      // too, but this is the value every zap form then offers, and a number that reached
+      // storage by any other route should not be able to sit in front of a Send button.
+      case 'SIDECAR_SET_ZAP_DEFAULT_FOR': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.zapDefaultBy || {}) };
+        const sats = Math.min(Math.max(1, Math.floor(Number(message.sats) || 0)), ZAP_DEFAULT_ABS_MAX);
+        // FAILS CLOSED without a pubkey. There is no global for this any more — an amount
+        // set for one account leaking into every other one is what the old
+        // settings.defaultZapSats fallback did, and it was reported — so a write with
+        // nobody to attribute it to is refused rather than parked somewhere shared.
+        if (!message.pubkey) {
+          result = { ok: false, error: 'No account to set a zap amount for' };
+          break;
+        }
+        if (message.sats) {
+          map[message.pubkey] = sats;
+          await sset({ sidecar_settings: { ...prev, zapDefaultBy: map } });
+        } else {
+          // Falsy sats clears the entry rather than storing a zero, so the account goes
+          // back to the built-in 21 — the same clearing shape the maps above use.
+          delete map[message.pubkey];
+          await sset({ sidecar_settings: { ...prev, zapDefaultBy: map } });
+        }
         result = { ok: true };
         break;
       }

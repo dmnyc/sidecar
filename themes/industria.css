@@ -39,6 +39,7 @@
   --warn: #a8521f;
   --warn-rgb: 168, 82, 31;
   --success: #2f7d52;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
   --success-rgb: 47, 125, 82;
 
   /* brand - bronze/gold
