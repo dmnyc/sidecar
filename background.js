@@ -1390,7 +1390,15 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // purple over someone's Brownstone panel. Carried on the payload rather than
         // fetched in prompt.js so the window paints themed on first frame instead of
         // flashing the default.
-        theme: promptSettings.theme || 'speakeasy',
+        // THE ACCOUNT'S theme, not the global one. This window is about a specific
+        // identity, and it is the surface where picking the wrong one costs
+        // something — so it is the most valuable place for a per-account theme to
+        // show, not an afterthought. Falls back to the global for an account that
+        // has never chosen. (Duplicated rather than shared: the panel, this worker
+        // and the content script are three documents with no module system between
+        // them, the same reasoning as the theme lists in each.)
+        theme: (promptSettings.themeBy && promptSettings.themeBy[activePubkey])
+          || promptSettings.theme || 'speakeasy',
         // Auto-lock is off, so this unlock is the once-per-browser-session one rather
         // than an idle timeout. The UI says so — otherwise "Never" looks broken to
         // someone who set it and is then asked for a PIN the next morning.
@@ -2799,6 +2807,33 @@ async function handleControl(message, sender, sendResponse) {
         result = { ok: true };
         break;
       }
+      // Same shape and the same reason as SIDECAR_SET_NIP65_ONLY above: the map has to be
+      // edited in the background, because SIDECAR_SET_SETTINGS merges shallowly and a
+      // panel sending the whole map would clobber another account's choice.
+      //
+      // Absent means "use the global theme", so an account that has never picked one
+      // follows the global and changing the global still moves everyone who has not
+      // chosen for themselves.
+      case 'SIDECAR_SET_THEME_FOR': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.themeBy || {}) };
+        if (message.theme) map[message.pubkey] = message.theme;
+        else delete map[message.pubkey];
+        await sset({ sidecar_settings: { ...prev, themeBy: map } });
+        result = { ok: true };
+        break;
+      }
+      // Same again, and additive for the same reason: an account that never picks a client
+      // keeps following defaultClient.
+      case 'SIDECAR_SET_CLIENT_FOR': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.defaultClientBy || {}) };
+        if (message.client) map[message.pubkey] = message.client;
+        else delete map[message.pubkey]; // back to following the global
+        await sset({ sidecar_settings: { ...prev, defaultClientBy: map } });
+        result = { ok: true };
+        break;
+      }
       // The zap amount offered as the fourth preset, PER ACCOUNT. A brand account tipping
       // in hundreds and a personal one in tens is the normal case, and one global number
       // made the second borrow the first's habit.
@@ -3198,17 +3233,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // and nothing else. The full object would tell it the auto-lock timing (how
     // long an unattended unlocked keystore stays warm) plus budget/autozap
     // config it has no business fingerprinting.
-    sget('sidecar_settings').then(({ sidecar_settings }) => {
+    let cardHost = '';
+    try { cardHost = new URL((sender && sender.url) || '').host; } catch (_) {}
+    Promise.all([sget('sidecar_settings'), getSiteAccount(cardHost)]).then(([{ sidecar_settings }, bound]) => {
       // Plus whether the auto-zap offer is worth showing on the payment card. This
       // reveals nothing the card doesn't already imply — if auto-zap were on and
       // covered the amount, no card would have appeared at all. The cap is a product
       // constant, not the user's configuration.
       const st = sidecar_settings || {};
+      // And the theme for the payment card: the one worn by THE ACCOUNT THIS SITE IS
+      // BOUND TO, resolved here so the map itself never crosses into a content script.
+      //
+      // The bound account, not the active one, and that is the whole trick. This site
+      // authenticated that account and holds its pubkey already, so its theme tells the
+      // site nothing it does not know — whereas the ACTIVE account can be a different
+      // identity the site has never seen, and a card that changed colour when the user
+      // switched would be a switch detector any page could poll.
+      //
+      // It is also less of a fingerprint than the single global this replaced: two sites
+      // bound to two different accounts used to see one shared value, which correlated
+      // those accounts as one person. Now they see each account's own theme.
+      const by = st.themeBy || {};
       sendResponse({
         ok: true,
         result: {
           showPayButton: st.showPayButton,
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
+          cardTheme: (bound && by[bound]) || st.theme || '',
         },
       });
     });

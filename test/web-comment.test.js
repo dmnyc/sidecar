@@ -32,7 +32,21 @@ function lift(pattern, label) {
 }
 
 // NT is the panel's alias for window.NostrTools; mentionPTags decodes npubs with it.
-const ctx = { console, URL, Date, NT: require('nostr-tools') };
+// The vendored bundle, not the npm package. package.json declares no dependencies
+// at all — deliberately, for an extension that holds keys and ships no remote code
+// (see REVIEWERS.md, which documents each vendored library as a byte-exact copy) —
+// so `require('nostr-tools')` could never resolve and this file has been failing to
+// even load. Loading nostr-tools.js is also the more honest test: it exercises the
+// exact bytes the extension ships rather than whatever npm would have resolved.
+// Same approach as owner-sign.test.js and the other keystore tests.
+const vmLoad = require('node:vm');
+vmLoad.runInThisContext(
+  require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'nostr-tools.js'), 'utf8'),
+  { filename: 'nostr-tools.js' }
+);
+const nostrTools = globalThis.NostrTools;
+if (!nostrTools || !nostrTools.nip19) throw new Error('vendored nostr-tools.js did not expose nip19');
+const ctx = { console, URL, Date, NT: nostrTools };
 vm.createContext(ctx);
 vm.runInContext(
   lift(/const WEB_COMMENT_KIND = \d+;/, 'WEB_COMMENT_KIND') + '\n' +
@@ -356,7 +370,7 @@ test('the exported CLIENT_TAG is never mutated between events', () => {
 // matching p tag the person tagged is never notified — the comment renders their
 // name and they never find out, which is the bug these pin shut.
 
-const NT = require('nostr-tools');
+const NT = nostrTools;
 // Two arbitrary but fixed keys: the assertions are about tag plumbing, not identity.
 const PK_A = '3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d';
 const PK_B = '82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6d2';

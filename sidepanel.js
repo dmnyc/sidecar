@@ -192,6 +192,12 @@
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
     plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
+    // A painter's palette, for the per-account theme override. Not `flower`, which is
+    // already Blossom's own mark (see KIND_ICONS 10063/24242) and would read as a
+    // media-server action sitting in the account menu. The wells are filled rather than
+    // stroked, the same as `grip` below: at r=1.5 an unfilled circle is a ring with a
+    // hole in it, not a dot of paint.
+    palette: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.93 0 1.68-.75 1.68-1.68 0-.44-.17-.83-.44-1.13a1.66 1.66 0 0 1 1.24-2.77h1.98A5.54 5.54 0 0 0 22 10.88C22 5.98 17.52 2 12 2z"></path><circle cx="6.5" cy="11.5" r="1.5" fill="currentColor"></circle><circle cx="9.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="14.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="17.5" cy="11.5" r="1.5" fill="currentColor"></circle>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
@@ -401,6 +407,18 @@
   // documents each read the setting for themselves.
   const THEME_ALIASES = { 'art-deco': 'industria' };
 
+  // Display names, for the one place a theme is chosen from a list rather than from
+  // the picker's card grid: the per-account override in the account menu. Same order
+  // as validThemes below and as the picker in sidepanel.html — dark first, then light
+  // — and a guard test keeps the keys in step, since a theme present in one and
+  // missing from the other would be unpickable rather than visibly broken.
+  const THEME_LABELS = [
+    ['speakeasy', 'Speakeasy'], ['film-noir', 'Film Noir'], ['brownstone', 'Brownstone'],
+    ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'], ['metropolis', 'Metropolis'],
+    ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
+    ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
+  ];
+
   function applyTheme(themeName) {
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
@@ -415,16 +433,33 @@
     // reads it.
     document.querySelectorAll('.avatar-ph img').forEach((img) => { img.src = avatarPhSrc(); });
 
-    // Update active state in theme selector
-    document.querySelectorAll('.theme-card').forEach(card => {
-      card.classList.toggle('active', card.dataset.theme === themeName);
-    });
-    // Show the half of the gallery the active theme is in. Called on load too, so opening
-    // Settings lands on your own theme's mode rather than always on Dark.
-    const active = document.querySelector('.theme-card.active');
-    if (active) showThemeMode(active.dataset.mode || 'dark');
-
     return themeName;
+  }
+
+  // WHAT THE PANEL WEARS: this account's own theme, or the default if it never chose.
+  // Returns the theme actually applied, which is what the pay card is then told about.
+  function applyResolvedTheme(settings) {
+    return applyTheme(resolveTheme(settings, state.activePubkey));
+  }
+
+  // WHICH CARD THE GALLERY MARKS: the theme on screen, since the gallery sets the theme
+  // for the account you are in. Kept out of applyTheme so there is exactly one place that
+  // decides it — applyTheme runs on every render, including the lock screen, where
+  // mounting twelve preview documents to mark a card nobody is looking at is waste.
+  function paintThemePicker(theme) {
+    const marked = THEME_ALIASES[theme] || theme || 'speakeasy';
+    const cards = [...document.querySelectorAll('.theme-card')];
+    cards.forEach((card) => card.classList.toggle('active', card.dataset.theme === marked));
+    // A name no card offers — a theme since removed and not aliased, a hand-edited
+    // setting — would leave the gallery with nothing marked and no half revealed, which
+    // is the "why is nothing selected" mystery. applyTheme clamps the panel the same way.
+    let active = cards.find((c) => c.classList.contains('active'));
+    if (!active && cards.length) {
+      active = cards.find((c) => c.dataset.theme === 'speakeasy') || cards[0];
+      active.classList.add('active');
+    }
+    // Open on the half the marked card is in, rather than always on Dark.
+    if (active) showThemeMode(active.dataset.mode || 'dark');
   }
 
   // Wrap a password <input> so a check/x indicator can sit at its right edge.
@@ -964,7 +999,9 @@
     defaultZapSats = resolveZapDefault(settings, state.activePubkey);
     defaultZapIsOwn = !!(settings && settings.zapDefaultBy && state.activePubkey &&
       settings.zapDefaultBy[state.activePubkey]);
-    applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
+    // The ACTIVE account's theme, for the same reason and on the same beat: a switch has
+    // to change what the panel wears, not just what it offers.
+    applyResolvedTheme(settings);
     applyHideBalances();
     closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
@@ -6953,6 +6990,7 @@
           closeModal();
         }),
         menuItem('Show npub QR', 'qr', () => npubQrModal(a)),
+        menuItem('Theme override', 'palette', () => themeOverrideModal(a)),
         menuItem('Back up private key', 'key', () => backupKeyModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
@@ -7759,7 +7797,15 @@
     // auto-lock
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
-    $('client-select').value = settings.defaultClient || DEFAULT_CLIENT;
+    // Blank means "follow the global default", which is the state of every account
+    // that has never chosen. The label on that option names what the default is, so
+    // the row is not a mystery when nothing is selected.
+    const clientBy = settings.defaultClientBy || {};
+    const own = state.activePubkey ? clientBy[state.activePubkey] : '';
+    $('client-select').value = own || '';
+    const globalLabel = (VIEW_CLIENTS[settings.defaultClient || DEFAULT_CLIENT] || {}).label || '';
+    const defaultOpt = $('client-select').querySelector('option[value=""]');
+    if (defaultOpt) defaultOpt.textContent = globalLabel ? 'Use the default (' + globalLabel + ')' : 'Use the default';
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
@@ -7814,8 +7860,7 @@
       c.classList.toggle('active', Number(c.dataset.secs) === cdSecs));
 
     // theme
-    const theme = settings.theme || 'speakeasy'; // default to speakeasy
-    applyTheme(theme);
+    paintThemePicker(applyResolvedTheme(settings));
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -9412,10 +9457,102 @@
   };
   const DEFAULT_CLIENT = 'jumble';
 
-  async function preferredClient() {
-    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
+  // Which client this ACCOUNT opens things in. Per-account with a fallback to the
+  // global, so an account that has never chosen keeps following the global setting
+  // and changing that still moves everyone who has not chosen for themselves.
+  //
+  // The reason it is per account rather than global: a client is where an identity
+  // lives. A brand account read in one client and a personal one in another is the
+  // normal case, and the global setting made the second account borrow the first's
+  // habits. Same storage shape as nip65OnlyBy (see SIDECAR_SET_CLIENT_FOR).
+
+  // Which theme this ACCOUNT wears, with settings.theme as the default for one that has
+  // never chosen — the same shape as resolveClient below and as nip65OnlyBy before it.
+  //
+  // The point is not decoration. With several accounts the panel looks identical
+  // whether you are in your main identity or a throwaway, and the account name is the
+  // only thing telling them apart. A theme answers "which account am I in" before you
+  // read anything — which is why the approval window follows it too (background.js),
+  // since that is where getting it wrong costs something.
+  //
+  // NOT the panel's theme for the pay card. That card is rendered into a page, and the
+  // page can see it, so it wears the theme of THE ACCOUNT THAT SITE IS BOUND TO — the one
+  // whose pubkey the site already holds. The background resolves it (the clamped
+  // GET_SETTINGS) and this map never crosses into a content script. See content.js.
+  //
+  // TWO STORED FIELDS, and the reason this took five attempts is that for four of them
+  // one field was doing two jobs:
+  //   themeBy[pk]     what this account wears; the card resolves through it per site
+  //   settings.theme  what an account that never chose wears (set at onboarding)
+  // Using settings.theme as the card's value too meant every pick redressed every
+  // untouched account, and sparing them froze the card. A per-pick "last theme" field
+  // fixed both and still mismatched, because it tracked the pick rather than the site.
+
+  // The per-account theme, set from the gallery for the account you are in and from this
+  // modal for any account — including back to the default, which the gallery cannot say.
+  function themeOverrideModal(a) {
+    openModal((modal) => {
+      modal.append(h('h3', { textContent: 'Theme for ' + displayName(a) }));
+      modal.append(h('p', {
+        className: 'hint',
+        textContent: 'The theme this account wears, so you can tell at a glance which one you are in.',
+      }));
+
+      const sel = h('select');
+      sel.append(h('option', { value: '', textContent: 'Use the default' }));
+      THEME_LABELS.forEach(([key, label]) => sel.append(h('option', { value: key, textContent: label })));
+      // The current value arrives from the background a moment after the modal opens, so
+      // it must not overwrite a choice made inside that moment.
+      let touched = false;
+      sel.addEventListener('change', () => { touched = true; });
+
+      const err = h('div', { className: 'error' });
+      const save = h('button', { className: 'primary', textContent: 'Save' });
+      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      cancel.addEventListener('click', closeModal);
+
+      save.addEventListener('click', async () => {
+        save.disabled = true;
+        try {
+          await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: a.pubkey, theme: sel.value });
+          // Only repaint if this is the account on screen. Dressing another account must
+          // not change the panel out from under you.
+          if (a.pubkey === state.activePubkey) {
+            paintThemePicker(applyResolvedTheme(await call({ type: 'SIDECAR_GET_SETTINGS' })));
+          }
+          closeModal();
+          toast(sel.value ? 'Theme set' : 'Using the default theme', 'success');
+        } catch (e) {
+          err.textContent = e.message;
+          save.disabled = false;
+        }
+      });
+
+      modal.append(sel, err, h('div', { className: 'actions' }, [save, cancel]));
+
+      call({ type: 'SIDECAR_GET_SETTINGS' }).then((s) => {
+        if (!modal.isConnected || touched) return;
+        sel.value = ((s && s.themeBy) || {})[a.pubkey] || '';
+      }).catch(() => {});
+    });
+  }
+
+  function resolveTheme(settings, pubkey) {
+    const by = (settings && settings.themeBy) || null;
+    return (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
+  }
+
+  function resolveClient(settings, pubkey) {
+    const by = (settings && settings.defaultClientBy) || null;
+    const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  async function preferredClient(forPubkey) {
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    // Defaults to the active account, since every existing caller means "the account
+    // I am acting as". A caller that means someone else's account passes it.
+    return resolveClient(settings, forPubkey || state.activePubkey);
   }
 
   // Open a client URL. When the "reuse open client tab" setting is on (default),
@@ -9518,8 +9655,9 @@
     let nevent;
     try { nevent = await neventFor(signed); } catch (_) { return; }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-    const key = (settings && settings.defaultClient) || DEFAULT_CLIENT;
-    const client = VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+    // The account that just signed the note, not whatever is active by the time the
+    // banner paints — they can differ if the user switches while it is up.
+    const client = resolveClient(settings, (signed && signed.pubkey) || state.activePubkey);
 
     if (_postBannerTimer) clearTimeout(_postBannerTimer); // only one note's link shown at a time
 
@@ -16393,8 +16531,16 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
   });
 
+  // Writes THIS ACCOUNT's choice, never the global. An empty value clears the entry
+  // and the account goes back to following the global default.
+  //
+  // Routed through its own message rather than SIDECAR_SET_SETTINGS because that one
+  // merges shallowly: sending the whole map from the panel would clobber whatever
+  // another account had chosen, and two panels racing would lose one. Same reasoning
+  // as SIDECAR_SET_NIP65_ONLY, which this is modelled on.
   $('client-select').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultClient: e.target.value } });
+    if (!state.activePubkey) return;
+    await call({ type: 'SIDECAR_SET_CLIENT_FOR', pubkey: state.activePubkey, client: e.target.value || '' });
   });
 
   $('reuse-tab-toggle').addEventListener('change', async (e) => {
@@ -16643,11 +16789,30 @@
   document.querySelectorAll('.theme-card').forEach(card => {
     card.addEventListener('click', async (e) => {
       const selectedTheme = card.dataset.theme;
+      // THIS ACCOUNT'S theme. The gallery dresses the account you are in, which is the
+      // whole point of #266 — with several accounts the panel looks identical whether you
+      // are in your main identity or a throwaway, and a theme answers "which account am I
+      // in" before you read anything.
       applyTheme(selectedTheme);
+      paintThemePicker(selectedTheme);
       // The panel just changed theme under the previews; the one you picked replays so
       // the choice confirms itself with the animation you chose it for.
       replayThemePreview(card);
-      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+      if (state.activePubkey) {
+        // Routed through its own message because SIDECAR_SET_SETTINGS merges shallowly and
+        // a panel sending the whole map would clobber another account's choice — the same
+        // reasoning behind SIDECAR_SET_CLIENT_FOR.
+        await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: state.activePubkey, theme: selectedTheme });
+        // NOT settings.theme, which is the default an account that never chose still
+        // wants. Writing it here redressed every untouched account, which is the bug this
+        // replaced. The pay card is not this handler's business either: it resolves its
+        // own palette from the account each SITE is bound to (background.js), so nothing
+        // has to be pushed to it and switching accounts tells no page anything.
+      } else {
+        // Onboarding: no account to attribute the choice to, so it sets the default every
+        // new account inherits — which is also what the pay card falls back to.
+        await call({ type: 'SIDECAR_SET_SETTINGS', settings: { theme: selectedTheme } });
+      }
     });
   });
 
