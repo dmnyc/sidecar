@@ -954,7 +954,9 @@
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     zapFlash = !(settings && settings.zapFlash === false); // default on
-    defaultZapSats = clampZapDefault(settings && settings.defaultZapSats);
+    // Re-resolved on every state change, which includes an account switch — so the zap
+    // rows drawn after a switch offer the amount belonging to whoever you switched to.
+    defaultZapSats = resolveZapDefault(settings, state.activePubkey);
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
@@ -3736,7 +3738,7 @@
       if (stop) stop(e);
       const sats = clampZapDefault(amountEl.value);
       defaultZapSats = sats;
-      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultZapSats: sats } });
+      await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
       // REBUILT, not patched: the new amount may belong in a different position in the
       // row, and zapPresets is what decides that. The rebuilt row keeps this same hook.
       const fresh = zapPresetRow(amountEl, stop, sync);
@@ -3751,6 +3753,19 @@
     });
     sync();
     return btn;
+  }
+
+  // WHOSE amount. Per account with the global as the fallback for one that has never
+  // chosen — the same map-with-fallback shape as nip65OnlyBy.
+  //
+  // Per account because a zap is a habit, not a preference: a brand account tipping in
+  // hundreds and a personal one in tens is the normal case, and one global number made
+  // the second borrow the first's. Nothing else reads this — no content script, no
+  // approval window — so unlike the theme there is no second job to split out of it.
+  function resolveZapDefault(settings, pubkey) {
+    const by = (settings && settings.zapDefaultBy) || null;
+    const own = by && pubkey && by[pubkey];
+    return clampZapDefault(own || (settings && settings.defaultZapSats));
   }
 
   // Kept to a whole number of sats in a range: the input is free text (numeric keyboards
@@ -7651,9 +7666,10 @@
     }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
-    // The settable fourth zap preset. clampZapDefault is what decides the number, so the
-    // field shows what would actually be used rather than whatever is in storage.
-    $('default-zap').value = String(clampZapDefault(settings.defaultZapSats));
+    // The settable fourth zap preset, for the account on screen. Resolved rather than
+    // read, so the field shows the number that would actually be offered — this
+    // account's if it has one, otherwise the fallback.
+    $('default-zap').value = String(resolveZapDefault(settings, state.activePubkey));
     $('autozap-max').value = String(azMax);
     $('autozap-daily-max').value = String(Number(settings.autoZapDailyMaxSats) || azMax * AUTOZAP_DAILY_MULT);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
@@ -16521,7 +16537,11 @@
     const sats = clampZapDefault(e.target.value);
     e.target.value = String(sats);
     defaultZapSats = sats; // the zap rows read this, and are built without a round trip
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultZapSats: sats } });
+    // THIS ACCOUNT's amount. Its own message because SIDECAR_SET_SETTINGS merges
+    // shallowly, so a panel sending the whole map would clobber another account's.
+    // Without a pubkey — onboarding — it writes the fallback instead, since there is
+    // nobody to attribute it to yet.
+    await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
     toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
   });
 

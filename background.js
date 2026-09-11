@@ -1799,6 +1799,8 @@ const AUTOZAP_DAILY_MULTIPLE = 100; // default daily cap = 100× the per-zap cap
 // What enabling auto-zap from a payment card sets it to. The panel mirrors this as
 // AUTOZAP_DEFAULT_MAX for its own input default.
 const AUTOZAP_DEFAULT_MAX = 200;
+// Matches ZAP_DEFAULT_MAX in sidepanel.js: a stray zero caught rather than saved.
+const ZAP_DEFAULT_ABS_MAX = 1000000;
 const AUTOZAP_ABS_MAX = 1000; // sats, per zap
 const AUTOZAP_ABS_DAILY_MAX = 100000; // sats, rolling day
 
@@ -2793,6 +2795,37 @@ async function handleControl(message, sender, sendResponse) {
         if (message.on) map[message.pubkey] = true;
         else delete map[message.pubkey];
         await sset({ sidecar_settings: { ...prev, nip65OnlyBy: map } });
+        result = { ok: true };
+        break;
+      }
+      // The zap amount offered as the fourth preset, PER ACCOUNT. A brand account tipping
+      // in hundreds and a personal one in tens is the normal case, and one global number
+      // made the second borrow the first's habit.
+      //
+      // Merged here rather than in the panel for the same reason as the map above:
+      // SIDECAR_SET_SETTINGS merges shallowly, so a panel sending the whole map would
+      // clobber another account's amount and two panels racing would lose one.
+      //
+      // Clamped where it is STORED as well as where it is typed. The panel clamps on read
+      // too, but this is the value every zap form then offers, and a number that reached
+      // storage by any other route should not be able to sit in front of a Send button.
+      case 'SIDECAR_SET_ZAP_DEFAULT_FOR': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.zapDefaultBy || {}) };
+        const sats = Math.min(Math.max(1, Math.floor(Number(message.sats) || 0)), ZAP_DEFAULT_ABS_MAX);
+        // No pubkey is onboarding, where there is no account to attribute it to: that
+        // writes the fallback every account without its own inherits.
+        if (!message.pubkey) {
+          await sset({ sidecar_settings: { ...prev, defaultZapSats: sats } });
+        } else if (message.sats) {
+          map[message.pubkey] = sats;
+          await sset({ sidecar_settings: { ...prev, zapDefaultBy: map } });
+        } else {
+          // Falsy sats clears the entry rather than storing a zero, so the account goes
+          // back to following the fallback — the same shape the maps above use.
+          delete map[message.pubkey];
+          await sset({ sidecar_settings: { ...prev, zapDefaultBy: map } });
+        }
         result = { ok: true };
         break;
       }

@@ -52,10 +52,11 @@ function consts() {
     'const ZAP_DEFAULT_SATS = ' + grab('ZAP_DEFAULT_SATS') + ';' +
     'const ZAP_DEFAULT_MAX = ' + grab('ZAP_DEFAULT_MAX') + ';' +
     lift('function clampZapDefault(') +
+    lift('function resolveZapDefault(') +
     '\nlet defaultZapSats = ZAP_DEFAULT_SATS;' +
     lift('function zapPresets(') +
-    '\nglobalThis.out = { clampZapDefault, zapPresets, ZAP_PRESETS_FIXED, ZAP_DEFAULT_SATS, ZAP_DEFAULT_MAX,' +
-    ' set: (v) => { defaultZapSats = v; } };',
+    '\nglobalThis.out = { clampZapDefault, resolveZapDefault, zapPresets, ZAP_PRESETS_FIXED,' +
+    ' ZAP_DEFAULT_SATS, ZAP_DEFAULT_MAX, set: (v) => { defaultZapSats = v; } };',
     ctx
   );
   return ctx.out;
@@ -95,11 +96,15 @@ test('CLAMPED ON THE WAY OUT, NOT ONLY ON THE WAY IN', () => {
   // Storage is not the only way a value gets there, and the panel is the last thing
   // between it and a Send button — so the read path clamps too, both where the row is
   // built from and where the setting is shown.
+  // Both read paths go through resolveZapDefault, which clamps whatever it resolves —
+  // this account's entry or the fallback.
+  const resolver = stripComments(lift('function resolveZapDefault('));
+  assert.match(resolver, /clampZapDefault\(own \|\| \(settings && settings\.defaultZapSats\)\)/,
+    'resolution hands back a stored number unchecked');
   const boot = stripComments(source);
-  assert.match(boot, /defaultZapSats = clampZapDefault\(settings && settings\.defaultZapSats\)/,
-    'the cached preset is taken from storage unchecked');
+  assert.match(boot, /defaultZapSats = resolveZapDefault\(/, 'the cached preset skips resolution');
   const settings = stripComments(lift('async function renderSettings('));
-  assert.match(settings, /\$\('default-zap'\)\.value = String\(clampZapDefault\(settings\.defaultZapSats\)\)/,
+  assert.match(settings, /\$\('default-zap'\)\.value = String\(resolveZapDefault\(/,
     'the field can show a value the app would not use');
 });
 
@@ -155,6 +160,78 @@ test('a preset inside a clickable row does not also follow the link', () => {
   assert.match(fn, /type: 'button'/, 'a preset can submit a form it sits in');
 });
 
+// ---- whose amount ---------------------------------------------------------------------
+
+test('AN ACCOUNT WITH ITS OWN AMOUNT GETS IT', () => {
+  // A zap is a habit rather than a preference: a brand account tipping in hundreds and a
+  // personal one in tens is the normal case, and one global number made the second
+  // borrow the first's.
+  const { resolveZapDefault } = consts();
+  const st = { defaultZapSats: 100, zapDefaultBy: { alice: 2100 } };
+  assert.equal(resolveZapDefault(st, 'alice'), 2100);
+});
+
+test('an account without one follows the fallback', () => {
+  const { resolveZapDefault } = consts();
+  const st = { defaultZapSats: 100, zapDefaultBy: { alice: 2100 } };
+  assert.equal(resolveZapDefault(st, 'bob'), 100, 'the fallback is not used');
+  assert.equal(resolveZapDefault(st, 'alice'), 2100, 'the fallback overrode an explicit choice');
+});
+
+test('LOCKED, OR A FRESH INSTALL, STILL RESOLVES TO 21', () => {
+  // The lock screen paints before the panel knows who is unlocking, so activePubkey is
+  // empty — and nothing about a zap row should depend on that.
+  const { resolveZapDefault } = consts();
+  assert.equal(resolveZapDefault({ zapDefaultBy: { alice: 2100 } }, ''), 21);
+  assert.equal(resolveZapDefault({ defaultZapSats: 500 }, null), 500);
+  for (const st of [null, undefined, {}, { zapDefaultBy: {} }]) {
+    assert.equal(resolveZapDefault(st, 'alice'), 21, JSON.stringify(st));
+  }
+});
+
+test('a tampered per-account amount is still clamped', () => {
+  // The clamp is on the way out as well as in, so the map cannot put an absurd number in
+  // front of a Send button either.
+  const { resolveZapDefault, ZAP_DEFAULT_MAX } = consts();
+  assert.equal(resolveZapDefault({ zapDefaultBy: { alice: 50000000 } }, 'alice'), ZAP_DEFAULT_MAX);
+  assert.equal(resolveZapDefault({ zapDefaultBy: { alice: -5 } }, 'alice'), 21);
+});
+
+test('THE MAP IS EDITED IN THE BACKGROUND, NOT SENT WHOLE', () => {
+  // SIDECAR_SET_SETTINGS merges shallowly, so a panel sending the whole map would clobber
+  // another account's amount and two racing panels would lose one. Same reasoning as
+  // SIDECAR_SET_NIP65_ONLY beside it.
+  const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  assert.match(bg, /case 'SIDECAR_SET_ZAP_DEFAULT_FOR'/, 'no dedicated setter');
+  const h = bg.slice(bg.indexOf("case 'SIDECAR_SET_ZAP_DEFAULT_FOR'"), bg.indexOf("case 'SIDECAR_SET_SETTINGS'"));
+  assert.match(h, /\{ \.\.\.\(prev\.zapDefaultBy \|\| \{\}\) \}/, 'the map is read-modify-written');
+  assert.match(h, /delete map\[message\.pubkey\]/, 'clearing stores a zero instead of removing the entry');
+  assert.match(h, /if \(!message\.pubkey\)/, 'onboarding cannot set the fallback');
+  // Clamped where it is stored too, not only where it is typed.
+  assert.match(h, /ZAP_DEFAULT_ABS_MAX/, 'the stored amount is unclamped');
+  // And a web page cannot reach it.
+  const allow = bg.slice(bg.indexOf('const CONTENT_OK = new Set('), bg.indexOf('if (!fromExtPage && !CONTENT_OK'));
+  assert.doesNotMatch(allow, /SET_ZAP_DEFAULT_FOR/, 'a visited page can set your zap amount');
+});
+
+test('THE AMOUNT FOLLOWS AN ACCOUNT SWITCH', () => {
+  // Resolved in the render path, which runs on every state change including a switch, so
+  // a zap row drawn afterwards offers the amount of whoever you switched to.
+  const src = stripComments(source);
+  assert.match(src, /defaultZapSats = resolveZapDefault\(settings, state\.activePubkey\)/,
+    'the cached amount is not re-resolved per account');
+  const settings = stripComments(lift('async function renderSettings('));
+  assert.match(settings, /resolveZapDefault\(settings, state\.activePubkey\)/,
+    'Settings shows an amount that is not the active account\'s');
+});
+
+test('both writers target the account you are in', () => {
+  const src = stripComments(source);
+  const writes = src.match(/SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state\.activePubkey, sats/g) || [];
+  assert.equal(writes.length, 2, 'expected the Settings field and the in-form line');
+  assert.doesNotMatch(src, /settings: \{ defaultZapSats:/, 'a writer sets the global for every account again');
+});
+
 // ---- setting it from the zap form -----------------------------------------------------
 
 test('THE AMOUNT CAN BE SAVED FROM WHERE IT IS TYPED', () => {
@@ -162,7 +239,8 @@ test('THE AMOUNT CAN BE SAVED FROM WHERE IT IS TYPED', () => {
   // just typed into a zap form, and the alternative was remembering it, closing the
   // sheet, opening Settings and expanding a section.
   const f = stripComments(lift('function zapDefaultSaver('));
-  assert.match(f, /settings: \{ defaultZapSats: sats \}/, 'the form cannot save the amount');
+  assert.match(f, /SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state\.activePubkey, sats/,
+    'the form cannot save the amount for this account');
   assert.match(f, /defaultZapSats = sats/, 'the open panel keeps the old preset');
   assert.match(f, /clampZapDefault\(amountEl\.value\)/, 'the typed amount is saved unchecked');
   // Both zap forms offer it, since they share everything else about the form.
@@ -205,7 +283,7 @@ test('the setting is in Settings, and saved', () => {
   assert.match(html, /<h3>Default zap amount<\/h3>/, 'no setting for it');
   assert.match(html, /id="default-zap"/, 'the input is gone');
   const src = stripComments(source);
-  assert.match(src, /settings: \{ defaultZapSats: sats \}/, 'the amount is never persisted');
+  assert.match(src, /SIDECAR_SET_ZAP_DEFAULT_FOR/, 'the amount is never persisted');
   // Written back into the field, like the autozap caps: a value the app refused would
   // otherwise sit on screen looking saved.
   assert.match(src, /e\.target\.value = String\(sats\)/, 'a clamped value is not shown back');
