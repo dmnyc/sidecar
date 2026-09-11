@@ -1595,7 +1595,7 @@ let qrSecret = null; // { value, at } | null
 let swNwc = null; // { client, pubkey }
 async function getSwNwc(pubkey) {
   if (swNwc && swNwc.pubkey === pubkey) return swNwc.client;
-  if (swNwc) { try { swNwc.client.close(); } catch (_) {} swNwc = null; }
+  if (swNwc) { try { swNwc.client.close(); } catch (_) {} swNwc = null; swNwcMethods = null; }
   const connection = await KS.getNwc(pubkey); // requires unlocked
   if (!connection) return null;
   // Controls for the "is it this relay, or is it the browser?" check when a wallet
@@ -1605,10 +1605,62 @@ async function getSwNwc(pubkey) {
     if (NWC.setControlRelays) NWC.setControlRelays(Object.keys(await getConfiguredRelays()));
   } catch (_) {}
   swNwc = { client: NWC.makeClient(connection), pubkey };
+  swNwcMethods = null; // a new client is a new connection; re-ask what it supports
   return swNwc.client;
 }
 function closeSwNwc() {
   if (swNwc) { try { swNwc.client.close(); } catch (_) {} swNwc = null; }
+  swNwcMethods = null;
+}
+
+// What the connected wallet says it can do — the NIP-47 `methods` list from get_info.
+//
+// Nothing used to read this: getInfo reported a hardcoded four to every page regardless
+// of the wallet behind it. That is fine while Sidecar implements everything it advertises,
+// and wrong for pay_keysend, which plenty of wallets do not have. A page that is told
+// keysend works takes its keysend branch and fails at payment time instead of falling back
+// to an invoice — which is the shape of the bug this whole feature came from.
+//
+// Cached per client because it is a relay round trip and the answer does not change for a
+// connection; dropped whenever the client is (closeSwNwc), so a reconnect re-asks. A
+// wallet that answers nothing usable caches [] and is treated as "unknown", never as "no".
+let swNwcMethods = null; // string[] | null
+async function getWalletMethods(pubkey) {
+  if (swNwcMethods) return swNwcMethods;
+  const c = await getSwNwc(pubkey);
+  if (!c) return [];
+  let list = [];
+  try {
+    const info = (await c.getInfo()) || {};
+    list = parseNwcMethods(info.methods);
+  } catch (_) { /* leave it unknown rather than caching a failure as a denial */ }
+  swNwcMethods = list;
+  return list;
+}
+
+// NIP-47 says get_info returns `methods` as an array, and it usually is — but Alby's own
+// info endpoint hands back one comma-separated string, and a wallet is free to do the
+// same over the wire. Reading only the array shape would treat every such wallet as having
+// no methods at all, which (given walletHasKeysend below) is the difference between
+// offering keysend and refusing it on a wallet that supports it perfectly well.
+function parseNwcMethods(methods) {
+  if (Array.isArray(methods)) return methods.map((m) => String(m).trim().toLowerCase()).filter(Boolean);
+  if (typeof methods === 'string') return methods.split(/[\s,]+/).map((m) => m.trim().toLowerCase()).filter(Boolean);
+  return [];
+}
+
+// Does the wallet advertise pay_keysend?
+//
+// UNKNOWN IS NOT NO. An empty list means the wallet told us nothing usable — it answered
+// in a shape we do not read, or get_info failed — and refusing on that basis would block
+// keysend on a wallet that supports it. This gate exists to save someone from approving a
+// payment that cannot succeed, not to be the authority on what a wallet can do; when there
+// is no evidence either way the wallet answers for itself, which it does cleanly with a
+// walletDenied NOT_IMPLEMENTED.
+async function walletHasKeysend(pubkey) {
+  const m = await getWalletMethods(pubkey);
+  if (!m.length) return true; // no evidence — let the wallet speak
+  return m.includes('pay_keysend');
 }
 
 const msatToSat = (m) => Math.floor((m || 0) / 1000);
@@ -1700,9 +1752,22 @@ async function handleWeblnRpc(method, params, host, sendResponse, originWindowId
       await weblnReadGate(host, method, pubkey, originWindowId);
       const c = await getSwNwc(pubkey);
       const info = (await c.getInfo()) || {};
+      // Prime the capability cache off the round trip we just paid for.
+      swNwcMethods = parseNwcMethods(info.methods);
+      // Report the four Sidecar implements unconditionally, and ADD keysend only when the
+      // wallet actually has pay_keysend.
+      //
+      // Deliberately a union rather than a translation of the wallet's list. Sidecar
+      // provides these four whatever an NWC connection happens to be scoped to, and clients
+      // (Bitcoin Connect, the Alby SDK) branch on this array to decide which UI to show —
+      // so deriving it wholesale would hide working receive flows on a connection scoped to
+      // pay_invoice. Only keysend needs the honesty, because it is the one method Sidecar
+      // cannot provide on its own.
+      const methods = ['getInfo', 'makeInvoice', 'sendPayment', 'getBalance'];
+      if ((swNwcMethods || []).includes('pay_keysend')) methods.push('keysend');
       result = {
         node: { alias: info.alias || 'Sidecar wallet', pubkey: info.pubkey || '', color: info.color || '' },
-        methods: ['getInfo', 'makeInvoice', 'sendPayment', 'getBalance'],
+        methods,
         supports: ['lightning'],
       };
     } else if (method === 'getBalance') {
@@ -1721,6 +1786,8 @@ async function handleWeblnRpc(method, params, host, sendResponse, originWindowId
       result = { paymentRequest: invoice };
     } else if (method === 'sendPayment') {
       result = await weblnSendPayment(params, host, pubkey, originWindowId);
+    } else if (method === 'keysend') {
+      result = await weblnKeysend(params, host, pubkey, originWindowId);
     } else {
       throw new Error('Sidecar does not support webln.' + method);
     }
@@ -1738,6 +1805,165 @@ async function handleWeblnRpc(method, params, host, sendResponse, originWindowId
   } catch (e) {
     sendResponse({ ok: false, error: e.message });
   }
+}
+
+// ---- keysend (window.webln.keysend) ----
+//
+// A spontaneous payment: no invoice, just a node pubkey, an amount, and optional TLV
+// records riding along in the onion. Podcasting 2.0 boosts are built on it — the value
+// split names node pubkeys and the boostagram travels in record 7629169 (blip-0010).
+
+// The boostagram record: a JSON blob with the podcast, episode and the listener's message.
+const TLV_BOOSTAGRAM = 7629169;
+// The keysend preimage record. A PAGE MUST NEVER SET THIS.
+//
+// Keysend works by the sender putting the preimage in the onion, so whoever writes this
+// record chooses the payment hash. Sidecar generates its own (see keysendPreimage) and
+// depends on knowing sha256(preimage) to confirm the payment afterwards — a page that
+// could set it would both break that confirmation and choose the hash of a spend it asked
+// someone else to pay for. Rejected outright rather than overwritten, so a page that tries
+// gets an error instead of a silently different payment.
+const TLV_KEYSEND_PREIMAGE = 5482373484;
+// Custom TLV types live above 65535; LND rejects anything lower outright.
+const TLV_MIN_TYPE = 65536;
+const TLV_MAX_RECORDS = 16;
+// Bounds on absurdity, NOT on what the network will carry.
+//
+// These started at 512 and 900 bytes, reasoning from the ~1300-byte onion payload — and
+// refused real boosts on the first live test. A boostagram is not a message; it is a
+// blip-0010 record carrying the show, the episode, three GUIDs, a boost link, the app
+// name, the sender and a signature, and a realistic one runs past 900 bytes with a
+// fourteen-character message in it. Sidecar refusing that did not protect anyone: the site
+// caught the error and fell back to LNURL, so the boost went out with no keysend and no
+// boostagram, which is the outcome this feature exists to prevent.
+//
+// The wallet is the authority on what fits in the onion, the same way it is the authority
+// on whether a payment settled. These numbers only stop a page pushing megabytes into a
+// spend path; anything a real client sends is far below them, and anything above is the
+// wallet's to refuse.
+const TLV_MAX_VALUE_BYTES = 8192;
+const TLV_MAX_TOTAL_BYTES = 16384;
+// A sanity bound, not a policy one — the approval card and the site budget decide what is
+// allowed to be spent. This only keeps absurd input out of the arithmetic.
+const KEYSEND_MAX_SATS = 100000000;
+
+const toHex = (bytes) => Array.from(bytes, (x) => x.toString(16).padStart(2, '0')).join('');
+
+// Validate what the page sent and translate it to NIP-47 shape. Throws with a message the
+// page will see. Runs BEFORE the payment lock and before any prompt: bad input should
+// never take the lock, wake the heartbeat, or put a card in front of the user.
+//
+// Nothing upstream of here checks any of this. content.js only routes by scope and the
+// message router only re-derives the host, so `params` arrives exactly as the page wrote
+// it — including the amount that the budget check is about to trust.
+function normalizeKeysend(params) {
+  const p = params || {};
+
+  const destination = String(p.destination == null ? '' : p.destination).trim();
+  // 33-byte compressed secp256k1 point. A site that confuses a nostr key for a node key
+  // sends 64 characters; catch that here rather than letting the wallet puzzle over it.
+  if (!/^0[23][0-9a-f]{64}$/i.test(destination)) {
+    throw new Error('keysend needs a 66-character node public key as `destination`');
+  }
+
+  // Number(), not parseInt(): WebLN allows a stringified integer, and parseInt('0.5') is 0
+  // while parseInt('1e6') is 1 — both of which would spend a different amount than the page
+  // asked for, in the direction of "silently wrong" rather than "rejected".
+  const sats = Number(p.amount);
+  if (!Number.isFinite(sats) || !Number.isInteger(sats) || sats < 1) {
+    throw new Error('keysend needs a whole number of sats, at least 1');
+  }
+  if (sats > KEYSEND_MAX_SATS) throw new Error('That keysend amount is out of range');
+
+  const records = [];
+  let total = 0;
+  const custom = p.customRecords;
+  if (custom != null) {
+    if (typeof custom !== 'object' || Array.isArray(custom)) {
+      throw new Error('customRecords must be an object of TLV records');
+    }
+    for (const key of Object.keys(custom)) {
+      if (!Object.prototype.hasOwnProperty.call(custom, key)) continue;
+      const type = Number(key);
+      if (!Number.isSafeInteger(type) || type < TLV_MIN_TYPE) {
+        throw new Error('customRecords keys must be TLV types of ' + TLV_MIN_TYPE + ' or above');
+      }
+      if (type === TLV_KEYSEND_PREIMAGE) {
+        throw new Error('customRecords may not set the keysend preimage record');
+      }
+      const value = custom[key];
+      if (typeof value !== 'string') throw new Error('customRecords values must be strings');
+      const bytes = new TextEncoder().encode(value);
+      if (bytes.length > TLV_MAX_VALUE_BYTES) {
+        throw new Error(
+          'customRecords value for ' + type + ' is ' + bytes.length +
+            ' bytes; the limit is ' + TLV_MAX_VALUE_BYTES
+        );
+      }
+      total += bytes.length;
+      // WebLN hands these over as the text they are; NIP-47 wants the bytes as hex. Getting
+      // this wrong does not fail the payment — it delivers a boostagram nobody can read.
+      records.push({ type, value: toHex(bytes) });
+      if (records.length > TLV_MAX_RECORDS) throw new Error('Too many customRecords');
+    }
+  }
+  if (total > TLV_MAX_TOTAL_BYTES) {
+    throw new Error(
+      'customRecords total ' + total + ' bytes; the limit is ' + TLV_MAX_TOTAL_BYTES
+    );
+  }
+
+  return { destination, sats, records };
+}
+
+// Pull the human-readable bits out of the boostagram so the approval card can say what is
+// being paid for instead of showing 66 characters of hex.
+//
+// Everything here is written by the page and verified by nobody: it is a caption, never a
+// claim Sidecar is making. Parsed defensively — it may not be JSON, may be an array, may
+// have any field missing or of the wrong type — because a malformed boostagram must cost
+// a card its detail, not its ability to render.
+function boostagramFrom(records) {
+  try {
+    const rec = (records || []).find((r) => r.type === TLV_BOOSTAGRAM);
+    if (!rec) return null;
+    const bytes = new Uint8Array((rec.value.match(/../g) || []).map((h) => parseInt(h, 16)));
+    const obj = JSON.parse(new TextDecoder().decode(bytes));
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+    const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+    const out = {
+      podcast: str(obj.podcast),
+      episode: str(obj.episode),
+      message: str(obj.message),
+      senderName: str(obj.sender_name),
+      // blip-0010's action: 'boost', 'stream', 'lsat', 'auto'. Worth keeping because a
+      // stream tick and a boost look identical otherwise, and they should not be recorded
+      // the same way — see the pay-meta note in payKeysendLocked.
+      action: str(obj.action).toLowerCase(),
+    };
+    return out.podcast || out.episode || out.message || out.senderName ? out : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// A preimage of our own, so the payment can be confirmed afterwards.
+//
+// Keysend needs a sender-generated preimage regardless, and NIP-47 lets the caller supply
+// it. Supplying ours is what buys the safety net: payment_hash is sha256(preimage), so we
+// know it BEFORE the request goes out and the existing lookup_invoice watcher works on a
+// payment that has no invoice at all. Let the wallet generate one instead and there is
+// nothing to poll — silence would be indistinguishable from failure, which is exactly the
+// mistake the rejection contract in nwc-client.js exists to prevent.
+//
+// Not every backend honours a supplied preimage (LDK- and Phoenix-based ones may not).
+// Where it is ignored the lookup simply never matches and the payment falls back to being
+// a single point of failure — the same place pay_invoice was before #138, and still never
+// a false "failed".
+async function keysendPreimage() {
+  const bytes = CRYPTO.randomBytes(32);
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return { preimage: toHex(bytes), paymentHash: toHex(hash) };
 }
 
 async function weblnSendPayment(params, host, pubkey, originWindowId) {
@@ -1975,13 +2201,16 @@ const CONFIRM_GRACE_MS = 12000;
 // failure afterwards. Running a second poller for the latter would just double the
 // traffic to the wallet relay. lookup_invoice is read-only, so watching a payment
 // alongside it can never cause a second one.
-async function payAndConfirm(c, invoice) {
-  const hash = bolt11PaymentHash(invoice);
-  const arg = hash ? { payment_hash: hash } : { invoice };
+// Parameterized over the payment rather than taking a BOLT11, so a keysend — which has no
+// invoice and no recipient-issued payment hash — gets the same watcher. `send` is the
+// wallet call, `lookupArg` is what identifies the payment to lookup_invoice afterwards
+// (for keysend, sha256 of the preimage Sidecar supplied; see keysendPreimage).
+async function payAndConfirm(c, { send, lookupArg }) {
+  const arg = lookupArg;
   let stop = false;
-  let deadline = Infinity; // tightened once pay_invoice gives up
+  let deadline = Infinity; // tightened once the payment call gives up
 
-  const paying = c.payInvoice(invoice).then(
+  const paying = send().then(
     (res) => ({ kind: 'paid', res }),
     (err) => ({ kind: 'error', err })
   );
@@ -2012,7 +2241,7 @@ async function payAndConfirm(c, invoice) {
     // The wallet gave a definitive no. Nothing moved, so don't go looking.
     if (first.kind === 'error' && first.err && first.err.walletDenied) throw first.err;
     // Indeterminate. Let the watcher already in flight run on a little longer.
-    dlog('info', 'pay', 'no usable answer from pay_invoice; confirming', {
+    dlog('info', 'pay', 'no usable answer from the payment call; confirming', {
       error: (first.err && first.err.message) || first.kind,
       graceMs: CONFIRM_GRACE_MS,
     });
@@ -2050,17 +2279,55 @@ async function payAndConfirm(c, invoice) {
 // budget, log, and notify the panel. Used by window.webln.sendPayment AND the
 // "Pay with Sidecar" context menu. Assumes the caller resolved `pubkey` and
 // checked the account/site is usable. Serialized per account (see withPayLock).
-function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap) {
-  // Hold the worker up for the whole payment, approval prompt included.
+// Hold the worker up for the whole payment, approval prompt included. Shared by every
+// spend path so the keepalive/heartbeat pairing exists once rather than once per caller.
+function withPayInFlight(fn) {
   payInFlight++;
   ensureKeepalive();
   startPayHeartbeat();
-  return withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap))
+  return Promise.resolve()
+    .then(fn)
     .finally(() => {
       payInFlight--;
       if (payInFlight === 0) stopPayHeartbeat();
       stopKeepaliveIfIdle();
     });
+}
+
+// Run post-payment bookkeeping OFF the caller's path, but not where the worker can sleep
+// through it. These writes used to be awaited between a settled payment and the page
+// hearing about it, so a recycled worker left the sats gone and the page's promise hanging
+// (#138). They still must not be droppable — a lost budget debit lets the next payment
+// through on a stale count — hence the payInFlight bracket rather than a bare call.
+function settleTail(work) {
+  payInFlight++;
+  work()
+    .catch(() => {})
+    .then(() => {
+      payInFlight--;
+      if (payInFlight === 0) stopPayHeartbeat();
+      stopKeepaliveIfIdle();
+    });
+}
+
+// One flourish per host per burst.
+//
+// A boost is several keysends in a row and streaming sats fire one a minute, while
+// notifyTabsPaidByHost does a settings read plus a full chrome.tabs.query on every call.
+// Four identical lightning strikes in two seconds is not four times the delight. Leading
+// edge: the first one still lands immediately.
+const FLASH_DEBOUNCE_MS = 1500;
+const flashPending = new Map(); // host -> timer
+function flashPaidByHost(host) {
+  if (!host || flashPending.has(host)) return;
+  flashPending.set(host, setTimeout(() => flashPending.delete(host), FLASH_DEBOUNCE_MS));
+  notifyTabsPaidByHost(host).catch(() => {});
+}
+
+function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap) {
+  return withPayInFlight(() =>
+    withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap))
+  );
 }
 async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap) {
   const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
@@ -2152,7 +2419,11 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // those used to surface to the page as an error while the sats were gone, or hang
   // it for the full 180s — issue #138. The wallet is the only authority on what
   // actually happened, so payAndConfirm asks it rather than inferring from silence.
-  const res = await payAndConfirm(c, invoice);
+  const hash = bolt11PaymentHash(invoice);
+  const res = await payAndConfirm(c, {
+    send: () => c.payInvoice(invoice),
+    lookupArg: hash ? { payment_hash: hash } : { invoice },
+  });
   const preimage = res && (res.preimage || res.payment_preimage);
 
   // ---- the money has moved; from here nothing may delay the caller ----
@@ -2172,9 +2443,15 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // and the auto-zap daily total. Both are spending limits: dropping them lets the
   // next payment through on a stale count. The reply is not delayed by this; only
   // the worker's eligibility to sleep is.
-  payInFlight++;
-  (async () => {
+  settleTail(async () => {
     // Decrement the budget by the paid amount (known amount only).
+    //
+    // Still the check-then-pay-then-debit order, which has a known gap: this lands after
+    // withPayLock has released, so concurrent sendPayment calls each read a balance the
+    // previous one has not reduced yet. BUDGETS.reserve exists now and closes it (the
+    // keysend path uses it), but moving this one means reworking how budgetOk feeds the
+    // auto-zap accounting below, and that is a change to make deliberately rather than in
+    // passing. Left as it was; the exposure here is unchanged, not newly introduced.
     if (sats != null) await BUDGETS.consume(pubkey, host, sats);
     // Count an auto-zap (one authorized solely by the zap allowance) against the
     // rolling daily total, so the aggregate cap is enforced across the window.
@@ -2184,13 +2461,7 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     // rest of it — after the money moved and off the caller's path.
     if (zapRecipient) await savePayMetaEntry(invoice, { zapPubkey: zapRecipient });
     await setSiteAccount(host, pubkey);
-  })()
-    .catch(() => {})
-    .then(() => {
-      payInFlight--;
-      if (payInFlight === 0) stopPayHeartbeat();
-      stopKeepaliveIfIdle();
-    });
+  });
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
   // Tell an open side panel to refresh its balance/history.
   chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
@@ -2200,6 +2471,162 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // may have navigated away, and a missing flourish is not an error.
   notifyTabsPaidByHost(host).catch(() => {}); // deliberately not awaited — a flourish must not delay the reply
   return { preimage: preimage || '', sats };
+}
+
+// ---- keysend spend path ----
+//
+// A SEPARATE function rather than a mode of payInvoiceLocked, and deliberately so. Half of
+// that function's body is BOLT11-shaped (invoiceSats drives the amount, the auto-zap
+// allowance, the prompt copy and the return value), and the other half must never run for
+// a keysend at all — see the ZAPREQ note below. A shared function with a `kind` flag would
+// put that rule behind a boolean; keeping the paths apart makes it structural, because the
+// identifiers simply are not in scope here.
+function payKeysendCore(ks, host, pubkey, originWindowId) {
+  return withPayInFlight(() => withPayLock(pubkey, () => payKeysendLocked(ks, host, pubkey, originWindowId)));
+}
+
+// WHY THERE IS NO AUTO-ZAP PATH HERE.
+//
+// ZAPREQ.claim matches a signed zap request on host + account + exact amount within a
+// three-minute window, and on NOTHING about where the money goes — it does not need to,
+// because a zap's destination is fixed by the recipient's lnurl server, not by the caller.
+// A keysend's destination is whatever pubkey the page names. Let a keysend claim a zap
+// record and a site that got someone to approve signing a 21-sat zap request for @alice
+// could immediately keysend 21 sats to a node of its choosing, silently, spending an
+// approval that was for somebody else.
+//
+// ZAPREQ.recipientFor is out for the same reason even though it only writes a label: it is
+// amount-only too, so a boost of 21 or 100 or 1000 sats near a same-sized zap request would
+// be recorded as "Zap to alice" for money that went elsewhere — a false entry in someone's
+// financial record. Keysend is budget-or-prompt, and that is all.
+async function payKeysendLocked(ks, host, pubkey, originWindowId) {
+  const boost = boostagramFrom(ks.records);
+
+  // Reserve inside the lock and BEFORE the spend.
+  //
+  // The invoice path checks the budget, pays, then debits in its bookkeeping tail — which
+  // lands after the lock has already released. That ordering survives payments at human
+  // pace and fails on a boost, which fires one keysend per split back to back: each
+  // check reads a balance the previous split has not debited yet, so four of them clear a
+  // budget with room for two. Reserving spends the allowance before the request goes out,
+  // so the next split sees what is actually left.
+  let reserved = !KS.isLocked() && (await BUDGETS.reserve(pubkey, host, ks.sats));
+
+  if (!reserved) {
+    const st = await KS.getState();
+    const acct = st.accounts.find((a) => a.pubkey === pubkey);
+    const decision = await openPrompt({
+      scope: 'webln',
+      host,
+      method: 'keysend',
+      npub: self.NostrTools.nip19.npubEncode(pubkey),
+      accountName: (acct && acct.name) || '',
+      accountPicture: (acct && acct.picture) || '',
+      amountSats: ks.sats,
+      destination: ks.destination,
+      // Page-supplied and verified by nobody — a caption, never a claim Sidecar is making.
+      // The card labels it as coming from the site for exactly that reason.
+      boost: boost || null,
+      needUnlock: KS.isLocked(),
+      needApproval: true,
+    }, originWindowId);
+    if (decision.action === 'reject') throw new Error('You rejected this payment');
+    if (KS.isLocked()) throw new Error('Keystore is locked');
+    if (decision.action === 'budget' && decision.budgetSats) {
+      await BUDGETS.setBudget(pubkey, host, {
+        budgetSats: decision.budgetSats,
+        perPaymentSats: decision.perPaymentSats || 0,
+      });
+      // Debit this payment from the allowance just set, so the splits queued behind it see
+      // what is left rather than the full amount. This is the path that turns one approval
+      // into one boost instead of one approval per split.
+      reserved = await BUDGETS.reserve(pubkey, host, ks.sats);
+    }
+  }
+
+  bumpAutoLock();
+  const c = await getSwNwc(pubkey);
+  if (!c) throw new Error('No wallet connected in Sidecar');
+
+  // Our own preimage, so there is something to confirm against afterwards — a keysend has
+  // no invoice and no recipient-issued hash. See keysendPreimage.
+  const { preimage: sent, paymentHash } = await keysendPreimage();
+  const req = { amount: ks.sats * 1000, pubkey: ks.destination, preimage: sent };
+  if (ks.records.length) req.tlv_records = ks.records;
+
+  let res;
+  try {
+    res = await payAndConfirm(c, {
+      send: () => c.payKeysend(req),
+      lookupArg: { payment_hash: paymentHash },
+    });
+  } catch (e) {
+    // Hand the reservation back ONLY when the wallet explicitly refused. That is the one
+    // outcome the rejection contract proves left the money where it was; a timeout or a
+    // dropped reply is indeterminate, and crediting a budget for a payment that may well
+    // have settled is how a site spends past its limit. Leaving it debited over-counts,
+    // which is the direction that costs nobody anything.
+    if (reserved && e && e.walletDenied) await BUDGETS.refund(pubkey, host, ks.sats);
+    throw e;
+  }
+  // The wallet echoes the preimage; ours is the fallback, and they should agree.
+  const preimage = (res && (res.preimage || res.payment_preimage)) || sent;
+  // What the route actually cost, on top of what was reserved.
+  //
+  // Reserving happens before the payment, so it can only book the amount — the fee is not
+  // known until the wallet answers. Ignoring it is defensible for a zap, which routes to a
+  // well-connected LSP for a rounding error. It is not defensible here: a keysend goes to
+  // whatever node a podcast's value split names, and the first live boost paid a 1 sat fee
+  // on a 1 sat leg. Left unbooked, a spending limit drifts by the whole routing cost of
+  // every boost, in the direction of letting more through.
+  //
+  // Rounded up, and only against a budget that was actually reserved from — a payment the
+  // user approved by hand has no allowance to debit.
+  const feeSats = Math.ceil((Number(res && res.fees_paid) || 0) / 1000);
+
+  // ---- the money has moved; from here nothing may delay the caller ----
+  settleTail(async () => {
+    if (reserved && feeSats > 0) await BUDGETS.consume(pubkey, host, feeSats);
+    // Caption the payment, but ONLY when there is a boostagram worth keeping.
+    //
+    // Streaming sats emit a keysend a minute and carry the show's name on every one, so
+    // going by "is there a boostagram" would write a row a minute and roll the 300-entry
+    // store over in five hours — evicting the zap labels it exists for (#253). A boost is
+    // something a person did once and may want to find again; a stream tick is not.
+    //
+    // Keyed by payment hash because a keysend has no invoice. savePayMetaEntry's first
+    // argument is a key whatever its parameter happens to be called.
+    if (boost && boost.action !== 'stream') {
+      await savePayMetaEntry(paymentHash, {
+        keysend: true,
+        dest: ks.destination,
+        podcast: boost.podcast,
+        episode: boost.episode,
+        message: boost.message,
+      });
+    }
+    await setSiteAccount(host, pubkey);
+  });
+  logActivity({ ts: Date.now(), host, method: 'webln.keysend', amountSats: ks.sats, pubkey });
+  chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
+  // Debounced: a boost is several of these in a row (see flashPaidByHost).
+  flashPaidByHost(host);
+  return { preimage, sats: ks.sats };
+}
+
+async function weblnKeysend(params, host, pubkey, originWindowId) {
+  // Validate before the lock, the heartbeat and any prompt. Nothing upstream checks this —
+  // content.js routes by scope and the router only re-derives the host — so bad input from
+  // a page should cost nothing and put no card in front of anyone.
+  const ks = normalizeKeysend(params);
+  // And ask the wallet whether it can do this at all before spending someone's attention on
+  // an approval. Skipped while locked, because reading the connection needs an unlock; in
+  // that case the wallet answers for itself after the prompt. An unknown method list is
+  // treated as capable, never as incapable — see walletHasKeysend.
+  if (!KS.isLocked() && !(await walletHasKeysend(pubkey))) {
+    throw new Error("Your wallet doesn't support keysend payments");
+  }
+  return payKeysendCore(ks, host, pubkey, originWindowId);
 }
 
 // ============================================================================

@@ -267,6 +267,15 @@
       getBalance: () => request('get_balance'), // → { balance } in msat
       payInvoice: (invoice, amountMsat) =>
         request('pay_invoice', amountMsat ? { invoice, amount: amountMsat } : { invoice }),
+      // Spontaneous payment to a node pubkey, no invoice involved — what a Podcasting 2.0
+      // boost is made of. An optional NIP-47 extension method, so a wallet may answer
+      // NOT_IMPLEMENTED; callers check get_info's method list first rather than finding
+      // out after they have shown someone a spend prompt.
+      //
+      // params: { amount (msat), pubkey, preimage?, tlv_records?: [{ type, value }] }
+      // The tlv value is HEX, not the text it encodes. Same rejection contract as
+      // pay_invoice above: only err.walletDenied proves the money stayed put.
+      payKeysend: (params) => request('pay_keysend', params),
       makeInvoice: (amountMsat, description) =>
         request('make_invoice', { amount: amountMsat, description: description || '' }),
       listTransactions: (params) => request('list_transactions', params || { limit: 20, unpaid: false }),

@@ -297,6 +297,18 @@
     if (isPayment) {
       const rows = [];
       rows.push(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
+      // Keysend goes to a bare node key, so say where — and, when the site sent a
+      // boostagram, say what it is for. A card reading "500 sats to 03a1…9f2c" tells
+      // nobody anything; one naming the show is a decision someone can actually make.
+      if (data.method === 'keysend') {
+        const b = data.boost || {};
+        const who = b.podcast || b.episode || '';
+        rows.push(row('To', who ? clampText(who, 60) : truncMid(data.destination, 10, 8)));
+        // Named as the site's words, not Sidecar's. Nothing here is verified — the page
+        // wrote it — and a spend card must not lend it authority it has not earned.
+        if (who && data.destination) rows.push(row('Node', truncMid(data.destination, 10, 8)));
+        if (b.message) rows.push(row('Message from site', clampText(b.message, 140), 'prose'));
+      }
       if (data.memo) rows.push(row('Memo', String(data.memo)));
       els.preview.innerHTML = rows.join('');
       els.preview.classList.remove('hidden');
@@ -390,8 +402,26 @@
     if (data.peerNpub) return shortNpub(data.peerNpub);
     return (data.params && data.params.pubkey) || '—';
   }
-  function row(k, v) {
-    return `<div class="row"><span>${k}</span><span>${escapeHtml(v)}</span></div>`;
+  function row(k, v, cls) {
+    return `<div class="row${cls ? ' ' + cls : ''}"><span>${k}</span><span>${escapeHtml(v)}</span></div>`;
+  }
+
+  // Middle-elide an identifier so it stays one line.
+  //
+  // A node pubkey is 66 characters of hex and the row value is styled break-all, so the
+  // raw thing wraps to three lines and pushes the Pay button down the card. Truncation
+  // belongs to prose, and an identifier read for recognition is best served by keeping
+  // both ends — the middle carries nothing a person checks.
+  function truncMid(s, head, tail) {
+    const str = String(s || '');
+    return str.length > head + tail + 1 ? str.slice(0, head) + '…' + str.slice(-tail) : str;
+  }
+
+  // Page-supplied text on a spend card: keep it short enough that it cannot push the
+  // buttons off the screen.
+  function clampText(s, max) {
+    const str = String(s || '').replace(/\s+/g, ' ').trim();
+    return str.length > max ? str.slice(0, max - 1) + '…' : str;
   }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
@@ -453,7 +483,10 @@
     // Keyed off the VALIDATED theme rather than data.theme, so an unrecognised value
     // falls back with everything else instead of picking a cut of its own.
     avatarPh = isLight ? 'icons/avatar-default-dark.svg' : 'icons/avatar-default.svg';
-    isPayment = data.scope === 'webln' && data.method === 'sendPayment';
+    // keysend counts as a payment here, and everything downstream depends on it: the Pay
+    // button, hiding Trust on a spend card, and the "remember a budget" toggle that turns
+    // one approval into one boost instead of one approval per split.
+    isPayment = data.scope === 'webln' && (data.method === 'sendPayment' || data.method === 'keysend');
     chosenPubkey = data.activePubkey;
 
     els.host.textContent = data.host;
@@ -496,6 +529,18 @@
       // and note must agree. A pure unlock later in init() still relabels to
       // "Unlock & continue", which is also right (there's nothing to allow).
       els.allow.textContent = 'Allow this session';
+    }
+
+    // Boosts are not one payment. A Podcasting 2.0 value split pays each recipient
+    // separately, so the site sends one keysend per share and Sidecar sees them as the
+    // independent payments they are — it has no way to know four calls were one boost.
+    // Approving with plain Pay therefore brings the next card up straight away. Say so,
+    // and point at the limit below, which is the thing that actually covers the rest.
+    // Identical sentence in the sidepanel's renderConsentNote — keep the two in step.
+    if (data.method === 'keysend') {
+      els.decryptNote.textContent =
+        'A boost is several payments — one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.';
+      els.decryptNote.classList.remove('hidden');
     }
 
     // Shared-identity confirm: this host is signed in with more than one of your
