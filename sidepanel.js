@@ -186,6 +186,23 @@
   }
 
 
+  // Waiting is not nothing: a modal that opens on a bare spinner throws away the one
+  // moment the quote is actually read. Same furniture as the empty state, with the
+  // spinner line where the hint goes, and it takes the same optional quote for the same
+  // reason endQuote does: the list that lands underneath must not swap the line.
+  function loadingQuote(label, q) {
+    q = q || pickQuote();
+    return h('div', { className: 'bm-empty' }, [
+      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      h('div', { className: 'recv-waiting' }, [
+        h('span', { className: 'recv-spinner' }),
+        h('span', { textContent: label }),
+      ]),
+    ]);
+  }
+
+
   const show = (el) => el.classList.remove('hidden');
   const hide = (el) => el.classList.add('hidden');
 
@@ -5233,7 +5250,28 @@
         zapBtn.classList.toggle('open', !zapForm.classList.contains('hidden'));
       });
 
-      row.append(replyBtn, reactBtn, repostBtn, zapBtn);
+      // Save it for later: the one private action in a row of public ones, so it is pushed
+      // to the right edge away from them, where Jumble and the rest put it. No resting
+      // state, deliberately. Knowing whether a note is ALREADY bookmarked would cost a
+      // list fetch per row, and the sheet builds 25 of them.
+      const bmBtn = actBtn('Bookmark', icon('bookmark'));
+      bmBtn.classList.add('notif-act-end');
+      bmBtn.addEventListener('click', async (e) => {
+        stop(e);
+        bmBtn.disabled = true;
+        try {
+          const added = await addBookmark(ev);
+          // Stays lit and stays disabled either way: the list is replaceable, so a second
+          // publish rewrites it to say the same thing.
+          bmBtn.classList.add('done');
+          toast(added ? 'Bookmarked' : 'Already bookmarked', 'success');
+        } catch (e2) {
+          err.textContent = e2.message;
+          bmBtn.disabled = false;
+        }
+      });
+
+      row.append(replyBtn, repostBtn, reactBtn, zapBtn, bmBtn);
       const wrap = h('div', { className: 'notif-act-wrap' }, [row, choices, zapForm, err]);
       return wrap;
     }
@@ -11209,6 +11247,47 @@
     );
   }
 
+  // Bookmark a note from the panel. The one WRITE in this section, and it goes to the
+  // flat kind 10003 rather than a category of Sidecar's own: a bookmark saved here
+  // should show up wherever the account already reads them.
+  //
+  // READ BEFORE WRITE, AND FAIL CLOSED. A 10003 is replaceable, so publishing a
+  // one-entry list over a list that failed to load replaces every bookmark the account
+  // has. The trouble is that "no list yet" and "the relays said nothing" look identical
+  // from here, so the profile rides along in the same filter as a control: a kind 0 back
+  // with no 10003 means the account genuinely has none and the first list is ours to
+  // write, while nothing back at all means the relays did not answer and nothing is
+  // published. An account with neither a profile nor a bookmark list gets the error, and
+  // that is the right way round.
+  async function addBookmark(ev) {
+    const pubkey = state.activePubkey;
+    if (!pubkey) throw new Error('No account is unlocked.');
+    const relays = await readRelayUrls(pubkey);
+    const got = await poolQuerySync(relays, { kinds: [0, 10003], authors: [pubkey] }, { maxWait: 6000 });
+    const lists = (got || []).filter((e) => e.kind === 10003).sort((a, b) => b.created_at - a.created_at);
+    const list = lists[0] || null;
+    if (!list && !(got || []).some((e) => e.kind === 0)) {
+      throw new Error('Could not read your bookmarks, so nothing was published.');
+    }
+    const tags = list ? list.tags.map((t) => t.slice()) : [];
+    if (tags.some((t) => t[0] === 'e' && t[1] === ev.id)) return false;
+    tags.push(['e', ev.id]);
+    // Content rides through untouched. A list can carry private bookmarks encrypted to
+    // its owner, and a signer that rewrites the field it cannot read deletes them.
+    const signed = await call({
+      type: 'SIDECAR_OWNER_SIGN',
+      event: {
+        kind: 10003,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content: (list && list.content) || '',
+      },
+    });
+    await publishSigned(signed);
+    _bmCache.pubkey = null; // the modal refetches rather than opening on a stale list
+    return true;
+  }
+
   // Pure: raw kind 10003/30001 events → ordered sections. The flat 10003 comes
   // first (it's what clients without categories write), then one section per
   // 30001 d-tag, by name. Replaceable events arrive as copies; newest
@@ -11276,12 +11355,13 @@
           }
         });
       } else {
-        scroll.append(h('div', { className: 'recv-waiting' }, [
-          h('span', { className: 'recv-spinner' }),
-          h('span', { textContent: 'Reading your relays…' }),
-        ]));
+        // Drawn once, here, and handed to fillBookmarks: an account with no bookmarks
+        // goes straight from this screen to the empty one, and a quote that changed on
+        // the way would be a quote nobody finished reading.
+        const waitQuote = pickQuote();
+        scroll.append(loadingQuote('Reading your relays…', waitQuote));
         refreshBookmarks().then(() => {
-          if (!gone()) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
+          if (!gone()) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events, waitQuote);
         });
       }
     });
@@ -11318,7 +11398,7 @@
     return changed;
   }
 
-  async function fillBookmarks(scroll, gone, evs, events) {
+  async function fillBookmarks(scroll, gone, evs, events, q) {
     // The scroll container is cleared rather than appended to: the quiet
     // refresh re-runs this on a scroll that already holds rows (and the first
     // run replaces the spinner), and a second .bm-list under the first would
@@ -11332,8 +11412,9 @@
     // Same rule as the bell: one quote for this rendering, so the two places it can
     // appear never disagree. Bookmarks cannot show both at once today — an empty list
     // returns before the end note — but drawing twice per render would burn through the
-    // no-repeat guard for nothing.
-    const panelQuote = pickQuote();
+    // no-repeat guard for nothing. `q` is the line the loading screen was already
+    // showing, so an empty list keeps it rather than replacing it on arrival.
+    const panelQuote = q || pickQuote();
     const empty = () => {
       scroll.textContent = '';
       scroll.append(emptyQuote('Bookmark a note from any Nostr client and it shows up here.', panelQuote));

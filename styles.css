@@ -1919,6 +1919,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .bm-quote-who { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; margin: 0 0 22px; }
 .bm-empty .hint { margin: 0; }
+/* The loading variant borrows that block, so its spinner row has to center with the
+   text above it rather than sit against the left edge of a centered box. */
+.bm-empty .recv-waiting { justify-content: center; }
 /* The end-of-list variant: a full stop, not a page. Quieter and tighter than the empty
    state, and separated from the last row so it does not read as another entry. */
 .bm-end { padding: 22px 20px 26px; border-top: 1px solid var(--border); margin-top: 6px; }
@@ -4046,6 +4049,14 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 /* The zap icon stays lit while its form is open, since the form appears below the row
    and nothing else says which button opened it. */
 .notif-act.open { color: var(--gold); background: var(--hover-medium); border-color: var(--gold-soft); }
+/* The private action, held apart from the public ones at the right edge of the row. The
+   grouping is the convention every client uses, so it reads before the icon does. */
+.notif-actions .notif-act-end { margin-left: auto; }
+/* Bookmarked. Lit like .open but without the ring, because this one is finished rather
+   than waiting for something below it, and it does not dim on disable: the button is
+   spent, not unavailable. */
+.notif-act.done { color: var(--gold); cursor: default; }
+.notif-act.done:hover { background: none; border-color: transparent; color: var(--gold); }
 .notif-zap { margin-top: 8px; }
 
 /* ===== the reaction picker ===== */
