@@ -34,6 +34,7 @@
   --warn: #ffb38a;
   --warn-rgb: 255, 179, 138;
   --success: #6ee7a8;
+  --success-ink: #0a1410; /* arrow ink on a --success fill; see .tx-dir */
   --success-rgb: 110, 231, 168;
   --orange: #ea772f;
   --amber: #f4a64b;
@@ -2788,7 +2789,12 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   border: 1.5px solid var(--bg);
 }
 .tx-dir svg { width: 9px; height: 9px; }
-.tx-icon.in .tx-dir { color: #fff; background: var(--success); }
+/* THE ARROW'S INK IS A TOKEN, because the fill is one. --success runs from #6ee7a8 in
+   Speakeasy to #1F6B3F in Bauhaus, so a hardcoded white arrow measured 1.54:1 on the
+   light end — a 9px glyph nobody could read, reported against Speakeasy. Dark is the
+   default because the :root --success is light; the six themes with a dark green set
+   --success-ink: #fff beside their own --success. Guarded in theme-contrast.test.js. */
+.tx-icon.in .tx-dir { color: var(--success-ink, #0a1410); background: var(--success); }
 .tx-icon.out .tx-dir { color: #fff; background: #c9782a; }
 .tx-icon.in { color: var(--success); background: rgba(var(--success-rgb), 0.12); }
 .tx-icon.out { color: #f4a64b; background: rgba(244, 166, 75, 0.12); }
