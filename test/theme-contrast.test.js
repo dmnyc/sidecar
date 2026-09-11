@@ -781,7 +781,9 @@ test('no theme reaches into another theme\'s picker card', () => {
       //   .theme-card[data-theme="x"]  further qualifies the card by its OWN theme, so it
       //                                cannot reach another one (cast-iron.css does this)
       //   .theme-card.active           can only be the active theme's own card, since
-      //                                that is what "active" means here
+      //                                that is what "active" means here — the gallery
+      //                                marks the theme the panel is wearing
+      //                                (paintThemePicker in sidepanel.js)
       // A universal selector reaches every card in the picker exactly as `button` does,
       // and is the broader mistake of the two.
       const m = sel.match(
