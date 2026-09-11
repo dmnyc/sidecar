@@ -307,6 +307,19 @@ const APPS = [
     desc: 'A playful, customizable social client with profile themes, games and an account switcher.',
   },
   {
+    name: 'Nostter',
+    url: 'https://nostter.app',
+    domain: 'nostter.app',
+    cat: 'social',
+    // Bundled rather than hotlinked: nostter.app is behind a bot check, and an icon
+    // request that gets challenged renders as a broken card. Its own favicon.svg, whose
+    // fill is pinned to the light one the mark itself specifies for dark backgrounds.
+    // The file ships a prefers-color-scheme block, and inside an <img> that follows the
+    // reader's OS rather than this tile, which is always dark velvet.
+    icon: 'icons/apps/nostter.svg',
+    desc: 'A fast, keyboard-friendly client with columns, search and a tidy reading view.',
+  },
+  {
     name: 'Razr',
     url: 'https://razr.social',
     domain: 'razr.social',
