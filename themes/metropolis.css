@@ -213,9 +213,13 @@
   background-image: linear-gradient(100deg, var(--velvet-1) 30%, rgba(168, 132, 60, 0.16) 50%, var(--velvet-1) 70%);
 }
 [data-theme="metropolis"] input,
-[data-theme="metropolis"] select,
 [data-theme="metropolis"] textarea {
   background: var(--bg-2);
+}
+/* Restating a select's background drops the caret layer styles.css paints, so it
+   comes along. */
+[data-theme="metropolis"] select {
+  background: var(--select-caret) var(--select-caret-geo), var(--bg-2);
 }
 /* The "sent" tx icon: copper on its own tinted chip, which is where this theme's
    --orange belongs — an icon at that size, not a run of body text. */

@@ -66,6 +66,15 @@
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.35);
   --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  /* The caret a select wears. Drawn here rather than by the platform (see the
+     select rule below), in two inks so a light theme swaps one line. */
+  --select-caret-on-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffffff' stroke-opacity='.72' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --select-caret-on-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23000000' stroke-opacity='.62' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --select-caret: var(--select-caret-on-dark);
+  /* Geometry only. A custom property that wrapped var(--select-caret) would freeze
+     the ink at :root: var() inside a custom property is substituted where it is
+     DECLARED, so a light theme's override never reached the field. */
+  --select-caret-geo: no-repeat right 13px center / 10px 6px;
   --pattern-opacity: 1;
 }
 
@@ -191,11 +200,25 @@ input, select, textarea {
   font-size: 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-/* A select shares the padding above so every field lines up at the same height,
-   but its caret is drawn by the platform INSIDE that padding box. At 13px the
-   longest option ran right up against the arrow. Only the right side changes, so
-   nothing else about the field moves. */
-select { padding-right: 34px; }
+/* A select is supposed to share the padding above so every field lines up, and on
+   the platform's own control it never quite did: it renders 2px taller than an
+   input, and it draws its caret where it likes. Padding-right moved the TEXT clear
+   of that caret but could not move the caret, which sat 5px in from the right edge
+   against the 13px of inset the text gets on the left. So the caret is ours now.
+   `appearance: none` drops the platform's (and the 2px with it), and the top
+   background layer draws one at the same 13px the text starts from.
+
+   Two layers, caret over field, and the field layer restates the rule above
+   because a shorthand cannot add a layer to one. A theme that restates a select's
+   background therefore has to restate the caret with it; test/select-caret.test.js
+   is what keeps that from being silently forgotten. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background: var(--select-caret) var(--select-caret-geo),
+              var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
 textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 /* autosizeTextarea: grows with content, then scrolls instead of pushing the rest
    of the editor away. 45vh keeps the Save row reachable in the panel. */

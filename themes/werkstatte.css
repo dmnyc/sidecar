@@ -96,6 +96,7 @@
   --warn-rgb: 140, 29, 34;
   --success: #2F6B3A;
   --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
   --success-rgb: 47, 107, 58;
 
   /* THE UNREAD BADGE, and it is designed here rather than discovered later. An

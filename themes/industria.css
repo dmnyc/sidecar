@@ -40,6 +40,7 @@
   --warn-rgb: 168, 82, 31;
   --success: #2f7d52;
   --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
   --success-rgb: 47, 125, 82;
 
   /* brand - bronze/gold
@@ -200,9 +201,13 @@
   background-image: linear-gradient(100deg, var(--velvet-1) 30%, rgba(197, 160, 89, 0.18) 50%, var(--velvet-1) 70%);
 }
 [data-theme="industria"] input,
-[data-theme="industria"] select,
 [data-theme="industria"] textarea {
   background: var(--bg-2);
+}
+/* Restating a select's background drops the caret layer styles.css paints, so it
+   comes along. */
+[data-theme="industria"] select {
+  background: var(--select-caret) var(--select-caret-geo), var(--bg-2);
 }
 /* the "+" badge text is speakeasy's dark #2a1257; on deco's dark-purple badge it
    needs the light page color to stay legible */
