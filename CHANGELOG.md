@@ -23,6 +23,7 @@ Update that section alongside this file as part of every release.
 ### Changed
 - **The caret in a dropdown** sat 5px from the right edge against 13px of text inset on the left, because the platform drew it and padding cannot move it. Sidecar draws it now, at the same 13px the text starts from, in every theme. Selects are also the same height as text fields at last, which the platform's control was 2px off.
 - **The bookmarks screen waits on a quote** rather than a bare spinner, and keeps the same one if the list turns out to be empty.
+- **The client picker leads with the default.** Jumble is what Sidecar opens notes in unless an account chooses otherwise, but the list started with Primal, which was the order they were added in rather than a decision. The default comes first now and the rest follow as before.
 - **The Recent activity screenshot in the guide** predated the verify tap-through, so it is retaken; its alt text now says which rows carry the button and why the row that signed nothing does not.
 
 ### Fixed
