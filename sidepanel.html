@@ -532,6 +532,16 @@
           </div>
 
           <div class="setting">
+            <h3>Default zap amount</h3>
+            <p class="hint">Offered as a preset wherever you send a zap, beside 21, 100 and 1,000.</p>
+            <label class="toggle-row">
+              <span>Zap</span>
+              <input type="text" inputmode="numeric" id="default-zap" class="autozap-max-input" />
+              <span>sats</span>
+            </label>
+          </div>
+
+          <div class="setting">
             <h3>Auto Zaps</h3>
             <p class="hint">Zaps under these limits go through with nothing to approve. Every other payment still asks. Capped at 1,000 sats a zap, 100,000 a day.</p>
             <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span>Enable Auto Zaps</span></label>

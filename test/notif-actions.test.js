@@ -375,9 +375,12 @@ test('the zap form is built on first tap, not with the row', () => {
 });
 
 test('the amount row and presets reuse the profile sheet', () => {
-  // Same control, same class names, so the two zap forms cannot drift apart visually.
+  // Same controls as the profile sheet's zap form, so the two cannot drift apart. The
+  // presets are no longer asserted by class here: they moved into zapPresetRow, which
+  // both forms call, so sharing is now structural rather than a matching pair of
+  // hand-rolled rows. See zap-default.test.js.
   const z = stripComments(lift('function buildZapForm('));
-  assert.match(z, /className: 'peek-zap-presets'/, 'the presets stopped being the shared row');
+  assert.match(z, /zapPresetRow\(amount, stop\)/, 'the presets stopped being the shared row');
   assert.match(z, /className: 'zap-inline'/, 'the amount row stopped being the shared row');
   assert.match(z, /satsInput\('sats'\)/, 'the amount field is no longer the shared input');
 });

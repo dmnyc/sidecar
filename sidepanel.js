@@ -8,6 +8,15 @@
 
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
   // a stored value is missing or invalid.
+  // The three fixed zap presets, plus a fourth the user owns. 5,000 sat in that slot
+  // before it was settable, so that is the fallback: an install that never touches the
+  // setting keeps the row it already had.
+  const ZAP_PRESETS_FIXED = [21, 100, 1000];
+  const ZAP_DEFAULT_SATS = 5000;
+  // A typo away from a very large default, and the chip fills an amount field that is one
+  // tap from a payment. High enough to be nobody's ceiling, low enough that a stray zero
+  // is caught rather than saved.
+  const ZAP_DEFAULT_MAX = 1000000;
   const AUTOZAP_DEFAULT_MAX = 200;
   const AUTOZAP_DAILY_MULT = 100; // default daily cap = 100× the per-zap cap
   // Ceilings on the no-confirmation path — mirrored from background.js, which is
@@ -686,6 +695,10 @@
   let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
+  // The fourth zap preset. Cached here rather than read per form, the same way
+  // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
+  // that is expected to open without a round trip.
+  let defaultZapSats = ZAP_DEFAULT_SATS;
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
@@ -941,6 +954,7 @@
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
     zapFlash = !(settings && settings.zapFlash === false); // default on
+    defaultZapSats = clampZapDefault(settings && settings.defaultZapSats);
     applyTheme(settings.theme || 'speakeasy'); // default to speakeasy
     applyHideBalances();
     closeAcctMenu();
@@ -1818,16 +1832,11 @@
       const zapBtn = h('button', { className: 'secondary peek-zap-open' });
       zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
-      const presets = h('div', { className: 'peek-zap-presets' });
       const amount = satsInput('sats');
       // Presets first, keyboard second: most zaps are one of a few round numbers,
       // and on a 358px panel a row of taps beats a numeric keyboard covering half
-      // the sheet.
-      [21, 100, 1000, 5000].forEach((n) => {
-        const b = h('button', { className: 'secondary peek-preset', textContent: fmtSats(n) });
-        b.addEventListener('click', () => { amount.value = String(n); amount.focus(); });
-        presets.append(b);
-      });
+      // the sheet. The fourth of them is the one set in Settings.
+      const presets = zapPresetRow(amount);
       const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
       const send = h('button', { className: 'primary', textContent: 'Send zap' });
       send.addEventListener('click', async () => {
@@ -3670,6 +3679,44 @@
   // Tag first, invoice second: the zap request is what the sender ASKED for and the
   // invoice is what was actually billed. They agree in practice, and the tag is cheaper
   // than parsing.
+  // ONE ROW, TWO FORMS. The profile sheet and a notification row both offer these, and
+  // they were two copies of the same four buttons — so the settable fourth would have had
+  // to be added twice, which is how one of them ends up a release behind the other.
+  //
+  // Deduped, because the default is the user's: setting it to 100 would otherwise draw
+  // the chip twice, and a row with two identical buttons reads as a rendering bug.
+  function zapPresets() {
+    const list = ZAP_PRESETS_FIXED.slice();
+    if (!list.includes(defaultZapSats)) list.push(defaultZapSats);
+    return list;
+  }
+
+  // `stop` is passed where the row lives inside something clickable — a notification row
+  // is an anchor that opens the note in a client, so without it a preset tap would also
+  // follow the link.
+  function zapPresetRow(amountEl, stop) {
+    const row = h('div', { className: 'peek-zap-presets' });
+    zapPresets().forEach((n) => {
+      const b = h('button', { className: 'secondary peek-preset', type: 'button', textContent: fmtSats(n) });
+      b.addEventListener('click', (e) => {
+        if (stop) stop(e);
+        amountEl.value = String(n);
+        amountEl.focus();
+      });
+      row.append(b);
+    });
+    return row;
+  }
+
+  // Kept to a whole number of sats in a range: the input is free text (numeric keyboards
+  // on a desktop panel are not a given), so this is what stands between a slip and a
+  // saved default of 50000000.
+  function clampZapDefault(v) {
+    const n = parseInt(v, 10);
+    if (!n || n < 1) return ZAP_DEFAULT_SATS;
+    return Math.min(ZAP_DEFAULT_MAX, n);
+  }
+
   function zapMsats(ev) {
     const tags = (ev && ev.tags) || [];
     try {
@@ -4973,12 +5020,7 @@
     function buildZapForm(ev, zapForm, err, stop) {
       const who = zapSender(ev);
       const amount = satsInput('sats');
-      const presets = h('div', { className: 'peek-zap-presets' });
-      [21, 100, 1000, 5000].forEach((n) => {
-        const b = h('button', { className: 'secondary peek-preset', type: 'button', textContent: fmtSats(n) });
-        b.addEventListener('click', (e) => { stop(e); amount.value = String(n); amount.focus(); });
-        presets.append(b);
-      });
+      const presets = zapPresetRow(amount, stop);
       const comment = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
       const send = h('button', { className: 'primary', type: 'button', textContent: 'Send zap' });
       const status = h('div', { className: 'hint', textContent: 'Checking their lightning address…' });
@@ -7562,6 +7604,9 @@
     }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
+    // The settable fourth zap preset. clampZapDefault is what decides the number, so the
+    // field shows what would actually be used rather than whatever is in storage.
+    $('default-zap').value = String(clampZapDefault(settings.defaultZapSats));
     $('autozap-max').value = String(azMax);
     $('autozap-daily-max').value = String(Number(settings.autoZapDailyMaxSats) || azMax * AUTOZAP_DAILY_MULT);
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
@@ -16421,6 +16466,16 @@
     const daily = Math.min(AUTOZAP_ABS_DAILY_MAX, Math.max(max, parseInt($('autozap-daily-max').value, 10) || max * AUTOZAP_DAILY_MULT));
     $('autozap-daily-max').value = String(daily);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZap: on, autoZapMaxSats: max, autoZapDailyMaxSats: daily } });
+  });
+
+  // Clamped on the way in and written back into the field, the same as the autozap caps
+  // below: a value the app silently refused would otherwise sit on screen looking saved.
+  $('default-zap').addEventListener('change', async (e) => {
+    const sats = clampZapDefault(e.target.value);
+    e.target.value = String(sats);
+    defaultZapSats = sats; // the zap rows read this, and are built without a round trip
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { defaultZapSats: sats } });
+    toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
   });
 
   $('autozap-max').addEventListener('change', async (e) => {
