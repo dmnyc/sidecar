@@ -9490,6 +9490,20 @@
   const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
+  // An nevent reduced to the note1 Razr's own links carry. Anything else, a naddr or a
+  // note1 already, goes through untouched, which is what Razr does with its own.
+  //
+  // The hints are what get dropped: an nevent can carry relays and an author, and a note1
+  // is the bare id. That is the trade for a route proven to accept what we send, and it
+  // is the same reduction Razr performs on its own ids.
+  function razrEntity(entity) {
+    try {
+      const d = NT.nip19.decode(entity);
+      if (d.type === 'nevent') return NT.nip19.noteEncode(d.data.id);
+    } catch (_) { /* not bech32 we know, so hand it over unchanged */ }
+    return entity;
+  }
+
   const VIEW_CLIENTS = {
     primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
     jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
@@ -9502,6 +9516,19 @@
     jank: { label: 'JANK', url: (ne) => 'https://jank.army/notes/' + ne, profile: (np) => 'https://jank.army/users/' + np },
     nostrich: { label: 'Nostrich', url: (ne) => 'https://nostrich.org/e/' + ne, profile: (np) => 'https://nostrich.org/p/' + np },
     ditto: { label: 'Ditto', url: (ne) => 'https://ditto.pub/' + ne, profile: (np) => 'https://ditto.pub/' + np },
+    // ROUTES, not a catch-all: /e/ for an event and /p/ for a profile. Its own links are
+    // /e/note1… and /e/naddr…, built with encodeNote, so /e/ is known to take a note1
+    // and a naddr, and an nevent is reduced to the note1 Razr writes for itself rather
+    // than handed over on the assumption it decodes one. See razrEntity.
+    razr: { label: 'Razr', url: (ne) => 'https://razr.social/e/' + razrEntity(ne), profile: (np) => 'https://razr.social/p/' + np },
+    // A COMMAND LINE, not routes. `open <bech32>` resolves note, nevent and naddr into
+    // the same viewer, since all three are cases in its own decoder, and a profile has its
+    // own verb, which is what Grimoire builds for itself (`profile <npub>`).
+    grimoire: {
+      label: 'Grimoire',
+      url: (ne) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('open ' + ne),
+      profile: (np) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('profile ' + np),
+    },
     coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
     njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
   };
