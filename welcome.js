@@ -304,7 +304,42 @@ const APPS = [
     // Their own logo.svg — a transparent purple mark, so it takes the framed
     // treatment rather than flush, same as Circl.
     icon: 'icons/apps/ditto.svg',
-    desc: 'A playful, deeply customizable social client — profile themes, games, and a built-in account switcher.',
+    desc: 'A playful, customizable social client with profile themes, games and an account switcher.',
+  },
+  {
+    name: 'Nostter',
+    url: 'https://nostter.app',
+    domain: 'nostter.app',
+    cat: 'social',
+    // Bundled rather than hotlinked: nostter.app is behind a bot check, and an icon
+    // request that gets challenged renders as a broken card. Its own favicon.svg, whose
+    // fill is pinned to the light one the mark itself specifies for dark backgrounds.
+    // The file ships a prefers-color-scheme block, and inside an <img> that follows the
+    // reader's OS rather than this tile, which is always dark velvet.
+    icon: 'icons/apps/nostter.svg',
+    desc: 'A fast, keyboard-friendly client with columns, search and a tidy reading view.',
+  },
+  {
+    name: 'Razr',
+    url: 'https://razr.social',
+    domain: 'razr.social',
+    cat: 'social',
+    // The apple-touch-icon, which fills its frame. /razr.svg is the other one it
+    // declares, but razr.social answers 200 text/html on any unknown path, so an icon
+    // URL here has to be one the site really serves. Both of these were checked by
+    // content-type, not status.
+    icon: 'https://razr.social/razr-icon-180.png',
+    flush: true,
+    desc: 'Notes, groups, live streams and messages, with a clean reading view.',
+  },
+  {
+    name: 'Grimoire',
+    url: 'https://grimoire.rocks',
+    domain: 'grimoire.rocks',
+    cat: 'tools',
+    icon: 'https://grimoire.rocks/apple-touch-icon.png',
+    flush: true,
+    desc: 'A command line for Nostr: open any event, query relays by filter, and read the NIPs.',
   },
   {
     name: 'Jank',

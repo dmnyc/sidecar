@@ -72,10 +72,14 @@ test('every client URL is https and carries the identifier', () => {
   for (const c of jsClients()) {
     assert.ok(c.url.startsWith('https://'), c.key + ' note URL must be https');
     assert.ok(c.profile.startsWith('https://'), c.key + ' profile URL must be https');
-    // The builders append the bech32, so each prefix has to end at a boundary
-    // where concatenation produces a real path rather than a mangled one.
-    assert.ok(/[/#]$/.test(c.url), c.key + ' note URL must end at a path boundary: ' + c.url);
-    assert.ok(/[/#]$/.test(c.profile), c.key + ' profile URL must end at a path boundary: ' + c.profile);
+    // The builders append the bech32, so each prefix has to end at a boundary where
+    // concatenation produces a real URL rather than a mangled one. Three are legal:
+    // a path segment (/), a fragment (#), and a query value (=). The last one because a
+    // client can take the identifier as a parameter rather than a path. Grimoire is a
+    // command line, `run?cmd=open <bech32>`, so its prefix ends at the `=`.
+    const boundary = /[/#=]$/;
+    assert.ok(boundary.test(c.url), c.key + ' note URL must end at a path, fragment or query boundary: ' + c.url);
+    assert.ok(boundary.test(c.profile), c.key + ' profile URL must end at a path, fragment or query boundary: ' + c.profile);
   }
 });
 
@@ -86,6 +90,14 @@ test('every client URL is https and carries the identifier', () => {
 const PINNED = [
   { key: 'jank', label: 'JANK', url: 'https://jank.army/notes/', profile: 'https://jank.army/users/' },
   { key: 'nostrich', label: 'Nostrich', url: 'https://nostrich.org/e/', profile: 'https://nostrich.org/p/' },
+  // Razr's router was read the same way: /e/:noteId, /p/:npub and /a/:naddr, with its own
+  // links written as /e/note1… and /e/naddr…. Note the trap that makes reading the router
+  // necessary: razr.social answers 200 text/html on ANY path, so "the URL works" proves
+  // nothing there.
+  { key: 'razr', label: 'Razr', url: 'https://razr.social/e/', profile: 'https://razr.social/p/' },
+  // Grimoire has no routes to pin: it is a command line, and both builders end at the
+  // same `?cmd=`. What distinguishes them is the verb, which the test below covers.
+  { key: 'grimoire', label: 'Grimoire', url: 'https://grimoire.rocks/run?cmd=', profile: 'https://grimoire.rocks/run?cmd=' },
 ];
 
 for (const want of PINNED) {
@@ -101,3 +113,32 @@ for (const want of PINNED) {
     );
   });
 }
+
+// ---- the two that do not append a bech32 to a path -------------------------------------
+
+test('GRIMOIRE SENDS A COMMAND, AND THE TWO VERBS DIFFER', () => {
+  // `open <bech32>` resolves a note, an nevent and a naddr into the same viewer, since
+  // all three are cases in its own decoder, while a profile has its own verb, which is the
+  // command Grimoire builds for itself. Pinning only the shared `?cmd=` prefix would let
+  // the two swap without anything noticing.
+  const block = js.match(/grimoire: \{[\s\S]*?\n    \},/);
+  assert.ok(block, 'the Grimoire entry moved');
+  assert.match(block[0], /encodeURIComponent\('open ' \+ ne\)/, 'the note builder lost its verb');
+  assert.match(block[0], /encodeURIComponent\('profile ' \+ np\)/, 'the profile builder lost its verb');
+  // Encoded, because the command has a space in it.
+  assert.equal((block[0].match(/encodeURIComponent/g) || []).length, 2, 'a command is being sent raw');
+});
+
+test('RAZR IS HANDED THE note1 ITS OWN LINKS CARRY', () => {
+  // /e/ is known to take a note1 and a naddr, because those are what Razr writes for
+  // itself (its ids go through encodeNote). An nevent is not known to decode there, so it
+  // is reduced rather than sent hopefully. The hints in an nevent are the cost.
+  const fn = js.match(/function razrEntity\(entity\) \{[\s\S]*?\n  \}/);
+  assert.ok(fn, 'razrEntity is gone: is an nevent being passed to /e/ unreduced?');
+  assert.match(fn[0], /d\.type === 'nevent'/, 'the reduction no longer keys on an nevent');
+  assert.match(fn[0], /NT\.nip19\.noteEncode\(d\.data\.id\)/, 'an nevent is not reduced to a note1');
+  // A naddr must pass through untouched: Razr routes those to /e/ as well, and
+  // re-encoding one as a note would point at nothing.
+  assert.match(fn[0], /return entity;/, 'anything that is not an nevent must go through unchanged');
+  assert.match(js, /url: \(ne\) => 'https:\/\/razr\.social\/e\/' \+ razrEntity\(ne\)/, 'the entry stopped reducing');
+});
