@@ -61,7 +61,10 @@ Sidecar only talks to services **you choose**:
   sign (e.g. your kind 0 profile, or backups you choose to store). You control
   the relay list.
 - **Your Lightning wallet** — payments and invoices go to the wallet you connect
-  via Nostr Wallet Connect. Sidecar never holds your funds.
+  via Nostr Wallet Connect. Sidecar never holds your funds. One thing worth
+  naming: a Podcasting 2.0 boost carries the message you write and the name you
+  send it under to the recipient's node, because that is what a boostagram is.
+  The approval card shows you both before anything is sent.
 - **Web pages you use** — when you sign in to a Nostr web app, Sidecar provides a
   signature or a public key to that page, with your approval. Pages receive
   signatures and your public key — **never your private key**.
