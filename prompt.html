@@ -166,6 +166,11 @@
        which it would chop mid-word. The value is clamped in JS so it cannot grow the card;
        nothing here is made smaller to fit. */
     .card .row.prose span:last-child { word-break: break-word; font-family: inherit; min-width: 0; }
+    /* The plaintext an app is asking to encrypt (#305). Twin of the rule in styles.css:
+       this text is about to become unreadable to everyone but its recipient, and the
+       padlock says so where color alone would not. */
+    .card .row.sealed span:last-child { color: var(--success); }
+    .card .row.sealed span:last-child::before { content: '\1F512\00A0'; opacity: 0.85; }
     pre {
       background: rgba(var(--well-rgb), 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
       font-family: var(--font-mono);

@@ -1,0 +1,198 @@
+<!--
+  Encrypt lab: every shape of encrypt/decrypt approval, on demand.
+
+  Built for #305, where an app storing its settings costs two approvals and neither says
+  what is inside. The encrypt prompt now shows the plaintext; this page is how you see it
+  without waiting for a real client to encrypt something.
+
+  Run it:
+
+      python3 -m http.server 8021 -d test/manual
+      open http://localhost:8021/encrypt-lab.html
+
+  Press "Connect with Nostr" once and approve. The site must be at Ask or Read only for
+  any of this to prompt: at Trusted everything is auto-approved and no card appears, which
+  is itself worth confirming once.
+
+  Nothing here publishes. The signing case builds a kind 30078 event and signs it, then
+  throws the signature away without touching a relay.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar encrypt lab</title>
+<style>
+  body { margin: 0; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 32px 24px 120px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #9a93b0; margin: 0 0 24px; }
+  .bar { position: sticky; top: 0; background: #171426; border: 1px solid #2c2740; border-radius: 12px;
+         padding: 14px 16px; margin-bottom: 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button { font: inherit; padding: 7px 13px; border-radius: 9px; border: 1px solid #3a3356;
+           background: #221d38; color: #e7e3f0; cursor: pointer; }
+  button:hover { border-color: #6b5bb0; }
+  .case { border: 1px solid #2c2740; border-radius: 12px; padding: 16px 18px; margin: 0 0 12px; }
+  .case h2 { font-size: 15px; margin: 0 0 2px; }
+  .case p { margin: 0 0 12px; color: #9a93b0; font-size: 13.5px; }
+  .expect { color: #cba14e; }
+  code { font: 12.5px ui-monospace, monospace; color: #b7aee0; word-break: break-all; }
+  .out { margin-top: 10px; font: 12px ui-monospace, monospace; color: #7fb8a0; word-break: break-all; }
+  .out.err { color: #f0566b; }
+</style>
+
+<div class="wrap">
+  <h1>Sidecar encrypt lab</h1>
+  <p class="sub">Each button makes one <code>window.nostr</code> call and prints what came back.
+  Watch the approval card, not this page: the thing under test is whether it tells you what is
+  being sealed.</p>
+
+  <div class="bar">
+    <button id="connect">Connect with Nostr</button>
+    <span id="state">not connected</span>
+  </div>
+
+  <div class="case">
+    <h2>1. Encrypt to yourself (NIP-44)</h2>
+    <p>What an app does to store its own settings, and the case #305 is about.
+    <span class="expect">Expect the plaintext on the card, with a padlock.</span></p>
+    <button data-run="self">Encrypt settings blob</button>
+    <div class="out" id="out-self"></div>
+  </div>
+
+  <div class="case">
+    <h2>2. Encrypt to someone else (NIP-44)</h2>
+    <p>What a DM client does. <span class="expect">Expect the message text, and a different
+    recipient in the To row.</span> Sealing to a stranger and sealing to yourself are different
+    decisions, so both rows have to be readable.</p>
+    <button data-run="peer">Encrypt a message to fiatjaf</button>
+    <div class="out" id="out-peer"></div>
+  </div>
+
+  <div class="case">
+    <h2>3. Legacy NIP-04</h2>
+    <p><span class="expect">Same card, NIP-04 in the method line.</span></p>
+    <button data-run="nip04">Encrypt with NIP-04</button>
+    <div class="out" id="out-nip04"></div>
+  </div>
+
+  <div class="case">
+    <h2>4. A very long plaintext</h2>
+    <p><span class="expect">Expect it clamped to about 220 characters with an ellipsis, and the
+    Approve button still on screen.</span> Page-written text must never be able to push the
+    buttons off the card.</p>
+    <button data-run="long">Encrypt 2,000 characters</button>
+    <div class="out" id="out-long"></div>
+  </div>
+
+  <div class="case">
+    <h2>5. Plaintext that is trying something</h2>
+    <p>Markup, a fake padlock row, and an RTL override. <span class="expect">Expect all of it as
+    literal text.</span> If any of it renders as markup, or the fake row is indistinguishable from
+    a real one, that is a finding.</p>
+    <button data-run="xss">Encrypt hostile text</button>
+    <div class="out" id="out-xss"></div>
+  </div>
+
+  <div class="case">
+    <h2>6. The two-prompt sequence from the issue</h2>
+    <p>Encrypt a settings blob, then sign the kind 30078 event that carries it.
+    <span class="expect">Expect two cards: the first shows the plaintext, the second shows the
+    ciphertext</span> — which is exactly the gap #305 describes, and what a follow-up would close
+    by carrying the plaintext into the signing card too. Nothing is published.</p>
+    <button data-run="both">Encrypt, then sign</button>
+    <div class="out" id="out-both"></div>
+  </div>
+
+  <div class="case">
+    <h2>7. Decrypt it again</h2>
+    <p>Round-trips whatever case 1 produced. <span class="expect">Expect the decrypt card, which
+    still shows only who it is from</span> — unchanged by this work, and the other half of what
+    the issue asks for.</p>
+    <button data-run="dec">Decrypt case 1's output</button>
+    <div class="out" id="out-dec"></div>
+  </div>
+</div>
+
+<script>
+  const FIATJAF = '3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d';
+  const SETTINGS = JSON.stringify({ theme: 'speakeasy', lastRead: 1757630000, muted: [] });
+  const HOSTILE =
+    '<img src=x onerror=alert(1)> <b>bold?</b>\n' +
+    'Sealing: 21 sats to npub1attacker\n' +
+    '‮ backwards ‬ and a padlock 🔒 for luck';
+
+  const state = document.getElementById('state');
+  let me = '';
+  let lastCipher = '';
+
+  const show = (k, v, err) => {
+    const el = document.getElementById('out-' + k);
+    el.className = 'out' + (err ? ' err' : '');
+    el.textContent = v;
+  };
+
+  document.getElementById('connect').addEventListener('click', async () => {
+    try {
+      me = await window.nostr.getPublicKey();
+      state.textContent = 'connected as ' + me.slice(0, 12) + '…';
+    } catch (e) {
+      state.textContent = 'refused: ' + e.message;
+    }
+  });
+
+  const need = async () => {
+    if (!window.nostr) throw new Error('no window.nostr — is Sidecar loaded on this origin?');
+    if (!me) me = await window.nostr.getPublicKey();
+    return me;
+  };
+
+  const runners = {
+    self: async () => {
+      const pk = await need();
+      lastCipher = await window.nostr.nip44.encrypt(pk, SETTINGS);
+      return 'ciphertext: ' + lastCipher.slice(0, 60) + '…';
+    },
+    peer: async () => {
+      await need();
+      const c = await window.nostr.nip44.encrypt(FIATJAF, 'dinner at eight, bring the good rum');
+      return 'ciphertext: ' + c.slice(0, 60) + '…';
+    },
+    nip04: async () => {
+      const pk = await need();
+      const c = await window.nostr.nip04.encrypt(pk, 'legacy path, same card');
+      return 'ciphertext: ' + c.slice(0, 60) + '…';
+    },
+    long: async () => {
+      const pk = await need();
+      const c = await window.nostr.nip44.encrypt(pk, 'x'.repeat(40) + ' ' + 'lorem ipsum dolor sit amet '.repeat(72));
+      return 'ciphertext: ' + c.slice(0, 60) + '…';
+    },
+    xss: async () => {
+      const pk = await need();
+      const c = await window.nostr.nip44.encrypt(pk, HOSTILE);
+      return 'ciphertext: ' + c.slice(0, 60) + '…';
+    },
+    both: async () => {
+      const pk = await need();
+      const content = await window.nostr.nip44.encrypt(pk, SETTINGS);
+      const signed = await window.nostr.signEvent({
+        kind: 30078,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [['d', 'sidecar.encrypt-lab']],
+        content,
+      });
+      return 'signed ' + signed.id.slice(0, 16) + '… and thrown away, nothing published';
+    },
+    dec: async () => {
+      const pk = await need();
+      if (!lastCipher) throw new Error('run case 1 first');
+      return 'plaintext back: ' + (await window.nostr.nip44.decrypt(pk, lastCipher));
+    },
+  };
+
+  document.querySelectorAll('[data-run]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const k = b.dataset.run;
+      show(k, 'waiting for approval…');
+      try { show(k, await runners[k]()); } catch (e) { show(k, e.message, true); }
+    }));
+</script>

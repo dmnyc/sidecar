@@ -233,6 +233,13 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 
+/* The plaintext an app is asking Sidecar to encrypt (#305). Marked rather than shown
+   plainly: the point of the line is that this text is about to become unreadable to
+   everyone but its recipient, and a reader has to be able to tell it apart from the
+   metadata rows around it. The padlock carries that where color alone would not. */
+.card .row.sealed span:last-child { color: var(--success); }
+.card .row.sealed span:last-child::before { content: '\1F512\00A0'; opacity: 0.85; }
+
 /* ===== PIN / passphrase strength + match indicators ===== */
 /* A wrapper that floats a check/x at the right edge of a password box. */
 .pin-field { position: relative; width: 100%; }

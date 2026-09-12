@@ -17566,6 +17566,15 @@
       box.append(peerRow('From', data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
       box.append(peerRow('To', data.params && data.params.pubkey));
+      // WHAT, not just to whom. See the twin of this in prompt.js: the plaintext rides
+      // along in params already, and an approval nobody can read is one taken blind (#305).
+      const plain = String((data.params && data.params.plaintext) || '');
+      if (plain) {
+        box.append(h('div', { className: 'row prose sealed' }, [
+          h('span', { textContent: 'Sealing' }),
+          h('span', { textContent: clampApprovalText(plain, 220) }),
+        ]));
+      }
     } else {
       hide(box);
       return;
