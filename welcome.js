@@ -297,6 +297,16 @@ const APPS = [
     desc: 'Notes, articles, chat and zaps in one client, with native apps for iOS, Android and Mac.',
   },
   {
+    name: 'Ditto',
+    url: 'https://ditto.pub',
+    domain: 'ditto.pub',
+    cat: 'social',
+    // Their own logo.svg — a transparent purple mark, so it takes the framed
+    // treatment rather than flush, same as Circl.
+    icon: 'icons/apps/ditto.svg',
+    desc: 'A playful, deeply customizable social client — profile themes, games, and a built-in account switcher.',
+  },
+  {
     name: 'Jank',
     url: 'https://jank.army',
     domain: 'jank.army',
