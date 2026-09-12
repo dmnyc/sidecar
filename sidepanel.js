@@ -7035,8 +7035,16 @@
           closeModal();
         }),
         menuItem('Show npub QR', 'qr', () => npubQrModal(a)),
-        menuItem('Theme override', 'palette', () => themeOverrideModal(a)),
         menuItem('Back up private key', 'key', () => backupKeyModal(a)),
+        // "Theme override" was jargon dressed as a feature: it named the mechanism
+        // (an entry in themeBy that beats settings.theme) rather than the thing you can
+        // do, and read as something technical you had better understand first. The modal
+        // behind it was always plain enough, "Theme for Alice"; only the door was
+        // confusing. An instruction gets the same idea across with nothing to decode.
+        //
+        // Below the key backup, not above it: this is the one cosmetic item in a menu of
+        // consequential ones, and it was sitting between two things people come here for.
+        menuItem('Set account theme', 'palette', () => themeOverrideModal(a)),
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
       ]);
@@ -9618,7 +9626,29 @@
 
       const sel = h('select');
       sel.append(h('option', { value: '', textContent: 'Use the default' }));
-      THEME_LABELS.forEach(([key, label]) => sel.append(h('option', { value: key, textContent: label })));
+      // Grouped Dark and Light, the same split the gallery shows, and READ FROM THE
+      // GALLERY'S OWN CARDS rather than restated here. sidepanel.html says data-mode is
+      // the only place that split is made; a second copy in this file would be right
+      // until the next theme is added, and then quietly wrong on one surface.
+      //
+      // Twelve names in one flat list told you nothing about what you were choosing:
+      // Populuxe and Par Avion are light, Nixie and Cast Iron are not, and there is no
+      // way to know that from the word. The gallery answers it with a picture; a select
+      // can only answer it by grouping.
+      const modeOf = (key) => {
+        const card = document.querySelector('.theme-card[data-theme="' + key + '"]');
+        // No card means a theme this build does not ship a preview for. Dark is the
+        // default theme's own mode, so an unknown lands with the majority rather than
+        // inventing a third group.
+        return (card && card.dataset.mode) === 'light' ? 'light' : 'dark';
+      };
+      const groups = {
+        dark: h('optgroup', { label: 'Dark' }),
+        light: h('optgroup', { label: 'Light' }),
+      };
+      THEME_LABELS.forEach(([key, label]) =>
+        groups[modeOf(key)].append(h('option', { value: key, textContent: label })));
+      for (const g of [groups.dark, groups.light]) if (g.children.length) sel.append(g);
       // The current value arrives from the background a moment after the modal opens, so
       // it must not overwrite a choice made inside that moment.
       let touched = false;
