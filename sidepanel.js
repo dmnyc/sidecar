@@ -8662,7 +8662,7 @@
     // Profile data is cached for PROFILE_TTL (5 min) and the follow count is cached for
     // the whole session, so an edit made elsewhere can look stuck. This drops both for
     // the active account and refetches.
-    const refreshBtn = h('button', { className: 'profile-backup-jump', title: 'Refresh profile and follow count' });
+    const refreshBtn = h('button', { className: 'profile-backup-jump', title: 'Refresh profile, follow and mute counts' });
     // Clockwise, near-closed circle with a short arrow at the top right — the
     // conventional "reload" glyph. The old mark was counter-clockwise and filled,
     // which reads more like "undo" than "refresh". Stroked so it inherits the same
@@ -8679,6 +8679,11 @@
       try {
         _profileCache.delete(active.pubkey);
         followCountCache.delete(active.pubkey);
+        // The mute list is cached as a PROMISE per account, and never expires on its own,
+        // so a mute added in another client is invisible until something drops it. The
+        // refresh has to reach this too, or the number beside the follow count is the one
+        // stat on the screen the button does not refresh.
+        _muteListPromises.delete(active.pubkey);
         profileFetchState.delete(active.pubkey); // clear tries + settled so it refetches
         await fetchAndStoreProfile(active.pubkey);
         renderProfile();
@@ -8691,14 +8696,18 @@
         refreshBtn.classList.remove('spinning');
       }
     });
+    const muteNum = h('strong', { textContent: '…' });
+    const muteStat = h('span', { className: 'profile-stat' }, [muteNum, document.createTextNode(' muted')]);
     const followStat = h('div', { className: 'profile-stats' }, [
       h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
+      muteStat,
       refreshBtn,
     ]);
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
       followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
     });
+    paintMuteCount(active.pubkey, muteNum, muteStat);
 
     const editBtn = h('button', { className: 'secondary profile-edit-cta' });
     editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
@@ -8848,6 +8857,37 @@
     } catch (_) {}
     followCountCache.set(pubkey, count);
     return count;
+  }
+
+  // The mute count that sits beside the follow count.
+  //
+  // PEOPLE, not entries. "Following" counts people, so the number next to it has to mean
+  // the same thing or the pair is a trap: an account following 200 and muting 3 words
+  // would read as "200 / 3" with the 3 meaning something else entirely.
+  //
+  // A mute list can also carry hashtags, words and threads, and those are not thrown away
+  // — they go in the tooltip, so the headline stays comparable and nothing is hidden.
+  //
+  // Reuses loadMuteList rather than fetching kind:10000 again: that one already resolves
+  // the newest event across relays AND decrypts the private half, which is most of a real
+  // list. Its promise cache is what the refresh button drops.
+  async function paintMuteCount(pubkey, numEl, labelEl) {
+    numEl.textContent = '…';
+    if (labelEl) labelEl.removeAttribute('title');
+    try {
+      const m = await loadMuteList(pubkey, await readRelayUrls(pubkey));
+      numEl.textContent = m.pubkeys.size.toLocaleString('en-US');
+      const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+      const extras = [];
+      if (m.hashtags.size) extras.push(plural(m.hashtags.size, 'hashtag'));
+      if (m.words.length) extras.push(plural(m.words.length, 'word'));
+      if (m.threads.size) extras.push(plural(m.threads.size, 'thread'));
+      if (labelEl && extras.length) {
+        labelEl.title = 'Also muted: ' + extras.join(', ') + '. Only people are counted here.';
+      }
+    } catch (_) {
+      numEl.textContent = '—';
+    }
   }
 
   // ---- Nostr Archives profile API ----
