@@ -722,6 +722,12 @@
   <!-- ===== Signing approval (inline, replaces the popup when the panel is open) ===== -->
   <div id="view-approval" class="approval-overlay hidden">
     <div class="approval-card">
+      <!-- The card is a scroll region plus a pinned footer, the same split prompt.html
+           uses, and for the same reason: an approval can grow tall (a heads-up card, a
+           long preview, the switch menu, the unlock field) and the buttons must never be
+           the thing that scrolls away. Everything that ASKS lives below; everything that
+           DESCRIBES scrolls above it. -->
+      <div class="approval-scroll">
       <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
       <div class="approval-host" id="approval-host">…</div>
       <div class="approval-ask" id="approval-ask">wants to…</div>
@@ -757,55 +763,59 @@
            same story. Toggled by renderConsentNote in sidepanel.js. -->
       <div id="approval-consent-note" class="shared-note hidden"></div>
 
-      <div id="approval-unlock" class="hidden stack">
-        <label for="approval-pin">Enter your PIN to unlock</label>
-        <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />
-        <!-- PIN failures belong against the PIN, not below the budget/relax rows —
-             this is where "N attempts left before all data is erased" lands.
-             #approval-error stays for everything else. -->
-        <div class="error" id="approval-pin-error"></div>
       </div>
 
-      <!-- Offered by the payment card, confirmed here — see prompt.html. -->
-      <div id="approval-autozap-offer" class="remember hidden">
-        <label class="check"><input type="checkbox" id="approval-autozap-offer-box" checked />
-        <span id="approval-autozap-offer-label">Turn on Auto Zaps</span></label>
-      </div>
-
-      <div id="approval-remember" class="remember hidden">
-        <label class="check"><input type="checkbox" id="approval-remember-budget" /> Allow this site to spend up to</label>
-        <div class="budget-row">
-          <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" />
-          <span class="budget-unit">sats / day without asking</span>
+      <div class="approval-footer">
+        <div id="approval-unlock" class="hidden stack">
+          <label for="approval-pin">Enter your PIN to unlock</label>
+          <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />
+          <!-- PIN failures belong against the PIN, not below the budget/relax rows —
+               this is where "N attempts left before all data is erased" lands.
+               #approval-error stays for everything else. -->
+          <div class="error" id="approval-pin-error"></div>
         </div>
-      </div>
 
-      <div id="approval-relax-row" class="relax-row hidden">
-        <div class="relax-label">Auto-sign for the next</div>
-        <div class="relax-chips">
-          <button type="button" class="relax-chip" data-mins="5">5 min</button>
-          <button type="button" class="relax-chip" data-mins="15">15 min</button>
-          <button type="button" class="relax-chip" data-mins="30">30 min</button>
+        <!-- Offered by the payment card, confirmed here — see prompt.html. -->
+        <div id="approval-autozap-offer" class="remember hidden">
+          <label class="check"><input type="checkbox" id="approval-autozap-offer-box" checked />
+          <span id="approval-autozap-offer-label">Turn on Auto Zaps</span></label>
         </div>
-      </div>
 
-      <div class="error" id="approval-error"></div>
+        <div id="approval-remember" class="remember hidden">
+          <label class="check"><input type="checkbox" id="approval-remember-budget" /> Allow this site to spend up to</label>
+          <div class="budget-row">
+            <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" />
+            <span class="budget-unit">sats / day without asking</span>
+          </div>
+        </div>
 
-      <!-- Shown once this site has been approved one-time a few times over. Nothing
-           else here says which button ends the asking, and "Allow once" is the one
-           that looks like the default answer. Mirrors the popup's #trust-nudge. -->
-      <div id="approval-trust-nudge" class="trust-nudge hidden"></div>
+        <div id="approval-relax-row" class="relax-row hidden">
+          <div class="relax-label">Auto-sign for the next</div>
+          <div class="relax-chips">
+            <button type="button" class="relax-chip" data-mins="5">5 min</button>
+            <button type="button" class="relax-chip" data-mins="15">15 min</button>
+            <button type="button" class="relax-chip" data-mins="30">30 min</button>
+          </div>
+        </div>
 
-      <div class="approval-actions">
-        <button class="primary" id="approval-allow">Allow once</button>
-        <button class="lav-btn" id="approval-trust">Trust this site</button>
-        <button class="ghost" id="approval-reject">Reject</button>
-      </div>
+        <div class="error" id="approval-error"></div>
 
-      <!-- Stacked-request backlog: always-visible count + one-tap escape hatch. -->
-      <div id="approval-backlog" class="approval-backlog hidden">
-        <span id="approval-backlog-count"></span>
-        <button class="approval-reject-all" id="approval-reject-all">Reject all</button>
+        <!-- Shown once this site has been approved one-time a few times over. Nothing
+             else here says which button ends the asking, and "Allow once" is the one
+             that looks like the default answer. Mirrors the popup's #trust-nudge. -->
+        <div id="approval-trust-nudge" class="trust-nudge hidden"></div>
+
+        <div class="approval-actions">
+          <button class="primary" id="approval-allow">Allow once</button>
+          <button class="lav-btn" id="approval-trust">Trust this site</button>
+          <button class="ghost" id="approval-reject">Reject</button>
+        </div>
+
+        <!-- Stacked-request backlog: always-visible count + one-tap escape hatch. -->
+        <div id="approval-backlog" class="approval-backlog hidden">
+          <span id="approval-backlog-count"></span>
+          <button class="approval-reject-all" id="approval-reject-all">Reject all</button>
+        </div>
       </div>
     </div>
   </div>

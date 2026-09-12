@@ -1066,6 +1066,43 @@ function describeSignEventShape(params) {
   return out;
 }
 
+// ---- what we just sealed, so the NEXT prompt can say what is in it ----
+//
+// An app that encrypts something is almost always about to ask us to sign the event
+// carrying it (#305: "the event signing request only shows the encrypted payload"). We
+// hold the plaintext at encrypt time and threw it away; keeping it for a moment lets the
+// second card show what the first one sealed, instead of 400 characters of base64.
+//
+// Deliberately narrow, because this is plaintext held in memory:
+//   - keyed by host AND account AND the exact ciphertext, so one site can never see what
+//     another sealed, and a different account's text is a different key;
+//   - in the service worker only, which MV3 evicts after about 30 seconds idle, so it is
+//     gone long before it could be called a store. A sign that arrives after eviction
+//     falls back to showing ciphertext, which is exactly today's behavior;
+//   - capped and time-limited anyway, for the case where the worker stays warm.
+const SEAL_METHODS = new Set(['nip04.encrypt', 'nip44.encrypt']);
+const SEAL_TTL_MS = 120000;
+const SEAL_MAX = 20;
+const sealedText = new Map();
+const sealKey = (host, pubkey, ciphertext) => host + '|' + pubkey + '|' + ciphertext;
+
+function rememberSealed(host, pubkey, ciphertext, plaintext) {
+  if (!host || !pubkey || !ciphertext || typeof plaintext !== 'string' || !plaintext) return;
+  sealedText.set(sealKey(host, pubkey, ciphertext), { text: plaintext, at: Date.now() });
+  // Oldest out first: a Map iterates in insertion order, and re-setting a key moves it.
+  while (sealedText.size > SEAL_MAX) sealedText.delete(sealedText.keys().next().value);
+}
+
+function recallSealed(host, pubkey, ciphertext) {
+  const hit = sealedText.get(sealKey(host, pubkey, ciphertext));
+  if (!hit) return '';
+  if (Date.now() - hit.at > SEAL_TTL_MS) {
+    sealedText.delete(sealKey(host, pubkey, ciphertext));
+    return '';
+  }
+  return hit.text;
+}
+
 async function handleNostrRpc(method, params, host, sendResponse, originWindowId) {
   try {
     if (!host) throw new Error('Missing host');
@@ -1343,10 +1380,18 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       if (params && params.pubkey && /\.(encrypt|decrypt)$/.test(method)) {
         try { peerNpub = self.NostrTools.nip19.npubEncode(params.pubkey); } catch (_) {}
       }
+      // If this is a sign whose content we sealed moments ago, hand the plaintext to the
+      // card. Only ever to the PROMPT, never back to the page, and only for the same host
+      // and account that asked us to encrypt it.
+      const sealed =
+        method === 'signEvent' && params && params.event && typeof params.event.content === 'string'
+          ? recallSealed(host, activePubkey, params.event.content)
+          : '';
       const decision = await openPrompt({
         host,
         method,
         params,
+        sealed,
         peerNpub,
         activePubkey,
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
@@ -1491,6 +1536,13 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     } else {
       const privBytes = needsKey ? await KS.getPrivkey(activePubkey) : null;
       result = await SIGNER.perform(method, params, privBytes, activePubkey);
+    }
+    // An app that encrypts something is usually about to ask us to sign the event
+    // carrying it, a second later, and that second approval could only ever show the
+    // ciphertext. Remember what we just sealed so the sign card can say what is inside.
+    // See rememberSealed for why this is safe and why it forgets quickly.
+    if (SEAL_METHODS.has(method) && typeof result === 'string') {
+      rememberSealed(host, activePubkey, result, params && params.plaintext);
     }
 
     // The user approved this replaceable overwrite, so it becomes the new baseline —

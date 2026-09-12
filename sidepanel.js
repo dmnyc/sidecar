@@ -17561,6 +17561,14 @@
       }
       // Unreadable: show the payload even with no content field, because the JSON view
       // is then the only description of what's being signed.
+      // What the ciphertext says, when we sealed it moments ago (#305). Twin of the row
+      // in prompt.js; the event preview below is still the literal thing being signed.
+      if (data.sealed) {
+        box.append(h('div', { className: 'row prose sealed' }, [
+          h('span', { textContent: 'Sealed content' }),
+          h('span', { textContent: clampApprovalText(data.sealed, 220) }),
+        ]));
+      }
       if (ev.content || unreadable) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(peerRow('From', data.params && data.params.pubkey));

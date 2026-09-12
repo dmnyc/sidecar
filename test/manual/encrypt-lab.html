@@ -95,9 +95,16 @@
   <div class="case">
     <h2>6. The two-prompt sequence from the issue</h2>
     <p>Encrypt a settings blob, then sign the kind 30078 event that carries it.
-    <span class="expect">Expect two cards: the first shows the plaintext, the second shows the
-    ciphertext</span> — which is exactly the gap #305 describes, and what a follow-up would close
-    by carrying the plaintext into the signing card too. Nothing is published.</p>
+    <span class="expect">Expect two cards, and both should show the text.</span> The first says
+    "Sealing", the second says "Sealed content" above the event preview, which still shows the
+    ciphertext because that is literally what is being signed. This was the gap #305 named: the
+    second card used to show base64 and nothing else. Nothing is published.</p>
+    <p><b>You may well get one card, and that is correct.</b> Kind 30078 is app data, which
+    Sidecar deliberately keeps quiet in two ways. On a host where more than one of your
+    accounts has logged in, the sign auto-allows outright, with no card at all; the encrypt
+    card says "Multiple accounts used" when that is the case. And approving one 30078 sign
+    opens a 60 second window where further ones skip the prompt. Case 8 uses a kind neither
+    rule covers, so it shows both cards every time.</p>
     <button data-run="both">Encrypt, then sign</button>
     <div class="out" id="out-both"></div>
   </div>
@@ -109,6 +116,17 @@
     the issue asks for.</p>
     <button data-run="dec">Decrypt case 1's output</button>
     <div class="out" id="out-dec"></div>
+  </div>
+
+  <div class="case">
+    <h2>8. A note to yourself (kind 4)</h2>
+    <p>The same two-step, on a kind the app-data coalescing does not cover, so
+    <span class="expect">both cards appear every time.</span> Encrypts to your own key and signs
+    a kind 4 addressed to yourself, which is what a note-to-self is. The second card should show
+    "Sealed content" with the text above the ciphertext preview. Signed and thrown away, not
+    published: nobody receives this.</p>
+    <button data-run="selfdm">Encrypt, then sign a kind 4</button>
+    <div class="out" id="out-selfdm"></div>
   </div>
 </div>
 
@@ -178,6 +196,17 @@
         kind: 30078,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['d', 'sidecar.encrypt-lab']],
+        content,
+      });
+      return 'signed ' + signed.id.slice(0, 16) + '… and thrown away, nothing published';
+    },
+    selfdm: async () => {
+      const pk = await need();
+      const content = await window.nostr.nip04.encrypt(pk, 'note to self: the good rum is in the back');
+      const signed = await window.nostr.signEvent({
+        kind: 4,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [['p', pk]],
         content,
       });
       return 'signed ' + signed.id.slice(0, 16) + '… and thrown away, nothing published';
