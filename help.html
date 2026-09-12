@@ -47,6 +47,7 @@
         <a href="#nip05">NIP-05</a>
         <a href="#lightning-address">Lightning address</a>
         <a href="#wallet">Wallet</a>
+        <a href="#boosts">Boosts</a>
         <a href="#themes">Themes</a>
         <a href="#whats-new">What's new</a>
       </div>
@@ -557,6 +558,30 @@
       connection.</p>
       <p>If you don't have a wallet that speaks NWC yet, the wallet directory below has
       good options for every taste, custodial to self-custodial.</p>
+    </section>
+
+    <!-- ===== Boosts ===== -->
+    <section class="guide-section" id="boosts">
+      <h2>Boosting a podcast</h2>
+      <p>Podcast players that support Podcasting 2.0 let you send a show sats along with
+      a short message, called a boostagram. Sidecar can pay those from the player, using
+      the same wallet the rest of the panel uses.</p>
+      <p>The part that surprises people: <strong>a boost is several payments, not
+      one</strong>. A show splits its value between the hosts, the producer, and often a
+      platform fee, and each of those is paid separately. So a 100 sat boost split five
+      ways asks you five times, once per recipient, and each card shows only that
+      recipient's share. To send the whole thing on one approval, tick <em>Allow this
+      site to spend up to</em> on the first card and give the site a daily limit. The
+      rest of the split is then covered without asking, and you can change or revoke that
+      limit any time from <strong>Connected Sites</strong>.</p>
+      <p>The card names the show and quotes your message rather than showing the
+      recipient's 66-character node key, which is not something anyone can make a
+      decision about. That text comes from the site, so treat it as a label rather than
+      as a promise; the node is what actually identifies where the money goes.</p>
+      <p>Boosts need a wallet that supports keysend, which is how a payment reaches a
+      node with no invoice involved. Not every wallet does. If yours doesn't, Sidecar
+      says so rather than putting a payment in front of you that cannot succeed, and
+      nothing is spent.</p>
     </section>
 
     <!-- ===== NIP-05 ===== -->
