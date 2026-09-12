@@ -10241,12 +10241,22 @@
   // never sits in chrome.storage.local as plaintext. Read-modify-write of the
   // whole map, same shape the old direct-storage version had — the 400ms save
   // debounce is the only concurrency limiter either way.
-  function loadComposeDraft(pubkey) {
+  // WHICH DRAFT. One slot per account was one slot too few: a reply started from the
+  // notification bell and a half-written note in the main composer shared it, so tapping
+  // Reply offered you the note you were writing about something else. A reply gets its own
+  // slot, keyed by what it answers, and the main composer keeps the bare account key so
+  // every draft saved before this still loads.
+  const draftKey = (pubkey, replyTo) => (replyTo && replyTo.id ? pubkey + '|r:' + replyTo.id : pubkey);
+  // Abandoned replies must not accumulate forever. Same ceiling the web-comment drafts
+  // use, and the oldest go first.
+  const REPLY_DRAFT_MAX = 20;
+
+  function loadComposeDraft(key) {
     return call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })
-      .then((all) => (all && all[pubkey]) || null)
+      .then((all) => (all && all[key]) || null)
       .catch(() => null);
   }
-  function saveComposeDraft(pubkey, draft) {
+  function saveComposeDraft(key, draft) {
     const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
     (async () => {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
@@ -10261,13 +10271,14 @@
       // would work too, but this store is encrypted-at-rest for a reason and there is
       // no cause to keep a stranger's signature in it.
       if (hasContent) {
-        all[pubkey] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+        all[key] = { text: draft.text, media: draft.media, savedAt: Date.now() };
         if (draft.replyTo) {
           const r = draft.replyTo;
-          all[pubkey].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
+          all[key].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
         }
+        pruneReplyDrafts(all);
       }
-      else delete all[pubkey];
+      else delete all[key];
       await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
     })().catch(() => {
       // Swallowed on purpose: the one realistic failure is Sidecar locking
@@ -10276,11 +10287,22 @@
       // console for a draft nobody is typing into anymore.
     });
   }
-  async function clearComposeDraft(pubkey) {
+  // Drop the oldest reply slots past the cap. Only reply slots: a main composer draft is
+  // one per account and is never what fills this up.
+  function pruneReplyDrafts(all) {
+    const replies = Object.keys(all).filter((k) => k.includes('|r:'));
+    if (replies.length <= REPLY_DRAFT_MAX) return;
+    replies
+      .sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0))
+      .slice(REPLY_DRAFT_MAX)
+      .forEach((k) => delete all[k]);
+  }
+
+  async function clearComposeDraft(key) {
     try {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-      if (!(pubkey in all)) return;
-      delete all[pubkey];
+      if (!(key in all)) return;
+      delete all[key];
       await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
     } catch (_) {}
   }
@@ -10385,6 +10407,10 @@
     // `let`, not const: a saved draft can carry its own reply target, and resuming one
     // has to put the composer back into reply mode.
     let replyTo = (opts && opts.replyTo) || null;
+    // Fixed by what you arrived with, never by what a resumed draft turns out to carry:
+    // this decides which slot is read and written for the whole session, and a reply must
+    // not be able to reach the main composer's draft or overwrite it.
+    const dkey = draftKey(pubkey, replyTo);
     let draft = { text: initialText || '', media: [], replyTo };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
@@ -10392,7 +10418,7 @@
     let published = false;
     let enteredEditor = false;
 
-    function persistDraft() { saveComposeDraft(pubkey, draft); }
+    function persistDraft() { saveComposeDraft(dkey, draft); }
     function scheduleSave() {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(persistDraft, 400);
@@ -10687,7 +10713,7 @@
       try {
         const signed = await doPublish();
         published = true;
-        clearComposeDraft(pubkey);
+        clearComposeDraft(dkey);
         closeModal();
         toast('Note published', 'success');
         showPostBanner(signed);
@@ -10751,7 +10777,7 @@
       });
       const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
       fresh.addEventListener('click', () => {
-        clearComposeDraft(pubkey);
+        clearComposeDraft(dkey);
         // The target you ARRIVED with, not the saved one. Discarding an old draft must
         // not also discard the Reply you just tapped to get here.
         replyTo = (opts && opts.replyTo) || null;
@@ -10780,7 +10806,7 @@
       modal.append(...parts);
     }
 
-    const saved = await loadComposeDraft(pubkey);
+    const saved = await loadComposeDraft(dkey);
     const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
 
     openModal(
