@@ -217,6 +217,17 @@ test('any account can be dressed from its own menu', () => {
   // theme, and the only way back to the default once an account has chosen.
   const menu = stripComments(lift('function accountMenuModal('));
   assert.match(menu, /themeOverrideModal/, 'the account menu cannot set a theme');
+  // The label instructs rather than naming the mechanism. "Theme override" described an
+  // entry in themeBy that beats settings.theme, which is true and useless to a reader:
+  // it was reported as the one item in this menu nobody could explain. A menu item is a
+  // door, and the sentence on it should say where it goes.
+  assert.match(menu, /menuItem\('Set account theme'/, 'the menu item names a mechanism again');
+  // After the key backup: the one cosmetic item in a menu of consequential ones.
+  assert.ok(
+    menu.indexOf('Set account theme') > menu.indexOf('Back up private key'),
+    'the theme item sits above the key backup again'
+  );
+  assert.doesNotMatch(menu, /'Theme override'/, 'the jargon label is back');
   const fn = stripComments(lift('function themeOverrideModal('));
   assert.match(fn, /SIDECAR_SET_THEME_FOR/, 'the modal does not write the account theme');
   assert.doesNotMatch(fn, /settings: \{ theme:/, 'the modal writes the default for every account');
@@ -260,4 +271,36 @@ test('an account can always go back to the default', () => {
   assert.match(fn, /Use the default/, 'the modal has no way back to the default');
   // Empty string reaches the setter, which deletes the key rather than storing it.
   assert.match(fn, /theme: sel\.value/, 'the chosen value is not what gets written');
+});
+
+test('THE THEME SELECT IS GROUPED, AND TAKES THE SPLIT FROM THE GALLERY', () => {
+  // Twelve names in a flat list say nothing about what you are choosing: Populuxe and
+  // Par Avion are light, Nixie and Cast Iron are not, and no one can tell from the word.
+  // The gallery answers that with a picture. A select can only answer it by grouping.
+  const fn = stripComments(lift('function themeOverrideModal('));
+  assert.match(fn, /h\('optgroup', \{ label: 'Dark' \}\)/, 'the dark group is gone');
+  assert.match(fn, /h\('optgroup', \{ label: 'Light' \}\)/, 'the light group is gone');
+  // Read from the cards, not restated. sidepanel.html calls data-mode the only place the
+  // split is made, and a second copy here would be right until the next theme is added.
+  assert.match(fn, /querySelector\('\.theme-card\[data-theme="' \+ key \+ '"\]'\)/,
+    'the modal keeps its own idea of which themes are light');
+  assert.doesNotMatch(fn, /'populuxe'|'par-avion'|'nixie'/, 'theme names are hardcoded into the grouping');
+});
+
+test('every theme in the list has a card to be grouped by', () => {
+  // The fallback in modeOf sends an unknown theme to Dark, which is the right thing to do
+  // at runtime and the wrong thing to discover in a screenshot: a light theme shipped
+  // without a gallery card would sit silently in the Dark group forever.
+  const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  const block = source.match(/const THEME_LABELS = \[([\s\S]*?)\];/);
+  assert.ok(block, 'THEME_LABELS moved');
+  const keys = [...block[1].matchAll(/\['([a-z-]+)',/g)].map((m) => m[1]);
+  assert.ok(keys.length >= 12, 'the theme list shrank unexpectedly: ' + keys.length);
+  for (const key of keys) {
+    assert.match(
+      html,
+      new RegExp('data-theme="' + key + '" data-mode="(dark|light)"'),
+      key + ' has no gallery card with a data-mode, so the select would file it under Dark'
+    );
+  }
 });
