@@ -1,0 +1,58 @@
+<!--
+  Front door for Sidecar's manual test pages.
+
+      python3 -m http.server 8021 -d test/manual
+      open http://localhost:8021/
+
+  These are deliberately not automated. Each one exists because a real user hit something
+  that no unit test would have caught, and reproducing it meant waiting for the wild to
+  produce an invoice or an encrypted note at the right moment.
+
+  Nothing here is packaged: scripts/package.sh drops test/ wholesale after git archive.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar manual tests</title>
+<style>
+  body { margin: 0; font: 15px/1.6 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .sub { color: #9a93b0; margin: 0 0 32px; }
+  a.lab { display: block; text-decoration: none; color: inherit; border: 1px solid #2c2740;
+          border-radius: 12px; padding: 18px 20px; margin: 0 0 14px; }
+  a.lab:hover { border-color: #6b5bb0; background: #171426; }
+  a.lab h2 { font-size: 16px; margin: 0 0 4px; }
+  a.lab p { margin: 0; color: #9a93b0; font-size: 13.5px; }
+  .gone { opacity: .45; border-style: dashed; }
+  .note { margin-top: 30px; color: #7a7392; font-size: 13px; }
+  code { font: 12.5px ui-monospace, monospace; color: #b7aee0; }
+</style>
+<div class="wrap">
+  <h1>Sidecar manual tests</h1>
+  <p class="sub">Load Sidecar unpacked, press Connect on a page, approve once. Each page says what
+  to expect, case by case. Nothing on either page can spend or publish anything.</p>
+
+  <a class="lab" href="invoice-lab.html" id="invoice">
+    <h2>Invoice lab</h2>
+    <p>Every shape a payable invoice turns up in: a link in a feed, a zap modal, a QR, a clipboard
+    copy, an expired one. Tests which get the overlay card and which get the quiet pill.</p>
+  </a>
+
+  <a class="lab" href="encrypt-lab.html" id="encrypt">
+    <h2>Encrypt lab</h2>
+    <p>Encrypt and decrypt approvals: to yourself, to someone else, NIP-04, a 2,000 character
+    plaintext, hostile text, and the two-prompt sequence from #305.</p>
+  </a>
+
+  <p class="note">A page shown dashed is on a branch that isn't checked out. Both live under
+  <code>test/manual/</code>.</p>
+</div>
+<script>
+  // Mark whichever lab isn't present on this branch, rather than leaving a 404 to click.
+  for (const id of ['invoice', 'encrypt']) {
+    const a = document.getElementById(id);
+    fetch(a.getAttribute('href'), { method: 'HEAD' })
+      .then((r) => { if (!r.ok) a.classList.add('gone'); })
+      .catch(() => a.classList.add('gone'));
+  }
+</script>

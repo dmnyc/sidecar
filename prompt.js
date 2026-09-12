@@ -391,7 +391,15 @@
       els.preview.innerHTML = row('From', peerLabel());
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
-      els.preview.innerHTML = row('To', peerLabel());
+      // WHAT, not just to whom. Reported in #305: an app storing settings costs two
+      // prompts, one to encrypt and one to sign, and neither says what is inside, so
+      // "approve" is a decision taken blind. The plaintext is already in this payload,
+      // because params is handed over whole; it was simply never drawn. Nothing new is
+      // exposed by showing it: the page wrote this text and is asking us to seal it.
+      const plain = String((data.params && data.params.plaintext) || '');
+      els.preview.innerHTML =
+        row('To', peerLabel()) +
+        (plain ? row('Sealing', clampText(plain, 220), 'prose sealed') : '');
       els.preview.classList.remove('hidden');
     }
   }
