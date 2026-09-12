@@ -1394,8 +1394,9 @@
         placeholder: 'Write a comment about this page\u2026',
         onChange: (text) => saveWebCommentDraft(state.activePubkey, target, text),
       });
-      // NO DRAFT STORE HERE, unlike the post composer: a comment lost to a stray click on
-      // the background is gone. That makes this the surface the guard exists for.
+      // Kept in memory against this page, not in the encrypted store the post composer
+      // uses: a comment survives a closed modal for as long as the panel lives, and not
+      // past that. Weaker than a note's draft, which is why the guard exists here at all.
       _modalDismissGuard = () => !!commentEditor.getText().trim();
       const previewPane = h('div', { className: 'compose-preview hidden' });
 
@@ -6360,11 +6361,17 @@
     // Clicking the blank space beside a composer used to close it and take whatever you
     // had typed with it. It is the easiest gesture in the panel to make by accident and
     // the most expensive one to get wrong, so a composer holding something does not
-    // answer it. Cancel is still there, and still discards.
+    // answer it. Cancel is still there, and closes.
+    //
+    // It does NOT discard, which is what this used to say. Both composers that arm this
+    // guard keep what you wrote: the note composer autosaves to the encrypted draft store
+    // and offers it back, and a web comment is held in memory against its page. Telling
+    // someone a button discards their work, when the work survives, is the kind of wrong
+    // that makes people retype things.
     if (_modalDismissGuard) {
       let hold = false;
       try { hold = !!_modalDismissGuard(); } catch (_) { hold = false; }
-      if (hold) return toast('Use Cancel to discard this.', 'info');
+      if (hold) return toast('Use Cancel to close. Your draft is kept.', 'info');
     }
     closeModal();
   });

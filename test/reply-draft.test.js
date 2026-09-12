@@ -135,3 +135,24 @@ test('drafts saved before this change still load', () => {
   const fn = stripComments(source.match(/const draftKey = .*/)[0]);
   assert.match(fn, /replyTo && replyTo\.id \? pubkey \+ '\|r:' \+ replyTo\.id : pubkey/, 'the main slot key changed');
 });
+
+// ---- and the copy that describes all this ------------------------------------------------
+
+test('THE BACKDROP TOAST DOES NOT CLAIM CANCEL DISCARDS', () => {
+  // It said "Use Cancel to discard this." Cancel is closeModal, and the composer persists
+  // its draft on close, so the one sentence Sidecar says about the subject was the one
+  // thing that was not true. Both modals arming this guard keep what you wrote: a note in
+  // the encrypted draft store, a web comment in memory against its page.
+  const at = source.indexOf("_modalDismissGuard()");
+  assert.ok(at !== -1, 'the dismiss guard moved');
+  const block = stripComments(source.slice(at - 400, at + 400));
+  assert.doesNotMatch(block, /discard/i, 'the toast still tells people their work is thrown away');
+  assert.match(block, /Your draft is kept/, 'the toast no longer says what happens to the text');
+});
+
+test('cancel really does keep the draft, which is what makes that copy true', () => {
+  // Pinned because the copy is only honest while this is: persistDraft on close, for
+  // anything actually edited.
+  const fn = stripComments(lift('async function openComposer('));
+  assert.match(fn, /if \(!published && enteredEditor\) persistDraft\(\)/, 'closing no longer saves the draft');
+});
