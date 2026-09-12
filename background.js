@@ -3662,7 +3662,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // config it has no business fingerprinting.
     let cardHost = '';
     try { cardHost = new URL((sender && sender.url) || '').host; } catch (_) {}
-    Promise.all([sget('sidecar_settings'), getSiteAccount(cardHost)]).then(([{ sidecar_settings }, bound]) => {
+    Promise.all([sget('sidecar_settings'), getSiteAccount(cardHost)]).then(async ([{ sidecar_settings }, bound]) => {
       // Plus whether the auto-zap offer is worth showing on the payment card. This
       // reveals nothing the card doesn't already imply — if auto-zap were on and
       // covered the amount, no card would have appeared at all. The cap is a product
@@ -3681,12 +3681,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // bound to two different accounts used to see one shared value, which correlated
       // those accounts as one person. Now they see each account's own theme.
       const by = st.themeBy || {};
+      // And whether there is a wallet to pay WITH. Reported for the bound account for the
+      // same reason the theme is, and readable while locked because hasNwc only checks
+      // that an entry exists.
+      //
+      // This is the gate on offering anything at all. Reported by a user who had just
+      // imported a key, had configured no wallet, and was met by a payment card for an
+      // invoice a site put on the page: there was no outcome that card could have
+      // produced except alarm. It costs one bit of fingerprint (a page that can get an
+      // invoice on screen learns whether you have a wallet), which is worth less than
+      // offering people a payment they cannot make.
+      let hasWallet = false;
+      try { hasWallet = await KS.hasNwc(await resolveSiteAccount(cardHost)); } catch (_) {}
       sendResponse({
         ok: true,
         result: {
           showPayButton: st.showPayButton,
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
           cardTheme: (bound && by[bound]) || st.theme || '',
+          hasWallet,
         },
       });
     });

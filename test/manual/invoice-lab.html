@@ -1,0 +1,216 @@
+<!--
+  Invoice lab: every shape a payable invoice turns up in, in one page.
+
+  Built for the report that a full-screen "You're paying 33,000 sats" card appeared on
+  ditto.pub seconds after a fresh install, with no wallet connected and nothing clicked.
+  Kept because reproducing that by waiting for a real invoice to appear is not a plan.
+
+  Run it:
+
+      python3 -m http.server 8021 -d test/manual
+      open http://localhost:8021/invoice-lab.html
+
+  It has to be a real origin, not file://, and Sidecar only offers anything on a page it
+  is connected to, so press "Connect with Nostr" once and approve. Localhost ports are
+  separate sites in Sidecar, so port 8021 gets its own approval and its own binding.
+
+  Nothing here can be spent. The invoices are generated at load: 21 sats, bogus payment
+  hash, no signature, padded to a realistic length because invoiceExpired ignores anything
+  shorter. They pass Sidecar's regex and expiry check, which is the point, and no wallet
+  will settle one.
+
+  To ask the detector directly why a given element did or did not count, lift QR_SEL,
+  PAGE_LEVEL, isPanelSized, isOverlay and hasPayIntent out of content.js into a probe.js
+  beside this file and call hasPayIntent on the element. Not committed, because a copy of
+  those functions living here would drift from the ones that matter.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar invoice lab</title>
+<style>
+  body { margin: 0; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 24px 120px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #9a93b0; margin: 0 0 28px; }
+  .bar { position: sticky; top: 0; background: #171426; border: 1px solid #2c2740; border-radius: 12px;
+         padding: 14px 16px; margin-bottom: 26px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .bar b { font-weight: 600; }
+  button { font: inherit; padding: 7px 13px; border-radius: 9px; border: 1px solid #3a3356;
+           background: #221d38; color: #e7e3f0; cursor: pointer; }
+  button:hover { border-color: #6b5bb0; }
+  .case { border: 1px solid #2c2740; border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; }
+  .case h2 { font-size: 15px; margin: 0 0 2px; }
+  .case p { margin: 0 0 12px; color: #9a93b0; font-size: 13.5px; }
+  .expect { color: #cba14e; }
+  .none { color: #7fb8a0; }
+  .slot { margin-top: 12px; }
+  .modal { border: 1px solid #3a3356; border-radius: 10px; padding: 14px; background: #1b1730; }
+  input { font: 13px ui-monospace, monospace; width: 100%; box-sizing: border-box; padding: 8px;
+          border-radius: 8px; border: 1px solid #3a3356; background: #12101a; color: #cfc7e6; }
+  code { font: 12.5px ui-monospace, monospace; color: #b7aee0; word-break: break-all; }
+  a.ln { color: #f0a860; }
+  .qr { width: 108px; height: 108px; background: #fff; border-radius: 8px; }
+</style>
+
+<div class="wrap">
+  <h1>Sidecar invoice lab</h1>
+  <p class="sub">The rule: <b>if you asked for it, you get the overlay card; if you might not know
+  it is there, you get the corner pill.</b> "Asked" means the invoice is inside a payment panel you
+  opened, which is decided by markup (a dialog role), by a QR beside it, or by layout (a fixed
+  overlay).</p>
+  <p class="sub">Every invoice here is structurally valid and completely bogus: 21 sats, fake payment
+  hash, no signature. Nothing can be spent, and a wallet will reject it if you do press Pay.</p>
+
+  <div class="bar">
+    <button id="connect">Connect with Nostr</button>
+    <span id="state">not connected</span>
+  </div>
+
+  <div class="case">
+    <h2>1. A <code>lightning:</code> link, just sitting there</h2>
+    <p>The reporter's class of problem. <span class="expect">Expect a pill, no card.</span>
+    Then click the link itself: <span class="expect">that opens the card</span>, because a tap is a
+    request to pay.</p>
+    <button data-show="a">Show it</button> <button data-hide="a">Remove</button>
+    <div class="slot" id="slot-a"></div>
+  </div>
+
+  <div class="case">
+    <h2>2. An invoice beside a QR code</h2>
+    <p>The shape of every zap modal, and a QR is something you had to open. <span class="expect">Expect
+    the card.</span></p>
+    <button data-show="b">Show it</button> <button data-hide="b">Remove</button>
+    <div class="slot" id="slot-b"></div>
+  </div>
+
+  <div class="case">
+    <h2>3. An invoice in a field inside a dialog</h2>
+    <p><span class="expect">Expect the card.</span> A field only counts when it sits in a dialog or
+    beside a QR, and <code>role="dialog"</code> is the plainest way a page says so.</p>
+    <button data-show="c">Show it</button> <button data-hide="c">Remove</button>
+    <div class="slot" id="slot-c"></div>
+  </div>
+
+  <div class="case">
+    <h2>4. The page copies an invoice to your clipboard</h2>
+    <p>A gesture, but with no payment panel on screen to tie it to, so it stays quiet.
+    <span class="expect">Expect a pill.</span> Copying from inside a real modal takes case 2's path
+    instead and stays loud.</p>
+    <button id="copy">Copy an invoice</button>
+  </div>
+
+  <div class="case">
+    <h2>5. A bare invoice in a paragraph</h2>
+    <p><span class="none">Expect nothing whatsoever.</span> Invoice text on its own is not a pay
+    intent, and if this ever produces a pill the detector has grown too broad.</p>
+    <button data-show="e">Show it</button> <button data-hide="e">Remove</button>
+    <div class="slot" id="slot-e"></div>
+  </div>
+
+  <div class="case">
+    <h2>6. An expired invoice as a link</h2>
+    <p><span class="none">Expect nothing.</span> Expired invoices are filtered before anything is
+    offered.</p>
+    <button data-show="f">Show it</button> <button data-hide="f">Remove</button>
+    <div class="slot" id="slot-f"></div>
+  </div>
+
+  <div class="case">
+    <h2>7. An invoice that carries a memo</h2>
+    <p>Same as case 1, with a BOLT11 description on it. <span class="expect">Expect a pill, and
+    the memo on the card</span> once you open it: the card has always shown one, there just
+    wasn't an invoice around with a description to show.</p>
+    <button data-show="g">Show it</button> <button data-hide="g">Remove</button>
+    <div class="slot" id="slot-g"></div>
+  </div>
+
+  <div class="case">
+    <h2>8. A payment panel like a real client's</h2>
+    <p>A fixed overlay with a QR image and a <code>lightning:</code> link inside, which is what
+    Jumble's zap panel looks like. <span class="expect">Expect the card.</span> This is the case
+    that was broken: the link branch runs first and used to stamp it passive before anything
+    looked at the panel around it.</p>
+    <button data-show="h">Open the panel</button> <button data-hide="h">Close</button>
+    <div class="slot" id="slot-h"></div>
+  </div>
+</div>
+
+<script>
+  // Built at load, so the lab cannot go stale. 21 sats, no signature, bogus payment hash:
+  // it passes Sidecar's regex and expiry check, which is the point, and no wallet on earth
+  // will settle it. The data part is padded to 117 characters because invoiceExpired needs
+  // a realistic length (7 timestamp + 104 signature + 6 checksum) before it will even look.
+  const CS = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const enc = (n) => { let s = ''; for (let i = 6; i >= 0; i--) s += CS[(n >> (5 * i)) & 31]; return s; };
+  const mk = (ts, memo) => {
+    let tagged = '';
+    if (memo) {
+      // BOLT11 tagged field 'd' (description): tag char, two words of length, then the
+      // UTF-8 bytes regrouped into 5-bit words. This is what the card's memo line reads.
+      const words = []; let acc = 0, bits = 0;
+      for (const b of new TextEncoder().encode(memo)) {
+        acc = (acc << 8) | b; bits += 8;
+        while (bits >= 5) { bits -= 5; words.push((acc >> bits) & 31); }
+      }
+      if (bits) words.push((acc << (5 - bits)) & 31);
+      tagged = CS[13] + enc2(words.length) + words.map((x) => CS[x]).join('');
+    }
+    return 'lnbc210n1' + enc(ts) + tagged + 'q'.repeat(110);
+  };
+  const enc2 = (n) => CS[(n >> 5) & 31] + CS[n & 31];
+  const now = Math.floor(Date.now() / 1000);
+  const INV = mk(now);                                   // fresh, no description
+  const OLD = mk(now - 86400);                           // a day old, so the expiry filter drops it
+  const MEMO = mk(now, 'Coffee at the Blue Door');       // carries a BOLT11 description
+
+  const state = document.getElementById('state');
+  function paint() {
+    const n = !!window.nostr, w = !!window.webln;
+    state.innerHTML = 'window.nostr: <b>' + (n ? 'yes' : 'no') +
+      '</b> &nbsp; window.webln: <b>' + (w ? 'yes' : 'no') + '</b> &nbsp; ' + (state.dataset.pk || 'not connected');
+  }
+  paint();
+
+  document.getElementById('connect').addEventListener('click', async () => {
+    try {
+      const pk = await window.nostr.getPublicKey();
+      state.dataset.pk = 'connected as ' + pk.slice(0, 12) + '…';
+    } catch (e) {
+      state.dataset.pk = 'refused: ' + e.message;
+    }
+    paint();
+  });
+
+  const build = {
+    a: () => '<a class="ln" href="lightning:' + INV + '">Pay 21 sats with Lightning</a>',
+    b: () => '<div class="modal"><canvas class="qr" width="108" height="108"></canvas>' +
+             '<p style="margin:10px 0 0"><code>' + INV + '</code></p></div>',
+    c: () => '<div class="modal" role="dialog" aria-modal="true"><p style="margin:0 0 8px">Pay this invoice</p>' +
+             '<input value="' + INV + '" readonly></div>',
+    e: () => '<p><code>' + INV + '</code></p>',
+    f: () => '<a class="ln" href="lightning:' + OLD + '">An expired invoice</a>',
+    g: () => '<a class="ln" href="lightning:' + MEMO + '">Pay 21 sats \u2014 Coffee at the Blue Door</a>',
+    h: () => '<div style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;' +
+             'justify-content:center;background:rgba(0,0,0,.55)">' +
+             '<div style="background:#1b1730;border:1px solid #3a3356;border-radius:14px;padding:22px;text-align:center">' +
+             '<p style="margin:0 0 12px;font-size:15px">Payment Request</p>' +
+             '<p style="margin:0 0 14px;font-size:26px"><b>21</b> sats</p>' +
+             '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" ' +
+             'alt="scan me" style="width:132px;height:132px;background:#fff;border-radius:8px;display:block;margin:0 auto 14px">' +
+             '<a class="ln" href="lightning:' + INV + '">Open in wallet</a></div></div>',
+  };
+  document.querySelectorAll('[data-show]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const k = b.dataset.show;
+      document.getElementById('slot-' + k).innerHTML = build[k]();
+      const c = document.querySelector('#slot-' + k + ' canvas');
+      if (c) { const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 108, 108);
+               x.fillStyle = '#000'; for (let i = 0; i < 64; i++) x.fillRect((i * 13) % 96 + 6, ((i * 29) % 96) + 6, 8, 8); }
+    }));
+  document.querySelectorAll('[data-hide]').forEach((b) =>
+    b.addEventListener('click', () => { document.getElementById('slot-' + b.dataset.hide).innerHTML = ''; }));
+
+  document.getElementById('copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(INV); } catch (e) { alert('clipboard refused: ' + e.message); }
+  });
+</script>
