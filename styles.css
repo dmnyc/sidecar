@@ -4071,6 +4071,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .emoji-quick { display: flex; gap: 4px; margin: 2px 0 4px; }
 .emoji-scroll { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
 .emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; }
+/* The "nothing matched" line is appended INTO that grid, so without this it becomes a
+   single 34px cell and wraps one word per line. Spanning every column is what makes it
+   a sentence again. */
+.emoji-grid .emoji-none { grid-column: 1 / -1; margin: 6px 2px; }
 .emoji-cell {
   background: none; border: 1px solid transparent; border-radius: 8px;
   padding: 0; aspect-ratio: 1; min-height: 34px;

@@ -344,7 +344,10 @@ test('search reads across every group', () => {
   // having a search box over a table that is already grouped.
   const f = stripComments(lift('function emojiPickerOver('));
   assert.match(f, /for \(const \[, rows\] of groups\)/, 'search no longer covers every group');
-  assert.match(f, /row\[1\]\.includes\(q\)/, 'search no longer matches on the name');
+  // row[2] is the search haystack: the name lowercased, with any curated aliases folded
+  // in beside it. It was row[1], the raw name, which is why a lowercase "ital" could not
+  // find "flag Italy".
+  assert.match(f, /row\[2\]\.includes\(q\)/, 'search no longer matches on the name');
   assert.match(f, /No emoji matches that/, 'a search with no hits says nothing');
 });
 
@@ -354,7 +357,9 @@ test('A MISSING EMOJI TABLE SAYS SO', () => {
   const f = stripComments(lift('function emojiPickerOver('));
   assert.match(f, /The emoji table did not load/, 'a missing table leaves an empty sheet');
   const g = stripComments(lift('function emojiGroups('));
-  assert.match(g, /Array\.isArray\(table\) && table\.length/, 'the table is trusted without checking');
+  // Written either way round over time; what matters is that both halves are still asked.
+  assert.match(g, /Array\.isArray\(table\)/, 'the table is trusted without checking its shape');
+  assert.match(g, /table\.length/, 'an empty table is trusted without checking');
 });
 
 test('the vendored table is loaded by the panel', () => {
