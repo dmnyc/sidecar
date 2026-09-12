@@ -4132,9 +4132,64 @@
   // which of the nine "shrug" is in. Results are capped for the same reason as above.
   const EMOJI_SEARCH_MAX = 120;
 
+  // Match at a WORD START, never mid-word. Substring matching gave "love" a boxing glove
+  // and a pair of mittens, through "glove", while the words people actually type are
+  // prefixes: "surpris", "ital", "lovely". The haystack carries a leading space and has
+  // its punctuation flattened, so this is one indexOf rather than a regex per row.
+  const emojiHit = (hay, q) => hay.includes(' ' + q);
+  const emojiQuery = (raw) => raw.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+  // Words no emoji dataset carries, because they are associations rather than
+  // descriptions. Checked before writing this: emojibase tags 🇮🇹 as "IT, flag", 🍝 as
+  // "pasta, meatballs, restaurant" and 🤌 as "gesture, sarcastic, huh" — nothing ties any
+  // of them to Italy, and nothing anywhere says "spock" or "llap". iOS has them because
+  // Apple curates them by hand, and so do we.
+  //
+  // Each line is a decision somebody made, not a claim about what an emoji means. Add a
+  // word the moment you notice yourself typing it and getting nothing.
+  const EMOJI_ALIASES = {
+    spock: ['🖖'],
+    llap: ['🖖'],
+    italian: ['🇮🇹', '🍕', '🍝', '🤌'],
+  };
+
+  // The table, prepared once for searching: name lowercased, aliases folded in.
+  //
+  // THE NAMES ARE NOT ALL LOWERCASE. 338 of the 1,914 carry a capital — every flag is
+  // "flag Italy", "flag Japan" — and the search lowercased only the query, so "ital"
+  // matched nothing while "Ital" matched. Every flag in the picker was unreachable by the
+  // way anyone would actually type it.
+  //
+  // Done at index time rather than per keystroke: the search already runs across the
+  // whole table on a debounce, and lowercasing 1,914 strings on every one of those was
+  // the reason not to fix it in the comparison.
+  let _emojiIndex = null;
   function emojiGroups() {
+    if (_emojiIndex) return _emojiIndex;
     const table = self.SidecarEmoji;
-    return Array.isArray(table) && table.length ? table : null;
+    if (!Array.isArray(table) || !table.length) return null;
+    const extra = new Map();
+    for (const [term, chars] of Object.entries(EMOJI_ALIASES)) {
+      for (const ch of chars) extra.set(ch, (extra.get(ch) || []) + ' ' + term);
+    }
+    // [char, name, haystack] — paintGrid reads the first two and ignores the rest.
+    //
+    // The haystack is the name, the vendored CLDR keywords and any alias, lowercased,
+    // with every run of punctuation flattened to a space and a space in front. That last
+    // detail lets the search match at word starts without a regex per row, and the
+    // punctuation pass is why "eyes" still finds "smiling face with heart-eyes".
+    // Unicode-aware, because "Åland Islands" and "Côte d'Ivoire" are in this table.
+    _emojiIndex = table.map(([group, rows]) => [
+      group,
+      rows.map(([ch, name, keywords]) => [
+        ch,
+        name,
+        ' ' + (name + ' ' + (keywords || '') + (extra.get(ch) || ''))
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, ' '),
+      ]),
+    ]);
+    return _emojiIndex;
   }
 
   // A short row of the ones people actually reach for, above the grid. Same idea as the
@@ -4235,13 +4290,13 @@
         // Debounced: a query runs over every name in the table, and doing that per
         // keystroke while someone types "party" is five passes for one answer.
         searchTimer = setTimeout(() => {
-          const q = search.value.trim().toLowerCase();
+          const q = emojiQuery(search.value);
           if (!q) { showGroup(active); return; }
           [...tabs.children].forEach((t) => t.classList.remove('active'));
           const hits = [];
           for (const [, rows] of groups) {
             for (const row of rows) {
-              if (row[1].includes(q)) {
+              if (emojiHit(row[2], q)) {
                 hits.push(row);
                 if (hits.length >= EMOJI_SEARCH_MAX) break;
               }
@@ -4249,7 +4304,7 @@
             if (hits.length >= EMOJI_SEARCH_MAX) break;
           }
           paintGrid(hits);
-          if (!hits.length) grid.append(h('p', { className: 'hint', textContent: 'No emoji matches that.' }));
+          if (!hits.length) grid.append(h('p', { className: 'hint emoji-none', textContent: 'No emoji matches that.' }));
         }, 120);
       });
 
