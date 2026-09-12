@@ -17,6 +17,15 @@
   // a live invoice on a nostr client you're signed into is a real pay intent; an
   // invoice anywhere else is almost always noise (and invoices are time-sensitive).
   let connectedToSite = false;
+  // Whether there is a wallet to pay WITH. Nothing is offered without one: a payment
+  // that cannot succeed is pure interruption. Read once on load and re-read the moment
+  // an invoice turns up while this is false, so connecting a wallet takes effect without
+  // a page reload.
+  let hasWallet = false;
+  let walletAsked = '';
+  // 'pill' or 'card' — which of the two is on screen, so a re-scan does not swap one for
+  // the other underneath the user.
+  let shownMode = '';
 
   const SCOPE_TO_TYPE = {
     nostr: 'SIDECAR_NOSTR_RPC',
@@ -280,6 +289,34 @@
   // Is this node inside a deliberate pay/zap surface — a modal dialog, a payment
   // web component (Bitcoin Connect / WalletConnect), or next to a QR — rather
   // than an invoice incidentally rendered in page content?
+  // Page-level containers are never evidence of anything: body.querySelector finds a
+  // modal's QR from anywhere in the document, which made every link on the page look
+  // like a payment the moment one modal was open.
+  const PAGE_LEVEL = new Set(['body', 'html', 'main', 'article', 'section']);
+
+  // Small enough to be a payment panel rather than a page. 60 elements is generous for a
+  // modal (amount, memo, QR, a couple of buttons) and nowhere near a timeline.
+  function isPanelSized(el) {
+    try { return el.querySelectorAll('*').length <= 60; } catch (_) { return false; }
+  }
+
+  // A modal by LAYOUT rather than by markup. Not every dialog sets role="dialog", and a
+  // QR rendered as a plain data: <img> is invisible to QR_SEL, so a payment panel built
+  // without either was indistinguishable from a link in a feed. What every one of them
+  // does have is an ancestor pinned over the page.
+  function isOverlay(el) {
+    try {
+      const cs = getComputedStyle(el);
+      if (cs.position !== 'fixed') return false;
+      const z = Number(cs.zIndex);
+      const r = el.getBoundingClientRect();
+      const area = (r.width * r.height) / (innerWidth * innerHeight || 1);
+      return (Number.isFinite(z) && z >= 10) || area >= 0.25;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function hasPayIntent(el) {
     let node = el, hops = 0;
     while (node && hops < 24) {
@@ -290,9 +327,15 @@
           const role = node.getAttribute('role');
           if (role === 'dialog' || role === 'alertdialog' || node.getAttribute('aria-modal') === 'true') return true;
         }
-        if (hops <= 8 && node.querySelector) {
+        // A QR NEAR the invoice is evidence; a QR somewhere else on the page is not. Both
+        // limits are load-bearing: the hop count keeps the search inside the thing the
+        // invoice belongs to, and the size cap rejects an ancestor that is really the page
+        // in disguise. Excluding body and main alone was not enough, because a wrapper div
+        // around a whole feed reaches every QR in it just as well.
+        if (hops <= 4 && node.querySelector && !PAGE_LEVEL.has(tag) && isPanelSized(node)) {
           try { if (node.querySelector(QR_SEL)) return true; } catch (_) {}
         }
+        if (isOverlay(node)) return true;
       }
       node = node.parentNode || node.host || null;
       hops++;
@@ -304,12 +347,21 @@
   // clear intent (a lightning: link, or an invoice inside a pay/zap modal or
   // beside a QR) and not expired. A bare invoice sitting in page text/content is
   // ignored so it can't interrupt the user. Returns '' when there's nothing to act on.
+  // Returns '' or { invoice, asked } — `asked` meaning the page is already showing a
+  // payment UI the user must have opened to get here. That distinction decides everything
+  // downstream: a zap modal exists because somebody clicked zap, and interrupting them
+  // with the card they were about to want is the whole point of the feature. A link
+  // scrolling past in a feed is not that.
   function findPageInvoice() {
     // Pierce shadow DOM — web-component modals (e.g. Bitcoin Connect) render
     // inside a shadow root. Collect candidates across all roots, then qualify.
     const roots = [document];
     const fields = [];
     const qrEls = [];
+    // The best UNASKED candidate, held back until every asked-for one has had its chance.
+    // A link in a feed must never outrank a modal the user just opened, and links are
+    // scanned first, so without this the timeline wins by being earlier in the document.
+    let passive = '';
     for (let i = 0; i < roots.length && i < 2000; i++) {
       let links, inputs, qrs, all;
       try {
@@ -323,7 +375,15 @@
       // 1) lightning: links — an explicit, user-clickable pay intent.
       for (const a of links) {
         const m = INVOICE_RE.exec((a.getAttribute('href') || '').replace(/^lightning:/i, ''));
-        if (m) { const inv = m[0].toLowerCase(); if (!invoiceExpired(inv)) return inv; }
+        // A lightning: link gets the same question as an invoice in a field: is it inside
+        // something the user opened? A link in a zap modal is the modal's own pay button
+        // and belongs to the loud path; the identical link in a note scrolling past does
+        // not. Without this the link branch, which runs first, stamped both as passive.
+        if (!m) continue;
+        const inv = m[0].toLowerCase();
+        if (invoiceExpired(inv)) continue;
+        if (hasPayIntent(a)) return { invoice: inv, asked: true };
+        if (!passive) passive = inv;
       }
       for (const f of inputs) fields.push(f);
       for (const q of qrs) qrEls.push(q);
@@ -334,7 +394,9 @@
       const m = INVOICE_RE.exec(f.value || f.getAttribute('value') || '');
       if (!m) continue;
       const inv = m[0].toLowerCase();
-      if (!invoiceExpired(inv) && hasPayIntent(f)) return inv;
+      // hasPayIntent is the qualifier: a dialog, a modal, or a QR beside it. All of
+      // those are on screen because the user opened them.
+      if (!invoiceExpired(inv) && hasPayIntent(f)) return { invoice: inv, asked: true };
     }
     // 3) invoice rendered as text right beside a QR (the common zap-modal shape).
     for (const q of qrEls) {
@@ -345,14 +407,19 @@
         const m = INVOICE_TEXT_RE.exec(text);
         if (m) {
           const inv = m[0].toLowerCase();
-          if (!invoiceExpired(inv)) return inv;
+          if (!invoiceExpired(inv)) return { invoice: inv, asked: true };
           break; // expired — move on to the next QR
         }
         node = node.parentNode || node.host || null;
         hops++;
       }
     }
-    // 4) an invoice the page copied to the clipboard. Last, so an explicit
+    // 4) a link that was only ever sitting there. After the two asked-for shapes above,
+    // so a modal always outranks the timeline behind it, and before the clipboard for the
+    // reason the next comment gives.
+    if (passive) return { invoice: passive, asked: false };
+
+    // 5) an invoice the page copied to the clipboard. Last, so an explicit
     // lightning: link or a visible invoice still wins — those are the same
     // payment described more directly, and re-derived fresh on every scan.
     if (copiedInvoice) {
@@ -367,7 +434,10 @@
         copiedInvoice = '';
         copiedAt = 0;
       } else {
-        return copiedInvoice;
+        // A copy is a gesture, but there is no payment UI on screen to tie it to, so it
+        // stays quiet. When the copy came from a modal the QR branch above has already
+        // claimed it with asked: true.
+        return { invoice: copiedInvoice, asked: false };
       }
     }
     return '';
@@ -400,6 +470,30 @@
     '<path d="M375.39 109.759C372.797 112.64 371.501 115.377 371.501 117.969C371.501 121.714 373.517 123.587 377.55 123.587C379.567 123.587 382.015 122.435 384.896 120.13C388.065 117.825 389.65 115.377 389.65 112.784C389.65 110.191 388.929 108.319 387.489 107.166C386.337 105.726 384.608 105.006 382.304 105.006C380.287 105.006 377.982 106.59 375.39 109.759ZM310.571 210.444C310.571 213.613 312.588 215.197 316.621 215.197C324.975 215.197 336.787 208.283 352.055 194.455C352.919 193.303 353.783 192.727 354.648 192.727C355.8 192.727 356.376 193.447 356.376 194.887C356.376 198.344 350.471 203.818 338.659 211.308C327.136 218.798 316.765 222.543 307.546 222.543C301.209 222.543 298.04 219.23 298.04 212.604C298.04 208.859 299.912 204.394 303.657 199.208C305.098 197.48 306.97 195.319 309.275 192.727C311.58 189.846 313.596 187.253 315.325 184.948C317.341 182.644 321.23 178.178 326.992 171.553C332.754 164.639 337.219 159.165 340.388 155.132C343.845 151.099 346.149 148.65 347.302 147.786C348.454 146.634 349.75 146.057 351.191 146.057C352.919 146.057 354.216 146.489 355.08 147.354C356.232 148.218 356.808 149.226 356.808 150.379C356.808 151.531 355.944 152.971 354.216 154.7L321.806 191.43C314.316 199.496 310.571 205.834 310.571 210.444Z" fill="#BDA1FF"/>' +
     '<path d="M200.691 204.394C200.691 195.751 204.148 188.693 211.062 183.22C217.976 177.746 225.466 175.01 233.532 175.01C241.886 175.01 246.063 178.611 246.063 185.813C246.063 188.982 244.911 192.15 242.606 195.319C240.59 198.488 238.285 200.073 235.693 200.073C233.388 200.073 232.236 199.208 232.236 197.48C232.236 195.463 233.1 193.591 234.828 191.862C236.845 190.134 237.853 188.405 237.853 186.677C237.853 181.779 235.548 179.331 230.939 179.331C226.33 179.331 221.865 181.491 217.543 185.813C213.51 189.846 211.494 194.743 211.494 200.505C211.494 205.978 212.934 210.588 215.815 214.333C218.696 218.078 223.161 219.95 229.211 219.95C235.548 219.95 240.878 217.358 245.199 212.172C249.809 206.699 253.266 200.217 255.57 192.727C257.875 184.948 260.324 177.17 262.916 169.392C265.797 161.614 269.974 155.132 275.448 149.946C281.209 144.473 287.403 141.736 294.029 141.736C300.655 141.736 305.84 142.888 309.585 145.193C313.331 147.21 315.203 149.946 315.203 153.403C315.203 156.86 313.763 160.173 310.882 163.342C308.289 166.511 305.408 168.096 302.239 168.096C299.07 168.096 297.342 167.375 297.054 165.935C297.054 163.63 298.638 161.614 301.807 159.885C303.536 159.309 304.4 157.293 304.4 153.836C304.4 149.226 301.231 146.922 294.893 146.922C288.556 146.922 283.226 151.099 278.905 159.453C274.584 167.519 271.271 176.45 268.966 186.245C266.949 195.751 262.34 204.682 255.138 213.036C247.936 221.103 238.285 225.136 226.186 225.136C218.696 225.136 212.79 223.407 208.469 219.95C204.148 216.493 201.843 213.036 201.555 209.579L200.691 204.394Z" fill="#BDA1FF"/>' +
     '</svg>';
+
+  // The quiet state. A corner pill, no overlay and no dialog role, because an invoice
+  // nobody asked to pay is a fact rather than a question: it should be possible to ignore
+  // it for the whole session without ever reading it. Tapping it opens the card below,
+  // which is where the decision and the spend live.
+  const PILL_CSS =
+    '.pw{position:fixed;right:18px;bottom:18px;z-index:2147483647;' +
+    'font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
+    'opacity:0;transform:translateY(6px);transition:opacity .18s ease,transform .18s ease;}' +
+    '.pw.in{opacity:1;transform:none;}' +
+    '.pill{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 11px;border-radius:999px;' +
+    'border:1px solid {CARD_BORDER};{CARD_COLOR};' +
+    // The card's own background, held at CARD SCALE rather than stretched to a pill: it is
+    // two layers, and a radial tuned for a 340px card turns into a wash of its own top
+    // corner at this size. Opaque either way, which a pill sitting on someone else's page
+    // has to be.
+    'background:{CARD_BACKGROUND};background-size:340px 240px;background-position:50% 0;' +
+    'box-shadow:0 8px 24px rgba(0,0,0,0.38);cursor:pointer;font-size:13px;line-height:1;}' +
+    '.pill:hover{border-color:{CARD_BORDER_FAINT};}' +
+    '.pill .b{width:13px;height:auto;flex:0 0 auto;{CARD_GOLD};}' +
+    '.pill .t{white-space:nowrap;}' +
+    '.pill .t b{font-weight:600;}' +
+    '.x{all:unset;cursor:pointer;padding:2px 4px;margin-left:2px;border-radius:6px;opacity:.55;font-size:14px;}' +
+    '.x:hover{opacity:1;}';
 
   const CARD_CSS =
     '.ov{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;' +
@@ -499,7 +593,14 @@
     if (!CARD_THEMES.has(t)) return;
     if (t === cardTheme) return;
     cardTheme = t;
-    if (cardHost && shownInvoice) renderCard(shownInvoice); // refresh a visible card
+    // Repaint whatever is actually showing, IN ITS OWN MODE. This used to call
+    // renderCard unconditionally, which turned a pill into a full card the moment the
+    // theme reply landed (and, before the pill existed, turned an auto-zap card into a
+    // manual one offering to pay a zap already in flight).
+    if (cardHost && shownInvoice) {
+      if (shownMode === 'pill') renderPill(shownInvoice);
+      else renderCard(shownInvoice, shownMode === 'auto');
+    }
   }
   // The settings read below carries it too, but that one races the first scan; this asks
   // as early as possible so a card detected immediately still opens in the right palette.
@@ -949,11 +1050,58 @@
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
     cardHost = null;
     shownInvoice = '';
+    shownMode = '';
     cardControls = null;
     if (escHandler) {
       window.removeEventListener('keydown', escHandler, true);
       escHandler = null;
     }
+  }
+
+  // What an invoice nobody asked about gets: a pill, not the card. Reported by a user who
+  // imported a key, logged into a client, and was met by a full-screen payment card for an
+  // invoice the page had put on screen by itself. Everything about that card was correct
+  // and none of it was wanted.
+  function renderPill(invoice) {
+    removeCard();
+    shownInvoice = invoice;
+    shownMode = 'pill';
+    const sats = invoiceSats(invoice);
+    const site = location.host.replace(/^www\./, '');
+    const amount = sats != null ? '<b>' + sats.toLocaleString('en-US') + '</b> sats' : 'An invoice';
+
+    cardHost = document.createElement('div');
+    cardHost.style.cssText = 'all:initial;';
+    const sh = cardHost.attachShadow({ mode: 'open' });
+    const colors = getThemeColors();
+    sh.innerHTML =
+      '<style>' + PILL_CSS.replace(/\{(\w+)\}/g, (m, k) =>
+        Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m) + '</style>' +
+      '<div class="pw"><div class="pill" role="button" tabindex="0" aria-label="' +
+      (sats != null ? sats + ' sat' : 'A') + ' Lightning invoice is payable on ' + escapeHtml(site) +
+      '. Open Sidecar to pay it.">' +
+      bolt('b') + '<span class="t">' + amount + ' payable</span>' +
+      '<button class="x" type="button" aria-label="Dismiss">\u00D7</button></div></div>';
+    (document.body || document.documentElement).appendChild(cardHost);
+    requestAnimationFrame(() => {
+      const w = sh.querySelector('.pw');
+      if (w) w.classList.add('in');
+    });
+
+    const open = () => renderCard(invoice);
+    const pill = sh.querySelector('.pill');
+    pill.addEventListener('click', (e) => {
+      if (e.target.closest('.x')) return; // the dismiss button has its own job
+      open();
+    });
+    pill.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
+    sh.querySelector('.x').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismissedInvoice = invoice; // same memory the card's "Not now" uses
+      removeCard();
+    });
   }
 
   // `auto` renders the same card for a zap going out under the auto-zap limits: no
@@ -962,11 +1110,19 @@
   function renderCard(invoice, auto) {
     removeCard();
     shownInvoice = invoice;
+    shownMode = auto ? 'auto' : 'card';
     const sats = invoiceSats(invoice);
     const memo = invoiceMemo(invoice);
     const site = location.host.replace(/^www\./, '');
 
-    const eyebrow = auto ? 'Auto-zapping' : sats != null ? "You're paying" : 'Pay with Sidecar';
+    // A REQUEST AWAITING AUTHORIZATION, not an announcement. "You're paying 33,000 sats"
+    // above a full-screen overlay reads as a charge already in progress, which is exactly
+    // how it was reported. This wording also matches the approval window's, where a site
+    // "wants to send a Lightning payment" and nothing moves until you say so.
+    //
+    // Auto-zapping is the deliberate exception: that spend IS underway and already
+    // authorized, so the present tense is the honest tense there.
+    const eyebrow = auto ? 'Auto-zapping' : 'Request to pay';
     const amountBlock =
       sats != null
         ? '<div class="amt"><span class="num">' + sats.toLocaleString('en-US') + '</span><span class="unit">sats</span></div>'
@@ -1010,7 +1166,7 @@
       '<div class="eyebrow">' + eyebrow + '</div>' +
       amountBlock +
       memoBlock +
-      '<div class="site">to an invoice on <b>' + escapeHtml(site) + '</b></div>' +
+      '<div class="site">' + (auto ? 'to an invoice on ' : 'found on ') + '<b>' + escapeHtml(site) + '</b></div>' +
       '<button class="pay" type="button"><span class="pay-spin"></span>' + bolt('pay-bolt') +
       '<svg class="pay-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
       '<span class="pay-label">Pay with Sidecar</span></button>' +
@@ -1186,8 +1342,23 @@
 
   function scanForInvoice() {
     if (!showCard || !connectedToSite) return removeCard();
-    const invoice = findPageInvoice();
+    const found = findPageInvoice();
+    const invoice = found && found.invoice;
     if (!invoice || invoice === dismissedInvoice) return removeCard();
+    // No wallet, nothing to offer. Asked again here rather than only at load, because
+    // the answer changes the moment someone connects one, and once per invoice is cheap.
+    if (!hasWallet) {
+      if (walletAsked !== invoice) {
+        walletAsked = invoice;
+        try {
+          chrome.runtime.sendMessage({ type: 'SIDECAR_GET_SETTINGS' }, (r) => {
+            if (chrome.runtime.lastError) return;
+            if (r && r.result && r.result.hasWallet) { hasWallet = true; scanForInvoice(); }
+          });
+        } catch (_) {}
+      }
+      return removeCard();
+    }
     if (invoice === shownInvoice && cardHost) return; // already showing this one
     if (invoice === autopayPending) return; // asking the worker; show nothing yet
     if (invoice !== autopayDeclined) {
@@ -1220,8 +1391,30 @@
         });
       return;
     }
-    renderCard(invoice);
+    // The one decision this whole change is about: did the person ask?
+    if (found.asked) renderCard(invoice);
+    else renderPill(invoice);
   }
+
+  // THE ONE PATH THAT STILL OPENS THE CARD BY ITSELF: a tapped `lightning:` link. That is
+  // a person asking to pay something, which is the whole distinction this file now draws.
+  // composedPath rather than closest, because the anchor may live in a shadow root, and
+  // the default is deliberately NOT prevented: whoever registered a protocol handler for
+  // lightning: keeps it.
+  document.addEventListener('click', (e) => {
+    if (!showCard || !connectedToSite || !hasWallet) return;
+    const path = (e.composedPath && e.composedPath()) || [];
+    for (const el of path) {
+      const href = el && el.getAttribute && el.getAttribute('href');
+      if (!href || !/^lightning:/i.test(href)) continue;
+      const m = INVOICE_RE.exec(href.replace(/^lightning:/i, ''));
+      if (!m) return;
+      const inv = m[0].toLowerCase();
+      if (invoiceExpired(inv) || inv === dismissedInvoice) return;
+      renderCard(inv);
+      return;
+    }
+  }, true);
 
   let scanTimer = null;
   function scheduleScan() {
@@ -1290,6 +1483,7 @@
       const settings = (s && s.result) || {};
       showCard = settings.showPayButton !== false;
       autoZapOffer = Number(settings.autoZapOffer) || 0;
+      hasWallet = settings.hasWallet === true;
       setCardTheme(settings.cardTheme || ''); // same reply carries the palette
       scanForInvoice();
     });
