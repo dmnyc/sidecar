@@ -61,10 +61,11 @@ test('the recipient is still shown, not replaced', () => {
 
 test('both stylesheets mark the sealed line', () => {
   // prompt.html carries its own copy of the card styles, so a rule added to styles.css
-  // alone reaches the panel and not the popup.
+  // alone reaches the panel and not the popup. The color lives on the padlock rather than
+  // the words; theme-contrast.test.js is where that split is measured and defended.
   for (const [name, sheet] of [['styles.css', css], ['prompt.html', promptHtml]]) {
-    assert.match(sheet, /\.card \.row\.sealed span:last-child \{[^}]*color: var\(--success\)/, name + ' has no sealed color');
     assert.match(sheet, /\.card \.row\.sealed span:last-child::before \{[^}]*content: '\\1F512/, name + ' has no padlock');
+    assert.match(sheet, /\.card \.row\.sealed span:last-child::before \{[^}]*color: var\(--success\)/, name + ' has no sealed color');
   }
 });
 

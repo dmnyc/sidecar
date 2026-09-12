@@ -919,3 +919,43 @@ for (const t of THEMES) {
     }
   });
 }
+// The padlock on an encrypt approval.
+//
+// The line showing what an app is asking to seal (#305) was first drawn with the whole
+// value in --success, on the reporter's own suggestion of "a different font color (such
+// as green)". Measured across the twelve themes, that is 3.42:1 on Industria's card: fine
+// for a mark, under the floor for a sentence. --success is a FILL token, sized for discs
+// and chips, and it was never an ink.
+//
+// So the color moved to the padlock and the words kept the card's own text color, which
+// the INK/SURFACES pass above already guards. A glyph is a graphical object, so 3.0 is
+// its bar, and this checks it against both ends of the card's gradient.
+test('THE SEALED PADLOCK IS VISIBLE ON EVERY CARD', () => {
+  const rootSuccess = rootVars['--success'];
+  for (const t of THEMES) {
+    const ink = resolve(t.vars['--success'] || rootSuccess, t.vars);
+    for (const stop of ['--velvet-1', '--velvet-2']) {
+      const card = resolve(t.vars[stop] || rootVars[stop], t.vars);
+      const r = contrast(ink, card);
+      assert.ok(
+        r >= 3,
+        `${t.name}: the padlock (${ink}) on the approval card (${card}) is ${r.toFixed(2)}:1, under 3.`
+      );
+    }
+  }
+});
+
+test('the sealed VALUE takes no color of its own', () => {
+  // The words are prose on a card and must stay on the ink the theme guarantees. If a
+  // color creeps back onto the value, it needs a 4.5 check of its own, and --success
+  // cannot pass one.
+  for (const [name, sheet] of [['styles.css', css], ['prompt.html', promptHtml]]) {
+    const rule = sheet.match(/\.card \.row\.sealed span:last-child \{[^}]*\}/);
+    assert.equal(rule, null, name + ' colors the sealed text directly again');
+    assert.match(
+      sheet,
+      /\.card \.row\.sealed span:last-child::before \{[^}]*color: var\(--success\)/,
+      name + ' lost the padlock color'
+    );
+  }
+});
