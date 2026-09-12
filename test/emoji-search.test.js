@@ -45,19 +45,24 @@ function index() {
   vm.createContext(ctx);
   vm.runInContext(emojiData, ctx);
   vm.runInContext(
-    source.match(/const EMOJI_ALIASES = \{[\s\S]*?\n  \};/)[0] +
-      '\nlet _emojiIndex = null;\n' +
-      lift('function emojiGroups(') +
-      '\nglobalThis.out = emojiGroups();',
+    [
+      source.match(/const EMOJI_ALIASES = \{[\s\S]*?\n  \};/)[0],
+      source.match(/const emojiHit = .*/)[0],
+      source.match(/const emojiQuery = .*/)[0],
+      'let _emojiIndex = null;',
+      lift('function emojiGroups('),
+    ].join('\n') + '\nglobalThis.out = { groups: emojiGroups(), hit: emojiHit, query: emojiQuery };',
     ctx
   );
   return ctx.out;
 }
 
-// What the picker does with a query, reduced to its one line.
-const search = (groups, q) => {
+// What the picker does with a query, using the picker's own matcher rather than a
+// substring: matching mid-word is the bug, so a test that matches mid-word proves nothing.
+const search = (api, raw) => {
+  const q = api.query(raw);
   const hits = [];
-  for (const [, rows] of groups) for (const row of rows) if (row[2].includes(q)) hits.push(row[0]);
+  for (const [, rows] of api.groups) for (const row of rows) if (api.hit(row[2], q)) hits.push(row[0]);
   return hits;
 };
 
@@ -100,7 +105,7 @@ test('an alias adds to a name rather than replacing it', () => {
   // 🖖 answers to "spock" AND to "vulcan salute". An alias that overwrote the name would
   // trade one gap for another.
   const g = index();
-  const row = g.flatMap(([, rows]) => rows).find((r) => r[0] === '🖖');
+  const row = g.groups.flatMap(([, rows]) => rows).find((r) => r[0] === '🖖');
   assert.match(row[2], /vulcan salute/, 'the name is gone from the haystack');
   assert.match(row[2], /spock/, 'the alias is not in the haystack');
   assert.equal(row[1], 'vulcan salute', 'the displayed name changed');
@@ -125,7 +130,7 @@ test('the index is built once, not per keystroke', () => {
   const fn = stripComments(lift('function emojiGroups('));
   assert.match(fn, /if \(_emojiIndex\) return _emojiIndex/, 'the index is rebuilt every call');
   const picker = stripComments(lift('function emojiPickerOver('));
-  assert.match(picker, /row\[2\]\.includes\(q\)/, 'the search reads the raw name again');
+  assert.match(picker, /emojiHit\(row\[2\], q\)/, 'the search reads the raw name again');
   assert.doesNotMatch(picker, /row\[1\]\.toLowerCase\(\)/, 'lowercasing moved back into the query loop');
 });
 
@@ -135,4 +140,43 @@ test('the empty state spans the grid instead of one 34px column', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.emoji-grid \.emoji-none \{[^}]*grid-column: 1 \/ -1/, 'the message is a grid cell again');
   assert.match(stripComments(source), /className: 'hint emoji-none'/, 'the message lost the class that spans it');
+});
+
+test('SEARCHING BY FEELING WORKS AT ALL NOW', () => {
+  // The reason for the vendored keywords, and the measurement that argued for them:
+  // before this, "happy" matched nothing in the entire table, because the emoji people
+  // call happy is named "grinning face". Names describe pictures; CLDR's annotations are
+  // the vocabulary for what they MEAN.
+  const g = index();
+  for (const [word, floor] of [['happy', 10], ['sad', 10], ['smile', 10], ['scared', 5], ['tired', 5], ['sick', 5], ['excited', 5]]) {
+    assert.ok(search(g, word).length >= floor, '"' + word + '" finds fewer than ' + floor + ' emoji');
+  }
+  assert.ok(search(g, 'happy').includes('😀'), '"happy" does not find the grinning face');
+  assert.ok(search(g, 'hand').includes('🖖'), '"hand" still misses the vulcan salute');
+});
+
+test('MATCHING IS AT WORD STARTS, NOT ANYWHERE', () => {
+  // "love" used to return a boxing glove and a pair of mittens, through "glove". The
+  // words people type are prefixes, not infixes.
+  const g = index();
+  const love = search(g, 'love');
+  assert.ok(love.includes('😍'), '"love" lost the actual love emoji');
+  for (const ch of ['🧤', '🥊']) assert.ok(!love.includes(ch), '"love" still matches inside "glove": ' + ch);
+  // Prefixes still work, and punctuation in a name is not a wall.
+  assert.ok(search(g, 'ital').includes('🇮🇹'), 'prefix matching broke');
+  assert.ok(search(g, 'eyes').includes('😍'), '"eyes" no longer reaches "heart-eyes"');
+});
+
+test('the vendored table carries keywords, and they are not just the name again', () => {
+  const ctx = { self: {} };
+  vm.createContext(ctx);
+  vm.runInContext(emojiData, ctx);
+  const rows = ctx.self.SidecarEmoji.flatMap(([, r]) => r);
+  const withKw = rows.filter((r) => r.length === 3);
+  assert.ok(withKw.length > 1500, 'only ' + withKw.length + ' emoji carry keywords');
+  for (const [, name, kw] of withKw.slice(0, 200)) {
+    for (const word of kw.split(' ')) {
+      assert.ok(!name.toLowerCase().includes(word), name + ' stores "' + word + '" twice');
+    }
+  }
 });

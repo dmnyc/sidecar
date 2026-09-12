@@ -23,6 +23,7 @@ JSQR_VERSION=1.4.0
 QRCODE_GENERATOR_VERSION=2.0.4
 ESBUILD_VERSION=0.28.1
 UNICODE_EMOJI_JSON_VERSION=0.9.0
+EMOJIBASE_DATA_VERSION=17.0.0
 
 ACCEPT_HASH_CHANGE=0
 [ "${1:-}" = "--accept-hash-change" ] && ACCEPT_HASH_CHANGE=1
@@ -57,6 +58,7 @@ fetch nostr-tools "$NOSTR_TOOLS_VERSION"
 fetch jsqr "$JSQR_VERSION"
 fetch qrcode-generator "$QRCODE_GENERATOR_VERSION"
 fetch unicode-emoji-json "$UNICODE_EMOJI_JSON_VERSION"
+fetch emojibase-data "$EMOJIBASE_DATA_VERSION"
 
 mkdir -p "$STAGE"
 cp nostr-tools/lib/nostr.bundle.js "$STAGE/nostr-tools.js"
@@ -64,28 +66,59 @@ cp jsqr/dist/jsQR.js "$STAGE/jsqr.js"
 cp qrcode-generator/dist/qrcode.js "$STAGE/qrcode-generator.js"
 
 # emoji-data.js is REDUCED rather than copied, which makes it the second built
-# bundle here. The published data-by-group.json carries a unicode_version, an
-# emoji_version, a slug and a skin-tone flag per emoji — 838KB of it — and the
-# reaction picker needs the character, a name to search, and the group it sits in.
-# Packing it to [[group, [[char, name], …]], …] is 45KB.
+# bundle here. It is also the one JOIN: names come from unicode-emoji-json, search
+# keywords from emojibase-data, and neither ships both.
 #
-# Deterministic: the input is a pinned tarball already verified against the
-# registry's integrity hash above, the order is the file's own (which is Unicode's
-# CLDR order, the order a picker should show), and JSON.stringify of the same
-# structure is byte-stable. So this is hash-gated like every other bundle.
+# The published data-by-group.json carries a unicode_version, an emoji_version, a
+# slug and a skin-tone flag per emoji, 838KB of it, and the reaction picker needs the
+# character, a name to search, and the group it sits in.
+#
+# KEYWORDS ARE NOT OURS TO INVENT. Names are descriptions of pictures: a face people
+# would call "happy" is named "grinning face", so searching by how you feel found
+# nothing at all. emojibase carries CLDR 48's annotation keywords (UTS #35), which is
+# Unicode's own vocabulary for exactly this, under MIT. Joined on the character with
+# VS16 normalized away, because the two sets disagree about it for 152 emoji. The join
+# is total today, and the check below fails the build rather than shipping a table
+# where some emoji silently lost their keywords.
+#
+# Only keywords the name does not already contain are kept: the search reads both, so
+# storing "pizza" twice would be paying bytes for nothing.
+#
+# Deterministic: both inputs are pinned tarballs already verified against the
+# registry's integrity hashes above, the order is the source file's own (CLDR order,
+# the order a picker should show), and JSON.stringify of the same structure is stable.
 node -e '
   const src = require("./unicode-emoji-json/data-by-group.json");
-  const packed = src.map((g) => [g.name, g.emojis.map((e) => [e.emoji, e.name])]);
+  const eb = require("./emojibase-data/en/compact.json");
+  const bare = (s) => s.replace(/\uFE0F/g, "");
+  const kw = new Map();
+  for (const e of eb) kw.set(bare(e.unicode), (e.tags || []).map((t) => String(t).toLowerCase()));
+  let joined = 0;
+  const packed = src.map((g) => [g.name, g.emojis.map((e) => {
+    const tags = kw.get(bare(e.emoji));
+    if (tags) joined++;
+    const lower = e.name.toLowerCase();
+    const extra = (tags || []).filter((t) => !lower.includes(t));
+    return extra.length ? [e.emoji, e.name, extra.join(" ")] : [e.emoji, e.name];
+  })]);
   const count = packed.reduce((n, g) => n + g[1].length, 0);
+  if (joined !== count) {
+    console.error("Keyword join is incomplete: " + joined + " of " + count + " emoji matched.");
+    process.exit(1);
+  }
   process.stdout.write(
-    "// Emoji table for the reaction picker. GENERATED — do not edit.\n" +
+    "// Emoji table for the reaction picker. GENERATED, do not edit.\n" +
     "//\n" +
-    "// Source: unicode-emoji-json@'"$UNICODE_EMOJI_JSON_VERSION"' (data-by-group.json), reduced by\n" +
-    "// scripts/update-vendor.sh to the character, its name and its group. Re-run that\n" +
-    "// script to regenerate; scripts/vendor-hashes.sha256 pins the result.\n" +
+    "// Sources: unicode-emoji-json@'"$UNICODE_EMOJI_JSON_VERSION"' (data-by-group.json) for the\n" +
+    "// characters, names and groups; emojibase-data@'"$EMOJIBASE_DATA_VERSION"' (en/compact.json) for\n" +
+    "// the search keywords, which are CLDR 48 annotations. Reduced and joined by\n" +
+    "// scripts/update-vendor.sh; scripts/vendor-hashes.sha256 pins the result.\n" +
     "//\n" +
-    "// Shape: [[groupName, [[char, name], ...]], ...] — " + count + " emoji in " + packed.length + " groups,\n" +
+    "// Shape: [[groupName, [[char, name, keywords?], ...]], ...] with " + count + " emoji in " +
+    packed.length + " groups,\n" +
     "// kept in the order the source file uses, which is CLDR order: what a picker shows.\n" +
+    "// keywords is a space-separated string, present only where it adds words the name\n" +
+    "// does not already carry.\n" +
     "self.SidecarEmoji = " + JSON.stringify(packed) + ";\n"
   );
 ' > "$STAGE/emoji-data.js"

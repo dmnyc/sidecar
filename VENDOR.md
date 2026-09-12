@@ -1,7 +1,7 @@
 # Vendored code provenance
 
 Sidecar has no build step: what ships is what's committed. Third-party code is
-vendored as four bundled files, each traceable to an official artifact published
+vendored as five bundled files, each traceable to official artifacts published
 on registry.npmjs.org. This file records exactly where each bundle comes from so
 that anyone can re-derive and verify them — no trust in this repo required.
 
@@ -26,7 +26,7 @@ and rewrites the hash file. After running it against a clean checkout,
 | `nip49.js` | built from `nostr-tools@2.23.11` (see below) | — (reproducible local build) | Unlicense (+ MIT deps) | `bf2f461cfc78120933e1a745697f7a5cc735d535353b38fbba2dbeb96231fd6a` |
 | `jsqr.js` | [`jsqr@1.4.0`](https://www.npmjs.com/package/jsqr/v/1.4.0) | `dist/jsQR.js` (byte-exact) | Apache-2.0 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` |
 | `qrcode-generator.js` | [`qrcode-generator@2.0.4`](https://www.npmjs.com/package/qrcode-generator/v/2.0.4) | `dist/qrcode.js` (byte-exact) | MIT | `79ec86f82856005b1c887905cfccfcfbec3821ca61c7fd5a952faa5f778f791c` |
-| `emoji-data.js` | [`unicode-emoji-json@0.9.0`](https://www.npmjs.com/package/unicode-emoji-json/v/0.9.0) | `data-by-group.json` (reduced, see below) | MIT | `6e94d1e8a2aefa1eaf16fb4eaca367369fba1fc855965292353ca2b416ace379` |
+| `emoji-data.js` | [`unicode-emoji-json@0.9.0`](https://www.npmjs.com/package/unicode-emoji-json/v/0.9.0) + [`emojibase-data@17.0.0`](https://www.npmjs.com/package/emojibase-data/v/17.0.0) | `data-by-group.json` + `en/compact.json` (reduced and joined, see below) | MIT | `b031347618b2b5cb9e1ac505b4ebacb4ed067e33a4a11b700755786ebeff11c5` |
 
 All licenses are permissive and compatible with this repository's MIT license.
 (The previous QR renderer, `qrious`, was GPL-3.0 and has been replaced by
@@ -49,19 +49,34 @@ Rebuilding with the same pins yields the same SHA-256 as the table above.
 The build is verified against the NIP-49 spec test vector
 (`ncryptsec1qgg99…` + password `nostr` → `35014541…378683`).
 
-## How `emoji-data.js` is reduced
+## How `emoji-data.js` is built
 
-The reaction picker needs a character, a name to search it by, and the group it
-belongs in. `unicode-emoji-json`'s `data-by-group.json` is 838KB because it also
-carries a slug, a Unicode version, an emoji version and a skin-tone flag for each
-of the 1,914 entries, so `scripts/update-vendor.sh` packs it down to
-`[[group, [[char, name], …]], …]` — 52KB — and assigns it to `self.SidecarEmoji`.
+It is the one bundle assembled from TWO packages, because neither ships both halves.
 
-Reproducible for the same reasons `nip49.js` is: the input is a pinned tarball
-already checked against the registry's integrity hash, the order is the source
-file's own (CLDR order, which is the order a picker should present), and
-`JSON.stringify` over the same structure is byte-stable. Nothing from the package
-executes — it is read as JSON.
+`unicode-emoji-json`'s `data-by-group.json` gives the character, its name and the group
+it sits in. It is 838KB, because it also carries a slug, a Unicode version, an emoji
+version and a skin-tone flag for each of the 1,914 entries.
+
+`emojibase-data`'s `en/compact.json` gives the search keywords, which are
+[CLDR 48 annotations](http://cldr.unicode.org/index/downloads/cldr-48) as defined by
+[UTS #35](http://unicode.org/reports/tr35/tr35-general.html#Annotations). They are here
+because names are descriptions of pictures rather than words for things: the face most
+people would call "happy" is named `grinning face`, so before this, searching the picker
+for how you feel returned nothing at all. These are Unicode's own vocabulary for that
+problem, which is the reason to take them from a source rather than invent them.
+
+`scripts/update-vendor.sh` joins the two on the character, normalizing away the
+variation selector, since the sets disagree about VS16 for 152 emoji. The join is total,
+and the script fails rather than emitting a table where any emoji silently lost its
+keywords. Keywords already contained in the name are dropped, because the search reads
+both and storing `pizza` twice pays bytes for nothing. The result is
+`[[group, [[char, name, keywords?], …]], …]` and 100KB, against 838KB + 558KB of input.
+
+Reproducible for the same reasons `nip49.js` is: both inputs are pinned tarballs already
+checked against the registry's integrity hashes, the order is the source file's own
+(CLDR order, which is the order a picker should present), and `JSON.stringify` over the
+same structure is byte-stable. Nothing from either package executes; both are read as
+JSON.
 
 ## Updating
 

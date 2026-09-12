@@ -347,7 +347,7 @@ test('search reads across every group', () => {
   // row[2] is the search haystack: the name lowercased, with any curated aliases folded
   // in beside it. It was row[1], the raw name, which is why a lowercase "ital" could not
   // find "flag Italy".
-  assert.match(f, /row\[2\]\.includes\(q\)/, 'search no longer matches on the name');
+  assert.match(f, /emojiHit\(row\[2\], q\)/, 'search no longer matches on the name');
   assert.match(f, /No emoji matches that/, 'a search with no hits says nothing');
 });
 
@@ -368,7 +368,9 @@ test('the vendored table is loaded by the panel', () => {
   const hashes = fs.readFileSync(path.join(ROOT, 'scripts', 'vendor-hashes.sha256'), 'utf8');
   assert.match(hashes, /\s+emoji-data\.js$/m, 'the emoji table is not hash-pinned like the other bundles');
   const data = fs.readFileSync(path.join(ROOT, 'emoji-data.js'), 'utf8');
-  assert.match(data, /GENERATED — do not edit/, 'the generated header is gone');
+  assert.match(data, /GENERATED, do not edit/, 'the generated header is gone');
+  // Two sources now: names from unicode-emoji-json, CLDR keywords from emojibase.
+  assert.match(data, /emojibase-data@/, 'the keyword source is no longer recorded in the file');
   assert.match(data, /^self\.SidecarEmoji = \[\[/m, 'the table is not the shape the picker reads');
 });
 

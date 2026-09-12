@@ -4132,6 +4132,13 @@
   // which of the nine "shrug" is in. Results are capped for the same reason as above.
   const EMOJI_SEARCH_MAX = 120;
 
+  // Match at a WORD START, never mid-word. Substring matching gave "love" a boxing glove
+  // and a pair of mittens, through "glove", while the words people actually type are
+  // prefixes: "surpris", "ital", "lovely". The haystack carries a leading space and has
+  // its punctuation flattened, so this is one indexOf rather than a regex per row.
+  const emojiHit = (hay, q) => hay.includes(' ' + q);
+  const emojiQuery = (raw) => raw.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
   // Words no emoji dataset carries, because they are associations rather than
   // descriptions. Checked before writing this: emojibase tags 🇮🇹 as "IT, flag", 🍝 as
   // "pasta, meatballs, restaurant" and 🤌 as "gesture, sarcastic, huh" — nothing ties any
@@ -4166,9 +4173,21 @@
       for (const ch of chars) extra.set(ch, (extra.get(ch) || []) + ' ' + term);
     }
     // [char, name, haystack] — paintGrid reads the first two and ignores the rest.
+    //
+    // The haystack is the name, the vendored CLDR keywords and any alias, lowercased,
+    // with every run of punctuation flattened to a space and a space in front. That last
+    // detail lets the search match at word starts without a regex per row, and the
+    // punctuation pass is why "eyes" still finds "smiling face with heart-eyes".
+    // Unicode-aware, because "Åland Islands" and "Côte d'Ivoire" are in this table.
     _emojiIndex = table.map(([group, rows]) => [
       group,
-      rows.map(([ch, name]) => [ch, name, name.toLowerCase() + (extra.get(ch) || '')]),
+      rows.map(([ch, name, keywords]) => [
+        ch,
+        name,
+        ' ' + (name + ' ' + (keywords || '') + (extra.get(ch) || ''))
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, ' '),
+      ]),
     ]);
     return _emojiIndex;
   }
@@ -4271,13 +4290,13 @@
         // Debounced: a query runs over every name in the table, and doing that per
         // keystroke while someone types "party" is five passes for one answer.
         searchTimer = setTimeout(() => {
-          const q = search.value.trim().toLowerCase();
+          const q = emojiQuery(search.value);
           if (!q) { showGroup(active); return; }
           [...tabs.children].forEach((t) => t.classList.remove('active'));
           const hits = [];
           for (const [, rows] of groups) {
             for (const row of rows) {
-              if (row[2].includes(q)) {
+              if (emojiHit(row[2], q)) {
                 hits.push(row);
                 if (hits.length >= EMOJI_SEARCH_MAX) break;
               }
