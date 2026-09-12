@@ -385,6 +385,12 @@
       }
       // Unreadable: show the payload even with no content field, because the JSON view
       // is then the only description of what's being signed.
+      // What the ciphertext says, when we are the ones who sealed it moments ago (#305).
+      // The event preview below still shows exactly what is being signed; this row is the
+      // only place the plaintext appears, marked the same way the encrypt card marks it.
+      if (data.sealed) {
+        els.preview.innerHTML += row('Sealed content', clampText(data.sealed, 220), 'prose sealed');
+      }
       if (ev.content || unreadable) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {

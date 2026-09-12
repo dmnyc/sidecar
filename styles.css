@@ -3377,11 +3377,32 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   display: flex; align-items: center; justify-content: center; padding: 18px;
   background: rgba(8, 2, 20, 0.72); backdrop-filter: blur(3px);
 }
+/* A scroll region plus a pinned footer, the same split prompt.html uses and for the same
+   reason. The whole card used to scroll, buttons included: a tall approval (a heads-up
+   card, a long preview, the sealed-content row, the switch menu) pushed Allow and Reject
+   off the bottom, so the one thing you came to do was the thing you had to go find. The
+   padding moves onto the two halves, since the footer needs its own. */
 .approval-card {
-  width: 100%; max-width: 360px; max-height: 90vh; overflow-y: auto;
-  padding: 22px; border-radius: 16px;
+  width: 100%; max-width: 360px; max-height: 90vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 16px;
   background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--border-strong); box-shadow: var(--shadow), var(--sheen);
+}
+.approval-scroll {
+  flex: 1 1 auto; overflow-y: auto; padding: 22px 22px 6px;
+  /* The content dissolves above the footer rather than being cut, which is the
+     unmistakable "there is more to scroll" prompt.html already uses. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+}
+.approval-footer {
+  flex-shrink: 0;
+  padding: 12px 22px 18px;
+  border-top: 1px solid var(--border);
+  background: rgba(var(--well-rgb), 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 /* everything in the approval card is centered (except the data preview) */
 .approval-card { text-align: center; }
