@@ -835,3 +835,87 @@ test('the badge takes its ink from the token, not from white', () => {
   assert.match(rule[0], /color: var\(--success-ink/, 'the arrow ink is hardcoded again');
   assert.match(rule[0], /background: var\(--success\)/, 'the disc no longer follows the theme');
 });
+
+// ---------------------------------------------------------------------------------
+// The caret on a select.
+//
+// It used to be the platform's, which inked it from `color` and so followed every
+// theme for free. It is ours now: styles.css sets `appearance: none` so the caret
+// can sit at the same 13px inset the text starts from, instead of the 5px from the
+// right edge the platform chose. The cost of owning it is this test: an SVG in a
+// data URI cannot read a custom property, so the ink is baked in, and there are two
+// of them, light-on-dark and dark-on-light. A theme picks one. A white caret on
+// Bauhaus's white field is a caret that isn't there.
+//
+// Floor is the 4.5 the tx arrow above argues for, for the same reason and more so:
+// this is a 1.7px stroke, thinner than that 9px glyph.
+function caretInk(token) {
+  const url = rootVars[token];
+  assert.ok(url, token + ' is not declared in :root');
+  const stroke = url.match(/stroke='%23([0-9a-fA-F]{6})'/);
+  const alpha = url.match(/stroke-opacity='([.\d]+)'/);
+  assert.ok(stroke && alpha, token + ' no longer carries a stroke color and opacity');
+  return { hex: '#' + stroke[1], alpha: Number(alpha[1]) };
+}
+
+// The caret is translucent so it reads as a caret rather than a glyph; measure what
+// it actually becomes over the field, not the color it was written as.
+function over(ink, backdrop) {
+  const bg = toRgb(backdrop);
+  return hex(toRgb(ink.hex).map((c, k) => ink.alpha * c + (1 - ink.alpha) * bg[k]));
+}
+
+// A field is usually a gradient, so every stop has to hold, not just the average.
+function stopsOf(expr, themeVars) {
+  const v = String(resolveRaw(expr, themeVars)).trim();
+  const open = v.indexOf('(');
+  if (!/^linear-gradient/.test(v)) return [v];
+  const inner = v.slice(open + 1, matchParen(v, open));
+  const parts = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of inner) {
+    if (ch === '(') { depth++; cur += ch; }
+    else if (ch === ')') { depth--; cur += ch; }
+    else if (ch === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  parts.push(cur.trim());
+  return parts
+    .filter((p) => !/^(to |[\d.]+deg$)/.test(p))          // the direction, not a color
+    .map((p) => p.replace(/\s+-?[\d.]+%$/, '').trim());   // a stop's position, not its color
+}
+
+// What the select is actually filled with: a theme that repaints it says so beside
+// the caret layer (test/select-caret.test.js makes sure the layer is there); every
+// other theme gets the base rule, which is --input-bg over the shared fallback.
+const BASE_FILL = (() => {
+  const rule = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/\nselect \{([\s\S]*?)\n\}/);
+  assert.ok(rule, 'the bare `select` rule moved');
+  const bg = rule[1].match(/background:\s*var\(--select-caret\) var\(--select-caret-geo\)\s*,\s*([\s\S]*?);/);
+  assert.ok(bg, 'the select rule no longer paints a caret over a fill');
+  return bg[1].trim();
+})();
+
+for (const t of THEMES) {
+  test('the caret on a ' + t.name + ' select is a caret you can see', () => {
+    const picked = (t.vars['--select-caret'] || rootVars['--select-caret']).match(/var\((--select-caret-on-\w+)\)/);
+    assert.ok(picked, t.name + ' sets --select-caret to something other than one of the two inks');
+    const ink = caretInk(picked[1]);
+
+    const src = fs.readFileSync(path.join(ROOT, 'themes', t.name + '.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const own = src.match(/\[data-theme="[^"]+"\] select \{[^}]*background:\s*var\(--select-caret\)[^,]*,\s*([^;]+);/);
+    const backdrop = resolve(t.vars['--bg-2'] || t.vars['--bg'], t.vars);
+
+    for (const stop of stopsOf(own ? own[1].trim() : BASE_FILL, t.vars)) {
+      const field = flatten(stop, backdrop, t.vars);
+      const r = contrast(over(ink, field), field);
+      assert.ok(
+        r >= 4.5,
+        `${t.name}: the caret (${picked[1]}) on its field (${stop} → ${field}) is ${r.toFixed(2)}:1. ` +
+        `A 1.7px stroke needs 4.5. A light theme sets ` +
+        `--select-caret: var(--select-caret-on-light) beside its --success-ink.`
+      );
+    }
+  });
+}

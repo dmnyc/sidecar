@@ -84,6 +84,7 @@
   --warn-rgb: 201, 22, 28;
   --success: #1F6B3F;
   --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
   --success-rgb: 31, 107, 63;
 
   /* --orange holds the BLUE. Read that twice — it is not a mistake.

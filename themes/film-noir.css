@@ -106,9 +106,13 @@
   background-image: linear-gradient(100deg, var(--velvet-1) 30%, rgba(192, 192, 192, 0.18) 50%, var(--velvet-1) 70%);
 }
 [data-theme="film-noir"] input,
-[data-theme="film-noir"] select,
 [data-theme="film-noir"] textarea {
   background: var(--bg-2);
+}
+/* Restating a select's background drops the caret layer styles.css paints, so it
+   comes along. */
+[data-theme="film-noir"] select {
+  background: var(--select-caret) var(--select-caret-geo), var(--bg-2);
 }
 /* Balance numbers get a warm gold instead of the theme's silver — Lightning
    sats should feel warm even in monochrome. */

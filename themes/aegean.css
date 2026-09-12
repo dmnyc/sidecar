@@ -45,6 +45,7 @@
   --warn-rgb: 168, 67, 42;
   --success: #4F6B3A;
   --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
   --success-rgb: 79, 107, 58;
 
   /* --orange is the UI accent, not a decorative warm: it drives accent-color on
