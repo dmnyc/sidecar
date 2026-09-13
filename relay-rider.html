@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Relay Rider</title>
+<!--
+  Relay Rider. A delivery run on an overhead road, after Atari's Motocross (1983).
+
+  The rig is the one in the wordmark: a motorcycle with a sidecar hanging off the right.
+  That asymmetry is the whole game. Mail goes in the sidecar and the boxes stand on the
+  right verge, so a delivery means passing close on the side you cannot see past, with the
+  pavement running out a few pixels further over.
+
+  It runs in a frame filling the side panel, and also stands up on its own in a tab. There
+  is deliberately no chrome around the canvas, not even a line of key hints: the playfield
+  is sized to whatever it is given, so anything else on the page comes straight out of the
+  game. The controls are on the title screen instead, and the close button belongs to the
+  panel and floats in the top-right corner, which is why the HUD keeps that corner clear.
+
+  No inline script, on purpose: an extension page runs under MV3's default
+  `script-src 'self'` and an inline block would simply not execute. Same reason help.js
+  and scan-qr.js are separate files.
+
+  Self-contained by design. It reads no settings, no keys, no relays, and opens no
+  connection; the only thing it stores is a high score in this page's own localStorage.
+-->
+<style>
+  /* The surround is deliberately NOT theme-derived. Canvas pixels cannot be measured by
+     theme-contrast.test.js, so a palette that followed the panel would be the one surface
+     in the extension whose contrast nobody checks. Fixed colors, checked once, by eye. */
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    /* The letterbox. In the panel this is a few pixels down each side; in a wide browser
+       tab the 9:16 ceiling can leave most of the window as this, so it reads as the dark
+       around a cabinet screen rather than as road that ran out. */
+    background: #0e0e14;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-user-select: none; user-select: none;
+  }
+  canvas {
+    display: block;
+    /* Integer-scaled by script and never resampled: the whole look depends on a hard
+       edge between one 8-bit pixel and the next. */
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+</style>
+</head>
+<body>
+  <!-- Sized by script on load and on every resize; these are only a sane default. -->
+  <canvas id="screen" width="160" height="240"></canvas>
+  <script src="relay-rider.js"></script>
+</body>
+</html>

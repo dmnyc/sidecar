@@ -16824,6 +16824,15 @@
       const updateStatus = h('p', { className: 'hint about-update-status' });
       updateBtn.addEventListener('click', () => checkForUpdates(updateBtn, updateStatus));
 
+      // Decoration with a door in it, at the foot of the card. Closing the modal first is
+      // not tidiness: .modal-overlay is z-index 100 and .rider-overlay is 95, so a game
+      // opened while this card is still up would be drawn behind it.
+      //
+      // Its title is emptied rather than left off, or it inherits one from an ancestor, and
+      // an ornament that says "About Sidecar" on hover is a small lie.
+      const rig = h('button', { type: 'button', className: 'about-rig', title: '', ariaLabel: 'Relay Rider' });
+      rig.addEventListener('click', () => { closeModal(); openRider(); });
+
       modal.append(
         xClose,
         h('div', { className: 'about-modal' }, [
@@ -16834,6 +16843,7 @@
           canCheckUpdates ? updateBtn : document.createTextNode(''),
           canCheckUpdates ? updateStatus : document.createTextNode(''),
           h('div', { className: 'about-links' }, [website, repo, support, privacy, zap]),
+          rig,
         ])
       );
     });
@@ -16908,6 +16918,38 @@
     foot.title = 'About Sidecar';
     foot.addEventListener('click', aboutModal);
   });
+
+  function openRider() {
+    const frame = $('rider-frame');
+    frame.src = 'relay-rider.html';
+    show($('view-rider'));
+    // Keys have to reach the frame, not the panel behind it, or the arrows scroll
+    // settings while the rig sits still. Same origin, so reaching in is allowed.
+    frame.onload = () => { try { frame.contentWindow.focus(); } catch (_) { /* gone */ } };
+  }
+
+  function closeRider() {
+    const view = $('view-rider');
+    if (view.classList.contains('hidden')) return;
+    hide(view);
+    // Dropping the src is the whole teardown: the render loop, the audio context and the
+    // key listeners all belong to that document and go with it.
+    $('rider-frame').src = '';
+  }
+
+  $('rider-close').addEventListener('click', closeRider);
+
+  // A GAME NEVER SHARES THE SCREEN WITH AN APPROVAL OR A LOCK. Rather than patching every
+  // route that reveals those, watch the elements themselves: whichever way one becomes
+  // visible, the rider gets out of the way. Fails closed, and a caller added later cannot
+  // forget to do it.
+  for (const id of ['view-approval', 'view-lock']) {
+    const el = $(id);
+    if (!el) continue;
+    new MutationObserver(() => {
+      if (!el.classList.contains('hidden')) closeRider();
+    }).observe(el, { attributes: true, attributeFilter: ['class'] });
+  }
 
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });

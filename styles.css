@@ -899,6 +899,51 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .brand-foot-btn img { transition: opacity 0.15s ease; }
 .brand-foot-btn:hover img { opacity: 0.8; }
 
+/* The courier mark at the foot of the About card. A front view, because the side view read
+   as a bicycle towing a trailer: from the front the sidecar sits beside the machine rather
+   than behind it, which is the whole shape being referred to.
+
+   Drawn as a mask rather than an <img> so it takes --muted and follows the theme, the way
+   every other quiet mark in the panel does; an <img> is its own document and cannot inherit
+   color. Sized as an ornament rather than an icon, because at the 24px the icon set uses
+   this collapses into a smudge, and held at .55 so it reads as the card's last flourish
+   rather than as a control.
+
+   button:focus-visible already draws the ring; this only un-fades it. */
+.about-rig {
+  display: block; margin: 24px auto 2px; padding: 0;
+  width: 52px; height: 38px; border: 0; cursor: pointer;
+  background-color: var(--muted);
+  -webkit-mask: url('icons/sidecar-rig.svg') center / contain no-repeat;
+  mask: url('icons/sidecar-rig.svg') center / contain no-repeat;
+  opacity: 0.55; transition: opacity 0.15s ease;
+}
+.about-rig:hover, .about-rig:focus-visible { opacity: 0.9; }
+
+/* ...and what it opens, which fills the panel.
+
+   95 is the whole of the interesting part. The band from .modal-overlay's 100 up to
+   .approval-overlay's 120 is RESERVED: approval-over-modal.test.js forbids any clickable
+   layer in it, because a layer there could take a click meant for Allow or Reject, and an
+   approval you cannot reject is one that silently times out. That rule came out of a real
+   report and a game is not the thing to make an exception for. So this sits under every
+   modal, and over .acct-menu's 90 so a dropdown left open does not float across it.
+
+   sidepanel.js closes it outright when an approval or the lock screen appears. This is
+   only the second line of defense behind that. */
+.rider-overlay { position: fixed; inset: 0; z-index: 95; background: #0e0e14; display: flex; }
+#rider-frame { flex: 1; width: 100%; height: 100%; border: 0; display: block; }
+.rider-close {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 30px; height: 30px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(14, 14, 20, 0.72); border: 1px solid #2a2a36; border-radius: 8px;
+  color: #8d8698; cursor: pointer;
+}
+.rider-close:hover { color: #efe6cd; border-color: #4a4a60; }
+.rider-close svg { width: 16px; height: 16px; }
+
+
 /* modal close (X) in the top-right corner */
 /* THE COMPOSERS GROW WITH THE PANEL. Every other modal is capped at 344px because the
    side panel is usually narrow and a dialog wider than its content reads as a mistake.
@@ -4006,6 +4051,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
 .peek-zap-form { margin-top: 10px; }
+/* The no-wallet branch of the zap block. The address is the button's label rather than a
+   line above it, because the thing you want to copy and the thing you press should be the
+   same object; and it wraps, because a lightning address is not guaranteed to be short and
+   a truncated one is not copyable by eye. */
 /* Air between the Zap button and the QR, so the code is not hanging off the button. */
 .peek-zap-pay { margin-top: 14px; }
 .peek-zap-addr {
