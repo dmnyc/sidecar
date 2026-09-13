@@ -4006,6 +4006,12 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
 .peek-zap-form { margin-top: 10px; }
+/* Air between the Zap button and the QR, so the code is not hanging off the button. */
+.peek-zap-pay { margin-top: 14px; }
+.peek-zap-addr {
+  max-width: 100%; white-space: normal; overflow-wrap: anywhere;
+  font-size: 14px; line-height: 1.35; padding: 10px 14px;
+}
 /* Four presets on ONE row at 358px. flex-basis 0 divides the width evenly instead
    of sizing to content, which is what pushed 5,000 onto a line of its own. */
 .peek-zap-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }

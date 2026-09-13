@@ -1889,7 +1889,78 @@
 
       // Zap. Hidden until we know they have a lightning address, because offering
       // to pay someone who cannot be paid is worse than not offering.
+      //
+      // TWO WAYS TO PAY, decided by whether there is a wallet to pay WITH. With one, the
+      // amount form below. Without one, the address itself, large enough to read across a
+      // room and to copy in one tap, with a QR beside it for a phone.
+      //
+      // The old sheet offered the form either way: you picked an amount, wrote a note,
+      // pressed Send, and only then learned there was no wallet. The outcome is the same
+      // either way; what changes is whether finding out costs you anything.
       let zapAddr = '';
+      let zapZappable = false;
+      let zapHasWallet = null;   // null until asked, so neither branch is guessed at
+      let zapShown = false;
+      let zapPanel = null;       // whichever of the two the Zap button opens
+
+      // The shape the creator's zap card uses, so meeting one teaches the other: a QR to
+      // scan, and the address as the LABEL of the button that copies it, which is what
+      // makes it obvious rather than a line of small print with a click handler on it.
+      function zapPayBlock(addr) {
+        const wrap = h('div', { className: 'recv-out peek-zap-pay hidden' });
+        const canvas = document.createElement('canvas');
+        canvas.className = 'recv-qr';
+        try { window.SidecarQR.draw(canvas, 'lightning:' + addr, 200, 'M'); } catch (_) {}
+        const copy = h('button', { className: 'secondary peek-zap-addr', textContent: addr, title: 'Copy lightning address' });
+        copy.addEventListener('click', async () => {
+          try {
+            await copyPlain(addr);
+            copy.textContent = 'Copied ✓';
+            setTimeout(() => { if (copy.isConnected) copy.textContent = addr; }, 1200);
+          } catch (_) {
+            toast('Could not copy', 'error');
+          }
+        });
+        // Goes where it points. The same borderless gold link the account card uses for
+        // "Add wallet", because it is the same errand; and it closes the sheet first,
+        // because a tab switched behind an open modal is a tab nobody sees happen.
+        const connect = h('button', {
+          className: 'account-stat-add-link zap-noconnect',
+          textContent: 'Connect a wallet to zap from here →',
+        });
+        connect.addEventListener('click', () => {
+          closeModal();
+          const tab = document.querySelector('.tab[data-tab="wallet"]');
+          if (tab) tab.click();
+        });
+        wrap.append(
+          canvas,
+          copy,
+          // PAY, not zap. A lightning: address QR is LNURL-pay in whatever wallet reads it:
+          // no zap request is attached, so the provider publishes no receipt and it lands
+          // as an anonymous payment. The link below is the one that can say zap, because
+          // connecting a wallet is what puts a signed 9734 in front of the invoice.
+          h('p', { className: 'hint', textContent: 'Scan or copy to pay from any wallet.' }),
+          connect
+        );
+        return wrap;
+      }
+
+      // Waits for BOTH answers before drawing either branch, and draws once. paint() runs
+      // twice on a cached profile, and the wallet lookup lands whenever it lands, so a
+      // reveal that fired on first-answer-wins would swap the sheet under whoever was
+      // already typing in it.
+      function revealZap() {
+        if (zapShown || !zapZappable || zapHasWallet === null || !modal.isConnected) return;
+        zapShown = true;
+        // The Zap button either way, and it opens whichever panel applies. Putting the QR
+        // and the address straight onto the sheet made a profile you had only opened to
+        // read into a payment page, which is a different sheet from the one you asked for.
+        zapPanel = zapHasWallet ? zapForm : zapPayBlock(zapAddr);
+        zapWrap.append(zapBtn, zapPanel);
+        zapWrap.classList.remove('hidden');
+      }
+
       let lastAbout = null; // guards renderAbout against a second, identical pass
       const zapWrap = h('div', { className: 'peek-zap hidden' });
       const zapErr = h('div', { className: 'error' });
@@ -1949,13 +2020,23 @@
         }
       });
       zapBtn.addEventListener('click', () => {
-        zapForm.classList.toggle('hidden');
-        if (!zapForm.classList.contains('hidden')) amount.focus();
+        if (!zapPanel) return;
+        zapPanel.classList.toggle('hidden');
+        // Only the form has anything to type into; focusing the other one focuses a QR.
+        if (zapPanel === zapForm && !zapForm.classList.contains('hidden')) amount.focus();
       });
       zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]),
         zapDefaultSaver(amount, presets), zapErr);
-      zapWrap.append(zapBtn, zapForm);
-      modal.append(zapWrap);
+      modal.append(zapWrap);   // filled by revealZap once both answers are in
+
+      // Asked here, AFTER the pieces it chooses between exist. Started earlier it would
+      // still have worked, because a promise cannot run its callback before this function
+      // returns, but that is a guarantee about the event loop holding up a line of UI code
+      // and it is not one worth depending on.
+      call({ type: 'SIDECAR_HAS_NWC' })
+        .then((r) => { zapHasWallet = !!(r && r.has); })
+        .catch(() => { zapHasWallet = false; })   // an unreachable wallet is no wallet
+        .then(revealZap);
 
       const actions = h('div', { className: 'peek-actions' });
       // Secondary, not primary. Once the zap form is open there would otherwise be
@@ -2023,7 +2104,9 @@
           // address without allowsNostr can take a payment but can never produce a
           // receipt, and a button saying Zap would be a promise it cannot keep.
           lnAddressParams(c.lud16).then((p) => {
-            if (modal.isConnected && p.zappable) zapWrap.classList.remove('hidden');
+            if (!p.zappable) return;
+            zapZappable = true;
+            revealZap();
           }).catch(() => {});
         }
       }
