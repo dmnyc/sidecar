@@ -719,6 +719,18 @@
     </main>
   </section>
 
+  <!-- ===== Relay Rider ===== -->
+  <!-- Its own frame rather than a canvas in this document, for two reasons: the game's
+       script would otherwise start a render loop the moment the panel opened and never
+       stop, and clearing the src on close is the entire teardown, audio and animation
+       frames included. Empty src on purpose, set when it is actually asked for. -->
+  <div id="view-rider" class="rider-overlay hidden">
+    <button type="button" class="rider-close" id="rider-close" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+    </button>
+    <iframe id="rider-frame" title="Relay Rider"></iframe>
+  </div>
+
   <!-- ===== Signing approval (inline, replaces the popup when the panel is open) ===== -->
   <div id="view-approval" class="approval-overlay hidden">
     <div class="approval-card">
