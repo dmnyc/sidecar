@@ -74,6 +74,7 @@
 
   // Rebuild the in-memory unlocked state from storage.session after a SW restart.
   // No-op if already loaded in this worker, or if there's no live session (locked).
+  // Exported serialized against lock() — see the export table for why.
   async function ensureLoaded() {
     if (dek) return;
     const sess = await sessGet();
@@ -674,6 +675,17 @@
     // is unlocked, are in `unlocked` and are unaffected — the private keys did not
     // change, only what encrypts them.
     for (const bytes of plaintexts.values()) C.wipe(bytes);
+    // The migration just wrote a v1 backup of the store under the OLD pin. On the
+    // unlock path that backup earns one unlock cycle as a hand-recovery net; here
+    // the old pin may be exactly what the user is rotating away from, so it is
+    // dropped the moment the new pin proves it can actually open what was written
+    // — never unconditionally, because that backup is the only copy still readable
+    // if the re-wrap somehow came out broken.
+    const written = await loadStore();
+    const byNewPin = written && written.version >= 2 ? await openWithPin(written, newPin) : null;
+    if (byNewPin && (await C.checkVerifier(byNewPin, written.verifier))) {
+      await new Promise((res) => chrome.storage.local.remove(V1_BACKUP_KEY, res));
+    }
     dek = key; // stay unlocked
     await persistSession(key);
     return getState();
@@ -715,7 +727,10 @@
     decodeSecret,
     isInitialized,
     isLocked,
-    ensureLoaded,
+    // Serialized against lock() — a rehydration in flight while the user locks
+    // would otherwise re-import the DEK from a session value it captured before
+    // lock() cleared it, and the vault would come back unlocked with no PIN.
+    ensureLoaded: serialized(ensureLoaded),
     verifyPin,
     // Serialized: every one of these reads the store, changes it, and writes the
     // whole thing back. getState is included because it too can write (it backfills
@@ -727,7 +742,16 @@
     // backfills placeholder names and saves when it does. Left unserialized that was
     // the one store write still outside the chain.
     unlock: serialized(unlock),
-    lock, // touches only in-memory state and the session key, never the store
+    // lock() joins the same chain even though it never writes the store: every
+    // state-establishing operation — unlock, changePin, initialize, and the
+    // ensureLoaded rehydration — sets the in-memory DEK (and usually the session
+    // key) after awaits. An unserialized lock interleaving with any of them loses
+    // the race by definition, because it finishes first: the other side's writes
+    // land afterwards and the vault is unlocked again — keys in memory, session
+    // key persisted — immediately after an explicit lock, with no PIN entered.
+    // Worst case the chain adds to a lock's latency is one in-flight store op,
+    // which is rare, small, and never on a hot path.
+    lock: serialized(lock),
     addAccountFromBytes: serialized(addAccountFromBytes),
     importSecret: serialized(importSecret),
     generateAccount: serialized(generateAccount),
