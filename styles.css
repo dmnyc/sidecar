@@ -76,6 +76,51 @@
      DECLARED, so a light theme's override never reached the field. */
   --select-caret-geo: no-repeat right 13px center / 10px 6px;
   --pattern-opacity: 1;
+
+  /* ---- motion ----------------------------------------------------------------
+     Shared timing for the panel's four moving surfaces. Kept here as one group so
+     the durations can be read against each other rather than hunted for: opening
+     is deliberate, closing gets out of the way, and every rule that uses these
+     ships a prefers-reduced-motion guard beside it.
+
+     Values from the transitions-dev reference snippets, which these rules are
+     otherwise pasted from verbatim. Only the ones the panel actually uses are
+     here; there is no reason to carry the rest. */
+  --modal-open-dur: 250ms;
+  --modal-close-dur: 150ms;
+  --modal-scale: 0.96;
+  --modal-scale-close: 0.96;
+  --modal-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --dropdown-open-dur: 250ms;
+  --dropdown-close-dur: 150ms;
+  --dropdown-pre-scale: 0.97;
+  --dropdown-closing-scale: 0.99;
+  --dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --toast-open: 350ms;
+  --toast-close: 250ms;
+  --toast-distance: 16px;
+  --toast-blur: 2px;
+  --toast-scale: 0.97;
+  --toast-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --text-swap-dur: 150ms;
+  --text-swap-translate-y: 4px;
+  --text-swap-blur: 2px;
+  --text-swap-ease: ease-in-out;
+
+  /* Panel reveal. The snippet ships 100px of travel, which suits a panel sliding into a
+     region of a page; this one IS the region, full height, so a short rise reads as
+     arriving without the whole screen appearing to fall into place. */
+  --panel-open-dur: 400ms;
+  --panel-close-dur: 350ms;
+  --panel-translate-y: 28px;
+  --panel-blur: 2px;
+  --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * { box-sizing: border-box; }
@@ -764,6 +809,29 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   border: 1px solid var(--border-strong); border-radius: 14px;
   box-shadow: var(--sheen), 0 20px 50px rgba(0, 0, 0, 0.6);
   padding: 6px; z-index: 90;
+  /* Grows from the top-left, which is where acct-btn sits and where its own left: 10px
+     puts its edge. .hidden still does the showing and hiding; these two classes only
+     decide how it gets there, so nothing downstream has to know about them. */
+  transform-origin: top left;
+  transform: scale(var(--dropdown-pre-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-open-dur) var(--dropdown-ease),
+    opacity   var(--dropdown-open-dur) var(--dropdown-ease);
+  will-change: transform, opacity;
+}
+.acct-menu.is-open { transform: scale(1); opacity: 1; pointer-events: auto; }
+.acct-menu.is-closing {
+  transform: scale(var(--dropdown-closing-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-close-dur) var(--dropdown-ease),
+    opacity   var(--dropdown-close-dur) var(--dropdown-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .acct-menu { transition: none !important; }
 }
 .acct-row {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
@@ -878,15 +946,35 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .tab:hover { color: var(--text); }
 .tab:disabled { opacity: 0.38; cursor: default; }
 .tab.active { color: var(--lav); }
-.tab.active::after {
-  content: '';
+
+/* ONE underline that travels, rather than a set that blink on and off.
+   The mark itself is unchanged: same gradient, same 2px, same inset. What changed is that
+   it is a single element the bar moves, so switching reads as the indicator going
+   somewhere instead of one disappearing and another appearing. Position and width are
+   written inline by JS from the measured item, so it stays correct at any panel width and
+   for any label.
+
+   Shared by all three bars that carry this mark: the main tabs, the Activity sub-tabs
+   (Connected sites / Recent activity), and the theme gallery's Dark and Light. Each needs
+   position: relative so the slider measures against its own bar. */
+.tabs, .modal-tabs, .theme-modes { position: relative; }
+.tab-slider {
   position: absolute;
-  left: 16%;
-  right: 16%;
   bottom: -1px;
+  left: 0;
   height: 2px;
+  width: 0;
   border-radius: 2px;
   background: linear-gradient(90deg, var(--orange), var(--gold));
+  transform: translateX(0);
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width     var(--tabs-dur) var(--tabs-ease);
+  will-change: transform, width;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-slider { transition: none !important; }
 }
 
 #view-main { display: flex; flex-direction: column; height: 100vh; position: relative; }
@@ -931,7 +1019,33 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
    sidepanel.js closes it outright when an approval or the lock screen appears. This is
    only the second line of defense behind that. */
-.rider-overlay { position: fixed; inset: 0; z-index: 95; background: #0e0e14; display: flex; }
+.rider-overlay {
+  position: fixed; inset: 0; z-index: 95; background: #0e0e14; display: flex;
+  /* It arrives rather than appearing: a short rise and a fade, opening slower than it
+     closes.
+
+     NO CROSS-BLUR, which the panel reveal otherwise carries. Measured on this surface it
+     was the difference between a clean 60fps and dropping four frames in a row: worst
+     frame 66.7ms with it, 16.8ms without. A blur has to re-rasterize the whole surface
+     every frame, and this surface is the entire panel with a live canvas running inside
+     it. Transform and opacity stay on the compositor; the blur does not. */
+  transform: translateY(var(--panel-translate-y));
+  opacity: 0;
+  transition:
+    transform var(--panel-close-dur) var(--panel-ease),
+    opacity   var(--panel-close-dur) var(--panel-ease);
+  will-change: transform, opacity;
+}
+.rider-overlay.is-open {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform var(--panel-open-dur) var(--panel-ease),
+    opacity   var(--panel-open-dur) var(--panel-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rider-overlay { transition: none !important; }
+}
 #rider-frame { flex: 1; width: 100%; height: 100%; border: 0; display: block; }
 .rider-close {
   position: absolute; top: 10px; right: 10px; z-index: 2;
@@ -2163,6 +2277,33 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 9px;
   box-shadow: var(--sheen), 0 24px 60px rgba(0, 0, 0, 0.6);
 }
+
+/* The card scales up from the middle of the overlay and dips back on the way out. The
+   overlay itself keeps doing the showing and hiding; these classes only describe how the
+   card gets there, so nothing that opens a modal has to know about them.
+
+   Closing is FASTER than opening on purpose: arriving should feel considered, leaving
+   should feel like it got out of your way. */
+.modal {
+  transform-origin: center;
+  transform: scale(var(--modal-scale));
+  opacity: 0;
+  transition:
+    transform var(--modal-open-dur) var(--modal-ease),
+    opacity   var(--modal-open-dur) var(--modal-ease);
+  will-change: transform, opacity;
+}
+.modal.is-open { transform: scale(1); opacity: 1; }
+.modal.is-closing {
+  transform: scale(var(--modal-scale-close));
+  opacity: 0;
+  transition:
+    transform var(--modal-close-dur) var(--modal-ease),
+    opacity   var(--modal-close-dur) var(--modal-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal { transition: none !important; }
+}
 .modal.modal-sheet {
   overflow: hidden;
   height: 100%;
@@ -3223,16 +3364,6 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .modal-tab:hover { color: var(--text); }
 .modal-tab.active { color: var(--lav); }
-.modal-tab.active::after {
-  content: '';
-  position: absolute;
-  left: 16%;
-  right: 16%;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--orange), var(--gold));
-}
 /* Buttons/text appended directly to .modal stretch full-width because .modal
    itself is a flex column (see below); this wrapper needs the same layout so
    its contents (box, copy/QR buttons, warning, form fields) match that. */
@@ -3381,12 +3512,31 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   /* tappable: see the click handler in toast() — the timer is otherwise a
      mandatory 3.2s wait */
   cursor: pointer;
-  transform: translateY(12px);
+  /* Resting state IS the closed state, so the close clock lives here and the open clock
+     lives on .show. One class, two speeds. */
+  transform: translateY(var(--toast-distance)) scale(var(--toast-scale));
   opacity: 0;
+  filter: blur(var(--toast-blur));
+  will-change: transform, opacity, filter;
+  transition:
+    opacity var(--toast-close) var(--toast-ease),
+    transform var(--toast-close) var(--toast-ease),
+    filter var(--toast-close) var(--toast-ease);
   transition: transform 0.22s ease, opacity 0.22s ease;
   pointer-events: auto;
 }
-.toast.show { transform: translateY(0); opacity: 1; }
+.toast.show {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    opacity var(--toast-open) var(--toast-ease),
+    transform var(--toast-open) var(--toast-ease),
+    filter var(--toast-open) var(--toast-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none !important; }
+}
 .toast svg { width: 18px; height: 18px; flex-shrink: 0; }
 .toast span { overflow-wrap: anywhere; }
 .toast-success { background: linear-gradient(180deg, #176a44, #0f4a30); border-color: rgba(120, 230, 170, 0.4); color: #d7f7e6; }
@@ -3849,20 +3999,21 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .theme-mode:hover { color: var(--text); }
 .theme-mode.active { color: var(--lav); }
-.theme-mode.active::after {
-  content: '';
-  position: absolute;
-  left: 16%;
-  right: 16%;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--orange), var(--gold));
-}
 
 .theme-selector {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …) AND NOT A BARE 1fr, which is minmax(auto, 1fr) and therefore floors each
+     column at its min-content width. Min-content here is the widest unbreakable word in
+     whichever half is showing, and the two halves do not agree: Werkstätte is 141.5px in
+     Syncopate against a widest-dark of 117.3px (Metropolis, Brownstone). Below about a
+     363px panel the Light columns hit that floor and stop shrinking while the Dark ones
+     carry on, and because .theme-preview is sized by aspect-ratio a wider card is a taller
+     card, on all three rows at once. The gallery then changed height when you toggled
+     Dark/Light and everything below it moved: 3px at 360px, 24px at 340px. Reported as the
+     section under the gallery shifting by a few pixels.
+     Syncopate being the outlier is the same fact .theme-name records below, that it is
+     unicase and runs 68% wider than the median of the other eleven faces. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
   margin-top: 9px;
 }

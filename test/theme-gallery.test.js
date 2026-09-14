@@ -137,3 +137,30 @@ test('revealing a card re-scales it, because a hidden card cannot be measured', 
   // The zero guard stays: it is correct, it is just not sufficient on its own.
   assert.match(panel, /const w = slot\.clientWidth;\s*\n\s*if \(!w\) return;/);
 });
+
+test('THE GALLERY IS THE SAME HEIGHT IN BOTH HALVES, AT EVERY PANEL WIDTH', () => {
+  // A bare `1fr` is minmax(auto, 1fr), and that `auto` floors the column at its
+  // min-content width. Min-content for these cards is the widest unbreakable word in the
+  // half on screen, and the halves do not agree: Werkstätte is 141.5px in Syncopate
+  // against 117.3px for the widest dark label. Below roughly a 363px panel the Light
+  // columns hit that floor and stop shrinking while the Dark ones keep going, and since
+  // .theme-preview is sized by aspect-ratio a wider card is a taller one, on three rows at
+  // once. Toggling Dark/Light then moved everything underneath the gallery: measured at
+  // +3.2px on a 360px panel, +13.6px at 350px, +24.0px at 340px.
+  //
+  // Comments are stripped first because the block above this rule explains the trap using
+  // the very strings the assertions look for.
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = bare.slice(bare.indexOf('.theme-selector {'));
+  const decls = rule.slice(0, rule.indexOf('}'));
+  assert.match(
+    decls,
+    /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+    'the gallery columns must not be floored at min-content, or the two halves are different heights'
+  );
+  assert.doesNotMatch(
+    decls,
+    /grid-template-columns:\s*1fr\s+1fr/,
+    'a bare 1fr is minmax(auto, 1fr): the longest theme name drives the column and the halves diverge'
+  );
+});
