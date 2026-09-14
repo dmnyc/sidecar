@@ -3413,6 +3413,228 @@
   // error — it silently splits the conversation.
   const WEB_COMMENT_KIND = 1111;
 
+  // ---- Polls (NIP-88) ----
+  //
+  // A poll is a kind:1068 whose content is the question. Each choice is an
+  // ["option", <id>, <label>] tag, the id being an opaque token a vote points back at,
+  // so editing a label never silently rewrites what anyone voted for. A vote is a
+  // kind:1018 carrying an `e` tag to the poll and one ["response", <optionId>] tag per
+  // choice. Sidecar creates polls and counts them; it does not vote, because voting
+  // needs a feed to find polls in and Sidecar is the signer, not the reader.
+  const POLL_KIND = 1068;
+  const POLL_RESPONSE_KIND = 1018;
+  const POLL_SINGLE = 'singlechoice';
+  const POLL_MULTIPLE = 'multiplechoice';
+
+  // Seven days unless the author says otherwise. NIP-88 makes endsAt optional and
+  // Jumble leaves it empty by default, but an open-ended poll never resolves: the count
+  // keeps moving, so there is no moment where the answer is the answer. A default that
+  // closes is the more useful one, and it can still be changed or removed per poll.
+  const POLL_DEFAULT_DAYS = 7;
+
+  // Alphanumeric, which is all NIP-88 asks of an option id. Nine characters matches what
+  // Jumble writes, so ids from either client look the same on a relay.
+  function pollOptionId() {
+    const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = new Uint8Array(9);
+    crypto.getRandomValues(bytes);
+    let out = '';
+    for (const b of bytes) out += abc[b % abc.length];
+    return out;
+  }
+
+  // The choices, in the order the author wrote them. A tag missing either field is
+  // dropped rather than rendered blank, and a duplicate id is dropped rather than
+  // merged, because two options sharing an id cannot be told apart in a vote.
+  function pollOptions(ev) {
+    const seen = new Set();
+    const out = [];
+    for (const t of (ev && ev.tags) || []) {
+      if (t[0] !== 'option' || !t[1] || typeof t[2] !== 'string') continue;
+      if (seen.has(t[1])) continue;
+      seen.add(t[1]);
+      out.push({ id: t[1], label: t[2] });
+    }
+    return out;
+  }
+
+  // "Polls that do not have a polltype should be considered a singlechoice poll", and
+  // anything else unrecognized is treated the same way: the stricter reading, so an
+  // unknown value cannot quietly let one person cast several votes.
+  function pollIsMultiple(ev) {
+    const t = ((ev && ev.tags) || []).find((x) => x[0] === 'polltype' && x[1]);
+    return !!t && t[1] === POLL_MULTIPLE;
+  }
+
+  function pollEndsAt(ev) {
+    const t = ((ev && ev.tags) || []).find((x) => x[0] === 'endsAt' && x[1]);
+    if (!t) return null;
+    const n = parseInt(t[1], 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  function pollRelayTags(ev) {
+    return ((ev && ev.tags) || []).filter((t) => t[0] === 'relay' && t[1]).map((t) => t[1]);
+  }
+
+  // COUNTING IS THE PART WITH RULES, so all of them live here rather than in the view.
+  // Given a poll and every kind:1018 seen for it, this returns the counts the poll
+  // actually has. Four rules, each of which changes the number:
+  //
+  //   One vote per pubkey. Someone who votes twice has changed their mind, not voted
+  //   twice, so only their latest counts. Ties on created_at break on id so a reload
+  //   that receives the same two events in a different order still shows one number.
+  //
+  //   Nothing after endsAt. The query already asks with `until`, but a relay is free to
+  //   answer with whatever it likes, and a poll whose result moves after it closed is
+  //   worse than one that is merely wrong.
+  //
+  //   Single choice means the FIRST response tag, and only that one. Not the first
+  //   RECOGNIZED one: falling through to the next tag would let anyone cast a real vote
+  //   in a single-choice poll by listing a junk id ahead of it. An unrecognized first
+  //   tag is a vote for nothing, which is what the spec says it is.
+  //
+  //   Multiple choice counts each distinct id once, order irrelevant, per the spec.
+  //
+  // Ids that are not options of THIS poll are dropped throughout, so a vote carrying
+  // another poll's ids cannot add to a total here.
+  function tallyPollVotes(pollEv, votes) {
+    const options = pollOptions(pollEv);
+    const valid = new Set(options.map((o) => o.id));
+    const endsAt = pollEndsAt(pollEv);
+    const multiple = pollIsMultiple(pollEv);
+
+    const latest = new Map();
+    for (const v of votes || []) {
+      if (!v || v.kind !== POLL_RESPONSE_KIND || !v.pubkey || !v.id) continue;
+      if (!(v.tags || []).some((t) => t[0] === 'e' && t[1] === pollEv.id)) continue;
+      if (endsAt && v.created_at > endsAt) continue;
+      const prev = latest.get(v.pubkey);
+      const newer =
+        !prev ||
+        v.created_at > prev.created_at ||
+        (v.created_at === prev.created_at && v.id > prev.id);
+      if (newer) latest.set(v.pubkey, v);
+    }
+
+    const counts = new Map(options.map((o) => [o.id, 0]));
+    let voters = 0;
+    for (const v of latest.values()) {
+      const responses = (v.tags || []).filter((t) => t[0] === 'response' && t[1]).map((t) => t[1]);
+      let picked;
+      if (multiple) {
+        picked = [...new Set(responses)].filter((id) => valid.has(id));
+      } else {
+        picked = responses.length && valid.has(responses[0]) ? [responses[0]] : [];
+      }
+      if (!picked.length) continue; // a ballot for nothing is not a voter
+      voters += 1;
+      picked.forEach((id) => counts.set(id, counts.get(id) + 1));
+    }
+
+    return { options, counts, voters, multiple, endsAt };
+  }
+
+  // THE DENOMINATOR IS VOTERS, NOT VOTES, and it matters on multiple choice: with six
+  // people picking two options each the counts sum to twelve, and dividing by that
+  // reports every option at half its real support. "62%" here means 62% of the people
+  // who voted chose this, which is the only reading that holds for both poll types.
+  function pollShare(count, voters) {
+    return voters > 0 ? count / voters : 0;
+  }
+
+  // "ends in 5d", "ended 2h ago", or the open-ended case. Deliberately coarse: the exact
+  // minute a poll closes is never the thing you want off a row this size.
+  function pollEndsText(endsAt) {
+    if (!endsAt) return 'no end date';
+    const secs = endsAt - Math.floor(Date.now() / 1000);
+    const mag = Math.abs(secs);
+    const unit =
+      mag < 3600 ? [Math.max(1, Math.round(mag / 60)), 'm'] :
+      mag < 86400 ? [Math.round(mag / 3600), 'h'] :
+      [Math.round(mag / 86400), 'd'];
+    return secs > 0 ? 'ends in ' + unit[0] + unit[1] : 'ended ' + unit[0] + unit[1] + ' ago';
+  }
+
+  function pollHasEnded(endsAt) {
+    return !!endsAt && endsAt <= Math.floor(Date.now() / 1000);
+  }
+
+  // What the composer offers. Durations rather than dates, because "7 days" is the
+  // thing an author actually means and a date picker in a 344px sheet is a fight.
+  // A specific moment is still reachable through the custom option below.
+  const POLL_DURATIONS = [
+    { secs: 3600, label: '1 hour' },
+    { secs: 6 * 3600, label: '6 hours' },
+    { secs: 86400, label: '1 day' },
+    { secs: 3 * 86400, label: '3 days' },
+    { secs: POLL_DEFAULT_DAYS * 86400, label: '7 days' },
+    { secs: 14 * 86400, label: '14 days' },
+    { secs: 30 * 86400, label: '30 days' },
+  ];
+
+  function newPollDraft() {
+    return {
+      options: ['', ''],
+      multiple: false,
+      ends: { kind: 'in', secs: POLL_DEFAULT_DAYS * 86400 },
+    };
+  }
+
+  // A DURATION IS RESOLVED AT PUBLISH, NOT AT DRAFT. Storing the absolute timestamp when
+  // the editor opened meant a poll drafted on Monday and posted on Thursday went out
+  // with three of its seven days already gone, and one left in a draft for over a week
+  // published already closed. `kind: 'at'` is the one case the author really did name a
+  // moment, so that one is passed through untouched.
+  function pollEndsAtFor(pollDraft, nowSecs) {
+    const ends = pollDraft && pollDraft.ends;
+    if (!ends || ends.kind === 'none') return null;
+    if (ends.kind === 'at') return ends.at > 0 ? ends.at : null;
+    return nowSecs + ends.secs;
+  }
+
+  // Two options with something in them is the floor: one option is not a question, and
+  // a blank is not a choice anyone can pick. Blanks are dropped rather than rejected so
+  // an author can leave the trailing empty row alone instead of tidying it.
+  function pollDraftOptions(pollDraft) {
+    return ((pollDraft && pollDraft.options) || []).map((o) => o.trim()).filter(Boolean);
+  }
+
+  function pollDraftIsPostable(pollDraft) {
+    return pollDraftOptions(pollDraft).length >= 2;
+  }
+
+  // Four, matching what Jumble writes. These tags tell a voter where to publish, and a
+  // long list is not more reachable: it is the same votes scattered wider, which makes
+  // the count slower to gather and more likely to be partial.
+  const POLL_RELAY_LIMIT = 4;
+
+  // The tags that turn a note into a poll. Pure, so the shape of a published poll is
+  // testable without a relay or a signer.
+  //
+  // Ids are generated here rather than in the editor because they are not the author's
+  // business, and because an id has to be unique WITHIN the poll: pollOptions drops a
+  // duplicate rather than merging it, so a collision would silently lose an option
+  // between what the author typed and what anyone can vote for.
+  function buildPollTags(pollDraft, nowSecs, relays) {
+    const tags = [];
+    const used = new Set();
+    pollDraftOptions(pollDraft).forEach((label) => {
+      let id = pollOptionId();
+      while (used.has(id)) id = pollOptionId();
+      used.add(id);
+      tags.push(['option', id, label]);
+    });
+    // Written even for the default. NIP-88 says an absent polltype is singlechoice, so
+    // this is redundant on paper, and it is the difference between a reader having to
+    // know the default and being told.
+    tags.push(['polltype', pollDraft.multiple ? POLL_MULTIPLE : POLL_SINGLE]);
+    const endsAt = pollEndsAtFor(pollDraft, nowSecs);
+    if (endsAt) tags.push(['endsAt', String(endsAt)]);
+    (relays || []).slice(0, POLL_RELAY_LIMIT).forEach((u) => tags.push(['relay', u]));
+    return tags;
+  }
+
   // Params that identify where a visitor came FROM, never which page they're on.
   // Left in, every share link spawns its own thread.
   //
