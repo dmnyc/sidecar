@@ -10389,18 +10389,35 @@
     const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
     close.append(icon('x'));
     close.addEventListener('click', dismissPostBanner);
-    banner.append(msg);
-    // The results sheet first for a poll, because it is the thing you just made and the
-    // one view the web client link cannot stand in for. The link out stays either way.
-    if (isPoll) {
+    // ONE WORDED ACTION FITS ON THE MESSAGE'S ROW. TWO DO NOT.
+    //
+    // The banner is a note's row: a line of text, one link, a dismiss. Adding See
+    // results beside Open in <client> left the message as the only thing in the row
+    // that could give way, so "Your poll is live." wrapped to two lines while both
+    // links sat there at full width. That is the panel's recurring row mistake, and the
+    // grammar for it is already written down: a confirm with words takes its own
+    // full-width row below the content.
+    //
+    // So a poll's banner becomes a column. The message keeps its line with the dismiss,
+    // and the two actions share the row beneath. They wrap to a row each if they cannot
+    // both fit, which happens below about a 310px panel with the longest client name,
+    // rather than running out past the border.
+    banner.classList.toggle('post-banner-stacked', isPoll);
+    if (!isPoll) {
+      banner.append(msg, open, close);
+    } else {
+      // The results sheet first: it is the thing just made, and the one view the web
+      // client link cannot stand in for.
       const results = h('button', { className: 'post-banner-link post-banner-btn', textContent: 'See results' });
       results.addEventListener('click', () => {
         dismissPostBanner();
         openPollResults(signed);
       });
-      banner.append(results);
+      banner.append(
+        h('div', { className: 'post-banner-head' }, [msg, close]),
+        h('div', { className: 'post-banner-actions' }, [results, open])
+      );
     }
-    banner.append(open, close);
     show(banner);
     _postBannerTimer = setTimeout(dismissPostBanner, 60000);
   }

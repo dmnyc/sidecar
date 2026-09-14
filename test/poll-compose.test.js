@@ -221,3 +221,37 @@ test('a bookmarked poll is labelled a poll', () => {
   // 1068 read "live chat" here before polls existed; live chat messages are kind 1311.
   assert.match(bare, /1068: 'poll'/);
 });
+
+test('A POLL BANNER STACKS, BECAUSE TWO WORDED ACTIONS DO NOT SHARE A ROW', () => {
+  // The banner was built for a note: one line of text, one link, a dismiss. Adding
+  // See results beside Open in <client> left the message as the only thing in the row
+  // that could give way, so "Your poll is live." wrapped to two lines while both links
+  // sat at full width. CLAUDE.md already names this: a confirm with words takes its own
+  // full-width row below the content.
+  const fn = bare.slice(bare.indexOf('async function showPostBanner'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(
+    body,
+    /banner\.classList\.toggle\('post-banner-stacked', isPoll\)/,
+    'a poll banner must become a column rather than a longer row'
+  );
+  assert.match(body, /className: 'post-banner-head' \}, \[msg, close\]/, 'the message keeps its own line');
+  assert.match(
+    body,
+    /className: 'post-banner-actions' \}, \[results, open\]/,
+    'both actions belong on the row beneath, not beside the message'
+  );
+  // The note banner is untouched: one row, in the original order.
+  assert.match(body, /banner\.append\(msg, open, close\);/, 'a note still posts a single-row banner');
+});
+
+test('the stacked actions share the row and wrap rather than overflow', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rule = css.slice(css.indexOf('.post-banner-actions {'));
+  const decls = rule.slice(0, rule.indexOf('}'));
+  assert.match(decls, /flex-wrap: wrap/, 'below about a 310px panel the two actions need a row each');
+  // margin-left: auto is what pushes the single link to the right of a one-row banner,
+  // and it has to be undone here or the first action is shoved off its own row.
+  const inner = css.slice(css.indexOf('.post-banner-actions .post-banner-link {'));
+  assert.match(inner.slice(0, inner.indexOf('}')), /margin-left: 0/);
+});
