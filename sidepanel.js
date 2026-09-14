@@ -2666,50 +2666,82 @@
   });
 
   // ---- tabs ----
-  // Move the underline to a tab. `animate` is false for the first paint and for resizes:
-  // written with a live transition, the mark would slide in from zero width at the left
-  // edge every time the panel is dragged wider, which is not a state change and should
-  // not read as one.
-  function moveTabSlider(tab, animate) {
-    const slider = document.querySelector('.tab-slider');
-    if (!slider || !tab) return;
-    // Inset to match what the old per-tab rule drew: left:16%/right:16% of the tab.
-    const inset = tab.offsetWidth * 0.16;
-    const x = tab.offsetLeft + inset;
-    const w = tab.offsetWidth - inset * 2;
-    if (animate) {
+  // ONE TRAVELING UNDERLINE, for every bar in the panel that has one: the main tabs, the
+  // Activity sub-tabs, and the theme gallery's Dark and Light. All three drew the same 2px
+  // gradient at the same inset from an ::after on whichever item was active, so all three
+  // blinked from one position to the next. This is that mark made into a single element
+  // the bar moves, once, rather than three copies of the same idea.
+  //
+  // Returns the mover so a bar whose selection changes from somewhere other than a click
+  // (showThemeMode is called on open, not only on tap) can keep the mark with it.
+  function wireTabSlider(nav, itemSelector) {
+    if (!nav) return () => {};
+    let slider = nav.querySelector(':scope > .tab-slider');
+    if (!slider) {
+      slider = document.createElement('span');
+      slider.className = 'tab-slider';
+      slider.setAttribute('aria-hidden', 'true');
+      nav.prepend(slider);
+    }
+    const items = () => [...nav.querySelectorAll(itemSelector)];
+    const active = () => nav.querySelector(itemSelector + '.active') || items()[0];
+
+    // `animate` is false for the first paint and for resizes: written with a live
+    // transition, the mark would slide in from zero width at the left edge every time the
+    // panel is dragged wider, which is not a state change and should not read as one.
+    function move(item, animate) {
+      const target = item || active();
+      if (!target || !target.offsetWidth) return;
+      // Inset to match what the per-item rule drew: left:16%/right:16% of the item.
+      const inset = target.offsetWidth * 0.16;
+      const x = target.offsetLeft + inset;
+      const w = target.offsetWidth - inset * 2;
+      if (animate) {
+        slider.style.transform = 'translateX(' + x + 'px)';
+        slider.style.width = w + 'px';
+        return;
+      }
+      const prev = slider.style.transition;
+      slider.style.transition = 'none';
       slider.style.transform = 'translateX(' + x + 'px)';
       slider.style.width = w + 'px';
-      return;
+      void slider.offsetWidth; // reflow, or restoring the transition replays this jump
+      slider.style.transition = prev;
     }
-    const prev = slider.style.transition;
-    slider.style.transition = 'none';
-    slider.style.transform = 'translateX(' + x + 'px)';
-    slider.style.width = w + 'px';
-    void slider.offsetWidth; // reflow, or restoring the transition replays this jump
-    slider.style.transition = prev;
+
+    // Measured whenever the bar has a size, not once on load. Two of these three live
+    // inside a tab or a settings section that is display:none until you go there, and a
+    // hidden bar measures zero: a one-shot read at startup parks the mark at the origin at
+    // zero width, where it stays until the first click. The observer covers that, covers
+    // the panel being dragged wider, and covers a font landing late.
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(() => { if (nav.offsetWidth) move(null, false); }).observe(nav);
+    } else {
+      requestAnimationFrame(() => move(null, false));
+      addEventListener('resize', () => move(null, false));
+    }
+    nav.addEventListener('click', (e) => {
+      const item = e.target.closest(itemSelector);
+      // After the handler that sets .active, so the mark is never asked to follow a
+      // selection that has not happened yet.
+      if (item && nav.contains(item)) requestAnimationFrame(() => move(item, true));
+    });
+    // Hung on the element rather than returned into a binding: a bar whose selection can
+    // change from somewhere other than a click needs to reach this, and a const captured
+    // up here would be a temporal-dead-zone throw away from whoever reaches it first.
+    // typeof does not protect against that.
+    nav.moveSlider = move;
+    return move;
   }
-  const activeTab = () => document.querySelector('.tab.active') || document.querySelector('.tab');
-  // Measured whenever the bar has a size, not once on load. The panel can open on
-  // onboarding or the lock screen with the main view hidden, and a hidden bar measures as
-  // zero: a one-shot read at startup parks the mark at the origin at zero width, where it
-  // stays until the first tab click. The observer covers that, covers the panel being
-  // dragged wider, and covers a font finishing loading and changing the label widths.
-  const tabsNav = document.querySelector('.tabs');
-  if (tabsNav && typeof ResizeObserver === 'function') {
-    new ResizeObserver(() => {
-      if (tabsNav.offsetWidth) moveTabSlider(activeTab(), false);
-    }).observe(tabsNav);
-  } else {
-    requestAnimationFrame(() => moveTabSlider(activeTab(), false));
-    addEventListener('resize', () => moveTabSlider(activeTab(), false));
-  }
+
+  wireTabSlider(document.querySelector('.tabs'), '.tab');
+  wireTabSlider($('activity-subtabs'), '.modal-tab');
+  wireTabSlider(document.querySelector('.theme-modes'), '.theme-mode');
 
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
-      moveTabSlider(tab, true);
       const name = tab.dataset.tab;
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-' + name));
@@ -17304,10 +17336,18 @@
     });
   }
 
-  function showThemeMode(mode) {
+  // `animate` is false when the gallery is being painted, where the mark should simply be
+  // where it belongs, and true on a tap, where the whole point is that it travels.
+  function showThemeMode(mode, animate) {
     document.querySelectorAll('.theme-mode').forEach((b) => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+    // This runs on a tap as well as on open, and it runs BEFORE the bar's own delegated
+    // listener, because the button is the target and the bar is its ancestor. Moving
+    // without animation here therefore snapped the mark to the new segment and left the
+    // delegated move with nothing to travel, which is why this bar alone did not animate.
+    const modes = document.querySelector('.theme-modes');
+    if (modes && modes.moveSlider) modes.moveSlider(null, !!animate);
     document.querySelectorAll('.theme-card').forEach((card) => {
       const on = card.dataset.mode === mode;
       card.classList.toggle('hidden-mode', !on);
@@ -17329,7 +17369,7 @@
   }
 
   document.querySelectorAll('.theme-mode').forEach((b) => {
-    b.addEventListener('click', () => showThemeMode(b.dataset.mode));
+    b.addEventListener('click', () => showThemeMode(b.dataset.mode, true));
   });
 
   document.querySelectorAll('.theme-card').forEach(card => {

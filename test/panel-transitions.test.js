@@ -77,18 +77,51 @@ test('the account menu knows the difference between closing and closed', () => {
   assert.match(src, /if \(acctMenuOpen\(\) && !menu\.contains\(e\.target\)/, 'the click-outside does not use it');
 });
 
-test('THE TAB UNDERLINE RE-MEASURES, RATHER THAN MEASURING ONCE', () => {
+test('THE TRAVELING UNDERLINE IS ONE MECHANISM, ON EVERY BAR THAT HAS ONE', () => {
   const src = stripComments(panel);
-  assert.match(src, /new ResizeObserver\(\(\) => \{\s*if \(tabsNav\.offsetWidth\) moveTabSlider/,
-    'the underline is measured once and never again, so a hidden bar parks it at zero');
+
+  // Three bars carried the identical mark: the main tabs, the Activity sub-tabs
+  // (Connected sites / Recent activity), and the theme gallery's Dark and Light. Each drew
+  // a 2px gradient at a 16% inset from an ::after on whichever item was active, so each
+  // blinked from one position to the next. One of them getting a traveling mark and the
+  // other two keeping the blink is worse than none of them having it, because then the
+  // panel disagrees with itself.
+  assert.match(src, /function wireTabSlider\(nav, itemSelector\)/, 'the shared mechanism is gone');
+  for (const [nav, item] of [
+    ["document.querySelector\\('\\.tabs'\\)", '\\.tab'],
+    ["\\$\\('activity-subtabs'\\)", '\\.modal-tab'],
+    ["document.querySelector\\('\\.theme-modes'\\)", '\\.theme-mode'],
+  ]) {
+    assert.match(src, new RegExp('wireTabSlider\\(' + nav + ", '" + item + "'\\)"),
+      item.replace(/\\/g, '') + ' is not wired to the shared slider');
+  }
+
+  // And no bar may still draw its own, or it gets two marks.
+  assert.doesNotMatch(bareCss, /active::after/, 'a bar still draws a per-item underline as well');
+
   // First paint and resize must not animate: the mark sliding in from zero width every
   // time the panel is dragged wider reads as a state change that did not happen.
-  assert.match(src, /moveTabSlider\(activeTab\(\), false\)/, 'the re-measure animates');
-  assert.match(src, /moveTabSlider\(tab, true\)/, 'switching tabs does not animate');
+  assert.match(src, /new ResizeObserver\(\(\) => \{ if \(nav\.offsetWidth\) move\(null, false\); \}\)/,
+    'the underline is measured once and never again, so a hidden bar parks it at zero');
   assert.match(src, /void slider\.offsetWidth;/, 'no reflow, so restoring the transition replays the jump');
-  assert.match(panelHtml, /<span class="tab-slider" aria-hidden="true"><\/span>/, 'the underline element is gone');
-  // The old per-tab mark has to be gone, or there are two.
-  assert.doesNotMatch(bareCss, /\.tab\.active::after/, 'the per-tab underline is still drawn as well');
+
+  // The theme bar's selection also changes on open, where there is no click to delegate
+  // from, so it has to be able to reach the mover without a click.
+  // The theme bar is the one that fires its own handler BEFORE the bar's delegated one,
+  // because the button is the click target and the bar is its ancestor. Moving without
+  // animation there snapped the mark to the new segment and left the delegated move with
+  // nothing to travel, so this bar alone did not animate. The flag is the whole fix: false
+  // while painting the gallery, true on a tap.
+  assert.match(src, /function showThemeMode\(mode, animate\)/, 'showThemeMode cannot tell a tap from a paint');
+  assert.match(src, /modes\.moveSlider\(null, !!animate\)/, 'the theme bar snaps instead of traveling');
+  assert.match(src, /showThemeMode\(b\.dataset\.mode, true\)/, 'a tap on the theme bar does not animate');
+  assert.match(src, /showThemeMode\(active\.dataset\.mode \|\| 'dark'\)\;/, 'painting the gallery animates the mark across');
+  assert.match(src, /nav\.moveSlider = move;/, 'the mover is unreachable from outside the wiring');
+
+  // All three containers need their own positioning context or the mark measures against
+  // the wrong box.
+  assert.match(bareCss, /\.tabs, \.modal-tabs, \.theme-modes \{ position: relative; \}/,
+    'a bar is missing its positioning context');
 });
 
 test('every surface that now moves can be told not to', () => {

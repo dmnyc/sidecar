@@ -947,13 +947,17 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .tab:disabled { opacity: 0.38; cursor: default; }
 .tab.active { color: var(--lav); }
 
-/* ONE underline that travels, rather than four that blink on and off.
+/* ONE underline that travels, rather than a set that blink on and off.
    The mark itself is unchanged: same gradient, same 2px, same inset. What changed is that
-   it is a single element the bar moves, so switching tabs reads as the indicator going
+   it is a single element the bar moves, so switching reads as the indicator going
    somewhere instead of one disappearing and another appearing. Position and width are
-   written inline by JS from the measured tab, so it stays correct at any panel width and
-   for any label. */
-.tabs { position: relative; }
+   written inline by JS from the measured item, so it stays correct at any panel width and
+   for any label.
+
+   Shared by all three bars that carry this mark: the main tabs, the Activity sub-tabs
+   (Connected sites / Recent activity), and the theme gallery's Dark and Light. Each needs
+   position: relative so the slider measures against its own bar. */
+.tabs, .modal-tabs, .theme-modes { position: relative; }
 .tab-slider {
   position: absolute;
   bottom: -1px;
@@ -3360,16 +3364,6 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .modal-tab:hover { color: var(--text); }
 .modal-tab.active { color: var(--lav); }
-.modal-tab.active::after {
-  content: '';
-  position: absolute;
-  left: 16%;
-  right: 16%;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--orange), var(--gold));
-}
 /* Buttons/text appended directly to .modal stretch full-width because .modal
    itself is a flex column (see below); this wrapper needs the same layout so
    its contents (box, copy/QR buttons, warning, form fields) match that. */
@@ -4005,16 +3999,6 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .theme-mode:hover { color: var(--text); }
 .theme-mode.active { color: var(--lav); }
-.theme-mode.active::after {
-  content: '';
-  position: absolute;
-  left: 16%;
-  right: 16%;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--orange), var(--gold));
-}
 
 .theme-selector {
   display: grid;
