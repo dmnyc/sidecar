@@ -60,7 +60,15 @@ test('THE TRIGGER CLOSES THE CARD IT LIVES IN', () => {
   const at = src.indexOf("className: 'about-rig'");
   assert.ok(at !== -1, 'the About card has no mark on it');
   const block = src.slice(at, at + 260);
-  assert.match(block, /closeModal\(\);\s*openRider\(\);/, 'the game opens behind the card that opened it');
+  assert.match(block, /afterModalClose\(openRider\)/, 'the overlay opens behind the card that opened it');
+  // afterModalClose is where the ordering lives now: the card has to finish dipping out
+  // and the backdrop has to go before the overlay arrives, because it sits
+  // under .modal-overlay by design. Opened during the close it comes up behind a dimmed
+  // backdrop with a shrinking card on top, which is what this originally guarded against
+  // and is worth keeping guarded now that the close actually takes time.
+  const handoff = src.slice(src.indexOf('function afterModalClose('), src.indexOf('function openRider('));
+  assert.match(handoff, /closeModal\(\);/, 'the handoff does not close the card');
+  assert.match(handoff, /setTimeout\(open, modalCloseMs\(\)\)/, 'the handoff does not wait for the close');
 
   // Appended to the card, not merely constructed.
   const about = src.slice(src.indexOf('function aboutModal('), src.indexOf('async function creatorZapModal('));

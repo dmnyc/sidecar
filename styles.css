@@ -112,6 +112,15 @@
   --text-swap-translate-y: 4px;
   --text-swap-blur: 2px;
   --text-swap-ease: ease-in-out;
+
+  /* Panel reveal. The snippet ships 100px of travel, which suits a panel sliding into a
+     region of a page; this one IS the region, full height, so a short rise reads as
+     arriving without the whole screen appearing to fall into place. */
+  --panel-open-dur: 400ms;
+  --panel-close-dur: 350ms;
+  --panel-translate-y: 28px;
+  --panel-blur: 2px;
+  --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * { box-sizing: border-box; }
@@ -1006,7 +1015,33 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
    sidepanel.js closes it outright when an approval or the lock screen appears. This is
    only the second line of defense behind that. */
-.rider-overlay { position: fixed; inset: 0; z-index: 95; background: #0e0e14; display: flex; }
+.rider-overlay {
+  position: fixed; inset: 0; z-index: 95; background: #0e0e14; display: flex;
+  /* It arrives rather than appearing: a short rise and a fade, opening slower than it
+     closes.
+
+     NO CROSS-BLUR, which the panel reveal otherwise carries. Measured on this surface it
+     was the difference between a clean 60fps and dropping four frames in a row: worst
+     frame 66.7ms with it, 16.8ms without. A blur has to re-rasterize the whole surface
+     every frame, and this surface is the entire panel with a live canvas running inside
+     it. Transform and opacity stay on the compositor; the blur does not. */
+  transform: translateY(var(--panel-translate-y));
+  opacity: 0;
+  transition:
+    transform var(--panel-close-dur) var(--panel-ease),
+    opacity   var(--panel-close-dur) var(--panel-ease);
+  will-change: transform, opacity;
+}
+.rider-overlay.is-open {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform var(--panel-open-dur) var(--panel-ease),
+    opacity   var(--panel-open-dur) var(--panel-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rider-overlay { transition: none !important; }
+}
 #rider-frame { flex: 1; width: 100%; height: 100%; border: 0; display: block; }
 .rider-close {
   position: absolute; top: 10px; right: 10px; z-index: 2;

@@ -16922,7 +16922,7 @@
       // Its title is emptied rather than left off, or it inherits one from an ancestor, and
       // an ornament that says "About Sidecar" on hover is a small lie.
       const rig = h('button', { type: 'button', className: 'about-rig', title: '', ariaLabel: 'Relay Rider' });
-      rig.addEventListener('click', () => { closeModal(); openRider(); });
+      rig.addEventListener('click', () => afterModalClose(openRider));
 
       modal.append(
         xClose,
@@ -17010,22 +17010,53 @@
     foot.addEventListener('click', aboutModal);
   });
 
+  // Hand a modal off to a full-panel surface. The card has to finish dipping out and the
+  // backdrop has to go before the next thing arrives, because .rider-overlay sits UNDER
+  // .modal-overlay on purpose (an approval has to be able to cover it). Opened while the
+  // modal is still closing, it comes up behind a dimmed backdrop with a shrinking card on
+  // top of it, and the backdrop then snaps away.
+  function afterModalClose(open) {
+    closeModal();
+    setTimeout(open, modalCloseMs());
+  }
+
   function openRider() {
     const frame = $('rider-frame');
+    const view = $('view-rider');
+    show(view);
+    view.classList.remove('is-closing');
+
+    // LOADED FIRST, THEN REVEALED. Starting the load and the reveal together put the
+    // page's parse, its script, and the first frames of a canvas render loop on the main
+    // thread in the middle of the transition: worst frame 34ms against 16.8ms when the
+    // frame is already up. The overlay is opaque and the page behind it is the same
+    // color, so there is nothing to see during the wait either way.
+    const reveal = () => {
+      requestAnimationFrame(() => requestAnimationFrame(() => view.classList.add('is-open')));
+      // Keys have to reach the frame, not the panel behind it, or the arrows scroll
+      // settings while the rig sits still. Same origin, so reaching in is allowed.
+      try { frame.contentWindow.focus(); } catch (_) { /* gone */ }
+    };
+    // A local page, so load is a formality, but never revealing the overlay because an
+    // event did not arrive is not a failure worth risking. The timer wins if it does.
+    let revealed = false;
+    const once = () => { if (!revealed) { revealed = true; reveal(); } };
+    frame.onload = once;
+    setTimeout(once, 600);
     frame.src = 'relay-rider.html';
-    show($('view-rider'));
-    // Keys have to reach the frame, not the panel behind it, or the arrows scroll
-    // settings while the rig sits still. Same origin, so reaching in is allowed.
-    frame.onload = () => { try { frame.contentWindow.focus(); } catch (_) { /* gone */ } };
   }
 
   function closeRider() {
     const view = $('view-rider');
     if (view.classList.contains('hidden')) return;
-    hide(view);
+    view.classList.remove('is-open');
     // Dropping the src is the whole teardown: the render loop, the audio context and the
-    // key listeners all belong to that document and go with it.
-    $('rider-frame').src = '';
+    // key listeners all belong to that document and go with it. It waits for the fade,
+    // because clearing it first leaves a blank frame sinking down the screen.
+    setTimeout(() => {
+      hide(view);
+      $('rider-frame').src = '';
+    }, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel-close-dur')) || 350);
   }
 
   $('rider-close').addEventListener('click', closeRider);
