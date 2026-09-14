@@ -4580,3 +4580,25 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 @media (prefers-reduced-motion: reduce) {
   .poll-bar-fill { transition: none; }
 }
+
+/* A POLL'S BANNER IS A COLUMN, because it carries two worded actions and the row
+   grammar in CLAUDE.md only has room for one. Side by side with the message, the
+   message was the only flexible thing in the row, so "Your poll is live." wrapped to
+   two lines while both links sat at full width. Content on top, controls stretched
+   beneath, which is the same shape .site-controls and .tx-row use. */
+.post-banner-stacked { flex-direction: column; align-items: stretch; gap: 8px; }
+.post-banner-head { display: flex; align-items: center; gap: 10px; }
+.post-banner-head .post-banner-msg { flex: 1; min-width: 0; }
+/* wrap, not shrink: below roughly a 310px panel "Open in Zap Cooking" and "See results"
+   stop fitting on one line, and a row each is right where squeezing both is not. */
+.post-banner-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.post-banner-actions .post-banner-link {
+  flex: 1 1 auto;
+  justify-content: center;
+  /* margin-left: auto is what pushes the single link to the right of a one-row banner.
+     In this row the two actions share the width, so it has to go. */
+  margin-left: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 8px;
+}
