@@ -35,6 +35,10 @@ function lift(decl) {
 const ctx = {
   console, JSON, Number, Math, String, parseInt,
   WEB_COMMENT_KIND: 1111,
+  // notifLabel branches on this for a poll vote. Pinned to the literal rather than
+  // lifted, the same way WEB_COMMENT_KIND above is: if the panel ever changes the
+  // number, the constant here stops matching and the poll test below says so.
+  POLL_RESPONSE_KIND: 1018,
   fmtSats: (n) => Math.round(n).toLocaleString('en-US'),
 };
 vm.createContext(ctx);
@@ -206,4 +210,21 @@ test('the zap keeps its gold, which outranks the muted span', () => {
   // specificity tie that has silently un-styled things in this codebase before.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.notif-glyph \.bolt-ico \{[^}]*color: var\(--gold\)/);
+});
+
+test('a poll vote is a bundled icon, and it is bars rather than a trend line', () => {
+  // 'chart' in this icon set is a rising line, which is a graph of something over time.
+  // A poll is a set of quantities side by side, which is what 'bar-chart' draws.
+  const l = notifLabel(ev(1018, { tags: [['e', 'a'.repeat(64)]] }));
+  assert.equal(l.icon, 'bar-chart');
+  assert.equal(l.glyph, undefined, 'no OS-rendered emoji: it would ignore the theme');
+  assert.equal(l.text, 'voted in your poll');
+});
+
+test('a vote is not mistaken for a reply just because it carries an e tag', () => {
+  // The kind:1 branch at the end reads `e` as "this answers something" and would have
+  // labelled every vote "replied to your note". The poll branch has to come first, and
+  // this is what says so.
+  const l = notifLabel(ev(1018, { tags: [['e', 'a'.repeat(64)], ['response', 'xyz']] }));
+  assert.equal(l.text, 'voted in your poll');
 });

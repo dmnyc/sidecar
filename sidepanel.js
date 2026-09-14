@@ -764,6 +764,12 @@
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   const _ownNoteIds = new Map(); // pubkey → Set<eventId> (this account's own recent kind:1 ids)
   const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  // Kept apart from the note ids rather than merged into one set. They are fetched with
+  // their own limit, so an account that posts often cannot push its polls out of the
+  // window and quietly stop reporting votes, and the vote filter can name poll ids only
+  // instead of asking every relay about 150 ids that can never carry a kind:1018.
+  const _ownPollIds = new Map(); // pubkey → Set<eventId> (this account's own kind:1068 ids)
+  const _ownPollIdsPromises = new Map();
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
   // Set while the notification modal is open, so a live event arriving in the
@@ -4332,6 +4338,9 @@
     // A NIP-22 comment that p-tags you. Worth its own wording: "mentioned you" sends
     // the reader looking for a note, and this is a comment on a page.
     if (ev.kind === WEB_COMMENT_KIND) return { glyph: '@', text: 'mentioned you in a comment' };
+    // A vote. The wording says "your poll" because that is the only poll a vote can
+    // reach this list for: both filters that collect them are anchored on this account.
+    if (ev.kind === POLL_RESPONSE_KIND) return { icon: 'bar-chart', text: 'voted in your poll' };
     // kind 1
     const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
     // Ornamental quote mark (U+275D) — a text glyph like the '@' below, so it
@@ -4414,6 +4423,19 @@
       }
     } catch (_) {}
     return '';
+  }
+
+  // The poll a kind:1018 answers, and any relay hint its `e` tag carries. The hint is
+  // worth keeping: a vote on a poll published to relays this account does not read is
+  // otherwise a notification that opens onto nothing.
+  function notifPollId(ev) {
+    const t = ((ev && ev.tags) || []).find((x) => x[0] === 'e' && x[1]);
+    return t ? t[1] : '';
+  }
+  function notifPollRelayHints(ev) {
+    return ((ev && ev.tags) || [])
+      .filter((x) => x[0] === 'e' && x[1] && typeof x[2] === 'string' && x[2].startsWith('wss://'))
+      .map((x) => x[2]);
   }
 
   function notifAuthorName(pubkey) {
@@ -5116,6 +5138,27 @@
     return p;
   }
 
+  // Same shape as loadOwnNoteIds, for polls. A vote does not have to p-tag the poll's
+  // author — NIP-88 does not ask for it, and only some clients bother — so matching on
+  // the poll id is what makes "someone voted" arrive at all for the rest.
+  function loadOwnPollIds(pubkey, relays) {
+    if (_ownPollIdsPromises.has(pubkey)) return _ownPollIdsPromises.get(pubkey);
+    const p = (async () => {
+      const ids = new Set();
+      try {
+        const evs = await poolQuerySync(relays, { kinds: [POLL_KIND], authors: [pubkey], limit: 50 });
+        (evs || [])
+          .sort((x, y) => y.created_at - x.created_at)
+          .slice(0, 50)
+          .forEach((e) => ids.add(e.id));
+      } catch (_) {}
+      _ownPollIds.set(pubkey, ids);
+      return ids;
+    })();
+    _ownPollIdsPromises.set(pubkey, p);
+    return p;
+  }
+
   // Close the live notification subscriptions for every account except `keepPubkey`.
   // Without this they accumulated for the life of the panel: initNotifSubs subscribed
   // for EVERY account, each with three filters, across every configured relay — with
@@ -5156,9 +5199,10 @@
       // the first event and the repost/quote filters below are ready. Cap the
       // wait so a slow relay can't stall notifications — the fetches keep
       // running and mutes prune the cache once it lands.
-      const [, ownIds] = await Promise.all([
+      const [, ownIds, ownPollIds] = await Promise.all([
         Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
         Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
+        Promise.race([loadOwnPollIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
       ]);
 
       // Reuse the existing cache when re-subscribing after an account switch — a
@@ -5208,17 +5252,26 @@
       // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
       // own notes — matched by id so they're caught even without a `p` tag.
       const ownIdList = [...ownIds];
+      const ownPollIdList = [...ownPollIds];
       function buildFilters(sinceTs, limit) {
         // 1111 is a NIP-22 comment (e.g. on a web page). Included so a mention inside
         // one reaches you: Sidecar writes p tags on comments now, and not querying
         // them would leave it a client that can send a mention but never receive one.
-        const base = { kinds: [1, 6, 7, 1111, 9735], '#p': [a.pubkey], since: sinceTs };
+        // 1018 is a vote on one of this account's polls. It is in BOTH this filter and
+        // the id-matched one below on purpose: Jumble p-tags the poll author, which this
+        // catches, while NIP-88 never requires that tag, which the other one covers.
+        // addEvent de-dupes by id, so a client doing both does not notify twice.
+        const base = { kinds: [1, 6, 7, 1111, 9735, POLL_RESPONSE_KIND], '#p': [a.pubkey], since: sinceTs };
         const list = [limit ? Object.assign({ limit }, base) : base];
         if (ownIdList.length) {
           const repost = { kinds: [6], '#e': ownIdList, since: sinceTs };
           const quote = { kinds: [1], '#q': ownIdList, since: sinceTs };
           list.push(limit ? Object.assign({ limit }, repost) : repost);
           list.push(limit ? Object.assign({ limit }, quote) : quote);
+        }
+        if (ownPollIdList.length) {
+          const votes = { kinds: [POLL_RESPONSE_KIND], '#e': ownPollIdList, since: sinceTs };
+          list.push(limit ? Object.assign({ limit }, votes) : votes);
         }
         return list;
       }
@@ -5326,7 +5379,12 @@
 
       // Where this notification opens (a renderable note/article/profile URL), or
       // '' when there's no sensible target.
-      const linkTarget = notifLink(ev, client, a.pubkey);
+      // A VOTE OPENS THE TALLY, NOT THE WEB CLIENT. Every other notification hands off
+      // because the thing being pointed at is a note, and a note reads better where
+      // notes read. A vote points at a number that has to be counted from every ballot,
+      // and that is the one answer a link out cannot give in a tap.
+      const pollTarget = ev.kind === POLL_RESPONSE_KIND ? notifPollId(ev) : '';
+      const linkTarget = pollTarget ? '' : notifLink(ev, client, a.pubkey);
 
       // The whole card is the click target — open it in the preferred client.
       const item = linkTarget
@@ -5336,6 +5394,13 @@
             target: '_blank',
             rel: 'noreferrer noopener',
             title: 'Open in ' + client.label,
+          })
+        : pollTarget
+        ? h('div', {
+            className: 'notif-item notif-clickable' + (isNew ? ' notif-new' : ''),
+            role: 'button',
+            tabIndex: 0,
+            title: 'See results',
           })
         : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
       // Lets the background mute re-check (see showNotifModal) remove this row in
@@ -5355,14 +5420,30 @@
           openInClient(linkTarget);
         });
       }
+      if (pollTarget) {
+        // Through afterModalClose rather than straight into openModal, so the bell's
+        // sheet plays its close before the results sheet arrives. Opening one modal on
+        // top of another swaps the content mid-dip and reads as a flicker.
+        const hints = notifPollRelayHints(ev);
+        const openResults = () => afterModalClose(() => openPollResults(pollTarget, hints));
+        item.addEventListener('click', openResults);
+        item.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          openResults();
+        });
+      }
 
       // Top row: glyph · name (truncated) · time · arrow
       const right = h('div', { className: 'notif-top-right' }, [
         h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) }),
       ]);
-      if (linkTarget) {
-        const arrow = h('span', { className: 'notif-link' });
-        arrow.appendChild(icon('arrow-up-right'));
+      if (linkTarget || pollTarget) {
+        // The up-right arrow means "this leaves Sidecar" on every other row and beside
+        // every Open in <client> button. A vote does not leave, so it gets a chevron
+        // turned to point along the row instead: drill in, not out.
+        const arrow = h('span', { className: 'notif-link' + (pollTarget ? ' notif-link-in' : '') });
+        arrow.appendChild(icon(pollTarget ? 'chevron-down' : 'arrow-up-right'));
         right.appendChild(arrow);
       }
       // Renders with whatever name is cached now (often a short npub on first
@@ -9248,6 +9329,7 @@
     view.append(lud16Notice);
     maybeSuggestLud16(lud16Notice, active, content);
 
+    renderPollsSection(view, active);
     renderNip65Section(view, active);
     renderBackupSection(view, active);
   }
@@ -10293,7 +10375,11 @@
     if (_postBannerTimer) clearTimeout(_postBannerTimer); // only one note's link shown at a time
 
     banner.innerHTML = '';
-    const msg = h('span', { className: 'post-banner-msg', textContent: 'Your note is live.' });
+    const isPoll = signed && signed.kind === POLL_KIND;
+    const msg = h('span', {
+      className: 'post-banner-msg',
+      textContent: isPoll ? 'Your poll is live.' : 'Your note is live.',
+    });
     const open = document.createElement('a');
     open.className = 'post-banner-link';
     open.href = client.url(nevent);
@@ -10303,7 +10389,18 @@
     const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
     close.append(icon('x'));
     close.addEventListener('click', dismissPostBanner);
-    banner.append(msg, open, close);
+    banner.append(msg);
+    // The results sheet first for a poll, because it is the thing you just made and the
+    // one view the web client link cannot stand in for. The link out stays either way.
+    if (isPoll) {
+      const results = h('button', { className: 'post-banner-link post-banner-btn', textContent: 'See results' });
+      results.addEventListener('click', () => {
+        dismissPostBanner();
+        openPollResults(signed);
+      });
+      banner.append(results);
+    }
+    banner.append(open, close);
     show(banner);
     _postBannerTimer = setTimeout(dismissPostBanner, 60000);
   }
@@ -10884,7 +10981,14 @@
       .catch(() => null);
   }
   function saveComposeDraft(key, draft) {
-    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    // A poll counts as content on its own: options are typed one at a time and losing
+    // four of them because the question had not been written yet is the kind of thing
+    // that makes a draft store worse than none.
+    const hasContent = !!(
+      (draft.text && draft.text.trim()) ||
+      (draft.media && draft.media.length) ||
+      (draft.poll && draft.poll.options && draft.poll.options.some((o) => o.trim()))
+    );
     (async () => {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
       // replyTo TRAVELS WITH THE DRAFT.
@@ -10899,6 +11003,7 @@
       // no cause to keep a stranger's signature in it.
       if (hasContent) {
         all[key] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+        if (draft.poll) all[key].poll = draft.poll;
         if (draft.replyTo) {
           const r = draft.replyTo;
           all[key].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
@@ -11038,7 +11143,11 @@
     // this decides which slot is read and written for the whole session, and a reply must
     // not be able to reach the main composer's draft or overwrite it.
     const dkey = draftKey(pubkey, replyTo);
-    let draft = { text: initialText || '', media: [], replyTo };
+    // `poll` is null for an ordinary note and an object once the poll editor is open.
+    // The end time is stored as a DURATION rather than a timestamp, because a draft
+    // written on Monday and posted on Thursday should still run its full seven days
+    // instead of arriving three days spent. See pollEndsAtFor.
+    let draft = { text: initialText || '', media: [], replyTo, poll: null };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
@@ -11125,9 +11234,21 @@
       const tags = settings && settings.showClientTag === false
         ? [...base, ...bodyP, ...quotes.tags]
         : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
+      const now = Math.floor(Date.now() / 1000);
+      // A poll is never a reply: the editor does not offer one on a reply, and reply
+      // drafts live in their own slot, so this cannot arrive carrying both. Guarded
+      // anyway, because the consequence would be a 1068 wearing NIP-10 threading tags,
+      // which is a shape nothing reads.
+      const asPoll = draft.poll && !replyTo;
+      if (asPoll) {
+        // Where votes should be published. The account's own write relays: this is
+        // where the poll itself is about to go, so it is where anyone reading it will
+        // already be connected.
+        tags.push(...buildPollTags(draft.poll, now, await relayUrls(true)));
+      }
       const event = {
-        kind: reply ? reply.kind : 1,
-        created_at: Math.floor(Date.now() / 1000),
+        kind: asPoll ? POLL_KIND : reply ? reply.kind : 1,
+        created_at: now,
         tags,
         content,
       };
@@ -11168,6 +11289,22 @@
         } else {
           previewPane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
         }
+        if (!draft.poll) return;
+        // The choices as they will be read, which is the one thing the editor above
+        // cannot show: there the options are input boxes, and a blank trailing row
+        // looks like a choice until it is dropped.
+        const opts = pollDraftOptions(draft.poll);
+        const list = h('div', { className: 'poll-preview' });
+        opts.forEach((label) => list.append(h('div', { className: 'poll-preview-option', textContent: label })));
+        const endsAt = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
+        list.append(
+          h('p', {
+            className: 'hint poll-preview-meta',
+            textContent:
+              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+          })
+        );
+        previewPane.append(list);
       }
       function setMode(p) {
         preview = p;
@@ -11176,6 +11313,8 @@
         editorWrap.classList.toggle('hidden', p);
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p);
+        pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo);
+        pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
         if (p) { mentionEditor.close(); renderPreview(); }
       }
@@ -11289,9 +11428,190 @@
         lbl.textContent = prev;
       });
 
+      // ---- poll editor ----
+      //
+      // A poll replaces the note's kind, not its body: the text in the editor above
+      // becomes the question. So this block adds choices and a clock and nothing else,
+      // and turning it off leaves an ordinary note with the text intact.
+      //
+      // Not offered on a reply. NIP-88 has no notion of a poll answering a note, and a
+      // 1068 carrying NIP-10 threading tags would be a shape no client reads.
+      const pollWrap = h('div', { className: 'poll-editor hidden' });
+      const pollAdd = h('button', { className: 'mini compose-add' });
+      pollAdd.append(icon('bar-chart'), h('span', { textContent: 'Add a poll' }));
+      pollAdd.addEventListener('click', () => {
+        draft.poll = newPollDraft();
+        paintPoll();
+        scheduleSave();
+        const first = pollWrap.querySelector('.poll-option-input');
+        if (first) first.focus();
+      });
+
+      // Rebuilt wholesale on add/remove. The rows carry an index in their own handlers,
+      // and patching a list in place while indices shift underneath is how a remove
+      // button ends up deleting the row below the one it sits on.
+      function paintPollOptions(list) {
+        list.innerHTML = '';
+        const opts = draft.poll.options;
+        opts.forEach((value, i) => {
+          const row = h('div', { className: 'poll-option' });
+          row.append(h('span', { className: 'poll-option-num', textContent: String(i + 1) + '.' }));
+          const input = h('input', {
+            className: 'poll-option-input',
+            type: 'text',
+            value,
+            maxLength: 200,
+            placeholder: 'Option ' + (i + 1),
+          });
+          input.addEventListener('input', () => {
+            draft.poll.options[i] = input.value;
+            updatePostState();
+            scheduleSave();
+          });
+          row.append(input);
+          // TWO IS THE FLOOR, so below that there is nothing to remove and the button
+          // would only ever be disabled. An icon-only control in the inline slot, per
+          // the panel's row rules: a worded button here would leave the input no width.
+          if (opts.length > 2) {
+            const rm = h('button', { className: 'poll-option-x', title: 'Remove option ' + (i + 1) });
+            rm.append(icon('x'));
+            rm.addEventListener('click', () => {
+              draft.poll.options.splice(i, 1);
+              paintPollOptions(list);
+              updatePostState();
+              scheduleSave();
+            });
+            row.append(rm);
+          }
+          list.append(row);
+        });
+      }
+
+      function paintPoll() {
+        pollWrap.innerHTML = '';
+        pollWrap.classList.toggle('hidden', !draft.poll);
+        pollAdd.classList.toggle('hidden', !!draft.poll || !!replyTo);
+        if (!draft.poll) return;
+
+        const list = h('div', { className: 'poll-options' });
+        paintPollOptions(list);
+
+        const addOpt = h('button', { className: 'poll-add-option' });
+        addOpt.append(icon('plus'), h('span', { textContent: 'Add option' }));
+        addOpt.addEventListener('click', () => {
+          draft.poll.options.push('');
+          paintPollOptions(list);
+          scheduleSave();
+          const inputs = list.querySelectorAll('.poll-option-input');
+          if (inputs.length) inputs[inputs.length - 1].focus();
+        });
+
+        const multi = h('input', { type: 'checkbox', checked: draft.poll.multiple });
+        multi.addEventListener('change', () => {
+          draft.poll.multiple = multi.checked;
+          scheduleSave();
+        });
+        const multiRow = h('label', { className: 'toggle-row' }, [
+          multi,
+          h('span', { textContent: 'Allow multiple choices' }),
+        ]);
+
+        // Durations, plus the two ends of the range: a specific moment, and none at all.
+        const sel = h('select', { className: 'poll-ends-select' });
+        POLL_DURATIONS.forEach((d) => {
+          sel.append(h('option', { value: 'in:' + d.secs, textContent: d.label }));
+        });
+        sel.append(h('option', { value: 'at', textContent: 'Custom date and time…' }));
+        sel.append(h('option', { value: 'none', textContent: 'No end date' }));
+        sel.value =
+          draft.poll.ends.kind === 'in' ? 'in:' + draft.poll.ends.secs : draft.poll.ends.kind;
+
+        const custom = h('input', { className: 'poll-ends-custom', type: 'datetime-local' });
+        if (draft.poll.ends.kind === 'at' && draft.poll.ends.at) {
+          // datetime-local wants local wall time with no zone, which is what an author
+          // picked in the first place; toISOString would shift it by the offset.
+          const d = new Date(draft.poll.ends.at * 1000);
+          const pad = (n) => String(n).padStart(2, '0');
+          custom.value =
+            d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+            'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+        custom.addEventListener('change', () => {
+          const at = custom.value ? Math.floor(new Date(custom.value).getTime() / 1000) : 0;
+          draft.poll.ends = { kind: 'at', at };
+          paintEndsNote();
+          updatePostState();
+          scheduleSave();
+        });
+
+        const endsNote = h('p', { className: 'hint poll-ends-note' });
+        function paintEndsNote() {
+          const k = draft.poll.ends.kind;
+          custom.classList.toggle('hidden', k !== 'at');
+          endsNote.classList.toggle('poll-warn', k === 'none');
+          if (k === 'none') {
+            // Said plainly rather than blocked. It is the author's poll, and there are
+            // real uses for one that never closes, but a running total is not a result:
+            // there is no moment the number means anything, and nothing stops a late
+            // arrival moving it a year from now.
+            endsNote.textContent = 'Not recommended: the count never settles, so the poll has no final result.';
+          } else if (k === 'at' && !(draft.poll.ends.at > 0)) {
+            endsNote.textContent = 'Pick the date and time the poll should close.';
+          } else {
+            const at = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
+            endsNote.textContent = at && at <= Math.floor(Date.now() / 1000)
+              ? 'That time has already passed, so the poll would close on posting.'
+              : 'Votes stop counting when the poll closes.';
+          }
+        }
+        sel.addEventListener('change', () => {
+          const v = sel.value;
+          if (v === 'none') draft.poll.ends = { kind: 'none' };
+          else if (v === 'at') draft.poll.ends = { kind: 'at', at: draft.poll.ends.at || 0 };
+          else draft.poll.ends = { kind: 'in', secs: parseInt(v.slice(3), 10) };
+          paintEndsNote();
+          updatePostState();
+          scheduleSave();
+        });
+        paintEndsNote();
+
+        const remove = h('button', { className: 'poll-remove' });
+        remove.append(icon('trash'), h('span', { textContent: 'Remove poll' }));
+        remove.addEventListener('click', () => {
+          draft.poll = null;
+          paintPoll();
+          updatePostState();
+          scheduleSave();
+        });
+
+        pollWrap.append(
+          list,
+          addOpt,
+          h('div', { className: 'poll-editor-sep' }),
+          multiRow,
+          h('label', { className: 'poll-ends-label', textContent: 'Runs for' }),
+          sel,
+          custom,
+          endsNote,
+          h('div', { className: 'poll-editor-sep' }),
+          remove
+        );
+      }
+
       const err = h('div', { className: 'error' });
       const post = h('button', { className: 'primary', textContent: 'Post' });
-      function updatePostState() { post.disabled = !draft.text.trim() && !draft.media.length; }
+      function updatePostState() {
+        if (draft.poll) {
+          // A poll needs its question, where a plain note can be an image on its own:
+          // the content IS the question, and a 1068 with an empty content is a set of
+          // options nobody can interpret. Two filled options is the other floor, and a
+          // custom end time that has not been picked yet is not postable either.
+          const endsOk = draft.poll.ends.kind !== 'at' || draft.poll.ends.at > 0;
+          post.disabled = !draft.text.trim() || !pollDraftIsPostable(draft.poll) || !endsOk;
+          return;
+        }
+        post.disabled = !draft.text.trim() && !draft.media.length;
+      }
       post.addEventListener('click', async () => {
         if (post.disabled) return;
         const { on, secs } = await postCountdownSetting();
@@ -11327,9 +11647,12 @@
         thumbs,
         addBtn,
         fileInput,
+        pollAdd,
+        pollWrap,
         err,
         h('div', { className: 'actions' }, [post, cancel])
       );
+      paintPoll();
       updatePostState();
       editor.focus();
     }
@@ -11342,7 +11665,7 @@
         published = true;
         clearComposeDraft(dkey);
         closeModal();
-        toast('Note published', 'success');
+        toast(signed.kind === POLL_KIND ? 'Poll published' : 'Note published', 'success');
         showPostBanner(signed);
       } catch (e) {
         toast(e.message, 'error');
@@ -11364,10 +11687,28 @@
       if (bodyText) renderNotePreview(previewBody, bodyText);
       else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
       previewScroll.append(previewBody);
+      // THE CHOICES BELONG ON THIS SCREEN TOO. It is the last thing seen before the
+      // event goes out, and for a poll the options are most of what is being published:
+      // a blank row that will be dropped, or a fifth option nobody meant to add, is only
+      // visible here. The clock as well, since an end date cannot be changed afterwards.
+      if (draft.poll && !replyTo) {
+        const opts = pollDraftOptions(draft.poll);
+        const list = h('div', { className: 'poll-preview' });
+        opts.forEach((label) => list.append(h('div', { className: 'poll-preview-option', textContent: label })));
+        const endsAt = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
+        list.append(
+          h('p', {
+            className: 'hint poll-preview-meta',
+            textContent:
+              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+          })
+        );
+        previewScroll.append(list);
+      }
       countdown = showPostCountdown({
         modal,
         secs,
-        title: replyTo ? 'Posting your reply' : 'Posting your note',
+        title: draft.poll && !replyTo ? 'Posting your poll' : replyTo ? 'Posting your reply' : 'Posting your note',
         preview: previewScroll,
         onFire: finishPublish,
         onCancel: showEditor,
@@ -11399,7 +11740,7 @@
       resume.addEventListener('click', () => {
         // Restore the target too, or this resumes as a note and posts as one.
         replyTo = saved.replyTo || null;
-        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo };
+        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo, poll: saved.poll || null };
         showEditor();
       });
       const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
@@ -11408,7 +11749,7 @@
         // The target you ARRIVED with, not the saved one. Discarding an old draft must
         // not also discard the Reply you just tapped to get here.
         replyTo = (opts && opts.replyTo) || null;
-        draft = { text: initialText || '', media: [], replyTo };
+        draft = { text: initialText || '', media: [], replyTo, poll: null };
         showEditor();
       });
 
@@ -11846,6 +12187,249 @@
     state = await call({ type: 'SIDECAR_GET_STATE' });
   }
 
+  // ---- Your polls (Profile) ----
+  //
+  // A poll nobody has voted on yet produces no notification, so without a list there is
+  // no way back to it: you would be waiting for a vote to find out whether you had any.
+  async function renderPollsSection(view, active) {
+    const setting = h('div', { className: 'setting polls-setting' });
+    setting.append(
+      h('h3', { textContent: 'Your polls' }),
+      h('p', {
+        className: 'hint',
+        textContent: 'Polls you have posted, with their counts. Tap one for the full tally.',
+      })
+    );
+    const list = h('div', { className: 'list flat' });
+    list.append(h('p', { className: 'hint', textContent: 'Looking for your polls…' }));
+    setting.append(list);
+    view.append(setting);
+
+    let polls = [];
+    try {
+      polls =
+        (await poolQuerySync(
+          await readRelayUrls(active.pubkey),
+          { kinds: [POLL_KIND], authors: [active.pubkey], limit: 20 },
+          { maxWait: 8000 }
+        )) || [];
+    } catch (_) {}
+    if (!list.isConnected) return; // the profile repainted or the account switched
+
+    polls.sort((a, b) => b.created_at - a.created_at);
+    list.innerHTML = '';
+    if (!polls.length) {
+      list.append(
+        h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
+      );
+      return;
+    }
+
+    // ONE QUERY FOR EVERY POLL'S VOTES, not one per poll. Twenty round trips to fill in
+    // twenty counts is the kind of thing that makes a tab feel broken on a slow relay.
+    // Correctness is unaffected: each poll's own endsAt is applied by tallyPollVotes,
+    // so a vote is still only counted against a poll that was open when it was cast.
+    const rows = new Map();
+    polls.forEach((ev) => {
+      const count = h('span', { className: 'poll-row-count', textContent: '…' });
+      const ends = h('span', { className: 'poll-row-ends', textContent: pollEndsText(pollEndsAt(ev)) });
+      const row = h('div', { className: 'item poll-row', role: 'button', tabIndex: 0 });
+      row.append(
+        h('div', { className: 'poll-row-main' }, [
+          h('div', { className: 'poll-row-q', textContent: ev.content || '(no question)' }),
+          h('div', { className: 'poll-row-meta' }, [ends, document.createTextNode(' · '), count]),
+        ])
+      );
+      const open = () => openPollResults(ev);
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        open();
+      });
+      rows.set(ev.id, count);
+      list.append(row);
+    });
+
+    let votes = [];
+    try {
+      const urls = [
+        ...new Set([
+          ...polls.flatMap((ev) => pollRelayTags(ev)),
+          ...(await relayUrls(false)),
+        ]),
+      ];
+      if (urls.length) {
+        votes =
+          (await poolQuerySync(
+            urls,
+            { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
+            { maxWait: 8000 }
+          )) || [];
+      }
+    } catch (_) {}
+    if (!list.isConnected) return;
+    polls.forEach((ev) => {
+      const cell = rows.get(ev.id);
+      if (!cell) return;
+      const { voters } = tallyPollVotes(ev, votes);
+      cell.textContent = voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes';
+    });
+  }
+
+  // ---- Poll results ----
+  //
+  // The one place Sidecar renders somebody else's events rather than handing off to a
+  // web client. It earns the exception: a tally is a number that has to be computed
+  // from every vote, and "open this elsewhere to find out" is not an answer to "how did
+  // my poll go". It stays deliberately narrow all the same. Counts and bars, no voter
+  // list, no avatars, no thread, and a link out for anything richer.
+
+  // Votes live wherever the poll said they should, which is not necessarily where this
+  // account reads. Both sets are asked, deduped, because a poll written by another
+  // client names its own relays and ignoring them is how a real count comes back empty.
+  async function fetchPollVotes(pollEv) {
+    const endsAt = pollEndsAt(pollEv);
+    const mine = await relayUrls(false);
+    const urls = [...new Set([...pollRelayTags(pollEv), ...mine])];
+    if (!urls.length) return [];
+    const filter = { kinds: [POLL_RESPONSE_KIND], '#e': [pollEv.id] };
+    // Asked for as well as enforced in the tally. The filter saves pulling ballots that
+    // can never count; tallyPollVotes drops them again because a relay is free to
+    // answer with whatever it likes.
+    if (endsAt) filter.until = endsAt;
+    try {
+      return (await poolQuerySync(urls, filter, { maxWait: 8000 })) || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function loadPollEvent(id, relayHints) {
+    const urls = [...new Set([...(relayHints || []), ...(await relayUrls(false))])];
+    if (!urls.length) return null;
+    try {
+      return await poolGet(urls, { kinds: [POLL_KIND], ids: [id] }, { maxWait: 8000 });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function paintPollResults(container, pollEv, votes) {
+    container.innerHTML = '';
+    const { options, counts, voters, multiple, endsAt } = tallyPollVotes(pollEv, votes);
+    const ended = pollHasEnded(endsAt);
+
+    const meta = [
+      multiple ? 'Multiple choice' : 'Single choice',
+      pollEndsText(endsAt),
+      voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes',
+    ];
+    container.append(h('div', { className: 'poll-result-meta', textContent: meta.join(' · ') }));
+
+    if (!options.length) {
+      container.append(h('p', { className: 'hint', textContent: 'This poll carries no options.' }));
+      return;
+    }
+
+    // Marked only once the poll is closed and only when it is not a tie. A "winner"
+    // badge on a poll with four days to run is a scoreboard, not a result, and on a tie
+    // it is wrong outright.
+    const top = Math.max(...options.map((o) => counts.get(o.id)));
+    const leaders = options.filter((o) => counts.get(o.id) === top);
+    const winner = ended && top > 0 && leaders.length === 1 ? leaders[0].id : null;
+
+    const bars = h('div', { className: 'poll-bars' });
+    options.forEach((opt) => {
+      const count = counts.get(opt.id);
+      const share = pollShare(count, voters);
+      const row = h('div', { className: 'poll-bar-row' + (opt.id === winner ? ' poll-bar-won' : '') });
+      const label = h('span', { className: 'poll-bar-label', textContent: opt.label || '(no label)' });
+      const tally = h('span', {
+        className: 'poll-bar-count',
+        textContent: count + ' · ' + Math.round(share * 100) + '%',
+      });
+      const fill = h('div', { className: 'poll-bar-fill' });
+      // Percentages are rounded for reading; the bar uses the unrounded share so two
+      // options that both round to 33% are not drawn at visibly different lengths.
+      fill.style.width = (share * 100).toFixed(2) + '%';
+      row.append(
+        h('div', { className: 'poll-bar-head' }, [label, tally]),
+        h('div', { className: 'poll-bar-track' }, [fill])
+      );
+      bars.append(row);
+    });
+    container.append(bars);
+
+    if (!voters) {
+      container.append(
+        h('p', {
+          className: 'hint',
+          textContent: ended ? 'This poll closed without any votes.' : 'No votes yet.',
+        })
+      );
+    }
+  }
+
+  // `poll` is either the event or an id to go and find. A vote notification only
+  // carries the id, and refusing to open without the whole event would make the row it
+  // came from a dead end.
+  async function openPollResults(poll, relayHints) {
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+      modal.append(h('h3', { textContent: 'Poll results' }));
+      const question = h('p', { className: 'poll-result-question' });
+      const body = h('div', { className: 'poll-result-body' });
+      body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
+      const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      const openOut = h('button', { className: 'ghost hidden' });
+      const actions = h('div', { className: 'actions' }, [recount, openOut, close]);
+      modal.append(question, body, actions);
+
+      let pollEv = typeof poll === 'string' ? null : poll;
+
+      async function load() {
+        recount.disabled = true;
+        try {
+          if (!pollEv) {
+            body.innerHTML = '';
+            body.append(h('p', { className: 'hint', textContent: 'Fetching the poll…' }));
+            pollEv = await loadPollEvent(typeof poll === 'string' ? poll : poll.id, relayHints);
+          }
+          if (!pollEv) {
+            question.textContent = '';
+            body.innerHTML = '';
+            body.append(
+              h('p', { className: 'hint', textContent: 'That poll could not be found on your relays.' })
+            );
+            return;
+          }
+          question.textContent = pollEv.content || '(no question)';
+          // The link out is built once the event is in hand, since it needs the author.
+          try {
+            const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+            const client = resolveClient(settings, state.activePubkey);
+            const url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
+            openOut.textContent = 'Open in ' + client.label;
+            openOut.classList.remove('hidden');
+            openOut.onclick = () => openInClient(url);
+          } catch (_) {}
+          body.innerHTML = '';
+          body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
+          const votes = await fetchPollVotes(pollEv);
+          if (!body.isConnected) return;
+          paintPollResults(body, pollEv, votes);
+        } finally {
+          recount.disabled = false;
+        }
+      }
+      recount.addEventListener('click', load);
+      load();
+    });
+  }
+
   // ---- Bookmarks (topbar icon → modal): the account's bookmark lists, as other clients wrote them ----
   // NIP-51 keeps bookmarks in two shapes: kind 10003 is the flat list every
   // client agrees on, and kind 30001 is one replaceable event per named
@@ -11855,7 +12439,12 @@
   // e-tag. Rows hand off to the preferred web client: Sidecar is the signer,
   // not the reader.
   const HEX_ID = /^[0-9a-f]{64}$/;
-  const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'live chat' };
+  // 1068 read "live chat" here until polls were added, which would have labelled a
+  // bookmarked poll as something it is not. It is a poll (NIP-88); live chat messages
+  // are kind 1311. 1063 is left alone deliberately: it is NIP-94 file metadata rather
+  // than a live event, but relabelling a kind nothing in this build writes is a separate
+  // change from the one in hand.
+  const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'poll' };
 
   // Every bookmark list event, raw, for bookmarkSections to shape.
   async function fetchBookmarkLists() {

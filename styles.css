@@ -4390,3 +4390,193 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    "Repost" and "Quote" cannot size to content and leave one stranded on its own line. */
 .notif-repost { display: flex; gap: 6px; margin-top: 8px; }
 .notif-repost-choice { flex: 1 1 0; min-width: 0; padding: 7px 6px; font-size: 12.5px; }
+
+/* ===== Polls (NIP-88) ===== */
+
+/* THE EDITOR. The question is the note body in the editor above, so this block is only
+   the choices and the clock. Everything in it is full width by the panel's own row
+   rules: the one inline control is the per-option remove, which is an icon and nothing
+   else, because a worded button beside a text input in 300px leaves neither usable. */
+.poll-editor {
+  margin-top: 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: var(--sheen);
+  padding: 9px;
+}
+.poll-options { display: flex; flex-direction: column; gap: 6px; }
+.poll-option { display: flex; align-items: center; gap: 6px; }
+.poll-option-num {
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+/* min-width: 0 so the input actually shrinks inside the flex row rather than forcing
+   the row wider than the sheet, which is the failure the panel's row rules describe. */
+.poll-option-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.poll-option-input:focus { outline: none; border-color: var(--gold-soft); }
+.poll-option-x {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.poll-option-x:hover { color: var(--red); background: var(--hover-soft); }
+.poll-option-x svg { width: 15px; height: 15px; }
+.poll-add-option,
+.poll-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  margin-top: 6px;
+  padding: 0;
+  font-size: 13px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.poll-add-option:hover { color: var(--text); background: var(--hover-soft); }
+.poll-remove:hover { color: var(--red); background: var(--hover-soft); }
+.poll-add-option svg,
+.poll-remove svg { width: 15px; height: 15px; }
+.poll-editor-sep { height: 1px; margin: 9px 0; background: var(--border); }
+.poll-ends-label {
+  display: block;
+  margin: 9px 0 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.poll-ends-select, .poll-ends-custom { width: 100%; }
+.poll-ends-custom { margin-top: 6px; }
+.poll-ends-note { margin-top: 6px; }
+/* The no-end-date case is said, not blocked: it is the author's poll. Amber rather than
+   red because nothing is wrong yet, it is just a poll that will never have a result. */
+.poll-ends-note.poll-warn { color: var(--warn); }
+
+/* The choices as they will read, in the Preview tab. The editor cannot show this: there
+   the options are input boxes and a blank trailing row looks like a choice. */
+.poll-preview { margin-top: 11px; }
+.poll-preview-option {
+  padding: 8px 11px;
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.poll-preview-meta { margin-top: 7px; }
+
+/* THE RESULTS SHEET. Counts and bars only. No voter list and no avatars: this is the
+   one place Sidecar renders other people's events, and it earns that by answering one
+   question rather than by becoming a reader. */
+.poll-result-question {
+  margin: 0 0 5px;
+  font-size: 15px;
+  color: var(--text);
+}
+.poll-result-meta {
+  margin-bottom: 11px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.poll-bars { display: flex; flex-direction: column; gap: 11px; }
+.poll-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+/* The label truncates and the count does not. The count is the answer, and it is three
+   or four characters; letting it shrink to fit a long option would hide the one thing
+   the sheet exists to show. */
+.poll-bar-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text);
+}
+.poll-bar-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.poll-bar-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  overflow: hidden;
+}
+.poll-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--orange), var(--gold));
+  transition: width var(--tabs-dur) var(--tabs-ease);
+}
+/* Only on a closed poll with a single leader — see paintPollResults. A winner mark on a
+   poll with days left is a scoreboard, and on a tie it is simply wrong. */
+.poll-bar-won .poll-bar-label { color: var(--gold); }
+.poll-bar-won .poll-bar-count { color: var(--gold); }
+
+/* Your polls, in Profile. */
+.poll-row { cursor: pointer; }
+.poll-row-main { min-width: 0; flex: 1; }
+.poll-row-q {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text);
+}
+.poll-row-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.poll-row-count { font-variant-numeric: tabular-nums; }
+
+/* The arrow on a vote notification. Up-right means "leaves Sidecar" on every other row
+   in this panel; a vote opens the tally in place, so its chevron is turned to point
+   along the row instead. */
+.notif-link-in svg { transform: rotate(-90deg); }
+
+.post-banner-btn {
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poll-bar-fill { transition: none; }
+}

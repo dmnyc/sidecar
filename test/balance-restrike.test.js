@@ -156,11 +156,15 @@ test('forgetBalancePaint makes the next paint strike again', () => {
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 
 test('the refresh button clears the wallet slot before re-rendering', () => {
-  const m = panel.match(/refresh\.addEventListener\('click',([^\n]*)\)/);
-  assert.ok(m, 'could not find the wallet refresh click handler');
-  assert.match(
-    m[1],
-    /forgetBalancePaint\('wallet'\)/,
+  // EVERY handler named `refresh`, not the first one in the file. A `.match` took
+  // whichever came first in source order, so an unrelated button that happened to be
+  // called `refresh` and sat higher up silently became the thing under test: the poll
+  // results sheet did exactly that, and this assertion started reporting on a handler
+  // with no wallet in it at all.
+  const handlers = [...panel.matchAll(/refresh\.addEventListener\('click',([^\n]*)\)/g)].map((m) => m[1]);
+  assert.ok(handlers.length, 'could not find any refresh click handler');
+  assert.ok(
+    handlers.some((body) => /forgetBalancePaint\('wallet'\)/.test(body)),
     "the refresh button must forget the wallet slot first, or the rebuilt card finds the " +
     'same figure and redraws in silence — a refresh that reports nothing looks broken'
   );
