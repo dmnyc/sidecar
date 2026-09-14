@@ -4602,3 +4602,32 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   border: 1px solid var(--gold-soft);
   border-radius: 8px;
 }
+
+/* The way back into Your polls from the bell. Pushed to the far end of the header with
+   margin-left: auto rather than given a row of its own, because it is one short worded
+   control beside a title, not a control competing with content for width. */
+.notif-modal-polls {
+  flex-shrink: 0;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--gold);
+  background: none;
+  border: 1px solid var(--gold-soft);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.notif-modal-polls:hover { background: var(--hover-soft); }
+.notif-modal-polls svg { width: 13px; height: 13px; }
+
+/* min-width: 0 is what makes .notif-modal-sub's ellipsis fire at all. The rule has
+   carried overflow/text-overflow since it was written, and it never truncated, because
+   a flex child defaults to min-width: auto and simply grew to fit the name instead.
+   Invisible while the header held nothing to its right; with a Polls button there, a
+   long display name pushed it 145px past the edge of the sheet. */
+.notif-modal-titlebox { min-width: 0; flex: 1; }

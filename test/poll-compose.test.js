@@ -255,3 +255,62 @@ test('the stacked actions share the row and wrap rather than overflow', () => {
   const inner = css.slice(css.indexOf('.post-banner-actions .post-banner-link {'));
   assert.match(inner.slice(0, inner.indexOf('}')), /margin-left: 0/);
 });
+
+// ---- getting back to a poll --------------------------------------------------------
+
+test('A POLL IS READ BACK FROM THE RELAYS IT WAS PUBLISHED TO', () => {
+  // readRelayUrls is built for replaceable events: NIP-65 READ relays plus
+  // purplepag.es, which aggregates kinds 0, 3 and 10002. A poll is none of those. It
+  // goes to postRelays, the WRITE set, and NIP-65 lets those two lists be completely
+  // disjoint, so reading from the read set alone found nothing on exactly the accounts
+  // that declare a real split, and Your polls came up empty while the poll sat on the
+  // relays it had just been published to.
+  assert.match(bare, /async function pollReadRelays\(pubkey\)/);
+  const fn = bare.slice(bare.indexOf('async function pollReadRelays'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /readRelayUrls\(pubkey\)/, 'the read set');
+  assert.match(body, /relayUrls\(true\)/, 'and the write set, which is where a poll actually went');
+
+  // Every poll read goes through it. A single caller left on the read-only set is the
+  // whole bug back again, on whichever surface that caller happens to be.
+  const pollQueries = bare.match(/kinds: \[POLL_KIND\], authors: \[active\.pubkey\]/g) || [];
+  assert.equal(pollQueries.length, 1, 'exactly one place lists the account polls');
+  assert.doesNotMatch(
+    bare.slice(bare.indexOf('async function fillPollsList')),
+    /readRelayUrls\(active\.pubkey\)/,
+    'the poll list must not use the replaceable-event read set'
+  );
+  // The other two reads are the tally itself and fetching a poll named only by id.
+  const results = bare.slice(bare.indexOf('async function fetchPollVotes'));
+  assert.match(results, /pollReadRelays\(state\.activePubkey\)/, 'the vote query');
+  assert.match(
+    bare.slice(bare.indexOf('async function loadPollEvent')),
+    /pollReadRelays\(state\.activePubkey\)/,
+    'and fetching a poll a notification named by id'
+  );
+});
+
+test('the bell offers a way back, because a vote notification is a one-shot route', () => {
+  // The notification takes you to the tally once; close it and there is nothing to
+  // return to unless somebody votes again, and the post banner dismisses itself after a
+  // minute. Gated on ids that are already loaded for the notification filters, so it
+  // costs no extra query, and Profile still lists polls unconditionally.
+  assert.match(bare, /function accountHasPolls\(pubkey\)/);
+  assert.match(bare, /if \(accountHasPolls\(a\.pubkey\)\) \{/, 'the bell header must offer it');
+  assert.match(bare, /afterModalClose\(openPollsList\)/, 'and hand off after the sheet closes');
+  // One list, filled by one function, or the sheet and the Profile section drift.
+  assert.match(bare, /async function fillPollsList\(list, pubkey\)/);
+  assert.match(bare, /await fillPollsList\(list, active\.pubkey\)/, 'Profile uses it');
+  assert.match(bare, /fillPollsList\(list, state\.activePubkey\)/, 'and so does the sheet');
+});
+
+test('the header title box can shrink, or the button it sits beside is pushed off', () => {
+  // .notif-modal-sub has carried overflow/text-overflow since it was written and never
+  // truncated, because a flex child defaults to min-width: auto and grows to fit the
+  // name. Harmless while nothing sat to its right; with a Polls button there, a long
+  // display name pushed it 145px past the edge of the sheet.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rule = css.slice(css.indexOf('.notif-modal-titlebox {'));
+  assert.match(rule.slice(0, rule.indexOf('}')), /min-width: 0/);
+  assert.match(bare, /className: 'notif-modal-titlebox'/, 'and the element has to carry the class');
+});
