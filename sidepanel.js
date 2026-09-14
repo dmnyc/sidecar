@@ -5966,7 +5966,7 @@
       // crowded, and it says nothing the user does not already know. Title and close
       // button alone is the honest amount of furniture for "here is your list".
       const heading = h('div', { className: 'notif-modal-head' });
-      const titleBox = h('div', {}, [
+      const titleBox = h('div', { className: 'notif-modal-titlebox' }, [
         h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
       ]);
       if ((state.accounts || []).length > 1) {
@@ -5974,6 +5974,15 @@
         heading.append(avatarEl(a, 'notif-modal-av'));
       }
       heading.append(titleBox);
+      // The way back to a poll you posted. A vote notification only reaches its tally
+      // once, and only if somebody voted at all, so without this the bell can tell you a
+      // poll exists and then offer no way to look at it again.
+      if (accountHasPolls(a.pubkey)) {
+        const polls = h('button', { className: 'notif-modal-polls', title: 'Your polls' });
+        polls.append(icon('bar-chart'), h('span', { textContent: 'Polls' }));
+        polls.addEventListener('click', () => afterModalClose(openPollsList));
+        heading.append(polls);
+      }
       modal.appendChild(heading);
 
       const scroll = h('div', { className: 'notif-scroll' });
@@ -12208,6 +12217,8 @@
   //
   // A poll nobody has voted on yet produces no notification, so without a list there is
   // no way back to it: you would be waiting for a vote to find out whether you had any.
+  // The Profile tab's section. The list itself is fillPollsList, because the bell opens
+  // the same list in a sheet and two copies of it would drift.
   async function renderPollsSection(view, active) {
     const setting = h('div', { className: 'setting polls-setting' });
     setting.append(
@@ -12218,15 +12229,21 @@
       })
     );
     const list = h('div', { className: 'list flat' });
-    list.append(h('p', { className: 'hint', textContent: 'Looking for your polls…' }));
     setting.append(list);
     view.append(setting);
+    await fillPollsList(list, active.pubkey);
+  }
+
+  async function fillPollsList(list, pubkey) {
+    list.innerHTML = '';
+    list.append(h('p', { className: 'hint', textContent: 'Looking for your polls…' }));
+    const active = { pubkey };
 
     let polls = [];
     try {
       polls =
         (await poolQuerySync(
-          await readRelayUrls(active.pubkey),
+          await pollReadRelays(active.pubkey),
           { kinds: [POLL_KIND], authors: [active.pubkey], limit: 20 },
           { maxWait: 8000 }
         )) || [];
@@ -12273,7 +12290,7 @@
       const urls = [
         ...new Set([
           ...polls.flatMap((ev) => pollRelayTags(ev)),
-          ...(await relayUrls(false)),
+          ...(await pollReadRelays(active.pubkey)),
         ]),
       ];
       if (urls.length) {
@@ -12294,6 +12311,40 @@
     });
   }
 
+  // A POLL IS NOT REACHABLE FROM A NOTIFICATION TWICE.
+  //
+  // A vote notification is a one-shot route: it takes you to the tally, and once the
+  // sheet is closed there is nothing to go back to unless someone votes again. The post
+  // banner is worse, since it dismisses itself after a minute. So the bell carries a way
+  // into the list, because the bell is where you go to ask what happened to something
+  // you posted.
+  //
+  // Shown only when this account is known to have polls, which costs nothing: the ids
+  // are already loaded for the notification filters. If that load has not landed the
+  // button is simply absent, and Profile still lists them unconditionally.
+  function accountHasPolls(pubkey) {
+    const ids = _ownPollIds.get(pubkey);
+    return !!(ids && ids.size);
+  }
+
+  function openPollsList() {
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+      modal.append(
+        h('h3', { textContent: 'Your polls' }),
+        h('p', {
+          className: 'hint',
+          textContent: 'Polls you have posted, with their counts. Tap one for the full tally.',
+        })
+      );
+      const list = h('div', { className: 'list flat' });
+      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      close.addEventListener('click', closeModal);
+      modal.append(list, h('div', { className: 'actions' }, [close]));
+      fillPollsList(list, state.activePubkey);
+    });
+  }
+
   // ---- Poll results ----
   //
   // The one place Sidecar renders somebody else's events rather than handing off to a
@@ -12302,12 +12353,26 @@
   // my poll go". It stays deliberately narrow all the same. Counts and bars, no voter
   // list, no avatars, no thread, and a link out for anything richer.
 
+  // WHERE A POLL IS READ BACK FROM HAS TO INCLUDE WHERE IT WAS SENT.
+  //
+  // readRelayUrls is built for replaceable events: NIP-65 READ relays plus
+  // purplepag.es, which aggregates kinds 0, 3 and 10002. A poll is none of those. It is
+  // a regular event published to postRelays, which is the NIP-65 WRITE set, and those
+  // two lists are allowed to be completely disjoint. Reading a poll back from the read
+  // set alone therefore found nothing on exactly the accounts that declare a real
+  // NIP-65 split, and Your polls came up empty while the poll was sitting on the
+  // relays it had just been published to.
+  async function pollReadRelays(pubkey) {
+    const [read, write] = await Promise.all([readRelayUrls(pubkey), relayUrls(true)]);
+    return [...new Set([...read, ...write])];
+  }
+
   // Votes live wherever the poll said they should, which is not necessarily where this
   // account reads. Both sets are asked, deduped, because a poll written by another
   // client names its own relays and ignoring them is how a real count comes back empty.
   async function fetchPollVotes(pollEv) {
     const endsAt = pollEndsAt(pollEv);
-    const mine = await relayUrls(false);
+    const mine = await pollReadRelays(state.activePubkey);
     const urls = [...new Set([...pollRelayTags(pollEv), ...mine])];
     if (!urls.length) return [];
     const filter = { kinds: [POLL_RESPONSE_KIND], '#e': [pollEv.id] };
@@ -12323,7 +12388,7 @@
   }
 
   async function loadPollEvent(id, relayHints) {
-    const urls = [...new Set([...(relayHints || []), ...(await relayUrls(false))])];
+    const urls = [...new Set([...(relayHints || []), ...(await pollReadRelays(state.activePubkey))])];
     if (!urls.length) return null;
     try {
       return await poolGet(urls, { kinds: [POLL_KIND], ids: [id] }, { maxWait: 8000 });
