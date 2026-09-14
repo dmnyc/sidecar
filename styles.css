@@ -4002,7 +4002,18 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 
 .theme-selector {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …) AND NOT A BARE 1fr, which is minmax(auto, 1fr) and therefore floors each
+     column at its min-content width. Min-content here is the widest unbreakable word in
+     whichever half is showing, and the two halves do not agree: Werkstätte is 141.5px in
+     Syncopate against a widest-dark of 117.3px (Metropolis, Brownstone). Below about a
+     363px panel the Light columns hit that floor and stop shrinking while the Dark ones
+     carry on, and because .theme-preview is sized by aspect-ratio a wider card is a taller
+     card, on all three rows at once. The gallery then changed height when you toggled
+     Dark/Light and everything below it moved: 3px at 360px, 24px at 340px. Reported as the
+     section under the gallery shifting by a few pixels.
+     Syncopate being the outlier is the same fact .theme-name records below, that it is
+     unicase and runs 68% wider than the median of the other eleven faces. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
   margin-top: 9px;
 }
