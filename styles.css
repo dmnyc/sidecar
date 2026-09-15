@@ -4527,6 +4527,91 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   font-size: 12px;
   color: var(--muted);
 }
+/* .modal-sheet is overflow: hidden at a fixed height, so something in here has to be the
+   scroller or the content runs out under the actions. min-height: 0 is what makes it fire:
+   a flex item will not shrink below its content, so without it the body simply grows and
+   the clipping happens outside it, where there is no scrollbar to reach. */
+.poll-result-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+.poll-result-body > .poll-bars { flex-shrink: 0; }
+
+/* THE BARS DO NOT MOVE WHEN A CHOICE IS OPENED. The list sits inline, directly under the
+   bar whose voters it holds, which is the only placement that answers "whose names are
+   these" once you have scrolled past the chevron. It scrolls inside itself rather than
+   growing, so the percentages stay where they are while the names move. */
+.poll-voter-list {
+  overflow-y: auto;
+  margin-top: 7px;
+  border-top: 1px solid var(--border);
+}
+.poll-voter-list.hidden { display: none; }
+
+/* AND IT TAKES THE HEIGHT THAT IS LEFT, not a fixed slice of the viewport.
+
+   This was max-height: 34vh, which is right on a short panel and leaves a blank band above
+   the actions on a tall one: the side panel is dragged to whatever height suits, and a
+   third of it is not the same as what is actually spare. The open row grows into the free
+   space instead, so there is none left over to sit empty, and the choices below it follow
+   immediately after rather than being stranded at the bottom.
+
+   Only while something is open, which is what .poll-open says. Closed, the sheet is a plain
+   stack that scrolls when there are more options than fit, and a .poll-bars stretched to
+   fill would push the empty-tally note to the foot of the sheet. min-height on the open row
+   keeps it usable when the options alone have taken the space. */
+.poll-result-body.poll-open { overflow-y: hidden; }
+.poll-result-body.poll-open .poll-bars {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.poll-result-body.poll-open .poll-bar-row { flex-shrink: 0; }
+.poll-result-body.poll-open .poll-bar-open {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 140px;
+  /* Grow into the free space, but never past what the list actually holds: eight voters on
+     a tall panel should be eight rows and then nothing, not eight rows adrift in a box
+     stretched to the foot of the sheet. */
+  max-height: max-content;
+}
+.poll-result-body.poll-open .poll-bar-open .poll-voter-list { flex: 1 1 auto; min-height: 0; }
+
+/* One voter, one line: a face, a name, and a way to go and look. The option is not
+   repeated here, because the bar above the pane is the header, which is the whole reason
+   for hanging these off a choice rather than listing every name with its pick spelled out
+   beside it.
+
+   The inline-action grammar from CLAUDE.md, read the other way round: the avatar keeps its
+   metrics (flex-shrink: 0) and the name, which is the prose, does the truncating. */
+.poll-voter {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+}
+.poll-voter:last-child { border-bottom: none; }
+.poll-voter-av {
+  width: 26px; height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--av-from), var(--av-to));
+  border: 1px solid var(--border);
+}
+.poll-voter-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.poll-voter-name {
+  min-width: 0;
+  font-size: 13px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Only the rows that actually go somewhere take a pointer and a hover. A row with no
+   client resolved is the same row without the link, and must not pretend otherwise. */
+.poll-voter-link { cursor: pointer; }
+.poll-voter-link:hover { background: var(--hover-faint); }
+.poll-voter-link:hover .poll-voter-name { color: var(--lav); }
+
 .poll-bars { display: flex; flex-direction: column; gap: 11px; }
 .poll-bar-head {
   display: flex;
@@ -4535,6 +4620,26 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   gap: 8px;
   margin-bottom: 5px;
 }
+/* A bar that has voters behind it is the accordion's header. Button resets only: it keeps
+   the metrics of the plain row beside it, because a choice nobody picked is still a bar
+   and the two must not sit at different heights. */
+button.poll-bar-head {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.poll-bar-pick > svg {
+  width: 13px; height: 13px; flex-shrink: 0;
+  align-self: center;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+.poll-bar-pick:hover .poll-bar-label { color: var(--lav); }
+.poll-bar-picked > svg { color: var(--lav); }
 /* The label truncates and the count does not. The count is the answer, and it is three
    or four characters; letting it shrink to fit a long option would hide the one thing
    the sheet exists to show. */

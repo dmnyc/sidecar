@@ -356,6 +356,236 @@ test('the amber ends note uses the warn class that already existed', () => {
   assert.match(bare, /endsNote\.classList\.toggle\('warn', k === 'none'\)/);
 });
 
+// ---- who voted ----------------------------------------------------------------------
+
+test('THE BALLOTS COME OUT OF THE SAME PASS AS THE COUNTS', () => {
+  // A second walk over the votes to collect voters would be a second set of rules to keep
+  // in step with NIP-88, and the first time they disagreed the list would name someone the
+  // number above it had not counted. Same loop, same guards, one skip.
+  const fn = bare.slice(bare.indexOf('function tallyPollVotes'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /ballots\.push\(\{ pubkey: v\.pubkey, picked, at: v\.created_at \}\);/);
+  assert.ok(
+    body.indexOf('ballots.push') > body.indexOf('if (!picked.length) continue;'),
+    'a ballot for nothing is not a voter, in the list as well as in the count'
+  );
+  assert.match(body, /ballots\.sort\(\(x, y\) => y\.at - x\.at\);/, 'newest first, like everything else');
+  assert.match(body, /return \{ options, counts, voters, multiple, endsAt, ballots \};/);
+});
+
+test('VOTERS HANG OFF THE CHOICE THEY PICKED, NOT A LIST THAT REPEATS IT', () => {
+  // The first build was one flat list of every voter with their option beside each name.
+  // On a 65-voter poll that is 65 rows repeating two strings, and the repetition is most
+  // of what you read. The bar is the header now, so the names under it carry no label.
+  const fn = bare.slice(bare.indexOf('function paintPollResults'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /const mine = ballots\.filter\(\(b\) => b\.picked\.includes\(opt\.id\)\);/);
+  assert.match(body, /className: 'poll-bar-head poll-bar-pick', type: 'button'/, 'the bar is the header');
+  assert.doesNotMatch(body, /poll-voter-pick/, 'the option must not be repeated on every name');
+  assert.doesNotMatch(bare, /pollVoterList/, 'and the flat list is gone, not left alongside');
+
+  // A choice nobody picked stays a plain row. A chevron on it would be a control that
+  // does nothing, and the two kinds of row must sit at the same height regardless.
+  assert.match(body, /if \(!mine\.length\) \{[\s\S]{0,400}?className: 'poll-bar-head' \}, \[label, tally\]\), track\);/);
+});
+
+test('one choice open at a time, each costing a fixed amount of height', () => {
+  // Two open would spend the cap twice and start pushing choices off the sheet, which is
+  // the thing the cap exists to prevent.
+  const body = fnBody('function paintPollResults(');
+  assert.match(body, /let openId = null;/);
+  assert.match(body, /const opening = openId !== opt\.id;/, 'tapping the open one closes it');
+  // Every header AND every list is reset before the new one is drawn, so the marks can
+  // never say two are open at once.
+  assert.ok(
+    body.indexOf("bars.querySelectorAll('.poll-bar-pick')") < body.indexOf("headBtn.setAttribute('aria-expanded', 'true')"),
+    'the reset has to run before the new selection is drawn'
+  );
+  assert.match(
+    body,
+    /bars\.querySelectorAll\('\.poll-voter-list'\)\.forEach\(\(l\) => l\.classList\.add\('hidden'\)\);/,
+    'every other list has to close, not just the headers'
+  );
+  assert.match(body, /headBtn\.setAttribute\('aria-expanded', 'false'\)/, 'closed to start');
+  assert.match(body, /headBtn\.setAttribute\('aria-expanded', 'true'\)/, 'and the state is announced');
+  assert.match(body, /b\.setAttribute\('aria-expanded', 'false'\)/, 'the others are told they closed');
+  // Built once and kept: reopening a choice must not rebuild or refetch it.
+  assert.match(body, /if \(!list\.children\.length\) mine\.forEach\(\(b\) => list\.append\(pollVoterRow\(b\.pubkey, client\)\)\);/);
+});
+
+test('the name lookup runs once for the poll, however many choices are opened', () => {
+  // Opening a second choice must not re-ask the relays for names already in hand. The
+  // promise is memoized, so the lookup is one query for the whole sheet.
+  const fn = bare.slice(bare.indexOf('function pollVoterNames(ballots)'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /let p = null;/);
+  assert.match(body, /if \(!p\) \{/, 'a second open must reuse the first lookup');
+  // Capped at the 100 the bell's own reaction lookup uses: a filter naming every author of
+  // a poll with thousands of votes is one no relay will answer.
+  assert.match(body, /prefetchNotifProfiles\(ballots\.slice\(0, 100\)\.map\(\(b\) => b\.pubkey\), relays\)/);
+
+  const pbody = fnBody('function paintPollResults(');
+  assert.ok(
+    pbody.indexOf('mine.forEach') < pbody.indexOf('await resolveNames()'),
+    'the rows must not wait on the relays to appear'
+  );
+  // The sheet can be shut, or another choice picked, while the lookup is in flight.
+  assert.match(pbody, /if \(!list\.isConnected \|\| openId !== opt\.id\) return;/);
+  // Every list that has been built, not only the one just opened: reopening an earlier
+  // choice must not show the short npubs it was drawn with.
+  assert.match(pbody, /repaint\(bars\);/);
+});
+
+test('OPENING A CHOICE DOES NOT MOVE THE BARS', () => {
+  // The list sits inline under its own bar, which is the only placement that answers
+  // "whose names are these" once the chevron has scrolled out of view. Inline it would
+  // also push every choice below it down the sheet, so it caps its own height and scrolls
+  // inside itself: the percentages stay where they are while the names move.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const listDecls = css.slice(css.indexOf('.poll-voter-list {')).split('}')[0];
+  assert.match(listDecls, /overflow-y: auto/, 'the names scroll rather than growing the sheet');
+
+  // NOT A FIXED SLICE OF ANYTHING. This was max-height: 34vh, which is about right on a
+  // short panel and leaves a blank band above the actions on a tall one, because a third
+  // of the viewport is not the same as what is actually spare. The open row grows into the
+  // free space instead.
+  assert.doesNotMatch(listDecls, /max-height/, 'a fixed cap is what left the blank band');
+  const open = css.slice(css.indexOf('.poll-result-body.poll-open .poll-bar-open {')).split('}')[0];
+  assert.match(open, /flex: 1 1 auto/, 'the open row takes what is left');
+  // But never past what the list actually holds: eight voters on a tall panel should be
+  // eight rows and then nothing, not eight rows adrift in a box stretched to the foot.
+  assert.match(open, /max-height: max-content/);
+  // And it stays usable when the options alone have taken the space.
+  assert.match(open, /min-height: \d+px/);
+  const barsOpen = css.slice(css.indexOf('.poll-result-body.poll-open .poll-bars {')).split('}')[0];
+  assert.match(barsOpen, /flex: 1/);
+  assert.match(barsOpen, /min-height: 0/, 'or the pane cannot shrink and nothing overflows');
+  assert.match(barsOpen, /overflow-y: auto/, 'more options than fit still have to be reachable');
+
+  // The layout is named by a class rather than inferred by a rule per state.
+  const body = fnBody('function paintPollResults(');
+  assert.match(body, /container\.classList\.toggle\('poll-open', opening\);/);
+  assert.match(body, /row\.classList\.add\('poll-bar-open'\);/);
+  assert.match(
+    body,
+    /bars\.querySelectorAll\('\.poll-bar-open'\)\.forEach\(\(r\) => r\.classList\.remove\('poll-bar-open'\)\);/,
+    'the previous row has to give the space back'
+  );
+
+  // The list belongs to the bar row, not to a pane below all of them.
+  assert.match(body, /row\.append\(headBtn, track, list\);/);
+  assert.doesNotMatch(bare, /poll-voter-pane|poll-result-head/, 'the shared pane is gone');
+
+  // The body is still the scroller, for the case a cap cannot fix: enough options that
+  // the bars alone overrun the sheet. .modal-sheet is overflow: hidden at a fixed height,
+  // so without this they simply run out under the actions with no way to reach them.
+  const bodyDecls = css.slice(css.indexOf('.poll-result-body {')).split('}')[0];
+  assert.match(bodyDecls, /overflow-y: auto/, 'many options still have to be reachable');
+  // Handed to .poll-bars while a choice is open, or two nested scrollers fight over the
+  // same wheel event.
+  assert.match(css, /\.poll-result-body\.poll-open \{ overflow-y: hidden; \}/);
+  // min-height is what makes that fire: a flex item will not shrink below its content, so
+  // without it the body just grows and the clipping happens outside it, where there is no
+  // scrollbar to reach.
+  assert.match(bodyDecls, /min-height: 0/);
+});
+
+test('A VOTER ROW CARRIES A FACE AND GOES SOMEWHERE', () => {
+  // Sidecar is the signer, not the reader, so the row hands off rather than opening a
+  // profile in the panel. An anchor, not a button: that is what makes cmd-click and
+  // middle-click open a tab of their own without any code for it.
+  const body = fnBody('function pollVoterRow(pubkey, client)');
+  assert.match(body, /avatarEl\(cachedProfile\(pubkey\) \|\| \{\}, 'poll-voter-av'\)/, 'the face');
+  assert.match(body, /client \? client\.profile\(NT\.nip19\.npubEncode\(pubkey\)\) : ''/, 'the link');
+  assert.match(body, /h\('a', \{ className: 'poll-voter poll-voter-link', href: url \}\)/);
+  assert.match(body, /row\.rel = 'noreferrer noopener'/, 'an untrusted target window');
+  // The tag is decided before anything is built, rather than a div being made and then
+  // emptied into an anchor.
+  assert.match(body, /const row = url\n +\? h\('a'/, 'one element, chosen up front');
+  // Plain left-click reuses the client tab; modified clicks are left to the anchor.
+  assert.match(
+    body,
+    /if \(e\.button !== 0 \|\| e\.metaKey \|\| e\.ctrlKey \|\| e\.shiftKey \|\| e\.altKey\) return;\n +e\.preventDefault\(\);\n +openInClient\(url\);/
+  );
+});
+
+test('the picture costs no second query', () => {
+  // prefetchNotifProfiles already parses the kind:0 it fetched for the name and puts it
+  // through cacheProfile, which keeps the picture. Reading it back is free; fetching it
+  // again would be one request per face.
+  assert.match(bare, /avatarEl\(cachedProfile\(pubkey\) \|\| \{\}/);
+  const prefetch = fnBody('async function prefetchNotifProfiles(pubkeys, relays)');
+  assert.match(prefetch, /cacheProfile\(pk, m\);/, 'the batch has to keep the picture');
+  const cache = fnBody('function cacheProfile(pubkey, content)');
+  assert.match(cache, /picture: c\.picture \|\| '',/);
+
+  // And the repaint after the lookup lands does the face as well as the name, or a row
+  // drawn before it keeps a placeholder for good.
+  const paint = fnBody('function paintPollResults(');
+  assert.match(paint, /applyAvatar\(av, cachedProfile\(pk\) \|\| \{\}\)/);
+});
+
+test('a row with no client resolved is a row, not a dead link', () => {
+  // Settings can fail to read. A link built on a guess would open the wrong place; a row
+  // that merely says who voted is honest, and it must not take a pointer either.
+  const body = fnBody('function pollVoterRow(pubkey, client)');
+  assert.match(body, /if \(!url\) return row;/);
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.poll-voter-link \{ cursor: pointer; \}/, 'the pointer belongs to the link only');
+  const plain = css.slice(css.indexOf('.poll-voter {')).split('}')[0];
+  assert.doesNotMatch(plain, /cursor: pointer/, 'the bare row must not pretend to be clickable');
+});
+
+test('the poll and the people who voted on it open in the same client', () => {
+  // Resolved once by openPollResults and handed down. Resolving it again in the rows
+  // would let a per-account override drift between the two, so the poll opened in one
+  // client and its voters in another.
+  const body = fnBody('  async function openPollResults(poll, relayHints, returnTo)', '  ');
+  assert.match(body, /let client = null;/, 'hoisted out of the try that builds the link out');
+  assert.match(body, /client = resolveClient\(settings, state\.activePubkey\);/);
+  assert.match(body, /paintPollResults\(body, pollEv, votes, client\);/, 'and handed down');
+  assert.match(bare, /function paintPollResults\(container, pollEv, votes, client\)/);
+  // One resolve in the whole sheet.
+  assert.equal((body.match(/resolveClient\(/g) || []).length, 1);
+});
+
+test('the avatar keeps its metrics and the name truncates', () => {
+  // CLAUDE.md's inline-action rule read the other way round: the fixed thing holds its
+  // size and the prose beside it gives way. min-width: 0 is what lets it.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const av = css.slice(css.indexOf('.poll-voter-av {')).split('}')[0];
+  assert.match(av, /flex-shrink: 0/);
+  const name = css.slice(css.indexOf('.poll-voter-name {')).split('}')[0];
+  assert.match(name, /min-width: 0/);
+  assert.match(name, /text-overflow: ellipsis/);
+});
+
+test('the new avatar is squared off in Werkstatte like every other circle', () => {
+  // The theme turns every circular thing in the app into a square. A new avatar that
+  // misses the exception is a lone circle in a theme built entirely of right angles.
+  const wk = fs.readFileSync(path.join(ROOT, 'themes/werkstatte.css'), 'utf8');
+  assert.match(wk, /\[data-theme="werkstatte"\] \.poll-voter-av:not\(\.theme-card\)/);
+});
+
+test('a voter row is one line, and it truncates', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const decls = css.slice(css.indexOf('.poll-voter-name {')).split('}')[0];
+  assert.match(decls, /text-overflow: ellipsis/);
+  assert.match(decls, /white-space: nowrap/);
+  assert.doesNotMatch(css, /\.poll-voter-pick/, 'the per-row option label is gone with its list');
+});
+
+test('a bar that opens keeps the metrics of one that does not', () => {
+  // A choice with voters and a choice without sit side by side in the same stack. If the
+  // button reset missed anything the two rows would stand at different heights, which
+  // reads as the list being broken rather than as one of them being empty.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const decls = css.slice(css.indexOf('button.poll-bar-head {')).split('}')[0];
+  for (const d of [/background: none/, /border: none/, /padding: 0/, /font: inherit/, /text-align: left/, /width: 100%/]) {
+    assert.match(decls, d, 'button.poll-bar-head is missing a reset: ' + d);
+  }
+});
+
 // ---- getting back to a poll --------------------------------------------------------
 
 test('A POLL IS READ BACK FROM THE RELAYS IT WAS PUBLISHED TO', () => {

@@ -3532,6 +3532,10 @@
     }
 
     const counts = new Map(options.map((o) => [o.id, 0]));
+    // WHO voted and for what, alongside the totals. Same single pass and the same rules:
+    // a ballot that is not counted is not a voter here either, so the list can never
+    // disagree with the number above it.
+    const ballots = [];
     let voters = 0;
     for (const v of latest.values()) {
       const responses = (v.tags || []).filter((t) => t[0] === 'response' && t[1]).map((t) => t[1]);
@@ -3544,9 +3548,12 @@
       if (!picked.length) continue; // a ballot for nothing is not a voter
       voters += 1;
       picked.forEach((id) => counts.set(id, counts.get(id) + 1));
+      ballots.push({ pubkey: v.pubkey, picked, at: v.created_at });
     }
+    // Newest first, which is the order the rest of this panel shows anything in.
+    ballots.sort((x, y) => y.at - x.at);
 
-    return { options, counts, voters, multiple, endsAt };
+    return { options, counts, voters, multiple, endsAt, ballots };
   }
 
   // THE DENOMINATOR IS VOTERS, NOT VOTES, and it matters on multiple choice: with six
@@ -12538,9 +12545,82 @@
     }
   }
 
-  function paintPollResults(container, pollEv, votes) {
+  // WHO VOTED, ONE CHOICE AT A TIME.
+  //
+  // The first build was a single flat list of every voter with the option they picked
+  // beside each name. On a 65-voter poll that is 65 rows repeating two strings, and the
+  // repetition is most of what you read. Hanging the voters off the bar they belong to
+  // says it once: the bar is the header, and the names under it need no label at all.
+  //
+  // One open at a time. Each list is capped and scrolls inside itself, so a single open
+  // choice costs a fixed amount of height and the bars below it do not move; two open at
+  // once would spend that twice and start pushing choices off the sheet.
+  //
+  // Nothing is fetched until a choice is opened: most openings of this sheet are to read
+  // the bars, and a poll with a hundred voters is a hundred profile lookups. Votes are
+  // public events on public relays, so this gathers what anyone reading the poll can
+  // already read.
+  function pollVoterNames(ballots) {
+    // At most once for the whole poll, however many choices get opened.
+    let p = null;
+    return () => {
+      if (!p) {
+        p = (async () => {
+          try {
+            const relays = await relayUrls(false);
+            // ONE QUERY, capped at the same 100 authors the bell's reaction lookup uses.
+            // A filter naming every author of a poll with thousands of votes is one no
+            // relay will answer, and a short npub is still a real identity to show.
+            await prefetchNotifProfiles(ballots.slice(0, 100).map((b) => b.pubkey), relays);
+          } catch (_) {
+            // Short npubs, which is what the rows already say. Nothing to report.
+          }
+        })();
+      }
+      return p;
+    };
+  }
+
+  // A VOTER ROW IS A FACE, A NAME, AND A WAY TO GO AND LOOK. Sidecar is the signer, not
+  // the reader, so the row hands off rather than opening a profile in the panel: the same
+  // client the poll itself opens in, resolved once by the caller so the two can never
+  // disagree. An anchor rather than a button, which is what makes cmd-click and
+  // middle-click open a tab of their own for free.
+  function pollVoterRow(pubkey, client) {
+    let url = '';
+    try { url = client ? client.profile(NT.nip19.npubEncode(pubkey)) : ''; } catch (_) {}
+
+    // An anchor when there is somewhere to go, a plain row when there is not. Settings can
+    // fail to read, and a link built on a guess would open the wrong place; a row that
+    // merely says who voted is the honest version of that.
+    const row = url
+      ? h('a', { className: 'poll-voter poll-voter-link', href: url })
+      : h('div', { className: 'poll-voter' });
+    row.dataset.voterPubkey = pubkey;
+    // The picture comes from the same kind:0 the name does, which prefetchNotifProfiles
+    // already parses and puts through cacheProfile. Nothing extra is fetched for it.
+    row.append(
+      avatarEl(cachedProfile(pubkey) || {}, 'poll-voter-av'),
+      h('div', { className: 'poll-voter-name', textContent: notifAuthorName(pubkey) })
+    );
+    if (!url) return row;
+
+    row.target = '_blank';
+    row.rel = 'noreferrer noopener';
+    // Reuse an existing client tab on a plain left-click; leave modified clicks
+    // (cmd/ctrl/shift) to the anchor's default new-tab behavior. Same rule as a
+    // notification row.
+    row.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      openInClient(url);
+    });
+    return row;
+  }
+
+  function paintPollResults(container, pollEv, votes, client) {
     container.innerHTML = '';
-    const { options, counts, voters, multiple, endsAt } = tallyPollVotes(pollEv, votes);
+    const { options, counts, voters, multiple, endsAt, ballots } = tallyPollVotes(pollEv, votes);
     const ended = pollHasEnded(endsAt);
 
     const meta = [
@@ -12562,7 +12642,23 @@
     const leaders = options.filter((o) => counts.get(o.id) === top);
     const winner = ended && top > 0 && leaders.length === 1 ? leaders[0].id : null;
 
+    // Name AND face, across every list that has been built. The lookup that resolves one
+    // caches the other, so a row drawn before it landed is repainted with both rather
+    // than keeping a short npub and a placeholder for good.
+    const repaint = (root) => {
+      root.querySelectorAll('[data-voter-pubkey]').forEach((el) => {
+        const pk = el.dataset.voterPubkey;
+        const nm = el.querySelector('.poll-voter-name');
+        if (nm) nm.textContent = notifAuthorName(pk);
+        const av = el.querySelector('.poll-voter-av');
+        if (av) applyAvatar(av, cachedProfile(pk) || {});
+      });
+    };
+
+    const resolveNames = pollVoterNames(ballots);
     const bars = h('div', { className: 'poll-bars' });
+    let openId = null; // the choice whose voters are showing, or null
+
     options.forEach((opt) => {
       const count = counts.get(opt.id);
       const share = pollShare(count, voters);
@@ -12576,10 +12672,72 @@
       // Percentages are rounded for reading; the bar uses the unrounded share so two
       // options that both round to 33% are not drawn at visibly different lengths.
       fill.style.width = (share * 100).toFixed(2) + '%';
-      row.append(
-        h('div', { className: 'poll-bar-head' }, [label, tally]),
-        h('div', { className: 'poll-bar-track' }, [fill])
-      );
+      const track = h('div', { className: 'poll-bar-track' }, [fill]);
+
+      const mine = ballots.filter((b) => b.picked.includes(opt.id));
+      if (!mine.length) {
+        // Nothing to open. A chevron on an option nobody picked is a control that does
+        // nothing, which is worse than no control at all.
+        row.append(h('div', { className: 'poll-bar-head' }, [label, tally]), track);
+        bars.append(row);
+        return;
+      }
+
+      const chev = icon('chevron-down');
+      const headBtn = h('button', { className: 'poll-bar-head poll-bar-pick', type: 'button' }, [
+        chev,
+        label,
+        tally,
+      ]);
+      headBtn.setAttribute('aria-expanded', 'false');
+
+      // DIRECTLY UNDER THE BAR IT BELONGS TO. These names were in one shared pane below
+      // every bar, which reads fine with the chevron in view and not at all once you have
+      // scrolled: a column of faces with no answer to "whose?".
+      //
+      // Which is why the list carries its own cap and its own scrollbar (see
+      // .poll-voter-list). Sitting inline it would otherwise push every choice below it
+      // down the sheet, and the bars are the one thing that must not move while the names
+      // are being read. Capped, expanding costs a fixed amount of height and the other
+      // choices stay where they were.
+      const list = h('div', { className: 'poll-voter-list hidden' });
+
+      headBtn.addEventListener('click', async () => {
+        const opening = openId !== opt.id;
+        // Everything back to closed first, so the marks can never say two are open.
+        bars.querySelectorAll('.poll-bar-pick').forEach((b) => {
+          b.setAttribute('aria-expanded', 'false');
+          b.classList.remove('poll-bar-picked');
+          const c = b.querySelector('svg');
+          if (c) c.style.transform = '';
+        });
+        bars.querySelectorAll('.poll-voter-list').forEach((l) => l.classList.add('hidden'));
+        bars.querySelectorAll('.poll-bar-open').forEach((r) => r.classList.remove('poll-bar-open'));
+        openId = opening ? opt.id : null;
+        // WHICH LAYOUT THE SHEET IS IN, rather than a rule per state in the stylesheet.
+        // Closed, everything stacks from the top and the body scrolls if it must. Open, the
+        // list takes the height that is left instead of a fixed slice of the viewport, so
+        // no blank band sits between the last name and the actions.
+        container.classList.toggle('poll-open', opening);
+        if (!opening) return;
+        row.classList.add('poll-bar-open');
+
+        headBtn.setAttribute('aria-expanded', 'true');
+        headBtn.classList.add('poll-bar-picked');
+        chev.style.transform = 'rotate(180deg)';
+        list.classList.remove('hidden');
+
+        // Built once and kept, so reopening a choice is instant. Rows go in with whatever
+        // names are already cached, then the lookup runs: the bell fills the same cache,
+        // so anyone who has appeared in a notification is named with no round trip.
+        if (!list.children.length) mine.forEach((b) => list.append(pollVoterRow(b.pubkey, client)));
+        await resolveNames();
+        // The sheet can be shut, or another choice picked, while the lookup is in flight.
+        if (!list.isConnected || openId !== opt.id) return;
+        repaint(bars); // every built list, not just this one
+      });
+
+      row.append(headBtn, track, list);
       bars.append(row);
     });
     container.append(bars);
@@ -12659,9 +12817,14 @@
           }
           question.textContent = pollEv.content || '(no question)';
           // The link out is built once the event is in hand, since it needs the author.
+          // Hoisted out of the try because the voter rows link into the same client, and
+          // resolving it twice would let the poll and the people who voted on it open in
+          // two different places. Null when settings could not be read, which the rows
+          // read as "no link" rather than guessing at a URL.
+          let client = null;
           try {
             const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
-            const client = resolveClient(settings, state.activePubkey);
+            client = resolveClient(settings, state.activePubkey);
             const url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
             openOut.textContent = 'Open in ' + client.label;
             openOut.classList.remove('hidden');
@@ -12671,7 +12834,7 @@
           body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
           const votes = await fetchPollVotes(pollEv);
           if (!body.isConnected) return;
-          paintPollResults(body, pollEv, votes);
+          paintPollResults(body, pollEv, votes, client);
         } finally {
           recount.disabled = false;
         }

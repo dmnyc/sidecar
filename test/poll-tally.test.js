@@ -246,3 +246,75 @@ test('no votes at all is zero, not a divide by zero', () => {
   assert.equal(r.voters, 0);
   assert.equal(pollShare(0, 0), 0, 'a poll nobody has answered renders, it does not NaN');
 });
+
+// ---- the ballots behind the counts ---------------------------------------------------
+
+test('THE BALLOTS NAME EXACTLY THE PEOPLE THE COUNT COUNTED', () => {
+  // The voter list is drawn from the same pass, so the two can never disagree. A ballot
+  // that was not counted must not appear in it, and every one that was must.
+  const r = tallyPollVotes(poll(), [
+    vote('alice', ['aaa'], { at: 2000 }),
+    vote('bob', ['bbb'], { at: 2100 }),
+    vote('carol', ['not-an-option'], { at: 2200 }),
+  ]);
+  assert.equal(r.voters, 2);
+  assert.equal(r.ballots.length, r.voters, 'the list and the number are the same fact');
+  assert.deepEqual(plain(r.ballots.map((b) => b.pubkey)).sort(), ['alice', 'bob']);
+  assert.ok(!r.ballots.some((b) => b.pubkey === 'carol'), 'a ballot for nothing is not a voter');
+});
+
+test('a ballot carries what that person actually picked', () => {
+  const r = tallyPollVotes(poll({ multiple: true }), [
+    vote('alice', ['aaa', 'ccc'], { at: 2000 }),
+    vote('bob', ['bbb'], { at: 2100 }),
+  ]);
+  const by = Object.fromEntries(plain(r.ballots).map((b) => [b.pubkey, b.picked]));
+  assert.deepEqual(by.alice, ['aaa', 'ccc'], 'both of them, in the order they were cast');
+  assert.deepEqual(by.bob, ['bbb']);
+});
+
+test('changing your mind shows the ballot you ended on, once', () => {
+  // The same rule the counts use. A list showing both would name one person twice and
+  // report a vote nobody holds any more.
+  const r = tallyPollVotes(poll(), [
+    vote('alice', ['aaa'], { at: 2000 }),
+    vote('alice', ['bbb'], { at: 2500 }),
+  ]);
+  assert.equal(r.ballots.length, 1);
+  assert.deepEqual(plain(r.ballots[0].picked), ['bbb']);
+  assert.equal(r.ballots[0].at, 2500, 'and the time of the ballot that stands');
+});
+
+test('a single-choice ballot lists one pick even when it named several', () => {
+  // NIP-88 says the first response tag wins on a single-choice poll. The list has to say
+  // the same thing the bar does, or it reads as votes going missing.
+  const r = tallyPollVotes(poll(), [vote('alice', ['aaa', 'bbb'], { at: 2000 })]);
+  assert.deepEqual(plain(r.ballots[0].picked), ['aaa']);
+  assert.deepEqual(countsOf(r), { aaa: 1, bbb: 0, ccc: 0 });
+});
+
+test('ballots come back newest first', () => {
+  const r = tallyPollVotes(poll(), [
+    vote('alice', ['aaa'], { at: 2000 }),
+    vote('bob', ['bbb'], { at: 2400 }),
+    vote('carol', ['ccc'], { at: 2200 }),
+  ]);
+  assert.deepEqual(plain(r.ballots.map((b) => b.pubkey)), ['bob', 'carol', 'alice']);
+});
+
+test('a vote after the poll closed is in neither the count nor the list', () => {
+  const r = tallyPollVotes(poll({ endsAt: 2300 }), [
+    vote('alice', ['aaa'], { at: 2200 }),
+    vote('bob', ['bbb'], { at: 2400 }),
+  ]);
+  assert.equal(r.voters, 1);
+  assert.deepEqual(plain(r.ballots.map((b) => b.pubkey)), ['alice']);
+});
+
+test('a vote on another poll never reaches the list', () => {
+  const r = tallyPollVotes(poll(), [
+    vote('alice', ['aaa'], { at: 2000 }),
+    vote('mallory', ['aaa'], { at: 2100, poll: OTHER_POLL }),
+  ]);
+  assert.deepEqual(plain(r.ballots.map((b) => b.pubkey)), ['alice']);
+});
