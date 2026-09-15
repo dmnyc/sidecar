@@ -30,7 +30,22 @@ test('THE VARIANT RESETS, or it leaks into the next modal', () => {
   // openModal reuses one element. modal-sheet already had to be cleared for this reason;
   // a second variant that is not would leave every dialog opened after a composer 620px
   // wide, which is the kind of bug that looks like a theme problem.
-  assert.match(panel, /modal\.classList\.remove\('modal-sheet', 'compose-modal'\)/);
+  const reset = panel.match(/modal\.classList\.remove\(([^)]*)\); \/\/ opt back in per modal/);
+  assert.ok(reset, 'openModal no longer clears the variants at all');
+  const cleared = new Set([...reset[1].matchAll(/'([^']+)'/g)].map((m) => m[1]));
+  assert.ok(cleared.has('modal-sheet'), 'modal-sheet');
+  assert.ok(cleared.has('compose-modal'), 'compose-modal');
+
+  // EVERY variant any modal puts on the shared element, not only the two this was written
+  // for: the next one that is added and not cleared is the same bug wearing a different
+  // symptom, and it would not be found by naming a pair here. is-open and is-closing are
+  // excluded because they are the open/close animation, which openModal drives itself.
+  const added = [...panel.matchAll(/modal\.classList\.(?:add|toggle)\('([a-z-]+)'/g)]
+    .map((m) => m[1])
+    .filter((c) => !c.startsWith('is-'));
+  for (const cls of new Set(added)) {
+    assert.ok(cleared.has(cls), cls + ' is put on the shared modal and never taken off');
+  }
 });
 
 test('it is a ceiling, not a fixed width', () => {

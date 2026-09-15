@@ -235,6 +235,7 @@
     external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>',
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
     'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>',
+    'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>',
     'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
     'chevron-down': '<polyline points="6 9 12 15 18 9"></polyline>',
     'arrow-up-right': '<line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>',
@@ -5431,8 +5432,19 @@
         // Through afterModalClose rather than straight into openModal, so the bell's
         // sheet plays its close before the results sheet arrives. Opening one modal on
         // top of another swaps the content mid-dip and reads as a flicker.
+        //
+        // And it is not only cosmetic. openModal REPLACES modalCleanup, so opening the
+        // tally over this sheet would discard the bell's own close handler before it ran,
+        // leaving _openNotifBell pointing at a list that is no longer on screen. addLive
+        // would go on prepending arrivals into a dead node for the rest of the session.
         const hints = notifPollRelayHints(ev);
-        const openResults = () => afterModalClose(() => openPollResults(pollTarget, hints));
+        const openResults = () => {
+          // Read before the sheet closes, or there is no sheet left to read it from.
+          const place = notifPlace();
+          afterModalClose(() =>
+            openPollResults(pollTarget, hints, () => showNotifModal(a, place))
+          );
+        };
         item.addEventListener('click', openResults);
         item.addEventListener('keydown', (e) => {
           if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -5981,21 +5993,109 @@
         heading.append(avatarEl(a, 'notif-modal-av'));
       }
       heading.append(titleBox);
-      // The way back to a poll you posted. A vote notification only reaches its tally
-      // once, and only if somebody voted at all, so without this the bell can tell you a
-      // poll exists and then offer no way to look at it again.
-      if (accountHasPolls(a.pubkey)) {
-        const polls = h('button', { className: 'notif-modal-polls', title: 'Your polls' });
-        polls.append(icon('bar-chart'), h('span', { textContent: 'Polls' }));
-        polls.addEventListener('click', () => afterModalClose(openPollsList));
-        heading.append(polls);
-      }
       modal.appendChild(heading);
 
       const scroll = h('div', { className: 'notif-scroll' });
       const list = h('div', { className: 'notif-list' });
       scroll.appendChild(list);
+
+      // THE WAY BACK TO A POLL YOU POSTED, inside the bell rather than out of it.
+      //
+      // A vote notification is a one-shot route to a tally: it exists only if somebody
+      // voted, and once the sheet is shut there is nothing to return to. The first answer
+      // was a small Polls button in this header that opened a separate sheet, which is
+      // easy to miss, and it leaves the bell, which is where you go to ask what happened
+      // to something you posted. A tab keeps the question and its answer in one place, and
+      // the panel already has the markup for one.
+      //
+      // Shown whenever the account has posted a poll, not only while one is running. A
+      // poll's results are most interesting just after it closes, so a tab that vanished
+      // with the last open one would put closed tallies back out of reach, which is the
+      // exact gap this is meant to fix.
+      //
+      // Costs no extra query to decide: the ids are already loaded for the notification
+      // filters above. If that load has not landed the tab is simply absent, and Profile
+      // still lists polls unconditionally.
+      let pollPane = null;
+      // Which tab is up, for notifPlace. A tally opened from the Polls tab has to come back
+      // to the Polls tab, or the way back is only half a way back.
+      let onPollsTab = false;
+      let showPollsTab = null;
+      if (accountHasPolls(a.pubkey)) {
+        const tabAll = h('button', { className: 'modal-tab active', type: 'button', textContent: 'All' });
+        const tabPolls = h('button', { className: 'modal-tab', type: 'button', textContent: 'Polls' });
+        const tabs = h('div', { className: 'modal-tabs' }, [tabAll, tabPolls]);
+
+        // HOW MANY POLLS ARE IN THERE, which is the only thing a number beside a tab can
+        // mean. It counted the open ones first, and beside a list of three rows showing two
+        // of them running it simply read as a wrong number.
+        //
+        // In a capsule rather than loose in the label: "Polls 3" is one string to the eye
+        // and the number has to be picked back out of it. Removed rather than shown as 0,
+        // because a zero on a tab reads as something broken. Tab width is flex: 1, so this
+        // appearing or changing never moves the slider.
+        const setCount = (n) => {
+          const cap = tabPolls.querySelector('.modal-tab-count');
+          if (!n) { if (cap) cap.remove(); return; }
+          if (cap) cap.textContent = String(n);
+          else tabPolls.append(h('span', { className: 'modal-tab-count', textContent: String(n) }));
+        };
+        // Seeded from the notification filters' own ids, which cost nothing and are usually
+        // right, then corrected by the list when it answers. See ownPollCount.
+        setCount(ownPollCount(a.pubkey));
+
+        // .notif-scroll again, not a class of its own: the pane needs the same overflow
+        // and the same edge-to-edge negative margins, and a second rule saying so is a
+        // second rule to keep in step.
+        pollPane = h('div', { className: 'notif-scroll hidden' });
+        const pollList = h('div', { className: 'list flat' });
+        pollPane.appendChild(pollList);
+
+        let filled = false;
+        const pick = (polls) => {
+          onPollsTab = polls;
+          tabAll.classList.toggle('active', !polls);
+          tabPolls.classList.toggle('active', polls);
+          scroll.classList.toggle('hidden', polls);
+          pollPane.classList.toggle('hidden', !polls);
+          // On the first switch only, so opening the bell never pays for a poll query
+          // nobody asked for. fillPollsList is the same one Profile uses.
+          if (polls && !filled) {
+            filled = true;
+            fillPollsList(pollList, a.pubkey, {
+              // A tally takes the whole panel, so each row carries the way back with it.
+              // The place is read when the row is tapped, not now: the notification list
+              // can be scrolled between this fill and that tap.
+              openPoll: (ev) => {
+                const place = notifPlace();
+                // Through afterModalClose for both reasons written at the vote-notification
+                // row above: the flicker, and the bell's close handler, which is what clears
+                // _openNotifBell and would otherwise be replaced before it ever ran.
+                afterModalClose(() => openPollResults(ev, null, () => showNotifModal(a, place)));
+              },
+              onCount: setCount,
+            });
+          }
+        };
+        tabAll.addEventListener('click', () => pick(false));
+        tabPolls.addEventListener('click', () => pick(true));
+
+        modal.appendChild(tabs);
+        // Built per modal open rather than sitting in sidepanel.html like the other three
+        // bars, so this makes a fresh slider and ResizeObserver each time, both on a node
+        // that is discarded with the modal.
+        wireTabSlider(tabs, '.modal-tab');
+        // The bar's selection can change from somewhere other than a click, which is what
+        // moveSlider is hung on the node for. Not animated: arriving back where you were
+        // is not a state change and should not read as one.
+        showPollsTab = () => {
+          pick(true);
+          if (tabs.moveSlider) tabs.moveSlider(tabPolls, false);
+        };
+      }
+
       modal.appendChild(scroll);
+      if (pollPane) modal.appendChild(pollPane);
 
       // Shown only until the first real item arrives — either from the initial
       // page below, or live via addEvent while this modal stays open.
@@ -6169,11 +6269,20 @@
         // the scroller needs its children laid out, which reading scrollHeight forces.
         setTimeout(() => { if (scroll.isConnected) scroll.scrollTop = want; }, 0);
       }
+      // The tab you left, restored AFTER the paging and the scroll above. scrollTop does
+      // not apply to a display:none pane, so switching first would throw away the place in
+      // the notification list for anyone who then taps back to it. Same-delay timers fire
+      // in the order they were set, which is what puts this second.
+      if (place && place.tab === 'polls' && showPollsTab) setTimeout(showPollsTab, 0);
 
       // Where the sheet is right now, for whoever has to take the panel away and put it
       // back. PAGE is the size loadMore works in, so pages is what it would take to
       // rebuild this much of the list.
-      notifPlace = () => ({ pages: Math.max(1, Math.ceil(shown / PAGE)), scrollTop: scroll.scrollTop });
+      notifPlace = () => ({
+        pages: Math.max(1, Math.ceil(shown / PAGE)),
+        scrollTop: scroll.scrollTop,
+        tab: onPollsTab ? 'polls' : 'all',
+      });
 
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
@@ -6919,7 +7028,7 @@
     modal.innerHTML = '';
     // Both per-modal variants reset here, or the last one to open leaks into the next:
     // a composer would leave every later dialog 620px wide.
-    modal.classList.remove('modal-sheet', 'compose-modal'); // opt back in per modal
+    modal.classList.remove('modal-sheet', 'compose-modal', 'has-back'); // opt back in per modal
     // And the dismiss guard, for the same reason a class is: a stale one would make an
     // unrelated dialog refuse to close.
     _modalDismissGuard = null;
@@ -12256,8 +12365,20 @@
     await fillPollsList(list, active.pubkey);
   }
 
-  async function fillPollsList(list, pubkey) {
+  // `opts.openPoll` is how a row opens, so a caller that took the panel from somewhere can
+  // hand the reader a way back to it. `opts.onCount` gets the real number of polls as soon
+  // as the rows are built, for whoever is showing a count of them elsewhere.
+  //
+  // Profile passes neither: closing a tally there lands on the Profile tab, which is where
+  // the reader already was, and nothing outside the section counts them.
+  async function fillPollsList(list, pubkey, opts) {
+    const openPoll = opts && opts.openPoll;
+    const onCount = opts && opts.onCount;
     list.innerHTML = '';
+    // .empty drops the flat list's card chrome, which is the thing that draws a capsule
+    // around one line of text. A line saying what the panel is doing is not a row, and
+    // boxed it reads as a result that has arrived rather than as waiting for one.
+    list.classList.add('empty');
     list.append(h('p', { className: 'hint', textContent: 'Looking for your polls…' }));
     const active = { pubkey };
 
@@ -12272,14 +12393,25 @@
     } catch (_) {}
     if (!list.isConnected) return; // the profile repainted or the account switched
 
-    polls.sort((a, b) => b.created_at - a.created_at);
+    // OPEN ONES FIRST, newest first within each group. By created_at alone a poll still
+    // taking votes sits wherever it was posted, under everything written since, and a poll
+    // that is running is the one you came to look at, from the bell's tab or from Profile.
+    // Both surfaces are this function, so both get it.
+    polls.sort((x, y) => {
+      const xEnded = pollHasEnded(pollEndsAt(x));
+      const yEnded = pollHasEnded(pollEndsAt(y));
+      if (xEnded !== yEnded) return xEnded ? 1 : -1;
+      return y.created_at - x.created_at;
+    });
     list.innerHTML = '';
     if (!polls.length) {
       list.append(
         h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
       );
+      if (onCount) onCount(0);
       return;
     }
+    list.classList.remove('empty'); // rows are what the card was drawn for
 
     // ONE QUERY FOR EVERY POLL'S VOTES, not one per poll. Twenty round trips to fill in
     // twenty counts is the kind of thing that makes a tab feel broken on a slow relay.
@@ -12296,7 +12428,7 @@
           h('div', { className: 'poll-row-meta' }, [ends, document.createTextNode(' · '), count]),
         ])
       );
-      const open = () => openPollResults(ev);
+      const open = () => (openPoll ? openPoll(ev) : openPollResults(ev));
       row.addEventListener('click', open);
       row.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -12306,6 +12438,10 @@
       rows.set(ev.id, count);
       list.append(row);
     });
+    // The moment the rows exist, not after the vote query below: the count is a fact about
+    // this list, and it would be odd for the rows to be on screen under a number that
+    // still disagrees with them for the eight seconds that query is allowed.
+    if (onCount) onCount(polls.length);
 
     let votes = [];
     try {
@@ -12333,38 +12469,21 @@
     });
   }
 
-  // A POLL IS NOT REACHABLE FROM A NOTIFICATION TWICE.
-  //
-  // A vote notification is a one-shot route: it takes you to the tally, and once the
-  // sheet is closed there is nothing to go back to unless someone votes again. The post
-  // banner is worse, since it dismisses itself after a minute. So the bell carries a way
-  // into the list, because the bell is where you go to ask what happened to something
-  // you posted.
-  //
-  // Shown only when this account is known to have polls, which costs nothing: the ids
-  // are already loaded for the notification filters. If that load has not landed the
-  // button is simply absent, and Profile still lists them unconditionally.
-  function accountHasPolls(pubkey) {
+  // How many polls this account is known to have, from ids already loaded for the
+  // notification filters rather than from a query of its own. AN APPROXIMATION, and the
+  // tab treats it as one: it is capped at 50 and fetched from the notification relay set,
+  // where the list uses pollReadRelays, so the two can honestly disagree. Good enough to
+  // label the tab the instant the sheet opens, and corrected from the list's own query as
+  // soon as that lands (onCount, below).
+  function ownPollCount(pubkey) {
     const ids = _ownPollIds.get(pubkey);
-    return !!(ids && ids.size);
+    return ids ? ids.size : 0;
   }
 
-  function openPollsList() {
-    openModal((modal) => {
-      modal.classList.add('modal-sheet');
-      modal.append(
-        h('h3', { textContent: 'Your polls' }),
-        h('p', {
-          className: 'hint',
-          textContent: 'Polls you have posted, with their counts. Tap one for the full tally.',
-        })
-      );
-      const list = h('div', { className: 'list flat' });
-      const close = h('button', { className: 'ghost', textContent: 'Close' });
-      close.addEventListener('click', closeModal);
-      modal.append(list, h('div', { className: 'actions' }, [close]));
-      fillPollsList(list, state.activePubkey);
-    });
+  // Whether the bell has a Polls tab to offer. Why that tab exists is written at the
+  // call site in showNotifModal.
+  function accountHasPolls(pubkey) {
+    return ownPollCount(pubkey) > 0;
   }
 
   // ---- Poll results ----
@@ -12484,18 +12603,40 @@
   // `poll` is either the event or an id to go and find. A vote notification only
   // carries the id, and refusing to open without the whole event would make the row it
   // came from a dead end.
-  async function openPollResults(poll, relayHints) {
+  async function openPollResults(poll, relayHints, returnTo) {
+    // Out here, not inside the builder: the close handler below is a sibling argument to
+    // openModal and cannot see anything declared in it. Set only by the close box; Back,
+    // Escape and a click on the overlay all dismiss the top of a stack, which means
+    // handing back what was under it, while the X says done with all of this.
+    let dismissAll = false;
     openModal((modal) => {
       modal.classList.add('modal-sheet');
+
+      // TWO CORNERS, TWO DIFFERENT EXITS, which is why they are not one button.
+      //
+      // A tally is a screen pushed on top of the sheet it was opened from, so it needs
+      // both the way back to that sheet and the way out of the whole stack. Icon buttons
+      // in the corners rather than words in the actions column: the column is where the
+      // things you do to this poll live, and neither of these is one of those.
+      modal.classList.toggle('has-back', !!returnTo);
+      const xBtn = h('button', { className: 'modal-x', type: 'button', title: 'Close' });
+      xBtn.append(icon('x'));
+      xBtn.addEventListener('click', () => { dismissAll = true; closeModal(); });
+      modal.append(xBtn);
+      if (returnTo) {
+        const backBtn = h('button', { className: 'modal-x modal-back', type: 'button', title: 'Back' });
+        backBtn.append(icon('arrow-left'));
+        backBtn.addEventListener('click', closeModal);
+        modal.append(backBtn);
+      }
+
       modal.append(h('h3', { textContent: 'Poll results' }));
       const question = h('p', { className: 'poll-result-question' });
       const body = h('div', { className: 'poll-result-body' });
       body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
       const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
-      const close = h('button', { className: 'ghost', textContent: 'Close' });
-      close.addEventListener('click', closeModal);
       const openOut = h('button', { className: 'ghost hidden' });
-      const actions = h('div', { className: 'actions' }, [recount, openOut, close]);
+      const actions = h('div', { className: 'actions' }, [recount, openOut]);
       modal.append(question, body, actions);
 
       let pollEv = typeof poll === 'string' ? null : poll;
@@ -12537,6 +12678,18 @@
       }
       recount.addEventListener('click', load);
       load();
+    }, () => {
+      // WHERE THIS CAME FROM, the way the composer's returnTo already does it. A poll
+      // opened from the bell took the whole panel away, and dropping the reader onto the
+      // main view afterwards loses the list they were working through. On any close, not
+      // just the button: Escape and the overlay click are the same departure.
+      //
+      // showNotifModal is async, which is what keeps this from fighting the close it is
+      // running inside: its openModal lands a tick later, after closeModal has finished
+      // setting is-closing, so the new sheet is not left wearing it.
+      if (!dismissAll && typeof returnTo === 'function') {
+        try { returnTo(); } catch (_) {}
+      }
     });
   }
 
