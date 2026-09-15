@@ -27,7 +27,7 @@ vm.createContext(ctx);
 vm.runInContext(
   lift(/const POLL_SINGLE = '[^']*';/, 'POLL_SINGLE') + '\n' +
     lift(/const POLL_MULTIPLE = '[^']*';/, 'POLL_MULTIPLE') + '\n' +
-    lift(/const POLL_DEFAULT_DAYS = \d+;/, 'POLL_DEFAULT_DAYS') + '\n' +
+    lift(/const POLL_DEFAULT_SECS = \d+;/, 'POLL_DEFAULT_SECS') + '\n' +
     lift(/const POLL_RELAY_LIMIT = \d+;/, 'POLL_RELAY_LIMIT') + '\n' +
     lift(/const POLL_DURATIONS = \[[\s\S]*?\n  \];/, 'POLL_DURATIONS') + '\n' +
     lift(/function pollOptionId\(\)\s*\{[\s\S]*?\n  \}/, 'pollOptionId') + '\n' +
@@ -37,7 +37,7 @@ vm.runInContext(
     lift(/function pollDraftOptions\(pollDraft\)\s*\{[\s\S]*?\n  \}/, 'pollDraftOptions') + '\n' +
     lift(/function pollDraftIsPostable\(pollDraft\)\s*\{[\s\S]*?\n  \}/, 'pollDraftIsPostable') + '\n' +
     lift(/function buildPollTags\(pollDraft, nowSecs, relays\)\s*\{[\s\S]*?\n  \}/, 'buildPollTags') + '\n' +
-    'globalThis.POLL_DEFAULT_DAYS = POLL_DEFAULT_DAYS;' +
+    'globalThis.POLL_DEFAULT_SECS = POLL_DEFAULT_SECS;' +
     'globalThis.POLL_DURATIONS = POLL_DURATIONS;' +
     'globalThis.pollOptions = pollOptions;' +
     'globalThis.newPollDraft = newPollDraft;' +
@@ -48,7 +48,7 @@ vm.runInContext(
   { filename: 'sidepanel-poll-compose-slice.js' }
 );
 const {
-  POLL_DEFAULT_DAYS,
+  POLL_DEFAULT_SECS,
   POLL_DURATIONS,
   pollOptions,
   newPollDraft,
@@ -67,18 +67,29 @@ const firstValue = (tags, name) => (tagsOf(tags, name)[0] || [])[1];
 
 // ---- the draft the editor starts from -------------------------------------------------
 
-test('a new poll starts as two empty choices, single answer, seven days', () => {
+test('a new poll starts as two empty choices, single answer, twenty-four hours', () => {
+  // A day, not the week this started at: a week is not what anyone means by "I'm asking".
+  // Twitter defaults to a day and caps at seven, and Amethyst's poll composer opens on
+  // oneDayAhead. Longer is still offered, which is where we differ from both.
   const d = newPollDraft();
   assert.equal(d.options.length, 2, 'one option is not a question');
   assert.equal(d.multiple, false);
-  assert.deepEqual({ ...d.ends }, { kind: 'in', secs: POLL_DEFAULT_DAYS * 86400 });
-  assert.equal(POLL_DEFAULT_DAYS, 7, 'the documented default');
+  assert.deepEqual({ ...d.ends }, { kind: 'in', secs: POLL_DEFAULT_SECS });
+  assert.equal(POLL_DEFAULT_SECS, 86400, 'the documented default');
 });
 
-test('seven days is one of the offered durations, not just the initial value', () => {
+test('the default is one of the offered durations, not just the initial value', () => {
   // Otherwise removing and re-adding the end date cannot get back to the default.
   const secs = POLL_DURATIONS.map((d) => d.secs);
-  assert.ok(secs.includes(POLL_DEFAULT_DAYS * 86400), 'the default must be reachable from the menu');
+  assert.ok(secs.includes(POLL_DEFAULT_SECS), 'the default must be reachable from the menu');
+  // And the menu still reaches past a week. Twitter stops at seven days; the reason to go
+  // further is a poll about something slow, which is a real thing to want.
+  assert.ok(Math.max(...secs) > 7 * 86400, 'longer than Twitter allows is the point of the list');
+  // The label a duration carries has to be the duration it is. Deriving '7 days' from the
+  // default was what made changing the default silently mislabel a menu entry.
+  const LABELED = { 3600: '1 hour', 21600: '6 hours', 86400: '1 day', 259200: '3 days',
+    604800: '7 days', 1209600: '14 days', 2592000: '30 days' };
+  POLL_DURATIONS.forEach((d) => assert.equal(d.label, LABELED[d.secs], String(d.secs)));
 });
 
 test('two filled options is the floor for posting', () => {
@@ -91,15 +102,20 @@ test('two filled options is the floor for posting', () => {
 // ---- the clock ------------------------------------------------------------------------
 
 test('A DURATION IS RESOLVED AT PUBLISH, NOT WHEN THE DRAFT WAS WRITTEN', () => {
-  // This is the whole reason the draft stores `in` rather than a timestamp. A poll
-  // drafted on Monday and posted on Thursday must still run its seven days; resolving
-  // at draft time published it three days spent, and a draft left for over a week
-  // published already closed.
+  // This is the whole reason the draft stores `in` rather than a timestamp. A poll drafted
+  // on Monday and posted on Thursday must still run its full duration; resolving at draft
+  // time published it three days spent, and a draft left past that duration published
+  // already closed. Asserted against the default rather than a hardcoded week, so changing
+  // the default cannot quietly make this test about a duration nothing uses.
   const d = newPollDraft();
   const monday = NOW;
   const thursday = NOW + 3 * 86400;
-  assert.equal(pollEndsAtFor(d, monday), monday + 7 * 86400);
-  assert.equal(pollEndsAtFor(d, thursday), thursday + 7 * 86400, 'still a full seven days');
+  assert.equal(pollEndsAtFor(d, monday), monday + POLL_DEFAULT_SECS);
+  assert.equal(pollEndsAtFor(d, thursday), thursday + POLL_DEFAULT_SECS, 'still the full run');
+  // A week-long draft would have gone out closed under the old resolve-at-draft behavior,
+  // whatever the default is.
+  const nextWeek = NOW + 7 * 86400;
+  assert.ok(pollEndsAtFor(d, nextWeek) > nextWeek, 'a stale draft must not publish closed');
 });
 
 test('no end date resolves to nothing, and writes no tag', () => {
@@ -254,6 +270,84 @@ test('the stacked actions share the row and wrap rather than overflow', () => {
   // and it has to be undone here or the first action is shoved off its own row.
   const inner = css.slice(css.indexOf('.post-banner-actions .post-banner-link {'));
   assert.match(inner.slice(0, inner.indexOf('}')), /margin-left: 0/);
+});
+
+// ---- what posting a poll actually costs ---------------------------------------------
+
+const CLIENT_WARNING = 'Some clients cannot show polls. On those, this will not appear at all.';
+
+// Both of these functions are declared at a fixed indent, so the first closing brace at
+// that indent is the end of the body. Slicing is what keeps these assertions from
+// matching something identical elsewhere in a 17,000-line file.
+// indexOf returns -1 when the anchor has moved, and slice(-1) hands back the last
+// character of the file rather than an error. Every assertion against that slice then
+// passes or fails for a reason that has nothing to do with the code under test, which is
+// how a renamed signature reads as an unrelated failure. This refuses instead.
+const fnBody = (anchor, indent = '  ') => {
+  const at = bare.indexOf(anchor);
+  assert.ok(at > -1, 'anchor moved, fix the test: ' + anchor);
+  const fn = bare.slice(at);
+  const end = fn.indexOf('\n' + indent + '}');
+  assert.ok(end > -1, 'no closing brace at indent ' + indent.length + ' for: ' + anchor);
+  return fn.slice(0, end);
+};
+
+const paintPollBody = () => {
+  const fn = bare.slice(bare.indexOf('      function paintPoll() {'));
+  return fn.slice(0, fn.indexOf('\n      }'));
+};
+test('THE COMPOSER SAYS A POLL MAY NOT SHOW UP AT ALL', () => {
+  // A 1068 is not a kind:1, so a client that has not implemented NIP-88 generally does
+  // not render it: it never appears in a feed filtered to notes, and the author gets no
+  // signal. Silence from the other side is indistinguishable from nobody caring, and the
+  // editor is the only screen where knowing that can still change the decision.
+  const body = paintPollBody();
+  assert.ok(body.includes(CLIENT_WARNING), 'the copy, verbatim');
+  assert.match(body, /className: 'kind-warn'/, 'the amber caution box that already exists');
+  // Between the second separator and Remove poll, which is where Jumble puts its own.
+  assert.match(
+    body,
+    /endsNote,\n *h\('div', \{ className: 'poll-editor-sep' \}\),\n *clientWarn,\n *remove/,
+    'below the clock, above the remove button'
+  );
+  // One line, one fact: the budget every hint in this panel is written to.
+  assert.ok(CLIENT_WARNING.length <= 80, 'a panel hint fits one line: ' + CLIENT_WARNING.length);
+});
+
+test('the warning box invents no CSS of its own', () => {
+  // .kind-warn is the generic inline caution: filled, bordered, amber, 12px. It needs no
+  // glyph because a bordered and filled box is not carrying the warning by color alone,
+  // the principle written above .destructive-warn. A second bare `.hint warn` line would
+  // have been, and would have run straight into the amber ends note above it.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const decls = css.slice(css.indexOf('.kind-warn {')).split('}')[0];
+  assert.match(decls, /background: rgba\(var\(--warn-rgb\), 0\.1\)/);
+  assert.match(decls, /border: 1px solid rgba\(var\(--warn-rgb\), 0\.3\)/);
+  assert.match(decls, /color: var\(--warn\)/);
+});
+
+test('an empty tally says it too, because that is when the author asks', () => {
+  // The branch only renders when the count is zero, so this is not repeated copy: it is
+  // the same fact arriving at the moment the question gets asked. A plain .hint rather
+  // than .hint warn, because here it is an explanation, not a caution.
+  const body = fnBody('function paintPollResults(');
+  const empty = body.slice(body.indexOf('if (!voters)'));
+  assert.match(empty, /Clients without poll support show nothing to vote on\./);
+  assert.match(empty, /ended \? 'This poll closed without any votes\.' : 'No votes yet\.'/);
+  assert.match(empty, /className: 'hint'/);
+  assert.doesNotMatch(empty, /hint warn/, 'nothing has gone wrong for the reader to fix');
+});
+
+test('the amber ends note uses the warn class that already existed', () => {
+  // .poll-ends-note.poll-warn was a verbatim duplicate of .hint.warn, which had eight
+  // callers before polls were written. The element is already a .hint, so it picks the
+  // original up with nothing else to change.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.hint\.warn \{ color: var\(--warn\); \}/, 'the one that was always there');
+  assert.doesNotMatch(css, /poll-warn/, 'and no second copy of it');
+  assert.doesNotMatch(bare, /poll-warn/);
+  assert.match(bare, /className: 'hint poll-ends-note'/, 'the element is already a hint');
+  assert.match(bare, /endsNote\.classList\.toggle\('warn', k === 'none'\)/);
 });
 
 // ---- getting back to a poll --------------------------------------------------------

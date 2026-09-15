@@ -3432,11 +3432,18 @@
   const POLL_SINGLE = 'singlechoice';
   const POLL_MULTIPLE = 'multiplechoice';
 
-  // Seven days unless the author says otherwise. NIP-88 makes endsAt optional and
-  // Jumble leaves it empty by default, but an open-ended poll never resolves: the count
-  // keeps moving, so there is no moment where the answer is the answer. A default that
-  // closes is the more useful one, and it can still be changed or removed per poll.
-  const POLL_DEFAULT_DAYS = 7;
+  // TWENTY-FOUR HOURS unless the author says otherwise.
+  //
+  // NIP-88 makes endsAt optional and Jumble leaves it empty by default, but an open-ended
+  // poll never resolves: the count keeps moving, so there is no moment where the answer is
+  // the answer. A default that closes is the more useful one, and it can still be changed
+  // or removed per poll.
+  //
+  // A day rather than the week this started at, because a week is not what anyone means by
+  // "I'm asking". Twitter defaults to a day and caps at seven; Amethyst's own poll composer
+  // opens on oneDayAhead. Longer is still offered here, up to thirty days, since a poll
+  // about something slow is a real thing to want. The default is the common case.
+  const POLL_DEFAULT_SECS = 86400;
 
   // Alphanumeric, which is all NIP-88 asks of an option id. Nine characters matches what
   // Jumble writes, so ids from either client look the same on a relay.
@@ -3572,9 +3579,9 @@
   const POLL_DURATIONS = [
     { secs: 3600, label: '1 hour' },
     { secs: 6 * 3600, label: '6 hours' },
-    { secs: 86400, label: '1 day' },
+    { secs: POLL_DEFAULT_SECS, label: '1 day' },
     { secs: 3 * 86400, label: '3 days' },
-    { secs: POLL_DEFAULT_DAYS * 86400, label: '7 days' },
+    { secs: 7 * 86400, label: '7 days' },
     { secs: 14 * 86400, label: '14 days' },
     { secs: 30 * 86400, label: '30 days' },
   ];
@@ -3583,13 +3590,13 @@
     return {
       options: ['', ''],
       multiple: false,
-      ends: { kind: 'in', secs: POLL_DEFAULT_DAYS * 86400 },
+      ends: { kind: 'in', secs: POLL_DEFAULT_SECS },
     };
   }
 
   // A DURATION IS RESOLVED AT PUBLISH, NOT AT DRAFT. Storing the absolute timestamp when
-  // the editor opened meant a poll drafted on Monday and posted on Thursday went out
-  // with three of its seven days already gone, and one left in a draft for over a week
+  // the editor opened meant a poll drafted on Monday and posted on Thursday went out with
+  // three of its days already gone, and one left in a draft past its own duration
   // published already closed. `kind: 'at'` is the one case the author really did name a
   // moment, so that one is passed through untouched.
   function pollEndsAtFor(pollDraft, nowSecs) {
@@ -11171,8 +11178,8 @@
     const dkey = draftKey(pubkey, replyTo);
     // `poll` is null for an ordinary note and an object once the poll editor is open.
     // The end time is stored as a DURATION rather than a timestamp, because a draft
-    // written on Monday and posted on Thursday should still run its full seven days
-    // instead of arriving three days spent. See pollEndsAtFor.
+    // written on Monday and posted on Thursday should still run its full duration instead
+    // of arriving three days spent. See pollEndsAtFor.
     let draft = { text: initialText || '', media: [], replyTo, poll: null };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
@@ -11574,7 +11581,7 @@
         function paintEndsNote() {
           const k = draft.poll.ends.kind;
           custom.classList.toggle('hidden', k !== 'at');
-          endsNote.classList.toggle('poll-warn', k === 'none');
+          endsNote.classList.toggle('warn', k === 'none');
           if (k === 'none') {
             // Said plainly rather than blocked. It is the author's poll, and there are
             // real uses for one that never closes, but a running total is not a result:
@@ -11601,6 +11608,20 @@
         });
         paintEndsNote();
 
+        // WHAT POSTING A POLL ACTUALLY COSTS, said where it can still change the decision.
+        // A 1068 is not a kind:1, so a client that has not implemented NIP-88 does not render
+        // it at all: it never appears in a feed filtered to notes, and the author gets no
+        // signal. Silence from the other side is indistinguishable from nobody caring.
+        //
+        // A box rather than a second amber line, because the ends note directly above is
+        // already amber text on the no-end-date case and two of those read as one sentence.
+        // No glyph: .kind-warn is bordered and filled, so the warning is not carried by
+        // color alone (the point made above .destructive-warn).
+        const clientWarn = h('div', {
+          className: 'kind-warn',
+          textContent: 'Some clients cannot show polls. On those, this will not appear at all.',
+        });
+
         const remove = h('button', { className: 'poll-remove' });
         remove.append(icon('trash'), h('span', { textContent: 'Remove poll' }));
         remove.addEventListener('click', () => {
@@ -11620,6 +11641,7 @@
           custom,
           endsNote,
           h('div', { className: 'poll-editor-sep' }),
+          clientWarn,
           remove
         );
       }
@@ -12447,7 +12469,13 @@
       container.append(
         h('p', {
           className: 'hint',
-          textContent: ended ? 'This poll closed without any votes.' : 'No votes yet.',
+          // The same fact as the composer's warning, arriving where the question actually
+          // gets asked: a poll with nothing on it is the moment an author wonders whether
+          // anyone saw it. Only on an empty tally, so it is not repeated copy, and a plain
+          // hint rather than .hint warn, because here it is an explanation, not a caution.
+          textContent:
+            (ended ? 'This poll closed without any votes.' : 'No votes yet.') +
+            ' Clients without poll support show nothing to vote on.',
         })
       );
     }

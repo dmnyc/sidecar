@@ -4475,9 +4475,6 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .poll-ends-select, .poll-ends-custom { width: 100%; }
 .poll-ends-custom { margin-top: 6px; }
 .poll-ends-note { margin-top: 6px; }
-/* The no-end-date case is said, not blocked: it is the author's poll. Amber rather than
-   red because nothing is wrong yet, it is just a poll that will never have a result. */
-.poll-ends-note.poll-warn { color: var(--warn); }
 
 /* The choices as they will read, in the Preview tab. The editor cannot show this: there
    the options are input boxes and a blank trailing row looks like a choice. */
