@@ -322,7 +322,7 @@ test('the sheet restores pages before the offset', () => {
   const off = fnSrc.indexOf('place.scrollTop');
   assert.ok(pages !== -1 && off !== -1, 'the restore moved');
   assert.ok(pages < off, 'the offset is restored before the rows exist to scroll through');
-  assert.match(fnSrc, /notifPlace = \(\) => \(\{ pages: Math\.max\(1, Math\.ceil\(shown \/ PAGE\)\)/,
+  assert.match(fnSrc, /notifPlace = \(\) => \(\{[\s\S]{0,80}?pages: Math\.max\(1, Math\.ceil\(shown \/ PAGE\)\)/,
     'the sheet no longer reports where it is');
   // A timer, not a frame: rAF does not run while the document is hidden.
   assert.match(fnSrc, /setTimeout\(\(\) => \{ if \(scroll\.isConnected\) scroll\.scrollTop = want/,

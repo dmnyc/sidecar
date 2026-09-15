@@ -224,6 +224,7 @@ test('poll ids are loaded on their own budget, not shared with note ids', () => 
   // polls out and quietly stop reporting votes on them.
   assert.match(bare, /function loadOwnPollIds\(pubkey, relays\)/);
   assert.match(bare, /kinds: \[POLL_KIND\], authors: \[pubkey\], limit: 50/);
+  assert.match(bare, /const ownPollIdList = \[\.\.\.ownPollIds\];/, 'the vote filter wants bare ids');
 });
 
 test('the tally is applied to what comes back, not just asked for in the filter', () => {
@@ -296,6 +297,11 @@ const paintPollBody = () => {
   const fn = bare.slice(bare.indexOf('      function paintPoll() {'));
   return fn.slice(0, fn.indexOf('\n      }'));
 };
+const notifModalBody = () => {
+  const fn = bare.slice(bare.indexOf('async function showNotifModal(a, place)'));
+  return fn.slice(0, fn.indexOf('\n  }'));
+};
+
 test('THE COMPOSER SAYS A POLL MAY NOT SHOW UP AT ALL', () => {
   // A 1068 is not a kind:1, so a client that has not implemented NIP-88 generally does
   // not render it: it never appears in a feed filtered to notes, and the author gets no
@@ -384,27 +390,248 @@ test('A POLL IS READ BACK FROM THE RELAYS IT WAS PUBLISHED TO', () => {
   );
 });
 
-test('the bell offers a way back, because a vote notification is a one-shot route', () => {
-  // The notification takes you to the tally once; close it and there is nothing to
+test('THE BELL CARRIES A POLLS TAB, NOT A BUTTON OUT OF THE BELL', () => {
+  // A vote notification takes you to the tally once; close it and there is nothing to
   // return to unless somebody votes again, and the post banner dismisses itself after a
-  // minute. Gated on ids that are already loaded for the notification filters, so it
-  // costs no extra query, and Profile still lists polls unconditionally.
+  // minute. The first answer was a worded button in the sheet's header that opened a
+  // separate sheet, which is easy to miss and leaves the bell, the surface the question
+  // is asked from. Gated on ids already loaded for the notification filters, so it still
+  // costs no extra query.
   assert.match(bare, /function accountHasPolls\(pubkey\)/);
-  assert.match(bare, /if \(accountHasPolls\(a\.pubkey\)\) \{/, 'the bell header must offer it');
-  assert.match(bare, /afterModalClose\(openPollsList\)/, 'and hand off after the sheet closes');
-  // One list, filled by one function, or the sheet and the Profile section drift.
-  assert.match(bare, /async function fillPollsList\(list, pubkey\)/);
+  const body = notifModalBody();
+  assert.match(body, /if \(accountHasPolls\(a\.pubkey\)\) \{/, 'the tab is gated on having polls');
+  assert.match(body, /className: 'modal-tabs'/, 'the same bar the Activity sub-tabs use');
+  assert.match(
+    body,
+    /wireTabSlider\(tabs, '\.modal-tab'\)/,
+    'or this is the one bar in the panel with no traveling underline'
+  );
+
+  // The second pane is the notification pane's own class again, so the scrolling and the
+  // edge-to-edge negative margins cannot drift apart.
+  assert.match(body, /pollPane = h\('div', \{ className: 'notif-scroll hidden' \}\)/);
+  assert.match(body, /scroll\.classList\.toggle\('hidden', polls\)/, 'one pane goes');
+  assert.match(body, /pollPane\.classList\.toggle\('hidden', !polls\)/, 'the other arrives');
+
+  // Lazily. Opening the bell is the common case and must not pay for a poll query.
+  assert.match(body, /if \(polls && !filled\) \{\n +filled = true;\n +fillPollsList\(pollList, a\.pubkey, \{/);
+
+  // One list, filled by one function, or the tab and the Profile section drift.
+  assert.match(bare, /async function fillPollsList\(list, pubkey, opts\)/);
   assert.match(bare, /await fillPollsList\(list, active\.pubkey\)/, 'Profile uses it');
-  assert.match(bare, /fillPollsList\(list, state\.activePubkey\)/, 'and so does the sheet');
 });
 
-test('the header title box can shrink, or the button it sits beside is pushed off', () => {
+test('THE NUMBER ON THE TAB IS HOW MANY POLLS ARE IN IT', () => {
+  // It counted the OPEN ones first, which is a different question from the one a number
+  // beside a tab asks. Against a list of three rows with two of them still running, it
+  // just read as a wrong number.
+  //
+  // In a capsule, not loose in the label: "Polls 3" is one string to the eye and the
+  // number has to be picked back out of it.
+  const body = notifModalBody();
+  assert.match(body, /className: 'modal-tab', type: 'button', textContent: 'Polls'/, 'the word');
+  assert.match(body, /className: 'modal-tab-count', textContent: String\(n\)/, 'and the number');
+  assert.doesNotMatch(bare, /openPollCount/, 'the open-only count is gone, not left alongside');
+});
+
+test('the count is seeded free, then corrected by the list that knows', () => {
+  // ownPollCount is the notification filters' own ids: capped at 50 and fetched from the
+  // notification relay set, where the list uses pollReadRelays. Free and usually right, so
+  // it labels the tab the instant the sheet opens, but it is not the authority.
+  const body = notifModalBody();
+  assert.match(body, /setCount\(ownPollCount\(a\.pubkey\)\);/, 'the instant answer');
+  assert.match(body, /onCount: setCount,/, 'and the real one when the list has it');
+  assert.match(bare, /function ownPollCount\(pubkey\)/);
+  assert.match(bare, /return ownPollCount\(pubkey\) > 0;/, 'one source for both questions');
+
+  // Removed rather than shown as 0: a zero on a tab reads as something broken.
+  const set = body.slice(body.indexOf('const setCount = (n) => {'));
+  assert.match(set.slice(0, set.indexOf('};')), /if \(!n\) \{ if \(cap\) cap\.remove\(\); return; \}/);
+
+  // Reported when the rows exist, not after the vote query, or the rows sit on screen
+  // under a number that disagrees with them for as long as that query is allowed to run.
+  const fn = bare.slice(bare.indexOf('async function fillPollsList'));
+  const fill = fn.slice(0, fn.indexOf('\n  }'));
+  // Both options have to be READ, not just passed: a hardcoded null here would leave
+  // every assertion about the call sites above true and the feature gone.
+  assert.match(fill, /const openPoll = opts && opts\.openPoll;/);
+  assert.match(fill, /const onCount = opts && opts\.onCount;/);
+  const reported = fill.indexOf('onCount(polls.length)');
+  const votes = fill.indexOf("kinds: [POLL_RESPONSE_KIND], '#e'");
+  // > -1 first. indexOf returns -1 for a line that is simply gone, and -1 is less than
+  // every real index, so the ordering check alone passes loudest when it should fail.
+  assert.ok(reported > -1, 'nothing reports the real count');
+  assert.ok(votes > -1 && reported < votes, 'the count must not wait on the votes');
+  assert.match(fill, /if \(onCount\) onCount\(0\);/, 'and an account with none says so');
+});
+
+test('the count capsule takes its color from the tab it sits in', () => {
+  // A fixed tint would have to be chosen per theme, and whichever one it was would make
+  // the unselected tab the louder of the two. currentColor is muted beside an inactive
+  // label and --lav beside the active one, in all twelve themes, with no theme work.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const decls = css.slice(css.indexOf('.modal-tab-count {')).split('}')[0];
+  assert.match(decls, /background: color-mix\(in srgb, currentColor \d+%, transparent\)/);
+  assert.match(decls, /border-radius: 999px/, 'a capsule, not a box');
+  assert.doesNotMatch(decls, /\bcolor:/, 'the ink is inherited too, or the two could disagree');
+});
+
+test('a line about what the panel is doing is not put in a card', () => {
+  // .list.flat draws one velvet capsule around its rows. With a single line of text
+  // inside, that capsule reads as a result that has arrived rather than as waiting for
+  // one. .empty is the class that already drops the chrome, used by the connected-sites
+  // list and by budgets, and it covers Profile too since both share this function.
+  const fn = bare.slice(bare.indexOf('async function fillPollsList'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  const added = body.indexOf("list.classList.add('empty')");
+  assert.ok(added > -1 && added < body.indexOf("'Looking for your polls…'"), 'chrome off first');
+  // AFTER the no-polls early return, or an empty list gets a card drawn round one line.
+  const removed = body.indexOf("list.classList.remove('empty')");
+  assert.ok(removed > body.indexOf("'No polls yet. The composer can post one.'"), 'rows only');
+
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const decls = css.slice(css.indexOf('.list.flat.empty {')).split('}')[0];
+  assert.match(decls, /background: none/);
+  assert.match(decls, /border: none/);
+});
+
+test('the old route out of the bell is gone, not left beside the tab', () => {
+  // Two ways to the same list, one of them a button that leaves the sheet, is the thing
+  // the tab was meant to replace.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.doesNotMatch(bare, /openPollsList/, 'the separate sheet');
+  assert.doesNotMatch(bare, /notif-modal-polls/, 'and the header button that opened it');
+  assert.doesNotMatch(css, /notif-modal-polls/, 'along with its rules');
+});
+
+test('A TALLY OPENED FROM THE BELL HAS A WAY BACK TO THE BELL', () => {
+  // openPollResults takes the whole panel. Both routes into it start in the notification
+  // sheet, so without this the only exit drops the reader on the main view, having lost
+  // the list they were working through. Same shape as the composer's returnTo, which
+  // exists for the same reason on the same sheet.
+  const fn = bare.slice(bare.indexOf('async function openPollResults'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(bare, /async function openPollResults\(poll, relayHints, returnTo\)/);
+  // On the modal's own close handler, so Escape and a click on the overlay are the same
+  // departure as the button. Guarded, because a throwing return must not break closing.
+  assert.match(body, /if \(!dismissAll && typeof returnTo === 'function'\) \{\n +try \{ returnTo\(\); \} catch \(_\) \{\}/);
+});
+
+test('THE TWO CORNERS ARE TWO DIFFERENT EXITS', () => {
+  // A tally is a screen pushed on top of the sheet it came from, so it needs both the way
+  // back to that sheet and the way out of the whole stack. An arrow at the left, a close
+  // box at the right, and the arrow only when there is something under it.
+  const fn = bare.slice(bare.indexOf('async function openPollResults'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /className: 'modal-x', type: 'button', title: 'Close'/);
+  assert.match(body, /if \(returnTo\) \{\n +const backBtn = h\('button', \{ className: 'modal-x modal-back', type: 'button', title: 'Back' \}\);/);
+  assert.match(body, /backBtn\.append\(icon\('arrow-left'\)\)/);
+  assert.match(bare, /'arrow-left': '<line/, 'the icon has to exist, or the button is empty');
+
+  // Only the X skips the return. Back, Escape and the overlay all dismiss the top of a
+  // stack, which means handing back what was under it.
+  assert.match(body, /xBtn\.addEventListener\('click', \(\) => \{ dismissAll = true; closeModal\(\); \}\)/);
+  assert.match(body, /backBtn\.addEventListener\('click', closeModal\)/, 'Back must not skip it');
+  // Declared in openPollResults, not in the builder: the close handler is a sibling
+  // argument to openModal and cannot see anything the builder declares. This threw at
+  // close time, which is the one moment nothing is left on screen to show it.
+  assert.ok(
+    body.indexOf('let dismissAll = false;') < body.indexOf('openModal((modal) => {'),
+    'dismissAll has to outlive the builder that sets it'
+  );
+
+  // And the actions column keeps only the things you DO to the poll.
+  assert.match(body, /const actions = h\('div', \{ className: 'actions' \}, \[recount, openOut\]\);/);
+  assert.doesNotMatch(body, /textContent: 'Close'/, 'one close affordance, not two');
+});
+
+test('a heading clears whatever is parked in the corner above it', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.modal-back \{ left: 12px; right: auto; \}/);
+  assert.match(css, /\.modal-sheet > h3 \{ padding-right: 34px; \}/, 'every sheet has a close box');
+  assert.match(css, /\.modal-sheet\.has-back > h3 \{ padding-left: 34px; \}/, 'only some have an arrow');
+  assert.match(bare, /modal\.classList\.toggle\('has-back', !!returnTo\)/);
+});
+
+test('both routes into a tally read their place before the sheet is gone', () => {
+  // notifPlace() reads the live sheet. Called from inside the return instead, it would
+  // run after the bell had been torn down and report an offset of zero every time.
+  const body = notifModalBody();
+  // The vote notification.
+  assert.match(
+    body,
+    /const place = notifPlace\(\);\n +afterModalClose\(\(\) =>\n +openPollResults\(pollTarget, hints, \(\) => showNotifModal\(a, place\)\)/
+  );
+  // And a row in the Polls tab. Read at the tap, not when the list was filled: the
+  // notification list can be scrolled in between.
+  assert.match(
+    body,
+    /openPoll: \(ev\) => \{\n +const place = notifPlace\(\);\n[\s\S]{0,600}?afterModalClose\(\(\) => openPollResults\(ev, null, \(\) => showNotifModal\(a, place\)\)\);/
+  );
+});
+
+test('a tally never opens straight over the bell, or the bell never gets to clean up', () => {
+  // openModal overwrites modalCleanup. Opening the tally on top of the open sheet would
+  // therefore replace the bell's close handler before it ran, and that handler is what
+  // clears _openNotifBell. Left set, addLive goes on prepending arrivals into a list that
+  // is no longer on screen, for the rest of the session. The flicker afterModalClose was
+  // written for is the smaller half of this.
+  const body = notifModalBody();
+  assert.match(body, /\}, \(\) => \{\n +if \(_openNotifBell && _openNotifBell\.pubkey === a\.pubkey\) _openNotifBell = null;/,
+    'the bell must have a close handler worth running');
+  // Every route from this sheet into a tally goes through the close first.
+  const opens = body.match(/openPollResults\(/g) || [];
+  const viaClose = body.match(/afterModalClose\(\(\) =>\s*\n? *openPollResults\(/g) || [];
+  assert.equal(opens.length, viaClose.length, 'a route into the tally skips afterModalClose');
+});
+
+test('the way back lands on the tab you left, after the list has its place', () => {
+  // Coming back to All from a poll you opened on the Polls tab is only half a way back.
+  const body = notifModalBody();
+  assert.match(body, /tab: onPollsTab \? 'polls' : 'all',/, 'the place has to carry the tab');
+  assert.match(body, /onPollsTab = polls;/, 'and something has to set it');
+  assert.match(body, /if \(place && place\.tab === 'polls' && showPollsTab\) setTimeout\(showPollsTab, 0\);/);
+  // AFTER the offset restore. scrollTop does not apply to a display:none pane, so hiding
+  // the notifications first throws away the place for the tab you are not landing on.
+  assert.ok(
+    body.indexOf("place.tab === 'polls'") > body.indexOf('scroll.scrollTop = want'),
+    'the tab switch must come after the offset it would otherwise discard'
+  );
+  // Not animated: arriving back where you were is not a state change.
+  assert.match(body, /tabs\.moveSlider\(tabPolls, false\)/);
+});
+
+test('Profile still closes rather than going back, having taken nothing away', () => {
+  // It opens a tally from the panel, not from a sheet, so closing already lands on the
+  // Profile tab the reader came from. Passing a return there would add a Back button
+  // that went to the screen already behind it.
+  const fn = bare.slice(bare.indexOf('async function renderPollsSection'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /await fillPollsList\(list, active\.pubkey\);/);
+  assert.doesNotMatch(body, /openPollResults|showNotifModal/);
+  // The default route, for every caller that hands over no opener of its own.
+  assert.match(bare, /const open = \(\) => \(openPoll \? openPoll\(ev\) : openPollResults\(ev\)\);/);
+});
+
+test('the header title box can still shrink, which was never really about the button', () => {
   // .notif-modal-sub has carried overflow/text-overflow since it was written and never
   // truncated, because a flex child defaults to min-width: auto and grows to fit the
-  // name. Harmless while nothing sat to its right; with a Polls button there, a long
-  // display name pushed it 145px past the edge of the sheet.
+  // name. The Polls button is what made it visible, since a long display name pushed it
+  // 145px past the edge of the sheet, but a name that never truncates is a bug with or
+  // without something sitting to its right.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   const rule = css.slice(css.indexOf('.notif-modal-titlebox {'));
   assert.match(rule.slice(0, rule.indexOf('}')), /min-width: 0/);
   assert.match(bare, /className: 'notif-modal-titlebox'/, 'and the element has to carry the class');
+});
+
+test('a poll that is still running is listed above one that has closed', () => {
+  // By created_at alone a poll taking votes right now sits wherever it was posted, under
+  // everything written since, and a running poll is the one you opened the tab for.
+  // Both the bell tab and the Profile section are this function, so both get it.
+  const fn = bare.slice(bare.indexOf('async function fillPollsList'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /const xEnded = pollHasEnded\(pollEndsAt\(x\)\)/);
+  assert.match(body, /if \(xEnded !== yEnded\) return xEnded \? 1 : -1;/, 'open ones first');
+  assert.match(body, /return y\.created_at - x\.created_at;/, 'newest first inside each group');
 });

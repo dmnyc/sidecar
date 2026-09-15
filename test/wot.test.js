@@ -225,7 +225,10 @@ test('there is a switch, and it is on by default', () => {
   assert.match(notifSec.slice(0, notifSec.indexOf('</section>')), /id="wotfilter-toggle"/,
     'the toggle must live in the section the link opens');
   assert.match(html, /Nothing is hidden\./, 'the copy must say so');
-  assert.match(css, /\.notif-offnet-toggle \{/);
+  // Matched loosely on purpose: what this guards is that the toggle is styled at all, not
+  // that it keeps a rule to itself. Joining it to a selector list one day is not this
+  // test's business, and a strict match would report that as the switch losing its styling.
+  assert.match(css, /\.notif-offnet-toggle[^{};]*\{/, 'the collapsed group needs its toggle styled');
 });
 
 test('LIVE ARRIVALS ARE SORTED TOO', () => {
