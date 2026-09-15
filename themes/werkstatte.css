@@ -342,6 +342,7 @@
 [data-theme="werkstatte"] .notif-modal-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .add-account-badge:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .bm-av:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .poll-voter-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .restore-preview-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .site-bound-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .compose-author-av:not(.theme-card):not(.theme-card *),
