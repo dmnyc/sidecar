@@ -235,6 +235,7 @@
     external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>',
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
     'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>',
+    'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>',
     'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
     'chevron-down': '<polyline points="6 9 12 15 18 9"></polyline>',
     'arrow-up-right': '<line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>',
@@ -764,6 +765,12 @@
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   const _ownNoteIds = new Map(); // pubkey → Set<eventId> (this account's own recent kind:1 ids)
   const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  // Kept apart from the note ids rather than merged into one set. They are fetched with
+  // their own limit, so an account that posts often cannot push its polls out of the
+  // window and quietly stop reporting votes, and the vote filter can name poll ids only
+  // instead of asking every relay about 150 ids that can never carry a kind:1018.
+  const _ownPollIds = new Map(); // pubkey → Set<eventId> (this account's own kind:1068 ids)
+  const _ownPollIdsPromises = new Map();
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
   // Set while the notification modal is open, so a live event arriving in the
@@ -3413,6 +3420,242 @@
   // error — it silently splits the conversation.
   const WEB_COMMENT_KIND = 1111;
 
+  // ---- Polls (NIP-88) ----
+  //
+  // A poll is a kind:1068 whose content is the question. Each choice is an
+  // ["option", <id>, <label>] tag, the id being an opaque token a vote points back at,
+  // so editing a label never silently rewrites what anyone voted for. A vote is a
+  // kind:1018 carrying an `e` tag to the poll and one ["response", <optionId>] tag per
+  // choice. Sidecar creates polls and counts them; it does not vote, because voting
+  // needs a feed to find polls in and Sidecar is the signer, not the reader.
+  const POLL_KIND = 1068;
+  const POLL_RESPONSE_KIND = 1018;
+  const POLL_SINGLE = 'singlechoice';
+  const POLL_MULTIPLE = 'multiplechoice';
+
+  // TWENTY-FOUR HOURS unless the author says otherwise.
+  //
+  // NIP-88 makes endsAt optional and Jumble leaves it empty by default, but an open-ended
+  // poll never resolves: the count keeps moving, so there is no moment where the answer is
+  // the answer. A default that closes is the more useful one, and it can still be changed
+  // or removed per poll.
+  //
+  // A day rather than the week this started at, because a week is not what anyone means by
+  // "I'm asking". Twitter defaults to a day and caps at seven; Amethyst's own poll composer
+  // opens on oneDayAhead. Longer is still offered here, up to thirty days, since a poll
+  // about something slow is a real thing to want. The default is the common case.
+  const POLL_DEFAULT_SECS = 86400;
+
+  // Alphanumeric, which is all NIP-88 asks of an option id. Nine characters matches what
+  // Jumble writes, so ids from either client look the same on a relay.
+  function pollOptionId() {
+    const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = new Uint8Array(9);
+    crypto.getRandomValues(bytes);
+    let out = '';
+    for (const b of bytes) out += abc[b % abc.length];
+    return out;
+  }
+
+  // The choices, in the order the author wrote them. A tag missing either field is
+  // dropped rather than rendered blank, and a duplicate id is dropped rather than
+  // merged, because two options sharing an id cannot be told apart in a vote.
+  function pollOptions(ev) {
+    const seen = new Set();
+    const out = [];
+    for (const t of (ev && ev.tags) || []) {
+      if (t[0] !== 'option' || !t[1] || typeof t[2] !== 'string') continue;
+      if (seen.has(t[1])) continue;
+      seen.add(t[1]);
+      out.push({ id: t[1], label: t[2] });
+    }
+    return out;
+  }
+
+  // "Polls that do not have a polltype should be considered a singlechoice poll", and
+  // anything else unrecognized is treated the same way: the stricter reading, so an
+  // unknown value cannot quietly let one person cast several votes.
+  function pollIsMultiple(ev) {
+    const t = ((ev && ev.tags) || []).find((x) => x[0] === 'polltype' && x[1]);
+    return !!t && t[1] === POLL_MULTIPLE;
+  }
+
+  function pollEndsAt(ev) {
+    const t = ((ev && ev.tags) || []).find((x) => x[0] === 'endsAt' && x[1]);
+    if (!t) return null;
+    const n = parseInt(t[1], 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  function pollRelayTags(ev) {
+    return ((ev && ev.tags) || []).filter((t) => t[0] === 'relay' && t[1]).map((t) => t[1]);
+  }
+
+  // COUNTING IS THE PART WITH RULES, so all of them live here rather than in the view.
+  // Given a poll and every kind:1018 seen for it, this returns the counts the poll
+  // actually has. Four rules, each of which changes the number:
+  //
+  //   One vote per pubkey. Someone who votes twice has changed their mind, not voted
+  //   twice, so only their latest counts. Ties on created_at break on id so a reload
+  //   that receives the same two events in a different order still shows one number.
+  //
+  //   Nothing after endsAt. The query already asks with `until`, but a relay is free to
+  //   answer with whatever it likes, and a poll whose result moves after it closed is
+  //   worse than one that is merely wrong.
+  //
+  //   Single choice means the FIRST response tag, and only that one. Not the first
+  //   RECOGNIZED one: falling through to the next tag would let anyone cast a real vote
+  //   in a single-choice poll by listing a junk id ahead of it. An unrecognized first
+  //   tag is a vote for nothing, which is what the spec says it is.
+  //
+  //   Multiple choice counts each distinct id once, order irrelevant, per the spec.
+  //
+  // Ids that are not options of THIS poll are dropped throughout, so a vote carrying
+  // another poll's ids cannot add to a total here.
+  function tallyPollVotes(pollEv, votes) {
+    const options = pollOptions(pollEv);
+    const valid = new Set(options.map((o) => o.id));
+    const endsAt = pollEndsAt(pollEv);
+    const multiple = pollIsMultiple(pollEv);
+
+    const latest = new Map();
+    for (const v of votes || []) {
+      if (!v || v.kind !== POLL_RESPONSE_KIND || !v.pubkey || !v.id) continue;
+      if (!(v.tags || []).some((t) => t[0] === 'e' && t[1] === pollEv.id)) continue;
+      if (endsAt && v.created_at > endsAt) continue;
+      const prev = latest.get(v.pubkey);
+      const newer =
+        !prev ||
+        v.created_at > prev.created_at ||
+        (v.created_at === prev.created_at && v.id > prev.id);
+      if (newer) latest.set(v.pubkey, v);
+    }
+
+    const counts = new Map(options.map((o) => [o.id, 0]));
+    // WHO voted and for what, alongside the totals. Same single pass and the same rules:
+    // a ballot that is not counted is not a voter here either, so the list can never
+    // disagree with the number above it.
+    const ballots = [];
+    let voters = 0;
+    for (const v of latest.values()) {
+      const responses = (v.tags || []).filter((t) => t[0] === 'response' && t[1]).map((t) => t[1]);
+      let picked;
+      if (multiple) {
+        picked = [...new Set(responses)].filter((id) => valid.has(id));
+      } else {
+        picked = responses.length && valid.has(responses[0]) ? [responses[0]] : [];
+      }
+      if (!picked.length) continue; // a ballot for nothing is not a voter
+      voters += 1;
+      picked.forEach((id) => counts.set(id, counts.get(id) + 1));
+      ballots.push({ pubkey: v.pubkey, picked, at: v.created_at });
+    }
+    // Newest first, which is the order the rest of this panel shows anything in.
+    ballots.sort((x, y) => y.at - x.at);
+
+    return { options, counts, voters, multiple, endsAt, ballots };
+  }
+
+  // THE DENOMINATOR IS VOTERS, NOT VOTES, and it matters on multiple choice: with six
+  // people picking two options each the counts sum to twelve, and dividing by that
+  // reports every option at half its real support. "62%" here means 62% of the people
+  // who voted chose this, which is the only reading that holds for both poll types.
+  function pollShare(count, voters) {
+    return voters > 0 ? count / voters : 0;
+  }
+
+  // "ends in 5d", "ended 2h ago", or the open-ended case. Deliberately coarse: the exact
+  // minute a poll closes is never the thing you want off a row this size.
+  function pollEndsText(endsAt) {
+    if (!endsAt) return 'no end date';
+    const secs = endsAt - Math.floor(Date.now() / 1000);
+    const mag = Math.abs(secs);
+    const unit =
+      mag < 3600 ? [Math.max(1, Math.round(mag / 60)), 'm'] :
+      mag < 86400 ? [Math.round(mag / 3600), 'h'] :
+      [Math.round(mag / 86400), 'd'];
+    return secs > 0 ? 'ends in ' + unit[0] + unit[1] : 'ended ' + unit[0] + unit[1] + ' ago';
+  }
+
+  function pollHasEnded(endsAt) {
+    return !!endsAt && endsAt <= Math.floor(Date.now() / 1000);
+  }
+
+  // What the composer offers. Durations rather than dates, because "7 days" is the
+  // thing an author actually means and a date picker in a 344px sheet is a fight.
+  // A specific moment is still reachable through the custom option below.
+  const POLL_DURATIONS = [
+    { secs: 3600, label: '1 hour' },
+    { secs: 6 * 3600, label: '6 hours' },
+    { secs: POLL_DEFAULT_SECS, label: '1 day' },
+    { secs: 3 * 86400, label: '3 days' },
+    { secs: 7 * 86400, label: '7 days' },
+    { secs: 14 * 86400, label: '14 days' },
+    { secs: 30 * 86400, label: '30 days' },
+  ];
+
+  function newPollDraft() {
+    return {
+      options: ['', ''],
+      multiple: false,
+      ends: { kind: 'in', secs: POLL_DEFAULT_SECS },
+    };
+  }
+
+  // A DURATION IS RESOLVED AT PUBLISH, NOT AT DRAFT. Storing the absolute timestamp when
+  // the editor opened meant a poll drafted on Monday and posted on Thursday went out with
+  // three of its days already gone, and one left in a draft past its own duration
+  // published already closed. `kind: 'at'` is the one case the author really did name a
+  // moment, so that one is passed through untouched.
+  function pollEndsAtFor(pollDraft, nowSecs) {
+    const ends = pollDraft && pollDraft.ends;
+    if (!ends || ends.kind === 'none') return null;
+    if (ends.kind === 'at') return ends.at > 0 ? ends.at : null;
+    return nowSecs + ends.secs;
+  }
+
+  // Two options with something in them is the floor: one option is not a question, and
+  // a blank is not a choice anyone can pick. Blanks are dropped rather than rejected so
+  // an author can leave the trailing empty row alone instead of tidying it.
+  function pollDraftOptions(pollDraft) {
+    return ((pollDraft && pollDraft.options) || []).map((o) => o.trim()).filter(Boolean);
+  }
+
+  function pollDraftIsPostable(pollDraft) {
+    return pollDraftOptions(pollDraft).length >= 2;
+  }
+
+  // Four, matching what Jumble writes. These tags tell a voter where to publish, and a
+  // long list is not more reachable: it is the same votes scattered wider, which makes
+  // the count slower to gather and more likely to be partial.
+  const POLL_RELAY_LIMIT = 4;
+
+  // The tags that turn a note into a poll. Pure, so the shape of a published poll is
+  // testable without a relay or a signer.
+  //
+  // Ids are generated here rather than in the editor because they are not the author's
+  // business, and because an id has to be unique WITHIN the poll: pollOptions drops a
+  // duplicate rather than merging it, so a collision would silently lose an option
+  // between what the author typed and what anyone can vote for.
+  function buildPollTags(pollDraft, nowSecs, relays) {
+    const tags = [];
+    const used = new Set();
+    pollDraftOptions(pollDraft).forEach((label) => {
+      let id = pollOptionId();
+      while (used.has(id)) id = pollOptionId();
+      used.add(id);
+      tags.push(['option', id, label]);
+    });
+    // Written even for the default. NIP-88 says an absent polltype is singlechoice, so
+    // this is redundant on paper, and it is the difference between a reader having to
+    // know the default and being told.
+    tags.push(['polltype', pollDraft.multiple ? POLL_MULTIPLE : POLL_SINGLE]);
+    const endsAt = pollEndsAtFor(pollDraft, nowSecs);
+    if (endsAt) tags.push(['endsAt', String(endsAt)]);
+    (relays || []).slice(0, POLL_RELAY_LIMIT).forEach((u) => tags.push(['relay', u]));
+    return tags;
+  }
+
   // Params that identify where a visitor came FROM, never which page they're on.
   // Left in, every share link spawns its own thread.
   //
@@ -4110,6 +4353,9 @@
     // A NIP-22 comment that p-tags you. Worth its own wording: "mentioned you" sends
     // the reader looking for a note, and this is a comment on a page.
     if (ev.kind === WEB_COMMENT_KIND) return { glyph: '@', text: 'mentioned you in a comment' };
+    // A vote. The wording says "your poll" because that is the only poll a vote can
+    // reach this list for: both filters that collect them are anchored on this account.
+    if (ev.kind === POLL_RESPONSE_KIND) return { icon: 'bar-chart', text: 'voted in your poll' };
     // kind 1
     const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
     // Ornamental quote mark (U+275D) — a text glyph like the '@' below, so it
@@ -4192,6 +4438,19 @@
       }
     } catch (_) {}
     return '';
+  }
+
+  // The poll a kind:1018 answers, and any relay hint its `e` tag carries. The hint is
+  // worth keeping: a vote on a poll published to relays this account does not read is
+  // otherwise a notification that opens onto nothing.
+  function notifPollId(ev) {
+    const t = ((ev && ev.tags) || []).find((x) => x[0] === 'e' && x[1]);
+    return t ? t[1] : '';
+  }
+  function notifPollRelayHints(ev) {
+    return ((ev && ev.tags) || [])
+      .filter((x) => x[0] === 'e' && x[1] && typeof x[2] === 'string' && x[2].startsWith('wss://'))
+      .map((x) => x[2]);
   }
 
   function notifAuthorName(pubkey) {
@@ -4894,6 +5153,27 @@
     return p;
   }
 
+  // Same shape as loadOwnNoteIds, for polls. A vote does not have to p-tag the poll's
+  // author — NIP-88 does not ask for it, and only some clients bother — so matching on
+  // the poll id is what makes "someone voted" arrive at all for the rest.
+  function loadOwnPollIds(pubkey, relays) {
+    if (_ownPollIdsPromises.has(pubkey)) return _ownPollIdsPromises.get(pubkey);
+    const p = (async () => {
+      const ids = new Set();
+      try {
+        const evs = await poolQuerySync(relays, { kinds: [POLL_KIND], authors: [pubkey], limit: 50 });
+        (evs || [])
+          .sort((x, y) => y.created_at - x.created_at)
+          .slice(0, 50)
+          .forEach((e) => ids.add(e.id));
+      } catch (_) {}
+      _ownPollIds.set(pubkey, ids);
+      return ids;
+    })();
+    _ownPollIdsPromises.set(pubkey, p);
+    return p;
+  }
+
   // Close the live notification subscriptions for every account except `keepPubkey`.
   // Without this they accumulated for the life of the panel: initNotifSubs subscribed
   // for EVERY account, each with three filters, across every configured relay — with
@@ -4934,9 +5214,10 @@
       // the first event and the repost/quote filters below are ready. Cap the
       // wait so a slow relay can't stall notifications — the fetches keep
       // running and mutes prune the cache once it lands.
-      const [, ownIds] = await Promise.all([
+      const [, ownIds, ownPollIds] = await Promise.all([
         Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
         Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
+        Promise.race([loadOwnPollIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
       ]);
 
       // Reuse the existing cache when re-subscribing after an account switch — a
@@ -4986,17 +5267,26 @@
       // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
       // own notes — matched by id so they're caught even without a `p` tag.
       const ownIdList = [...ownIds];
+      const ownPollIdList = [...ownPollIds];
       function buildFilters(sinceTs, limit) {
         // 1111 is a NIP-22 comment (e.g. on a web page). Included so a mention inside
         // one reaches you: Sidecar writes p tags on comments now, and not querying
         // them would leave it a client that can send a mention but never receive one.
-        const base = { kinds: [1, 6, 7, 1111, 9735], '#p': [a.pubkey], since: sinceTs };
+        // 1018 is a vote on one of this account's polls. It is in BOTH this filter and
+        // the id-matched one below on purpose: Jumble p-tags the poll author, which this
+        // catches, while NIP-88 never requires that tag, which the other one covers.
+        // addEvent de-dupes by id, so a client doing both does not notify twice.
+        const base = { kinds: [1, 6, 7, 1111, 9735, POLL_RESPONSE_KIND], '#p': [a.pubkey], since: sinceTs };
         const list = [limit ? Object.assign({ limit }, base) : base];
         if (ownIdList.length) {
           const repost = { kinds: [6], '#e': ownIdList, since: sinceTs };
           const quote = { kinds: [1], '#q': ownIdList, since: sinceTs };
           list.push(limit ? Object.assign({ limit }, repost) : repost);
           list.push(limit ? Object.assign({ limit }, quote) : quote);
+        }
+        if (ownPollIdList.length) {
+          const votes = { kinds: [POLL_RESPONSE_KIND], '#e': ownPollIdList, since: sinceTs };
+          list.push(limit ? Object.assign({ limit }, votes) : votes);
         }
         return list;
       }
@@ -5104,7 +5394,12 @@
 
       // Where this notification opens (a renderable note/article/profile URL), or
       // '' when there's no sensible target.
-      const linkTarget = notifLink(ev, client, a.pubkey);
+      // A VOTE OPENS THE TALLY, NOT THE WEB CLIENT. Every other notification hands off
+      // because the thing being pointed at is a note, and a note reads better where
+      // notes read. A vote points at a number that has to be counted from every ballot,
+      // and that is the one answer a link out cannot give in a tap.
+      const pollTarget = ev.kind === POLL_RESPONSE_KIND ? notifPollId(ev) : '';
+      const linkTarget = pollTarget ? '' : notifLink(ev, client, a.pubkey);
 
       // The whole card is the click target — open it in the preferred client.
       const item = linkTarget
@@ -5114,6 +5409,13 @@
             target: '_blank',
             rel: 'noreferrer noopener',
             title: 'Open in ' + client.label,
+          })
+        : pollTarget
+        ? h('div', {
+            className: 'notif-item notif-clickable' + (isNew ? ' notif-new' : ''),
+            role: 'button',
+            tabIndex: 0,
+            title: 'See results',
           })
         : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
       // Lets the background mute re-check (see showNotifModal) remove this row in
@@ -5133,14 +5435,41 @@
           openInClient(linkTarget);
         });
       }
+      if (pollTarget) {
+        // Through afterModalClose rather than straight into openModal, so the bell's
+        // sheet plays its close before the results sheet arrives. Opening one modal on
+        // top of another swaps the content mid-dip and reads as a flicker.
+        //
+        // And it is not only cosmetic. openModal REPLACES modalCleanup, so opening the
+        // tally over this sheet would discard the bell's own close handler before it ran,
+        // leaving _openNotifBell pointing at a list that is no longer on screen. addLive
+        // would go on prepending arrivals into a dead node for the rest of the session.
+        const hints = notifPollRelayHints(ev);
+        const openResults = () => {
+          // Read before the sheet closes, or there is no sheet left to read it from.
+          const place = notifPlace();
+          afterModalClose(() =>
+            openPollResults(pollTarget, hints, () => showNotifModal(a, place))
+          );
+        };
+        item.addEventListener('click', openResults);
+        item.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          openResults();
+        });
+      }
 
       // Top row: glyph · name (truncated) · time · arrow
       const right = h('div', { className: 'notif-top-right' }, [
         h('span', { className: 'notif-time', textContent: relativeTime(ev.created_at) }),
       ]);
-      if (linkTarget) {
-        const arrow = h('span', { className: 'notif-link' });
-        arrow.appendChild(icon('arrow-up-right'));
+      if (linkTarget || pollTarget) {
+        // The up-right arrow means "this leaves Sidecar" on every other row and beside
+        // every Open in <client> button. A vote does not leave, so it gets a chevron
+        // turned to point along the row instead: drill in, not out.
+        const arrow = h('span', { className: 'notif-link' + (pollTarget ? ' notif-link-in' : '') });
+        arrow.appendChild(icon(pollTarget ? 'chevron-down' : 'arrow-up-right'));
         right.appendChild(arrow);
       }
       // Renders with whatever name is cached now (often a short npub on first
@@ -5663,7 +5992,7 @@
       // crowded, and it says nothing the user does not already know. Title and close
       // button alone is the honest amount of furniture for "here is your list".
       const heading = h('div', { className: 'notif-modal-head' });
-      const titleBox = h('div', {}, [
+      const titleBox = h('div', { className: 'notif-modal-titlebox' }, [
         h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
       ]);
       if ((state.accounts || []).length > 1) {
@@ -5676,7 +6005,104 @@
       const scroll = h('div', { className: 'notif-scroll' });
       const list = h('div', { className: 'notif-list' });
       scroll.appendChild(list);
+
+      // THE WAY BACK TO A POLL YOU POSTED, inside the bell rather than out of it.
+      //
+      // A vote notification is a one-shot route to a tally: it exists only if somebody
+      // voted, and once the sheet is shut there is nothing to return to. The first answer
+      // was a small Polls button in this header that opened a separate sheet, which is
+      // easy to miss, and it leaves the bell, which is where you go to ask what happened
+      // to something you posted. A tab keeps the question and its answer in one place, and
+      // the panel already has the markup for one.
+      //
+      // Shown whenever the account has posted a poll, not only while one is running. A
+      // poll's results are most interesting just after it closes, so a tab that vanished
+      // with the last open one would put closed tallies back out of reach, which is the
+      // exact gap this is meant to fix.
+      //
+      // Costs no extra query to decide: the ids are already loaded for the notification
+      // filters above. If that load has not landed the tab is simply absent, and Profile
+      // still lists polls unconditionally.
+      let pollPane = null;
+      // Which tab is up, for notifPlace. A tally opened from the Polls tab has to come back
+      // to the Polls tab, or the way back is only half a way back.
+      let onPollsTab = false;
+      let showPollsTab = null;
+      if (accountHasPolls(a.pubkey)) {
+        const tabAll = h('button', { className: 'modal-tab active', type: 'button', textContent: 'All' });
+        const tabPolls = h('button', { className: 'modal-tab', type: 'button', textContent: 'Polls' });
+        const tabs = h('div', { className: 'modal-tabs' }, [tabAll, tabPolls]);
+
+        // HOW MANY POLLS ARE IN THERE, which is the only thing a number beside a tab can
+        // mean. It counted the open ones first, and beside a list of three rows showing two
+        // of them running it simply read as a wrong number.
+        //
+        // In a capsule rather than loose in the label: "Polls 3" is one string to the eye
+        // and the number has to be picked back out of it. Removed rather than shown as 0,
+        // because a zero on a tab reads as something broken. Tab width is flex: 1, so this
+        // appearing or changing never moves the slider.
+        const setCount = (n) => {
+          const cap = tabPolls.querySelector('.modal-tab-count');
+          if (!n) { if (cap) cap.remove(); return; }
+          if (cap) cap.textContent = String(n);
+          else tabPolls.append(h('span', { className: 'modal-tab-count', textContent: String(n) }));
+        };
+        // Seeded from the notification filters' own ids, which cost nothing and are usually
+        // right, then corrected by the list when it answers. See ownPollCount.
+        setCount(ownPollCount(a.pubkey));
+
+        // .notif-scroll again, not a class of its own: the pane needs the same overflow
+        // and the same edge-to-edge negative margins, and a second rule saying so is a
+        // second rule to keep in step.
+        pollPane = h('div', { className: 'notif-scroll hidden' });
+        const pollList = h('div', { className: 'list flat' });
+        pollPane.appendChild(pollList);
+
+        let filled = false;
+        const pick = (polls) => {
+          onPollsTab = polls;
+          tabAll.classList.toggle('active', !polls);
+          tabPolls.classList.toggle('active', polls);
+          scroll.classList.toggle('hidden', polls);
+          pollPane.classList.toggle('hidden', !polls);
+          // On the first switch only, so opening the bell never pays for a poll query
+          // nobody asked for. fillPollsList is the same one Profile uses.
+          if (polls && !filled) {
+            filled = true;
+            fillPollsList(pollList, a.pubkey, {
+              // A tally takes the whole panel, so each row carries the way back with it.
+              // The place is read when the row is tapped, not now: the notification list
+              // can be scrolled between this fill and that tap.
+              openPoll: (ev) => {
+                const place = notifPlace();
+                // Through afterModalClose for both reasons written at the vote-notification
+                // row above: the flicker, and the bell's close handler, which is what clears
+                // _openNotifBell and would otherwise be replaced before it ever ran.
+                afterModalClose(() => openPollResults(ev, null, () => showNotifModal(a, place)));
+              },
+              onCount: setCount,
+            });
+          }
+        };
+        tabAll.addEventListener('click', () => pick(false));
+        tabPolls.addEventListener('click', () => pick(true));
+
+        modal.appendChild(tabs);
+        // Built per modal open rather than sitting in sidepanel.html like the other three
+        // bars, so this makes a fresh slider and ResizeObserver each time, both on a node
+        // that is discarded with the modal.
+        wireTabSlider(tabs, '.modal-tab');
+        // The bar's selection can change from somewhere other than a click, which is what
+        // moveSlider is hung on the node for. Not animated: arriving back where you were
+        // is not a state change and should not read as one.
+        showPollsTab = () => {
+          pick(true);
+          if (tabs.moveSlider) tabs.moveSlider(tabPolls, false);
+        };
+      }
+
       modal.appendChild(scroll);
+      if (pollPane) modal.appendChild(pollPane);
 
       // Shown only until the first real item arrives — either from the initial
       // page below, or live via addEvent while this modal stays open.
@@ -5850,11 +6276,20 @@
         // the scroller needs its children laid out, which reading scrollHeight forces.
         setTimeout(() => { if (scroll.isConnected) scroll.scrollTop = want; }, 0);
       }
+      // The tab you left, restored AFTER the paging and the scroll above. scrollTop does
+      // not apply to a display:none pane, so switching first would throw away the place in
+      // the notification list for anyone who then taps back to it. Same-delay timers fire
+      // in the order they were set, which is what puts this second.
+      if (place && place.tab === 'polls' && showPollsTab) setTimeout(showPollsTab, 0);
 
       // Where the sheet is right now, for whoever has to take the panel away and put it
       // back. PAGE is the size loadMore works in, so pages is what it would take to
       // rebuild this much of the list.
-      notifPlace = () => ({ pages: Math.max(1, Math.ceil(shown / PAGE)), scrollTop: scroll.scrollTop });
+      notifPlace = () => ({
+        pages: Math.max(1, Math.ceil(shown / PAGE)),
+        scrollTop: scroll.scrollTop,
+        tab: onPollsTab ? 'polls' : 'all',
+      });
 
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
@@ -6600,7 +7035,7 @@
     modal.innerHTML = '';
     // Both per-modal variants reset here, or the last one to open leaks into the next:
     // a composer would leave every later dialog 620px wide.
-    modal.classList.remove('modal-sheet', 'compose-modal'); // opt back in per modal
+    modal.classList.remove('modal-sheet', 'compose-modal', 'has-back'); // opt back in per modal
     // And the dismiss guard, for the same reason a class is: a stale one would make an
     // unrelated dialog refuse to close.
     _modalDismissGuard = null;
@@ -9026,6 +9461,7 @@
     view.append(lud16Notice);
     maybeSuggestLud16(lud16Notice, active, content);
 
+    renderPollsSection(view, active);
     renderNip65Section(view, active);
     renderBackupSection(view, active);
   }
@@ -10071,7 +10507,11 @@
     if (_postBannerTimer) clearTimeout(_postBannerTimer); // only one note's link shown at a time
 
     banner.innerHTML = '';
-    const msg = h('span', { className: 'post-banner-msg', textContent: 'Your note is live.' });
+    const isPoll = signed && signed.kind === POLL_KIND;
+    const msg = h('span', {
+      className: 'post-banner-msg',
+      textContent: isPoll ? 'Your poll is live.' : 'Your note is live.',
+    });
     const open = document.createElement('a');
     open.className = 'post-banner-link';
     open.href = client.url(nevent);
@@ -10081,7 +10521,35 @@
     const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
     close.append(icon('x'));
     close.addEventListener('click', dismissPostBanner);
-    banner.append(msg, open, close);
+    // ONE WORDED ACTION FITS ON THE MESSAGE'S ROW. TWO DO NOT.
+    //
+    // The banner is a note's row: a line of text, one link, a dismiss. Adding See
+    // results beside Open in <client> left the message as the only thing in the row
+    // that could give way, so "Your poll is live." wrapped to two lines while both
+    // links sat there at full width. That is the panel's recurring row mistake, and the
+    // grammar for it is already written down: a confirm with words takes its own
+    // full-width row below the content.
+    //
+    // So a poll's banner becomes a column. The message keeps its line with the dismiss,
+    // and the two actions share the row beneath. They wrap to a row each if they cannot
+    // both fit, which happens below about a 310px panel with the longest client name,
+    // rather than running out past the border.
+    banner.classList.toggle('post-banner-stacked', isPoll);
+    if (!isPoll) {
+      banner.append(msg, open, close);
+    } else {
+      // The results sheet first: it is the thing just made, and the one view the web
+      // client link cannot stand in for.
+      const results = h('button', { className: 'post-banner-link post-banner-btn', textContent: 'See results' });
+      results.addEventListener('click', () => {
+        dismissPostBanner();
+        openPollResults(signed);
+      });
+      banner.append(
+        h('div', { className: 'post-banner-head' }, [msg, close]),
+        h('div', { className: 'post-banner-actions' }, [results, open])
+      );
+    }
     show(banner);
     _postBannerTimer = setTimeout(dismissPostBanner, 60000);
   }
@@ -10662,7 +11130,14 @@
       .catch(() => null);
   }
   function saveComposeDraft(key, draft) {
-    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    // A poll counts as content on its own: options are typed one at a time and losing
+    // four of them because the question had not been written yet is the kind of thing
+    // that makes a draft store worse than none.
+    const hasContent = !!(
+      (draft.text && draft.text.trim()) ||
+      (draft.media && draft.media.length) ||
+      (draft.poll && draft.poll.options && draft.poll.options.some((o) => o.trim()))
+    );
     (async () => {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
       // replyTo TRAVELS WITH THE DRAFT.
@@ -10677,6 +11152,7 @@
       // no cause to keep a stranger's signature in it.
       if (hasContent) {
         all[key] = { text: draft.text, media: draft.media, savedAt: Date.now() };
+        if (draft.poll) all[key].poll = draft.poll;
         if (draft.replyTo) {
           const r = draft.replyTo;
           all[key].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
@@ -10816,7 +11292,11 @@
     // this decides which slot is read and written for the whole session, and a reply must
     // not be able to reach the main composer's draft or overwrite it.
     const dkey = draftKey(pubkey, replyTo);
-    let draft = { text: initialText || '', media: [], replyTo };
+    // `poll` is null for an ordinary note and an object once the poll editor is open.
+    // The end time is stored as a DURATION rather than a timestamp, because a draft
+    // written on Monday and posted on Thursday should still run its full duration instead
+    // of arriving three days spent. See pollEndsAtFor.
+    let draft = { text: initialText || '', media: [], replyTo, poll: null };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
@@ -10903,9 +11383,21 @@
       const tags = settings && settings.showClientTag === false
         ? [...base, ...bodyP, ...quotes.tags]
         : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
+      const now = Math.floor(Date.now() / 1000);
+      // A poll is never a reply: the editor does not offer one on a reply, and reply
+      // drafts live in their own slot, so this cannot arrive carrying both. Guarded
+      // anyway, because the consequence would be a 1068 wearing NIP-10 threading tags,
+      // which is a shape nothing reads.
+      const asPoll = draft.poll && !replyTo;
+      if (asPoll) {
+        // Where votes should be published. The account's own write relays: this is
+        // where the poll itself is about to go, so it is where anyone reading it will
+        // already be connected.
+        tags.push(...buildPollTags(draft.poll, now, await relayUrls(true)));
+      }
       const event = {
-        kind: reply ? reply.kind : 1,
-        created_at: Math.floor(Date.now() / 1000),
+        kind: asPoll ? POLL_KIND : reply ? reply.kind : 1,
+        created_at: now,
         tags,
         content,
       };
@@ -10946,6 +11438,22 @@
         } else {
           previewPane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
         }
+        if (!draft.poll) return;
+        // The choices as they will be read, which is the one thing the editor above
+        // cannot show: there the options are input boxes, and a blank trailing row
+        // looks like a choice until it is dropped.
+        const opts = pollDraftOptions(draft.poll);
+        const list = h('div', { className: 'poll-preview' });
+        opts.forEach((label) => list.append(h('div', { className: 'poll-preview-option', textContent: label })));
+        const endsAt = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
+        list.append(
+          h('p', {
+            className: 'hint poll-preview-meta',
+            textContent:
+              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+          })
+        );
+        previewPane.append(list);
       }
       function setMode(p) {
         preview = p;
@@ -10954,6 +11462,8 @@
         editorWrap.classList.toggle('hidden', p);
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p);
+        pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo);
+        pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
         if (p) { mentionEditor.close(); renderPreview(); }
       }
@@ -11067,9 +11577,205 @@
         lbl.textContent = prev;
       });
 
+      // ---- poll editor ----
+      //
+      // A poll replaces the note's kind, not its body: the text in the editor above
+      // becomes the question. So this block adds choices and a clock and nothing else,
+      // and turning it off leaves an ordinary note with the text intact.
+      //
+      // Not offered on a reply. NIP-88 has no notion of a poll answering a note, and a
+      // 1068 carrying NIP-10 threading tags would be a shape no client reads.
+      const pollWrap = h('div', { className: 'poll-editor hidden' });
+      const pollAdd = h('button', { className: 'mini compose-add' });
+      pollAdd.append(icon('bar-chart'), h('span', { textContent: 'Add a poll' }));
+      pollAdd.addEventListener('click', () => {
+        draft.poll = newPollDraft();
+        paintPoll();
+        scheduleSave();
+        const first = pollWrap.querySelector('.poll-option-input');
+        if (first) first.focus();
+      });
+
+      // Rebuilt wholesale on add/remove. The rows carry an index in their own handlers,
+      // and patching a list in place while indices shift underneath is how a remove
+      // button ends up deleting the row below the one it sits on.
+      function paintPollOptions(list) {
+        list.innerHTML = '';
+        const opts = draft.poll.options;
+        opts.forEach((value, i) => {
+          const row = h('div', { className: 'poll-option' });
+          row.append(h('span', { className: 'poll-option-num', textContent: String(i + 1) + '.' }));
+          const input = h('input', {
+            className: 'poll-option-input',
+            type: 'text',
+            value,
+            maxLength: 200,
+            placeholder: 'Option ' + (i + 1),
+          });
+          input.addEventListener('input', () => {
+            draft.poll.options[i] = input.value;
+            updatePostState();
+            scheduleSave();
+          });
+          row.append(input);
+          // TWO IS THE FLOOR, so below that there is nothing to remove and the button
+          // would only ever be disabled. An icon-only control in the inline slot, per
+          // the panel's row rules: a worded button here would leave the input no width.
+          if (opts.length > 2) {
+            const rm = h('button', { className: 'poll-option-x', title: 'Remove option ' + (i + 1) });
+            rm.append(icon('x'));
+            rm.addEventListener('click', () => {
+              draft.poll.options.splice(i, 1);
+              paintPollOptions(list);
+              updatePostState();
+              scheduleSave();
+            });
+            row.append(rm);
+          }
+          list.append(row);
+        });
+      }
+
+      function paintPoll() {
+        pollWrap.innerHTML = '';
+        pollWrap.classList.toggle('hidden', !draft.poll);
+        pollAdd.classList.toggle('hidden', !!draft.poll || !!replyTo);
+        if (!draft.poll) return;
+
+        const list = h('div', { className: 'poll-options' });
+        paintPollOptions(list);
+
+        const addOpt = h('button', { className: 'poll-add-option' });
+        addOpt.append(icon('plus'), h('span', { textContent: 'Add option' }));
+        addOpt.addEventListener('click', () => {
+          draft.poll.options.push('');
+          paintPollOptions(list);
+          scheduleSave();
+          const inputs = list.querySelectorAll('.poll-option-input');
+          if (inputs.length) inputs[inputs.length - 1].focus();
+        });
+
+        const multi = h('input', { type: 'checkbox', checked: draft.poll.multiple });
+        multi.addEventListener('change', () => {
+          draft.poll.multiple = multi.checked;
+          scheduleSave();
+        });
+        const multiRow = h('label', { className: 'toggle-row' }, [
+          multi,
+          h('span', { textContent: 'Allow multiple choices' }),
+        ]);
+
+        // Durations, plus the two ends of the range: a specific moment, and none at all.
+        const sel = h('select', { className: 'poll-ends-select' });
+        POLL_DURATIONS.forEach((d) => {
+          sel.append(h('option', { value: 'in:' + d.secs, textContent: d.label }));
+        });
+        sel.append(h('option', { value: 'at', textContent: 'Custom date and time…' }));
+        sel.append(h('option', { value: 'none', textContent: 'No end date' }));
+        sel.value =
+          draft.poll.ends.kind === 'in' ? 'in:' + draft.poll.ends.secs : draft.poll.ends.kind;
+
+        const custom = h('input', { className: 'poll-ends-custom', type: 'datetime-local' });
+        if (draft.poll.ends.kind === 'at' && draft.poll.ends.at) {
+          // datetime-local wants local wall time with no zone, which is what an author
+          // picked in the first place; toISOString would shift it by the offset.
+          const d = new Date(draft.poll.ends.at * 1000);
+          const pad = (n) => String(n).padStart(2, '0');
+          custom.value =
+            d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+            'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+        custom.addEventListener('change', () => {
+          const at = custom.value ? Math.floor(new Date(custom.value).getTime() / 1000) : 0;
+          draft.poll.ends = { kind: 'at', at };
+          paintEndsNote();
+          updatePostState();
+          scheduleSave();
+        });
+
+        const endsNote = h('p', { className: 'hint poll-ends-note' });
+        function paintEndsNote() {
+          const k = draft.poll.ends.kind;
+          custom.classList.toggle('hidden', k !== 'at');
+          endsNote.classList.toggle('warn', k === 'none');
+          if (k === 'none') {
+            // Said plainly rather than blocked. It is the author's poll, and there are
+            // real uses for one that never closes, but a running total is not a result:
+            // there is no moment the number means anything, and nothing stops a late
+            // arrival moving it a year from now.
+            endsNote.textContent = 'Not recommended: the count never settles, so the poll has no final result.';
+          } else if (k === 'at' && !(draft.poll.ends.at > 0)) {
+            endsNote.textContent = 'Pick the date and time the poll should close.';
+          } else {
+            const at = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
+            endsNote.textContent = at && at <= Math.floor(Date.now() / 1000)
+              ? 'That time has already passed, so the poll would close on posting.'
+              : 'Votes stop counting when the poll closes.';
+          }
+        }
+        sel.addEventListener('change', () => {
+          const v = sel.value;
+          if (v === 'none') draft.poll.ends = { kind: 'none' };
+          else if (v === 'at') draft.poll.ends = { kind: 'at', at: draft.poll.ends.at || 0 };
+          else draft.poll.ends = { kind: 'in', secs: parseInt(v.slice(3), 10) };
+          paintEndsNote();
+          updatePostState();
+          scheduleSave();
+        });
+        paintEndsNote();
+
+        // WHAT POSTING A POLL ACTUALLY COSTS, said where it can still change the decision.
+        // A 1068 is not a kind:1, so a client that has not implemented NIP-88 does not render
+        // it at all: it never appears in a feed filtered to notes, and the author gets no
+        // signal. Silence from the other side is indistinguishable from nobody caring.
+        //
+        // A box rather than a second amber line, because the ends note directly above is
+        // already amber text on the no-end-date case and two of those read as one sentence.
+        // No glyph: .kind-warn is bordered and filled, so the warning is not carried by
+        // color alone (the point made above .destructive-warn).
+        const clientWarn = h('div', {
+          className: 'kind-warn',
+          textContent: 'Some clients cannot show polls. On those, this will not appear at all.',
+        });
+
+        const remove = h('button', { className: 'poll-remove' });
+        remove.append(icon('trash'), h('span', { textContent: 'Remove poll' }));
+        remove.addEventListener('click', () => {
+          draft.poll = null;
+          paintPoll();
+          updatePostState();
+          scheduleSave();
+        });
+
+        pollWrap.append(
+          list,
+          addOpt,
+          h('div', { className: 'poll-editor-sep' }),
+          multiRow,
+          h('label', { className: 'poll-ends-label', textContent: 'Runs for' }),
+          sel,
+          custom,
+          endsNote,
+          h('div', { className: 'poll-editor-sep' }),
+          clientWarn,
+          remove
+        );
+      }
+
       const err = h('div', { className: 'error' });
       const post = h('button', { className: 'primary', textContent: 'Post' });
-      function updatePostState() { post.disabled = !draft.text.trim() && !draft.media.length; }
+      function updatePostState() {
+        if (draft.poll) {
+          // A poll needs its question, where a plain note can be an image on its own:
+          // the content IS the question, and a 1068 with an empty content is a set of
+          // options nobody can interpret. Two filled options is the other floor, and a
+          // custom end time that has not been picked yet is not postable either.
+          const endsOk = draft.poll.ends.kind !== 'at' || draft.poll.ends.at > 0;
+          post.disabled = !draft.text.trim() || !pollDraftIsPostable(draft.poll) || !endsOk;
+          return;
+        }
+        post.disabled = !draft.text.trim() && !draft.media.length;
+      }
       post.addEventListener('click', async () => {
         if (post.disabled) return;
         const { on, secs } = await postCountdownSetting();
@@ -11105,9 +11811,12 @@
         thumbs,
         addBtn,
         fileInput,
+        pollAdd,
+        pollWrap,
         err,
         h('div', { className: 'actions' }, [post, cancel])
       );
+      paintPoll();
       updatePostState();
       editor.focus();
     }
@@ -11120,7 +11829,7 @@
         published = true;
         clearComposeDraft(dkey);
         closeModal();
-        toast('Note published', 'success');
+        toast(signed.kind === POLL_KIND ? 'Poll published' : 'Note published', 'success');
         showPostBanner(signed);
       } catch (e) {
         toast(e.message, 'error');
@@ -11142,10 +11851,28 @@
       if (bodyText) renderNotePreview(previewBody, bodyText);
       else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
       previewScroll.append(previewBody);
+      // THE CHOICES BELONG ON THIS SCREEN TOO. It is the last thing seen before the
+      // event goes out, and for a poll the options are most of what is being published:
+      // a blank row that will be dropped, or a fifth option nobody meant to add, is only
+      // visible here. The clock as well, since an end date cannot be changed afterwards.
+      if (draft.poll && !replyTo) {
+        const opts = pollDraftOptions(draft.poll);
+        const list = h('div', { className: 'poll-preview' });
+        opts.forEach((label) => list.append(h('div', { className: 'poll-preview-option', textContent: label })));
+        const endsAt = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
+        list.append(
+          h('p', {
+            className: 'hint poll-preview-meta',
+            textContent:
+              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+          })
+        );
+        previewScroll.append(list);
+      }
       countdown = showPostCountdown({
         modal,
         secs,
-        title: replyTo ? 'Posting your reply' : 'Posting your note',
+        title: draft.poll && !replyTo ? 'Posting your poll' : replyTo ? 'Posting your reply' : 'Posting your note',
         preview: previewScroll,
         onFire: finishPublish,
         onCancel: showEditor,
@@ -11177,7 +11904,7 @@
       resume.addEventListener('click', () => {
         // Restore the target too, or this resumes as a note and posts as one.
         replyTo = saved.replyTo || null;
-        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo };
+        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo, poll: saved.poll || null };
         showEditor();
       });
       const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
@@ -11186,7 +11913,7 @@
         // The target you ARRIVED with, not the saved one. Discarding an old draft must
         // not also discard the Reply you just tapped to get here.
         replyTo = (opts && opts.replyTo) || null;
-        draft = { text: initialText || '', media: [], replyTo };
+        draft = { text: initialText || '', media: [], replyTo, poll: null };
         showEditor();
       });
 
@@ -11624,6 +12351,511 @@
     state = await call({ type: 'SIDECAR_GET_STATE' });
   }
 
+  // ---- Your polls (Profile) ----
+  //
+  // A poll nobody has voted on yet produces no notification, so without a list there is
+  // no way back to it: you would be waiting for a vote to find out whether you had any.
+  // The Profile tab's section. The list itself is fillPollsList, because the bell opens
+  // the same list in a sheet and two copies of it would drift.
+  async function renderPollsSection(view, active) {
+    const setting = h('div', { className: 'setting polls-setting' });
+    setting.append(
+      h('h3', { textContent: 'Your polls' }),
+      h('p', {
+        className: 'hint',
+        textContent: 'Polls you have posted, with their counts. Tap one for the full tally.',
+      })
+    );
+    const list = h('div', { className: 'list flat' });
+    setting.append(list);
+    view.append(setting);
+    await fillPollsList(list, active.pubkey);
+  }
+
+  // `opts.openPoll` is how a row opens, so a caller that took the panel from somewhere can
+  // hand the reader a way back to it. `opts.onCount` gets the real number of polls as soon
+  // as the rows are built, for whoever is showing a count of them elsewhere.
+  //
+  // Profile passes neither: closing a tally there lands on the Profile tab, which is where
+  // the reader already was, and nothing outside the section counts them.
+  async function fillPollsList(list, pubkey, opts) {
+    const openPoll = opts && opts.openPoll;
+    const onCount = opts && opts.onCount;
+    list.innerHTML = '';
+    // .empty drops the flat list's card chrome, which is the thing that draws a capsule
+    // around one line of text. A line saying what the panel is doing is not a row, and
+    // boxed it reads as a result that has arrived rather than as waiting for one.
+    list.classList.add('empty');
+    list.append(h('p', { className: 'hint', textContent: 'Looking for your polls…' }));
+    const active = { pubkey };
+
+    let polls = [];
+    try {
+      polls =
+        (await poolQuerySync(
+          await pollReadRelays(active.pubkey),
+          { kinds: [POLL_KIND], authors: [active.pubkey], limit: 20 },
+          { maxWait: 8000 }
+        )) || [];
+    } catch (_) {}
+    if (!list.isConnected) return; // the profile repainted or the account switched
+
+    // OPEN ONES FIRST, newest first within each group. By created_at alone a poll still
+    // taking votes sits wherever it was posted, under everything written since, and a poll
+    // that is running is the one you came to look at, from the bell's tab or from Profile.
+    // Both surfaces are this function, so both get it.
+    polls.sort((x, y) => {
+      const xEnded = pollHasEnded(pollEndsAt(x));
+      const yEnded = pollHasEnded(pollEndsAt(y));
+      if (xEnded !== yEnded) return xEnded ? 1 : -1;
+      return y.created_at - x.created_at;
+    });
+    list.innerHTML = '';
+    if (!polls.length) {
+      list.append(
+        h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
+      );
+      if (onCount) onCount(0);
+      return;
+    }
+    list.classList.remove('empty'); // rows are what the card was drawn for
+
+    // ONE QUERY FOR EVERY POLL'S VOTES, not one per poll. Twenty round trips to fill in
+    // twenty counts is the kind of thing that makes a tab feel broken on a slow relay.
+    // Correctness is unaffected: each poll's own endsAt is applied by tallyPollVotes,
+    // so a vote is still only counted against a poll that was open when it was cast.
+    const rows = new Map();
+    polls.forEach((ev) => {
+      const count = h('span', { className: 'poll-row-count', textContent: '…' });
+      const ends = h('span', { className: 'poll-row-ends', textContent: pollEndsText(pollEndsAt(ev)) });
+      const row = h('div', { className: 'item poll-row', role: 'button', tabIndex: 0 });
+      row.append(
+        h('div', { className: 'poll-row-main' }, [
+          h('div', { className: 'poll-row-q', textContent: ev.content || '(no question)' }),
+          h('div', { className: 'poll-row-meta' }, [ends, document.createTextNode(' · '), count]),
+        ])
+      );
+      const open = () => (openPoll ? openPoll(ev) : openPollResults(ev));
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        open();
+      });
+      rows.set(ev.id, count);
+      list.append(row);
+    });
+    // The moment the rows exist, not after the vote query below: the count is a fact about
+    // this list, and it would be odd for the rows to be on screen under a number that
+    // still disagrees with them for the eight seconds that query is allowed.
+    if (onCount) onCount(polls.length);
+
+    let votes = [];
+    try {
+      const urls = [
+        ...new Set([
+          ...polls.flatMap((ev) => pollRelayTags(ev)),
+          ...(await pollReadRelays(active.pubkey)),
+        ]),
+      ];
+      if (urls.length) {
+        votes =
+          (await poolQuerySync(
+            urls,
+            { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
+            { maxWait: 8000 }
+          )) || [];
+      }
+    } catch (_) {}
+    if (!list.isConnected) return;
+    polls.forEach((ev) => {
+      const cell = rows.get(ev.id);
+      if (!cell) return;
+      const { voters } = tallyPollVotes(ev, votes);
+      cell.textContent = voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes';
+    });
+  }
+
+  // How many polls this account is known to have, from ids already loaded for the
+  // notification filters rather than from a query of its own. AN APPROXIMATION, and the
+  // tab treats it as one: it is capped at 50 and fetched from the notification relay set,
+  // where the list uses pollReadRelays, so the two can honestly disagree. Good enough to
+  // label the tab the instant the sheet opens, and corrected from the list's own query as
+  // soon as that lands (onCount, below).
+  function ownPollCount(pubkey) {
+    const ids = _ownPollIds.get(pubkey);
+    return ids ? ids.size : 0;
+  }
+
+  // Whether the bell has a Polls tab to offer. Why that tab exists is written at the
+  // call site in showNotifModal.
+  function accountHasPolls(pubkey) {
+    return ownPollCount(pubkey) > 0;
+  }
+
+  // ---- Poll results ----
+  //
+  // The one place Sidecar renders somebody else's events rather than handing off to a
+  // web client. It earns the exception: a tally is a number that has to be computed
+  // from every vote, and "open this elsewhere to find out" is not an answer to "how did
+  // my poll go". It stays deliberately narrow all the same. Counts and bars, no voter
+  // list, no avatars, no thread, and a link out for anything richer.
+
+  // WHERE A POLL IS READ BACK FROM HAS TO INCLUDE WHERE IT WAS SENT.
+  //
+  // readRelayUrls is built for replaceable events: NIP-65 READ relays plus
+  // purplepag.es, which aggregates kinds 0, 3 and 10002. A poll is none of those. It is
+  // a regular event published to postRelays, which is the NIP-65 WRITE set, and those
+  // two lists are allowed to be completely disjoint. Reading a poll back from the read
+  // set alone therefore found nothing on exactly the accounts that declare a real
+  // NIP-65 split, and Your polls came up empty while the poll was sitting on the
+  // relays it had just been published to.
+  async function pollReadRelays(pubkey) {
+    const [read, write] = await Promise.all([readRelayUrls(pubkey), relayUrls(true)]);
+    return [...new Set([...read, ...write])];
+  }
+
+  // Votes live wherever the poll said they should, which is not necessarily where this
+  // account reads. Both sets are asked, deduped, because a poll written by another
+  // client names its own relays and ignoring them is how a real count comes back empty.
+  async function fetchPollVotes(pollEv) {
+    const endsAt = pollEndsAt(pollEv);
+    const mine = await pollReadRelays(state.activePubkey);
+    const urls = [...new Set([...pollRelayTags(pollEv), ...mine])];
+    if (!urls.length) return [];
+    const filter = { kinds: [POLL_RESPONSE_KIND], '#e': [pollEv.id] };
+    // Asked for as well as enforced in the tally. The filter saves pulling ballots that
+    // can never count; tallyPollVotes drops them again because a relay is free to
+    // answer with whatever it likes.
+    if (endsAt) filter.until = endsAt;
+    try {
+      return (await poolQuerySync(urls, filter, { maxWait: 8000 })) || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function loadPollEvent(id, relayHints) {
+    const urls = [...new Set([...(relayHints || []), ...(await pollReadRelays(state.activePubkey))])];
+    if (!urls.length) return null;
+    try {
+      return await poolGet(urls, { kinds: [POLL_KIND], ids: [id] }, { maxWait: 8000 });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // WHO VOTED, ONE CHOICE AT A TIME.
+  //
+  // The first build was a single flat list of every voter with the option they picked
+  // beside each name. On a 65-voter poll that is 65 rows repeating two strings, and the
+  // repetition is most of what you read. Hanging the voters off the bar they belong to
+  // says it once: the bar is the header, and the names under it need no label at all.
+  //
+  // One open at a time. Each list is capped and scrolls inside itself, so a single open
+  // choice costs a fixed amount of height and the bars below it do not move; two open at
+  // once would spend that twice and start pushing choices off the sheet.
+  //
+  // Nothing is fetched until a choice is opened: most openings of this sheet are to read
+  // the bars, and a poll with a hundred voters is a hundred profile lookups. Votes are
+  // public events on public relays, so this gathers what anyone reading the poll can
+  // already read.
+  function pollVoterNames(ballots) {
+    // At most once for the whole poll, however many choices get opened.
+    let p = null;
+    return () => {
+      if (!p) {
+        p = (async () => {
+          try {
+            const relays = await relayUrls(false);
+            // ONE QUERY, capped at the same 100 authors the bell's reaction lookup uses.
+            // A filter naming every author of a poll with thousands of votes is one no
+            // relay will answer, and a short npub is still a real identity to show.
+            await prefetchNotifProfiles(ballots.slice(0, 100).map((b) => b.pubkey), relays);
+          } catch (_) {
+            // Short npubs, which is what the rows already say. Nothing to report.
+          }
+        })();
+      }
+      return p;
+    };
+  }
+
+  // A VOTER ROW IS A FACE, A NAME, AND A WAY TO GO AND LOOK. Sidecar is the signer, not
+  // the reader, so the row hands off rather than opening a profile in the panel: the same
+  // client the poll itself opens in, resolved once by the caller so the two can never
+  // disagree. An anchor rather than a button, which is what makes cmd-click and
+  // middle-click open a tab of their own for free.
+  function pollVoterRow(pubkey, client) {
+    let url = '';
+    try { url = client ? client.profile(NT.nip19.npubEncode(pubkey)) : ''; } catch (_) {}
+
+    // An anchor when there is somewhere to go, a plain row when there is not. Settings can
+    // fail to read, and a link built on a guess would open the wrong place; a row that
+    // merely says who voted is the honest version of that.
+    const row = url
+      ? h('a', { className: 'poll-voter poll-voter-link', href: url })
+      : h('div', { className: 'poll-voter' });
+    row.dataset.voterPubkey = pubkey;
+    // The picture comes from the same kind:0 the name does, which prefetchNotifProfiles
+    // already parses and puts through cacheProfile. Nothing extra is fetched for it.
+    row.append(
+      avatarEl(cachedProfile(pubkey) || {}, 'poll-voter-av'),
+      h('div', { className: 'poll-voter-name', textContent: notifAuthorName(pubkey) })
+    );
+    if (!url) return row;
+
+    row.target = '_blank';
+    row.rel = 'noreferrer noopener';
+    // Reuse an existing client tab on a plain left-click; leave modified clicks
+    // (cmd/ctrl/shift) to the anchor's default new-tab behavior. Same rule as a
+    // notification row.
+    row.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      openInClient(url);
+    });
+    return row;
+  }
+
+  function paintPollResults(container, pollEv, votes, client) {
+    container.innerHTML = '';
+    const { options, counts, voters, multiple, endsAt, ballots } = tallyPollVotes(pollEv, votes);
+    const ended = pollHasEnded(endsAt);
+
+    const meta = [
+      multiple ? 'Multiple choice' : 'Single choice',
+      pollEndsText(endsAt),
+      voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes',
+    ];
+    container.append(h('div', { className: 'poll-result-meta', textContent: meta.join(' · ') }));
+
+    if (!options.length) {
+      container.append(h('p', { className: 'hint', textContent: 'This poll carries no options.' }));
+      return;
+    }
+
+    // Marked only once the poll is closed and only when it is not a tie. A "winner"
+    // badge on a poll with four days to run is a scoreboard, not a result, and on a tie
+    // it is wrong outright.
+    const top = Math.max(...options.map((o) => counts.get(o.id)));
+    const leaders = options.filter((o) => counts.get(o.id) === top);
+    const winner = ended && top > 0 && leaders.length === 1 ? leaders[0].id : null;
+
+    // Name AND face, across every list that has been built. The lookup that resolves one
+    // caches the other, so a row drawn before it landed is repainted with both rather
+    // than keeping a short npub and a placeholder for good.
+    const repaint = (root) => {
+      root.querySelectorAll('[data-voter-pubkey]').forEach((el) => {
+        const pk = el.dataset.voterPubkey;
+        const nm = el.querySelector('.poll-voter-name');
+        if (nm) nm.textContent = notifAuthorName(pk);
+        const av = el.querySelector('.poll-voter-av');
+        if (av) applyAvatar(av, cachedProfile(pk) || {});
+      });
+    };
+
+    const resolveNames = pollVoterNames(ballots);
+    const bars = h('div', { className: 'poll-bars' });
+    let openId = null; // the choice whose voters are showing, or null
+
+    options.forEach((opt) => {
+      const count = counts.get(opt.id);
+      const share = pollShare(count, voters);
+      const row = h('div', { className: 'poll-bar-row' + (opt.id === winner ? ' poll-bar-won' : '') });
+      const label = h('span', { className: 'poll-bar-label', textContent: opt.label || '(no label)' });
+      const tally = h('span', {
+        className: 'poll-bar-count',
+        textContent: count + ' · ' + Math.round(share * 100) + '%',
+      });
+      const fill = h('div', { className: 'poll-bar-fill' });
+      // Percentages are rounded for reading; the bar uses the unrounded share so two
+      // options that both round to 33% are not drawn at visibly different lengths.
+      fill.style.width = (share * 100).toFixed(2) + '%';
+      const track = h('div', { className: 'poll-bar-track' }, [fill]);
+
+      const mine = ballots.filter((b) => b.picked.includes(opt.id));
+      if (!mine.length) {
+        // Nothing to open. A chevron on an option nobody picked is a control that does
+        // nothing, which is worse than no control at all.
+        row.append(h('div', { className: 'poll-bar-head' }, [label, tally]), track);
+        bars.append(row);
+        return;
+      }
+
+      const chev = icon('chevron-down');
+      const headBtn = h('button', { className: 'poll-bar-head poll-bar-pick', type: 'button' }, [
+        chev,
+        label,
+        tally,
+      ]);
+      headBtn.setAttribute('aria-expanded', 'false');
+
+      // DIRECTLY UNDER THE BAR IT BELONGS TO. These names were in one shared pane below
+      // every bar, which reads fine with the chevron in view and not at all once you have
+      // scrolled: a column of faces with no answer to "whose?".
+      //
+      // Which is why the list carries its own cap and its own scrollbar (see
+      // .poll-voter-list). Sitting inline it would otherwise push every choice below it
+      // down the sheet, and the bars are the one thing that must not move while the names
+      // are being read. Capped, expanding costs a fixed amount of height and the other
+      // choices stay where they were.
+      const list = h('div', { className: 'poll-voter-list hidden' });
+
+      headBtn.addEventListener('click', async () => {
+        const opening = openId !== opt.id;
+        // Everything back to closed first, so the marks can never say two are open.
+        bars.querySelectorAll('.poll-bar-pick').forEach((b) => {
+          b.setAttribute('aria-expanded', 'false');
+          b.classList.remove('poll-bar-picked');
+          const c = b.querySelector('svg');
+          if (c) c.style.transform = '';
+        });
+        bars.querySelectorAll('.poll-voter-list').forEach((l) => l.classList.add('hidden'));
+        bars.querySelectorAll('.poll-bar-open').forEach((r) => r.classList.remove('poll-bar-open'));
+        openId = opening ? opt.id : null;
+        // WHICH LAYOUT THE SHEET IS IN, rather than a rule per state in the stylesheet.
+        // Closed, everything stacks from the top and the body scrolls if it must. Open, the
+        // list takes the height that is left instead of a fixed slice of the viewport, so
+        // no blank band sits between the last name and the actions.
+        container.classList.toggle('poll-open', opening);
+        if (!opening) return;
+        row.classList.add('poll-bar-open');
+
+        headBtn.setAttribute('aria-expanded', 'true');
+        headBtn.classList.add('poll-bar-picked');
+        chev.style.transform = 'rotate(180deg)';
+        list.classList.remove('hidden');
+
+        // Built once and kept, so reopening a choice is instant. Rows go in with whatever
+        // names are already cached, then the lookup runs: the bell fills the same cache,
+        // so anyone who has appeared in a notification is named with no round trip.
+        if (!list.children.length) mine.forEach((b) => list.append(pollVoterRow(b.pubkey, client)));
+        await resolveNames();
+        // The sheet can be shut, or another choice picked, while the lookup is in flight.
+        if (!list.isConnected || openId !== opt.id) return;
+        repaint(bars); // every built list, not just this one
+      });
+
+      row.append(headBtn, track, list);
+      bars.append(row);
+    });
+    container.append(bars);
+
+    if (!voters) {
+      container.append(
+        h('p', {
+          className: 'hint',
+          // The same fact as the composer's warning, arriving where the question actually
+          // gets asked: a poll with nothing on it is the moment an author wonders whether
+          // anyone saw it. Only on an empty tally, so it is not repeated copy, and a plain
+          // hint rather than .hint warn, because here it is an explanation, not a caution.
+          textContent:
+            (ended ? 'This poll closed without any votes.' : 'No votes yet.') +
+            ' Clients without poll support show nothing to vote on.',
+        })
+      );
+    }
+  }
+
+  // `poll` is either the event or an id to go and find. A vote notification only
+  // carries the id, and refusing to open without the whole event would make the row it
+  // came from a dead end.
+  async function openPollResults(poll, relayHints, returnTo) {
+    // Out here, not inside the builder: the close handler below is a sibling argument to
+    // openModal and cannot see anything declared in it. Set only by the close box; Back,
+    // Escape and a click on the overlay all dismiss the top of a stack, which means
+    // handing back what was under it, while the X says done with all of this.
+    let dismissAll = false;
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+
+      // TWO CORNERS, TWO DIFFERENT EXITS, which is why they are not one button.
+      //
+      // A tally is a screen pushed on top of the sheet it was opened from, so it needs
+      // both the way back to that sheet and the way out of the whole stack. Icon buttons
+      // in the corners rather than words in the actions column: the column is where the
+      // things you do to this poll live, and neither of these is one of those.
+      modal.classList.toggle('has-back', !!returnTo);
+      const xBtn = h('button', { className: 'modal-x', type: 'button', title: 'Close' });
+      xBtn.append(icon('x'));
+      xBtn.addEventListener('click', () => { dismissAll = true; closeModal(); });
+      modal.append(xBtn);
+      if (returnTo) {
+        const backBtn = h('button', { className: 'modal-x modal-back', type: 'button', title: 'Back' });
+        backBtn.append(icon('arrow-left'));
+        backBtn.addEventListener('click', closeModal);
+        modal.append(backBtn);
+      }
+
+      modal.append(h('h3', { textContent: 'Poll results' }));
+      const question = h('p', { className: 'poll-result-question' });
+      const body = h('div', { className: 'poll-result-body' });
+      body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
+      const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
+      const openOut = h('button', { className: 'ghost hidden' });
+      const actions = h('div', { className: 'actions' }, [recount, openOut]);
+      modal.append(question, body, actions);
+
+      let pollEv = typeof poll === 'string' ? null : poll;
+
+      async function load() {
+        recount.disabled = true;
+        try {
+          if (!pollEv) {
+            body.innerHTML = '';
+            body.append(h('p', { className: 'hint', textContent: 'Fetching the poll…' }));
+            pollEv = await loadPollEvent(typeof poll === 'string' ? poll : poll.id, relayHints);
+          }
+          if (!pollEv) {
+            question.textContent = '';
+            body.innerHTML = '';
+            body.append(
+              h('p', { className: 'hint', textContent: 'That poll could not be found on your relays.' })
+            );
+            return;
+          }
+          question.textContent = pollEv.content || '(no question)';
+          // The link out is built once the event is in hand, since it needs the author.
+          // Hoisted out of the try because the voter rows link into the same client, and
+          // resolving it twice would let the poll and the people who voted on it open in
+          // two different places. Null when settings could not be read, which the rows
+          // read as "no link" rather than guessing at a URL.
+          let client = null;
+          try {
+            const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+            client = resolveClient(settings, state.activePubkey);
+            const url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
+            openOut.textContent = 'Open in ' + client.label;
+            openOut.classList.remove('hidden');
+            openOut.onclick = () => openInClient(url);
+          } catch (_) {}
+          body.innerHTML = '';
+          body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
+          const votes = await fetchPollVotes(pollEv);
+          if (!body.isConnected) return;
+          paintPollResults(body, pollEv, votes, client);
+        } finally {
+          recount.disabled = false;
+        }
+      }
+      recount.addEventListener('click', load);
+      load();
+    }, () => {
+      // WHERE THIS CAME FROM, the way the composer's returnTo already does it. A poll
+      // opened from the bell took the whole panel away, and dropping the reader onto the
+      // main view afterwards loses the list they were working through. On any close, not
+      // just the button: Escape and the overlay click are the same departure.
+      //
+      // showNotifModal is async, which is what keeps this from fighting the close it is
+      // running inside: its openModal lands a tick later, after closeModal has finished
+      // setting is-closing, so the new sheet is not left wearing it.
+      if (!dismissAll && typeof returnTo === 'function') {
+        try { returnTo(); } catch (_) {}
+      }
+    });
+  }
+
   // ---- Bookmarks (topbar icon → modal): the account's bookmark lists, as other clients wrote them ----
   // NIP-51 keeps bookmarks in two shapes: kind 10003 is the flat list every
   // client agrees on, and kind 30001 is one replaceable event per named
@@ -11633,7 +12865,12 @@
   // e-tag. Rows hand off to the preferred web client: Sidecar is the signer,
   // not the reader.
   const HEX_ID = /^[0-9a-f]{64}$/;
-  const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'live chat' };
+  // 1068 read "live chat" here until polls were added, which would have labelled a
+  // bookmarked poll as something it is not. It is a poll (NIP-88); live chat messages
+  // are kind 1311. 1063 is left alone deliberately: it is NIP-94 file metadata rather
+  // than a live event, but relabelling a kind nothing in this build writes is a separate
+  // change from the one in hand.
+  const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'poll' };
 
   // Every bookmark list event, raw, for bookmarkSections to shape.
   async function fetchBookmarkLists() {
