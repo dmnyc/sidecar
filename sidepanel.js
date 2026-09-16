@@ -2629,24 +2629,115 @@
   }
   function openAcctMenu() {
     buildAcctMenu();
-    show($('acct-menu'));
+    const menu = $('acct-menu');
+    menu.classList.remove('is-closing');
+    show(menu);
+    requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add('is-open')));
   }
   function closeAcctMenu() {
-    hide($('acct-menu'));
+    const menu = $('acct-menu');
+    if (menu.classList.contains('hidden')) return;
+    menu.classList.remove('is-open');
+    menu.classList.add('is-closing');
+    // hide() waits for the dip; is-closing is stripped with it so the next open starts
+    // from the resting pre-open scale rather than from the closing one.
+    setTimeout(() => {
+      menu.classList.remove('is-closing');
+      hide(menu);
+    }, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150);
   }
+  // "Open" has to mean open, not merely not-yet-hidden: for the 150ms the menu spends
+  // dipping out it is still in the DOM and still unhidden, and asking about .hidden in
+  // that window made the button close an already-closing menu instead of reopening it.
+  const acctMenuOpen = () => {
+    const menu = $('acct-menu');
+    return !menu.classList.contains('hidden') && !menu.classList.contains('is-closing');
+  };
   $('acct-btn').addEventListener('click', (e) => {
     e.stopPropagation();
-    if ($('acct-menu').classList.contains('hidden')) openAcctMenu();
-    else closeAcctMenu();
+    if (acctMenuOpen()) closeAcctMenu();
+    else openAcctMenu();
   });
   document.addEventListener('click', (e) => {
     const menu = $('acct-menu');
-    if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !$('acct-btn').contains(e.target)) {
+    if (acctMenuOpen() && !menu.contains(e.target) && !$('acct-btn').contains(e.target)) {
       closeAcctMenu();
     }
   });
 
   // ---- tabs ----
+  // ONE TRAVELING UNDERLINE, for every bar in the panel that has one: the main tabs, the
+  // Activity sub-tabs, and the theme gallery's Dark and Light. All three drew the same 2px
+  // gradient at the same inset from an ::after on whichever item was active, so all three
+  // blinked from one position to the next. This is that mark made into a single element
+  // the bar moves, once, rather than three copies of the same idea.
+  //
+  // Returns the mover so a bar whose selection changes from somewhere other than a click
+  // (showThemeMode is called on open, not only on tap) can keep the mark with it.
+  function wireTabSlider(nav, itemSelector) {
+    if (!nav) return () => {};
+    let slider = nav.querySelector(':scope > .tab-slider');
+    if (!slider) {
+      slider = document.createElement('span');
+      slider.className = 'tab-slider';
+      slider.setAttribute('aria-hidden', 'true');
+      nav.prepend(slider);
+    }
+    const items = () => [...nav.querySelectorAll(itemSelector)];
+    const active = () => nav.querySelector(itemSelector + '.active') || items()[0];
+
+    // `animate` is false for the first paint and for resizes: written with a live
+    // transition, the mark would slide in from zero width at the left edge every time the
+    // panel is dragged wider, which is not a state change and should not read as one.
+    function move(item, animate) {
+      const target = item || active();
+      if (!target || !target.offsetWidth) return;
+      // Inset to match what the per-item rule drew: left:16%/right:16% of the item.
+      const inset = target.offsetWidth * 0.16;
+      const x = target.offsetLeft + inset;
+      const w = target.offsetWidth - inset * 2;
+      if (animate) {
+        slider.style.transform = 'translateX(' + x + 'px)';
+        slider.style.width = w + 'px';
+        return;
+      }
+      const prev = slider.style.transition;
+      slider.style.transition = 'none';
+      slider.style.transform = 'translateX(' + x + 'px)';
+      slider.style.width = w + 'px';
+      void slider.offsetWidth; // reflow, or restoring the transition replays this jump
+      slider.style.transition = prev;
+    }
+
+    // Measured whenever the bar has a size, not once on load. Two of these three live
+    // inside a tab or a settings section that is display:none until you go there, and a
+    // hidden bar measures zero: a one-shot read at startup parks the mark at the origin at
+    // zero width, where it stays until the first click. The observer covers that, covers
+    // the panel being dragged wider, and covers a font landing late.
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(() => { if (nav.offsetWidth) move(null, false); }).observe(nav);
+    } else {
+      requestAnimationFrame(() => move(null, false));
+      addEventListener('resize', () => move(null, false));
+    }
+    nav.addEventListener('click', (e) => {
+      const item = e.target.closest(itemSelector);
+      // After the handler that sets .active, so the mark is never asked to follow a
+      // selection that has not happened yet.
+      if (item && nav.contains(item)) requestAnimationFrame(() => move(item, true));
+    });
+    // Hung on the element rather than returned into a binding: a bar whose selection can
+    // change from somewhere other than a click needs to reach this, and a const captured
+    // up here would be a temporal-dead-zone throw away from whoever reaches it first.
+    // typeof does not protect against that.
+    nav.moveSlider = move;
+    return move;
+  }
+
+  wireTabSlider(document.querySelector('.tabs'), '.tab');
+  wireTabSlider($('activity-subtabs'), '.modal-tab');
+  wireTabSlider(document.querySelector('.theme-modes'), '.theme-mode');
+
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
@@ -6497,6 +6588,13 @@
   // explicit Cancel still closes, because refusing that would be a trap, not a guard.
   let _modalDismissGuard = null;
 
+  // Bumped by every openModal. closeModal captures it so its delayed teardown can tell
+  // "nothing happened since" from "another modal opened".
+  let modalGeneration = 0;
+  // Read from the stylesheet rather than repeated here, so the two cannot drift apart.
+  const modalCloseMs = () =>
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--modal-close-dur')) || 150;
+
   function openModal(buildContent, onClose) {
     const modal = $('modal');
     modal.innerHTML = '';
@@ -6510,6 +6608,16 @@
     buildContent(modal);
     show($('modal-overlay'));
     document.documentElement.classList.add('modal-open');
+    // Every open is a new generation. closeModal's delayed teardown checks the number it
+    // captured against this one, so a close immediately followed by an open (About to
+    // Donate, the confirm sheets, the About mark) cannot have its successor's contents
+    // wiped out from under it 150ms later.
+    modalGeneration++;
+    modal.classList.remove('is-closing');
+    // Two frames: the first lets the pre-open transform paint, the second starts the
+    // transition from it. One frame is not enough, because the class lands in the same paint as
+    // the content and the card simply appears at full size.
+    requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('is-open')));
   }
   // These modals are built from loose inputs + buttons (not a <form>), so Enter
   // wouldn't submit. Treat Enter in a text input as a click on the primary action.
@@ -6524,13 +6632,28 @@
   });
   function closeModal() {
     if (modalCleanup) { try { modalCleanup(); } catch (_) {} modalCleanup = null; }
-    hide($('modal-overlay'));
-    $('modal').innerHTML = '';
-    document.documentElement.classList.remove('modal-open');
-    // Draw whatever was skipped while the modal covered the panel. The class is
-    // removed above first, or panelIsCovered() would still report true and the panel
-    // would keep showing stale account names until the next unrelated render.
-    flushDeferredMainRender();
+    const modal = $('modal');
+    const gen = modalGeneration;
+    modal.classList.remove('is-open');
+    modal.classList.add('is-closing');
+    // The whole teardown waits, the overlay included: .hidden is display:none, so hiding
+    // it now would mean the dip is never on screen at all.
+    //
+    // All of it is behind the generation check, because `closeModal(); openSomething()`
+    // is a real pattern here (About to Donate, the confirm sheets, the mark on the About
+    // card). Without it this timer would fire 150ms later and hide the overlay, empty the
+    // node, and drop modal-open out from under whatever had just opened.
+    setTimeout(() => {
+      if (gen !== modalGeneration) return;
+      modal.classList.remove('is-closing');
+      modal.innerHTML = '';
+      hide($('modal-overlay'));
+      // Order preserved from before: the class comes off first, or panelIsCovered() still
+      // reports true and the flush below leaves stale account names on screen.
+      document.documentElement.classList.remove('modal-open');
+      // Draw whatever was skipped while the modal covered the panel.
+      flushDeferredMainRender();
+    }, modalCloseMs());
   }
   $('modal-overlay').addEventListener('click', (e) => {
     if (e.target !== $('modal-overlay')) return;
@@ -16831,7 +16954,7 @@
       // Its title is emptied rather than left off, or it inherits one from an ancestor, and
       // an ornament that says "About Sidecar" on hover is a small lie.
       const rig = h('button', { type: 'button', className: 'about-rig', title: '', ariaLabel: 'Relay Rider' });
-      rig.addEventListener('click', () => { closeModal(); openRider(); });
+      rig.addEventListener('click', () => afterModalClose(openRider));
 
       modal.append(
         xClose,
@@ -16919,22 +17042,53 @@
     foot.addEventListener('click', aboutModal);
   });
 
+  // Hand a modal off to a full-panel surface. The card has to finish dipping out and the
+  // backdrop has to go before the next thing arrives, because .rider-overlay sits UNDER
+  // .modal-overlay on purpose (an approval has to be able to cover it). Opened while the
+  // modal is still closing, it comes up behind a dimmed backdrop with a shrinking card on
+  // top of it, and the backdrop then snaps away.
+  function afterModalClose(open) {
+    closeModal();
+    setTimeout(open, modalCloseMs());
+  }
+
   function openRider() {
     const frame = $('rider-frame');
+    const view = $('view-rider');
+    show(view);
+    view.classList.remove('is-closing');
+
+    // LOADED FIRST, THEN REVEALED. Starting the load and the reveal together put the
+    // page's parse, its script, and the first frames of a canvas render loop on the main
+    // thread in the middle of the transition: worst frame 34ms against 16.8ms when the
+    // frame is already up. The overlay is opaque and the page behind it is the same
+    // color, so there is nothing to see during the wait either way.
+    const reveal = () => {
+      requestAnimationFrame(() => requestAnimationFrame(() => view.classList.add('is-open')));
+      // Keys have to reach the frame, not the panel behind it, or the arrows scroll
+      // settings while the rig sits still. Same origin, so reaching in is allowed.
+      try { frame.contentWindow.focus(); } catch (_) { /* gone */ }
+    };
+    // A local page, so load is a formality, but never revealing the overlay because an
+    // event did not arrive is not a failure worth risking. The timer wins if it does.
+    let revealed = false;
+    const once = () => { if (!revealed) { revealed = true; reveal(); } };
+    frame.onload = once;
+    setTimeout(once, 600);
     frame.src = 'relay-rider.html';
-    show($('view-rider'));
-    // Keys have to reach the frame, not the panel behind it, or the arrows scroll
-    // settings while the rig sits still. Same origin, so reaching in is allowed.
-    frame.onload = () => { try { frame.contentWindow.focus(); } catch (_) { /* gone */ } };
   }
 
   function closeRider() {
     const view = $('view-rider');
     if (view.classList.contains('hidden')) return;
-    hide(view);
+    view.classList.remove('is-open');
     // Dropping the src is the whole teardown: the render loop, the audio context and the
-    // key listeners all belong to that document and go with it.
-    $('rider-frame').src = '';
+    // key listeners all belong to that document and go with it. It waits for the fade,
+    // because clearing it first leaves a blank frame sinking down the screen.
+    setTimeout(() => {
+      hide(view);
+      $('rider-frame').src = '';
+    }, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel-close-dur')) || 350);
   }
 
   $('rider-close').addEventListener('click', closeRider);
@@ -17182,10 +17336,18 @@
     });
   }
 
-  function showThemeMode(mode) {
+  // `animate` is false when the gallery is being painted, where the mark should simply be
+  // where it belongs, and true on a tap, where the whole point is that it travels.
+  function showThemeMode(mode, animate) {
     document.querySelectorAll('.theme-mode').forEach((b) => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+    // This runs on a tap as well as on open, and it runs BEFORE the bar's own delegated
+    // listener, because the button is the target and the bar is its ancestor. Moving
+    // without animation here therefore snapped the mark to the new segment and left the
+    // delegated move with nothing to travel, which is why this bar alone did not animate.
+    const modes = document.querySelector('.theme-modes');
+    if (modes && modes.moveSlider) modes.moveSlider(null, !!animate);
     document.querySelectorAll('.theme-card').forEach((card) => {
       const on = card.dataset.mode === mode;
       card.classList.toggle('hidden-mode', !on);
@@ -17207,7 +17369,7 @@
   }
 
   document.querySelectorAll('.theme-mode').forEach((b) => {
-    b.addEventListener('click', () => showThemeMode(b.dataset.mode));
+    b.addEventListener('click', () => showThemeMode(b.dataset.mode, true));
   });
 
   document.querySelectorAll('.theme-card').forEach(card => {
