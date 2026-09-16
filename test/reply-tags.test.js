@@ -145,7 +145,16 @@ test('the parent comment’s own lowercase tags are not inherited', () => {
 test('a reply publishes with the kind replyTags chose', () => {
   // A 1111 answered with a kind:1 is invisible in the thread it was meant for.
   const fn = lift('async function doPublish(');
-  assert.match(fn, /kind: reply \? reply\.kind : 1/);
+  assert.match(fn, /kind: asPoll \? POLL_KIND : reply \? reply\.kind : 1/);
+});
+
+test('A POLL IS NEVER A REPLY', () => {
+  // The composer does not offer a poll on a reply and reply drafts live in their own
+  // slot, so the two cannot arrive together by any route that exists today. The guard
+  // is here because the consequence is silent: a kind:1068 carrying NIP-10 threading
+  // tags is a shape nothing reads, and it would publish without complaint.
+  const fn = lift('async function doPublish(');
+  assert.match(fn, /const asPoll = draft\.poll && !replyTo;/, 'the poll branch must exclude replies');
 });
 
 test('threading tags come first', () => {

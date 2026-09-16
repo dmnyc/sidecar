@@ -231,6 +231,59 @@ button, input, select, textarea { font-family: inherit; }
 .hint.compact:last-of-type { margin-bottom: 8px; }
 .hint code { background: rgba(var(--border-rgb), 0.12); padding: 1px 6px; border-radius: 5px; color: var(--lav); font-family: var(--font-mono); }
 
+/* Shimmer text (transitions.dev #15), for a label waiting on relays. Two layers: the text
+   renders normally, and ::before duplicates it through attr(data-text), clips a sweeping
+   gradient to the same glyphs, and animates that gradient's position. Pure CSS, so there
+   is no state to toggle and nothing to clean up when the label is replaced.
+
+   The two colors are declared HERE rather than on :root, where the snippet puts them,
+   because :root is also where the themes set --muted and --text. A var() inside a custom
+   property resolves against the element the property is declared on, so hoisting these
+   would pin all twelve themes to whatever :root happened to hold. On the element they
+   inherit, which is also why this needs no per-theme rule to keep in step.
+
+   inline-block is what makes the box hug the glyphs, so the label is shrink-to-fit rather
+   than the full width of its row. */
+.t-shimmer {
+  --shimmer-dur: 2000ms;
+  --shimmer-base: var(--muted);
+  --shimmer-highlight: var(--text);
+  --shimmer-band: 400%;
+  --shimmer-ease: linear;
+  position: relative;
+  display: inline-block;
+  color: var(--shimmer-base);
+}
+.t-shimmer::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    transparent          0%,
+    transparent         40%,
+    var(--shimmer-highlight) 50%,
+    transparent         60%,
+    transparent        100%
+  );
+  background-size: var(--shimmer-band) 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: t-shimmer var(--shimmer-dur) var(--shimmer-ease) infinite;
+}
+@keyframes t-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: 0% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-shimmer::before { animation: none !important; }
+}
+
 label { color: var(--muted); }
 
 input, select, textarea {
@@ -1074,6 +1127,18 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 }
 .modal-x:hover { color: var(--text); background: var(--hover-medium); }
 .modal-x svg { width: 18px; height: 18px; }
+/* The other corner, for a sheet that was pushed on top of another one. Same metrics as
+   the close box on purpose: they are a pair, and an arrow drawn smaller than the X beside
+   it would read as the lesser of the two when it is the one people reach for. */
+.modal-back { left: 12px; right: auto; }
+/* A heading has to clear whatever is parked in the corner above it, and it sits centered
+   between the two. Both corners are reserved whether or not a back arrow is there, which
+   is what puts the title on the sheet's midline: the buttons are inset 12px and 30px wide,
+   so 34px a side centers it exactly between them. Reserving only the occupied corner would
+   mean a tally opened from the bell and the same tally opened from the banner after
+   posting put their heading in two different places, and left-aligned it sat 34px in from
+   the copy below it, which is a third position belonging to nothing. */
+.modal-sheet > h3 { padding-left: 34px; padding-right: 34px; text-align: center; }
 
 /* filled lightning bolt (wordswithzaps bolt), inline with text */
 .bolt-ico { height: 0.92em; width: auto; display: inline-block; vertical-align: -0.1em; }
@@ -3364,6 +3429,22 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .modal-tab:hover { color: var(--text); }
 .modal-tab.active { color: var(--lav); }
+/* A count inside a tab label, as a capsule rather than a bare number. Filled from
+   currentColor so it follows the tab it sits in: muted beside an unselected label, --lav
+   beside the active one. A fixed tint would have to be picked per theme, and whichever
+   one it was would make the inactive tab the louder of the two. color-mix is safe at this
+   project's floors (see .relax-status-dot). */
+.modal-tab-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  vertical-align: 1px;
+}
 /* Buttons/text appended directly to .modal stretch full-width because .modal
    itself is a flex column (see below); this wrapper needs the same layout so
    its contents (box, copy/QR buttons, warning, form fields) match that. */
@@ -4390,3 +4471,338 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    "Repost" and "Quote" cannot size to content and leave one stranded on its own line. */
 .notif-repost { display: flex; gap: 6px; margin-top: 8px; }
 .notif-repost-choice { flex: 1 1 0; min-width: 0; padding: 7px 6px; font-size: 12.5px; }
+
+/* ===== Polls (NIP-88) ===== */
+
+/* THE EDITOR. The question is the note body in the editor above, so this block is only
+   the choices and the clock. Everything in it is full width by the panel's own row
+   rules: the one inline control is the per-option remove, which is an icon and nothing
+   else, because a worded button beside a text input in 300px leaves neither usable. */
+.poll-editor {
+  margin-top: 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: var(--sheen);
+  padding: 9px;
+}
+.poll-options { display: flex; flex-direction: column; gap: 6px; }
+.poll-option { display: flex; align-items: center; gap: 6px; }
+.poll-option-num {
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+/* min-width: 0 so the input actually shrinks inside the flex row rather than forcing
+   the row wider than the sheet, which is the failure the panel's row rules describe. */
+.poll-option-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.poll-option-input:focus { outline: none; border-color: var(--gold-soft); }
+.poll-option-x {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.poll-option-x:hover { color: var(--red); background: var(--hover-soft); }
+.poll-option-x svg { width: 15px; height: 15px; }
+.poll-add-option,
+.poll-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  margin-top: 6px;
+  padding: 0;
+  font-size: 13px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.poll-add-option:hover { color: var(--text); background: var(--hover-soft); }
+.poll-remove:hover { color: var(--red); background: var(--hover-soft); }
+.poll-add-option svg,
+.poll-remove svg { width: 15px; height: 15px; }
+.poll-editor-sep { height: 1px; margin: 9px 0; background: var(--border); }
+.poll-ends-label {
+  display: block;
+  margin: 9px 0 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.poll-ends-select, .poll-ends-custom { width: 100%; }
+.poll-ends-custom { margin-top: 6px; }
+.poll-ends-note { margin-top: 6px; }
+
+/* The choices as they will read, in the Preview tab. The editor cannot show this: there
+   the options are input boxes and a blank trailing row looks like a choice. */
+.poll-preview { margin-top: 11px; }
+.poll-preview-option {
+  padding: 8px 11px;
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.poll-preview-meta { margin-top: 7px; }
+
+/* THE RESULTS SHEET. Counts and bars only. No voter list and no avatars: this is the
+   one place Sidecar renders other people's events, and it earns that by answering one
+   question rather than by becoming a reader. */
+.poll-result-question {
+  margin: 0 0 5px;
+  font-size: 15px;
+  color: var(--text);
+}
+.poll-result-meta {
+  margin-bottom: 11px;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* .modal-sheet is overflow: hidden at a fixed height, so something in here has to be the
+   scroller or the content runs out under the actions. min-height: 0 is what makes it fire:
+   a flex item will not shrink below its content, so without it the body simply grows and
+   the clipping happens outside it, where there is no scrollbar to reach. */
+.poll-result-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+.poll-result-body > .poll-bars { flex-shrink: 0; }
+
+/* THE BARS DO NOT MOVE WHEN A CHOICE IS OPENED. The list sits inline, directly under the
+   bar whose voters it holds, which is the only placement that answers "whose names are
+   these" once you have scrolled past the chevron. It scrolls inside itself rather than
+   growing, so the percentages stay where they are while the names move. */
+.poll-voter-list {
+  overflow-y: auto;
+  margin-top: 7px;
+  border-top: 1px solid var(--border);
+}
+.poll-voter-list.hidden { display: none; }
+
+/* AND IT TAKES THE HEIGHT THAT IS LEFT, not a fixed slice of the viewport.
+
+   This was max-height: 34vh, which is right on a short panel and leaves a blank band above
+   the actions on a tall one: the side panel is dragged to whatever height suits, and a
+   third of it is not the same as what is actually spare. The open row grows into the free
+   space instead, so there is none left over to sit empty, and the choices below it follow
+   immediately after rather than being stranded at the bottom.
+
+   Only while something is open, which is what .poll-open says. Closed, the sheet is a plain
+   stack that scrolls when there are more options than fit, and a .poll-bars stretched to
+   fill would push the empty-tally note to the foot of the sheet. min-height on the open row
+   keeps it usable when the options alone have taken the space. */
+.poll-result-body.poll-open { overflow-y: hidden; }
+.poll-result-body.poll-open .poll-bars {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.poll-result-body.poll-open .poll-bar-row { flex-shrink: 0; }
+.poll-result-body.poll-open .poll-bar-open {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 140px;
+  /* Grow into the free space, but never past what the list actually holds: eight voters on
+     a tall panel should be eight rows and then nothing, not eight rows adrift in a box
+     stretched to the foot of the sheet. */
+  max-height: max-content;
+}
+.poll-result-body.poll-open .poll-bar-open .poll-voter-list { flex: 1 1 auto; min-height: 0; }
+
+/* One voter, one line: a face, a name, and a way to go and look. The option is not
+   repeated here, because the bar above the pane is the header, which is the whole reason
+   for hanging these off a choice rather than listing every name with its pick spelled out
+   beside it.
+
+   The inline-action grammar from CLAUDE.md, read the other way round: the avatar keeps its
+   metrics (flex-shrink: 0) and the name, which is the prose, does the truncating. */
+.poll-voter {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+}
+.poll-voter:last-child { border-bottom: none; }
+.poll-voter-av {
+  width: 26px; height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--av-from), var(--av-to));
+  border: 1px solid var(--border);
+}
+.poll-voter-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.poll-voter-name {
+  min-width: 0;
+  font-size: 13px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Only the rows that actually go somewhere take a pointer and a hover. A row with no
+   client resolved is the same row without the link, and must not pretend otherwise. */
+.poll-voter-link { cursor: pointer; }
+.poll-voter-link:hover { background: var(--hover-faint); }
+.poll-voter-link:hover .poll-voter-name { color: var(--lav); }
+
+.poll-bars { display: flex; flex-direction: column; gap: 11px; }
+.poll-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+/* A bar that has voters behind it is the accordion's header. Button resets only: it keeps
+   the metrics of the plain row beside it, because a choice nobody picked is still a bar
+   and the two must not sit at different heights. */
+button.poll-bar-head {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.poll-bar-pick > svg {
+  width: 13px; height: 13px; flex-shrink: 0;
+  align-self: center;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+.poll-bar-pick:hover .poll-bar-label { color: var(--lav); }
+.poll-bar-picked > svg { color: var(--lav); }
+/* The label truncates and the count does not. The count is the answer, and it is three
+   or four characters; letting it shrink to fit a long option would hide the one thing
+   the sheet exists to show.
+
+   AND IT TAKES THE FREE SPACE, which is what keeps it against the chevron. The head is
+   space-between, written when it held two children and pinned one to each edge. A row that
+   can be opened now holds three, so the spare width went into TWO gaps, one either side of
+   a content-sized label, and every option title sat centered in whatever room was left:
+   the shorter the label, the further in it started. text-align is already left here and
+   fixes nothing, because the box hugged the text and it was the box being centered. */
+.poll-bar-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text);
+}
+.poll-bar-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.poll-bar-track {
+  height: 8px;
+  /* A bar reads the same thickness open or closed. An open row is a flex column, and a
+     track whose only child is height: 100% has an automatic minimum size of zero, so it is
+     the one item in that column that can collapse below its 8px when the voter list asks
+     for room. The list is what gives way; the bar is the number and must not. Inert while
+     the row is closed, where this is not a flex item at all. */
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--bg-2);
+  overflow: hidden;
+}
+.poll-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--orange), var(--gold));
+  transition: width var(--tabs-dur) var(--tabs-ease);
+}
+/* Only on a closed poll with a single leader — see paintPollResults. A winner mark on a
+   poll with days left is a scoreboard, and on a tie it is simply wrong. */
+.poll-bar-won .poll-bar-label { color: var(--gold); }
+.poll-bar-won .poll-bar-count { color: var(--gold); }
+
+/* A row in the bell's Polls tab. */
+.poll-row { cursor: pointer; }
+.poll-row-main { min-width: 0; flex: 1; }
+.poll-row-q {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text);
+}
+.poll-row-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.poll-row-count { font-variant-numeric: tabular-nums; }
+
+/* The arrow on a vote notification. Up-right means "leaves Sidecar" on every other row
+   in this panel; a vote opens the tally in place, so its chevron is turned to point
+   along the row instead. */
+.notif-link-in svg { transform: rotate(-90deg); }
+
+.post-banner-btn {
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poll-bar-fill { transition: none; }
+}
+
+/* A POLL'S BANNER IS A COLUMN, because it carries two worded actions and the row
+   grammar in CLAUDE.md only has room for one. Side by side with the message, the
+   message was the only flexible thing in the row, so "Your poll is live." wrapped to
+   two lines while both links sat at full width. Content on top, controls stretched
+   beneath, which is the same shape .site-controls and .tx-row use. */
+.post-banner-stacked { flex-direction: column; align-items: stretch; gap: 8px; }
+.post-banner-head { display: flex; align-items: center; gap: 10px; }
+.post-banner-head .post-banner-msg { flex: 1; min-width: 0; }
+/* wrap, not shrink: below roughly a 310px panel "Open in Zap Cooking" and "See results"
+   stop fitting on one line, and a row each is right where squeezing both is not. */
+.post-banner-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.post-banner-actions .post-banner-link {
+  flex: 1 1 auto;
+  justify-content: center;
+  /* margin-left: auto is what pushes the single link to the right of a one-row banner.
+     In this row the two actions share the width, so it has to go. */
+  margin-left: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 8px;
+}
+
+/* min-width: 0 is what makes .notif-modal-sub's ellipsis fire at all. The rule has
+   carried overflow/text-overflow since it was written, and it never truncated, because
+   a flex child defaults to min-width: auto and simply grew to fit the name instead.
+   Kept after the Polls button that exposed it became a tab: nothing sits to the right of
+   the title box now, but a name that never truncates is still a bug of its own. */
+.notif-modal-titlebox { min-width: 0; flex: 1; }
