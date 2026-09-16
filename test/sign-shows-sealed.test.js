@@ -42,23 +42,41 @@ function lift(src, decl) {
 
 function store(now = Date.now()) {
   const ctx = { Date: { now: () => now } };
+  const alarms = [];
+  ctx.alarms = alarms; // visible inside the VM as a global
+  ctx.chrome = {
+    alarms: {
+      // Chrome replaces an alarm created with an existing name; mirror that so the
+      // test proves the code does not rely on stacking.
+      create(name, opts) {
+        for (let i = alarms.length - 1; i >= 0; i--) if (alarms[i].name === name) alarms.splice(i, 1);
+        alarms.push({ name, opts });
+      },
+      clear(name) { alarms.splice(0, alarms.length, ...alarms.filter((a) => a.name !== name)); },
+    },
+  };
   vm.createContext(ctx);
   vm.runInContext(
     [
       bg.match(/const SEAL_TTL_MS = .*/)[0],
       bg.match(/const SEAL_MAX = .*/)[0],
+      bg.match(/const SEAL_MAX_CHARS = .*/)[0],
+      bg.match(/const SEAL_SWEEP_ALARM = .*/)[0],
       'const sealedText = new Map();',
       bg.match(/const sealKey = .*/)[0],
+      lift(bg, 'function sweepSealed('),
+      lift(bg, 'function armSealSweep('),
       lift(bg, 'function rememberSealed('),
       lift(bg, 'function recallSealed('),
     ].join('\n') +
-      '\nglobalThis.out = { remember: rememberSealed, recall: recallSealed, map: sealedText, ttl: SEAL_TTL_MS, max: SEAL_MAX };',
+      '\nglobalThis.out = { remember: rememberSealed, recall: recallSealed, sweep: sweepSealed, arm: armSealSweep, map: sealedText, ttl: SEAL_TTL_MS, max: SEAL_MAX, maxChars: SEAL_MAX_CHARS, alarmName: SEAL_SWEEP_ALARM, alarms };',
     ctx
   );
   return ctx.out;
 }
 
 const CIPHER = 'AbC123+/=' .repeat(8);
+const CIPHER2 = 'Zz987654' .repeat(8);
 
 test('the sign card can be told what the encrypt card sealed', () => {
   const s = store();
@@ -94,6 +112,49 @@ test('it holds a handful, not a history', () => {
   assert.equal(s.recall('ditto.pub', 'alice', 'c' + (s.max + 4)), 'text ' + (s.max + 4), 'the newest was evicted');
 });
 
+test('a write sweeps what time already killed', () => {
+  const s = store(5000);
+  s.remember('ditto.pub', 'alice', CIPHER, 'first');
+  // Age the first entry past the TTL, then write a second one. The write itself must
+  // drop the corpse; nobody has to come back and read the first entry for it to die.
+  s.map.get('ditto.pub|alice|' + CIPHER).at = 5000 - s.ttl - 1;
+  s.remember('ditto.pub', 'alice', CIPHER2, 'second');
+  assert.equal(s.map.has('ditto.pub|alice|' + CIPHER), false, 'an expired entry survived a write');
+  assert.equal(s.map.size, 1, 'the sweep took more than the expired entry');
+  assert.equal(s.recall('ditto.pub', 'alice', CIPHER2), 'second', 'the live entry was collateral');
+});
+
+test('oversized plaintext is never stored at all', () => {
+  const s = store();
+  const tooBig = 'x'.repeat(s.maxChars + 1);
+  s.remember('ditto.pub', 'alice', CIPHER, tooBig);
+  assert.equal(s.map.size, 0, 'a megabyte of page text got parked in the worker');
+  // Exactly at the cap is fine. The boundary belongs to the user, not the attacker.
+  s.remember('ditto.pub', 'alice', CIPHER, 'x'.repeat(s.maxChars));
+  assert.equal(s.map.size, 1, 'text at the cap was refused');
+});
+
+test('a warm worker cannot hold plaintexts forever', () => {
+  const s = store();
+  s.remember('ditto.pub', 'alice', CIPHER, 'my settings');
+  assert.equal(s.alarms.length, 1, 'no sweep alarm was armed');
+  assert.equal(s.alarms[0].name, s.alarmName);
+  assert.equal(s.alarms[0].opts.periodInMinutes, 1, 'the alarm is not a minute tick');
+  // The sweep itself takes the expired entries when the alarm fires.
+  const aged = store();
+  aged.remember('ditto.pub', 'alice', CIPHER, 'my settings');
+  aged.sweep(Date.now() + aged.ttl + 1);
+  assert.equal(aged.map.size, 0, 'the sweep left expired entries in place');
+  // Arming is idempotent: more writes do not stack a wall of alarms, and an empty map
+  // arms nothing at all. Retirement belongs to the onAlarm handler, which clears the
+  // alarm once a sweep finds nothing left.
+  s.remember('ditto.pub', 'alice', CIPHER2, 'again');
+  assert.equal(s.alarms.length, 1, 'repeated writes stacked extra alarms');
+  const idle = store();
+  idle.arm();
+  assert.equal(idle.alarms.length, 0, 'an empty map armed an alarm');
+});
+
 test('nothing empty is ever stored', () => {
   const s = store();
   s.remember('', 'alice', CIPHER, 'x');
@@ -112,6 +173,11 @@ test('only encrypt methods are remembered', () => {
     'the seal set changed shape');
   assert.match(src, /if \(SEAL_METHODS\.has\(method\) && typeof result === 'string'\)/,
     'something other than an encrypt result is being remembered');
+  assert.match(src, /const SEAL_SWEEP_ALARM = /, 'the sweep alarm lost its name constant');
+  assert.match(src, /else if \(alarm\.name === SEAL_SWEEP_ALARM\)/,
+    'the minute alarm has no handler in onAlarm');
+  assert.match(src, /if \(plaintext\.length > SEAL_MAX_CHARS\) return;/,
+    'page-written text is parked without a size cap');
 });
 
 test('the plaintext goes to the PROMPT and never back to the page', () => {

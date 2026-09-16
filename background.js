@@ -1079,18 +1079,42 @@ function describeSignEventShape(params) {
 //   - in the service worker only, which MV3 evicts after about 30 seconds idle, so it is
 //     gone long before it could be called a store. A sign that arrives after eviction
 //     falls back to showing ciphertext, which is exactly today's behavior;
-//   - capped and time-limited anyway, for the case where the worker stays warm.
+//   - capped, size-limited, and swept by the minute even while the worker stays warm.
 const SEAL_METHODS = new Set(['nip04.encrypt', 'nip44.encrypt']);
 const SEAL_TTL_MS = 120000;
 const SEAL_MAX = 20;
+// Page-written text, so without a cap a hostile page could park megabytes here under
+// repeat encrypts. Every approval surface clamps its display far below this, and anything
+// longer simply gets the ciphertext fallback, which is the ordinary sign card anyway.
+const SEAL_MAX_CHARS = 2048;
+const SEAL_SWEEP_ALARM = 'sidecar-seal-sweep';
 const sealedText = new Map();
 const sealKey = (host, pubkey, ciphertext) => host + '|' + pubkey + '|' + ciphertext;
 
+function sweepSealed(now = Date.now()) {
+  for (const [k, v] of sealedText) {
+    if (now - v.at > SEAL_TTL_MS) sealedText.delete(k);
+  }
+}
+
+// The TTL is enforced on read, so a warm worker that nobody re-asks would otherwise hold
+// plaintexts for as long as it happens to live. One repeating minute alarm bounds that.
+// Alarms survive a worker restart where the map does not, so the first tick after a
+// restart finds an empty map and clears itself; no stale alarm outlives its purpose.
+function armSealSweep() {
+  if (sealedText.size && globalThis.chrome && globalThis.chrome.alarms) {
+    globalThis.chrome.alarms.create(SEAL_SWEEP_ALARM, { periodInMinutes: 1 });
+  }
+}
+
 function rememberSealed(host, pubkey, ciphertext, plaintext) {
   if (!host || !pubkey || !ciphertext || typeof plaintext !== 'string' || !plaintext) return;
+  if (plaintext.length > SEAL_MAX_CHARS) return; // oversized: the fallback is ciphertext
+  sweepSealed(); // a write is also a chance to drop what time already killed
   sealedText.set(sealKey(host, pubkey, ciphertext), { text: plaintext, at: Date.now() });
   // Oldest out first: a Map iterates in insertion order, and re-setting a key moves it.
   while (sealedText.size > SEAL_MAX) sealedText.delete(sealedText.keys().next().value);
+  armSealSweep();
 }
 
 function recallSealed(host, pubkey, ciphertext) {
@@ -2961,6 +2985,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   // Best-effort heartbeat while the approval queue is non-empty: sweeps expired
   // requests and re-drives the display so nothing stalls if the SW was napping.
   else if (alarm.name === QUEUE_KEEPALIVE_ALARM) driveDisplay();
+  // Time-based expiry for remembered seal plaintexts while the worker stays warm.
+  // The map dies with the worker; when it is gone the alarm has nothing left to sweep
+  // and retires itself instead of ticking forever.
+  else if (alarm.name === SEAL_SWEEP_ALARM) {
+    sweepSealed();
+    if (!sealedText.size) chrome.alarms.clear(SEAL_SWEEP_ALARM);
+  }
 });
 
 // ---- step-up PIN gate (reveal nsec/NWC, PIN-confirmed owner ops, change PIN) ----
