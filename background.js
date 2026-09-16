@@ -423,7 +423,29 @@ function isBatchableEntry(e) {
   return (m === 'signEvent' || m === 'nip04.encrypt' || m === 'nip44.encrypt') &&
     !isNip42AuthEvent(e.data && e.data.params && (e.data.params.event || e.data.params));
 }
-function batchKeyOf(e) { return e.host + '|' + (e.data && e.data.activePubkey) + '|' + e.kind; }
+function batchKeyOf(e) {
+  // Kind alone is not a kind for encrypts: nip04.encrypt and nip44.encrypt both carry
+  // kind === null, and one click must never approve across two different methods (G2).
+  // The method rides in the key for everything, which for signEvent is a no-op.
+  return e.host + '|' + (e.data && e.data.activePubkey) + '|' + e.method + '|' + e.kind;
+}
+
+// What the panel needs to render ONE member of a batch: enough to describe what this
+// particular click would sign or seal (M1). A batch card that previews only the head
+// lets a site describe one note and get a second, unseen one signed by the same click.
+function memberViewOf(e) {
+  const p = e.data && e.data.params;
+  const m = { id: e.id, method: e.method, kind: e.kind };
+  if (e.method === 'signEvent') {
+    const ev = p && (p.event || p);
+    m.content = ev && typeof ev.content === 'string' ? ev.content : '';
+    m.unreadable = !ev || ev.content == null;
+  } else {
+    m.plaintext = p && typeof p.plaintext === 'string' ? p.plaintext : '';
+    m.peer = p && p.pubkey;
+  }
+  return m;
+}
 
 // What the panel renders from (metadata only, plus the head's full data).
 function pendingView() {
@@ -438,12 +460,18 @@ function pendingView() {
     }
   }
   const inGroup = new Set(groupIds);
+  // Every member of the offered batch, described well enough to be reviewed WITHOUT
+  // opening anything (M1). Head included, in queue order, so the card lists exactly
+  // what "Allow all (N)" will settle and nothing else can hide behind the head.
+  const members = head && isBatchableEntry(head)
+    ? queue.filter((e) => inGroup.has(e.id)).map(memberViewOf)
+    : [];
   const waiting = queue.filter((e) => e.state !== 'interrupted' && e !== head && !inGroup.has(e.id))
     .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, accountName: e.data && e.data.accountName, ts: e.ts }));
   const interrupted = queue.filter((e) => e.state === 'interrupted')
     .map((e) => ({ id: e.id, host: e.host, method: e.method, kind: e.kind, ts: e.ts }));
   return {
-    head: head ? { id: head.id, data: head.data, groupIds } : null,
+    head: head ? { id: head.id, data: head.data, groupIds, members } : null,
     waiting, interrupted,
   };
 }

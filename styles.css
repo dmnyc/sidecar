@@ -3829,6 +3829,21 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft);
   color: var(--text-2); font-size: 12px; line-height: 1.45; text-align: left;
 }
+/* M1: the per-member list under a batch ("Allow all (N)") approval card. Same well
+   styling as the event preview; capped height so a burst cannot push the buttons off
+   the card, with its own scroll instead. */
+.approval-batch-list {
+  margin: 2px 0 14px; padding: 4px 0; border-radius: 9px;
+  background: rgba(var(--well-rgb), 0.6);
+  max-height: 240px; overflow-y: auto;
+}
+.batch-member { padding: 7px 11px; border-bottom: 1px solid rgba(var(--accent-rgb), 0.12); }
+.batch-member:last-child { border-bottom: none; }
+.batch-member-what {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.4px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 2px;
+}
+.batch-member-text { font-size: 12.5px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
 /* one-time explainer for multi-account (shared-identity) signing */
 .shared-headsup {
   margin: 2px 0 14px; padding: 11px 12px; border-radius: 10px;

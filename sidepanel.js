@@ -19576,6 +19576,9 @@
       allow.textContent = 'Allow all (' + groupN + ')';
       hide(trust);
     }
+    // M1: the batch button settles N events, so the card shows N events. Rendered
+    // before any decision; a scroll keeps a large burst from hiding the buttons.
+    renderBatchList(pendingApproval.members);
 
     // Offer a timed auto-sign window on single content-sign approvals — the
     // shared-host escape hatch, and a middle rung between Allow once and Trust.
@@ -19765,13 +19768,14 @@
     if (head) {
       const group = head.groupIds && head.groupIds.length ? head.groupIds : [head.id];
       if (!pendingApproval || pendingApproval.id !== head.id) {
-        pendingApproval = { id: head.id, data: head.data, groupIds: group, chosenPubkey: null };
+        pendingApproval = { id: head.id, data: head.data, groupIds: group, members: head.members || [], chosenPubkey: null };
         closeModal();
         showApproval();
       } else if (!pendingApproval.groupIds || pendingApproval.groupIds.length !== group.length) {
         // Same head, but more same-kind requests arrived (or drained) — re-render
         // the batch count without resetting the user's account pick.
         pendingApproval.groupIds = group;
+        pendingApproval.members = head.members || [];
         showApproval();
       } else {
         // Same head, already built — just ensure the overlay is visible. This is
@@ -19801,6 +19805,36 @@
     // itself — but it cannot change what is IN a wallet, so the view does not need
     // rebuilding from the relay just because a signature was approved.
     if (!hasHead && wasShowing) refresh({ keepWallet: true });
+  }
+
+  // M1: one click on "Allow all (N)" settles N requests, so the card describes all N
+  // before that click exists. A batch card that previewed only its head let a site
+  // queue a benign note, queue a different note behind it, and have one click described
+  // by the first sign both. Every member rides in the pending view (memberViewOf in
+  // background.js); here each gets a row with its own content. textContent throughout —
+  // member content is page-supplied. Scrollable: a 20-event burst must not push the
+  // buttons off the card, and the head's full preview above stays as the deep look.
+  function renderBatchList(members) {
+    const list = $('approval-batch-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!members || members.length < 2) { hide(list); return; }
+    for (const m of members) {
+      const what = [];
+      if (m.method === 'signEvent') {
+        what.push('kind ' + m.kind);
+        if (m.unreadable) what.push('unreadable content');
+      } else {
+        what.push(m.method);
+        if (m.peer) what.push('to ' + m.peer.slice(0, 8) + '…' + m.peer.slice(-4));
+      }
+      const body = m.method === 'signEvent' ? String(m.content || '') : String(m.plaintext || '');
+      list.append(h('div', { className: 'batch-member' }, [
+        h('div', { className: 'batch-member-what', textContent: what.join(' · ') }),
+        h('div', { className: 'batch-member-text', textContent: clampApprovalText(body, 160) }),
+      ]));
+    }
+    show(list);
   }
 
   // "N more waiting" strip inside the approval card + a Reject all escape hatch.

@@ -771,6 +771,12 @@
 
       <div id="approval-preview" class="card hidden"></div>
 
+      <!-- M1: one click settles every member of a batch, so the card lists what each
+           member actually is before "Allow all (N)" is offered. A head-only preview let
+           a site describe one note and get an unseen second one signed by the same
+           click. Filled by renderBatchList in sidepanel.js; scrollable in styles.css. -->
+      <div id="approval-batch-list" class="approval-batch-list hidden"></div>
+
       <!-- Scope-of-consent note: some Allows cover more than the request on screen —
            a decrypt burst covers about a minute, a WebLN read covers the session.
            Same element, placement (just under the preview card), and wording as the
