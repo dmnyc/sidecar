@@ -224,7 +224,152 @@ test('poll ids are loaded on their own budget, not shared with note ids', () => 
   // polls out and quietly stop reporting votes on them.
   assert.match(bare, /function loadOwnPollIds\(pubkey, relays\)/);
   assert.match(bare, /kinds: \[POLL_KIND\], authors: \[pubkey\], limit: 50/);
-  assert.match(bare, /const ownPollIdList = \[\.\.\.ownPollIds\];/, 'the vote filter wants bare ids');
+  assert.match(
+    bare,
+    /const ownPollIdList = \[\.\.\.\(_ownPollIds\.get\(a\.pubkey\) \|\| \[\]\)\];/,
+    'the vote filter wants bare ids'
+  );
+});
+
+test('THE TAB OPENS ON WHAT IT SHOWED LAST TIME', () => {
+  // The guard that stops a second fill (`filled`) is declared inside showNotifModal, so it
+  // dies with the sheet: every reopen re-queried from "Looking for your polls…" through two
+  // sequential 8s relay waits, while the notification list beside it opened from
+  // _notifCache. Rows now paint from the cache at once and the query corrects them.
+  assert.match(bare, /const _pollListCache = new Map\(\);/);
+  const fn = bare.slice(bare.indexOf('async function fillPollsList'));
+  const fill = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(fill, /const cached = _pollListCache\.get\(pubkey\);/);
+
+  // Painted before the query, or the cache buys nothing: the point is not waiting.
+  const paintedFromCache = fill.indexOf('rows = paint(cached.polls, cached.counts);');
+  const firstQuery = fill.indexOf('kinds: [POLL_KIND], authors: [active.pubkey]');
+  assert.ok(paintedFromCache > -1, 'nothing paints from the cache');
+  assert.ok(firstQuery > -1 && paintedFromCache < firstQuery, 'the cache must paint before the relays are asked');
+
+  // And the placeholder belongs to the cold case only. A list that already has rows in it
+  // must never be cleared back to a waiting line to say it is checking.
+  assert.match(fill, /'Looking for your polls…', true\)/, 'a first open still says what it is doing');
+  const placeholder = fill.indexOf("'Looking for your polls…'");
+  assert.ok(placeholder > paintedFromCache, 'the placeholder must sit in the else branch');
+
+  // ONE RENDERER, or a cached row and a fresh row drift apart in everything but the number.
+  // Two calls: the cache paints, and the fresh set repaints when it differs. The definition
+  // reads `paint = (`, so it is deliberately not one of them.
+  assert.match(fill, /const paint = \(polls, counts\) =>/, 'the shared renderer');
+  assert.equal((fill.match(/paint\(/g) || []).length, 2, 'one cache paint, one fresh paint');
+  // Redrawn only when the set moved, since a rebuild puts the pane back at the top and the
+  // usual news here is a number rather than a new row.
+  assert.match(fill, /if \(!sameSet\) rows = paint\(polls, counts\);/);
+});
+
+test('AN OPTION TITLE STARTS AT THE CHEVRON, WHATEVER ITS LENGTH', () => {
+  // .poll-bar-head is space-between, written when it held [label, tally] and pinned one to
+  // each edge. A row that can be opened holds [chev, label, tally], so the spare width went
+  // into two gaps either side of a content-sized label and every title sat centered in the
+  // room left over: "Hummus" started further in than "Guacamole" on the same sheet.
+  //
+  // flex: 1 is the fix, not text-align. The button already sets text-align: left and the
+  // label box hugged its text, so it was the box being centered, not the text in it.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  // Anchored to the start of a line, or indexOf finds `.poll-bar-pick:hover .poll-bar-label`
+  // first and the assertions below run against the hover color instead of the layout rule.
+  const label = css.slice(css.indexOf('\n.poll-bar-label {'));
+  const decls = label.slice(0, label.indexOf('}'));
+  assert.match(decls, /flex: 1;/, 'the label must absorb the free space, or it floats');
+  assert.match(decls, /min-width: 0;/, 'and still be allowed to truncate');
+
+  // The head that has no chevron holds two children and must keep working the same way.
+  assert.match(bare, /className: 'poll-bar-head' \}, \[label, tally\]\)/);
+  assert.match(bare, /className: 'poll-bar-head poll-bar-pick', type: 'button' \}, \[\n\s+chev,\n\s+label,\n\s+tally,\n\s+\]/);
+});
+
+test('TURNING A NOTE INTO A POLL RE-ASKS WHETHER IT CAN BE POSTED', () => {
+  // The bar goes UP at that moment: a note needs text or an image, a poll needs its
+  // question and two filled options. Post was already enabled under the note rule, and the
+  // add handler did not re-run the check, so question → Add a poll → Post published a
+  // kind:1068 with zero option tags. Nothing downstream re-validates: the click handler
+  // only asks whether Post is disabled.
+  const add = bare.slice(bare.indexOf("pollAdd.addEventListener('click'"));
+  const body = add.slice(0, add.indexOf('\n      });'));
+  assert.match(body, /draft\.poll = newPollDraft\(\);/);
+  assert.match(body, /updatePostState\(\);/, 'adding a poll must re-check whether Post is allowed');
+
+  // Both directions, or the same bug returns wearing the other hat.
+  const remove = bare.slice(bare.indexOf("remove.addEventListener('click'"));
+  assert.match(remove.slice(0, remove.indexOf('\n        });')), /updatePostState\(\);/, 'and so must removing one');
+
+  // The floor those checks enforce, which is the thing the gap let through.
+  assert.match(bare, /post\.disabled = !draft\.text\.trim\(\) \|\| !pollDraftIsPostable\(draft\.poll\) \|\| !endsOk;/);
+  assert.match(bare, /return pollDraftOptions\(pollDraft\)\.length >= 2;/, 'two filled options');
+});
+
+test('the waiting line reads as work, and cannot drift from its own shadow', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  // ::before paints itself from attr(data-text), so the attribute has to exist and has to
+  // say what the element says. One writer sets both from the same argument, which is the
+  // only way the two can never disagree. h() cannot do it: Object.assign would make
+  // data-text a JS expando and attr() would find nothing.
+  assert.match(bare, /function setWaiting\(el, text, waiting\)/);
+  const fn = bare.slice(bare.indexOf('function setWaiting'));
+  const set = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(set, /el\.textContent = text;/);
+  assert.match(set, /el\.classList\.toggle\('t-shimmer', !!waiting\);/);
+  assert.match(set, /if \(waiting\) el\.dataset\.text = text;/);
+  assert.match(set, /else delete el\.dataset\.text;/, 'a landed value must stop sweeping');
+  assert.match(css, /content: attr\(data-text\)/);
+
+  // EVERY waiting label in this feature goes through it, including the row counts. One
+  // written as a plain textContent is a label that sits there looking like a result.
+  for (const label of ['Looking for your polls…', 'Counting votes…', 'Fetching the poll…']) {
+    assert.doesNotMatch(bare, new RegExp("textContent: '" + label + "'"), label + ' is not shimmered');
+    assert.ok(bare.includes("'" + label + "', true)"), label + ' must go through setWaiting');
+  }
+  // The count cell shimmers only while it is unknown, and is cleared when the votes land.
+  assert.match(bare, /const known = counts\.get\(ev\.id\);/);
+  assert.match(bare, /setWaiting\(h\('span', \{ className: 'poll-row-count' \}\), known \|\| '…', !known\)/);
+  assert.match(bare, /setWaiting\(cell, fresh\.get\(ev\.id\), false\)/, 'the landed count must stop sweeping');
+
+  // THE COLORS BELONG ON THE ELEMENT, NOT ON :root. A var() inside a custom property
+  // resolves against the element the property is declared on, and :root is where the themes
+  // set --muted and --text, so hoisting these would shimmer all twelve themes in whatever
+  // palette :root happened to hold.
+  const rule = css.slice(css.indexOf('.t-shimmer {'), css.indexOf('.t-shimmer::before'));
+  assert.match(rule, /--shimmer-base: var\(--muted\);/, 'the base color must inherit');
+  assert.match(rule, /--shimmer-highlight: var\(--text\);/, 'and so must the band');
+  const root = css.slice(css.indexOf(':root {'), css.indexOf('}', css.indexOf(':root {')));
+  assert.doesNotMatch(root, /--shimmer-/, 'no shimmer token may sit on :root');
+
+  // Required by the skill and by every other animation in this sheet.
+  const guard = css.slice(css.indexOf('.t-shimmer::before'));
+  assert.match(guard.slice(0, 900), /prefers-reduced-motion: reduce/);
+});
+
+test('A POLL YOU JUST POSTED IS ONE OF YOUR POLLS IMMEDIATELY', () => {
+  // The bell's tab is gated on _ownPollIds, which was loaded once per account and memoized
+  // for the life of the panel. So your first poll of a session left accountHasPolls() false:
+  // no tab, and since Profile no longer lists them, no way back to that tally at all once
+  // the post banner timed out. Seeded at publish rather than waited for.
+  assert.match(bare, /if \(signed\.kind === POLL_KIND\) rememberOwnPoll\(signed\.pubkey, signed\.id\);/);
+  const fn = bare.slice(bare.indexOf('function rememberOwnPoll'));
+  assert.match(fn.slice(0, fn.indexOf('\n  }')), /ids\.add\(id\);/);
+
+  // ADDED TO, NOT REPLACED. The relays have not necessarily caught up with a poll signed a
+  // second ago, so a set rebuilt from that query would drop the seed and take the tab away
+  // again. The set identity is stable and loadOwnPollIds adds into it.
+  const load = bare.slice(bare.indexOf('function loadOwnPollIds'));
+  assert.match(
+    load.slice(0, load.indexOf('\n  }')),
+    /const ids = _ownPollIds\.get\(pubkey\) \|\| new Set\(\);/,
+    'a re-query must not discard a poll posted from this panel'
+  );
+
+  // And the filter reads that set when it is built, not when the subscription started, or
+  // votes on a poll posted this session arrive only if the voter's client p-tagged you.
+  const refresh = bare.slice(bare.indexOf("className: 'modal-x notif-refresh'"));
+  assert.match(refresh.slice(0, 2000), /forgetOwnPollQuery\(a\.pubkey\);/, 'refresh asks again');
+  assert.match(bare, /function forgetOwnPollQuery\(pubkey\)/);
+  assert.match(bare, /_ownPollIdsPromises\.delete\(pubkey\);/, 'and the memo is what is dropped');
 });
 
 test('the tally is applied to what comes back, not just asked for in the filter', () => {
@@ -584,6 +729,15 @@ test('a bar that opens keeps the metrics of one that does not', () => {
   for (const d of [/background: none/, /border: none/, /padding: 0/, /font: inherit/, /text-align: left/, /width: 100%/]) {
     assert.match(decls, d, 'button.poll-bar-head is missing a reset: ' + d);
   }
+
+  // AND THE BAR ITSELF IS THE SAME THICKNESS EITHER WAY. Opening a row turns it into a flex
+  // column, where the track is a flex item whose only child is height: 100%. That gives it
+  // an automatic minimum size of zero, so it is the one thing in the column that will give
+  // up its 8px when the voter list wants the room, and an open choice drew a visibly
+  // thinner bar than the closed one beside it.
+  const track = css.slice(css.indexOf('.poll-bar-track {')).split('}')[0];
+  assert.match(track, /height: 8px/);
+  assert.match(track, /flex-shrink: 0/, 'the track must not give up height to the voter list');
 });
 
 // ---- getting back to a poll --------------------------------------------------------
@@ -593,7 +747,7 @@ test('A POLL IS READ BACK FROM THE RELAYS IT WAS PUBLISHED TO', () => {
   // purplepag.es, which aggregates kinds 0, 3 and 10002. A poll is none of those. It
   // goes to postRelays, the WRITE set, and NIP-65 lets those two lists be completely
   // disjoint, so reading from the read set alone found nothing on exactly the accounts
-  // that declare a real split, and Your polls came up empty while the poll sat on the
+  // that declare a real split, and the poll list came up empty while the poll sat on the
   // relays it had just been published to.
   assert.match(bare, /async function pollReadRelays\(pubkey\)/);
   const fn = bare.slice(bare.indexOf('async function pollReadRelays'));
@@ -646,9 +800,10 @@ test('THE BELL CARRIES A POLLS TAB, NOT A BUTTON OUT OF THE BELL', () => {
   // Lazily. Opening the bell is the common case and must not pay for a poll query.
   assert.match(body, /if \(polls && !filled\) \{\n +filled = true;\n +fillPollsList\(pollList, a\.pubkey, \{/);
 
-  // One list, filled by one function, or the tab and the Profile section drift.
-  assert.match(bare, /async function fillPollsList\(list, pubkey, opts\)/);
-  assert.match(bare, /await fillPollsList\(list, active\.pubkey\)/, 'Profile uses it');
+  // THE TAB IS THE ONLY LIST. A second surface listing the same polls is a second place
+  // to keep in step, and the one that used to sit on Profile said the same thing twice.
+  assert.match(bare, /async function fillPollsList\(list, pubkey, \{ openPoll, onCount \}\)/);
+  assert.equal((bare.match(/fillPollsList\(/g) || []).length, 2, 'one definition, one caller');
 });
 
 test('THE NUMBER ON THE TAB IS HOW MANY POLLS ARE IN IT', () => {
@@ -683,16 +838,23 @@ test('the count is seeded free, then corrected by the list that knows', () => {
   const fn = bare.slice(bare.indexOf('async function fillPollsList'));
   const fill = fn.slice(0, fn.indexOf('\n  }'));
   // Both options have to be READ, not just passed: a hardcoded null here would leave
-  // every assertion about the call sites above true and the feature gone.
-  assert.match(fill, /const openPoll = opts && opts\.openPoll;/);
-  assert.match(fill, /const onCount = opts && opts\.onCount;/);
+  // every assertion about the call sites above true and the feature gone. Destructured in
+  // the signature and used unguarded, since the one caller passes both.
+  assert.match(bare, /async function fillPollsList\(list, pubkey, \{ openPoll, onCount \}\)/);
+  assert.match(fill, /onCount\(polls\.length\);/);
   const reported = fill.indexOf('onCount(polls.length)');
   const votes = fill.indexOf("kinds: [POLL_RESPONSE_KIND], '#e'");
   // > -1 first. indexOf returns -1 for a line that is simply gone, and -1 is less than
   // every real index, so the ordering check alone passes loudest when it should fail.
   assert.ok(reported > -1, 'nothing reports the real count');
   assert.ok(votes > -1 && reported < votes, 'the count must not wait on the votes');
-  assert.match(fill, /if \(onCount\) onCount\(0\);/, 'and an account with none says so');
+  // One report covers both cases: polls.length is 0 for an account with none, and it goes
+  // out BEFORE the empty-list return rather than from inside it, so a tab labeled with a
+  // stale number from the cache is corrected even when the answer is that there are none.
+  // Matched on the early return's own cache write, since `if (!polls.length)` also appears
+  // inside the shared renderer above it and would be found there first.
+  const emptyReturn = fill.indexOf('_pollListCache.set(pubkey, { polls, counts: new Map() });');
+  assert.ok(emptyReturn > -1 && reported < emptyReturn, 'an account with none must still say so');
 });
 
 test('the count capsule takes its color from the tab it sits in', () => {
@@ -775,12 +937,24 @@ test('THE TWO CORNERS ARE TWO DIFFERENT EXITS', () => {
   assert.doesNotMatch(body, /textContent: 'Close'/, 'one close affordance, not two');
 });
 
-test('a heading clears whatever is parked in the corner above it', () => {
+test('a heading clears both corners and sits centered between them', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.modal-back \{ left: 12px; right: auto; \}/);
-  assert.match(css, /\.modal-sheet > h3 \{ padding-right: 34px; \}/, 'every sheet has a close box');
-  assert.match(css, /\.modal-sheet\.has-back > h3 \{ padding-left: 34px; \}/, 'only some have an arrow');
-  assert.match(bare, /modal\.classList\.toggle\('has-back', !!returnTo\)/);
+  // BOTH SIDES, always, which is what the centering rests on. The corners are inset 12px
+  // and 30px wide, so 34px a side puts the title on the sheet's midline, exactly between
+  // them. Reserving only the corner that happens to be occupied would center it on what
+  // was left over instead, and the same tally opened from the bell and from the banner
+  // after posting would put its heading in two different places.
+  assert.match(
+    css,
+    /\.modal-sheet > h3 \{ padding-left: 34px; padding-right: 34px; text-align: center; \}/,
+    'the sheet title is centered between the corners'
+  );
+  // Comments stripped before the negative match, or a rule explaining why the class went
+  // away is enough to fail this for a reason that has nothing to do with the styling.
+  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ''), /has-back/,
+    'a class reserving one corner is what centering replaced');
+  assert.doesNotMatch(bare, /has-back/, 'and nothing should still be setting it');
 });
 
 test('both routes into a tally read their place before the sheet is gone', () => {
@@ -831,16 +1005,16 @@ test('the way back lands on the tab you left, after the list has its place', () 
   assert.match(body, /tabs\.moveSlider\(tabPolls, false\)/);
 });
 
-test('Profile still closes rather than going back, having taken nothing away', () => {
-  // It opens a tally from the panel, not from a sheet, so closing already lands on the
-  // Profile tab the reader came from. Passing a return there would add a Back button
-  // that went to the screen already behind it.
-  const fn = bare.slice(bare.indexOf('async function renderPollsSection'));
-  const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /await fillPollsList\(list, active\.pubkey\);/);
-  assert.doesNotMatch(body, /openPollResults|showNotifModal/);
-  // The default route, for every caller that hands over no opener of its own.
-  assert.match(bare, /const open = \(\) => \(openPoll \? openPoll\(ev\) : openPollResults\(ev\)\);/);
+test('THE LIST OF YOUR POLLS HAS ONE HOME, AND IT IS THE BELL', () => {
+  // Profile carried the same list under its own heading. Two surfaces listing the same
+  // polls is two things to keep in step for one question, and the bell is where you go to
+  // ask what happened to something you posted, so the section went rather than the tab.
+  assert.doesNotMatch(bare, /renderPollsSection/, 'the Profile section is back');
+  assert.doesNotMatch(bare, /Your polls/, 'and so is its heading');
+  // Which leaves the caller's opener as the only way a row opens. No fallback to a plain
+  // openPollResults, because there is no longer a caller that hands over none, and a
+  // branch nothing takes is a branch nothing keeps honest.
+  assert.match(bare, /const open = \(\) => openPoll\(ev\);/);
 });
 
 test('the header title box can still shrink, which was never really about the button', () => {
@@ -858,7 +1032,7 @@ test('the header title box can still shrink, which was never really about the bu
 test('a poll that is still running is listed above one that has closed', () => {
   // By created_at alone a poll taking votes right now sits wherever it was posted, under
   // everything written since, and a running poll is the one you opened the tab for.
-  // Both the bell tab and the Profile section are this function, so both get it.
+  // The tab is this function, so the ordering belongs here rather than at the call site.
   const fn = bare.slice(bare.indexOf('async function fillPollsList'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /const xEnded = pollHasEnded\(pollEndsAt\(x\)\)/);

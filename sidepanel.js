@@ -771,6 +771,13 @@
   // instead of asking every relay about 150 ids that can never carry a kind:1018.
   const _ownPollIds = new Map(); // pubkey → Set<eventId> (this account's own kind:1068 ids)
   const _ownPollIdsPromises = new Map();
+  // WHAT THE POLLS TAB SHOWED LAST TIME, so opening it twice does not mean waiting twice.
+  // The notification list beside it opens from _notifCache and asks the relays only when
+  // Refresh is pressed; this tab re-queried on every open, "Looking for your polls…" and
+  // all, because the guard that stops a second fill lives inside one open sheet and dies
+  // with it. Counts move as votes arrive, so this is a starting picture rather than an
+  // answer: the rows paint from it at once and the query behind them corrects it in place.
+  const _pollListCache = new Map(); // pubkey → { polls: Event[], counts: Map<id, string> }
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
   // Set while the notification modal is open, so a live event arriving in the
@@ -5159,7 +5166,12 @@
   function loadOwnPollIds(pubkey, relays) {
     if (_ownPollIdsPromises.has(pubkey)) return _ownPollIdsPromises.get(pubkey);
     const p = (async () => {
-      const ids = new Set();
+      // ONE SET PER ACCOUNT, ADDED TO RATHER THAN REPLACED. A poll posted from this panel
+      // is seeded here the moment it is signed, before any relay can be asked about it, and
+      // a relay that has not caught up yet answers this query without it. Replacing the set
+      // would then take the tab away from the poll you just watched go out.
+      const ids = _ownPollIds.get(pubkey) || new Set();
+      _ownPollIds.set(pubkey, ids);
       try {
         const evs = await poolQuerySync(relays, { kinds: [POLL_KIND], authors: [pubkey], limit: 50 });
         (evs || [])
@@ -5167,11 +5179,28 @@
           .slice(0, 50)
           .forEach((e) => ids.add(e.id));
       } catch (_) {}
-      _ownPollIds.set(pubkey, ids);
       return ids;
     })();
     _ownPollIdsPromises.set(pubkey, p);
     return p;
+  }
+
+  // A poll this panel just published, known before any relay can confirm it. The bell's
+  // Polls tab is gated on this set, so without this your first poll of a session leaves no
+  // way back to its tally once the post banner times out sixty seconds later. It also puts
+  // the new id in the vote filter, which is built from this same set.
+  function rememberOwnPoll(pubkey, id) {
+    if (!pubkey || !id) return;
+    const ids = _ownPollIds.get(pubkey) || new Set();
+    ids.add(id);
+    _ownPollIds.set(pubkey, ids);
+  }
+
+  // Drop the memo so the next load asks the relays again, for a poll posted somewhere else
+  // while this panel stayed open. The set survives: loadOwnPollIds adds to it rather than
+  // replacing it, so nothing already known goes missing while that query is in flight.
+  function forgetOwnPollQuery(pubkey) {
+    _ownPollIdsPromises.delete(pubkey);
   }
 
   // Close the live notification subscriptions for every account except `keepPubkey`.
@@ -5214,7 +5243,7 @@
       // the first event and the repost/quote filters below are ready. Cap the
       // wait so a slow relay can't stall notifications — the fetches keep
       // running and mutes prune the cache once it lands.
-      const [, ownIds, ownPollIds] = await Promise.all([
+      const [, ownIds] = await Promise.all([
         Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
         Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
         Promise.race([loadOwnPollIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
@@ -5267,8 +5296,13 @@
       // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
       // own notes — matched by id so they're caught even without a `p` tag.
       const ownIdList = [...ownIds];
-      const ownPollIdList = [...ownPollIds];
       function buildFilters(sinceTs, limit) {
+        // POLL IDS ARE READ HERE, NOT FROZEN WHEN THE SUBSCRIPTION STARTED. A poll posted
+        // afterwards is in the set by the time this runs again (rememberOwnPoll), and the
+        // refresh below builds its filters through this function, so the next ask names it.
+        // A snapshot meant votes on a poll posted this session were collected by the `#p`
+        // route alone, which is the route NIP-88 does not require any client to take.
+        const ownPollIdList = [...(_ownPollIds.get(a.pubkey) || [])];
         // 1111 is a NIP-22 comment (e.g. on a web page). Included so a mention inside
         // one reaches you: Sidecar writes p tags on comments now, and not querying
         // them would leave it a client that can send a mention but never receive one.
@@ -5941,6 +5975,11 @@
         refreshBtn.disabled = true;
         refreshBtn.classList.add('spinning');
         try {
+          // Ask about this account's polls again first, so a poll posted from another
+          // client joins the vote filter that refetch is about to build. Votes on it are
+          // otherwise only reachable through `#p`, which NIP-88 does not require.
+          forgetOwnPollQuery(a.pubkey);
+          await loadOwnPollIds(a.pubkey, await relayUrls(false));
           const cached = _notifCache.get(a.pubkey);
           // No refetch on the cache means the subscriptions never started for this
           // account (no relays at the time, say), so start them.
@@ -7035,7 +7074,7 @@
     modal.innerHTML = '';
     // Both per-modal variants reset here, or the last one to open leaks into the next:
     // a composer would leave every later dialog 620px wide.
-    modal.classList.remove('modal-sheet', 'compose-modal', 'has-back'); // opt back in per modal
+    modal.classList.remove('modal-sheet', 'compose-modal'); // opt back in per modal
     // And the dismiss guard, for the same reason a class is: a stale one would make an
     // unrelated dialog refuse to close.
     _modalDismissGuard = null;
@@ -7114,6 +7153,23 @@
     const el = document.createElement(tag);
     if (props) Object.assign(el, props);
     (children || []).forEach((c) => el.append(c));
+    return el;
+  }
+
+  // A LABEL THAT IS WAITING ON THE NETWORK, shimmered for as long as it is.
+  //
+  // .t-shimmer's ::before layer paints itself from attr(data-text), so the attribute has to
+  // mirror the text exactly. Writing both here is what stops the two drifting, which is the
+  // one failure that snippet warns about, and h() cannot do it: it runs Object.assign, so a
+  // data-text prop would set a JS expando and attr() would find nothing.
+  //
+  // Passing waiting=false clears the class AND the attribute, or a number that has landed
+  // would go on sweeping as though it were still being counted.
+  function setWaiting(el, text, waiting) {
+    el.textContent = text;
+    el.classList.toggle('t-shimmer', !!waiting);
+    if (waiting) el.dataset.text = text;
+    else delete el.dataset.text;
     return el;
   }
 
@@ -9461,7 +9517,6 @@
     view.append(lud16Notice);
     maybeSuggestLud16(lud16Notice, active, content);
 
-    renderPollsSection(view, active);
     renderNip65Section(view, active);
     renderBackupSection(view, active);
   }
@@ -11591,6 +11646,13 @@
       pollAdd.addEventListener('click', () => {
         draft.poll = newPollDraft();
         paintPoll();
+        // Turning a note into a poll RAISES the bar for posting: a note needs text or an
+        // image, a poll needs its question and two filled options. Post was already enabled
+        // under the note rule, and without this it stayed that way, so typing a question,
+        // tapping here and tapping Post published a kind:1068 carrying no options at all.
+        // Nothing downstream re-checks; the click handler only asks whether Post is
+        // disabled. Remove poll has always done this, which is the tell.
+        updatePostState();
         scheduleSave();
         const first = pollWrap.querySelector('.poll-option-input');
         if (first) first.focus();
@@ -11826,6 +11888,9 @@
     async function finishPublish() {
       try {
         const signed = await doPublish();
+        // Before the banner, because the banner is the only other way back to this tally
+        // and it dismisses itself after a minute.
+        if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id);
         published = true;
         clearComposeDraft(dkey);
         closeModal();
@@ -12351,43 +12416,75 @@
     state = await call({ type: 'SIDECAR_GET_STATE' });
   }
 
-  // ---- Your polls (Profile) ----
+  // ---- The list of polls this account has posted ----
   //
-  // A poll nobody has voted on yet produces no notification, so without a list there is
-  // no way back to it: you would be waiting for a vote to find out whether you had any.
-  // The Profile tab's section. The list itself is fillPollsList, because the bell opens
-  // the same list in a sheet and two copies of it would drift.
-  async function renderPollsSection(view, active) {
-    const setting = h('div', { className: 'setting polls-setting' });
-    setting.append(
-      h('h3', { textContent: 'Your polls' }),
-      h('p', {
-        className: 'hint',
-        textContent: 'Polls you have posted, with their counts. Tap one for the full tally.',
-      })
-    );
-    const list = h('div', { className: 'list flat' });
-    setting.append(list);
-    view.append(setting);
-    await fillPollsList(list, active.pubkey);
-  }
-
-  // `opts.openPoll` is how a row opens, so a caller that took the panel from somewhere can
-  // hand the reader a way back to it. `opts.onCount` gets the real number of polls as soon
-  // as the rows are built, for whoever is showing a count of them elsewhere.
+  // A poll nobody has voted on yet produces no notification, so without a list there is no
+  // way back to it: you would be waiting for a vote to find out whether you had any. The
+  // bell's Polls tab is where that list lives, and this fills it.
   //
-  // Profile passes neither: closing a tally there lands on the Profile tab, which is where
-  // the reader already was, and nothing outside the section counts them.
-  async function fillPollsList(list, pubkey, opts) {
-    const openPoll = opts && opts.openPoll;
-    const onCount = opts && opts.onCount;
-    list.innerHTML = '';
-    // .empty drops the flat list's card chrome, which is the thing that draws a capsule
-    // around one line of text. A line saying what the panel is doing is not a row, and
-    // boxed it reads as a result that has arrived rather than as waiting for one.
-    list.classList.add('empty');
-    list.append(h('p', { className: 'hint', textContent: 'Looking for your polls…' }));
+  // `openPoll` is how a row opens, so the caller that took the panel over can hand the
+  // reader a way back to where they were. `onCount` gets the real number of polls as soon
+  // as the rows are built, for the count on the tab's own label.
+  async function fillPollsList(list, pubkey, { openPoll, onCount }) {
     const active = { pubkey };
+    const cached = _pollListCache.get(pubkey);
+
+    // ONE RENDERER FOR BOTH PASSES, so a list drawn from cache and a list drawn from the
+    // relays cannot differ in anything but their numbers. Returns the count cells by poll
+    // id, which is what the vote query fills in.
+    const paint = (polls, counts) => {
+      list.innerHTML = '';
+      if (!polls.length) {
+        list.classList.add('empty');
+        list.append(
+          h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
+        );
+        return new Map();
+      }
+      list.classList.remove('empty'); // rows are what the card was drawn for
+      const cells = new Map();
+      polls.forEach((ev) => {
+        // The row's own waiting state: a cached count paints as itself, an unknown one
+        // shimmers until the vote query answers for it.
+        const known = counts.get(ev.id);
+        const count = setWaiting(h('span', { className: 'poll-row-count' }), known || '…', !known);
+        const ends = h('span', { className: 'poll-row-ends', textContent: pollEndsText(pollEndsAt(ev)) });
+        const row = h('div', { className: 'item poll-row', role: 'button', tabIndex: 0 });
+        row.append(
+          h('div', { className: 'poll-row-main' }, [
+            h('div', { className: 'poll-row-q', textContent: ev.content || '(no question)' }),
+            h('div', { className: 'poll-row-meta' }, [ends, document.createTextNode(' · '), count]),
+          ])
+        );
+        const open = () => openPoll(ev);
+        row.addEventListener('click', open);
+        row.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          open();
+        });
+        cells.set(ev.id, count);
+        list.append(row);
+      });
+      return cells;
+    };
+
+    let rows = null;
+    if (cached) {
+      // Straight to rows, with last time's numbers already in them. The query below still
+      // runs and still corrects them; what it no longer does is make you watch it.
+      rows = paint(cached.polls, cached.counts);
+      onCount(cached.polls.length);
+    } else {
+      list.innerHTML = '';
+      // .empty drops the flat list's card chrome, which is the thing that draws a capsule
+      // around one line of text. A line saying what the panel is doing is not a row, and
+      // boxed it reads as a result that has arrived rather than as waiting for one.
+      list.classList.add('empty');
+      // Shimmered, because this line can sit there for the eight seconds the poll query is
+      // allowed and a static one reads as a result rather than as work in progress.
+      list.append(setWaiting(h('p', { className: 'hint' }), 'Looking for your polls…', true));
+    }
 
     let polls = [];
     try {
@@ -12398,58 +12495,41 @@
           { maxWait: 8000 }
         )) || [];
     } catch (_) {}
-    if (!list.isConnected) return; // the profile repainted or the account switched
+    if (!list.isConnected) return; // the sheet closed or the account switched
 
     // OPEN ONES FIRST, newest first within each group. By created_at alone a poll still
     // taking votes sits wherever it was posted, under everything written since, and a poll
-    // that is running is the one you came to look at, from the bell's tab or from Profile.
-    // Both surfaces are this function, so both get it.
+    // that is running is the one you opened the tab to look at.
     polls.sort((x, y) => {
       const xEnded = pollHasEnded(pollEndsAt(x));
       const yEnded = pollHasEnded(pollEndsAt(y));
       if (xEnded !== yEnded) return xEnded ? 1 : -1;
       return y.created_at - x.created_at;
     });
-    list.innerHTML = '';
+
+    // REDRAW ONLY IF THE SET MOVED. A rebuild replaces every node and puts the pane back
+    // at the top, which is a strange thing to happen under a reader's thumb when the only
+    // news is a number. Same polls in the same order means the cells already on screen are
+    // the right cells, and the vote query below writes straight into them.
+    const counts = (cached && cached.counts) || new Map();
+    const sameSet =
+      rows &&
+      cached.polls.length === polls.length &&
+      polls.every((ev, i) => cached.polls[i].id === ev.id);
+    if (!sameSet) rows = paint(polls, counts);
+    // The moment the rows exist, not after the vote query below: the count is a fact about
+    // this list, and it would be odd for the rows to be on screen under a number that
+    // still disagrees with them for the eight seconds that query is allowed.
+    onCount(polls.length);
     if (!polls.length) {
-      list.append(
-        h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
-      );
-      if (onCount) onCount(0);
+      _pollListCache.set(pubkey, { polls, counts: new Map() });
       return;
     }
-    list.classList.remove('empty'); // rows are what the card was drawn for
 
     // ONE QUERY FOR EVERY POLL'S VOTES, not one per poll. Twenty round trips to fill in
     // twenty counts is the kind of thing that makes a tab feel broken on a slow relay.
     // Correctness is unaffected: each poll's own endsAt is applied by tallyPollVotes,
     // so a vote is still only counted against a poll that was open when it was cast.
-    const rows = new Map();
-    polls.forEach((ev) => {
-      const count = h('span', { className: 'poll-row-count', textContent: '…' });
-      const ends = h('span', { className: 'poll-row-ends', textContent: pollEndsText(pollEndsAt(ev)) });
-      const row = h('div', { className: 'item poll-row', role: 'button', tabIndex: 0 });
-      row.append(
-        h('div', { className: 'poll-row-main' }, [
-          h('div', { className: 'poll-row-q', textContent: ev.content || '(no question)' }),
-          h('div', { className: 'poll-row-meta' }, [ends, document.createTextNode(' · '), count]),
-        ])
-      );
-      const open = () => (openPoll ? openPoll(ev) : openPollResults(ev));
-      row.addEventListener('click', open);
-      row.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        e.preventDefault();
-        open();
-      });
-      rows.set(ev.id, count);
-      list.append(row);
-    });
-    // The moment the rows exist, not after the vote query below: the count is a fact about
-    // this list, and it would be odd for the rows to be on screen under a number that
-    // still disagrees with them for the eight seconds that query is allowed.
-    if (onCount) onCount(polls.length);
-
     let votes = [];
     try {
       const urls = [
@@ -12467,12 +12547,18 @@
           )) || [];
       }
     } catch (_) {}
+    // The cache is written even if the sheet has gone, since the answer is about the
+    // account rather than about this list, and it is what the next open paints from.
+    const fresh = new Map();
+    polls.forEach((ev) => {
+      const { voters } = tallyPollVotes(ev, votes);
+      fresh.set(ev.id, voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes');
+    });
+    _pollListCache.set(pubkey, { polls, counts: fresh });
     if (!list.isConnected) return;
     polls.forEach((ev) => {
       const cell = rows.get(ev.id);
-      if (!cell) return;
-      const { voters } = tallyPollVotes(ev, votes);
-      cell.textContent = voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes';
+      if (cell) setWaiting(cell, fresh.get(ev.id), false); // landed: stop sweeping
     });
   }
 
@@ -12498,8 +12584,10 @@
   // The one place Sidecar renders somebody else's events rather than handing off to a
   // web client. It earns the exception: a tally is a number that has to be computed
   // from every vote, and "open this elsewhere to find out" is not an answer to "how did
-  // my poll go". It stays deliberately narrow all the same. Counts and bars, no voter
-  // list, no avatars, no thread, and a link out for anything richer.
+  // my poll go". It stays deliberately narrow all the same: counts, bars, and who picked
+  // each one, with no thread and a link out for anything richer. The voter list earns its
+  // place for the same reason the tally does, since a name is the other half of a result,
+  // and it reads only what anyone holding the poll can already read.
 
   // WHERE A POLL IS READ BACK FROM HAS TO INCLUDE WHERE IT WAS SENT.
   //
@@ -12508,7 +12596,7 @@
   // a regular event published to postRelays, which is the NIP-65 WRITE set, and those
   // two lists are allowed to be completely disjoint. Reading a poll back from the read
   // set alone therefore found nothing on exactly the accounts that declare a real
-  // NIP-65 split, and Your polls came up empty while the poll was sitting on the
+  // NIP-65 split, and the poll list came up empty while the poll was sitting on the
   // relays it had just been published to.
   async function pollReadRelays(pubkey) {
     const [read, write] = await Promise.all([readRelayUrls(pubkey), relayUrls(true)]);
@@ -12776,7 +12864,6 @@
       // both the way back to that sheet and the way out of the whole stack. Icon buttons
       // in the corners rather than words in the actions column: the column is where the
       // things you do to this poll live, and neither of these is one of those.
-      modal.classList.toggle('has-back', !!returnTo);
       const xBtn = h('button', { className: 'modal-x', type: 'button', title: 'Close' });
       xBtn.append(icon('x'));
       xBtn.addEventListener('click', () => { dismissAll = true; closeModal(); });
@@ -12791,7 +12878,7 @@
       modal.append(h('h3', { textContent: 'Poll results' }));
       const question = h('p', { className: 'poll-result-question' });
       const body = h('div', { className: 'poll-result-body' });
-      body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
+      body.append(setWaiting(h('p', { className: 'hint' }), 'Counting votes…', true));
       const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
       const openOut = h('button', { className: 'ghost hidden' });
       const actions = h('div', { className: 'actions' }, [recount, openOut]);
@@ -12804,7 +12891,7 @@
         try {
           if (!pollEv) {
             body.innerHTML = '';
-            body.append(h('p', { className: 'hint', textContent: 'Fetching the poll…' }));
+            body.append(setWaiting(h('p', { className: 'hint' }), 'Fetching the poll…', true));
             pollEv = await loadPollEvent(typeof poll === 'string' ? poll : poll.id, relayHints);
           }
           if (!pollEv) {
@@ -12831,7 +12918,7 @@
             openOut.onclick = () => openInClient(url);
           } catch (_) {}
           body.innerHTML = '';
-          body.append(h('p', { className: 'hint', textContent: 'Counting votes…' }));
+          body.append(setWaiting(h('p', { className: 'hint' }), 'Counting votes…', true));
           const votes = await fetchPollVotes(pollEv);
           if (!body.isConnected) return;
           paintPollResults(body, pollEv, votes, client);

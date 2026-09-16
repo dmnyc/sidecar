@@ -231,6 +231,59 @@ button, input, select, textarea { font-family: inherit; }
 .hint.compact:last-of-type { margin-bottom: 8px; }
 .hint code { background: rgba(var(--border-rgb), 0.12); padding: 1px 6px; border-radius: 5px; color: var(--lav); font-family: var(--font-mono); }
 
+/* Shimmer text (transitions.dev #15), for a label waiting on relays. Two layers: the text
+   renders normally, and ::before duplicates it through attr(data-text), clips a sweeping
+   gradient to the same glyphs, and animates that gradient's position. Pure CSS, so there
+   is no state to toggle and nothing to clean up when the label is replaced.
+
+   The two colors are declared HERE rather than on :root, where the snippet puts them,
+   because :root is also where the themes set --muted and --text. A var() inside a custom
+   property resolves against the element the property is declared on, so hoisting these
+   would pin all twelve themes to whatever :root happened to hold. On the element they
+   inherit, which is also why this needs no per-theme rule to keep in step.
+
+   inline-block is what makes the box hug the glyphs, so the label is shrink-to-fit rather
+   than the full width of its row. */
+.t-shimmer {
+  --shimmer-dur: 2000ms;
+  --shimmer-base: var(--muted);
+  --shimmer-highlight: var(--text);
+  --shimmer-band: 400%;
+  --shimmer-ease: linear;
+  position: relative;
+  display: inline-block;
+  color: var(--shimmer-base);
+}
+.t-shimmer::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    transparent          0%,
+    transparent         40%,
+    var(--shimmer-highlight) 50%,
+    transparent         60%,
+    transparent        100%
+  );
+  background-size: var(--shimmer-band) 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: t-shimmer var(--shimmer-dur) var(--shimmer-ease) infinite;
+}
+@keyframes t-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: 0% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-shimmer::before { animation: none !important; }
+}
+
 label { color: var(--muted); }
 
 input, select, textarea {
@@ -1078,10 +1131,14 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    the close box on purpose: they are a pair, and an arrow drawn smaller than the X beside
    it would read as the lesser of the two when it is the one people reach for. */
 .modal-back { left: 12px; right: auto; }
-/* A heading has to clear whatever is parked in the corner above it. Right on every sheet,
-   since they all carry a close box; left only where a back arrow was added. */
-.modal-sheet > h3 { padding-right: 34px; }
-.modal-sheet.has-back > h3 { padding-left: 34px; }
+/* A heading has to clear whatever is parked in the corner above it, and it sits centered
+   between the two. Both corners are reserved whether or not a back arrow is there, which
+   is what puts the title on the sheet's midline: the buttons are inset 12px and 30px wide,
+   so 34px a side centers it exactly between them. Reserving only the occupied corner would
+   mean a tally opened from the bell and the same tally opened from the banner after
+   posting put their heading in two different places, and left-aligned it sat 34px in from
+   the copy below it, which is a third position belonging to nothing. */
+.modal-sheet > h3 { padding-left: 34px; padding-right: 34px; text-align: center; }
 
 /* filled lightning bolt (wordswithzaps bolt), inline with text */
 .bolt-ico { height: 0.92em; width: auto; display: inline-block; vertical-align: -0.1em; }
@@ -4642,8 +4699,16 @@ button.poll-bar-head {
 .poll-bar-picked > svg { color: var(--lav); }
 /* The label truncates and the count does not. The count is the answer, and it is three
    or four characters; letting it shrink to fit a long option would hide the one thing
-   the sheet exists to show. */
+   the sheet exists to show.
+
+   AND IT TAKES THE FREE SPACE, which is what keeps it against the chevron. The head is
+   space-between, written when it held two children and pinned one to each edge. A row that
+   can be opened now holds three, so the spare width went into TWO gaps, one either side of
+   a content-sized label, and every option title sat centered in whatever room was left:
+   the shorter the label, the further in it started. text-align is already left here and
+   fixes nothing, because the box hugged the text and it was the box being centered. */
 .poll-bar-label {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4659,6 +4724,12 @@ button.poll-bar-head {
 }
 .poll-bar-track {
   height: 8px;
+  /* A bar reads the same thickness open or closed. An open row is a flex column, and a
+     track whose only child is height: 100% has an automatic minimum size of zero, so it is
+     the one item in that column that can collapse below its 8px when the voter list asks
+     for room. The list is what gives way; the bar is the number and must not. Inert while
+     the row is closed, where this is not a flex item at all. */
+  flex-shrink: 0;
   border-radius: 4px;
   background: var(--bg-2);
   overflow: hidden;
@@ -4674,7 +4745,7 @@ button.poll-bar-head {
 .poll-bar-won .poll-bar-label { color: var(--gold); }
 .poll-bar-won .poll-bar-count { color: var(--gold); }
 
-/* Your polls, in Profile. */
+/* A row in the bell's Polls tab. */
 .poll-row { cursor: pointer; }
 .poll-row-main { min-width: 0; flex: 1; }
 .poll-row-q {
