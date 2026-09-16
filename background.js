@@ -46,6 +46,12 @@ function resolveSettings(sidecar_settings) {
   return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
 }
 
+// NIP-13 difficulty, as the four rungs the panel offers. Mirrored from POW_LEVELS in
+// sidepanel.js and pinned to it by test, because this is the copy that decides what gets
+// STORED and the panel's is only what gets drawn.
+const POW_BITS = [16, 18, 20, 22];
+const POW_DEFAULT_BITS = 18;
+
 // ---- storage helpers ----
 function sget(keys) {
   return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
@@ -3352,6 +3358,28 @@ async function handleControl(message, sender, sendResponse) {
       // Absent means "use the global theme", so an account that has never picked one
       // follows the global and changing the global still moves everyone who has not
       // chosen for themselves.
+      // PROOF OF WORK IS PER ACCOUNT, in a pubkey-keyed map for the same reason the two
+      // below are: SIDECAR_SET_SETTINGS merges shallowly, so a panel sending the whole map
+      // would clobber another account's choice and two panels racing would lose one.
+      //
+      // It has to be per account because what it costs is a judgment about one identity.
+      // A public account that relays throttle is worth 22 bits a post; the account used
+      // twice a week is not, and one global number cannot be right for both.
+      //
+      // ABSENT MEANS OFF, and the bits are the whole value: there is no separate enabled
+      // flag to fall out of step with the level. Pinned to the four rungs here rather than
+      // only where the chip is drawn, because this is the number the miner then trusts and
+      // an arbitrary one is a mine that either costs nothing or never finishes.
+      case 'SIDECAR_SET_POW': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.powBy || {}) };
+        const bits = Number(message.bits);
+        if (POW_BITS.includes(bits)) map[message.pubkey] = bits;
+        else delete map[message.pubkey];
+        await sset({ sidecar_settings: { ...prev, powBy: map } });
+        result = { ok: true };
+        break;
+      }
       case 'SIDECAR_SET_THEME_FOR': {
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         const map = { ...(prev.themeBy || {}) };

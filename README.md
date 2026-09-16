@@ -53,6 +53,8 @@ Connect) and a composer for posting notes directly from the panel.
   - **Nostr event embeds** — paste a `note1`, `nevent1`, or `naddr1` entity and the preview renders a fetched embed card (author, timestamp, content excerpt).
   - **Link previews** — plain URLs show an OG meta card (title, description, thumbnail) fetched through the extension with no third-party service.
   - **Media upload** — attach images and video; uploads go to your own Blossom servers (from your kind:10063 list) when available, falling back to nostr.build.
+  - **Polls (NIP-88):** post a poll instead of a note. The text you write becomes the question, and the block below it holds the choices, whether more than one can be picked, and how long it runs. A day by default, from an hour to thirty days, or no end date at all. The tally reads back in the panel rather than sending you elsewhere: every option with its count and its share, who picked which, and the winner once it closes.
+  - **Proof of work (NIP-13):** optionally mine a nonce into what you post. Off by default and set per account, at 16, 18, 20 or 22 bits, each rung four times the work of the one below it. Mining runs off the panel's thread so nothing freezes, says how long it has been going and how close it has come, and can be stopped. A stopped or failed post goes back to being a draft with its text intact.
   - **Client tag, your call** — posts carry a `client` tag attributing them to Sidecar; turn it off in Settings to post untagged.
 - **Notifications** — a bell in the header shows replies, mentions, reposts, reactions, and zaps for the active account — each with the sender's name, a content preview, and a tap-through that opens the note in your preferred client. Replies and comments can be answered without leaving the panel: the composer opens with what you're answering held above the editor, through the preview and the review countdown both, and follows NIP-10 for notes and NIP-22 for page comments. Each notification also carries a row of actions: reply, repost or quote, react with any emoji, zap, and bookmark. A web-of-trust sort puts your follows (and anyone ten of them follow) first, gathering everyone else into a counted group at the bottom rather than hiding them — a denylist can't outrun key rotation, but an allowlist that hides is how you miss the one reply that mattered. Muted users (public and private mute lists) are filtered out.
 - **Lightning wallet (NWC)** — connect any self-custody Lightning wallet over Nostr Wallet Connect. Send (BOLT11 or lightning address via LNURL-pay), receive (invoice or your lightning address, with a QR — also surfaced as a card on the wallet page), view live balance (auto-updating via NIP-47 notifications) and paginated history, and back up the connection to your relays — or export it (PIN-gated, with a QR) to move it to another app. New to Lightning? Built-in **wallet suggestions** point you to NWC-capable options. Sidecar never holds your funds.
@@ -172,20 +174,24 @@ dedicated, named support for:
 | [09](https://nips.nostr.com/9) | Event Deletion Request | Recognized and flagged in the signing prompt |
 | [10](https://nips.nostr.com/10) | Text Notes and Threads | Reply/mention recognition in notifications |
 | [11](https://nips.nostr.com/11) | Relay Information Document | Relay icons and health verdicts in the relay editor |
+| [13](https://nips.nostr.com/13) | Proof of Work | Optional mined nonce on the notes you post, per account, at 16/18/20/22 bits |
 | [18](https://nips.nostr.com/18) | Reposts | Repost and quote-repost recognition |
 | [19](https://nips.nostr.com/19) | bech32-encoded entities | npub/nsec/note/nevent/naddr encode & decode throughout |
 | [21](https://nips.nostr.com/21) | `nostr:` URI scheme | Mention/embed rendering in the composer |
 | [22](https://nips.nostr.com/22) | Comment | Commenting on any web page, and replying to those comments from notifications |
 | [25](https://nips.nostr.com/25) | Reactions | Reaction notifications |
 | [27](https://nips.nostr.com/27) | Text Note References | Inline `nostr:` mention rendering |
+| [38](https://nips.nostr.com/38) | User Statuses | Setting, showing and clearing your own kind:30315 status |
 | [42](https://nips.nostr.com/42) | Authentication of clients to relays | Relay AUTH challenges answered for the account's own relays, for reads as well as writes |
 | [44](https://nips.nostr.com/44) | Encrypted Payloads (Versioned) | `nip44.encrypt`/`.decrypt` NIP-07 methods; preferred encryption for backups and mute lists |
 | [47](https://nips.nostr.com/47) | Nostr Wallet Connect | The built-in Lightning wallet |
 | [49](https://nips.nostr.com/49) | Private Key Encryption (`ncryptsec`) | Password-encrypted key import/export |
-| [51](https://nips.nostr.com/51) | Lists | Mute list handling |
+| [51](https://nips.nostr.com/51) | Lists | Mute list handling; bookmarking a note to your kind:10003 list |
 | [57](https://nips.nostr.com/57) | Lightning Zaps | Zap notifications, automatic zaps |
 | [65](https://nips.nostr.com/65) | Relay List Metadata | Outbox relay list editor |
+| [73](https://nips.nostr.com/73) | External Content IDs | The `web` target a page comment is scoped to |
 | [78](https://nips.nostr.com/78) | Application-specific Data | Encrypted profile/follows/mutes/wallet backups |
+| [88](https://nips.nostr.com/88) | Polls | Posting a poll (kind:1068), and counting the votes (kind:1018) on your own |
 | [89](https://nips.nostr.com/89) | Recommended Application Handlers | `client` tag on posts |
 | [98](https://nips.nostr.com/98) | HTTP Auth | Upload auth for Blossom and nostr.build |
 | [Blossom](https://github.com/hzrd149/blossom) (BUD-02) | Blob upload | Media uploads to a user's own Blossom servers, from their kind:10063 list |
