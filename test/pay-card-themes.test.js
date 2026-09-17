@@ -54,16 +54,27 @@ test('no palette entry exists without being selectable', () => {
   }
 });
 
+// Read off the stylesheets rather than listed here, so a hole opened in either one is
+// covered the day it is added. It was a hand-written list before, which meant the guard
+// was only ever as current as whoever last remembered to extend it: the in-flight
+// indicator's {CARD_SUCCESS} went into PILL_CSS without this file knowing PILL_CSS
+// existed, and got away with it purely because the card happened to use the same key.
+function interpolatedKeys() {
+  const keys = new Set();
+  for (const name of ['PILL_CSS', 'CARD_CSS']) {
+    const start = src.indexOf('const ' + name + ' =');
+    if (start === -1) throw new Error(name + ' not found in content.js');
+    const sheet = src.slice(start, src.indexOf("';", src.indexOf('}', start)));
+    for (const m of sheet.matchAll(/\{(CARD_\w+)\}/g)) keys.add(m[1]);
+  }
+  return [...keys];
+}
+
 test('each palette carries every CARD_* key the css interpolates', () => {
-  const required = [
-    'CARD_COLOR', 'CARD_BORDER', 'CARD_BACKGROUND', 'CARD_MUTED', 'CARD_GOLD',
-    'CARD_TEXT_2', 'CARD_LAV', 'CARD_PAY_TEXT', 'CARD_PAY_BG', 'CARD_CANCEL_BG',
-    'CARD_TEXT', 'CARD_BORDER_FAINT', 'CARD_TOGGLE_OFF', 'CARD_TRACK',
-    'CARD_THUMB_OFF', 'CARD_WARN', 'CARD_SUCCESS', 'CARD_PAY_SHADOW',
-  ];
-  // Read the real list off CARD_CSS so a future interpolation site can't be missed:
-  // every template hole in the stylesheet must be one of these (or the shared few
-  // added here), and each theme must supply them all.
+  const required = interpolatedKeys();
+  // A floor, so an accidentally narrowed scan reads as a pass. The two stylesheets
+  // between them have never held fewer holes than this.
+  assert.ok(required.length >= 18, 'only found ' + required.length + ' interpolation holes');
   for (const e of themeColorEntries()) {
     for (const k of required) {
       assert.ok(e.body.includes(k + ':'),

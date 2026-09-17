@@ -566,9 +566,18 @@
   // coexist. Each toast owns its dismissal timer so replacing one can cancel it —
   // otherwise the outgoing toast's timer would later remove its replacement.
   const _toastTimers = new WeakMap();
+  // 'progress' is the third kind and the odd one: it does NOT expire, and the caller is
+  // expected to close it when whatever it describes finishes. It exists because a panel
+  // payment has no other in-flight surface. The page gets a corner indicator from the
+  // content script, and the panel's own bottom-right corner belongs to the compose FAB,
+  // so the toast stack is the one place a "still happening" line can live here.
+  //
+  // Returns the element either way, with .close() on it, so a caller holding a progress
+  // toast can retire it through the same fade the timer would have used.
   function toast(message, type) {
     const host = document.getElementById('toasts');
-    const cls = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+    const holds = type === 'progress';
+    const cls = 'toast toast-' + (type === 'error' ? 'error' : holds ? 'progress' : 'success');
     // Same text AND same kind — an error and a success reading alike are still two
     // different outcomes and shouldn't silently collapse into one.
     for (const prev of host.querySelectorAll('.toast')) {
@@ -581,7 +590,8 @@
     const t = document.createElement('div');
     t.className = cls;
     t.dataset.msg = message;
-    t.appendChild(icon(type === 'error' ? 'alert' : 'check'));
+    if (holds) t.appendChild(h('span', { className: 'toast-spin' }));
+    else t.appendChild(icon(type === 'error' ? 'alert' : 'check'));
     const span = document.createElement('span');
     span.textContent = message;
     t.appendChild(span);
@@ -593,8 +603,11 @@
       const cur = _toastTimers.get(t);
       if (cur) cur.remove = rm;
     };
-    const hide = setTimeout(dismiss, 3200);
+    // No clock on a progress toast. Tapping it still works, which is the way out for
+    // someone who does not want it sitting there for the length of a slow payment.
+    const hide = holds ? null : setTimeout(dismiss, 3200);
     _toastTimers.set(t, { hide, remove: null });
+    t.close = dismiss;
     // A tap dismisses immediately: 3.2s is a long time to wait out a toast that
     // is sitting on something you want, and there was no way out at all. Runs
     // the timer's own exit (fade, then remove) rather than yanking the node, so
@@ -2019,6 +2032,11 @@
         send.disabled = true;
         const label = send.textContent;
         send.textContent = 'Sending…';
+        // The panel path people actually reach. This sheet is dismissible mid-zap, so a
+        // disabled button inside it was never an in-flight indicator: close the sheet and
+        // there was nothing at all until the toast. Same progress toast the Send modal
+        // uses, started once the invoice exists and the payment is genuinely going out.
+        let flight = null;
         try {
           const client = await ensureNwc();
           if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
@@ -2028,6 +2046,7 @@
             comment: note.value.trim(),
             recipientPubkey: pubkey,
           });
+          flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
           const res = await client.payInvoice(invoice);
           // NWC history keeps the amount and nothing else, so an outgoing zap
           // rendered as a bare "Sent" with no counterparty. Both the other payment
@@ -2045,12 +2064,19 @@
             comment: note.value.trim(),
             feeMsat: res && res.fees_paid,
           });
+          flight.close();
           lightningStrike(); // only once it settles
           toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
           note.value = '';
         } catch (e) {
+          // Toasted as well as written inline, for the same reason the Send modal does it:
+          // this sheet is dismissible mid-payment, and zapErr goes with it. Success
+          // already toasted, so without this a zap that worked was announced and a zap
+          // that failed was silent, which is the wrong way round.
+          if (flight) flight.close();
+          toast(e.message, 'error');
           zapErr.textContent = e.message;
         } finally {
           send.disabled = false;
@@ -2151,7 +2177,7 @@
 
       // Cache first so the sheet is never empty on open, then the network.
       if (cached && cached.content) paint(cached.content);
-      relayUrls(false).then((relays) => poolGet(relays, { kinds: [0], authors: [pubkey] })).then((ev) => {
+      relayUrls(false).then((relays) => poolGetProfile(relays, pubkey)).then((ev) => {
         if (!ev || !modal.isConnected) return;
         try { const c = JSON.parse(ev.content) || {}; cacheProfile(pubkey, c); paint(c); } catch (_) {}
       }).catch(() => {});
@@ -3020,6 +3046,24 @@
   const poolSubscribeMany = (relays, filters, params) => getPool().subscribeMany(relays, filters, withAuth(params));
   const poolSubscribeManyEose = (relays, filters, params) => getPool().subscribeManyEose(relays, filters, withAuth(params));
 
+  // A kind:0 for ONE pubkey, VERIFIED TO ACTUALLY BE THEIRS.
+  //
+  // get() resolves with whatever the first relay hands back, and a relay is not obliged to
+  // honor the filter it was sent. Nothing downstream used to check: every caller filed the
+  // content it received under the key it had ASKED for, so a single loose or crossed
+  // answer became that person's identity everywhere the shared profile cache reaches. That
+  // is a wrong name beside an amount of money in the wallet list, a wrong face on a
+  // notification, a wrong display name written to disk for an account, and worst of all a
+  // wrong LIGHTNING ADDRESS resolved for whoever is about to be zapped.
+  //
+  // The batch paths (prefetchNotifProfiles, the follow list, resolveMentions) were never
+  // exposed to this, because they index the results by ev.pubkey and then look up the key
+  // they wanted. This gives the single-author reads the same property for one comparison.
+  async function poolGetProfile(relays, pubkey, params) {
+    const ev = await poolGet(relays, { kinds: [0], authors: [pubkey] }, params);
+    return ev && ev.pubkey === pubkey ? ev : null;
+  }
+
   async function relayUrls(writableOnly) {
     const map = await call({ type: 'SIDECAR_GET_RELAYS' });
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
@@ -3128,7 +3172,7 @@
         const relays = await relayUrls(false);
         if (!relays.length) return null;
         const ev = await Promise.race([
-          poolGet(relays, { kinds: [0], authors: [pubkey] }),
+          poolGetProfile(relays, pubkey),
           new Promise((r) => setTimeout(() => r(null), 6000)),
         ]);
         let content = {};
@@ -4115,7 +4159,7 @@
       const relays = Object.keys(relayMap || {});
       if (!relays.length) return false; // nothing configured yet — try again later
       const ev = await Promise.race([
-        poolGet(relays, { kinds: [0], authors: [pubkey] }),
+        poolGetProfile(relays, pubkey),
         new Promise((res) => setTimeout(() => res(null), 6000)),
       ]);
       // No event may mean "no profile" OR "the relays were slow" — and after a vault
@@ -4640,7 +4684,7 @@
   function prefetchNotifProfile(pubkey, relays) {
     if (!notifProfileNeeded(pubkey)) return Promise.resolve();
     _notifProfileInflight.add(pubkey);
-    return poolGet(relays, { kinds: [0], authors: [pubkey] }).then((ev) => {
+    return poolGetProfile(relays, pubkey).then((ev) => {
       let name = '';
       if (ev) {
         try {
@@ -6126,7 +6170,7 @@
       // payment but can never produce a receipt, so a Zap button on it is a promise it
       // cannot keep.
       relayUrls(false)
-        .then((relays) => poolGet(relays, { kinds: [0], authors: [who] }))
+        .then((relays) => poolGetProfile(relays, who))
         .then(async (prof) => {
           if (!zapForm.isConnected) return;
           let lud = '';
@@ -10809,7 +10853,7 @@
     try {
       const hex = NT.nip19.decode(npub).data;
       const ev = await Promise.race([
-        poolGet(await relayUrls(false), { kinds: [0], authors: [hex] }),
+        poolGetProfile(await relayUrls(false), hex),
         new Promise((r) => setTimeout(() => r(null), 5000)),
       ]);
       if (!ev) return null;
@@ -18148,6 +18192,20 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
 
+      // LEAVING IS NOT CANCELLING, and the payment was never bound to this modal: it runs
+      // in the handler, and closing early breaks nothing. The first cut of this said so on
+      // a "Keep browsing" button under a block explaining that the payment was still
+      // going. Once a payment in flight had an indicator of its own there was nothing left
+      // for that sentence to tell anyone, so the modal simply leaves when the payment
+      // does, and the progress toast carries the rest.
+      //
+      // Unlike the page card, there is no approval prompt behind this: the panel holds its
+      // own NWC client and pressing Pay IS the authorization. So the moment it closes is
+      // the moment the money is genuinely moving, and nothing here has to hedge.
+      function beginFlight(sats) {
+        return toast(sats != null ? 'Sending ' + fmtSats(sats) + ' sats' : 'Sending payment', 'progress');
+      }
+
       // The recipient card: who the address resolved to, and on what terms.
       const card = h('div', { className: 'ln-recipient hidden' });
       const commentDefault = comment.placeholder;
@@ -18272,6 +18330,7 @@
         err.textContent = '';
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
+        let flight = null; // the progress toast, once the payment is past the point of return
         try {
           const client = await ensureNwc();
           let invoice = val;
@@ -18295,8 +18354,12 @@
           } else {
             return (err.textContent = 'Enter a BOLT11 invoice (lnbc…) or a lightning address.');
           }
-          pay.disabled = true;
-          pay.textContent = 'Paying…';
+          // Everything that could still fail back INTO this form has happened: a bad
+          // address, an out-of-range amount, a server that would not issue an invoice.
+          // Past here the payment is going out, so the form stops being the right place to
+          // stand and the toast takes over.
+          flight = beginFlight(isLnInvoice(val) ? bolt11Sats(val) : parseInt(amount.value, 10) || null);
+          closeModal();
           const res = await client.payInvoice(invoice);
           // Record what NWC history won't keep: who we paid, the note, the fee —
           // keyed by invoice so txRow can match it back.
@@ -18304,7 +18367,7 @@
           if (address || note || feeMsat != null) {
             await savePayMeta(invoice, { address, comment: note, feeMsat });
           }
-          closeModal();
+          flight.close();
           lightningStrike(); // only after the payment actually settles
           // Lead with the amount — "Payment sent" alone doesn't tell you what left.
           // A pasted BOLT11 carries its own amount; a lightning address took one from
@@ -18319,6 +18382,12 @@
           renderWallet();
           renderPinnedBalanceBar();
         } catch (e) {
+          // The toast is the only way a failure reaches anyone once the modal has gone,
+          // which it has for everything after beginFlight. The inline line still serves
+          // whoever is looking at a form that never got that far, and writing it costs
+          // nothing when they are not: err is detached by then, so it is a no-op.
+          if (flight) flight.close();
+          toast(e.message, 'error');
           err.textContent = e.message;
           pay.disabled = false;
           pay.textContent = 'Pay';
@@ -18332,6 +18401,7 @@
         amount,
         comment,
         err,
+        flight,
         h('div', { className: 'actions' }, [pay, cancel])
       );
     });

@@ -128,20 +128,24 @@ test('the card names itself a request, not a payment in progress', () => {
   const fn = stripComments(lift(content, 'function renderCard('));
   assert.doesNotMatch(fn, /You're paying/, 'the card announces a payment that has not happened');
   assert.match(fn, /'Request to pay'/, 'the card no longer says it is a request awaiting authorization');
-  // The auto-zap card is the exception and stays as it was: that spend is already
-  // authorized and in flight, which is the one case where interrupting is correct.
-  assert.match(fn, /auto \? 'Auto-zapping'/, 'the auto-zap card lost its own wording');
+  // It has one voice now. The auto-zap variant spoke in the present tense because that
+  // spend really was underway, and #270 moved every underway spend to the corner
+  // indicator, so nothing on this card describes a payment that is already happening.
+  assert.doesNotMatch(fn, /Auto-zapping/, 'a card announcing a payment in progress is back');
 });
 
 test('a THEME repaint does not promote a pill into a card', () => {
   // The bug this caught in testing: setCardTheme repainted "a visible card" by calling
   // renderCard on whatever was on screen, so the theme reply arriving a beat after the
-  // pill turned the pill into the full overlay. Same shape, worse, for an auto-zap card:
-  // a spend already in flight was repainted as an offer to pay it.
+  // pill turned the pill into the full overlay. Same shape, worse, for a payment already
+  // in flight: it was repainted as a fresh offer to pay it.
   const fn = stripComments(lift(content, 'function setCardTheme('));
   assert.match(fn, /shownMode === 'pill'/, 'the repaint does not look at what is showing');
   assert.match(fn, /renderPill\(shownInvoice\)/, 'a pill is repainted as something else');
-  assert.match(fn, /shownMode === 'auto'/, 'an auto card is repainted as a manual one');
+  assert.match(fn, /shownMode === 'flight'/, 'a payment in flight is repainted as an offer to pay it');
+  // And in the state it was in. Rebuilding it from scratch restarts the spinner on a
+  // payment that has already landed.
+  assert.match(fn, /if \(wasPaid && cardControls\) cardControls\.setPaid\(\);/);
 });
 
 test('the wallet gate asks about the account that would actually pay', () => {
