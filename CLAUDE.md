@@ -1,4 +1,12 @@
-# Sidecar — UI rules
+# Sidecar — repository instructions
+
+## Branch naming
+
+Use a prefix that describes the work, such as `feat/`, `fix/`, or `docs/`.
+Do not use `claude/` or `codex/` as a branch prefix in this repo: a branch is
+named for what it changes, never for what wrote it.
+
+## UI rules
 
 ## Row controls in a narrow panel (the recurring remove-button mistake)
 
