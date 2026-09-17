@@ -3838,6 +3838,20 @@
     if (target.kind === WEB_COMMENT_KIND) {
       // Scope, verbatim. A 1111 always carries its root in uppercase tags.
       tgTags.forEach((t) => { if (t[0] === 'I' || t[0] === 'K' || t[0] === 'E' || t[0] === 'A') tags.push(t.slice()); });
+      // AND THE ROOT AUTHOR, which NIP-22 says a comment MUST carry and this did not.
+      // It is the mirror of the bug this branch fixes: a client watching `#P` for replies
+      // in its own threads could not see ours. Copied from the parent when the parent is
+      // itself the root, since then the two are the same person.
+      const rootP = tgTags.find((t) => t[0] === 'P' && t[1]);
+      if (rootP) tags.push(rootP.slice());
+      else {
+        // No P on the parent. The spec also carries the root author as the FOURTH element
+        // of the E tag, so that is where to look before giving up rather than guessing at
+        // the parent's author, who is only the same person on a top-level comment. A
+        // web-rooted comment (an I tag) has no author at all and correctly gets none.
+        const rootE = tgTags.find((t) => t[0] === 'E' && t[3]);
+        if (rootE) tags.push(['P', rootE[3]]);
+      }
       // Parent: the comment being answered.
       tags.push(['e', id], ['k', String(target.kind)]);
       return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
@@ -4340,7 +4354,25 @@
     return fmtSats(n) + (n === 1 ? ' sat' : ' sats');
   }
 
-  function notifLabel(ev) {
+  // WHOSE THREAD A COMMENT IS IN. NIP-22 puts the ROOT scope in uppercase tags and the
+  // PARENT in lowercase ones, so a comment on your note names you in `P`, and a reply to
+  // that comment names you only there: by then `p` belongs to whoever wrote the comment
+  // being answered.
+  //
+  // Both routes, because neither alone is enough. `P` is what the spec says MUST be there,
+  // and matching `E` against your own notes catches the clients that leave it out, which
+  // are the same clients an uppercase filter would miss. Same two-route reasoning as the
+  // poll-vote filters, and for the same reason: no single tag is guaranteed.
+  function commentRootIsOwn(ev, acctPubkey) {
+    if (!acctPubkey) return false;
+    const rootAuthor = (ev.tags || []).find((t) => t[0] === 'P' && t[1]);
+    if (rootAuthor && rootAuthor[1] === acctPubkey) return true;
+    const root = (ev.tags || []).find((t) => t[0] === 'E' && t[1]);
+    const mine = _ownNoteIds.get(acctPubkey);
+    return !!(root && mine && mine.has(root[1]));
+  }
+
+  function notifLabel(ev, acctPubkey) {
     if (ev.kind === 9735) {
       const msats = zapMsats(ev);
       const amount = zapAmountText(msats);
@@ -4357,9 +4389,24 @@
       const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
       return { glyph, text: 'reacted to your note' };
     }
-    // A NIP-22 comment that p-tags you. Worth its own wording: "mentioned you" sends
-    // the reader looking for a note, and this is a comment on a page.
-    if (ev.kind === WEB_COMMENT_KIND) return { glyph: '@', text: 'mentioned you in a comment' };
+    // A NIP-22 comment. Two different things arrive as this kind, and they are not the
+    // same notification.
+    //
+    // Many clients now answer a kind:1 with a 1111 rather than a NIP-10 kind:1, so a
+    // comment rooted on one of your notes IS a reply and gets the same glyph and wording
+    // a kind:1 reply does. Showing the same event two ways depending on which kind the
+    // replier's client happened to pick would be a distinction with no meaning to you.
+    //
+    // Anything else keeps the old wording: "mentioned you" sends the reader looking for a
+    // note, and a comment on a page is not one. `K` is the root kind, "1" for a note and
+    // "web" for a page, read rather than assumed.
+    if (ev.kind === WEB_COMMENT_KIND) {
+      const K = (ev.tags || []).find((t) => t[0] === 'K' && t[1]);
+      if (K && K[1] === '1' && commentRootIsOwn(ev, acctPubkey)) {
+        return { icon: 'message-filled', text: 'replied to your note' };
+      }
+      return { glyph: '@', text: 'mentioned you in a comment' };
+    }
     // A vote. The wording says "your poll" because that is the only poll a vote can
     // reach this list for: both filters that collect them are anchored on this account.
     if (ev.kind === POLL_RESPONSE_KIND) return { icon: 'bar-chart', text: 'voted in your poll' };
@@ -5340,6 +5387,18 @@
           const quote = { kinds: [1], '#q': ownIdList, since: sinceTs };
           list.push(limit ? Object.assign({ limit }, repost) : repost);
           list.push(limit ? Object.assign({ limit }, quote) : quote);
+          // NIP-22 REPLIES TO YOUR NOTES, WHICH THE `#p` FILTER ABOVE CANNOT SEE PAST THE
+          // FIRST ONE. A 1111's root scope is uppercase and its parent lowercase, so a
+          // comment directly on your note carries `p` = you and is caught above, but a
+          // reply to THAT comment carries `p` = the commenter and names you only in `P`.
+          // Relay tag filters are case-sensitive, so `#p` never matches `P`: without this,
+          // everything below the first level of a thread on your own note was invisible.
+          //
+          // Anchored on `#E` rather than `#P` deliberately. It catches the clients that
+          // omit `P` as well, and those are the same ones an uppercase filter would miss.
+          // addEvent de-dupes by id, so the overlap with the `#p` filter costs nothing.
+          const comments = { kinds: [WEB_COMMENT_KIND], '#E': ownIdList, since: sinceTs };
+          list.push(limit ? Object.assign({ limit }, comments) : comments);
         }
         if (ownPollIdList.length) {
           const votes = { kinds: [POLL_RESPONSE_KIND], '#e': ownPollIdList, since: sinceTs };
@@ -5447,7 +5506,7 @@
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
-      const { glyph, icon: glyphIcon, text } = notifLabel(ev);
+      const { glyph, icon: glyphIcon, text } = notifLabel(ev, a.pubkey);
 
       // Where this notification opens (a renderable note/article/profile URL), or
       // '' when there's no sensible target.

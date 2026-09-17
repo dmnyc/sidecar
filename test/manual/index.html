@@ -1,8 +1,8 @@
 <!--
   Front door for Sidecar's manual test pages.
 
-      python3 -m http.server 8021 -d test/manual
-      open http://localhost:8021/
+      python3 -m http.server 8021
+      open http://localhost:8021/test/manual/
 
   These are deliberately not automated. Each one exists because a real user hit something
   that no unit test would have caught, and reproducing it meant waiting for the wild to
@@ -30,7 +30,9 @@
 <div class="wrap">
   <h1>Sidecar manual tests</h1>
   <p class="sub">Load Sidecar unpacked, press Connect on a page, approve once. Each page says what
-  to expect, case by case. Nothing on either page can spend or publish anything.</p>
+  to expect, case by case. Served from the repo root rather than from here, because the
+  comment lab loads the extension's own nostr-tools bundle. The invoice and encrypt labs
+  cannot spend or publish anything; <b>the comment lab publishes</b>, and says so.</p>
 
   <a class="lab" href="invoice-lab.html" id="invoice">
     <h2>Invoice lab</h2>
@@ -44,12 +46,19 @@
     plaintext, hostile text, and the two-prompt sequence from #305.</p>
   </a>
 
-  <p class="note">A page shown dashed is on a branch that isn't checked out. Both live under
+  <a class="lab" href="comment-lab.html" id="comment">
+    <h2>Comment lab</h2>
+    <p>NIP-22 comments as replies to a note: on the note, below a comment, with no
+    <code>P</code> tag, a mention in someone else's thread, and a page comment. Needs two
+    accounts, because the bell drops your own events.</p>
+  </a>
+
+  <p class="note">A page shown dashed is on a branch that isn't checked out. They live under
   <code>test/manual/</code>.</p>
 </div>
 <script>
   // Mark whichever lab isn't present on this branch, rather than leaving a 404 to click.
-  for (const id of ['invoice', 'encrypt']) {
+  for (const id of ['invoice', 'encrypt', 'comment']) {
     const a = document.getElementById(id);
     fetch(a.getAttribute('href'), { method: 'HEAD' })
       .then((r) => { if (!r.ok) a.classList.add('gone'); })
