@@ -131,6 +131,15 @@ Two Firefox specifics: extensions stay off in private windows unless you allow t
 
 **Updating:** A Chrome Web Store install updates automatically. A Firefox install does not, since nothing is serving it updates: download the next zip from the releases page and load it again. On Chrome you can also trigger a check from **Settings → Updates** or the About dialog (Firefox manages updates on its own). For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
 
+#### Safari
+
+Not supported, and the blocker is narrower than people expect: Safari implements
+neither side-UI API, so there is nowhere for Sidecar to live. The toolbar popup it
+would have to use is dismissed the moment focus leaves it, which takes the
+composer, the wallet and any payment in flight with it. The signer mechanism
+itself would work fine. Reasoning, compatibility table and what would change the
+answer: [BROWSER_PARITY.md](BROWSER_PARITY.md#safari--asked-for-often-blocked-on-one-thing).
+
 ### Build version stamp (optional)
 
 The About dialog shows a version + git commit read from `version.js` (gitignored, generated). A `post-commit` hook keeps it current automatically — install it once with:
