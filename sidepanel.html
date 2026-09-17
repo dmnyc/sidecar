@@ -447,6 +447,25 @@
             </div>
           </div>
 
+          <!-- NIP-13. Off by default: it spends real time before every post, so it is
+               opted into rather than out of, and PER ACCOUNT, since what a mine is worth
+               is a judgment about one identity. The chips are BITS, with no adjectives on
+               them: a relay that wants proof of work states a number, so "20" is
+               actionable where "High" is a second thing to map. The line under them
+               carries what that rung costs, which is the part a number cannot say. -->
+          <div class="setting">
+            <h3>Proof of work</h3>
+            <p class="hint">Mines a NIP-13 nonce into this account's posts. Costs time before each one publishes.</p>
+            <label class="toggle-row"><input type="checkbox" id="pow-toggle" /> <span>Mine proof of work before posting</span></label>
+            <div class="amount-presets hidden" id="pow-presets">
+              <button type="button" class="preset-chip" data-bits="16">16</button>
+              <button type="button" class="preset-chip" data-bits="18">18</button>
+              <button type="button" class="preset-chip" data-bits="20">20</button>
+              <button type="button" class="preset-chip" data-bits="22">22</button>
+            </div>
+            <p class="hint hidden" id="pow-detail"></p>
+          </div>
+
           <div class="setting">
             <h3>Client tag</h3>
             <p class="hint">Tags the notes and comments you post as sent with Sidecar.</p>

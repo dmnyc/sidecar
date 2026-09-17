@@ -280,6 +280,15 @@
     zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
     wallet: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>',
     'help-circle': '<circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+    // Proof of work. A pickaxe rather than the hash it computes: the hash is the subject
+    // of the work, and a button needs the verb. A # also reads as a tag everywhere else on
+    // nostr, which is the one thing it must not be mistaken for here.
+    //
+    // Curved head top right, handle running down to the bottom left on the 45. The angle
+    // is what keeps it from reading as an umbrella, which is where a level head over a
+    // vertical handle lands. Arc and handle meet at the arc's own apex, computed rather
+    // than eyeballed, so the two strokes join cleanly instead of crossing.
+    pickaxe: '<path d="M12.5 3.2a9 9 0 0 1 8.3 8.3"></path><line x1="18.2" y1="5.8" x2="3.5" y2="20.5"></line>',
     'badge-check': '<path d="M18.9 14.9Q22 12 18.9 9.1Q19.1 4.9 14.9 5.1Q12 2 9.1 5.1Q4.9 4.9 5.1 9.1Q2 12 5.1 14.9Q4.9 19.1 9.1 18.9Q12 22 14.9 18.9Q19.1 19.1 18.9 14.9Z"></path><polyline points="9 12 11 14 15.5 9"></polyline>',
     'user-check': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline>',
     'user-x': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line>',
@@ -8693,6 +8702,22 @@
     $('countdown-presets').querySelectorAll('.preset-chip').forEach((c) =>
       c.classList.toggle('active', Number(c.dataset.secs) === cdSecs));
 
+    // Proof of work. PER ACCOUNT, like the NIP-65-only toggle, because what a mine costs
+    // is a judgment about one identity: a public account relays throttle is worth 22 bits
+    // a post and the account used twice a week is not. Absent from powBy means off, and
+    // the bits are the whole value, so there is no enabled flag to drift out of step.
+    //
+    // Default OFF, unlike the countdown: this one spends the user's own time on every
+    // post, so it is opted into rather than out of.
+    const powStored = ((settings.powBy) || {})[state.activePubkey];
+    const powOn = POW_LEVELS.some((l) => l.bits === powStored);
+    const powBits = powOn ? powStored : POW_DEFAULT_BITS;
+    $('pow-toggle').checked = powOn;
+    $('pow-presets').classList.toggle('hidden', !powOn);
+    $('pow-presets').querySelectorAll('.preset-chip').forEach((c) =>
+      c.classList.toggle('active', Number(c.dataset.bits) === powBits));
+    paintPowDetail(powOn, powBits);
+
     // theme
     paintThemePicker(applyResolvedTheme(settings));
 
@@ -10306,6 +10331,29 @@
   // duration preset. Off → post immediately with no countdown.
   const NOTE_COUNTDOWN_PRESETS = [5, 10, 15, 25, 30];
   const NOTE_COUNTDOWN_DEFAULT = 15;
+
+  // NIP-13 difficulty, as four rungs rather than the slider other clients offer. Each
+  // step is two bits, which is four times the work, so the ladder is even and the whole
+  // useful range is covered in four taps instead of twenty-nine positions nobody can aim
+  // at in a 360px panel.
+  //
+  // LABELED IN BITS, WITH NO ADJECTIVES. A name is a second thing to map: a relay asking
+  // for proof of work states a number, so a user told "this one wants 20" can act on 20
+  // and cannot act on "High". It also sidesteps the fact that four evenly spaced rungs
+  // have no natural four-word ladder, which is how Low/Medium/Average/High ends up with
+  // two rungs meaning the same thing.
+  //
+  // THE COSTS ARE MEASURED, not guessed: about 240k hashes a second through the bundled
+  // getEventHash on a fast machine. Mining is geometric, so the spread matters more than
+  // the average, and the copy says the long tail out loud rather than quoting the middle.
+  const POW_LEVELS = [
+    { bits: 16, cost: 'Usually instant.' },
+    { bits: 18, cost: 'About a second.' },
+    { bits: 20, cost: 'A few seconds, sometimes fifteen.' },
+    { bits: 22, cost: 'Ten seconds or so, sometimes a minute.' },
+  ];
+  const POW_DEFAULT_BITS = 18;
+  const powLevelFor = (bits) => POW_LEVELS.find((l) => l.bits === bits) || POW_LEVELS[1];
   // NIP-89 client tag. Positions 3–4 are meant to be a kind:31990 handler
   // coordinate + relay hint; we don't publish a handler, so a bare name is the
   // correct minimal form and avoids adding dead bytes to every note.
@@ -11351,6 +11399,88 @@
   // Resolved once per post: the toggle is worded "Review countdown before posting"
   // and covers everything publishable, so comments read the same setting as notes
   // rather than adding a second switch that would drift out of step.
+  // Whether to mine, and at what, FOR ONE ACCOUNT. Takes the pubkey rather than reading
+  // the active one, because the composer fixes which account it is posting as when it
+  // opens and the account can be switched underneath it: resolving here from whatever is
+  // active at post time would mine at the wrong identity's setting.
+  //
+  // Absent from the map means off. The bits ARE the value, so there is no enabled flag
+  // that can drift out of step with the level it is supposed to be gating.
+  async function powSetting(pubkey) {
+    let s = {};
+    try { s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
+    const bits = ((s && s.powBy) || {})[pubkey];
+    return POW_LEVELS.some((l) => l.bits === bits)
+      ? { on: true, bits }
+      : { on: false, bits: POW_DEFAULT_BITS }; // default OFF: this spends the user's time
+  }
+
+  // ---- mining ----------------------------------------------------------------------
+  //
+  // One worker, kept warm between posts so a Low mine does not spend longer loading
+  // nostr-tools than hashing. Cancel TERMINATES it rather than asking it to stop: the
+  // mining loop never yields, so a stop message would sit unread in the queue until the
+  // work it was meant to interrupt had finished. The next mine builds a fresh one.
+  let powWorker = null;
+  let powSeq = 0;
+  const powPending = new Map();
+
+  function powWorkerSettleAll(err) {
+    for (const [id, p] of powPending) {
+      powPending.delete(id);
+      p.reject(err);
+    }
+  }
+
+  function powCancel() {
+    // Nothing in flight: leave the warm worker alone. Called unconditionally when the
+    // composer closes, and terminating an idle one there would make the next Low mine pay
+    // to load nostr-tools again for no reason.
+    if (!powPending.size) return;
+    if (powWorker) {
+      powWorker.terminate();
+      powWorker = null;
+    }
+    // Flagged rather than matched on its message: stopping a mine is a decision, and the
+    // composer has to be able to tell it apart from a mine that broke, which reads the
+    // same way through a rejected promise.
+    const stopped = new Error('Mining canceled');
+    stopped.canceled = true;
+    powWorkerSettleAll(stopped);
+  }
+
+  // Resolves with the mined event: same fields, plus a nonce tag whose id carries the
+  // zeros. Nothing else about the event moves, which is what lets finalizeEvent recompute
+  // the identical id at signing time. onProgress gets { attempts, best } as it runs.
+  function minePow(event, bits, onProgress) {
+    if (typeof Worker !== 'function') {
+      return Promise.reject(new Error('This browser cannot mine in the background'));
+    }
+    if (!powWorker) {
+      powWorker = new Worker(chrome.runtime.getURL('pow-worker.js'));
+      powWorker.onmessage = (e) => {
+        const { id, ok, event: mined, error, progress, attempts, best, difficulty } = e.data || {};
+        const p = powPending.get(id);
+        if (!p) return;
+        if (progress) { if (p.onProgress) p.onProgress({ attempts, best }); return; }
+        powPending.delete(id);
+        if (ok) p.resolve({ event: mined, attempts, difficulty });
+        else p.reject(new Error(error || 'Mining failed'));
+      };
+      powWorker.onerror = () => {
+        // A packaging miss or a load failure. Settle everything waiting rather than
+        // leaving a promise that never resolves and a composer stuck on "Mining".
+        powWorker = null;
+        powWorkerSettleAll(new Error('Mining failed to start'));
+      };
+    }
+    return new Promise((resolve, reject) => {
+      const id = ++powSeq;
+      powPending.set(id, { resolve, reject, onProgress });
+      powWorker.postMessage({ id, event, bits });
+    });
+  }
+
   async function postCountdownSetting() {
     let s = {};
     try { s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
@@ -11385,6 +11515,61 @@
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
     let published = false;
+    // PER POST, seeded from Settings when the composer opens. Changing it here is a
+    // decision about this note, not a new preference: at 22 bits a mine is tens of
+    // seconds, which is worth opting into for one post without signing up for it on
+    // every one. Settings is where the lasting choice lives.
+    let powForThisPost = await powSetting(pubkey);
+    // MINING TAKES OVER THE MODAL, the way the countdown does, because it is a phase of
+    // posting rather than a decoration on the editor.
+    //
+    // It has to own the pane. showPostCountdown opens with modal.innerHTML = '', so a
+    // status row built into the editor is already detached by the time mining starts on
+    // the countdown path, which is the DEFAULT one: that left the common case showing
+    // "Posting…" for up to a minute with no elapsed time, no difficulty reached, and a
+    // Stop button that had been thrown away.
+    function showMiningPane(bits) {
+      stopCountdown();
+      modal.innerHTML = '';
+      const glyph = icon('pickaxe');
+      glyph.classList.add('mining-glyph');
+      const line = h('div', { className: 'mining-line' });
+      // One line at this width. The longer version of this wrapped onto two and left
+      // "editor." alone on the second, which is a ragged way to end the one screen whose
+      // whole job is to look calm while it makes you wait.
+      const note = h('p', { className: 'hint', textContent: 'Stopping keeps your draft.' });
+      const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
+      stop.addEventListener('click', powCancel);
+      modal.append(
+        h('h3', { textContent: 'Mining proof of work' }),
+        h('div', { className: 'mining-body' }, [glyph, line, note]),
+        h('div', { className: 'actions' }, [stop])
+      );
+
+      const startedAt = Date.now();
+      let best = 0;
+      const paint = () => {
+        const secs = Math.round((Date.now() - startedAt) / 1000);
+        line.textContent = bits + ' bits · ' + secs + 's' + (best ? ' · best ' + best : '');
+      };
+      paint();
+      // Its own clock rather than only painting when the worker reports. The two are
+      // independent: reports arrive per block of attempts, so on a slow machine they can
+      // be seconds apart and a pane that only moved with them would read as frozen at
+      // exactly the difficulty where the user most needs to see it is alive.
+      const timer = setInterval(paint, 1000);
+      return {
+        progress: (p) => { if (p.best > best) best = p.best; paint(); },
+        // The work is done but the post is not: signing and the relays still have to
+        // happen, and a pane still offering to stop the mining it already finished would
+        // be offering something that no longer exists.
+        done: () => {
+          clearInterval(timer);
+          stop.disabled = true;
+          line.textContent = 'Found it. Posting…';
+        },
+      };
+    }
     let enteredEditor = false;
 
     function persistDraft() { saveComposeDraft(dkey, draft); }
@@ -11485,7 +11670,38 @@
         tags,
         content,
       };
-      const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: pubkey });
+      // MINED BEFORE IT IS SIGNED, and it has to be that way round: the signature covers
+      // the id, and the id is the hash of exactly these fields. ownerSign hands the event
+      // to finalizeEvent, which sets pubkey, recomputes the id from what it was given and
+      // signs that, so a nonce settled here survives intact. Mining afterwards would
+      // invalidate the signature it was mined under.
+      //
+      // The pubkey has to be the one that will sign, since the id commits to it. That is
+      // the same `pubkey` passed as expectedPubkey below, and ownerSign refuses outright
+      // if the active account moved in between, so a mine can never be spent on one
+      // identity and published under another.
+      let toSign = event;
+      if (powForThisPost.on) {
+        // NOT SHOWN INSTANTLY. At 16 bits a mine is about a quarter of a second, and a
+        // pane that appears and disappears inside that reads as a glitch rather than as
+        // work; anything finishing before the delay never shows one at all. Past it the
+        // wait is long enough that saying nothing is the worse failure.
+        let pane = null;
+        const showPane = setTimeout(() => { pane = showMiningPane(powForThisPost.bits); }, 300);
+        let mined;
+        try {
+          mined = await minePow({ ...event, pubkey }, powForThisPost.bits, (p) => { if (pane) pane.progress(p); });
+        } finally {
+          clearTimeout(showPane);
+          if (pane) pane.done();
+        }
+        // pubkey is dropped again: finalizeEvent sets it from the key it signs with, and
+        // sending our own copy invites the two to disagree about the one field neither
+        // of them should be guessing at.
+        const { pubkey: _mined, ...rest } = mined.event;
+        toSign = rest;
+      }
+      const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: toSign, expectedPubkey: pubkey });
       await publishSigned(signed);
       return signed;
     }
@@ -11604,7 +11820,7 @@
       fileInput.accept = 'image/*,video/*';
       fileInput.style.display = 'none';
       const addBtn = h('button', { className: 'mini compose-add' });
-      addBtn.append(icon('camera'), h('span', { textContent: 'Add photo or video' }));
+      addBtn.append(icon('camera'), h('span', { textContent: 'Media' }));
       addBtn.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files && fileInput.files[0];
@@ -11669,9 +11885,37 @@
       //
       // Not offered on a reply. NIP-88 has no notion of a poll answering a note, and a
       // 1068 carrying NIP-10 threading tags would be a shape no client reads.
+      // ---- proof of work, for this post ----
+      //
+      // Cycles Off, 16, 18, 20, 22 and back. Five states is too many for a
+      // toggle and too few to be worth a sheet, and a chooser would be a second surface
+      // saying what Settings already says. The label carries the current state, so what
+      // one more tap costs is always on screen rather than in a tooltip.
+      //
+      // Seeded from Settings and never written back: this is a decision about this note.
+      const powBtn = h('button', { className: 'mini compose-add', type: 'button' });
+      const powBtnLabel = h('span');
+      powBtn.append(icon('pickaxe'), powBtnLabel);
+      function paintPowBtn() {
+        const lvl = powForThisPost.on ? powLevelFor(powForThisPost.bits) : null;
+        // "PoW 18" and "PoW off" are the same width, so cycling never makes the row
+        // opposite it jump. The full name is in the title and in Settings.
+        powBtnLabel.textContent = lvl ? 'PoW ' + lvl.bits : 'PoW off';
+        powBtn.title = lvl ? lvl.cost : 'Off. Tap to mine one into this post.';
+        powBtn.classList.toggle('compose-add-on', !!lvl);
+      }
+      powBtn.addEventListener('click', () => {
+        const order = [null, ...POW_LEVELS.map((l) => l.bits)];
+        const at = order.indexOf(powForThisPost.on ? powForThisPost.bits : null);
+        const next = order[(at + 1) % order.length];
+        powForThisPost = next == null ? { on: false, bits: powForThisPost.bits } : { on: true, bits: next };
+        paintPowBtn();
+      });
+      paintPowBtn();
+
       const pollWrap = h('div', { className: 'poll-editor hidden' });
       const pollAdd = h('button', { className: 'mini compose-add' });
-      pollAdd.append(icon('bar-chart'), h('span', { textContent: 'Add a poll' }));
+      pollAdd.append(icon('bar-chart'), h('span', { textContent: 'Poll' }));
       pollAdd.addEventListener('click', () => {
         draft.poll = newPollDraft();
         paintPoll();
@@ -11900,9 +12144,8 @@
         editorWrap,
         previewPane,
         thumbs,
-        addBtn,
+        h('div', { className: 'compose-actions' }, [addBtn, pollAdd, powBtn]),
         fileInput,
-        pollAdd,
         pollWrap,
         err,
         h('div', { className: 'actions' }, [post, cancel])
@@ -11915,6 +12158,13 @@
     // Publish the note and finish (clear draft, close, banner) — shared by the
     // countdown's auto/now fire and the immediate (countdown-off) post path.
     async function finishPublish() {
+      // ON DISK BEFORE THE ATTEMPT, rather than 400ms after the last keystroke. Mining can
+      // hold a post for the better part of a minute and publishing can fail after that, so
+      // the window where the only copy of this note lives in a pending debounce is exactly
+      // the window that got longer. The write is idempotent and the success path clears
+      // the draft anyway, so this costs nothing it does not buy back.
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      persistDraft();
       try {
         const signed = await doPublish();
         // Before the banner, because the banner is the only other way back to this tally
@@ -11926,8 +12176,15 @@
         toast(signed.kind === POLL_KIND ? 'Poll published' : 'Note published', 'success');
         showPostBanner(signed);
       } catch (e) {
-        toast(e.message, 'error');
-        showEditor(); // keep the draft so they can retry
+        // BACK TO THE EDITOR WITH THE TEXT INTACT, whether the mine failed, the signer
+        // refused or every relay did. draft is untouched on all three paths and was just
+        // written to storage above, so showEditor rebuilds the note exactly as it was and
+        // the Post button comes back enabled.
+        //
+        // No toast for a stop: the user pressed the button, and the editor returning is
+        // the answer. A red banner would report their own decision as a fault.
+        if (!(e && e.canceled)) toast(e.message, 'error');
+        showEditor();
       }
     }
 
@@ -12057,6 +12314,12 @@
       },
       () => {
         stopCountdown();
+        // AND STOP MINING. A mine outlives the pane it is drawn in: the worker keeps
+        // hashing after the modal closes, and doPublish resumes on the other side of that
+        // await to sign and publish a note the user has already walked away from. The
+        // countdown has always been stopped here for the same reason, and this is the
+        // same hazard with a longer fuse.
+        powCancel();
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
@@ -18585,6 +18848,42 @@
     pinBalanceBar = false;
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { pinBalanceBar: false } });
     syncPinControls();
+  });
+
+  // The bits and the cost, under the chips. The chips carry a name each because four
+  // names and four numbers will not fit across this panel, and the number is the half a
+  // relay actually asks for, so it goes on the line that has room for it.
+  function paintPowDetail(on, bits) {
+    const line = $('pow-detail');
+    if (!line) return;
+    line.classList.toggle('hidden', !on);
+    if (!on) return;
+    const lvl = powLevelFor(bits);
+    line.textContent = lvl.cost;
+  }
+
+  $('pow-toggle').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    $('pow-presets').classList.toggle('hidden', !on);
+    const active = $('pow-presets').querySelector('.preset-chip.active');
+    const bits = active ? Number(active.dataset.bits) : POW_DEFAULT_BITS;
+    if (!active) {
+      $('pow-presets').querySelectorAll('.preset-chip').forEach((c) =>
+        c.classList.toggle('active', Number(c.dataset.bits) === POW_DEFAULT_BITS));
+    }
+    paintPowDetail(on, bits);
+    // 0 is how "off for this account" is spelled: the background deletes the entry for
+    // anything that is not one of the four rungs.
+    await call({ type: 'SIDECAR_SET_POW', pubkey: state.activePubkey, bits: on ? bits : 0 });
+  });
+
+  $('pow-presets').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.preset-chip');
+    if (!btn) return;
+    const bits = Number(btn.dataset.bits);
+    $('pow-presets').querySelectorAll('.preset-chip').forEach((c) => c.classList.toggle('active', c === btn));
+    paintPowDetail(true, bits);
+    await call({ type: 'SIDECAR_SET_POW', pubkey: state.activePubkey, bits });
   });
 
   $('countdown-toggle').addEventListener('change', async (e) => {

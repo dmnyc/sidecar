@@ -2668,8 +2668,70 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border-radius: 50%; border: none; cursor: pointer; color: #fff; background: rgba(5, 0, 12, 0.7);
 }
 .compose-thumb-x svg { width: 13px; height: 13px; }
-.compose-add { display: inline-flex; align-items: center; gap: 7px; margin: 6px 0 2px; }
+/* THE COMPOSER'S THREE ADD BUTTONS, ON ONE ROW. Media, Poll and PoW are peers, so they
+   read as a toolbar rather than as three stacked decisions, and three short labels fit
+   across the sheet where three sentences did not.
+
+   It WRAPS rather than squashing. The poll button is absent on a reply and once a poll is
+   already open, so this is a row of two or three depending, and at the narrow end a button
+   drops to the next line instead of the labels being shaved to fit. Nothing here shrinks:
+   that is the panel's standing rule, and a wrapped row is the honest way to honor it. */
+.compose-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; }
+/* THEY SPAN THE ROW, at whatever count is showing. The poll button is absent on a reply
+   and once a poll is already open, so this is two or three buttons depending, and sized to
+   their labels they stopped short of the Post button below and read as unfinished.
+
+   `flex: 1 0 auto` is the whole trick: grow to share the width evenly, and never shrink
+   below the label. flex: 1 would have let them squash, which is the panel's one standing
+   prohibition; with shrink at 0 a row that cannot fit wraps instead, and the wrapped line
+   spans in its turn. */
+.compose-add {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 7px; margin: 0; flex: 1 0 auto;
+}
 .compose-add svg { width: 15px; height: 15px; }
+/* A compose-add that is currently ON, for the proof-of-work cycle. Color only: the label
+   already says which level, so the tint is confirmation rather than the message, and
+   nothing about the button's metrics moves as it cycles. */
+.compose-add-on { color: var(--lav); }
+.compose-add-on svg { color: var(--lav); }
+
+/* THE MINING PANE. Its own screen rather than a row in the editor, because the review
+   countdown opens with modal.innerHTML = '' and would throw a row away before mining even
+   started. Centered like the countdown it replaces, since it is the same kind of thing:
+   a phase you wait through, with one way out of it. */
+.mining-body {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 26px 8px 18px; text-align: center;
+}
+/* ON THE ELEMENT, NOT A DESCENDANT OF IT. icon() returns the <svg> itself rather than a
+   wrapper, so this class lands on the svg: a `.mining-glyph svg` rule matches nothing, and
+   an svg that no rule sizes falls back to the default replaced-element size and renders
+   enormous. Every other icon here is styled through a container, which is why the
+   container-shaped selector was the wrong instinct to copy. */
+.mining-glyph {
+  width: 40px; height: 40px; color: var(--lav);
+  animation: mining-pulse 1.4s ease-in-out infinite;
+}
+/* A PULSE, NOT A SPIN. Mining is a search with no position in it: every attempt is
+   independent, so anything that sweeps or fills would imply progress toward a finish that
+   does not exist. A pulse says working and claims nothing else. */
+@keyframes mining-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.94); }
+  50%      { opacity: 1;    transform: scale(1); }
+}
+/* Belt and braces against the orphan the copy above was rewritten to avoid: pretty tells
+   the browser to avoid leaving a single word on the last line, so a future edit to either
+   string cannot quietly put one back. Chrome only, which is fine here, and it degrades to
+   ordinary wrapping everywhere else. */
+.mining-body p, .mining-line { text-wrap: pretty; }
+.mining-line {
+  font-size: 15px; color: var(--text);
+  font-variant-numeric: tabular-nums; /* the seconds must not jitter the line as they tick */
+}
+@media (prefers-reduced-motion: reduce) {
+  .mining-glyph { animation: none; opacity: 0.75; }
+}
 
 /* link / OG preview card in note preview */
 .link-card {
