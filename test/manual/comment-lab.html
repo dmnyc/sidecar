@@ -1,0 +1,280 @@
+<!--
+  Comment lab: kind:1111 as a reply to a kind:1, in every tag shape that matters.
+
+  Built for the NIP-22 reply work. A comment points at its ROOT with uppercase tags and at
+  its PARENT with lowercase ones, and that one line of the spec is the whole feature: a
+  comment directly on your note names you in `p`, but a reply to THAT comment names the
+  commenter in `p` and names you only in `P`. Relay tag filters are case-sensitive, so the
+  second kind was invisible until the bell learned to match on the root instead.
+
+  Run it FROM THE REPO ROOT, not from test/manual, because this page loads the extension's
+  own nostr-tools bundle:
+
+      python3 -m http.server 8021
+      open http://localhost:8021/test/manual/comment-lab.html
+
+  The commenters are throwaway keys minted in this page, one per case, so nothing here is
+  signed as you except the target note itself. That split is the point: the bell drops your
+  own events, so a reply you signed yourself could never be a notification to you. It also
+  means no account switching, and the senders in the bell are distinguishable.
+
+  THIS PAGE PUBLISHES. The target is a real note on your real relays, and cases 1 to 4 put
+  real comments on it. Use a throwaway note; the text says what it is.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar comment lab</title>
+<script src="../../nostr-tools.js"></script>
+<style>
+  body { margin: 0; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 32px 24px 120px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #9a93b0; margin: 0 0 24px; }
+  .bar { position: sticky; top: 0; background: #171426; border: 1px solid #2c2740; border-radius: 12px;
+         padding: 14px 16px; margin-bottom: 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button { font: inherit; padding: 7px 13px; border-radius: 9px; border: 1px solid #3a3356;
+           background: #221d38; color: #e7e3f0; cursor: pointer; }
+  button:hover { border-color: #6b5bb0; }
+  .case { border: 1px solid #2c2740; border-radius: 12px; padding: 16px 18px; margin: 0 0 12px; }
+  .case h2 { font-size: 15px; margin: 0 0 2px; }
+  .case p { margin: 0 0 12px; color: #9a93b0; font-size: 13.5px; }
+  .expect { color: #cba14e; }
+  .was { color: #f0566b; }
+  code { font: 12.5px ui-monospace, monospace; color: #b7aee0; word-break: break-all; }
+  .out { margin-top: 10px; font: 12px ui-monospace, monospace; color: #7fb8a0; word-break: break-all;
+         white-space: pre-wrap; }
+  .out.err { color: #f0566b; }
+</style>
+
+<div class="wrap">
+  <h1>Sidecar comment lab</h1>
+  <p class="sub">NIP-22 comments used as replies to a note. Every case signs a
+  <code>kind:1111</code> with a throwaway key and publishes it, so the thing to watch is
+  Sidecar's <b>bell</b>, not this page.</p>
+
+  <p class="sub"><b>Press Refresh in the bell.</b> The live subscription only runs while
+  the panel is open, so a comment published while it was shut is not missing, it just has
+  not been asked for. The refresh icon in the sheet's corner is what asks.</p>
+
+  <div class="bar">
+    <button id="target">1. Post the target note (as you)</button>
+    <button id="forget">Forget it</button>
+    <span id="state" class="out"></span>
+  </div>
+
+  <div class="case">
+    <h2>1. A comment directly on the note</h2>
+    <p>Root and parent are the same, so you are in <code>p</code> as well as <code>P</code>.
+    <span class="expect">Expect "replied to your note", with the same glyph a kind:1 reply
+    gets.</span> This shape always arrived: it is the control.</p>
+    <button data-run="top">Comment on your note</button>
+    <div class="out" id="out-top"></div>
+  </div>
+
+  <div class="case">
+    <h2>2. A reply to that comment</h2>
+    <p><code>p</code> is the first commenter by now. You are named only in <code>P</code>.
+    <span class="expect">Expect "replied to your note".</span>
+    <span class="was">This is the one that was invisible:</span> a <code>#p</code> filter
+    cannot match <code>P</code>, so everything below the first level of a thread on your own
+    note was silently missing.</p>
+    <button data-run="deep">Reply to the comment</button>
+    <div class="out" id="out-deep"></div>
+  </div>
+
+  <div class="case">
+    <h2>3. A comment that omits <code>P</code> entirely</h2>
+    <p>Some clients do. Only the root <code>E</code> names you at all.
+    <span class="expect">Expect "replied to your note".</span> This is why the filter is
+    anchored on <code>#E</code> against your own notes rather than on <code>#P</code>: an
+    uppercase filter would miss exactly these.</p>
+    <button data-run="nop">Comment with no P</button>
+    <div class="out" id="out-nop"></div>
+  </div>
+
+  <div class="case">
+    <h2>4. A mention inside someone else's thread</h2>
+    <p>Rooted on a note the throwaway key posts itself, merely p-tagging you.
+    <span class="expect">Expect "mentioned you in a comment", NOT "replied to your
+    note".</span> The promotion to a reply has to be about whose thread it is, not merely
+    about being tagged in a 1111.</p>
+    <button data-run="mention">Mention you in their thread</button>
+    <div class="out" id="out-mention"></div>
+  </div>
+
+  <div class="case">
+    <h2>5. A page comment</h2>
+    <p>The original use of this kind, scoped to a URL with <code>I</code>/<code>K</code>
+    rather than to an event. <span class="expect">Expect "mentioned you in a
+    comment"</span>, unchanged.</p>
+    <button data-run="web">Comment on a page</button>
+    <div class="out" id="out-web"></div>
+  </div>
+</div>
+
+<script>
+  const NT = window.NostrTools;
+  const $ = (id) => document.getElementById(id);
+  const KEY = 'sidecar-comment-lab-target';
+  let target = null; // { pubkey, noteId, commentId?, commentAuthor? }
+  try { target = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (_) {}
+
+  function paintState() {
+    $('state').textContent = target
+      ? 'target note ' + target.noteId.slice(0, 12) + '…' +
+        (target.commentId ? ' · comment ' + target.commentId.slice(0, 12) + '…' : '')
+      : 'No target yet. Post one first.';
+  }
+  paintState();
+
+  function show(id, text, isErr) {
+    const el = $('out-' + id);
+    el.textContent = text;
+    el.className = 'out' + (isErr ? ' err' : '');
+  }
+
+  // A fresh key per case, so the bell shows five different senders rather than one person
+  // talking to themselves, and so no case can depend on another's identity by accident.
+  function stranger() {
+    const sk = NT.generateSecretKey();
+    return { sk, pk: NT.getPublicKey(sk) };
+  }
+  const now = () => Math.floor(Date.now() / 1000);
+
+  // NIP-07 signs; it does not publish. Raw sockets to the account's own write relays, so a
+  // comment lands where the note did and the bell is actually looking.
+  async function publish(signed) {
+    // EVERY configured relay, not just the write ones. getRelays hands back the same set
+    // the panel reads from, and the bell subscribes to all of it, so filtering to `write`
+    // here could land a comment somewhere the bell never looks. A real replier reaches you
+    // through outbox overlap; a lab should just not have that variable.
+    let relays = [];
+    try { relays = Object.keys((await window.nostr.getRelays()) || {}); } catch (_) {}
+    if (!relays.length) relays = ['wss://relay.damus.io', 'wss://nos.lol'];
+    return Promise.all(relays.slice(0, 4).map((url) => new Promise((resolve) => {
+      let done = false;
+      const finish = (v) => { if (!done) { done = true; resolve(v); } };
+      try {
+        const ws = new WebSocket(url);
+        setTimeout(() => { finish(url + ' timeout'); try { ws.close(); } catch (_) {} }, 6000);
+        ws.onopen = () => ws.send(JSON.stringify(['EVENT', signed]));
+        ws.onmessage = (e) => {
+          const m = JSON.parse(e.data);
+          if (m[0] === 'OK' && m[1] === signed.id) {
+            finish(url + (m[2] ? ' ok' : ' rejected: ' + m[3]));
+            ws.close();
+          }
+        };
+        ws.onerror = () => finish(url + ' failed');
+      } catch (err) { finish(url + ' ' + err.message); }
+    })));
+  }
+
+  function report(id, signed, results) {
+    show(id, 'from ' + signed.pubkey.slice(0, 8) + '… as ' + signed.id.slice(0, 12) + '…\n  ' +
+      signed.tags.map((t) => JSON.stringify(t)).join('\n  ') + '\n' + results.join('\n'));
+  }
+
+  $('forget').addEventListener('click', () => {
+    localStorage.removeItem(KEY);
+    target = null;
+    paintState();
+  });
+
+  // The ONE event signed as you. It has to be, because the whole question is what happens
+  // to replies to YOUR notes.
+  $('target').addEventListener('click', async () => {
+    try {
+      const pubkey = await window.nostr.getPublicKey();
+      const signed = await window.nostr.signEvent({
+        kind: 1,
+        created_at: now(),
+        tags: [],
+        content: 'Comment lab target, ' + new Date().toISOString() + '. Replies to this are the test.',
+      });
+      const res = await publish(signed);
+      target = { pubkey, noteId: signed.id };
+      localStorage.setItem(KEY, JSON.stringify(target));
+      paintState();
+      $('state').textContent += ' · ' + res.join(' | ');
+    } catch (e) {
+      $('state').textContent = e.message;
+    }
+  });
+
+  const builders = {
+    top: (who) => ({
+      tags: [
+        ['E', target.noteId, '', target.pubkey], ['K', '1'], ['P', target.pubkey],
+        ['e', target.noteId, '', target.pubkey], ['k', '1'], ['p', target.pubkey],
+      ],
+      content: 'Case 1: a comment straight onto the note.',
+    }),
+    deep: (who) => ({
+      tags: [
+        ['E', target.noteId, '', target.pubkey], ['K', '1'], ['P', target.pubkey],
+        ['e', target.commentId, '', target.commentAuthor], ['k', '1111'], ['p', target.commentAuthor],
+      ],
+      content: 'Case 2: a reply to the comment. You are only in the uppercase P.',
+    }),
+    nop: (who) => ({
+      tags: [['E', target.noteId], ['K', '1'], ['e', target.noteId], ['k', '1']],
+      content: 'Case 3: no P tag anywhere. Only the root id names the note.',
+    }),
+    web: (who) => ({
+      tags: [
+        ['I', 'https://example.com/comment-lab'], ['K', 'web'],
+        ['i', 'https://example.com/comment-lab'], ['k', 'web'],
+        ['p', target.pubkey],
+      ],
+      content: 'Case 5: a page comment, the original use of this kind.',
+    }),
+  };
+
+  document.querySelectorAll('[data-run]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const which = btn.dataset.run;
+      try {
+        if (!target) return show(which, 'Post the target note first.', true);
+        if (which === 'deep' && !target.commentId) {
+          return show(which, 'Run case 1 first: this replies to the comment it made.', true);
+        }
+        const who = stranger();
+
+        // Case 4 needs a root of its OWN, so the stranger posts a note first and then
+        // comments in that thread. Anything else would be rooted on your note, which is
+        // the very thing it is meant not to be.
+        if (which === 'mention') {
+          const root = NT.finalizeEvent({
+            kind: 1, created_at: now(), tags: [],
+            content: 'Comment lab: a stranger’s own thread, ' + new Date().toISOString(),
+          }, who.sk);
+          await publish(root);
+          const signed = NT.finalizeEvent({
+            kind: 1111, created_at: now(),
+            tags: [
+              ['E', root.id, '', who.pk], ['K', '1'], ['P', who.pk],
+              ['e', root.id, '', who.pk], ['k', '1'], ['p', who.pk],
+              ['p', target.pubkey],
+            ],
+            content: 'Case 4: talking in my own thread, tagging you.',
+          }, who.sk);
+          return report(which, signed, await publish(signed));
+        }
+
+        const draft = builders[which](who);
+        const signed = NT.finalizeEvent({ kind: 1111, created_at: now(), ...draft }, who.sk);
+        const res = await publish(signed);
+        report(which, signed, res);
+        if (which === 'top') {
+          target.commentId = signed.id;
+          target.commentAuthor = who.pk;
+          localStorage.setItem(KEY, JSON.stringify(target));
+          paintState();
+        }
+      } catch (e) {
+        show(which, e.message, true);
+      }
+    });
+  });
+</script>

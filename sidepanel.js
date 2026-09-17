@@ -3847,6 +3847,20 @@
     if (target.kind === WEB_COMMENT_KIND) {
       // Scope, verbatim. A 1111 always carries its root in uppercase tags.
       tgTags.forEach((t) => { if (t[0] === 'I' || t[0] === 'K' || t[0] === 'E' || t[0] === 'A') tags.push(t.slice()); });
+      // AND THE ROOT AUTHOR, which NIP-22 says a comment MUST carry and this did not.
+      // It is the mirror of the bug this branch fixes: a client watching `#P` for replies
+      // in its own threads could not see ours. Copied from the parent when the parent is
+      // itself the root, since then the two are the same person.
+      const rootP = tgTags.find((t) => t[0] === 'P' && t[1]);
+      if (rootP) tags.push(rootP.slice());
+      else {
+        // No P on the parent. The spec also carries the root author as the FOURTH element
+        // of the E tag, so that is where to look before giving up rather than guessing at
+        // the parent's author, who is only the same person on a top-level comment. A
+        // web-rooted comment (an I tag) has no author at all and correctly gets none.
+        const rootE = tgTags.find((t) => t[0] === 'E' && t[3]);
+        if (rootE) tags.push(['P', rootE[3]]);
+      }
       // Parent: the comment being answered.
       tags.push(['e', id], ['k', String(target.kind)]);
       return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
@@ -3857,6 +3871,39 @@
     const root = rootTag ? rootTag[1] : id;
     tags.push(['e', root, '', 'root']);
     if (root !== id) tags.push(['e', id, '', 'reply']);
+    return { kind: 1, tags: [...tags, ...people] };
+  }
+
+  // Unpacked-build fixture authoring only. Production replies always use replyTags.
+  async function devComposerReply(target, selectedKind) {
+    if (!isDevBuild() || !selectedKind) return target ? replyTags(target) : null;
+    if (!target) {
+      if (selectedKind === WEB_COMMENT_KIND) throw new Error('Reply to a note to create a kind 1111 comment.');
+      return null;
+    }
+    const normal = replyTags(target);
+    if (selectedKind === normal.kind) return normal;
+    const people = normal.tags.filter((t) => t[0] === 'p');
+    if (selectedKind === WEB_COMMENT_KIND) {
+      const rootTag = (target.tags || []).find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
+      const rootId = rootTag ? rootTag[1] : target.id;
+      const rootAuthor = rootId === target.id ? target.pubkey
+        : rootTag[4] || (await fetchNoteById(rootId))?.pubkey;
+      if (!rootAuthor) throw new Error('Could not load the thread author. Try again before posting this comment.');
+      return { kind: WEB_COMMENT_KIND, tags: [
+        ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
+        ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,
+      ] };
+    }
+    // Intentionally nonstandard: useful for testing tolerant readers of mixed threads.
+    const root = (target.tags || []).find((t) => t[0] === 'E' && t[1]);
+    const rootId = root ? root[1] : target.id;
+    const rootAuthor = (target.tags || []).find((t) => t[0] === 'P' && t[1])?.[1] || root?.[3];
+    if (rootAuthor && rootAuthor !== state.activePubkey && !people.some((t) => t[1] === rootAuthor)) {
+      people.push(['p', rootAuthor]);
+    }
+    const tags = [['e', rootId, root?.[2] || '', 'root']];
+    if (rootId !== target.id) tags.push(['e', target.id, '', 'reply']);
     return { kind: 1, tags: [...tags, ...people] };
   }
 
@@ -4349,7 +4396,25 @@
     return fmtSats(n) + (n === 1 ? ' sat' : ' sats');
   }
 
-  function notifLabel(ev) {
+  // WHOSE THREAD A COMMENT IS IN. NIP-22 puts the ROOT scope in uppercase tags and the
+  // PARENT in lowercase ones, so a comment on your note names you in `P`, and a reply to
+  // that comment names you only there: by then `p` belongs to whoever wrote the comment
+  // being answered.
+  //
+  // Both routes, because neither alone is enough. `P` is what the spec says MUST be there,
+  // and matching `E` against your own notes catches the clients that leave it out, which
+  // are the same clients an uppercase filter would miss. Same two-route reasoning as the
+  // poll-vote filters, and for the same reason: no single tag is guaranteed.
+  function commentRootIsOwn(ev, acctPubkey) {
+    if (!acctPubkey) return false;
+    const rootAuthor = (ev.tags || []).find((t) => t[0] === 'P' && t[1]);
+    if (rootAuthor && rootAuthor[1] === acctPubkey) return true;
+    const root = (ev.tags || []).find((t) => t[0] === 'E' && t[1]);
+    const mine = _ownNoteIds.get(acctPubkey);
+    return !!(root && mine && mine.has(root[1]));
+  }
+
+  function notifLabel(ev, acctPubkey) {
     if (ev.kind === 9735) {
       const msats = zapMsats(ev);
       const amount = zapAmountText(msats);
@@ -4366,9 +4431,29 @@
       const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : r.length <= 4 && r ? r : '❤️';
       return { glyph, text: 'reacted to your note' };
     }
-    // A NIP-22 comment that p-tags you. Worth its own wording: "mentioned you" sends
-    // the reader looking for a note, and this is a comment on a page.
-    if (ev.kind === WEB_COMMENT_KIND) return { glyph: '@', text: 'mentioned you in a comment' };
+    // Direct replies belong to the parent author, even when someone else owns
+    // the root thread. Extra p tags can be mentions, so prefer the parent event
+    // or its embedded author; only use p alone when there is one distinct author.
+    if (ev.kind === WEB_COMMENT_KIND) {
+      const tags = ev.tags || [];
+      const parent = tags.find((t) => t[0] === 'e' && t[1]);
+      const parentKind = tags.find((t) => t[0] === 'k' && t[1])?.[1];
+      if (acctPubkey && parent) {
+        const cachedParent = _noteCache.get(parent[1]);
+        const people = [...new Set(tags.filter((t) => t[0] === 'p' && t[1]).map((t) => t[1]))];
+        const parentAuthor = cachedParent?.pubkey || parent[3] || (people.length === 1 ? people[0] : '');
+        const parentIsOwn = parentAuthor ? parentAuthor === acctPubkey
+          : parentKind === '1' && _ownNoteIds.get(acctPubkey)?.has(parent[1]);
+        if (parentIsOwn && (parentKind === '1' || parentKind === String(WEB_COMMENT_KIND))) {
+          return { icon: 'message-filled', text: parentKind === '1' ? 'replied to your note' : 'replied to your comment' };
+        }
+      }
+      const K = tags.find((t) => t[0] === 'K' && t[1]);
+      if (K && K[1] === '1' && commentRootIsOwn(ev, acctPubkey)) {
+        return { icon: 'message-filled', text: 'replied to your note' };
+      }
+      return { glyph: '@', text: 'mentioned you in a comment' };
+    }
     // A vote. The wording says "your poll" because that is the only poll a vote can
     // reach this list for: both filters that collect them are anchored on this account.
     if (ev.kind === POLL_RESPONSE_KIND) return { icon: 'bar-chart', text: 'voted in your poll' };
@@ -5174,22 +5259,53 @@
   // author is only a convention, not required, so some clients omit it. Knowing
   // our own note ids lets the subscription match on the `e`/`q` tag directly and
   // catch those reposts/quotes even when the author isn't tagged.
+  const OWN_NOTE_CEILING = 250;
+  function rememberOwnNote(pubkey, id) {
+    if (!pubkey || !id) return;
+    const ids = _ownNoteIds.get(pubkey) || new Set();
+    ids.add(id);
+    while (ids.size > OWN_NOTE_CEILING) ids.delete(ids.keys().next().value);
+    _ownNoteIds.set(pubkey, ids);
+    _notifCache.get(pubkey)?.replaceLive?.();
+  }
+
+  function forgetOwnNoteQuery(pubkey) {
+    _ownNoteIdsPromises.delete(pubkey);
+  }
+
   function loadOwnNoteIds(pubkey, relays) {
     if (_ownNoteIdsPromises.has(pubkey)) return _ownNoteIdsPromises.get(pubkey);
     const p = (async () => {
-      const ids = new Set();
       try {
         const evs = await poolQuerySync(relays, { kinds: [1], authors: [pubkey], limit: 150 });
-        (evs || [])
-          .sort((x, y) => y.created_at - x.created_at)
-          .slice(0, 150)
-          .forEach((e) => ids.add(e.id));
+        // Merge with the current set after the await, including notes posted while
+        // the query ran. Leave room beyond the 150 relay results for local seeds.
+        const ids = new Set(_ownNoteIds.get(pubkey) || []);
+        for (const ev of (evs || []).sort((x, y) => y.created_at - x.created_at).slice(0, 150).reverse()) {
+          ids.delete(ev.id);
+          ids.add(ev.id);
+        }
+        while (ids.size > OWN_NOTE_CEILING) ids.delete(ids.keys().next().value);
+        _ownNoteIds.set(pubkey, ids);
+        // Also handles a query finishing after the startup/refresh timeout.
+        _notifCache.get(pubkey)?.replaceLive?.();
       } catch (_) {}
-      _ownNoteIds.set(pubkey, ids);
-      return ids;
+      return _ownNoteIds.get(pubkey) || new Set();
     })();
     _ownNoteIdsPromises.set(pubkey, p);
     return p;
+  }
+
+  // NIP-10 marked roots/parents, with the legacy first/last positional fallback.
+  // An e-tag marked as a mention is not evidence of a reply.
+  function isOwnNoteReply(ev, pubkey) {
+    const ids = _ownNoteIds.get(pubkey);
+    if (!ids || ev.kind !== 1) return false;
+    const refs = (ev.tags || []).filter((t) => t[0] === 'e' && t[1]);
+    const marked = refs.filter((t) => t[3] === 'root' || t[3] === 'reply');
+    if (marked.length) return marked.some((t) => ids.has(t[1]));
+    const positional = refs.filter((t) => !t[3]);
+    return !!positional.length && (ids.has(positional[0][1]) || ids.has(positional[positional.length - 1][1]));
   }
 
   // Same shape as loadOwnNoteIds, for polls. A vote does not have to p-tag the poll's
@@ -5275,11 +5391,15 @@
       // the first event and the repost/quote filters below are ready. Cap the
       // wait so a slow relay can't stall notifications — the fetches keep
       // running and mutes prune the cache once it lands.
-      const [, ownIds] = await Promise.all([
+      await Promise.all([
         Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
         Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
         Promise.race([loadOwnPollIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
       ]);
+
+      // An account switch or another startup may have completed while the loaders ran.
+      if (state?.activePubkey !== a.pubkey) continue;
+      if (_notifCache.get(a.pubkey)?.liveSub) continue;
 
       // Reuse the existing cache when re-subscribing after an account switch — a
       // fresh object would throw away every notification already collected for this
@@ -5289,6 +5409,12 @@
 
       const addEvent = (ev) => {
         if (ev.pubkey === a.pubkey) return;
+        // The e-based query can also return citations. Keep mentions/quotes from the
+        // existing routes, but require actual threading for this new reply route.
+        if (ev.kind === 1 && !(ev.tags || []).some((t) =>
+          (t[0] === 'p' && t[1] === a.pubkey) ||
+          (t[0] === 'q' && _ownNoteIds.get(a.pubkey)?.has(t[1]))
+        ) && !isOwnNoteReply(ev, a.pubkey)) return;
         if (isMutedNotif(_muteLists.get(a.pubkey), ev)) return;
         if (cache.events.some((e) => e.id === ev.id)) return;
         cache.events.push(ev);
@@ -5327,8 +5453,8 @@
       // Mentions/replies/reactions/zaps tagging the account, plus reposts
       // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
       // own notes — matched by id so they're caught even without a `p` tag.
-      const ownIdList = [...ownIds];
       function buildFilters(sinceTs, limit) {
+        const ownIdList = [...(_ownNoteIds.get(a.pubkey) || [])];
         // POLL IDS ARE READ HERE, NOT FROZEN WHEN THE SUBSCRIPTION STARTED. A poll posted
         // afterwards is in the set by the time this runs again (rememberOwnPoll), and the
         // refresh below builds its filters through this function, so the next ask names it.
@@ -5343,12 +5469,27 @@
         // catches, while NIP-88 never requires that tag, which the other one covers.
         // addEvent de-dupes by id, so a client doing both does not notify twice.
         const base = { kinds: [1, 6, 7, 1111, 9735, POLL_RESPONSE_KIND], '#p': [a.pubkey], since: sinceTs };
-        const list = [limit ? Object.assign({ limit }, base) : base];
+        const rootAuthor = { kinds: [WEB_COMMENT_KIND], '#P': [a.pubkey], since: sinceTs };
+        const list = [base, rootAuthor].map((f) => limit ? Object.assign({ limit }, f) : f);
         if (ownIdList.length) {
+          const replies = { kinds: [1], '#e': ownIdList, since: sinceTs };
+          list.push(limit ? Object.assign({ limit }, replies) : replies);
           const repost = { kinds: [6], '#e': ownIdList, since: sinceTs };
           const quote = { kinds: [1], '#q': ownIdList, since: sinceTs };
           list.push(limit ? Object.assign({ limit }, repost) : repost);
           list.push(limit ? Object.assign({ limit }, quote) : quote);
+          // NIP-22 REPLIES TO YOUR NOTES, WHICH THE `#p` FILTER ABOVE CANNOT SEE PAST THE
+          // FIRST ONE. A 1111's root scope is uppercase and its parent lowercase, so a
+          // comment directly on your note carries `p` = you and is caught above, but a
+          // reply to THAT comment carries `p` = the commenter and names you only in `P`.
+          // Relay tag filters are case-sensitive, so `#p` never matches `P`: without this,
+          // everything below the first level of a thread on your own note was invisible.
+          //
+          // Anchored on `#E` rather than `#P` deliberately. It catches the clients that
+          // omit `P` as well, and those are the same ones an uppercase filter would miss.
+          // addEvent de-dupes by id, so the overlap with the `#p` filter costs nothing.
+          const comments = { kinds: [WEB_COMMENT_KIND], '#E': ownIdList, since: sinceTs };
+          list.push(limit ? Object.assign({ limit }, comments) : comments);
         }
         if (ownPollIdList.length) {
           const votes = { kinds: [POLL_RESPONSE_KIND], '#e': ownPollIdList, since: sinceTs };
@@ -5372,6 +5513,7 @@
       cache.refetch = async () => {
         const urls = await relayUrls(false);
         if (!urls.length) return;
+        cache.replaceLive(urls);
         const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
         // Marks everything arriving from here as history rather than a live arrival, so
         // addEvent above keeps filtering and caching it but stops inserting it into an
@@ -5410,12 +5552,23 @@
           poolSubscribeManyEose(relays, f, { onevent: addEvent });
         }
       } catch (_) {}
-      try {
-        const subs = buildFilters(liveSince).map((f) =>
-          poolSubscribeMany(relays, f, { onevent: addEvent })
-        );
-        cache.liveSub = { close: () => subs.forEach((s) => { try { s.close(); } catch (_) {} }) };
-      } catch (_) {}
+      let liveRelays = relays;
+      cache.replaceLive = (urls = liveRelays) => {
+        if (state?.activePubkey !== a.pubkey) return;
+        liveRelays = urls;
+        // Close the old subscriptions before replacing them; account switches and
+        // repeated refreshes must not accumulate relay requests.
+        cache.liveSub?.close();
+        const subs = [];
+        for (const f of buildFilters(liveSince)) {
+          try { subs.push(poolSubscribeMany(urls, f, { onevent: addEvent })); }
+          catch (e) { console.warn('Notification subscription failed', e); }
+        }
+        cache.liveSub = subs.length
+          ? { close: () => subs.forEach((sub) => { try { sub.close(); } catch (_) {} }) }
+          : null;
+      };
+      cache.replaceLive();
     }
   }
 
@@ -5456,7 +5609,7 @@
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
-      const { glyph, icon: glyphIcon, text } = notifLabel(ev);
+      const { glyph, icon: glyphIcon, text } = notifLabel(ev, a.pubkey);
 
       // Where this notification opens (a renderable note/article/profile URL), or
       // '' when there's no sensible target.
@@ -6013,11 +6166,15 @@
         refreshBtn.disabled = true;
         refreshBtn.classList.add('spinning');
         try {
-          // Ask about this account's polls again first, so a poll posted from another
-          // client joins the vote filter that refetch is about to build. Votes on it are
-          // otherwise only reachable through `#p`, which NIP-88 does not require.
+          // Discover notes and polls posted from another client before rebuilding the
+          // filters. Bound the wait; a late note query also updates the live filters.
           forgetOwnPollQuery(a.pubkey);
-          await loadOwnPollIds(a.pubkey, await relayUrls(false));
+          forgetOwnNoteQuery(a.pubkey);
+          const askRelays = await relayUrls(false);
+          await Promise.race([
+            Promise.all([loadOwnPollIds(a.pubkey, askRelays), loadOwnNoteIds(a.pubkey, askRelays)]),
+            new Promise((resolve) => setTimeout(resolve, 5000)),
+          ]);
           const cached = _notifCache.get(a.pubkey);
           // No refetch on the cache means the subscriptions never started for this
           // account (no relays at the time, say), so start them.
@@ -6190,7 +6347,7 @@
       const panelQuote = pickQuote();
       // A new account opens this to nothing at all, which is the least welcoming screen in
       // the app and the one most likely to be someone's first.
-      let emptyMsg = events.length
+      let emptyMsg = events.length || offNet.length
         ? null
         : emptyQuote('Replies, reactions and zaps show up here.', panelQuote);
       if (emptyMsg) scroll.appendChild(emptyMsg);
@@ -6335,7 +6492,9 @@
         }
       }
 
-      if (events.length) loadMore();
+      // An empty main list can still have notifications in the outside-network group.
+      // Run the end-of-list render for that case so its toggle remains reachable.
+      if (events.length || offNet.length) loadMore();
 
       // Back to where you were. The pages first — scrolling to an offset that nothing has
       // been rendered into yet would just clamp to the bottom of a short list — and then
@@ -11499,6 +11658,14 @@
       return;
     }
     const pubkey = state.activePubkey;
+    await devBuildReady;
+    let devKindEnabled = false;
+    if (isDevBuild()) {
+      try { devKindEnabled = (await call({ type: 'SIDECAR_GET_SETTINGS' }))?.devComposerKinds === true; }
+      catch (_) {} // Missing/unavailable settings leave demo controls off.
+    }
+    // Deliberately not saved in drafts: a demo override belongs to this opening only.
+    let devKind = 0;
     // `let`, not const: a saved draft can carry its own reply target, and resuming one
     // has to put the composer back into reply mode.
     let replyTo = (opts && opts.replyTo) || null;
@@ -11645,7 +11812,9 @@
       // marked root as the thread, and NIP-22 scope is read positionally by some
       // clients. Mentions and quotes from the body follow, deduped against the
       // participants replyTags already added.
-      const reply = replyTo ? replyTags(replyTo) : null;
+      const reply = isDevBuild() && devKindEnabled && settings?.devComposerKinds === true && devKind
+        ? await devComposerReply(replyTo, devKind)
+        : replyTo ? replyTags(replyTo) : null;
       const already = new Set((reply ? reply.tags : []).filter((t) => t[0] === 'p').map((t) => t[1]));
       const bodyP = pTags.filter((t) => !already.has(t[1]));
       const base = reply ? reply.tags : [];
@@ -11704,6 +11873,31 @@
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: toSign, expectedPubkey: pubkey });
       await publishSigned(signed);
       return signed;
+    }
+
+    function buildDevKindSelector() {
+      if (!isDevBuild() || !devKindEnabled) return null;
+      const select = h('select', { id: 'compose-dev-kind' });
+      select.append(
+        h('option', { value: '0', textContent: 'Automatic' }),
+        h('option', { value: '1', textContent: 'Kind 1 — note' }),
+        h('option', { value: '1111', textContent: 'Kind 1111 — comment', disabled: !replyTo }),
+      );
+      select.value = String(devKind);
+      select.disabled = !!draft.poll;
+      const hint = h('p', { className: 'hint' });
+      const paint = () => {
+        hint.textContent = draft.poll ? 'Polls use their own event kind.'
+          : !replyTo ? 'Start with a note, then choose either kind when replying.'
+          : devKind === 1 && replyTo.kind === WEB_COMMENT_KIND
+          ? 'Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.'
+          : 'Dev build only. Automatic preserves the kind of the event you answer.';
+      };
+      select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+      paint();
+      return h('div', { className: 'compose-dev-kind' }, [
+        h('label', { htmlFor: 'compose-dev-kind', textContent: 'Demo event kind' }), select, hint,
+      ]);
     }
 
     function showEditor() {
@@ -11975,6 +12169,8 @@
         pollWrap.innerHTML = '';
         pollWrap.classList.toggle('hidden', !draft.poll);
         pollAdd.classList.toggle('hidden', !!draft.poll || !!replyTo);
+        const devSelect = modal.querySelector('#compose-dev-kind');
+        if (devSelect) devSelect.disabled = !!draft.poll;
         if (!draft.poll) return;
 
         const list = h('div', { className: 'poll-options' });
@@ -12140,6 +12336,7 @@
         h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
         author,
         ...(replyTo ? [buildReplyBlock()] : []),
+        ...(isDevBuild() && devKindEnabled ? [buildDevKindSelector()] : []),
         tabBar,
         editorWrap,
         previewPane,
@@ -12170,6 +12367,7 @@
         // Before the banner, because the banner is the only other way back to this tally
         // and it dismisses itself after a minute.
         if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id);
+        else if (signed.kind === 1) rememberOwnNote(signed.pubkey, signed.id);
         published = true;
         clearComposeDraft(dkey);
         closeModal();
@@ -12197,6 +12395,9 @@
       // is the last screen before it goes out.
       const parent = buildReplyBlock();
       if (parent) previewScroll.append(parent);
+      if (isDevBuild() && devKindEnabled && devKind && !draft.poll) {
+        previewScroll.append(h('p', { className: 'hint', textContent: 'Demo event kind: ' + devKind }));
+      }
       const previewBody = h('div', { className: 'preview-body' });
       const bodyText = draft.text.trim();
       if (bodyText) renderNotePreview(previewBody, bodyText);
@@ -20290,6 +20491,10 @@
   }
 
   async function openDebugPanel() {
+    await devBuildReady;
+    if (!isDevBuild()) return;
+    let devSettings = {};
+    try { devSettings = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
     let entries = [];
     try { entries = await call({ type: 'SIDECAR_GET_DEBUG_LOG' }); } catch (_) {}
 
@@ -20306,15 +20511,42 @@
       const verText = ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '');
       modal.append(
         h('div', {}, [
-          h('div', { className: 'notif-modal-title', textContent: 'Debug log' }),
+          h('div', { className: 'notif-modal-title', textContent: 'Dev tools' }),
           h('div', { className: 'hint', textContent: 'Sidecar ' + verText + ' · dev build' }),
         ])
       );
 
+      const demoToggle = h('input', {
+        type: 'checkbox', checked: devSettings.devComposerKinds === true,
+      });
+      demoToggle.addEventListener('change', async () => {
+        const enabled = demoToggle.checked;
+        demoToggle.disabled = true;
+        try {
+          await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devComposerKinds: enabled } });
+        } catch (_) {
+          demoToggle.checked = !enabled;
+          toast('Could not save the demo setting', 'error');
+        } finally {
+          demoToggle.disabled = false;
+        }
+      });
+      modal.append(h('section', { className: 'dev-controls-section' }, [
+        h('h3', { className: 'settings-section-title', textContent: 'Dev controls' }),
+        h('label', { className: 'toggle-row' }, [
+          demoToggle, h('span', { textContent: 'Demo event kind selector' }),
+        ]),
+        h('p', { className: 'hint', textContent: 'Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.' }),
+      ]));
+
       const scroll = h('div', { className: 'notif-scroll' });
       const list = h('div', { className: 'list' });
       scroll.appendChild(list);
-      modal.appendChild(scroll);
+      const logSection = h('section', { className: 'dev-log-section' }, [
+        h('h3', { className: 'settings-section-title', textContent: 'Debug log' }),
+        scroll,
+      ]);
+      modal.appendChild(logSection);
 
       function render() {
         if (!entries.length) {
@@ -20343,7 +20575,7 @@
         try { entries = await call({ type: 'SIDECAR_CLEAR_DEBUG_LOG' }); } catch (_) { return; }
         render();
       });
-      modal.append(h('div', { className: 'actions' }, [clearBtn, copyBtn]));
+      logSection.append(h('div', { className: 'actions' }, [clearBtn, copyBtn]));
     }, () => { debugPanelRefresh = null; });
   }
 
