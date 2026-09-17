@@ -98,3 +98,22 @@ test('no surface claims to be loading without showing it', () => {
     'a bare word is not an indicator');
   assert.match(bare, /wallet-chart-loading' \}, \[waitingRow\(/);
 });
+
+test('THE SHIMMER OUTRANKS THE RULES IT LANDS ON', () => {
+  // It works by sweeping a bright band across a dimmer base. A single class is (0,1,0) and
+  // loses to anything that adds an element: `.profile-stat strong` is (0,1,1), so the base
+  // stayed at --text while the highlight is also --text, and a bright band crossing an
+  // equally bright base is exactly as visible as nothing. It shipped that way and looked
+  // like the change had not been applied at all.
+  assert.match(cssCode, /\.t-shimmer\.t-shimmer \{/, 'the utility must outrank descendant rules');
+  assert.match(cssCode, /\.t-shimmer\.t-shimmer::before \{/, 'and so must the band it paints');
+  assert.doesNotMatch(cssCode, /\n\.t-shimmer \{/, 'a single class silently loses on some surfaces');
+
+  // Won without !important, which would have taken the reduced-motion guard with it.
+  const rule = cssCode.slice(cssCode.indexOf('.t-shimmer.t-shimmer {'));
+  assert.doesNotMatch(rule.slice(0, rule.indexOf('}')), /!important/);
+
+  // The base and the highlight must stay different, or there is no band to see.
+  assert.match(cssCode, /--shimmer-base: var\(--muted\)/);
+  assert.match(cssCode, /--shimmer-highlight: var\(--text\)/);
+});

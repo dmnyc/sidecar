@@ -251,7 +251,13 @@ button, input, select, textarea { font-family: inherit; }
 
    inline-block is what makes the box hug the glyphs, so the label is shrink-to-fit rather
    than the full width of its row. */
-.t-shimmer {
+/* DOUBLED ON PURPOSE. A single class is (0,1,0) and loses to any rule that adds an
+   element, such as `.profile-stat strong` at (0,1,1). When it lost, the base colour stayed
+   at --text while the sweeping highlight is also --text: a bright band travelling across
+   an equally bright base, which is exactly as visible as nothing. Doubling the class makes
+   it (0,2,0) and wins without reaching for !important, and a utility that silently does
+   nothing on some surfaces is worse than one that is not there. */
+.t-shimmer.t-shimmer {
   --shimmer-dur: 2000ms;
   --shimmer-base: var(--muted);
   --shimmer-highlight: var(--text);
@@ -261,7 +267,7 @@ button, input, select, textarea { font-family: inherit; }
   display: inline-block;
   color: var(--shimmer-base);
 }
-.t-shimmer::before {
+.t-shimmer.t-shimmer::before {
   content: attr(data-text);
   position: absolute;
   inset: 0;
@@ -288,7 +294,7 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-shimmer::before { animation: none !important; }
+  .t-shimmer.t-shimmer::before { animation: none !important; }
 }
 
 label { color: var(--muted); }
