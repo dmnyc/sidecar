@@ -69,13 +69,26 @@ test('nothing builds that row by hand any more', () => {
 test('shimmer is for values waiting in place, and nothing else', () => {
   // A count inside a row has no room for a spinner beside it, which is the whole reason
   // this idiom survives. Every other use moved to the row.
-  const calls = [...bare.matchAll(/(?:^|[^n] )setWaiting\(([^;]*)\)/g)]
-    .map((m) => m[1])
-    .filter((c) => c !== 'el, text, waiting'); // the definition, not a call
+  // Whole lines, not just arguments: some call sites build the element inline, so the name
+  // that says what it is lives to the left of the call.
+  const calls = bare.split('\n')
+    .filter((l) => /setWaiting\(/.test(l) && !/function setWaiting\(/.test(l))
+    .map((l) => l.trim());
   assert.ok(calls.length >= 1, 'the in-place idiom is gone entirely');
+  // Everything left is a number sitting in a line of prose: a poll's vote count, and the
+  // following and muted counts on the profile. None of them has room for a spinner beside
+  // it, which is the whole reason this idiom survives.
   for (const c of calls) {
-    assert.match(c, /poll-row-count|cell/, 'setWaiting outside an in-place value: ' + c.slice(0, 60));
+    assert.match(c, /poll-row-count|cell|followNum|muteNum|numEl|h\('strong'\)/,
+      'setWaiting outside an in-place value: ' + c.slice(0, 60));
   }
+
+  // And every one of them has a landing that turns it off, or a settled number sweeps for
+  // ever. Counted rather than named, so a new counter cannot be added without one.
+  const armed = calls.filter((c) => /, true\)?$/.test(c.trim()));
+  const settled = calls.filter((c) => /, false\)?$/.test(c.trim()));
+  assert.ok(settled.length >= armed.length,
+    'more placeholders than landings: ' + armed.length + ' armed, ' + settled.length + ' settled');
 });
 
 test('no surface claims to be loading without showing it', () => {

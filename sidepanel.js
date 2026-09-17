@@ -1888,7 +1888,7 @@
       // .profile-stat): plain centred text, not pills. A badge reads as a control
       // you can press, and none of this is pressable.
       const rel = h('div', { className: 'profile-stats peek-rel' });
-      const followNum = h('strong', { textContent: '…' });
+      const followNum = setWaiting(h('strong'), '…', true);
       rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
@@ -1896,7 +1896,7 @@
       modal.append(body);
 
       getFollowCount(pubkey).then((n) => {
-        if (modal.isConnected) followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+        if (modal.isConnected) setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
       });
 
       // Two independent facts, each rendered only once known. A relay that never
@@ -7082,7 +7082,7 @@
 
       // Numeric stats.
       getFollowCount(pubkey).then((n) => {
-        followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+        setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
         followNum.classList.add('account-stat-num');
       });
 
@@ -9640,7 +9640,7 @@
 
     // Following count (fetched from the account's kind:3). Followers are out of
     // scope for now — they require an aggregating index, not a single event.
-    const followNum = h('strong', { textContent: '…' });
+    const followNum = setWaiting(h('strong'), '…', true);
     // This circular-arrow used to only scroll down to the backup section — it reads as
     // a refresh, so it is one now. Follow List Recovery already sits at the bottom of
     // this screen under its own clear label, so the jump wasn't earning the icon.
@@ -9682,7 +9682,7 @@
         refreshBtn.classList.remove('spinning');
       }
     });
-    const muteNum = h('strong', { textContent: '…' });
+    const muteNum = setWaiting(h('strong'), '…', true);
     const muteStat = h('span', { className: 'profile-stat' }, [muteNum, document.createTextNode(' muted')]);
     const followStat = h('div', { className: 'profile-stats' }, [
       h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
@@ -9691,7 +9691,7 @@
     ]);
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
-      followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+      setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
     });
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
@@ -9858,11 +9858,13 @@
   // the newest event across relays AND decrypts the private half, which is most of a real
   // list. Its promise cache is what the refresh button drops.
   async function paintMuteCount(pubkey, numEl, labelEl) {
-    numEl.textContent = '…';
+    // Re-armed on every repaint, because Refresh reuses the same element: a second load
+    // has to look like the first rather than sitting on a stale settled number.
+    setWaiting(numEl, '…', true);
     if (labelEl) labelEl.removeAttribute('title');
     try {
       const m = await loadMuteList(pubkey, await readRelayUrls(pubkey));
-      numEl.textContent = m.pubkeys.size.toLocaleString('en-US');
+      setWaiting(numEl, m.pubkeys.size.toLocaleString('en-US'), false);
       const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
       const extras = [];
       if (m.hashtags.size) extras.push(plural(m.hashtags.size, 'hashtag'));
@@ -9872,7 +9874,7 @@
         labelEl.title = 'Also muted: ' + extras.join(', ') + '. Only people are counted here.';
       }
     } catch (_) {
-      numEl.textContent = '—';
+      setWaiting(numEl, '—', false); // a dash is an answer, and must not keep sweeping
     }
   }
 
