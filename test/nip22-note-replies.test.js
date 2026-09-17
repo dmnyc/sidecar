@@ -108,3 +108,52 @@ test('our own comments name the root author, which they never used to', () => {
   assert.match(branch, /tgTags\.find\(\(t\) => t\[0\] === 'E' && t\[3\]\)/);
   assert.match(branch, /tags\.push\(\['P', rootE\[3\]\]\)/);
 });
+
+function commentLabel(tags, account = MINE, cached = []) {
+  const ctx = {
+    WEB_COMMENT_KIND: 1111, POLL_RESPONSE_KIND: 1018,
+    _noteCache: new Map(cached), _ownNoteIds: new Map([[MINE, new Set([MY_NOTE])]]),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(lift('function commentRootIsOwn(') + '\n' + lift('function notifLabel('), ctx);
+  return ctx.notifLabel({ kind: 1111, tags }, account);
+}
+
+test('direct comments on my note are replies even when someone else owns the thread', () => {
+  const label = commentLabel([['K', '1'], ['P', THEM], ['e', MY_NOTE, '', MINE], ['k', '1'], ['p', MINE]]);
+  assert.equal(label.text, 'replied to your note');
+  assert.equal(label.icon, 'message-filled');
+});
+
+test('direct replies to my comment take precedence over ownership of the root note', () => {
+  const label = commentLabel([['K', '1'], ['P', MINE], ['e', 'comment'], ['k', '1111'], ['p', MINE]]);
+  assert.equal(label.text, 'replied to your comment');
+  assert.equal(label.icon, 'message-filled');
+});
+
+test('a reply to my comment in someone else’s thread or on a web page is not a mention', () => {
+  for (const rootKind of ['1', 'web']) {
+    assert.equal(commentLabel([['K', rootKind], ['P', THEM], ['e', 'comment'], ['k', '1111'], ['p', MINE]]).text,
+      'replied to your comment');
+  }
+});
+
+test('an explicit other parent author is not overridden by a mention of me', () => {
+  assert.equal(commentLabel([['K', '1'], ['P', THEM], ['e', 'comment', '', THEM], ['k', '1111'], ['p', MINE]]).text,
+    'mentioned you in a comment');
+});
+
+test('multiple participants alone do not establish who owns the parent', () => {
+  assert.equal(commentLabel([['K', '1'], ['P', THEM], ['e', 'comment'], ['k', '1111'], ['p', MINE], ['p', THEM]]).text,
+    'mentioned you in a comment');
+});
+
+test('a cached parent resolves ownership when p tags contain several participants', () => {
+  assert.equal(commentLabel([['K', '1'], ['P', THEM], ['e', 'comment'], ['k', '1111'], ['p', MINE], ['p', THEM]],
+    MINE, [['comment', { pubkey: MINE }]]).text, 'replied to your comment');
+});
+
+test('a page mention with no event parent keeps its mention label', () => {
+  assert.equal(commentLabel([['K', 'web'], ['I', 'https://example.com'], ['k', 'web'], ['p', MINE]]).text,
+    'mentioned you in a comment');
+});

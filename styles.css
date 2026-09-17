@@ -4821,3 +4821,12 @@ button.poll-bar-head {
    Kept after the Polls button that exposed it became a tab: nothing sits to the right of
    the title box now, but a name that never truncates is still a bug of its own. */
 .notif-modal-titlebox { min-width: 0; flex: 1; }
+
+/* Fixture authoring in unpacked builds; one full-width control for the narrow panel. */
+.compose-dev-kind { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.compose-dev-kind select { width: 100%; }
+.compose-dev-kind .hint { margin: 0; }
+
+.dev-controls-section { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.dev-controls-section .hint { margin: 6px 0 0; }
+.dev-log-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 12px; }
