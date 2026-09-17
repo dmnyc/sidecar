@@ -132,15 +132,21 @@ test('the typographic marks are left alone', () => {
 
 // ---- the render site -----------------------------------------------------------------
 
-test('all three mark kinds are handled, in the right order', () => {
+test('all four mark kinds are handled, in the right order', () => {
   const at = source.indexOf('const glyphEl = h(\'span\', { className: \'notif-glyph\' });');
   assert.ok(at !== -1, 'the glyph render site moved');
-  const block = source.slice(at, at + 700);
+  // To the end of the chain rather than a fixed slice: a fourth branch was added for
+  // custom emoji and a 700-character window stopped reaching the last one.
+  const end = source.indexOf('} else glyphEl.textContent = glyph;', at);
+  assert.ok(end !== -1, 'the literal-character fallback moved');
+  const block = source.slice(at, end + 40);
   const icon = block.indexOf('if (glyphIcon)');
   const bolt = block.indexOf("glyph === '⚡'");
-  const text = block.indexOf('glyphEl.textContent = glyph');
-  assert.ok(icon !== -1 && bolt !== -1 && text !== -1, 'a branch is missing');
-  assert.ok(icon < bolt && bolt < text, 'icon, then bolt, then the literal character');
+  const img = block.indexOf('else if (emojiUrl)');
+  const text = block.lastIndexOf('glyphEl.textContent = glyph');
+  assert.ok(icon !== -1 && bolt !== -1 && img !== -1 && text !== -1, 'a branch is missing');
+  assert.ok(icon < bolt && bolt < img && img < text,
+    'icon, then bolt, then a custom emoji picture, then the literal character');
 });
 
 test('the icon inherits currentColor so themes need no per-theme rule', () => {
