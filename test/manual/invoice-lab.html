@@ -14,10 +14,15 @@
   is connected to, so press "Connect with Nostr" once and approve. Localhost ports are
   separate sites in Sidecar, so port 8021 gets its own approval and its own binding.
 
-  Nothing here can be spent. The invoices are generated at load: 21 sats, bogus payment
-  hash, no signature, padded to a realistic length because invoiceExpired ignores anything
-  shorter. They pass Sidecar's regex and expiry check, which is the point, and no wallet
-  will settle one.
+  Cases 1 to 8 cannot be spent. Their invoices are generated at load and carry no payment
+  hash, no payee node id and no valid signature, only the 21-sat amount prefix and (in one
+  case) a description. They pass Sidecar's regex and expiry check, which is the point, and
+  no wallet can route one: there is no destination encoded in them at all.
+
+  Case 0 is the exception and is REAL MONEY. It resolves a lightning address over LNURL-pay
+  and puts the genuine invoice that comes back on the page, because the states after Pay is
+  pressed (sending, landed) cannot be reached with an invoice that no wallet will accept.
+  Default is 1 sat to your own address, which is the cheapest honest test there is.
 
   To ask the detector directly why a given element did or did not count, lift QR_SEL,
   PAGE_LEVEL, isPanelSized, isOverlay and hasPayIntent out of content.js into a probe.js
@@ -50,6 +55,16 @@
   code { font: 12.5px ui-monospace, monospace; color: #b7aee0; word-break: break-all; }
   a.ln { color: #f0a860; }
   .qr { width: 108px; height: 108px; background: #fff; border-radius: 8px; }
+  .real { border: 1px solid #6b4a20; background: #1e1710; border-radius: 12px; padding: 16px 18px; margin: 0 0 22px; }
+  .real h2 { font-size: 15px; margin: 0 0 2px; }
+  .real .warn { color: #e0a94a; font-size: 13.5px; margin: 0 0 14px; }
+  .real .fields { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .real label { display: block; font-size: 12px; color: #9a93b0; margin-bottom: 4px; }
+  .real input { width: auto; }
+  .real .addr { width: 230px; } .real .amt { width: 80px; } .real .inv { width: 100%; margin-top: 10px; }
+  .real .out { margin-top: 12px; font-size: 13.5px; }
+  .real .out b { color: #e0a94a; }
+  .real .err { color: #d98b7a; }
 </style>
 
 <div class="wrap">
@@ -64,6 +79,23 @@
   <div class="bar">
     <button id="connect">Connect with Nostr</button>
     <span id="state">not connected</span>
+  </div>
+
+  <div class="real">
+    <h2>0. A real, payable invoice</h2>
+    <p class="warn">This one spends. It resolves a lightning address over LNURL-pay and drops the
+    invoice that comes back onto the page, so pressing Pay moves actual sats out of the wallet
+    connected in Sidecar. Use your own address and leave the amount at 1 sat unless you mean it.
+    Nothing below this box can be spent; everything in this box can.</p>
+    <div class="fields">
+      <div><label for="addr">Lightning address</label><input id="addr" class="addr" placeholder="you@example.com"></div>
+      <div><label for="amt">Sats</label><input id="amt" class="amt" type="number" value="1" min="1" max="1000"></div>
+      <button id="fetch">Fetch invoice</button>
+      <button id="clear-real">Clear</button>
+    </div>
+    <input id="inv" class="inv" placeholder="…or paste a BOLT11 invoice, if the address domain blocks CORS">
+    <div class="out" id="real-out"></div>
+    <div class="slot" id="slot-real"></div>
   </div>
 
   <div class="case">
@@ -212,5 +244,90 @@
 
   document.getElementById('copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(INV); } catch (e) { alert('clipboard refused: ' + e.message); }
+  });
+
+  // ---- case 0: a real invoice ---------------------------------------------------------
+  //
+  // The bogus invoices above stop being useful the moment Pay is pressed: Sidecar hands
+  // them to the wallet, the wallet's decoder rejects the string, and every state after
+  // "sending" is a failure state. Reaching "landed" needs an invoice a wallet will settle.
+  //
+  // Same two steps sidepanel.js takes (lnAddressParams then lnAddressToInvoice): resolve
+  // .well-known/lnurlp/<name>, then call the callback with the amount in msats and read
+  // res.pr. The https check on the callback is copied deliberately, because an http one
+  // sends the amount in cleartext and is trivially swapped in transit.
+
+  const out = document.getElementById('real-out');
+  const slotReal = document.getElementById('slot-real');
+  const addr = document.getElementById('addr');
+  const amt = document.getElementById('amt');
+  const invBox = document.getElementById('inv');
+
+  // Mirrors invoiceSats in content.js, so what this prints is what the card will print.
+  const satsOf = (b) => {
+    const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(b);
+    if (!m || !m[1]) return null;
+    const F = { m: 1e5, u: 1e2, n: 1e-1, p: 1e-4, '': 1e8 };
+    return Math.round(Number(m[1]) * F[m[2].toLowerCase()]);
+  };
+
+  async function resolve(address, sats) {
+    const [name, domain] = String(address || '').split('@');
+    if (!name || !domain) throw new Error('That does not look like a lightning address');
+    let res;
+    try {
+      res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name);
+    } catch (_) {
+      throw new Error("Couldn't reach " + domain + ' (it may block cross-origin reads: paste an invoice instead)');
+    }
+    if (!res.ok) throw new Error(domain + ' has no lightning address for ' + name);
+    const meta = await res.json();
+    if (!meta || meta.tag !== 'payRequest' || !meta.callback) throw new Error(domain + ' answered, but not with a lightning address');
+    const msats = sats * 1000;
+    if (msats < Number(meta.minSendable) || msats > Number(meta.maxSendable)) {
+      throw new Error('That address takes ' + Math.ceil(meta.minSendable / 1000) + ' to ' + Math.floor(meta.maxSendable / 1000) + ' sats');
+    }
+    const cb = new URL(meta.callback);
+    if (cb.protocol !== 'https:') throw new Error('That address returned an insecure callback URL');
+    cb.searchParams.set('amount', String(msats));
+    const r = await (await fetch(cb.toString())).json();
+    if (!r.pr) throw new Error(r.reason || 'No invoice returned');
+    return r.pr;
+  }
+
+  // Shown as a bare link, which is case 1's shape: the corner pill first, and the card only
+  // if you click the link. That is on purpose. It means the real invoice cannot reach the
+  // Pay button without a second, deliberate click.
+  function place(inv) {
+    const sats = satsOf(inv);
+    out.innerHTML = 'Real invoice for <b>' + (sats == null ? 'an unspecified amount' : sats.toLocaleString('en-US') + ' sats') +
+      '</b>. Expect the corner pill. Click the link to open the card, and Pay to spend it.' +
+      '<p><code>' + inv + '</code></p>';
+    slotReal.innerHTML = '<a class="ln" href="lightning:' + inv + '">Pay ' +
+      (sats == null ? '' : sats.toLocaleString('en-US') + ' sats ') + 'with Lightning</a>';
+  }
+
+  document.getElementById('fetch').addEventListener('click', async () => {
+    const sats = Number(amt.value);
+    if (!Number.isFinite(sats) || sats < 1) return (out.innerHTML = '<span class="err">Enter an amount of 1 sat or more.</span>');
+    out.textContent = 'Resolving ' + addr.value + '…';
+    slotReal.innerHTML = '';
+    try {
+      place(await resolve(addr.value.trim(), sats));
+    } catch (e) {
+      out.innerHTML = '<span class="err">' + e.message + '</span>';
+    }
+  });
+
+  invBox.addEventListener('change', () => {
+    const v = invBox.value.trim().replace(/^lightning:/i, '').toLowerCase();
+    if (!/^ln(bc|tb)[0-9]/.test(v)) return (out.innerHTML = '<span class="err">That is not a BOLT11 invoice.</span>');
+    place(v);
+  });
+
+  document.getElementById('clear-real').addEventListener('click', () => {
+    slotReal.innerHTML = '';
+    out.textContent = '';
+    invBox.value = '';
   });
 </script>

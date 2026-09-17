@@ -3704,6 +3704,22 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .toast span { overflow-wrap: anywhere; }
 .toast-success { background: linear-gradient(180deg, #176a44, #0f4a30); border-color: rgba(120, 230, 170, 0.4); color: #d7f7e6; }
 .toast-error { background: linear-gradient(180deg, #7e2233, #531320); border-color: rgba(240, 86, 107, 0.5); color: #ffd9df; }
+/* A payment still going. Deliberately not green: it is neither a success nor a failure,
+   and reading it as either is the whole thing this is here to stop. The panel's own
+   bottom-right corner belongs to the compose FAB, so the toast stack is where a
+   "still happening" line lives here. This one has no timer; see toast(). */
+/* Hardcoded like its two siblings, and for the same reason: the background is a fixed
+   dark gradient in every theme, so a themed --text lands as dark-on-dark the moment a
+   light theme is picked. Toasts are the one surface here that does not follow the theme. */
+.toast-progress { background: linear-gradient(180deg, #3a2f52, #241b38); border-color: rgba(189, 161, 255, 0.42); color: #e9e2fa; }
+/* currentColor rather than the shared .recv-spinner rule, whose --lav track disappears
+   against this background. */
+.toast-spin {
+  width: 14px; height: 14px; flex-shrink: 0; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent; opacity: 0.55;
+  animation: spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .toast-spin { animation: none; } }
 
 /* ===== scrollbar ===== */
 ::-webkit-scrollbar { width: 9px; height: 9px; }
