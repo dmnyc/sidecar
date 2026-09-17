@@ -8,7 +8,7 @@ web apps you use, so you can sign in and sign events across Nostr clients withou
 pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
 Connect) and a composer for posting notes directly from the panel.
 
-**[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
+**[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox build](https://github.com/dmnyc/sidecar/releases)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
 
 <img width="3456" height="1944" alt="Sidecar" src="https://i.nostr.build/u9KBCFMuJk23EOrD.jpg" />
 
@@ -118,15 +118,18 @@ Sidecar has **no build step** — it's plain JavaScript loaded directly. To run 
 
 Sidecar runs on Firefox **128 and later** — the same signer, wallet, and approval flow as Chrome, in the sidebar instead of the side panel.
 
-1. **Install from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/).**
-2. **Open the sidebar** — View → Sidebar → Sidecar (or click the Sidecar toolbar button). On first run you'll set a PIN, then add an account.
-3. **Use it on a Nostr site** — same as above.
+The Firefox build ships as `sidecar-X.Y.Z-firefox.zip` on the [releases page](https://github.com/dmnyc/sidecar/releases), and it is unsigned: release and Beta Firefox will not install an unsigned package permanently, and `xpinstall.signatures.required` can only be turned off on Developer Edition, Nightly and ESR. So there are two ways in.
+
+1. **For the session, on any Firefox.** Unzip it, visit `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on…** and pick `manifest.json`. Firefox removes it when it quits.
+2. **Permanently, on Developer Edition, Nightly or ESR.** Set `xpinstall.signatures.required` to `false` in `about:config`, then `about:addons` → the gear icon → **Install Add-on From File…** and pick the zip.
+
+Then **open the sidebar** (View → Sidebar → Sidecar, or click the Sidecar toolbar button). On first run you'll set a PIN, then add an account, and you use it on a Nostr site the same way as on Chrome.
 
 Two Firefox specifics: extensions stay off in private windows unless you allow them (Manage Extensions → Sidecar → Run in Private Windows), and Sidecar needs the site access it asks for at install — if you declined that, the panel shows a one-click **Grant access** banner until it's restored.
 
 > **Developers:** to load Sidecar unpacked on Firefox, visit `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → select `manifest.json`. Temporary add-ons are removed when Firefox quits.
 
-**Updating:** Both the Chrome Web Store and Firefox Add-ons install paths update automatically. On Chrome you can also trigger a check from **Settings → Updates** or the About dialog (Firefox manages updates on its own). For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
+**Updating:** A Chrome Web Store install updates automatically. A Firefox install does not, since nothing is serving it updates: download the next zip from the releases page and load it again. On Chrome you can also trigger a check from **Settings → Updates** or the About dialog (Firefox manages updates on its own). For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
 
 ### Build version stamp (optional)
 
