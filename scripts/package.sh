@@ -47,7 +47,14 @@ mkdir -p "${STAGE}"
 git archive "${TAG}" | tar -x -C "${STAGE}"
 
 # Strip everything that isn't part of the running extension.
-rm -rf "${STAGE}/.claude" "${STAGE}/.github" "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
+#
+# EVERY top-level dot entry, by glob rather than by name, for exactly the reason the
+# .md glob below gives. The old list named .claude and .github, and when .agents/
+# arrived it shipped 35 skill documents inside the 1.13.0 package: an explicit list
+# fails open, and the thing it fails open on is always something added later by
+# someone who had no reason to know this line existed. Nothing the extension runs
+# lives under a dot path, so the glob is safe and it covers whatever comes next.
+rm -rf "${STAGE}"/.[!.]* "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
        "${STAGE}/docs"
 # Every top-level .md, by glob rather than by name. The old explicit list failed
 # open: a doc added later shipped inside the extension until someone noticed, and
