@@ -48,6 +48,17 @@ The updated Sidecar screenshots confirm the corrected labels. Amelia sees event 
 |---|---|
 | ![Amelia’s notifications with corrected reply labels](images/mixed-reply-thread/amelia-notifications.png) | ![Gatsby’s notifications with corrected reply labels](images/mixed-reply-thread/gatsby-notifications.png) |
 
+<details>
+<summary>Damus and Wisp comparison</summary>
+
+In these captured thread views, Damus and Wisp each show events 1 and 2, both kind 1. Events 3–6, all kind 1111, are absent from these views. This documents the observed result for this conversation; it is not a general claim about either client’s support. The Sidecar screenshots above are account-specific notification lists and collectively show all six events.
+
+| Damus | Wisp |
+|---|---|
+| ![Damus showing events 1 and 2](images/mixed-reply-thread/damus-thread.png) | ![Wisp showing events 1 and 2](images/mixed-reply-thread/wisp-thread.png) |
+
+</details>
+
 ## Event IDs
 
 1. Gatsby: `c12afb6147fe8fba76e9fb108a87ae9d3404112159a7cdbc195312d86cee293b`
