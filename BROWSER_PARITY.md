@@ -1,4 +1,4 @@
-# Browser Parity — Chrome & Firefox
+# Browser Parity — Chrome & Firefox (and why not Safari)
 
 Sidecar ships from one shared codebase to two browser builds. This doc exists so
 that **every release lands in both** — so nothing goes out to Chrome and silently
@@ -116,6 +116,49 @@ straight from 1.8.0 to 1.10.0. Consequences worth holding onto:
   (Firefox). Keepalive concerns are Chrome-specific but harmless on Firefox.
 - **AMO** — Firefox refuses to install without `browser_specific_settings.gecko.id`,
   and AMO rejects a re-upload of a version string it already has.
+
+## Safari — asked for often, blocked on one thing
+
+**Short answer: no, and the reason is the side panel, not the crypto.**
+
+Safari has shipped Safari Web Extensions since Safari 14, and most of what Sidecar
+calls would port. The blocker is the container the whole product lives in.
+
+| What Sidecar needs | Chrome | Firefox | Safari |
+| --- | --- | --- | --- |
+| `sidebar_action` | no | 54 | **no** |
+| `side_panel` / `chrome.sidePanel` | 114 | no | **no** |
+| `content_scripts` | yes | 48 | 14 |
+| `content_scripts.world` (MAIN) | 111 | 128 | **18** |
+
+Source: MDN browser-compat-data, `webextensions/manifest/` and
+`webextensions/api/`, read 2026-09-17. Check it again before quoting this, rather
+than quoting this.
+
+**Safari implements neither side-UI API.** Not the Firefox one, not the Chrome one.
+The only container a Safari extension gets is a toolbar popup, and a popup is
+dismissed the moment focus leaves it. That takes out the composer mid-sentence,
+the draft you were writing, the wallet, a payment in flight, and the approval
+queue. Sidecar is not a popup with a side panel bolted on; it is a side panel.
+Porting it to a popup is not a port, it is a different product with different
+guarantees.
+
+**The part people assume is the problem is fine.** `window.nostr` is injected by a
+`world: "MAIN"` content script, and Safari has supported that since Safari 18. So
+the NIP-07 mechanism, the keystore, WebCrypto, and the relay WebSockets would all
+work. It really is only the window it lives in.
+
+**And distribution is a second job.** Safari extensions ship inside a macOS or iOS
+app through the App Store, not as a file you can host. That means an Apple
+Developer account, Xcode, and App Store review of an extension that holds private
+keys and moves Lightning payments.
+
+**What would change this.** Safari shipping any side-UI API. If that happens the
+conversation is worth reopening, because nothing else here is a real obstacle.
+
+**The genuinely interesting version of the question is iOS**, where a Safari
+extension is the only way to get a signer into the browser at all. That is a
+product decision rather than a port, and it faces the same popup constraint.
 
 ---
 
