@@ -4460,8 +4460,31 @@
       .map((x) => x[2]);
   }
 
+  // Account names and shared profiles are already available before the bell opens.
+  function notifProfileName(pubkey) {
+    const account = state && state.accounts && state.accounts.find((a) => a.pubkey === pubkey);
+    return cachedProfile(pubkey)?.name || account?.name?.trim() || _notifProfiles.get(pubkey) || '';
+  }
+
+  async function resolveNotifMentions(content, update) {
+    const pubkeys = new Set();
+    for (const match of content.matchAll(/nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g)) {
+      try {
+        const decoded = NT.nip19.decode(match[1]);
+        const pk = decoded.type === 'npub' ? decoded.data : decoded.data?.pubkey;
+        if (pk && !notifProfileName(pk)) pubkeys.add(pk);
+      } catch (_) {}
+    }
+    // getProfile shares pending lookups across rows. Resolve at row creation so
+    // paging, outside-network expansion, and live arrivals all follow this path.
+    await Promise.all([...pubkeys].map(async (pk) => {
+      try { await getProfile(pk); } catch (_) {}
+    }));
+    if (pubkeys.size) update(cleanSnippet(content));
+  }
+
   function notifAuthorName(pubkey) {
-    const cached = _notifProfiles.get(pubkey);
+    const cached = notifProfileName(pubkey);
     if (typeof cached === 'string' && cached) return cached;
     try { return shortNpub(NT.nip19.npubEncode(pubkey)); } catch (_) { return '—'; }
   }
@@ -4915,7 +4938,7 @@
           const decoded = NT.nip19.decode(entity);
           const pk = decoded.type === 'npub' ? decoded.data : decoded.data && decoded.data.pubkey;
           if (pk) {
-            const name = _notifProfiles.get(pk);
+            const name = notifProfileName(pk);
             if (name) return '@' + name;
             return '@' + entity.slice(0, 12) + '…';
           }
@@ -5734,6 +5757,12 @@
       if (isNoteLike) {
         const stopAct = (e) => { e.preventDefault(); e.stopPropagation(); };
         item.appendChild(buildActions(ev, stopAct));
+      }
+      if (isNoteLike && contentEl) {
+        resolveNotifMentions(ev.content || '', (cleaned) => {
+          contentEl.textContent = contentEl.classList.contains('notif-content-full')
+            ? cleaned : cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+        });
       }
       return item;
     }
