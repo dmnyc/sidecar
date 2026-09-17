@@ -231,6 +231,13 @@ button, input, select, textarea { font-family: inherit; }
 .hint.compact:last-of-type { margin-bottom: 8px; }
 .hint code { background: rgba(var(--border-rgb), 0.12); padding: 1px 6px; border-radius: 5px; color: var(--lav); font-family: var(--font-mono); }
 
+/* ONE ROTATION, USED EVERYWHERE SOMETHING SPINS. There were three keyframes for this:
+   recv-spin at 0.8s, ac-spin at 0.7s and profile-refresh-spin at 0.9s, turning the same
+   14px circle at three speeds that no one chose and no one could tell apart on purpose.
+   A loading indicator is a promise that the app is working; three dialects of it read as
+   three different apps. */
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Shimmer text (transitions.dev #15), for a label waiting on relays. Two layers: the text
    renders normally, and ::before duplicates it through attr(data-text), clips a sweeping
    gradient to the same glyphs, and animates that gradient's position. Pure CSS, so there
@@ -502,9 +509,8 @@ input:focus, select:focus, textarea:focus {
    filled mark, so it needs the extra size to read as a control rather than a speck. */
 .profile-backup-jump svg { width: 18px; height: 18px; display: block; }
 /* Spins while the refresh is in flight, so a slow relay looks busy rather than dead. */
-.profile-backup-jump.spinning svg { animation: profile-refresh-spin 0.9s linear infinite; }
+.profile-backup-jump.spinning svg { animation: spin 0.8s linear infinite; }
 .profile-backup-jump:disabled { cursor: default; }
-@keyframes profile-refresh-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .profile-backup-jump.spinning svg { animation: none; opacity: 0.5; }
 }
@@ -2572,8 +2578,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-size: 11px; color: var(--muted); white-space: nowrap;
 }
 .ac-loading { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
-.ac-spinner { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--lav); animation: ac-spin 0.7s linear infinite; }
-@keyframes ac-spin { to { transform: rotate(360deg); } }
+/* Shape and metrics live on .recv-spinner, which this shares. */
 
 /* One-time Nostr Archives ask, rendered at the TOP of either autocomplete
    surface (composer dropdown, topbar search results) — first, because both
@@ -2984,9 +2989,13 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 @media (prefers-reduced-motion: reduce) {
   .wallet-chart-mark { transition: none; }
 }
+/* text-align centred the bare string it used to hold; the waiting row is a flex row, so
+   it needs centring as a box instead. Both are kept: the unavailable message is still a
+   bare string in here. */
 .wallet-chart-loading {
   font-family: var(--font-ui); font-size: 12px; color: var(--faint);
   padding: 28px 0; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
 }
 @media (prefers-reduced-motion: reduce) {
   .wallet-chart-slot { transition: none; }
@@ -3370,12 +3379,14 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 
 /* receive: waiting + success states */
 .recv-waiting { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
-.recv-spinner {
-  width: 14px; height: 14px; border-radius: 50%;
+/* Both spinner classes, one rule. They were separate and identical; the names stay
+   because themes/werkstatte.css squares them by name. */
+.recv-spinner,
+.ac-spinner {
+  width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
   border: 2px solid var(--border-strong); border-top-color: var(--lav);
-  animation: recv-spin 0.8s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
-@keyframes recv-spin { to { transform: rotate(360deg); } }
 .recv-success { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0 0; margin-bottom: 24px; }
 .recv-check {
   width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -4386,7 +4397,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .notif-refresh svg { width: 17px; height: 17px; display: block; }
 /* Spins while the fetch is in flight, so a slow relay looks busy rather than dead —
    the same treatment .profile-backup-jump uses. */
-.notif-refresh.spinning svg { animation: profile-refresh-spin 0.9s linear infinite; }
+.notif-refresh.spinning svg { animation: spin 0.8s linear infinite; }
 .notif-refresh:disabled { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .notif-refresh.spinning svg { animation: none; opacity: 0.5; }

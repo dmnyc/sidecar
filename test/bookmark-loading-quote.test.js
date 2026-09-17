@@ -63,7 +63,11 @@ test('the loading block is the empty block, spinner included', () => {
   const f = stripComments(lift('function loadingQuote('));
   assert.match(f, /className: 'bm-empty'/, 'it is furniture of its own rather than the empty state');
   assert.match(f, /className: 'bm-quote'/, 'no quote');
-  assert.match(f, /className: 'recv-spinner'/, 'no spinner, so nothing says it is still working');
+  // The spinner moved into waitingRow, which every region-sized wait in the panel now
+  // shares. What matters here is that this block still HAS one, not where it is built.
+  assert.match(f, /waitingRow\(label\)/, 'no spinner, so nothing says it is still working');
+  const row = stripComments(lift('function waitingRow('));
+  assert.match(row, /className: 'recv-spinner'/, 'and the shared row is what carries it');
   assert.match(f, /q = q \|\| pickQuote\(\)/, 'a caller cannot hand in the line to keep');
   assert.match(css, /\.bm-empty \.recv-waiting \{[^}]*justify-content: center/, 'the spinner row hangs left');
 });
