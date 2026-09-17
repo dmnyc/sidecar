@@ -139,7 +139,30 @@ Every one is a single string of SVG coordinates. No first-party JavaScript in
 this repository is minified, transpiled, concatenated, or otherwise
 machine-generated.
 
-## 6. Remote code
+## 6. Relay Rider, the hidden game
+
+`relay-rider.html` and `relay-rider.js` (1087 lines) are a small game, reached
+only from the rig at the foot of the panel's About card. It is unusual enough in a
+signing extension to be worth naming rather than leaving to be discovered in the
+package.
+
+It is deliberately inert, and every part of that is checkable in the file:
+
+- No `chrome.*` or `browser.*` API of any kind. It uses none of the extension's
+  five permissions.
+- No `fetch`, no `XMLHttpRequest`, no `WebSocket`. It makes no network request at
+  all, so it is covered by §7 below without qualification.
+- Not listed in `web_accessible_resources` (the manifest key is absent entirely),
+  so no web page can reach it. The panel loads it in a same-origin iframe.
+- The only thing it persists is a high score, in its own page's `localStorage`.
+  No key material, no account data, no user content.
+
+`test/relay-rider.test.js` asserts the inertness so a later edit cannot quietly
+introduce any of the above, and the 2026-09-13 security audit in
+`docs/security-audit-2026-09-13.md` §6 reached the same conclusion by reading the
+file in full.
+
+## 7. Remote code
 
 None. Sidecar loads and executes no remote code. There is no `eval`, no
 dynamically constructed script, and no code fetched at runtime. All scripts are
@@ -153,7 +176,7 @@ fetches for content the user is viewing. There is no analytics, telemetry, or
 error reporting of any kind. `PRIVACY.md` in the source package documents this in
 full.
 
-## 7. What this archive leaves out
+## 8. What this archive leaves out
 
 The archive is the repository at the release tag, with five paths held back.
 None of them is source for anything in the add-on, none is read by any build or
@@ -170,7 +193,7 @@ including `scripts/` in full, `VENDOR.md`, `.github/` (the CI that enforces the
 vendored hashes), `test/`, and the docs that describe live code. The complete
 repository, with nothing held back at all, is public at the tag; see §8.
 
-## 8. Questions
+## 9. Questions
 
 The complete source, including this file, is at
 <https://github.com/dmnyc/sidecar> under the MIT license. Every released version
