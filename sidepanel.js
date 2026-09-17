@@ -117,6 +117,8 @@
   // rather than a quote site, and prefer a writer not already on the list.
   const PERIOD_QUOTES = [
     { text: 'A book must be the axe for the frozen sea within us.', who: 'Franz Kafka, 1904' },
+    { text: 'We are all in the gutter, but some of us are looking at the stars.', who: 'Oscar Wilde, 1892' },
+    { text: 'Do I contradict myself? Very well then I contradict myself.', who: 'Walt Whitman, 1855' },
     { text: 'Be patient toward all that is unsolved in your heart.', who: 'Rainer Maria Rilke, 1903' },
     { text: 'Only connect.', who: 'E. M. Forster, 1910' },
     { text: 'Whereof one cannot speak, thereof one must be silent.', who: 'Ludwig Wittgenstein, 1921' },
