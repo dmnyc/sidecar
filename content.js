@@ -190,12 +190,14 @@
   let copiedAt = 0;
   const COPIED_TTL_MS = 3 * 60 * 1000;
   let escHandler = null;
-  let cardControls = null; // { invoice, setPaid, setError } for the live card
-  // How long a payment may sit in flight before the card offers a way out. Well
-  // short of the ~42s worst case in background.js (pay_invoice's 30s REQUEST_TIMEOUT
-  // plus CONFIRM_GRACE_MS), but long enough that a healthy payment — which usually
-  // resolves in a few seconds, or by the 8s lookup_invoice poll — never shows it.
-  const SLOW_PAY_MS = 15000;
+  let cardControls = null; // { invoice, setPaid, setError } for the card or indicator on screen
+  // What the corner indicator is currently reporting, so a theme repaint can rebuild it
+  // in the state it was in rather than restarting the spinner on a payment that landed.
+  let flightAuto = false;
+  let flightPaid = false;
+  // A card with a decision out on it. Module scope rather than the card's own closure
+  // because scanForInvoice has to see it: see the guard at the top of that function.
+  let awaitingDecision = false;
 
   function invoiceSats(bolt11) {
     const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(bolt11);
@@ -493,7 +495,21 @@
     '.pill .t{white-space:nowrap;}' +
     '.pill .t b{font-weight:600;}' +
     '.x{all:unset;cursor:pointer;padding:2px 4px;margin-left:2px;border-radius:6px;opacity:.55;font-size:14px;}' +
-    '.x:hover{opacity:1;}';
+    '.x:hover{opacity:1;}' +
+    // THE SAME CORNER, ONCE THE MONEY IS ALREADY MOVING (#270). Pay is pressed, the NWC
+    // request is published, and nothing left on screen can stop it, so a full-page
+    // overlay holding a disabled button was asking for attention that had nothing to buy.
+    // The status moves down here, where everything Sidecar says about a payment nobody
+    // has to answer already lives. Not pressable, because there is nothing left to press:
+    // the .x still closes it, and closing it does not close the payment.
+    '.pill.flight{cursor:default;}' +
+    '.pill .sp{box-sizing:border-box;width:13px;height:13px;flex:0 0 auto;border-radius:50%;' +
+    'border:2px solid currentColor;border-top-color:transparent;opacity:.5;animation:sc-spin .7s linear infinite;}' +
+    '@keyframes sc-spin{to{transform:rotate(360deg);}}' +
+    '.pill .ck{display:none;width:14px;height:14px;flex:0 0 auto;{CARD_SUCCESS};}' +
+    '.pill.paid .sp{display:none;}' +
+    '.pill.paid .ck{display:block;}' +
+    '@media (prefers-reduced-motion:reduce){.pw{transition:none;}.pill .sp{animation:none;}}';
 
   const CARD_CSS =
     '.ov{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;' +
@@ -522,35 +538,32 @@
     'box-shadow:0 8px 22px {CARD_PAY_SHADOW},inset 0 1px 0 rgba(255,255,255,0.45);transition:filter .12s ease,transform .12s ease;}' +
     '.pay:hover{filter:brightness(1.05);}' +
     '.pay:active{transform:translateY(1px);}' +
-    '.pay.pending{cursor:default;opacity:.94;}' +
+    // There is no pending state on this button any more. Pressing Pay hands the payment
+    // to the corner indicator and tears the card down, so the only thing left to draw is
+    // an invoice that settled somewhere else while the card sat open, which must stop it
+    // being pressed a second time.
     '.pay.done{cursor:default;background:none;box-shadow:none;{CARD_SUCCESS};}' +
-    // Auto-zap: nothing here is pressable, so it must not read as a button. Strip the
-    // fill, the shadow and the bold weight and let it sit as a status line — the same
-    // treatment .done already uses. The spinner is drawn in the button-text color, so
-    // on a flat card it has to switch to currentColor or it disappears.
-    '.auto .pay{background:none;box-shadow:none;cursor:default;font-weight:600;padding:12px 14px 4px;color:{CARD_TEXT};}' +
-    '.auto .pay:hover{filter:none;}' +
-    '.auto .pay.pending{opacity:1;}' +
-    '.auto .pay.pending .pay-spin{border:2px solid currentColor;border-top-color:transparent;opacity:.55;}' +
     '.pay-bolt{height:16px;width:auto;display:block;}' +
-    '.pay.pending .pay-bolt,.pay.done .pay-bolt{display:none;}' +
+    '.pay.done .pay-bolt{display:none;}' +
     '.pay-check{display:none;width:18px;height:18px;}' +
     '.pay.done .pay-check{display:block;}' +
-    '.pay-spin{display:none;width:16px;height:16px;border-radius:50%;border:2px solid rgba(28,12,0,0.3);border-top-color:#1c0c00;animation:sc-spin .7s linear infinite;}' +
-    '.pay.pending .pay-spin{display:block;}' +
-    '@keyframes sc-spin{to{transform:rotate(360deg);}}' +
     '.pay-status{margin-top:11px;font-size:12px;line-height:1.45;{CARD_MUTED};text-wrap:balance;}' +
     '.pay-status.err{{CARD_WARN};}' +
     '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
     '.cancel:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
+    // THE DECISION IS OUT, AND THE CARD IS STILL DOING A JOB. Sidecar is asking for
+    // approval on its own surface, and until that comes back this overlay is the only
+    // thing standing between the person and the page's own payment UI: a "Connect Wallet
+    // to Pay" button that routes back here through the injected window.webln, and a QR a
+    // phone can scan. Both are live the whole time, and either one is a second payment
+    // for the same invoice. So the card stays, Not now goes (there is nothing to decide
+    // here any more, and Reject is in Sidecar), and the Pay button is flattened into a
+    // status line rather than left sitting there looking pressable.
     '.card.busy .cancel{display:none;}' +
-    // "Stop waiting" — only after a payment has been in flight long enough to look
-    // stuck (see SLOW_PAY_MS). Deliberately not offered before that, and never as
-    // "Cancel": the NWC request is already published and the wallet may still pay it.
-    '.stopwait{display:none;margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
-    '.stopwait:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
-    '.card.busy.slow .stopwait{display:block;}' +
     '.card.busy .tg{opacity:.4;pointer-events:none;}' +
+    '.card.busy .pay{background:none;box-shadow:none;cursor:default;font-weight:600;color:{CARD_TEXT};}' +
+    '.card.busy .pay:hover{filter:none;}' +
+    '.card.busy .pay-bolt{display:none;}' +
     '.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:14px;' +
     'border-top:1px solid {CARD_BORDER_FAINT};cursor:pointer;}' +
     '.tg-label{font-size:12px;{CARD_MUTED};}' +
@@ -595,11 +608,15 @@
     cardTheme = t;
     // Repaint whatever is actually showing, IN ITS OWN MODE. This used to call
     // renderCard unconditionally, which turned a pill into a full card the moment the
-    // theme reply landed (and, before the pill existed, turned an auto-zap card into a
-    // manual one offering to pay a zap already in flight).
+    // theme reply landed, and turned a payment already in flight into a fresh offer to
+    // pay it.
     if (cardHost && shownInvoice) {
       if (shownMode === 'pill') renderPill(shownInvoice);
-      else renderCard(shownInvoice, shownMode === 'auto');
+      else if (shownMode === 'flight') {
+        const wasPaid = flightPaid;
+        renderFlightPill(shownInvoice, flightAuto);
+        if (wasPaid && cardControls) cardControls.setPaid();
+      } else renderCard(shownInvoice);
     }
   }
   // The settings read below carries it too, but that one races the first scan; this asks
@@ -1044,9 +1061,7 @@
   }
 
   function removeCard() {
-    if (cardControls && cardControls.cleanup) {
-      try { cardControls.cleanup(); } catch (_) {}
-    }
+    awaitingDecision = false; // whatever tore this down, no card is holding a decision now
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
     cardHost = null;
     shownInvoice = '';
@@ -1058,18 +1073,11 @@
     }
   }
 
-  // What an invoice nobody asked about gets: a pill, not the card. Reported by a user who
-  // imported a key, logged into a client, and was met by a full-screen payment card for an
-  // invoice the page had put on screen by itself. Everything about that card was correct
-  // and none of it was wanted.
-  function renderPill(invoice) {
+  // Both corner states share one host: the pill for an invoice nobody asked about, and
+  // the pill for a payment already going out. Same shadow root, same stylesheet, same
+  // place on screen, so the only thing either one has to describe is its own contents.
+  function mountPill(inner) {
     removeCard();
-    shownInvoice = invoice;
-    shownMode = 'pill';
-    const sats = invoiceSats(invoice);
-    const site = location.host.replace(/^www\./, '');
-    const amount = sats != null ? '<b>' + sats.toLocaleString('en-US') + '</b> sats' : 'An invoice';
-
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
     const sh = cardHost.attachShadow({ mode: 'open' });
@@ -1077,16 +1085,34 @@
     sh.innerHTML =
       '<style>' + PILL_CSS.replace(/\{(\w+)\}/g, (m, k) =>
         Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m) + '</style>' +
-      '<div class="pw"><div class="pill" role="button" tabindex="0" aria-label="' +
-      (sats != null ? sats + ' sat' : 'A') + ' Lightning invoice is payable on ' + escapeHtml(site) +
-      '. Open Sidecar to pay it.">' +
-      bolt('b') + '<span class="t">' + amount + ' payable</span>' +
-      '<button class="x" type="button" aria-label="Dismiss">\u00D7</button></div></div>';
+      '<div class="pw">' + inner + '</div>';
     (document.body || document.documentElement).appendChild(cardHost);
     requestAnimationFrame(() => {
       const w = sh.querySelector('.pw');
       if (w) w.classList.add('in');
     });
+    return sh;
+  }
+
+  // What an invoice nobody asked about gets: a pill, not the card. Reported by a user who
+  // imported a key, logged into a client, and was met by a full-screen payment card for an
+  // invoice the page had put on screen by itself. Everything about that card was correct
+  // and none of it was wanted.
+  function renderPill(invoice) {
+    const sats = invoiceSats(invoice);
+    const site = location.host.replace(/^www\./, '');
+    const amount = sats != null ? '<b>' + sats.toLocaleString('en-US') + '</b> sats' : 'An invoice';
+
+    // mountPill clears shownInvoice/shownMode on its way in, so claim them after it.
+    const sh = mountPill(
+      '<div class="pill" role="button" tabindex="0" aria-label="' +
+      (sats != null ? sats + ' sat' : 'A') + ' Lightning invoice is payable on ' + escapeHtml(site) +
+      '. Open Sidecar to pay it.">' +
+      bolt('b') + '<span class="t">' + amount + ' payable</span>' +
+      '<button class="x" type="button" aria-label="Dismiss">\u00D7</button></div>'
+    );
+    shownInvoice = invoice;
+    shownMode = 'pill';
 
     const open = () => renderCard(invoice);
     const pill = sh.querySelector('.pill');
@@ -1104,13 +1130,61 @@
     });
   }
 
-  // `auto` renders the same card for a zap going out under the auto-zap limits: no
-  // decision to make, but the spend is still shown, and a failure has somewhere to
-  // land. It drops straight into the sending state and reuses setPaid/setError.
-  function renderCard(invoice, auto) {
+  // A PAYMENT ALREADY ON ITS WAY (#270). There is no decision left in it: the request is
+  // published, the wallet may settle it whatever this page does next, and the result
+  // arrives as the page-wide flash and a line in the log whether or not anything is still
+  // on screen. So it reports from the corner rather than holding the page, and the way
+  // out is the same one every other corner notice has instead of a button that had to
+  // explain it was not a cancel.
+  //
+  // `auto` is an auto-zap, the same state reached without being asked first. That one
+  // used to open the full card as a receipt, which was the purest case of a card with
+  // nothing on it to press.
+  function renderFlightPill(invoice, auto) {
+    const sats = invoiceSats(invoice);
+    const amount = sats != null ? '<b>' + sats.toLocaleString('en-US') + '</b> sats' : 'payment';
+    const sh = mountPill(
+      '<div class="pill flight" role="status" aria-live="polite">' +
+      '<span class="sp"></span>' +
+      '<svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" ' +
+      'stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+      '<span class="t">' + (auto ? 'Zapping ' : 'Sending ') + amount + '</span>' +
+      '<button class="x" type="button" aria-label="Hide">\u00D7</button></div>'
+    );
+    shownInvoice = invoice;
+    shownMode = 'flight';
+    flightAuto = !!auto;
+    flightPaid = false;
+
+    const pill = sh.querySelector('.pill');
+    const text = sh.querySelector('.t');
+    sh.querySelector('.x').addEventListener('click', () => {
+      // Hides the indicator, not the payment. Remembered anyway, so the next DOM scan
+      // cannot turn around and offer to pay an invoice that is already being paid.
+      dismissedInvoice = invoice;
+      removeCard();
+    });
+
+    cardControls = {
+      invoice: invoice,
+      setPaid: () => {
+        flightPaid = true;
+        pill.classList.add('paid');
+        text.innerHTML = sats != null ? 'Paid ' + amount : 'Paid';
+      },
+      // A failure is a decision again, and a decision needs the room and the button that
+      // only the card has. This is the one way back out of the corner.
+      setError: (detail) => renderCard(invoice, detail),
+    };
+  }
+
+  // The card is only ever a DECISION now: an invoice somebody reached for, or a payment
+  // that failed and could be tried again. Everything from the moment Pay is pressed
+  // belongs to renderFlightPill, auto-zaps included.
+  function renderCard(invoice, errorText) {
     removeCard();
     shownInvoice = invoice;
-    shownMode = auto ? 'auto' : 'card';
+    shownMode = 'card';
     const sats = invoiceSats(invoice);
     const memo = invoiceMemo(invoice);
     const site = location.host.replace(/^www\./, '');
@@ -1120,9 +1194,9 @@
     // how it was reported. This wording also matches the approval window's, where a site
     // "wants to send a Lightning payment" and nothing moves until you say so.
     //
-    // Auto-zapping is the deliberate exception: that spend IS underway and already
-    // authorized, so the present tense is the honest tense there.
-    const eyebrow = auto ? 'Auto-zapping' : 'Request to pay';
+    // A spend already underway has no business on a card at all now. It goes to the
+    // corner indicator, where the present tense is the honest tense.
+    const eyebrow = 'Request to pay';
     const amountBlock =
       sats != null
         ? '<div class="amt"><span class="num">' + sats.toLocaleString('en-US') + '</span><span class="unit">sats</span></div>'
@@ -1131,8 +1205,9 @@
     const memoBlock = memoText ? '<div class="memo">' + escapeHtml(memoText) + '</div>' : '';
 
     // Offer auto-zap only when this very payment is one it would cover, so the
-    // amount on screen is the amount the setting would have handled.
-    const canOfferAutoZap = !auto && autoZapOffer > 0 && sats != null && sats <= autoZapOffer;
+    // amount on screen is the amount the setting would have handled. Never on a card
+    // opened in its error state: see the note on the settings rows below.
+    const canOfferAutoZap = !errorText && autoZapOffer > 0 && sats != null && sats <= autoZapOffer;
     const offerRow = canOfferAutoZap
       ? '<label class="tg tg-autozap"><span class="tg-label">Turn on Auto Zaps (' +
         autoZapOffer.toLocaleString('en-US') +
@@ -1160,33 +1235,30 @@
     s.innerHTML =
       '<style>' + cardCss + '</style>' +
       '<div class="ov">' +
-      '<div class="card' + (auto ? ' auto' : '') + '" role="dialog" aria-label="' +
-      (auto ? 'Auto-zap in progress' : 'Pay with Sidecar') + '">' +
+      '<div class="card" role="dialog" aria-label="Pay with Sidecar">' +
       '<div class="brand">' + logoSvg + '</div>' +
       '<div class="eyebrow">' + eyebrow + '</div>' +
       amountBlock +
       memoBlock +
-      '<div class="site">' + (auto ? 'to an invoice on ' : 'found on ') + '<b>' + escapeHtml(site) + '</b></div>' +
-      '<button class="pay" type="button"><span class="pay-spin"></span>' + bolt('pay-bolt') +
+      '<div class="site">found on <b>' + escapeHtml(site) + '</b></div>' +
+      '<button class="pay" type="button">' + bolt('pay-bolt') +
       '<svg class="pay-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
       '<span class="pay-label">Pay with Sidecar</span></button>' +
       '<div class="pay-status" hidden></div>' +
       '<button class="cancel" type="button">Not now</button>' +
-      '<button class="stopwait" type="button">Stop waiting</button>' +
-      (offerRow ||
-        '') +
-      // MANUAL CARDS ONLY, and not for tidiness — on an auto card this toggle disabled a
-      // different feature than the one it named (#208). It writes showPayButton: false,
-      // which gates the manual scan-and-show path below and nothing else; the auto card
-      // is rendered straight off the worker's `autopaying` event and never consults the
-      // setting. So ticking it on an auto-zap receipt kept every future auto-zap card
-      // coming and silently removed the manual "Pay with Sidecar" card the user had not
-      // touched.
-      // It is redundant here as well: an auto card is a receipt for a spend already on
-      // its way, shown precisely because money moving with nothing on screen is the wrong
-      // trade (background.js). Offering to hide it argues with the feature it reports.
-      // Same !auto shape the Auto Zaps offer row above already uses.
-      (auto
+      (offerRow || '') +
+      // NOT ON THE ERROR CARD, and #208 is why. This toggle writes showPayButton: false,
+      // which gates the manual scan-and-show path below and nothing else. It used to
+      // render on the auto-zap card, where auto-zaps come straight off the worker's
+      // `autopaying` event and never read the setting, so ticking it there kept every
+      // auto card coming and silently removed the manual "Pay with Sidecar" card instead.
+      // Auto-zaps no longer open a card at all, but a FAILED one reopens this card to
+      // offer the retry, which is the same back door into the same wrong switch.
+      //
+      // It reads wrong there regardless: the prompt in front of you is a failure report,
+      // not the scan prompt this would hide, so the card opened to report a decision is
+      // the one card that offers no settings.
+      (errorText
         ? ''
         : '<label class="tg"><span class="tg-label">Don\'t show this prompt again</span>' +
           '<input class="tg-input tg-showcard-input" type="checkbox">' +
@@ -1196,75 +1268,53 @@
     const ov = s.querySelector('.ov');
     const card = s.querySelector('.card');
     const payBtn = s.querySelector('.pay');
-    let sending = false;
+    let awaiting = false;
 
     function dismiss() {
-      if (sending) return; // don't let a dismiss interrupt an in-flight payment
+      // Not while a decision is out. Esc and a background click must not take the card
+      // away and hand the page's own pay button back, and there is nothing to dismiss
+      // to: the answer is Reject, in Sidecar, which comes back here as a failure.
+      if (awaiting) return;
       dismissedInvoice = invoice;
       removeCard();
     }
 
-    // Payment is async (an NWC relay round-trip, a few seconds). Show a spinner
-    // and a reassuring status line so the user knows it's working and doesn't hit
-    // back or re-tap. The background reports the outcome via 'paid' / 'payfailed'.
     const label = s.querySelector('.pay-label');
     const status = s.querySelector('.pay-status');
-    let slowTimer = null;
-    function clearSlow() {
-      clearTimeout(slowTimer);
-      slowTimer = null;
-      card.classList.remove('slow');
-    }
-    function setSending(isAuto) {
-      sending = true;
-      card.classList.add('busy'); // dims + disables Not now / the toggle
-      payBtn.classList.remove('done');
-      payBtn.classList.add('pending');
+    // Pressed Pay, and now Sidecar is asking. Nothing has been sent, so this does not say
+    // it has: the corner indicator takes over on the 'authorized' event, which is the
+    // first moment "Sending" is true.
+    function setAwaiting() {
+      awaiting = true;
+      awaitingDecision = true;
+      card.classList.add('busy');
       payBtn.disabled = true;
-      label.textContent = isAuto ? 'Zapping…' : 'Sending payment…';
+      label.textContent = 'Confirm in Sidecar';
       status.hidden = false;
       status.className = 'pay-status';
-      status.textContent = isAuto
-        ? 'Inside your auto-zap limits, so Sidecar is paying this without asking.'
-        : 'Confirming with your wallet. This can take a few seconds.';
-      // A stuck payment can otherwise hold this card for ~42s (pay_invoice's 30s
-      // timeout plus the 12s confirm grace in background.js), with Not now hidden
-      // the whole time. Once it's clearly slow, offer a way out — and say plainly
-      // that leaving does not stop the payment, because it can't: the request is
-      // already published and the wallet may still settle it.
-      clearSlow();
-      slowTimer = setTimeout(() => {
-        slowTimer = null;
-        card.classList.add('slow');
-        status.className = 'pay-status';
-        status.textContent =
-          'This is taking longer than usual. Your wallet may still complete it — ' +
-          'Sidecar will flash the page and log it if it does.';
-      }, SLOW_PAY_MS);
+      status.textContent = 'Approve it in Sidecar to send it. Nothing has left your wallet yet.';
     }
+    // An invoice can settle while this card is still open: paid from the panel, or by the
+    // page's own WebLN flow. Nothing to announce, but the button has to stop being
+    // pressable or the next tap pays it twice. The handler clears the card a beat later.
     function setPaid() {
-      clearSlow();
-      payBtn.classList.remove('pending');
       payBtn.classList.add('done');
       payBtn.disabled = true;
       label.textContent = 'Paid';
       status.hidden = true;
     }
     function setError(detail) {
-      sending = false;
-      clearSlow();
-      card.classList.remove('busy'); // re-enable Not now / the toggle for retry
-      payBtn.classList.remove('pending', 'done');
+      awaiting = false;
+      awaitingDecision = false;
+      card.classList.remove('busy'); // Not now and the toggle come back for the retry
+      payBtn.classList.remove('done');
       payBtn.disabled = false;
       label.textContent = 'Try again';
       status.hidden = false;
       status.className = 'pay-status err';
       status.textContent = detail || 'Payment failed. Please try again.';
     }
-    // cleanup is called by removeCard so a pending slow-payment timer can't fire
-    // against a detached card (the card can be torn down by 'paid' or a rescan,
-    // not just by setPaid / setError / Stop waiting).
-    cardControls = { invoice: invoice, setPaid: setPaid, setError: setError, cleanup: clearSlow };
+    cardControls = { invoice: invoice, setPaid: setPaid, setError: setError, setAwaiting: setAwaiting };
 
     const azBox = s.querySelector('.tg-autozap-input');
     if (azBox) {
@@ -1272,7 +1322,6 @@
     }
 
     payBtn.addEventListener('click', () => {
-      setSending();
       try {
         chrome.runtime.sendMessage(
           {
@@ -1284,27 +1333,24 @@
           },
           () => void chrome.runtime.lastError
         );
+        // NOT the handover. Sidecar still has to ask, and until it has an answer this
+        // card is the only thing covering the page's own pay button and QR. The corner
+        // takes over on 'authorized'. Ordered after the send on purpose: if the extension
+        // was updated out from under this page, sendMessage throws and the catch below
+        // still has a live card to write the error into.
+        setAwaiting();
       } catch (_) {
         setError('Sidecar was updated. Reload this page to pay.');
       }
     });
     s.querySelector('.cancel').addEventListener('click', dismiss);
-    // Bypasses the `sending` guard on purpose — this is the one escape from an
-    // in-flight payment, and it only exists after SLOW_PAY_MS. It closes the card;
-    // it does not and cannot cancel the payment. Esc and the overlay still respect
-    // the guard, so leaving takes a deliberate click on this button.
-    s.querySelector('.stopwait').addEventListener('click', () => {
-      clearSlow();
-      dismissedInvoice = invoice;
-      removeCard();
-    });
     ov.addEventListener('click', (e) => {
       if (e.target === ov) dismiss();
     });
     // Target the show-card toggle specifically: `.tg-input` alone would match the
-    // Auto Zaps checkbox, which renders above it. Absent entirely on an auto card, so
-    // this is optional-chained rather than assumed — without the guard, suppressing the
-    // row would throw here and take the whole card's wiring down with it.
+    // Auto Zaps checkbox, which renders above it. Optional-chained because the row has
+    // been conditional before and would be again: without the guard, suppressing it
+    // throws here and takes the whole card's wiring down with it.
     s.querySelector('.tg-showcard-input')?.addEventListener('change', (e) => {
       // Inverted from "Show this automatically" (on by default) to "Don't show this
       // prompt again" (off by default). Same stored setting, same outcome — now it's
@@ -1328,10 +1374,10 @@
 
     (document.documentElement || document.body).appendChild(cardHost);
     requestAnimationFrame(() => ov.classList.add('in'));
-    // Auto-zap: the payment is already on its way, so open in the sending state. A
-    // failure re-enables Try again / Not now via setError, which is the right
-    // affordance once there's a decision to make again.
-    if (auto) setSending(true);
+    // Reopened from the corner because the payment failed. Try again and Not now are the
+    // right affordances the moment there is a decision to make again, which is the whole
+    // reason a failure comes back to the card instead of staying in the indicator.
+    if (errorText) setError(errorText);
   }
 
   // Auto-pay bookkeeping. The MutationObserver re-scans constantly, so a decision
@@ -1341,6 +1387,19 @@
   let autopayDeclined = '';
 
   function scanForInvoice() {
+    // NOT THE PAGE'S TO TAKE DOWN, in either of the two states where money is at stake.
+    //
+    // A payment in flight, because pages routinely pull the invoice out of the DOM the
+    // moment they believe it settled, and the corner indicator is its only report.
+    //
+    // And a card with a decision out on it, for a sharper reason: that overlay is what is
+    // covering the page's own pay button and QR while Sidecar asks. A page that drops its
+    // invoice at that moment would otherwise uncover itself mid-approval, and the card
+    // would not be there to hand over to the corner when the answer came back.
+    //
+    // Both end the same way: 'paid' and 'payfailed' clear them, and so does the
+    // indicator's own dismiss button.
+    if (shownMode === 'flight' || awaitingDecision) return;
     if (!showCard || !connectedToSite) return removeCard();
     const found = findPageInvoice();
     const invoice = found && found.invoice;
@@ -1431,9 +1490,18 @@
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       scanForInvoice();
     } else if (msg.event === 'autopaying') {
-      // An auto-zap is going out for this invoice — show it, with no action to take.
-      // The 'paid' / 'payfailed' events below then land on this same card.
-      if (msg.invoice) renderCard(msg.invoice, true);
+      // An auto-zap is going out for this invoice. There is no action to take, which is
+      // exactly why it belongs in the corner rather than on a card: money moving with
+      // nothing on screen is the wrong trade (background.js), and a full-screen overlay
+      // for a decision nobody has to make is the other wrong one. 'paid' / 'payfailed'
+      // below land on this same indicator.
+      if (msg.invoice) renderFlightPill(msg.invoice, true);
+    } else if (msg.event === 'authorized') {
+      // The decision came back approved (or a site budget meant there was never one to
+      // make), and the wallet call is going out. This is the handover: the card has
+      // finished covering the page and the corner takes the rest. Guarded on the invoice
+      // so a stale ping cannot replace a card that is asking about a different one.
+      if (msg.invoice && shownInvoice === msg.invoice) renderFlightPill(msg.invoice);
     } else if (msg.event === 'paid') {
       dismissedInvoice = msg.invoice; // don't resurface even if the link lingers
       // Tell the page's payment modal, if it has one, that this invoice settled. We

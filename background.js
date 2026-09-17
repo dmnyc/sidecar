@@ -2260,17 +2260,18 @@ async function tryZapAutopay(invoiceRaw, host, originWindowId, tabId) {
   if (!(await ZAPREQ.peek(host, who, amt))) {
     return no('no zap request signed here matches ' + amt + ' sats (' + amt * 1000 + ' msat)');
   }
-  // Show the card in its auto form first. Money moving with nothing on screen is the
-  // wrong trade even when the user opted out of being asked — and it means a failure
-  // has somewhere to be reported instead of vanishing.
+  // Put the corner indicator up first. Money moving with nothing on screen is the wrong
+  // trade even when the user opted out of being asked, and it means a failure has
+  // somewhere to be reported instead of vanishing.
   notifyTabAutopaying(tabId, inv);
   try {
     const r = await payInvoiceCore(inv, host, who, undefined, originWindowId);
     notifyTabPaid(tabId, inv, r && r.preimage);
     return { handled: true, paid: true };
   } catch (e) {
-    // Still handled: the auto card is up and is where this error belongs. Replacing it
-    // with a fresh manual card would throw the reason away.
+    // Still handled. The indicator is up, and a failure is the one thing in this flow
+    // that is a decision again, so the content script trades it back for a card carrying
+    // the reason and a retry.
     notifyTabPayFailed(tabId, inv, e && e.message);
     return { handled: true, paid: false };
   }
@@ -2518,6 +2519,11 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
       });
     }
   }
+
+  // Authorized, whether that took a prompt or a site budget covered it silently. Nothing
+  // is left but the wallet call, so a page card waiting on this one can stop holding the
+  // page down. A no-op for every payment that did not come from one.
+  notifyTabAuthorized(invoice);
 
   bumpAutoLock();
   const c = await getSwNwc(pubkey);
@@ -2787,9 +2793,37 @@ async function notifyTabsPaidByHost(host) {
   } catch (_) {}
 }
 
-// Tell a tab an auto-zap is going out, so the page-invoice card can show what's
-// happening instead of money moving with nothing on screen. Sent BEFORE the payment,
-// so the card is already up when the result lands on it.
+// WHICH TAB IS WAITING ON WHICH INVOICE, so payInvoiceLocked can say when a payment is
+// actually authorized without a seventh positional argument threaded through three
+// functions that already take six. Registered by the SIDECAR_PAY_PAGE_INVOICE handler,
+// which is the only caller whose tab has a card on it, and dropped when that payment
+// settles either way. Every other spend path leaves it empty and the notify is a no-op.
+const payTabs = new Map(); // normalized invoice -> { tabId, invoice: the string the tab knows }
+const payKey = (inv) => String(inv || '').replace(/^lightning:/i, '').trim().toLowerCase();
+
+// Tell a tab its payment cleared approval and the wallet call is going out.
+//
+// THE POINT OF THIS EVENT IS THE WINDOW BEFORE IT. Between pressing Pay and approving in
+// Sidecar, the page is still live: its own payment modal is up, its "Connect Wallet to
+// Pay" button routes back into Sidecar through the injected window.webln, and its QR can
+// be scanned by a phone. The card covers all of that, which is half of what it is for, so
+// it has to stay up for as long as the decision is out. This is what tells it the decision
+// landed and it can hand over to the corner indicator, which is also the first moment
+// "Sending" is a true thing to say.
+function notifyTabAuthorized(invoice) {
+  const e = payTabs.get(payKey(invoice));
+  if (e && e.tabId != null && chrome.tabs) {
+    chrome.tabs.sendMessage(
+      e.tabId,
+      { type: 'SIDECAR_EVENT', event: 'authorized', invoice: e.invoice },
+      () => void chrome.runtime.lastError
+    );
+  }
+}
+
+// Tell a tab an auto-zap is going out, so it shows in the corner instead of money moving
+// with nothing on screen. Sent BEFORE the payment. An auto-zap is never prompted, so it
+// has no approval window to wait through and goes straight to the in-flight indicator.
 function notifyTabAutopaying(tabId, invoice) {
   if (tabId != null && chrome.tabs) {
     chrome.tabs.sendMessage(tabId, { type: 'SIDECAR_EVENT', event: 'autopaying', invoice }, () => void chrome.runtime.lastError);
@@ -2809,8 +2843,9 @@ function notifyTabPaid(tabId, invoice, preimage) {
   }
 }
 
-// Tell a tab a page-invoice payment failed, so its pending "Pay with Sidecar"
-// card stops spinning and offers a retry instead of hanging forever.
+// Tell a tab a page-invoice payment failed, so it offers a retry instead of leaving the
+// person with nothing. Lands on the card while the decision is still out, and reopens it
+// from the corner indicator once the payment is past that.
 function notifyTabPayFailed(tabId, invoice, error) {
   if (tabId != null && chrome.tabs) {
     chrome.tabs.sendMessage(
@@ -3894,12 +3929,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = sender && sender.tab && sender.tab.id;
     let host = '';
     try { host = new URL((sender && sender.url) || '').host; } catch (_) {}
+    // Registered for the length of this payment so notifyTabAuthorized can find the tab.
+    // Keyed by the invoice rather than the tab, because that is what payInvoiceLocked has
+    // in hand when the decision clears.
+    const key = payKey(message.invoice);
+    payTabs.set(key, { tabId, invoice: message.invoice });
     payFromPage(message.invoice, host, originWindowId, message.enableAutoZap === true)
       .then((r) => {
+        payTabs.delete(key);
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
         notifyTabPaid(tabId, message.invoice, r.preimage);
       })
       .catch((e) => {
+        payTabs.delete(key);
         const m = (e && e.message) || 'Payment failed';
         notify(m);
         notifyTabPayFailed(tabId, message.invoice, m);
