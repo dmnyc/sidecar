@@ -249,7 +249,7 @@ test('THE TAB OPENS ON WHAT IT SHOWED LAST TIME', () => {
 
   // And the placeholder belongs to the cold case only. A list that already has rows in it
   // must never be cleared back to a waiting line to say it is checking.
-  assert.match(fill, /'Looking for your polls…', true\)/, 'a first open still says what it is doing');
+  assert.match(fill, /waitingRow\('Looking for your polls…'\)/, 'a first open still says what it is doing');
   const placeholder = fill.indexOf("'Looking for your polls…'");
   assert.ok(placeholder > paintedFromCache, 'the placeholder must sit in the else branch');
 
@@ -319,11 +319,12 @@ test('the waiting line reads as work, and cannot drift from its own shadow', () 
   assert.match(set, /else delete el\.dataset\.text;/, 'a landed value must stop sweeping');
   assert.match(css, /content: attr\(data-text\)/);
 
-  // EVERY waiting label in this feature goes through it, including the row counts. One
-  // written as a plain textContent is a label that sits there looking like a result.
+  // THE RULE IS BY SHAPE, NOT BY SURFACE. A region with room for a line gets the shared
+  // spinner row; a value waiting in place, where a spinner does not fit beside it, shimmers.
+  // These three are regions, so they take the row, and the row is what bookmarks uses too.
   for (const label of ['Looking for your polls…', 'Counting votes…', 'Fetching the poll…']) {
-    assert.doesNotMatch(bare, new RegExp("textContent: '" + label + "'"), label + ' is not shimmered');
-    assert.ok(bare.includes("'" + label + "', true)"), label + ' must go through setWaiting');
+    assert.doesNotMatch(bare, new RegExp("textContent: '" + label + "'"), label + ' needs an indicator');
+    assert.ok(bare.includes("waitingRow('" + label + "')"), label + ' must use the shared row');
   }
   // The count cell shimmers only while it is unknown, and is cleared when the votes land.
   assert.match(bare, /const known = counts\.get\(ev\.id\);/);

@@ -190,15 +190,28 @@
   // moment the quote is actually read. Same furniture as the empty state, with the
   // spinner line where the hint goes, and it takes the same optional quote for the same
   // reason endQuote does: the list that lands underneath must not swap the line.
+  // THE ONE WAY A REGION SAYS IT IS WAITING. A spinner beside a line naming what is being
+  // waited for, used wherever there is room for a row.
+  //
+  // The panel had grown three answers to this question: this spinner, a shimmering line of
+  // text, and in one place nothing at all but the word "Loading". A loading indicator is a
+  // promise that the app is working, and three dialects of it read as three different
+  // apps. The rule now is by SHAPE, not by surface: a region with room gets this; a value
+  // waiting in place, like a count inside a row, shimmers instead, because a spinner does
+  // not fit beside a number.
+  function waitingRow(label) {
+    return h('div', { className: 'recv-waiting' }, [
+      h('span', { className: 'recv-spinner' }),
+      h('span', { textContent: label }),
+    ]);
+  }
+
   function loadingQuote(label, q) {
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
       h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
       h('p', { className: 'bm-quote-who', textContent: q.who }),
-      h('div', { className: 'recv-waiting' }, [
-        h('span', { className: 'recv-spinner' }),
-        h('span', { textContent: label }),
-      ]),
+      waitingRow(label),
     ]);
   }
 
@@ -1875,7 +1888,7 @@
       // .profile-stat): plain centred text, not pills. A badge reads as a control
       // you can press, and none of this is pressable.
       const rel = h('div', { className: 'profile-stats peek-rel' });
-      const followNum = h('strong', { textContent: '…' });
+      const followNum = setWaiting(h('strong'), '…', true);
       rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
@@ -1883,7 +1896,7 @@
       modal.append(body);
 
       getFollowCount(pubkey).then((n) => {
-        if (modal.isConnected) followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+        if (modal.isConnected) setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
       });
 
       // Two independent facts, each rendered only once known. A relay that never
@@ -7069,7 +7082,7 @@
 
       // Numeric stats.
       getFollowCount(pubkey).then((n) => {
-        followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+        setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
         followNum.classList.add('account-stat-num');
       });
 
@@ -9627,7 +9640,7 @@
 
     // Following count (fetched from the account's kind:3). Followers are out of
     // scope for now — they require an aggregating index, not a single event.
-    const followNum = h('strong', { textContent: '…' });
+    const followNum = setWaiting(h('strong'), '…', true);
     // This circular-arrow used to only scroll down to the backup section — it reads as
     // a refresh, so it is one now. Follow List Recovery already sits at the bottom of
     // this screen under its own clear label, so the jump wasn't earning the icon.
@@ -9669,7 +9682,7 @@
         refreshBtn.classList.remove('spinning');
       }
     });
-    const muteNum = h('strong', { textContent: '…' });
+    const muteNum = setWaiting(h('strong'), '…', true);
     const muteStat = h('span', { className: 'profile-stat' }, [muteNum, document.createTextNode(' muted')]);
     const followStat = h('div', { className: 'profile-stats' }, [
       h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
@@ -9678,7 +9691,7 @@
     ]);
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
-      followNum.textContent = n == null ? '—' : n.toLocaleString('en-US');
+      setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
     });
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
@@ -9845,11 +9858,13 @@
   // the newest event across relays AND decrypts the private half, which is most of a real
   // list. Its promise cache is what the refresh button drops.
   async function paintMuteCount(pubkey, numEl, labelEl) {
-    numEl.textContent = '…';
+    // Re-armed on every repaint, because Refresh reuses the same element: a second load
+    // has to look like the first rather than sitting on a stale settled number.
+    setWaiting(numEl, '…', true);
     if (labelEl) labelEl.removeAttribute('title');
     try {
       const m = await loadMuteList(pubkey, await readRelayUrls(pubkey));
-      numEl.textContent = m.pubkeys.size.toLocaleString('en-US');
+      setWaiting(numEl, m.pubkeys.size.toLocaleString('en-US'), false);
       const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
       const extras = [];
       if (m.hashtags.size) extras.push(plural(m.hashtags.size, 'hashtag'));
@@ -9859,7 +9874,7 @@
         labelEl.title = 'Also muted: ' + extras.join(', ') + '. Only people are counted here.';
       }
     } catch (_) {
-      numEl.textContent = '—';
+      setWaiting(numEl, '—', false); // a dash is an answer, and must not keep sweeping
     }
   }
 
@@ -12974,9 +12989,10 @@
       // around one line of text. A line saying what the panel is doing is not a row, and
       // boxed it reads as a result that has arrived rather than as waiting for one.
       list.classList.add('empty');
-      // Shimmered, because this line can sit there for the eight seconds the poll query is
-      // allowed and a static one reads as a result rather than as work in progress.
-      list.append(setWaiting(h('p', { className: 'hint' }), 'Looking for your polls…', true));
+      // The same row the bookmarks list uses, because it is the same situation: a list with
+      // room for a line, waiting to fill. It shimmered here and spun there, which is the
+      // divergence this rule exists to end.
+      list.append(waitingRow('Looking for your polls…'));
     }
 
     let polls = [];
@@ -13371,7 +13387,7 @@
       modal.append(h('h3', { textContent: 'Poll results' }));
       const question = h('p', { className: 'poll-result-question' });
       const body = h('div', { className: 'poll-result-body' });
-      body.append(setWaiting(h('p', { className: 'hint' }), 'Counting votes…', true));
+      body.append(waitingRow('Counting votes…'));
       const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
       const openOut = h('button', { className: 'ghost hidden' });
       const actions = h('div', { className: 'actions' }, [recount, openOut]);
@@ -13384,7 +13400,7 @@
         try {
           if (!pollEv) {
             body.innerHTML = '';
-            body.append(setWaiting(h('p', { className: 'hint' }), 'Fetching the poll…', true));
+            body.append(waitingRow('Fetching the poll…'));
             pollEv = await loadPollEvent(typeof poll === 'string' ? poll : poll.id, relayHints);
           }
           if (!pollEv) {
@@ -13411,7 +13427,7 @@
             openOut.onclick = () => openInClient(url);
           } catch (_) {}
           body.innerHTML = '';
-          body.append(setWaiting(h('p', { className: 'hint' }), 'Counting votes…', true));
+          body.append(waitingRow('Counting votes…'));
           const votes = await fetchPollVotes(pollEv);
           if (!body.isConnected) return;
           paintPollResults(body, pollEv, votes, client);
@@ -14388,10 +14404,7 @@
       cancel.addEventListener('click', closeModal);
 
       const compare = h('div', { className: 'restore-compare' }, [
-        h('div', { className: 'recv-waiting' }, [
-          h('span', { className: 'recv-spinner' }),
-          h('span', { textContent: 'Checking your relays…' }),
-        ]),
+        waitingRow('Checking your relays…'),
       ]);
 
       modal.append(
@@ -15260,7 +15273,7 @@
       let lastRes = null;
       const clear = () => { body.innerHTML = ''; };
       const spinner = (text) =>
-        h('div', { className: 'recv-waiting' }, [h('span', { className: 'recv-spinner' }), h('span', { textContent: text })]);
+        waitingRow(text);
 
       function showIntro() {
         clear();
@@ -17185,7 +17198,9 @@
     async function paintChart() {
       const seq = ++chartSeq;
       chartSlot.innerHTML = '';
-      chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Loading…' }));
+      // The one surface that said "Loading" and showed nothing moving, so a slow price
+      // fetch was indistinguishable from a dead one.
+      chartSlot.append(h('div', { className: 'wallet-chart-loading' }, [waitingRow('Loading price history…')]));
       const history = await getPriceHistory(fiatCurrency, chartRange);
       if (seq !== chartSeq) return; // a newer range was picked while this was in flight
       chartSlot.innerHTML = '';
@@ -18458,7 +18473,7 @@
         setTimeout(() => (copy.textContent = 'Copy invoice'), 1200);
       } catch (_) {}
     });
-    const waiting = h('div', { className: 'recv-waiting' }, [h('span', { className: 'recv-spinner' }), h('span', { textContent: 'Waiting for payment…' })]);
+    const waiting = waitingRow('Waiting for payment…');
     out.append(canvas, h('div', { className: 'recv-bolt', textContent: short }), copy, waiting);
     container.append(out);
   }

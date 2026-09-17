@@ -35,8 +35,14 @@ function lift(decl) {
 
 // A mute set in the shape collectMuteTags builds, and the two elements the painter writes.
 function el() {
-  const node = { textContent: '', attrs: {} };
+  const node = { textContent: '', attrs: {}, classes: new Set(), dataset: {} };
   node.removeAttribute = (k) => { delete node.attrs[k]; };
+  // setWaiting shimmers the number while it is unknown and clears that when it lands, so
+  // the stub has to carry a classList and a dataset for it to write to.
+  node.classList = {
+    toggle: (c, on) => (on ? node.classes.add(c) : node.classes.delete(c)),
+    contains: (c) => node.classes.has(c),
+  };
   Object.defineProperty(node, 'title', {
     get() { return node.attrs.title; },
     set(v) { node.attrs.title = v; },
@@ -50,7 +56,13 @@ function painter(muteSet) {
     readRelayUrls: async () => ['wss://one'],
   };
   vm.createContext(ctx);
-  vm.runInContext(lift('async function paintMuteCount(') + '\nglobalThis.out = paintMuteCount;', ctx);
+  // The real setWaiting, lifted rather than stubbed: whether the number stops shimmering
+  // when it lands is part of what this painter is responsible for.
+  vm.runInContext(
+    lift('function setWaiting(') + '\n' +
+      lift('async function paintMuteCount(') + '\nglobalThis.out = paintMuteCount;',
+    ctx
+  );
   return ctx.out;
 }
 
@@ -94,9 +106,14 @@ test('relays that say nothing leave a dash rather than a wrong zero', async () =
   const num = el(), label = el();
   const ctx = { loadMuteList: async () => { throw new Error('no relays'); }, readRelayUrls: async () => [] };
   vm.createContext(ctx);
-  vm.runInContext(lift('async function paintMuteCount(') + '\nglobalThis.out = paintMuteCount;', ctx);
+  vm.runInContext(
+    lift('function setWaiting(') + '\n' +
+      lift('async function paintMuteCount(') + '\nglobalThis.out = paintMuteCount;',
+    ctx
+  );
   await ctx.out('me', num, label);
   assert.equal(num.textContent, '—', 'a failed fetch reports zero muted, which is a lie');
+  assert.equal(num.classList.contains('t-shimmer'), false, 'a dash is an answer and must stop sweeping');
 });
 
 test('thousands are grouped, like the follow count', async () => {
