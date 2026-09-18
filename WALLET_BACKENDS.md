@@ -8,6 +8,11 @@ This file records the alternatives that were evaluated and rejected, and why. It
 exists so the question doesn't get re-opened from scratch every few months — and so
 that anyone proposing a change knows which walls are already mapped.
 
+Each rejection carries the date it was assessed. A reason can expire: package sizes
+move, APIs ship, and a constraint that decided something in July may not hold by
+autumn. Check the dates before quoting a verdict, and correct the entry rather than
+arguing with it.
+
 ## The constraint that decides most of it
 
 **A Lightning address is a hosted service.** Receiving `you@example.com` requires
@@ -38,28 +43,53 @@ that infrastructure.
 
 ## Evaluated and rejected
 
-### Breez SDK Spark — rejected on size, keys, and Firefox
+### Breez SDK Spark: rejected on size and on a commercial dependency
+
+*Assessed 2026-07-28. Re-checked 2026-09-18: one of the four reasons below has
+substantially weakened, and the size figure has moved. Both corrected here.*
 
 [`@breeztech/breez-sdk-spark`](https://www.npmjs.com/package/@breeztech/breez-sdk-spark)
 is a genuinely capable embedded wallet, and the architecture is well understood: the
 SDK has to live in an **offscreen document** that owns the WASM and IndexedDB, with
-the service worker relaying RPC to the side panel. It is not viable here for four
-reasons, in order of severity:
+the service worker relaying RPC to the side panel.
 
-1. **Firefox has no `chrome.offscreen` API.** Sidecar ships Chrome and Firefox from
-   one codebase (see `BROWSER_PARITY.md`). A Chrome-only wallet backend is a fork of
-   the product, not a feature of it.
-2. **11 MB of WASM.** Sidecar's entire signed package is under 2 MB. This is roughly a
-   6.5× increase for one optional feature.
-3. **A required API key.** The key is a Breez *partner* credential — it cannot spend
-   or read balances, so a leak is a quota/ToS problem rather than a theft one. But
-   this repo is public and the extension runs entirely on the user's machine, so the
-   key would have to be injected at package time and would still be extractable from
-   any install. That is a commercial dependency that can be revoked, on a feature
-   users' money depends on.
-4. **It requires `'wasm-unsafe-eval'` in the extension CSP**, on a signer whose
+In order of how much they still weigh:
+
+1. **11 MB of WASM.** Sidecar's signed package is 4.4 MB as of 1.13.0, so this is
+   roughly a 3.5x increase for one optional feature. The original note said 6.5x,
+   which was accurate against the 1.86 MB package of 1.6.0 and is no longer.
+2. **A required API key, which is a commercial dependency.** The key is a Breez
+   *partner* credential: it cannot spend and it cannot read balances, so a leak is a
+   quota and ToS problem rather than a theft one. Concealment is not the question,
+   since you cannot keep a secret in code running on someone else's machine. The
+   question is that a credential which can be revoked would sit under a feature
+   users' money depends on. Baking it at package time on the same seam that already
+   generates the gitignored `version.js` is the workable answer; proxying is not,
+   because the JWT rides the SDK's internal Spark Operator requests rather than one
+   call we control, so it would mean proxying the whole network layer and routing
+   wallet metadata through a server.
+3. **It requires `'wasm-unsafe-eval'` in the extension CSP**, on a signer whose
    listing says everything runs locally with no remote code. Still true, but it
    invites a review conversation on every submission.
+4. **Firefox has no `chrome.offscreen` API.** This was the most severe reason when
+   the entry was written, and it is now the weakest. It assumed shipping Chrome and
+   Firefox from one codebase was a live commitment. Since then Firefox has been deprioritized, the AMO listing is
+   dormant at 1.8.0, and 1.13.0 went out on the unlisted channel unannounced. A
+   Chrome-only wallet backend is no longer the fork of the product it would have been
+   in July.
+
+**Two questions were never put to Breez, and either could change the answer:**
+
+- Is there a key class for distributed clients, scoped per install or per domain
+  rather than a shared partner quota? Every non-server-backed wallet app hits this,
+  so they will have a stance.
+- Does mainnet work with no key at all? It is typed optional and treated as required
+  by every implementation we looked at. If keyless mainnet works with reduced
+  service, that is the cleanest outcome and costs nothing to confirm.
+
+Note what Spark would and would not buy: self-custody and easy onboarding, never a
+built-in Lightning address. The constraint at the top of this file is not something
+an embedded SDK can lift.
 
 ### Cashu / NIP-60 — rejected because it cannot receive zaps
 
