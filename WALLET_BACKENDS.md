@@ -8,6 +8,11 @@ This file records the alternatives that were evaluated and rejected, and why. It
 exists so the question doesn't get re-opened from scratch every few months — and so
 that anyone proposing a change knows which walls are already mapped.
 
+Each rejection carries the date it was assessed. A reason can expire: package sizes
+move, APIs ship, and a constraint that decided something in July may not hold by
+autumn. Check the dates before quoting a verdict, and correct the entry rather than
+arguing with it.
+
 ## The constraint that decides most of it
 
 **A Lightning address is a hosted service.** Receiving `you@example.com` requires
@@ -38,28 +43,53 @@ that infrastructure.
 
 ## Evaluated and rejected
 
-### Breez SDK Spark — rejected on size, keys, and Firefox
+### Breez SDK Spark: rejected on size and on a commercial dependency
+
+*Assessed 2026-07-28. Re-checked 2026-09-18: one of the four reasons below has
+substantially weakened, and the size figure has moved. Both corrected here.*
 
 [`@breeztech/breez-sdk-spark`](https://www.npmjs.com/package/@breeztech/breez-sdk-spark)
 is a genuinely capable embedded wallet, and the architecture is well understood: the
 SDK has to live in an **offscreen document** that owns the WASM and IndexedDB, with
-the service worker relaying RPC to the side panel. It is not viable here for four
-reasons, in order of severity:
+the service worker relaying RPC to the side panel.
 
-1. **Firefox has no `chrome.offscreen` API.** Sidecar ships Chrome and Firefox from
-   one codebase (see `BROWSER_PARITY.md`). A Chrome-only wallet backend is a fork of
-   the product, not a feature of it.
-2. **11 MB of WASM.** Sidecar's entire signed package is under 2 MB. This is roughly a
-   6.5× increase for one optional feature.
-3. **A required API key.** The key is a Breez *partner* credential — it cannot spend
-   or read balances, so a leak is a quota/ToS problem rather than a theft one. But
-   this repo is public and the extension runs entirely on the user's machine, so the
-   key would have to be injected at package time and would still be extractable from
-   any install. That is a commercial dependency that can be revoked, on a feature
-   users' money depends on.
-4. **It requires `'wasm-unsafe-eval'` in the extension CSP**, on a signer whose
+In order of how much they still weigh:
+
+1. **11 MB of WASM.** Sidecar's signed package is 4.4 MB as of 1.13.0, so this is
+   roughly a 3.5x increase for one optional feature. The original note said 6.5x,
+   which was accurate against the 1.86 MB package of 1.6.0 and is no longer.
+2. **A required API key, which is a commercial dependency.** The key is a Breez
+   *partner* credential: it cannot spend and it cannot read balances, so a leak is a
+   quota and ToS problem rather than a theft one. Concealment is not the question,
+   since you cannot keep a secret in code running on someone else's machine. The
+   question is that a credential which can be revoked would sit under a feature
+   users' money depends on. Baking it at package time on the same seam that already
+   generates the gitignored `version.js` is the workable answer; proxying is not,
+   because the JWT rides the SDK's internal Spark Operator requests rather than one
+   call we control, so it would mean proxying the whole network layer and routing
+   wallet metadata through a server.
+3. **It requires `'wasm-unsafe-eval'` in the extension CSP**, on a signer whose
    listing says everything runs locally with no remote code. Still true, but it
    invites a review conversation on every submission.
+4. **Firefox has no `chrome.offscreen` API.** This was the most severe reason when
+   the entry was written, and it is now the weakest. It assumed shipping Chrome and
+   Firefox from one codebase was a live commitment. Since then Firefox has been deprioritized, the AMO listing is
+   dormant at 1.8.0, and 1.13.0 went out on the unlisted channel unannounced. A
+   Chrome-only wallet backend is no longer the fork of the product it would have been
+   in July.
+
+**Two questions were never put to Breez, and either could change the answer:**
+
+- Is there a key class for distributed clients, scoped per install or per domain
+  rather than a shared partner quota? Every non-server-backed wallet app hits this,
+  so they will have a stance.
+- Does mainnet work with no key at all? It is typed optional and treated as required
+  by every implementation we looked at. If keyless mainnet works with reduced
+  service, that is the cleanest outcome and costs nothing to confirm.
+
+Note what Spark would and would not buy: self-custody and easy onboarding, never a
+built-in Lightning address. The constraint at the top of this file is not something
+an embedded SDK can lift.
 
 ### Cashu / NIP-60 — rejected because it cannot receive zaps
 
@@ -89,25 +119,47 @@ Two secondary findings, recorded because they are easy to miss:
 
 ## Still open
 
-### CLINK — worth watching, too early to adopt
+### CLINK: worth watching, and cheaper than this file used to claim
+
+*Assessed 2026-07-28. Corrected 2026-09-18 after reading a working implementation.*
 
 [CLINK](https://clinkme.dev/) (Common Lightning Interface for Nostr Keys, by ShockNet)
 defines Nostr-native Lightning offers (`noffer`) and debits (`ndebit`), with
-NIP-05 → offer discovery. It is the most interesting alternative found, because it
-addresses discovery and connection over Nostr rather than over HTTPS, and
-[`@shocknet/clink-sdk`](https://www.npmjs.com/package/@shocknet/clink-sdk) is 85 KB
-with dependencies Sidecar already vendors (`nostr-tools`, `@scure/base`,
-`@noble/hashes`).
+NIP-05 to offer discovery. It addresses discovery and connection over Nostr rather
+than over HTTPS.
 
-It does **not** remove the always-on requirement — something still has to answer a
-`noffer` request with a fresh invoice — so it is an alternative to *NWC*, not a way
-for the extension to become its own wallet. Its appeal is onboarding: connecting by
-Nostr identity rather than by pasting a connection string.
+**How paying a `noffer` actually works.** The bech32 blob carries a service pubkey, a
+relay, an offer id, and optionally a price. The payer NIP-44 encrypts `{offer, amount}`
+to the service pubkey, publishes it as an ephemeral **kind 21001** event on the relay
+named in the noffer, subscribes for the encrypted reply on the same relay, and gets a
+bolt11 back. Paying that invoice is then whatever the wallet already does. It is
+LNURL-pay with Nostr as the transport instead of HTTPS.
 
-Held for now because the specification is an
+**The cost is not an SDK.** This entry used to price it at
+[`@shocknet/clink-sdk`](https://www.npmjs.com/package/@shocknet/clink-sdk), 85 KB. A
+shipping implementation in `zapcooking` does not use the SDK at all: it is about 400
+lines of first-party code plus 150 of tests, over NDK and its own NIP-44. Sidecar has
+every primitive that needs already, so the realistic cost is translating those 400
+lines from NDK to `nostr-tools`, not taking a dependency.
+
+**What it would and would not buy.** It does **not** remove the always-on requirement.
+Something still has to be awake to answer a kind 21001 with a fresh invoice, and an
+extension asleep in a side panel cannot be that. So CLINK makes Sidecar a better
+*payer* and never a payee: a `noffer` on someone's profile becomes payable with the
+wallet that is already connected. Nobody should expect it to deliver the built-in
+Lightning address that the constraint at the top of this file rules out.
+
+**The shape worth adopting, if it is adopted.** Recognize a `noffer` on the profile
+sheet and pay it through the existing wallet path, which is contained and reuses what
+is there. `zapcooking` also parses noffers out of note content and bios and renders pay
+buttons inline; that is the part to leave alone, because rendering payment affordances
+inside note text is client work and Sidecar hands off.
+
+**Still held, for reasons that have not changed.** The specification is an
 [open PR](https://github.com/nostr-protocol/nips/pull/1529) rather than a merged NIP,
-and wallet-side support is limited. Cheap to add alongside NWC if it gains traction;
-expensive to have shipped early if it doesn't.
+and wallet-side support is thin enough that a user could go months without meeting a
+noffer. Cheap to add alongside NWC once that changes. The point of this correction is
+that when it does change, the work is smaller than it looked.
 
 ## Bitcoin Connect — nothing to add, on either side
 
