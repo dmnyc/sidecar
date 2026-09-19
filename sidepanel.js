@@ -11834,6 +11834,16 @@
       toast('Add an account first', 'error');
       return;
     }
+    // A MINE IS ALREADY RUNNING, AND EVERY ROUTE IN LANDS HERE. Disabling the compose FAB
+    // covered exactly one of them: a reply from the bell, a quote repost, the welcome
+    // post and the first-post nudge all call this directly and went straight past it.
+    // A second composer would queue a second mine on the one worker, halving both, which
+    // is the thing the lock exists to prevent. Guarded at the door rather than at each
+    // button, so a route added later cannot forget.
+    if (miningStatus) {
+      toast('Mining a post. Stop it first.', 'error');
+      return;
+    }
     const pubkey = state.activePubkey;
     await devBuildReady;
     let devKindEnabled = false;
