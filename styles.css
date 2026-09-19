@@ -4069,10 +4069,20 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    relax bar has one because a timer really does run down. Proof of work does not. Every
    attempt is independent, so a bar filling up would be a lie about the only thing the
    user is trying to judge, which is whether to keep waiting. */
+/* TOLD APART FROM THE RELAX BAR BY COLOR, not by a second animation. The two sit on top
+   of each other, are built alike, and mean opposite things: one is a window running down,
+   this is work with no end in view. The obvious move was to shimmer the line, and
+   loading-indicators.test.js is right to refuse it. That idiom is for a value with no
+   room for an indicator beside it, and this line has a pulsing pickaxe two millimetres
+   away. Two animations in a 40px bar is busy, not clear.
+   So: the gold that already marks the pickaxe runs along the top edge and washes faintly
+   through the bar, which separates them at a glance and while standing still. */
 .mining-status {
   flex-shrink: 0; display: flex; align-items: center; gap: 9px;
-  padding: 8px 12px 9px; border-top: 1px solid var(--border-strong);
-  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  padding: 8px 12px 9px; border-top: 1px solid var(--gold-soft);
+  background:
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.07), rgba(var(--accent-rgb), 0.02)),
+    linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   color: var(--text);
 }
 .mining-status.hidden { display: none; }

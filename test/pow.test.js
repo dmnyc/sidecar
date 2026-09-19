@@ -513,3 +513,20 @@ test('a locked control cannot be re-lit by hovering it', () => {
   assert.ok(!/^\.fab:hover \{/m.test(css), 'an unguarded .fab:hover is back');
   assert.ok(!/^\.acct-chip:hover \{/m.test(css), 'an unguarded .acct-chip:hover is back');
 });
+
+test('THE BAR IS TOLD APART FROM THE RELAX BAR WITHOUT A SECOND ANIMATION', () => {
+  // The two sit on top of each other, are built alike, and mean opposite things: one is
+  // a window running down, this is work with no end in view. The obvious fix was to
+  // shimmer the line, and loading-indicators.test.js refuses it for a good reason: that
+  // idiom is for a value with no room for an indicator beside it, and this line has a
+  // pulsing pickaxe two millimetres away. Two animations in a 40px bar is busy.
+  const rule = css.slice(css.indexOf('.mining-status {'), css.indexOf('.mining-status.hidden'));
+  assert.match(rule, /border-top: 1px solid var\(--gold-soft\)/, 'the two bars share an edge color');
+  assert.match(rule, /rgba\(var\(--accent-rgb\)/, 'the wash has to be a token, not a literal');
+  // --accent-rgb specifically: the relax bar's own comment records that colors tuned for
+  // a dark surface vanish on a light theme, and every theme redefines this one.
+  assert.ok(!/rgba\(\d+, *\d+, *\d+/.test(rule), 'a hardcoded color will disappear on the light themes');
+  // And the line itself stays still.
+  assert.ok(!/t-shimmer/.test(css.slice(css.indexOf('.mining-status-line'), css.indexOf('.mining-status-who'))),
+    'the mining line shimmers as well as pulsing');
+});
