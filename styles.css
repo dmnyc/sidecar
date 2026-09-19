@@ -2749,7 +2749,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-variant-numeric: tabular-nums; /* the seconds must not jitter the line as they tick */
 }
 @media (prefers-reduced-motion: reduce) {
-  .mining-glyph { animation: none; opacity: 0.75; }
+  .mining-glyph, .mining-status-glyph svg { animation: none; opacity: 0.75; }
 }
 
 /* link / OG preview card in note preview */
@@ -4077,7 +4077,14 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .mining-status.hidden { display: none; }
 .mining-status-glyph { flex: 0 0 auto; display: flex; color: var(--gold); }
-.mining-status-glyph svg { width: 15px; height: 15px; }
+/* The SAME pulse the pane's glyph uses, for the same reason: mining is a search with no
+   position in it, so anything that sweeps or fills would imply progress toward a finish
+   that does not exist. Minimizing moves the work, not its nature, and a still pickaxe on
+   a bar whose numbers only change every second reads as stalled. */
+.mining-status-glyph svg {
+  width: 15px; height: 15px;
+  animation: mining-pulse 1.4s ease-in-out infinite;
+}
 .mining-status-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mining-status-line { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
 /* Whose post is mining. The id commits to the pubkey, so this is not decoration: it is

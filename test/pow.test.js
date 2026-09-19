@@ -443,6 +443,14 @@ test('NO PROGRESS TRACK, UNLIKE THE RELAX BAR IT SITS ON', () => {
   // And the relax bar still has its own, so this is a deliberate difference rather than
   // something that fell off both.
   assert.match(css, /\.relax-status-fill \{/);
+
+  // What it has INSTEAD is the pane's own pulse. Minimizing moves the work, not its
+  // nature: a still pickaxe over numbers that tick once a second reads as stalled, and a
+  // spinner or a sweep would claim the progress this feature deliberately refuses to
+  // draw. Same keyframes as the pane, so the two cannot drift apart.
+  assert.match(css, /\.mining-status-glyph svg \{[^}]*animation: mining-pulse/);
+  assert.match(css, /\.mining-glyph, \.mining-status-glyph svg \{ animation: none;/,
+    'the footer pulse has to honor prefers-reduced-motion like the pane does');
 });
 
 test('BOTH CONTROLS THAT COULD RUIN THE MINE GO INERT', () => {
