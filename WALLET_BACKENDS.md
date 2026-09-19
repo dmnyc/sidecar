@@ -119,25 +119,47 @@ Two secondary findings, recorded because they are easy to miss:
 
 ## Still open
 
-### CLINK — worth watching, too early to adopt
+### CLINK: worth watching, and cheaper than this file used to claim
+
+*Assessed 2026-07-28. Corrected 2026-09-18 after reading a working implementation.*
 
 [CLINK](https://clinkme.dev/) (Common Lightning Interface for Nostr Keys, by ShockNet)
 defines Nostr-native Lightning offers (`noffer`) and debits (`ndebit`), with
-NIP-05 → offer discovery. It is the most interesting alternative found, because it
-addresses discovery and connection over Nostr rather than over HTTPS, and
-[`@shocknet/clink-sdk`](https://www.npmjs.com/package/@shocknet/clink-sdk) is 85 KB
-with dependencies Sidecar already vendors (`nostr-tools`, `@scure/base`,
-`@noble/hashes`).
+NIP-05 to offer discovery. It addresses discovery and connection over Nostr rather
+than over HTTPS.
 
-It does **not** remove the always-on requirement — something still has to answer a
-`noffer` request with a fresh invoice — so it is an alternative to *NWC*, not a way
-for the extension to become its own wallet. Its appeal is onboarding: connecting by
-Nostr identity rather than by pasting a connection string.
+**How paying a `noffer` actually works.** The bech32 blob carries a service pubkey, a
+relay, an offer id, and optionally a price. The payer NIP-44 encrypts `{offer, amount}`
+to the service pubkey, publishes it as an ephemeral **kind 21001** event on the relay
+named in the noffer, subscribes for the encrypted reply on the same relay, and gets a
+bolt11 back. Paying that invoice is then whatever the wallet already does. It is
+LNURL-pay with Nostr as the transport instead of HTTPS.
 
-Held for now because the specification is an
+**The cost is not an SDK.** This entry used to price it at
+[`@shocknet/clink-sdk`](https://www.npmjs.com/package/@shocknet/clink-sdk), 85 KB. A
+shipping implementation in `zapcooking` does not use the SDK at all: it is about 400
+lines of first-party code plus 150 of tests, over NDK and its own NIP-44. Sidecar has
+every primitive that needs already, so the realistic cost is translating those 400
+lines from NDK to `nostr-tools`, not taking a dependency.
+
+**What it would and would not buy.** It does **not** remove the always-on requirement.
+Something still has to be awake to answer a kind 21001 with a fresh invoice, and an
+extension asleep in a side panel cannot be that. So CLINK makes Sidecar a better
+*payer* and never a payee: a `noffer` on someone's profile becomes payable with the
+wallet that is already connected. Nobody should expect it to deliver the built-in
+Lightning address that the constraint at the top of this file rules out.
+
+**The shape worth adopting, if it is adopted.** Recognize a `noffer` on the profile
+sheet and pay it through the existing wallet path, which is contained and reuses what
+is there. `zapcooking` also parses noffers out of note content and bios and renders pay
+buttons inline; that is the part to leave alone, because rendering payment affordances
+inside note text is client work and Sidecar hands off.
+
+**Still held, for reasons that have not changed.** The specification is an
 [open PR](https://github.com/nostr-protocol/nips/pull/1529) rather than a merged NIP,
-and wallet-side support is limited. Cheap to add alongside NWC if it gains traction;
-expensive to have shipped early if it doesn't.
+and wallet-side support is thin enough that a user could go months without meeting a
+noffer. Cheap to add alongside NWC once that changes. The point of this correction is
+that when it does change, the work is smaller than it looked.
 
 ## Bitcoin Connect — nothing to add, on either side
 
