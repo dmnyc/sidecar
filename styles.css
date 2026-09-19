@@ -2306,8 +2306,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    switch, and the explanation is a sibling .hint beneath it rather than a column wedged
    next to the control. Nesting the copy inside the row is what squeezed it to one word
    per line the first time. */
-.always-active-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-.always-active-row .hint { margin: 5px 0 0; text-wrap: pretty; }
+/* Tinted rather than left as a plain row, and borrowing .kind-warn's construction
+   (--warn-rgb at 0.1 over a 0.3 border) because this is the same class of thing: not a
+   preference, an exception the user is choosing to make. Sat as an ordinary checkbox it
+   read as one more setting, which is the wrong weight for the one control here that
+   turns a safety confirm off. The label stays in --text so it is comfortably legible,
+   and the consequence carries the warn color, since that sentence is the point. */
+.always-active-row {
+  margin-top: 14px; padding: 10px 11px; border-radius: 8px;
+  background: rgba(var(--warn-rgb), 0.1); border: 1px solid rgba(var(--warn-rgb), 0.3);
+}
+.always-active-row .toggle-row { font-size: 13.5px; font-weight: 600; color: var(--text); align-items: flex-start; }
+.always-active-row .toggle-row input[type=checkbox] { accent-color: var(--warn); margin-top: 1px; }
+.always-active-row .hint { margin: 6px 0 0; color: var(--warn); text-wrap: pretty; }
 
 .shared-acct-row {
   display: flex; align-items: center; gap: 10px;

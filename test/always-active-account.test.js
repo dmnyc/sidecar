@@ -107,5 +107,9 @@ test('IT USES THE PANEL\u2019S OWN TOGGLE, NOT THE PAGE CARD\u2019S', () => {
   assert.match(body, /h\('label', \{ className: 'toggle-row' \}, \[[\s\S]*?\]\),\s*\n\s*h\('p', \{\s*\n?\s*className: 'hint'/);
   // And the class the panel styles actually exists.
   assert.match(css, /\.toggle-row \{/);
-  assert.match(css, /\.always-active-row \{[^}]*border-top/);
+  // Tinted like .kind-warn, because this is an exception being made rather than a
+  // preference being set. As a plain row it read as one more checkbox, which is the
+  // wrong weight for the only control here that turns a safety confirm off.
+  assert.match(css, /\.always-active-row \{[^}]*rgba\(var\(--warn-rgb\), 0\.1\)/);
+  assert.match(css, /\.always-active-row \.hint \{[^}]*color: var\(--warn\)/);
 });
