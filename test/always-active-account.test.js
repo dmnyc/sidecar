@@ -91,9 +91,21 @@ test('the toggle knows its state before the sheet opens', () => {
   assert.match(fn, /openModal\(\(modal\) => \{/, 'the builder itself must stay synchronous');
 });
 
-test('the row is drawn to the narrow-panel rules', () => {
-  const rule = css.slice(css.indexOf('.always-active-row {'));
-  assert.match(rule.slice(0, rule.indexOf('}')), /display: flex/);
-  const copy = css.slice(css.indexOf('.always-active-copy {'));
-  assert.match(copy.slice(0, copy.indexOf('}')), /min-width: 0/);
+test('IT USES THE PANEL\u2019S OWN TOGGLE, NOT THE PAGE CARD\u2019S', () => {
+  // The first cut borrowed .tg-input / .tg-track / .tg-thumb, which live in content.js's
+  // CARD_CSS and do not exist in the panel stylesheet at all. The switch rendered as a
+  // bare checkbox, and nesting the explanation inside the row squeezed it to one word
+  // per line. The panel's idiom is a .toggle-row carrying the switch and its label, with
+  // the hint as a SIBLING paragraph beneath.
+  const fn = bare.slice(bare.indexOf('async function sharedSiteModal('));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /className: 'toggle-row'/, 'the row must use the panel toggle');
+  for (const orphan of ['tg-input', 'tg-track', 'tg-thumb', 'always-active-copy']) {
+    assert.ok(!body.includes(orphan), body.includes(orphan) && orphan + ' has no styles in this stylesheet');
+  }
+  // The hint is a sibling of the label, not a child of it.
+  assert.match(body, /h\('label', \{ className: 'toggle-row' \}, \[[\s\S]*?\]\),\s*\n\s*h\('p', \{\s*\n?\s*className: 'hint'/);
+  // And the class the panel styles actually exists.
+  assert.match(css, /\.toggle-row \{/);
+  assert.match(css, /\.always-active-row \{[^}]*border-top/);
 });

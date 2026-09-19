@@ -9271,28 +9271,35 @@
       //
       // Its own full-width row under the list, not a control beside it: it has words, and
       // a worded confirm takes its own row in this panel (see CLAUDE.md).
-      const toggle = h('input', { type: 'checkbox', className: 'tg-input' });
+      const toggle = h('input', { type: 'checkbox' });
       toggle.checked = alwaysActive;
-      const row = h('label', { className: 'setting-toggle always-active-row' }, [
-        h('span', { className: 'always-active-copy' }, [
-          h('span', { className: 'always-active-label', textContent: 'Always sign as Sidecar\u2019s active account' }),
-          h('span', {
-            className: 'hint',
-            textContent:
-              'Stops the confirms on this site. Posts may go out from a different account than the client is showing.',
-          }),
+      // The panel's own toggle idiom: a .toggle-row carrying the switch and its label,
+      // with the explanation as a sibling paragraph beneath. The first cut nested the
+      // hint inside the row and borrowed .tg-input/.tg-track from the PAGE CARD's
+      // stylesheet, which does not exist here, so the switch rendered as a bare
+      // checkbox and the copy was squeezed to one word per line.
+      const row = h('div', { className: 'always-active-row' }, [
+        h('label', { className: 'toggle-row' }, [
+          toggle,
+          h('span', { textContent: 'Always sign as Sidecar\u2019s active account' }),
         ]),
-        toggle,
-        h('span', { className: 'tg-track' }, [h('span', { className: 'tg-thumb' })]),
+        h('p', {
+          className: 'hint',
+          textContent:
+            'Stops the confirms on this site. Posts may go out from a different account than the client is showing.',
+        }),
       ]);
       toggle.addEventListener('change', async () => {
         const on = toggle.checked;
+        toggle.disabled = true;
         try {
           await call({ type: 'SIDECAR_SET_ALWAYS_ACTIVE', host, on });
           toast(on ? 'Signing as the active account on ' + host : 'Confirms are back on ' + host, 'success');
         } catch (e) {
           toggle.checked = !on; // put the switch back where the stored state actually is
           toast(e.message, 'error');
+        } finally {
+          toggle.disabled = false;
         }
       });
       modal.append(row);
