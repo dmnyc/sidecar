@@ -9244,7 +9244,7 @@
     openModal((modal) => {
       modal.append(
         h('h3', { textContent: host }),
-        h('p', { className: 'hint', textContent: 'These accounts have signed in on this site. Every post, reaction, or message confirms who’s posting — a multi-account client’s own switcher can’t tell Sidecar which one you picked here. Remove an account below once you’re done using it on this site to go back to signing silently.' })
+        h('p', { className: 'hint', textContent: 'More than one account has signed in here, so Sidecar asks who is posting each time. Remove one to stop.' })
       );
       const list = h('div', { className: 'stack' });
       authorizedPks.forEach((pk) => {
@@ -9280,8 +9280,8 @@
       // sheet and did not need saying twice in smaller type.
       const row = h('label', { className: 'shared-acct-row always-active-row' }, [
         h('span', { className: 'shared-acct-name' }, [
-          h('span', { className: 'always-active-label', textContent: 'Always sign as Sidecar\u2019s active account' }),
-          h('span', { className: 'always-active-note', textContent: 'Skips the confirm. Posts may not match the client.' }),
+          h('span', { className: 'always-active-label', textContent: 'Don\u2019t ask which account' }),
+          h('span', { className: 'always-active-note', textContent: 'Posts may not match the client.' }),
         ]),
         toggle,
       ]);

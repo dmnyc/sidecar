@@ -75,13 +75,23 @@ test('THE UI SAYS WHAT IT COSTS, NOT ONLY WHAT IT SAVES', () => {
   // breath, or it reads as a convenience toggle.
   const fn = bare.slice(bare.indexOf('async function sharedSiteModal('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /Always sign as Sidecar/);
   assert.match(body, /Posts may not match the client/);
   assert.match(body, /SIDECAR_SET_ALWAYS_ACTIVE/);
-  // ONE short line, not a paragraph. The long version repeated what the paragraph at the
-  // top of this sheet already says, in a smaller size, which is text nobody reads twice.
+
+  // EVERY STRING IN THIS SHEET FITS ITS LINE. The column is about 240px wide with the
+  // control taking the right edge, so a label over roughly 26 characters wraps and
+  // orphans its last word, and a note over about 34 does the same. Three rewrites went
+  // that way before the lengths were the thing that got fixed rather than the layout.
+  const label = body.match(/always-active-label', textContent: '([^']*)'/);
   const note = body.match(/always-active-note', textContent: '([^']*)'/);
-  assert.ok(note && note[1].length <= 60, 'the note grew back into a paragraph');
+  assert.ok(label && label[1].replace(/\\u2019/g, "'").length <= 26,
+    'the label wraps and orphans its last word at this width');
+  assert.ok(note && note[1].length <= 34, 'the note grew back into two lines');
+
+  // And the sheet's own opening paragraph, which was six lines describing what the list
+  // underneath it already shows.
+  const top = body.match(/className: 'hint', textContent: '([^']*)'/);
+  assert.ok(top && top[1].length <= 130, 'the opening paragraph grew back');
   // A failed write must not leave the switch showing a state that was never stored.
   assert.match(body, /toggle\.checked = !on;/);
 });

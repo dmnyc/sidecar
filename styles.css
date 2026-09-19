@@ -2313,7 +2313,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    without becoming its own panel. */
 .always-active-row { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--border); border-bottom: none; cursor: pointer; }
 .always-active-row .shared-acct-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.always-active-label { font-weight: 600; }
+.always-active-label { font-weight: 600; text-wrap: balance; }
 /* The only small text here, and it is one line. The long version of this said the same
    thing the paragraph at the top of the sheet already says, in a smaller size nobody
    was going to read twice. */
