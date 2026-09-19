@@ -479,3 +479,17 @@ test('a minimized failure does not rebuild an editor that is gone', () => {
   const pub = bare.slice(bare.indexOf('async function doPublish'));
   assert.match(pub, /if \(!wasMinimized\) showEditor\(\);/);
 });
+
+test('a locked control cannot be re-lit by hovering it', () => {
+  // A disabled button still matches :hover in CSS; it only stops taking the click. Both
+  // of these had a :hover rule declared AFTER their :disabled rule at equal specificity,
+  // so the FAB lifted and went back to full opacity under the pointer and the account
+  // chip still highlighted, each of them advertising an action that would not happen.
+  // Guarding the state rather than racing it also means a rule added below cannot undo
+  // this by accident.
+  assert.match(css, /\.fab:not\(:disabled\):hover \{/);
+  assert.match(css, /\.fab:not\(:disabled\):active \{/);
+  assert.match(css, /\.acct-chip:not\(:disabled\):hover \{/);
+  assert.ok(!/^\.fab:hover \{/m.test(css), 'an unguarded .fab:hover is back');
+  assert.ok(!/^\.acct-chip:hover \{/m.test(css), 'an unguarded .acct-chip:hover is back');
+});

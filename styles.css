@@ -815,7 +815,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: transparent; border: none; cursor: pointer; color: var(--text);
   padding: 4px 6px; border-radius: 10px;
 }
-.acct-chip:hover { background: var(--hover-soft); }
+.acct-chip:not(:disabled):hover { background: var(--hover-soft); }
 .acct-chip:disabled { cursor: default; }
 .acct-chip:disabled .chip-chev { display: none; }
 .acct-chip:disabled .chip-av { opacity: 0.4; }
@@ -2515,8 +2515,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .fab.is-scrolling { opacity: 0.45; }
 .fab:disabled { opacity: 0.32; cursor: default; box-shadow: none; transform: none; }
-.fab:hover { transform: translateY(-1px) scale(1.03); opacity: 1; }
-.fab:active { transform: scale(0.97); }
+/* :not(:disabled) rather than leaving :disabled to win on specificity, because it does
+   not: both selectors are one class and one pseudo-class, and :hover was declared later,
+   so a disabled FAB lifted and returned to full opacity under the pointer. A disabled
+   button still MATCHES :hover; it only stops taking the click. Guarding the state means
+   it cannot be re-lit by anything added below either. */
+.fab:not(:disabled):hover { transform: translateY(-1px) scale(1.03); opacity: 1; }
+.fab:not(:disabled):active { transform: scale(0.97); }
 .fab svg { width: 24px; height: 24px; }
 
 .compose-author { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
