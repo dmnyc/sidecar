@@ -408,22 +408,50 @@ test('A MINE DOES NOT OUTLIVE A COMPOSER THAT WAS WALKED AWAY FROM', () => {
   assert.match(body, /beginMinimizedMine\(bits, minePubkey, startedAt, best\)/,
     'the bar must be up BEFORE the modal goes, or the mine is invisible for a frame');
 
-  // THE OFFER IS HELD BACK, the same way the pane is held back 300ms. Offering to walk
-  // away from a mine about to finish is noise, and a button that appears and vanishes
-  // inside a short mine reads as a glitch. At 16 bits it never appears at all.
-  assert.match(bare, /const MINIMIZE_OFFER_MS = 3000;/);
+  // Withdrawn in done(), which doPublish calls from a finally, so it covers cancel and
+  // success alike: minimizing a mine that has already finished buys a footer bar that
+  // lives for as long as signing takes and says a post is still being mined.
   const pane = bare.slice(bare.indexOf('function showMiningPane('));
   const paneBody = pane.slice(0, pane.indexOf('\n    }'));
-  assert.match(paneBody, /className: 'ghost hidden'/, 'the offer has to start hidden');
-  assert.match(paneBody, /setTimeout\(\(\) => show\(mini\), MINIMIZE_OFFER_MS\)/);
-  // Cleared in done(), which doPublish calls from a finally, so it covers cancel and
-  // success alike and nothing fires against a detached button.
-  assert.match(paneBody, /clearTimeout\(miniTimer\);/);
+  assert.match(paneBody, /hide\(mini\);/);
 
   // And cancelling when nothing is in flight leaves the warm worker alone, since this now
   // runs on EVERY composer close and a Low mine should not pay to reload nostr-tools.
   const fn = bare.slice(bare.indexOf('function powCancel('));
   assert.match(fn.slice(0, fn.indexOf('\n  }')), /if \(!powPending\.size\) return;/);
+});
+
+test('the minimize offer costs the pane no height and no wait', () => {
+  // As a worded button under Stop it was held back three seconds and grew the pane under
+  // the pointer when it landed, on the one screen whose whole job is to look calm while
+  // it makes you wait. The corner slot .modal-x defines is absolute, so it is out of
+  // flow: it costs no height, which is what lets it be there from the start.
+  const pane = bare.slice(bare.indexOf('function showMiningPane('));
+  const paneBody = pane.slice(0, pane.indexOf('\n    }'));
+  assert.match(paneBody, /const mini = h\('button', \{ className: 'modal-x mining-mini'/);
+
+  const slot = css.slice(css.indexOf('.modal-x {'), css.indexOf('.modal-x:hover'));
+  assert.match(slot, /position: absolute/, 'in flow, the button would move everything below it');
+
+  // NO DELAY, and no hiding it to build one. The delay existed because the reveal was a
+  // layout event; with nothing to move, a control that is missing when you reach for it
+  // is the worse failure, and the pane's own 300ms already filters out every mine too
+  // short to be worth escaping.
+  assert.ok(!/MINIMIZE_OFFER/.test(bare), 'the reveal delay came back');
+  assert.ok(!/mining-mini hidden/.test(bare), 'the offer must not start hidden');
+  assert.ok(!/show\(mini\)/.test(paneBody), 'the offer must not be revealed on a timer');
+
+  // And it is not a third button in the stack: .actions holds Stop alone.
+  assert.match(paneBody, /className: 'actions' \}, \[stop\]/);
+
+  // A chevron, not an X. It does not close anything, it sends the mine to the bar at the
+  // foot of the panel, which is the direction it points. The X in this slot everywhere
+  // else means "gone", and on a mine that reading costs the post.
+  assert.match(paneBody, /mini\.append\(icon\('chevron-down'\)\)/);
+  assert.doesNotMatch(paneBody, /icon\('x'\)/);
+  // Icon only, so it says what it is to a screen reader and on hover.
+  assert.match(paneBody, /title: 'Keep mining in the background'/);
+  assert.match(paneBody, /mini\.setAttribute\('aria-label', 'Keep mining in the background'\)/);
 });
 
 // ---- a mine that has left the composer ---------------------------------------------

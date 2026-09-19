@@ -11722,10 +11722,6 @@
   // cancels the mine on purpose (a note nobody is watching must not publish itself), and
   // minimizing is the one close that means the opposite.
   let powMinimizing = false;
-  // How long a mine has to run before the composer offers to let it go. Long enough that
-  // a fast mine never shows the button, short enough that a slow one gets the offer while
-  // there is still a wait worth escaping.
-  const MINIMIZE_OFFER_MS = 3000;
 
   function renderMiningStatus() {
     const bar = $('mining-status');
@@ -11933,7 +11929,24 @@
       // pane; what has not existed until now is anything that keeps the promise to
       // publish once it is gone. The bar in the footer is that promise, and Stop there is
       // still the only thing that ends the mine.
-      const mini = h('button', { className: 'ghost hidden', type: 'button', textContent: 'Keep mining in the background' });
+      //
+      // A CORNER BUTTON, not a third button in the stack, and that settles the height
+      // too. As a worded button below Stop it was held back three seconds and grew the
+      // pane under the pointer when it arrived, which is a jump on the one screen whose
+      // whole job is to look calm while it makes you wait. Absolutely positioned, it is
+      // out of flow and costs the pane no height, so it is simply there from the start.
+      //
+      // WHICH IS ALSO WHY THE DELAY IS GONE. It existed because the reveal was a layout
+      // event; with nothing to move, a control that is missing when you reach for it is
+      // the worse failure, and the pane's own 300ms already filters out every mine too
+      // short to be worth escaping. Every other sheet in the panel fills this corner the
+      // moment it opens, and this one now does too.
+      //
+      // Chevron down rather than an X, because it does not close anything. It sends the
+      // mine to the bar at the foot of the panel, which is the direction it points.
+      const mini = h('button', { className: 'modal-x mining-mini', type: 'button', title: 'Keep mining in the background' });
+      mini.setAttribute('aria-label', 'Keep mining in the background');
+      mini.append(icon('chevron-down'));
       mini.addEventListener('click', () => {
         beginMinimizedMine(bits, minePubkey, startedAt, best);
         powMinimizing = true;
@@ -11941,18 +11954,11 @@
         powMinimizing = false;
       });
       modal.append(
+        mini,
         h('h3', { textContent: 'Mining proof of work' }),
         h('div', { className: 'mining-body' }, [glyph, line, note]),
-        h('div', { className: 'actions' }, [stop]),
-        mini
+        h('div', { className: 'actions' }, [stop])
       );
-
-      // HELD BACK, for the reason the pane itself is held back 300ms: an offer to walk
-      // away from something about to finish is noise, and a button appearing and
-      // vanishing inside a short mine reads as a glitch rather than as help. At 16 bits
-      // a mine is a fraction of a second and this never appears at all. At 22 it shows
-      // with most of the wait still ahead, which is when leaving is worth offering.
-      const miniTimer = setTimeout(() => show(mini), MINIMIZE_OFFER_MS);
 
       const startedAt = Date.now();
       let best = 0;
@@ -11973,9 +11979,12 @@
         // be offering something that no longer exists.
         done: () => {
           clearInterval(timer);
-          // Runs on cancel as well as success (doPublish calls this in a finally), so one
-          // clear covers both and nothing fires against a detached button.
-          clearTimeout(miniTimer);
+          // TAKE THE OFFER AWAY. Runs on cancel as well as success (doPublish calls this
+          // in a finally), and a mine you can still send to the footer after it has
+          // finished buys a bar that lives for as long as signing takes while saying a
+          // post is still being mined. Stop is disabled rather than hidden because it
+          // holds the pane's shape; this one is absolute and holds nothing.
+          hide(mini);
           stop.disabled = true;
           line.textContent = 'Found it. Posting…';
         },
