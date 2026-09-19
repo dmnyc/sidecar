@@ -408,6 +408,18 @@ test('A MINE DOES NOT OUTLIVE A COMPOSER THAT WAS WALKED AWAY FROM', () => {
   assert.match(body, /beginMinimizedMine\(bits, minePubkey, startedAt, best\)/,
     'the bar must be up BEFORE the modal goes, or the mine is invisible for a frame');
 
+  // THE OFFER IS HELD BACK, the same way the pane is held back 300ms. Offering to walk
+  // away from a mine about to finish is noise, and a button that appears and vanishes
+  // inside a short mine reads as a glitch. At 16 bits it never appears at all.
+  assert.match(bare, /const MINIMIZE_OFFER_MS = 3000;/);
+  const pane = bare.slice(bare.indexOf('function showMiningPane('));
+  const paneBody = pane.slice(0, pane.indexOf('\n    }'));
+  assert.match(paneBody, /className: 'ghost hidden'/, 'the offer has to start hidden');
+  assert.match(paneBody, /setTimeout\(\(\) => show\(mini\), MINIMIZE_OFFER_MS\)/);
+  // Cleared in done(), which doPublish calls from a finally, so it covers cancel and
+  // success alike and nothing fires against a detached button.
+  assert.match(paneBody, /clearTimeout\(miniTimer\);/);
+
   // And cancelling when nothing is in flight leaves the warm worker alone, since this now
   // runs on EVERY composer close and a Low mine should not pay to reload nostr-tools.
   const fn = bare.slice(bare.indexOf('function powCancel('));

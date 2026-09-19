@@ -11698,6 +11698,10 @@
   // cancels the mine on purpose (a note nobody is watching must not publish itself), and
   // minimizing is the one close that means the opposite.
   let powMinimizing = false;
+  // How long a mine has to run before the composer offers to let it go. Long enough that
+  // a fast mine never shows the button, short enough that a slow one gets the offer while
+  // there is still a wait worth escaping.
+  const MINIMIZE_OFFER_MS = 3000;
 
   function renderMiningStatus() {
     const bar = $('mining-status');
@@ -11884,7 +11888,7 @@
       // pane; what has not existed until now is anything that keeps the promise to
       // publish once it is gone. The bar in the footer is that promise, and Stop there is
       // still the only thing that ends the mine.
-      const mini = h('button', { className: 'ghost', type: 'button', textContent: 'Keep mining in the background' });
+      const mini = h('button', { className: 'ghost hidden', type: 'button', textContent: 'Keep mining in the background' });
       mini.addEventListener('click', () => {
         beginMinimizedMine(bits, minePubkey, startedAt, best);
         powMinimizing = true;
@@ -11897,6 +11901,13 @@
         h('div', { className: 'actions' }, [stop]),
         mini
       );
+
+      // HELD BACK, for the reason the pane itself is held back 300ms: an offer to walk
+      // away from something about to finish is noise, and a button appearing and
+      // vanishing inside a short mine reads as a glitch rather than as help. At 16 bits
+      // a mine is a fraction of a second and this never appears at all. At 22 it shows
+      // with most of the wait still ahead, which is when leaving is worth offering.
+      const miniTimer = setTimeout(() => show(mini), MINIMIZE_OFFER_MS);
 
       const startedAt = Date.now();
       let best = 0;
@@ -11917,6 +11928,9 @@
         // be offering something that no longer exists.
         done: () => {
           clearInterval(timer);
+          // Runs on cancel as well as success (doPublish calls this in a finally), so one
+          // clear covers both and nothing fires against a detached button.
+          clearTimeout(miniTimer);
           stop.disabled = true;
           line.textContent = 'Found it. Posting…';
         },
