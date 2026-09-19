@@ -815,7 +815,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   background: transparent; border: none; cursor: pointer; color: var(--text);
   padding: 4px 6px; border-radius: 10px;
 }
-.acct-chip:hover { background: var(--hover-soft); }
+.acct-chip:not(:disabled):hover { background: var(--hover-soft); }
 .acct-chip:disabled { cursor: default; }
 .acct-chip:disabled .chip-chev { display: none; }
 .acct-chip:disabled .chip-av { opacity: 0.4; }
@@ -2515,8 +2515,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .fab.is-scrolling { opacity: 0.45; }
 .fab:disabled { opacity: 0.32; cursor: default; box-shadow: none; transform: none; }
-.fab:hover { transform: translateY(-1px) scale(1.03); opacity: 1; }
-.fab:active { transform: scale(0.97); }
+/* :not(:disabled) rather than leaving :disabled to win on specificity, because it does
+   not: both selectors are one class and one pseudo-class, and :hover was declared later,
+   so a disabled FAB lifted and returned to full opacity under the pointer. A disabled
+   button still MATCHES :hover; it only stops taking the click. Guarding the state means
+   it cannot be re-lit by anything added below either. */
+.fab:not(:disabled):hover { transform: translateY(-1px) scale(1.03); opacity: 1; }
+.fab:not(:disabled):active { transform: scale(0.97); }
 .fab svg { width: 24px; height: 24px; }
 
 .compose-author { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
@@ -2744,7 +2749,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   font-variant-numeric: tabular-nums; /* the seconds must not jitter the line as they tick */
 }
 @media (prefers-reduced-motion: reduce) {
-  .mining-glyph { animation: none; opacity: 0.75; }
+  .mining-glyph, .mining-status-glyph svg { animation: none; opacity: 0.75; }
 }
 
 /* link / OG preview card in note preview */
@@ -4059,6 +4064,62 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .relax-chip:hover { border-color: var(--gold-soft); filter: brightness(1.06); }
 .relax-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+/* A mine that has been minimized out of the composer. Sits directly above the relax bar
+   and borrows its construction, with one deliberate omission: NO progress track. The
+   relax bar has one because a timer really does run down. Proof of work does not. Every
+   attempt is independent, so a bar filling up would be a lie about the only thing the
+   user is trying to judge, which is whether to keep waiting. */
+/* TOLD APART FROM THE RELAX BAR BY COLOR, not by a second animation. The two sit on top
+   of each other, are built alike, and mean opposite things: one is a window running down,
+   this is work with no end in view. The obvious move was to shimmer the line, and
+   loading-indicators.test.js is right to refuse it. That idiom is for a value with no
+   room for an indicator beside it, and this line has a pulsing pickaxe two millimetres
+   away. Two animations in a 40px bar is busy, not clear.
+   So: the gold that already marks the pickaxe runs along the top edge and washes faintly
+   through the bar, which separates them at a glance and while standing still. */
+.mining-status {
+  flex-shrink: 0; display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px 9px; border-top: 1px solid var(--gold-soft);
+  background:
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.07), rgba(var(--accent-rgb), 0.02)),
+    linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  color: var(--text);
+}
+.mining-status.hidden { display: none; }
+.mining-status-glyph { flex: 0 0 auto; display: flex; color: var(--gold); }
+/* The SAME pulse the pane's glyph uses, for the same reason: mining is a search with no
+   position in it, so anything that sweeps or fills would imply progress toward a finish
+   that does not exist. Minimizing moves the work, not its nature, and a still pickaxe on
+   a bar whose numbers only change every second reads as stalled. */
+.mining-status-glyph svg {
+  width: 15px; height: 15px;
+  animation: mining-pulse 1.4s ease-in-out infinite;
+}
+.mining-status-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mining-status-line { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Whose post is mining. The id commits to the pubkey, so this is not decoration: it is
+   why the account switcher is disabled while the bar is up. */
+.mining-status-who {
+  font-size: 11px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Worded, so it takes its own end of the row rather than sitting in an icon slot. See
+   the row-control rules in CLAUDE.md: a label plus content in 300px is the shape that
+   ellipsizes the content to nothing, which is why the line above is allowed to truncate
+   and this is not. */
+.mining-status-stop {
+  flex: 0 0 auto; padding: 5px 11px; border-radius: 8px;
+  border: 1px solid var(--border-strong); background: none;
+  color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.mining-status-stop:hover { border-color: var(--gold-soft); background: var(--hover-medium); }
+/* Lift the floating compose FAB clear of the bar, the same way .relax-active does.
+   The relax bar is two rows and lifts the FAB to 72px; this one is a single row, so it
+   needs less. Both can be up at once, and the combined rule carries higher specificity
+   than the relax-only rule below, so it wins regardless of source order. */
+#view-main.mining-active .fab { bottom: 64px; }
+#view-main.mining-active.relax-active .fab { bottom: 118px; }
+
 .relax-status {
   flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;
   padding: 8px 12px 9px; border-top: 1px solid var(--border-strong);
@@ -4480,8 +4541,18 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .notif-act .bolt-ico { height: 15px; width: auto; }
 /* Hovering the CARD, not the button: the whole row is a link, so these have to come up
    with it or they look inert on the surface the pointer is already over. */
-.notif-clickable:hover .notif-act { color: var(--text-2); }
-.notif-act:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+/* :not(:disabled) on both, for the reason the FAB needed it: a disabled button still
+   matches :hover, and the row-level rule lights these up just from hovering the
+   notification. While a mine is running Reply and Quote are inert, and they have to look
+   it rather than inviting a click that does nothing. */
+.notif-clickable:hover .notif-act:not(:disabled) { color: var(--text-2); }
+.notif-act:not(:disabled):hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+/* not-allowed rather than default: these two are ONLY ever disabled by a running mine,
+   so the pointer can say so without qualification. The FAB and the account chip need the
+   .mining-locked scope below, since they are also inert before any account exists. */
+.notif-act:disabled, .notif-repost-choice:disabled { opacity: 0.3; cursor: not-allowed; }
+.mining-locked .fab:disabled,
+.mining-locked .acct-chip:disabled { cursor: not-allowed; }
 /* The zap icon stays lit while its form is open, since the form appears below the row
    and nothing else says which button opened it. */
 .notif-act.open { color: var(--gold); background: var(--hover-medium); border-color: var(--gold-soft); }
