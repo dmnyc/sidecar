@@ -6034,7 +6034,11 @@
         return b;
       };
 
+      // The two actions here that open the composer. Marked so a mine can make them
+      // inert without touching react, repost, zap or bookmark, which have no quarrel
+      // with a mine and should keep working while one runs.
       const replyBtn = actBtn('Reply', icon('message-filled'));
+      replyBtn.classList.add('needs-composer');
       replyBtn.addEventListener('click', (e) => {
         stop(e);
         // The composer is the one thing here that cannot open OVER the sheet: it is a
@@ -6074,8 +6078,11 @@
       const repostBtn = actBtn('Repost or quote', icon('repeat'));
       const choices = h('div', { className: 'notif-repost hidden' });
       const repostNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Repost' });
-      const quoteNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Quote' });
+      const quoteNow = h('button', { className: 'secondary notif-repost-choice needs-composer', type: 'button', textContent: 'Quote' });
       choices.append(repostNow, quoteNow);
+      // Built inert if a mine is already running, since rows are created long after the
+      // lock went on. Plain repost is untouched: it publishes without the composer.
+      if (miningStatus) { replyBtn.disabled = true; quoteNow.disabled = true; }
       const closeChoices = () => {
         choices.classList.add('hidden');
         repostBtn.classList.remove('open');
@@ -11754,7 +11761,18 @@
   // is already safe (ownerSign refuses with expectedPubkey, and the draft survives), but
   // safe means the post FAILS after the work is done. Minimizing turns that from a rare
   // race into an easy mistake, so the control goes away rather than the work being lost.
+  // Buttons that OPEN THE COMPOSER, wherever they are. The FAB is one; a reply and a
+  // quote in the notifications sheet are the others, and they are built and destroyed as
+  // the sheet paginates, so they are found by class rather than held as references.
+  //
+  // React, repost, zap and bookmark are deliberately untouched. None of them needs the
+  // composer, and a mine is no reason to stop someone using the rest of the bell.
+  function setComposerButtonsLocked(locked) {
+    document.querySelectorAll('.needs-composer').forEach((b) => { b.disabled = locked; });
+  }
+
   function setComposeLocked(locked) {
+    setComposerButtonsLocked(locked);
     const fab = $('compose-fab');
     if (fab) {
       fab.disabled = locked;
@@ -11834,16 +11852,11 @@
       toast('Add an account first', 'error');
       return;
     }
-    // A MINE IS ALREADY RUNNING, AND EVERY ROUTE IN LANDS HERE. Disabling the compose FAB
-    // covered exactly one of them: a reply from the bell, a quote repost, the welcome
-    // post and the first-post nudge all call this directly and went straight past it.
-    // A second composer would queue a second mine on the one worker, halving both, which
-    // is the thing the lock exists to prevent. Guarded at the door rather than at each
-    // button, so a route added later cannot forget.
-    if (miningStatus) {
-      toast('Mining a post. Stop it first.', 'error');
-      return;
-    }
+    // A MINE IS ALREADY RUNNING. A backstop, not the affordance: every button that leads
+    // here is disabled while one is up, so reaching this means a route nobody has marked
+    // yet. It returns quietly rather than telling anyone to stop mining, which would be
+    // asking them to throw away work to do something else.
+    if (miningStatus) return;
     const pubkey = state.activePubkey;
     await devBuildReady;
     let devKindEnabled = false;

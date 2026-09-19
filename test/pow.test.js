@@ -531,16 +531,32 @@ test('THE BAR IS TOLD APART FROM THE RELAX BAR WITHOUT A SECOND ANIMATION', () =
     'the mining line shimmers as well as pulsing');
 });
 
-test('A MINE BLOCKS EVERY ROUTE INTO THE COMPOSER, NOT JUST THE FAB', () => {
-  // Five call sites reach openComposer: the FAB, a reply from the bell, a quote repost,
-  // the welcome post and the first-post nudge. Disabling the button covered one of them,
-  // and a second composer would queue a second mine on the one worker, halving both.
+test('A MINE DISABLES THE WAYS IN, IT DOES NOT REFUSE AT THE DOOR', () => {
+  // The first cut let Reply be pressed and then refused with "stop it first", which
+  // closed the notifications sheet on the way (the handler calls closeModal BEFORE
+  // openComposer) and told the user to throw away a minute of work to do something else.
+  // The buttons go inert instead, and the bell stays open.
+  assert.match(bare, /replyBtn\.classList\.add\('needs-composer'\)/);
+  assert.match(bare, /notif-repost-choice needs-composer/, 'Quote opens the composer too');
+  assert.match(bare, /document\.querySelectorAll\('\.needs-composer'\)\.forEach\(\(b\) => \{ b\.disabled = locked; \}\)/);
+  // Rows are built and thrown away as the bell paginates, so a row created while a mine
+  // is already running has to come up inert on its own.
+  assert.match(bare, /if \(miningStatus\) \{ replyBtn\.disabled = true; quoteNow\.disabled = true; \}/);
+
+  // The rest of the bell keeps working: none of these needs the composer.
+  for (const other of ['reactBtn', 'repostNow', 'zapBtn', 'bmBtn']) {
+    const at = bare.indexOf('const ' + other);
+    assert.ok(at > -1, other + ' is gone');
+    assert.ok(!/needs-composer/.test(bare.slice(at, at + 160)), other + ' should not be locked by a mine');
+  }
+
+  // The door guard stays as a backstop, and says nothing.
   const fn = bare.slice(bare.indexOf('async function openComposer('));
   const head = fn.slice(0, fn.indexOf('const pubkey = state.activePubkey;'));
-  assert.match(head, /if \(miningStatus\) \{/, 'the composer opens while a mine is running');
-  assert.match(head, /Mining a post\. Stop it first\./);
-  // Guarded at the door, so a route added later inherits it rather than having to
-  // remember. If this count climbs, the guard above is what makes that safe.
-  const entries = (bare.match(/[^n] openComposer\(/g) || []).length;
-  assert.ok(entries >= 4, 'expected several routes into the composer, found ' + entries);
+  assert.match(head, /if \(miningStatus\) return;/);
+  assert.ok(!/Stop it first/.test(head), 'the backstop must not tell anyone to stop mining');
+
+  // And a disabled action must not light up under the pointer, same trap as the FAB.
+  assert.match(css, /\.notif-act:not\(:disabled\):hover/);
+  assert.match(css, /\.notif-act:disabled, \.notif-repost-choice:disabled \{[^}]*opacity/);
 });

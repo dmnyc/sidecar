@@ -4541,8 +4541,13 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .notif-act .bolt-ico { height: 15px; width: auto; }
 /* Hovering the CARD, not the button: the whole row is a link, so these have to come up
    with it or they look inert on the surface the pointer is already over. */
-.notif-clickable:hover .notif-act { color: var(--text-2); }
-.notif-act:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+/* :not(:disabled) on both, for the reason the FAB needed it: a disabled button still
+   matches :hover, and the row-level rule lights these up just from hovering the
+   notification. While a mine is running Reply and Quote are inert, and they have to look
+   it rather than inviting a click that does nothing. */
+.notif-clickable:hover .notif-act:not(:disabled) { color: var(--text-2); }
+.notif-act:not(:disabled):hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+.notif-act:disabled, .notif-repost-choice:disabled { opacity: 0.3; cursor: default; }
 /* The zap icon stays lit while its form is open, since the form appears below the row
    and nothing else says which button opened it. */
 .notif-act.open { color: var(--gold); background: var(--hover-medium); border-color: var(--gold-soft); }
