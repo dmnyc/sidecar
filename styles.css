@@ -4059,6 +4059,45 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 }
 .relax-chip:hover { border-color: var(--gold-soft); filter: brightness(1.06); }
 .relax-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+/* A mine that has been minimized out of the composer. Sits directly above the relax bar
+   and borrows its construction, with one deliberate omission: NO progress track. The
+   relax bar has one because a timer really does run down. Proof of work does not. Every
+   attempt is independent, so a bar filling up would be a lie about the only thing the
+   user is trying to judge, which is whether to keep waiting. */
+.mining-status {
+  flex-shrink: 0; display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px 9px; border-top: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  color: var(--text);
+}
+.mining-status.hidden { display: none; }
+.mining-status-glyph { flex: 0 0 auto; display: flex; color: var(--gold); }
+.mining-status-glyph svg { width: 15px; height: 15px; }
+.mining-status-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mining-status-line { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Whose post is mining. The id commits to the pubkey, so this is not decoration: it is
+   why the account switcher is disabled while the bar is up. */
+.mining-status-who {
+  font-size: 11px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Worded, so it takes its own end of the row rather than sitting in an icon slot. See
+   the row-control rules in CLAUDE.md: a label plus content in 300px is the shape that
+   ellipsizes the content to nothing, which is why the line above is allowed to truncate
+   and this is not. */
+.mining-status-stop {
+  flex: 0 0 auto; padding: 5px 11px; border-radius: 8px;
+  border: 1px solid var(--border-strong); background: none;
+  color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.mining-status-stop:hover { border-color: var(--gold-soft); background: var(--hover-medium); }
+/* Lift the floating compose FAB clear of the bar, the same way .relax-active does.
+   The relax bar is two rows and lifts the FAB to 72px; this one is a single row, so it
+   needs less. Both can be up at once, and the combined rule carries higher specificity
+   than the relax-only rule below, so it wins regardless of source order. */
+#view-main.mining-active .fab { bottom: 64px; }
+#view-main.mining-active.relax-active .fab { bottom: 118px; }
+
 .relax-status {
   flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;
   padding: 8px 12px 9px; border-top: 1px solid var(--border-strong);

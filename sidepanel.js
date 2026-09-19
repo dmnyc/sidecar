@@ -7317,6 +7317,11 @@
     }
   }
   const shareLink = $('share-sidecar-link');
+  // The footer bar's Stop is the only way to end a minimized mine. powCancel rejects the
+  // pending promise, which lands in finishPublish's catch, which retires the bar.
+  const miningStop = $('mining-status-stop');
+  if (miningStop) miningStop.addEventListener('click', () => powCancel());
+
   shareLink.prepend(icon('share'));
   shareLink.addEventListener('click', (e) => { e.preventDefault(); shareSidecar(); });
   const shareBtn = $('share-sidecar-btn');
@@ -11683,6 +11688,82 @@
     }
   }
 
+  // A MINE THAT HAS LEFT THE COMPOSER. Null unless one is minimized.
+  //
+  // The mine itself never moved: the worker is module scope and has always kept hashing
+  // after its pane closed. What this holds is the promise that somebody is still going to
+  // sign and publish the result, plus enough to draw the bar that says so.
+  let miningStatus = null; // { bits, pubkey, startedAt, best, tick }
+  // Set for exactly as long as it takes closeModal to run. The composer's close handler
+  // cancels the mine on purpose (a note nobody is watching must not publish itself), and
+  // minimizing is the one close that means the opposite.
+  let powMinimizing = false;
+
+  function renderMiningStatus() {
+    const bar = $('mining-status');
+    const view = $('view-main');
+    if (!bar) return;
+    if (!miningStatus) {
+      hide(bar);
+      if (view) view.classList.remove('mining-active');
+      return;
+    }
+    show(bar);
+    if (view) view.classList.add('mining-active'); // lift the compose FAB off the bar
+    const secs = Math.round((Date.now() - miningStatus.startedAt) / 1000);
+    $('mining-status-line').textContent =
+      miningStatus.bits + ' bits \u00b7 ' + secs + 's' +
+      (miningStatus.best ? ' \u00b7 best ' + miningStatus.best : '');
+    const accts = (state && state.accounts) || [];
+    const acct = accts.find((a) => a.pubkey === miningStatus.pubkey);
+    // WHOSE POST THIS IS. The id commits to the pubkey, so a mine belongs to one account
+    // and cannot be spent under another. The switcher is disabled while this is up, and
+    // naming the account is what makes that read as deliberate rather than broken.
+    $('mining-status-who').textContent = acct ? displayName(acct) : '';
+  }
+
+  // Minimizing does NOT stop the mine, which is the whole point, so it has to leave
+  // something on screen. Closing the composer still cancels: see the close handler.
+  function beginMinimizedMine(bits, pubkey, startedAt, best) {
+    const glyph = $('mining-status-glyph');
+    if (glyph && !glyph.firstChild) glyph.append(icon('pickaxe'));
+    miningStatus = { bits, pubkey, startedAt, best: best || 0, tick: null };
+    miningStatus.tick = setInterval(renderMiningStatus, 1000);
+    renderMiningStatus();
+    setComposeLocked(true);
+  }
+
+  function endMinimizedMine() {
+    if (!miningStatus) return;
+    clearInterval(miningStatus.tick);
+    miningStatus = null;
+    renderMiningStatus();
+    setComposeLocked(false);
+  }
+
+  // While a mine is minimized, two controls have to go inert, for two different reasons.
+  //
+  // The COMPOSER, because one worker hashing two jobs halves both and the second mine
+  // would look broken rather than slow.
+  //
+  // The ACCOUNT SWITCHER, because the event id commits to the pubkey. Switching mid-mine
+  // is already safe (ownerSign refuses with expectedPubkey, and the draft survives), but
+  // safe means the post FAILS after the work is done. Minimizing turns that from a rare
+  // race into an easy mistake, so the control goes away rather than the work being lost.
+  function setComposeLocked(locked) {
+    const fab = $('compose-fab');
+    if (fab) {
+      fab.disabled = locked;
+      fab.title = locked ? 'Mining a post. Stop it first.' : 'Post a note';
+    }
+    const acct = $('acct-btn');
+    if (acct) {
+      acct.disabled = locked || !((state && state.accounts) || []).length;
+      if (locked) acct.title = 'Mining a post for this account';
+      else acct.removeAttribute('title');
+    }
+  }
+
   function powCancel() {
     // Nothing in flight: leave the warm worker alone. Called unconditionally when the
     // composer closes, and terminating an idle one there would make the next Low mine pay
@@ -11787,7 +11868,7 @@
     // the countdown path, which is the DEFAULT one: that left the common case showing
     // "Posting…" for up to a minute with no elapsed time, no difficulty reached, and a
     // Stop button that had been thrown away.
-    function showMiningPane(bits) {
+    function showMiningPane(bits, minePubkey) {
       stopCountdown();
       modal.innerHTML = '';
       const glyph = icon('pickaxe');
@@ -11799,10 +11880,22 @@
       const note = h('p', { className: 'hint', textContent: 'Stopping keeps your draft.' });
       const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
       stop.addEventListener('click', powCancel);
+      // GET THE PANEL BACK WITHOUT LOSING THE WORK. The worker has always outlived this
+      // pane; what has not existed until now is anything that keeps the promise to
+      // publish once it is gone. The bar in the footer is that promise, and Stop there is
+      // still the only thing that ends the mine.
+      const mini = h('button', { className: 'ghost', type: 'button', textContent: 'Keep mining in the background' });
+      mini.addEventListener('click', () => {
+        beginMinimizedMine(bits, minePubkey, startedAt, best);
+        powMinimizing = true;
+        closeModal();
+        powMinimizing = false;
+      });
       modal.append(
         h('h3', { textContent: 'Mining proof of work' }),
         h('div', { className: 'mining-body' }, [glyph, line, note]),
-        h('div', { className: 'actions' }, [stop])
+        h('div', { className: 'actions' }, [stop]),
+        mini
       );
 
       const startedAt = Date.now();
@@ -11948,10 +12041,13 @@
         // work; anything finishing before the delay never shows one at all. Past it the
         // wait is long enough that saying nothing is the worse failure.
         let pane = null;
-        const showPane = setTimeout(() => { pane = showMiningPane(powForThisPost.bits); }, 300);
+        const showPane = setTimeout(() => { pane = showMiningPane(powForThisPost.bits, pubkey); }, 300);
         let mined;
         try {
-          mined = await minePow({ ...event, pubkey }, powForThisPost.bits, (p) => { if (pane) pane.progress(p); });
+          mined = await minePow({ ...event, pubkey }, powForThisPost.bits, (p) => {
+            if (miningStatus && p.best > miningStatus.best) { miningStatus.best = p.best; renderMiningStatus(); }
+            if (pane) pane.progress(p);
+          });
         } finally {
           clearTimeout(showPane);
           if (pane) pane.done();
@@ -12462,6 +12558,7 @@
         else if (signed.kind === 1) rememberOwnNote(signed.pubkey, signed.id);
         published = true;
         clearComposeDraft(dkey);
+        endMinimizedMine(); // no-op unless this one was minimized
         closeModal();
         toast(signed.kind === POLL_KIND ? 'Poll published' : 'Note published', 'success');
         showPostBanner(signed);
@@ -12474,7 +12571,13 @@
         // No toast for a stop: the user pressed the button, and the editor returning is
         // the answer. A red banner would report their own decision as a fault.
         if (!(e && e.canceled)) toast(e.message, 'error');
-        showEditor();
+        // MINIMIZED MEANS THERE IS NO EDITOR TO GO BACK TO. showEditor would rebuild the
+        // composer inside a modal that was closed, so the user would get a toast and no
+        // way to their text. The draft was force-written before publishing, so reopening
+        // the composer offers it back through the normal resume prompt.
+        const wasMinimized = !!miningStatus;
+        endMinimizedMine();
+        if (!wasMinimized) showEditor();
       }
     }
 
@@ -12612,7 +12715,10 @@
         // await to sign and publish a note the user has already walked away from. The
         // countdown has always been stopped here for the same reason, and this is the
         // same hazard with a longer fuse.
-        powCancel();
+        //
+        // Unless this close is a minimize, which is the one that means "keep going". The
+        // footer bar is up by then and owns the stop.
+        if (!powMinimizing) powCancel();
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.

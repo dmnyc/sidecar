@@ -21,6 +21,7 @@ const workerSrc = fs.readFileSync(path.join(ROOT, 'pow-worker.js'), 'utf8');
 const panelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
 const bare = panel.replace(/^\s*\/\/.*$/gm, '');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
 
 // The worker plus the real vendored bundle, in one realm. importScripts is dropped
 // because the bundle is loaded directly; everything else runs byte-identical to what
@@ -319,11 +320,12 @@ test('the proof-of-work icon does not mean something else already', () => {
   // nostr, which is the one thing it must not be taken for here.
   assert.match(bare, /powBtn\.append\(icon\('pickaxe'\), powBtnLabel\)/);
   assert.match(panel, /^\s+pickaxe: '<path /m, 'the pickaxe glyph is missing from ICONS');
-  // Two uses, and both are proof of work: the composer's button and the mining pane's
-  // glyph. The assertion is that nothing ELSE adopts it, since a shape meaning two things
-  // is exactly why badge-check was unavailable.
+  // Three uses, and all three are proof of work: the composer's button, the mining
+  // pane's glyph, and the footer bar a minimized mine draws. The assertion is that
+  // nothing ELSE adopts it, since a shape meaning two things is exactly why badge-check
+  // was unavailable.
   const uses = (panel.match(/icon\('pickaxe'\)/g) || []).length;
-  assert.equal(uses, 2, 'the pickaxe means proof of work here and nothing else');
+  assert.equal(uses, 3, 'the pickaxe means proof of work here and nothing else');
   assert.match(bare, /const glyph = icon\('pickaxe'\);\n\s+glyph\.classList\.add\('mining-glyph'\);/);
 });
 
@@ -333,7 +335,7 @@ test('MINING OWNS THE MODAL, BECAUSE THE COUNTDOWN WIPES IT', () => {
   // starts on the common path, which left it showing "Posting…" for up to a minute with
   // no elapsed time, no difficulty reached, and a Stop button that had been thrown away.
   // The pane takes the modal the same way the countdown does, so both paths land in it.
-  assert.match(bare, /function showMiningPane\(bits\)/);
+  assert.match(bare, /function showMiningPane\(bits, minePubkey\)/);
   const fn = bare.slice(bare.indexOf('function showMiningPane('));
   const body = fn.slice(0, fn.indexOf('\n    }'));
   assert.match(body, /modal\.innerHTML = '';/, 'the pane has to own the modal, not sit in the editor');
@@ -351,7 +353,7 @@ test('MINING OWNS THE MODAL, BECAUSE THE COUNTDOWN WIPES IT', () => {
   // appears and vanishes inside that reads as a glitch rather than as work.
   const pub = bare.slice(bare.indexOf('async function doPublish'));
   const pubBody = pub.slice(0, pub.indexOf('\n    }'));
-  assert.match(pubBody, /setTimeout\(\(\) => \{ pane = showMiningPane\(powForThisPost\.bits\); \}, 300\)/);
+  assert.match(pubBody, /setTimeout\(\(\) => \{ pane = showMiningPane\(powForThisPost\.bits, pubkey\); \}, 300\)/);
   assert.match(pubBody, /clearTimeout\(showPane\);/, 'a fast mine must never leave the timer armed');
 });
 
@@ -385,18 +387,95 @@ test('THE MINING GLYPH IS SIZED ON ITSELF, NOT AS A DESCENDANT', () => {
   assert.match(css, /\.compose-add svg \{[^}]*width: 15px/);
 });
 
-test('A MINE DOES NOT OUTLIVE THE COMPOSER THAT STARTED IT', () => {
+test('A MINE DOES NOT OUTLIVE A COMPOSER THAT WAS WALKED AWAY FROM', () => {
   // The worker keeps hashing after the modal closes, and doPublish resumes on the other
   // side of that await to sign and publish a note the user has already walked away from.
   // The countdown has always been stopped in onClose for the same reason; this is the
   // same hazard with a much longer fuse.
-  // Matched as an adjacency rather than by slicing from openModal, which finds the web
-  // comment composer's first: the note composer's teardown is the one that stops both.
-  assert.match(bare, /stopCountdown\(\);\s*\n\s*powCancel\(\);/,
+  //
+  // MINIMIZING IS THE ONE EXCEPTION, and it is an exception to the UI rather than to the
+  // hazard: the footer bar is on screen saying a post is still coming, and its Stop is
+  // the only way out. So closing still cancels, and the flag that says otherwise must be
+  // true for no longer than the closeModal call it wraps. A flag left set would turn
+  // every later close into a silent publish, which is the original bug with a worse fuse.
+  assert.match(bare, /stopCountdown\(\);\s*\n\s*if \(!powMinimizing\) powCancel\(\);/,
     'closing the composer must abandon the mine, beside stopping the countdown');
+
+  const mini = bare.slice(bare.indexOf('mini.addEventListener'));
+  const body = mini.slice(0, mini.indexOf('});') + 3);
+  assert.match(body, /powMinimizing = true;\s*\n\s*closeModal\(\);\s*\n\s*powMinimizing = false;/,
+    'the minimize flag has to be cleared on the same tick it was set');
+  assert.match(body, /beginMinimizedMine\(bits, minePubkey, startedAt, best\)/,
+    'the bar must be up BEFORE the modal goes, or the mine is invisible for a frame');
 
   // And cancelling when nothing is in flight leaves the warm worker alone, since this now
   // runs on EVERY composer close and a Low mine should not pay to reload nostr-tools.
   const fn = bare.slice(bare.indexOf('function powCancel('));
   assert.match(fn.slice(0, fn.indexOf('\n  }')), /if \(!powPending\.size\) return;/);
+});
+
+// ---- a mine that has left the composer ---------------------------------------------
+
+test('THE BAR IS THE PROMISE THAT A POST IS STILL COMING', () => {
+  // Minimizing does not move the mine. The worker was always module scope and always
+  // outlived its pane; what never existed was anything on screen saying so. Without the
+  // bar, "keep mining in the background" is indistinguishable from losing the post.
+  assert.match(bare, /function renderMiningStatus\(\)/);
+  assert.match(bare, /function beginMinimizedMine\(bits, pubkey, startedAt, best\)/);
+  assert.match(bare, /function endMinimizedMine\(\)/);
+
+  const begin = bare.slice(bare.indexOf('function beginMinimizedMine('));
+  assert.match(begin.slice(0, begin.indexOf('\n  }')), /setComposeLocked\(true\)/);
+  const end = bare.slice(bare.indexOf('function endMinimizedMine('));
+  const endBody = end.slice(0, end.indexOf('\n  }'));
+  assert.match(endBody, /clearInterval\(miningStatus\.tick\)/, 'the clock outlives the bar');
+  assert.match(endBody, /setComposeLocked\(false\)/);
+});
+
+test('NO PROGRESS TRACK, UNLIKE THE RELAX BAR IT SITS ON', () => {
+  // The relax bar has a fill because a timer genuinely runs down. Proof of work has
+  // nothing to fill: every attempt is independent, so a mine running twice as long as
+  // average is no nearer than one that just started. A bar creeping rightwards would be
+  // a lie about the only question the user is asking, which is whether to keep waiting.
+  const rule = css.slice(css.indexOf('.mining-status {'), css.indexOf('.relax-status {'));
+  assert.ok(!/mining-status-fill|mining-status-track/.test(rule), 'a progress track appeared');
+  assert.ok(!/mining-status-fill/.test(html), 'a progress track appeared in the markup');
+  // And the relax bar still has its own, so this is a deliberate difference rather than
+  // something that fell off both.
+  assert.match(css, /\.relax-status-fill \{/);
+});
+
+test('BOTH CONTROLS THAT COULD RUIN THE MINE GO INERT', () => {
+  // The composer, because one worker hashing two jobs halves both and the second reads
+  // as broken rather than slow. The account switcher, because the event id commits to
+  // the pubkey: switching is already safe, in that ownerSign refuses and the draft
+  // survives, but safe means the post FAILS after the work is done. Minimizing turns a
+  // rare race into an easy mistake.
+  const fn = bare.slice(bare.indexOf('function setComposeLocked('));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /\$\('compose-fab'\)/);
+  assert.match(body, /\$\('acct-btn'\)/);
+  assert.match(body, /fab\.disabled = locked/);
+  // Unlocking must not enable a switcher that was disabled for its own reason: with no
+  // accounts the chip is inert regardless.
+  assert.match(body, /acct\.disabled = locked \|\| !\(\(state && state\.accounts\) \|\| \[\]\)\.length/);
+});
+
+test('the bar is retired on every way out', () => {
+  // Three exits: it published, it failed, or Stop was pressed. A bar left up after any of
+  // them claims a post is coming that is not, and keeps the composer locked forever.
+  const pub = bare.slice(bare.indexOf('async function doPublish'));
+  assert.match(pub, /endMinimizedMine\(\); \/\/ no-op unless this one was minimized/);
+  assert.match(pub, /const wasMinimized = !!miningStatus;\s*\n\s*endMinimizedMine\(\);/);
+  // Stop goes through powCancel, which rejects the pending promise and lands in the
+  // catch above, so there is one retirement path rather than two.
+  assert.match(bare, /miningStop\.addEventListener\('click', \(\) => powCancel\(\)\)/);
+});
+
+test('a minimized failure does not rebuild an editor that is gone', () => {
+  // showEditor writes into the composer's modal. Minimized, that modal is closed, so the
+  // user would get a toast and no route back to their text. The draft is force-written
+  // before publishing, so reopening the composer offers it through the resume prompt.
+  const pub = bare.slice(bare.indexOf('async function doPublish'));
+  assert.match(pub, /if \(!wasMinimized\) showEditor\(\);/);
 });

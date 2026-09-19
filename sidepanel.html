@@ -260,6 +260,21 @@
       </defs>
     </svg>
 
+    <!-- Persistent bottom bar for a mine that has been minimized out of the composer.
+         Sits above the relax bar because a mine is the more urgent of the two: it is
+         holding a post you have already written. No progress track, unlike the relax
+         bar below, because proof of work has no progress to show. Every attempt is
+         independent, so a bar filling up would be a lie about the one thing you are
+         trying to judge. See renderMiningStatus in sidepanel.js. -->
+    <div id="mining-status" class="mining-status hidden">
+      <span class="mining-status-glyph" id="mining-status-glyph" aria-hidden="true"></span>
+      <span class="mining-status-main">
+        <span class="mining-status-line" id="mining-status-line">Mining</span>
+        <span class="mining-status-who" id="mining-status-who"></span>
+      </span>
+      <button type="button" id="mining-status-stop" class="mining-status-stop">Stop</button>
+    </div>
+
     <!-- Persistent bottom status bar, shown only while a relax (auto-sign) window
          is active — Apogee-style. Status dot + signing account + live mm:ss
          countdown + Restart / End. See renderRelaxStatus in sidepanel.js. -->
