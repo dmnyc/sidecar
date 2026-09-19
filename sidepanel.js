@@ -9234,7 +9234,13 @@
   // Lists every account that has signed in on a shared (multi-login) site, with
   // a way to prune one the user no longer uses there. Dropping back to one
   // account collapses the site to normal — no more shared-identity confirms.
-  function sharedSiteModal(host, authorizedPks) {
+  // Async so the toggle's state is in hand BEFORE the modal opens. openModal calls its
+  // builder synchronously and does not await it, so an async builder would show the card
+  // and then pop the rest of it in a moment later.
+  async function sharedSiteModal(host, authorizedPks) {
+    const alwaysActive = await call({ type: 'SIDECAR_GET_ALWAYS_ACTIVE' })
+      .then((m) => !!(m && m[host]))
+      .catch(() => false);
     openModal((modal) => {
       modal.append(
         h('h3', { textContent: host }),
@@ -9257,6 +9263,40 @@
         list.append(row);
       });
       modal.append(list);
+
+      // THE OPT-OUT. Asked for by a user who runs one client, switches identity in
+      // Sidecar rather than in the client, and would rather Sidecar just sign as whatever
+      // is active than be asked every time. That is a reasonable thing to want and a real
+      // thing to give up, so the row says what it costs rather than only what it saves.
+      //
+      // Its own full-width row under the list, not a control beside it: it has words, and
+      // a worded confirm takes its own row in this panel (see CLAUDE.md).
+      const toggle = h('input', { type: 'checkbox', className: 'tg-input' });
+      toggle.checked = alwaysActive;
+      const row = h('label', { className: 'setting-toggle always-active-row' }, [
+        h('span', { className: 'always-active-copy' }, [
+          h('span', { className: 'always-active-label', textContent: 'Always sign as Sidecar\u2019s active account' }),
+          h('span', {
+            className: 'hint',
+            textContent:
+              'Stops the confirms on this site. Posts may go out from a different account than the client is showing.',
+          }),
+        ]),
+        toggle,
+        h('span', { className: 'tg-track' }, [h('span', { className: 'tg-thumb' })]),
+      ]);
+      toggle.addEventListener('change', async () => {
+        const on = toggle.checked;
+        try {
+          await call({ type: 'SIDECAR_SET_ALWAYS_ACTIVE', host, on });
+          toast(on ? 'Signing as the active account on ' + host : 'Confirms are back on ' + host, 'success');
+        } catch (e) {
+          toggle.checked = !on; // put the switch back where the stored state actually is
+          toast(e.message, 'error');
+        }
+      });
+      modal.append(row);
+
       const close = h('button', { className: 'ghost', textContent: 'Close' });
       close.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [close]));
