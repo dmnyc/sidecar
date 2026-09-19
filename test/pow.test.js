@@ -560,3 +560,31 @@ test('A MINE DISABLES THE WAYS IN, IT DOES NOT REFUSE AT THE DOOR', () => {
   assert.match(css, /\.notif-act:not\(:disabled\):hover/);
   assert.match(css, /\.notif-act:disabled, \.notif-repost-choice:disabled \{[^}]*opacity/);
 });
+
+test('A RE-RENDER CANNOT HAND BACK THE CONTROLS A MINE TOOK', () => {
+  // renderMain runs on almost anything and sets acct-btn.disabled and compose-fab.disabled
+  // from hasAccounts alone, so any re-render quietly unlocked both mid-mine. The lock is
+  // re-applied at the end of that function rather than guarded at each line, so a control
+  // added later is covered by being written the ordinary way.
+  const fn = bare.slice(bare.indexOf('function renderMain()'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  const reassert = body.indexOf('if (miningStatus) setComposeLocked(true);');
+  assert.ok(reassert > -1, 'renderMain does not re-apply the mining lock');
+  assert.ok(reassert > body.indexOf("$('compose-fab').disabled"), 'the lock must be re-applied AFTER the disabled flags are written');
+  assert.ok(reassert > body.indexOf("$('acct-btn').title"), 'and after the title is written, or it is clobbered too');
+});
+
+test('LOCKING THE KEYSTORE STOPS THE MINE', () => {
+  // The bar lives inside view-main, so locking hid it while the worker kept hashing. The
+  // mine then finished into "Keystore is locked" minutes later, on a screen where nobody
+  // sees the toast, having spent the whole wait for nothing. Lock is a security boundary
+  // that already tears down the composer; a mine is composer work.
+  const at = bare.indexOf('} else if (state.locked) {');
+  assert.ok(at > -1, 'the lock branch moved');
+  const branch = bare.slice(at, bare.indexOf('show($(\'view-lock\'))', at));
+  assert.match(branch, /powCancel\(\);/, 'a mine survives the lock and fails later');
+  assert.match(branch, /endMinimizedMine\(\);/, 'the bar is left ticking behind the lock screen');
+  // Cancelling is silent: the publish catch treats a deliberate stop as no news, so the
+  // user is not told off for locking their own panel.
+  assert.match(bare, /if \(!\(e && e\.canceled\)\) toast\(e\.message, 'error'\);/);
+});

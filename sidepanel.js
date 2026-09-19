@@ -1090,6 +1090,17 @@
       // (composer, wallet, key backup, …) so nothing sensitive sits over the lock
       // screen. The composer draft is autosaved, so it's offered again on unlock.
       closeModal();
+      // AND STOP MINING, for the same reason the modal goes. A mine is composer work and
+      // it cannot outlive the lock usefully: ownerSign refuses while the keystore is
+      // locked, so a mine left running finishes into an error the user is not even
+      // looking at, having spent the whole wait for nothing. Cancelling is silent (the
+      // catch treats a deliberate stop as no news) and the draft was force-written
+      // before publishing, so it is offered again on unlock.
+      //
+      // Also retires the bar, which is inside view-main and would otherwise simply be
+      // hidden behind the lock screen with its clock still ticking.
+      powCancel();
+      endMinimizedMine();
       stopWalletMonitor();
       if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
       balanceCache = { pubkey: null, sats: null };
@@ -6793,6 +6804,10 @@
     // but make the chip inert (no name, no chevron, no dropdown) until an account exists.
     $('acct-btn').disabled = !hasAccounts;
     $('accounts-heading').classList.toggle('hidden', !hasAccounts);
+    // renderMain runs on almost anything, and the three lines here that set `disabled`
+    // and `title` ran after a mine had locked them, quietly handing back the controls
+    // it had taken. Re-applied at the end of this function rather than guarded at each
+    // line, so a control added later is covered by being written the normal way.
 
     // Once an account exists, the two full-size Generate/Import buttons are no
     // longer the primary action on this tab — collapse them into a small link
@@ -6846,6 +6861,8 @@
     // The name is no longer drawn in the bar, so the tooltip has to carry it —
     // otherwise two accounts with similar avatars are indistinguishable here.
     $('acct-btn').title = active ? 'Switch account — ' + displayName(active) : 'No account';
+    // LAST, and after everything above has had its say. See the note by acct-btn.
+    if (miningStatus) setComposeLocked(true);
     refreshBell();
     syncRelax();
     renderPinnedBalanceBar();
