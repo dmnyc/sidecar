@@ -76,8 +76,12 @@ test('THE UI SAYS WHAT IT COSTS, NOT ONLY WHAT IT SAVES', () => {
   const fn = bare.slice(bare.indexOf('async function sharedSiteModal('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /Always sign as Sidecar/);
-  assert.match(body, /Posts may go out from a different account than the client is showing/);
+  assert.match(body, /Posts may not match the client/);
   assert.match(body, /SIDECAR_SET_ALWAYS_ACTIVE/);
+  // ONE short line, not a paragraph. The long version repeated what the paragraph at the
+  // top of this sheet already says, in a smaller size, which is text nobody reads twice.
+  const note = body.match(/always-active-note', textContent: '([^']*)'/);
+  assert.ok(note && note[1].length <= 60, 'the note grew back into a paragraph');
   // A failed write must not leave the switch showing a state that was never stored.
   assert.match(body, /toggle\.checked = !on;/);
 });
@@ -99,17 +103,18 @@ test('IT USES THE PANEL\u2019S OWN TOGGLE, NOT THE PAGE CARD\u2019S', () => {
   // the hint as a SIBLING paragraph beneath.
   const fn = bare.slice(bare.indexOf('async function sharedSiteModal('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /className: 'toggle-row'/, 'the row must use the panel toggle');
-  for (const orphan of ['tg-input', 'tg-track', 'tg-thumb', 'always-active-copy']) {
-    assert.ok(!body.includes(orphan), body.includes(orphan) && orphan + ' has no styles in this stylesheet');
+  // Same shape as the account rows above it: text in the left column, control at the
+  // right edge. A leading checkbox pushed the wrapped label into a ragged indent.
+  assert.match(body, /className: 'shared-acct-row always-active-row'/);
+  const labelAt = body.indexOf('always-active-label');
+  const boxAt = body.indexOf('toggle,');
+  assert.ok(labelAt > -1 && boxAt > labelAt, 'the control has to follow the text, not lead it');
+  for (const orphan of ['tg-input', 'tg-track', 'tg-thumb', 'always-active-copy', 'toggle-row']) {
+    assert.ok(!body.includes(orphan), orphan + ' is not the pattern this sheet uses');
   }
-  // The hint is a sibling of the label, not a child of it.
-  assert.match(body, /h\('label', \{ className: 'toggle-row' \}, \[[\s\S]*?\]\),\s*\n\s*h\('p', \{\s*\n?\s*className: 'hint'/);
-  // And the class the panel styles actually exists.
-  assert.match(css, /\.toggle-row \{/);
-  // Tinted like .kind-warn, because this is an exception being made rather than a
-  // preference being set. As a plain row it read as one more checkbox, which is the
-  // wrong weight for the only control here that turns a safety confirm off.
-  assert.match(css, /\.always-active-row \{[^}]*rgba\(var\(--warn-rgb\), 0\.1\)/);
-  assert.match(css, /\.always-active-row \.hint \{[^}]*color: var\(--warn\)/);
+  // A top rule, NOT a tinted panel: a box inside a box is the thing this sheet does not
+  // need. The weight comes from the warn-colored note and accent instead.
+  assert.match(css, /\.always-active-row \{[^}]*border-top: 1px solid var\(--border\)/);
+  assert.ok(!/\.always-active-row \{[^}]*background:/.test(css), 'the tinted box is back');
+  assert.match(css, /\.always-active-note \{[^}]*color: var\(--warn\)/);
 });

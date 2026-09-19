@@ -9273,21 +9273,17 @@
       // a worded confirm takes its own row in this panel (see CLAUDE.md).
       const toggle = h('input', { type: 'checkbox' });
       toggle.checked = alwaysActive;
-      // The panel's own toggle idiom: a .toggle-row carrying the switch and its label,
-      // with the explanation as a sibling paragraph beneath. The first cut nested the
-      // hint inside the row and borrowed .tg-input/.tg-track from the PAGE CARD's
-      // stylesheet, which does not exist here, so the switch rendered as a bare
-      // checkbox and the copy was squeezed to one word per line.
-      const row = h('div', { className: 'always-active-row' }, [
-        h('label', { className: 'toggle-row' }, [
-          toggle,
-          h('span', { textContent: 'Always sign as Sidecar\u2019s active account' }),
+      // Built like the account rows directly above it: text takes the left column and
+      // the control sits at the right edge. A leading checkbox pushed the label into a
+      // ragged indent, and a tinted panel inside a panel was a box in a box. One short
+      // line carries the consequence; the long explanation is already at the top of this
+      // sheet and did not need saying twice in smaller type.
+      const row = h('label', { className: 'shared-acct-row always-active-row' }, [
+        h('span', { className: 'shared-acct-name' }, [
+          h('span', { className: 'always-active-label', textContent: 'Always sign as Sidecar\u2019s active account' }),
+          h('span', { className: 'always-active-note', textContent: 'Skips the confirm. Posts may not match the client.' }),
         ]),
-        h('p', {
-          className: 'hint',
-          textContent:
-            'Stops the confirms on this site. Posts may go out from a different account than the client is showing.',
-        }),
+        toggle,
       ]);
       toggle.addEventListener('change', async () => {
         const on = toggle.checked;
