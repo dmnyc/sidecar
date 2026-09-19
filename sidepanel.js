@@ -11790,6 +11790,11 @@
 
   function setComposeLocked(locked) {
     setComposerButtonsLocked(locked);
+    // A root class purely so the CURSOR can tell the two reasons apart. The FAB and the
+    // account chip are also disabled with no accounts set up, where a "no entry" pointer
+    // would be scolding someone for not having finished onboarding. Disabled by a mine is
+    // a refusal; disabled by an empty panel is just a placeholder.
+    document.documentElement.classList.toggle('mining-locked', locked);
     const fab = $('compose-fab');
     if (fab) {
       fab.disabled = locked;

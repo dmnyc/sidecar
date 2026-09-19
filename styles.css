@@ -4547,7 +4547,12 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    it rather than inviting a click that does nothing. */
 .notif-clickable:hover .notif-act:not(:disabled) { color: var(--text-2); }
 .notif-act:not(:disabled):hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
-.notif-act:disabled, .notif-repost-choice:disabled { opacity: 0.3; cursor: default; }
+/* not-allowed rather than default: these two are ONLY ever disabled by a running mine,
+   so the pointer can say so without qualification. The FAB and the account chip need the
+   .mining-locked scope below, since they are also inert before any account exists. */
+.notif-act:disabled, .notif-repost-choice:disabled { opacity: 0.3; cursor: not-allowed; }
+.mining-locked .fab:disabled,
+.mining-locked .acct-chip:disabled { cursor: not-allowed; }
 /* The zap icon stays lit while its form is open, since the form appears below the row
    and nothing else says which button opened it. */
 .notif-act.open { color: var(--gold); background: var(--hover-medium); border-color: var(--gold-soft); }

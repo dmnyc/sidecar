@@ -588,3 +588,16 @@ test('LOCKING THE KEYSTORE STOPS THE MINE', () => {
   // user is not told off for locking their own panel.
   assert.match(bare, /if \(!\(e && e\.canceled\)\) toast\(e\.message, 'error'\);/);
 });
+
+test('an unavailable control says so with the pointer', () => {
+  // Reply and Quote are only ever disabled by a mine, so they can carry not-allowed
+  // unconditionally. The FAB and the account chip are also inert before any account
+  // exists, where a "no entry" pointer would be scolding someone mid-onboarding, so
+  // those are scoped to the root class a mine sets.
+  assert.match(css, /\.notif-act:disabled, \.notif-repost-choice:disabled \{[^}]*cursor: not-allowed/);
+  assert.match(css, /\.mining-locked \.fab:disabled,\s*\n\.mining-locked \.acct-chip:disabled \{ cursor: not-allowed; \}/);
+  assert.match(bare, /document\.documentElement\.classList\.toggle\('mining-locked', locked\)/);
+  // The unscoped rules keep their own cursor, so onboarding is unchanged.
+  assert.match(css, /\.fab:disabled \{[^}]*cursor: default/);
+  assert.match(css, /\.acct-chip:disabled \{ cursor: default; \}/);
+});
