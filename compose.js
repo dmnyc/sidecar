@@ -367,7 +367,16 @@
     } catch (e) {
       status.textContent = '';
       // A stop is the user's own decision, and the editor coming back is the answer.
-      if (!(e && e.canceled)) toast(e.message || 'Could not post', 'error');
+      if (e && e.canceled) { /* nothing to say */ }
+      // A LOCKED KEYSTORE IS NOT A FAILURE, IT IS A STEP. The worker answers "Keystore is
+      // locked" or "Sidecar is locked" depending on which guard refused, and either one
+      // read as a fault here: a toast, a written note, and nothing saying what to do about
+      // it. The unlock lives in the panel and this page cannot host it, so the least it
+      // can do is name where it is. The draft is already safe, which is the other half of
+      // why this is survivable.
+      else if (/is locked/i.test(e.message || '')) {
+        toast('Sidecar is locked. Unlock it in the panel, then press Post again.', 'error');
+      } else toast(e.message || 'Could not post', 'error');
     }
     setMining(false);
     posting = false;

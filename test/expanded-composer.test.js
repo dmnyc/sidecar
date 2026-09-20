@@ -269,13 +269,28 @@ test('THE EDITOR GOES INERT WHILE A MINE RUNS', () => {
   assert.match(css, /\.compose-editor-lg\.is-locked \{ opacity: 0\.55/);
 });
 
+test('a locked keystore says where the unlock is', () => {
+  // The worker answers "Keystore is locked" or "Sidecar is locked" depending on which
+  // guard refused, and either read as a fault here: a toast, a written note, and nothing
+  // saying what to do about it. The unlock lives in the panel and this page cannot host
+  // it, so the least it can do is name where it is.
+  assert.match(bare, /\/is locked\/i\.test\(e\.message \|\| ''\)/);
+  assert.match(bare, /Unlock it in the panel, then press Post again\./);
+  // And the draft is still there, which is the other half of why this is survivable: the
+  // text is only cleared after a publish that landed.
+  const post = bare.slice(bare.indexOf('async function doPost()'));
+  const body = post.slice(0, post.indexOf('\n  }'));
+  assert.ok(body.indexOf('pool().publish(') < body.indexOf("draft.text = '';"));
+});
+
 test('a mine can be stopped, and the button that started it is how', () => {
   // Ten seconds at 22 bits and sometimes a minute. The panel offers a Stop for exactly
   // that reason; here the only button that could be pressed is the one that started it.
   assert.match(bare, /post\.textContent = on \? 'Stop mining' : 'Post';/);
   assert.match(bare, /if \(mining\) return composer\.powCancel\(\);/);
-  // A stop is a decision, not a fault, so it does not raise an error toast.
-  assert.match(bare, /if \(!\(e && e\.canceled\)\) toast\(/);
+  // A stop is a decision, not a fault, so it takes the branch that says nothing at all
+  // rather than falling through to an error toast.
+  assert.match(bare, /if \(e && e\.canceled\) \{ \/\* nothing to say \*\/ \}/);
 });
 
 test('media is content on its own', () => {
