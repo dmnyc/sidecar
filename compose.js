@@ -264,6 +264,34 @@
     return persistDraft().catch(() => {});
   }
 
+  // ---- the store is locked, and this page cannot host the unlock ----
+  //
+  // SIDECAR_UNLOCK enumerates its callers in a comment because the throttle and the
+  // 21st-strike wipe are enforced behind it. A fourth surface taking a PIN is a change
+  // that deserves a security look rather than a paragraph in a layout commit, so this
+  // page asks for the panel instead of growing a PIN field.
+  //
+  // sidePanel.open wants a user gesture, and routing it through the worker loses one:
+  // a message handler is not the click. So it is called from the click itself, from this
+  // page, which already has the sidePanel permission and needs no new one. If it throws
+  // anyway, on an older Chrome or a context the API declines, the words that were always
+  // the fallback are still there.
+  function paintLocked() {
+    const row = $('compose-locked');
+    if (!row) return;
+    row.classList.toggle('hidden', !(state && state.locked));
+  }
+
+  async function askForUnlock() {
+    try {
+      const tab = await chrome.tabs.getCurrent();
+      if (!tab || !chrome.sidePanel) throw new Error('no side panel here');
+      await chrome.sidePanel.open({ tabId: tab.id });
+    } catch (_) {
+      toast('Open Sidecar from the toolbar and unlock it, then press Post again.', 'error');
+    }
+  }
+
   function paintWho() {
     const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
     $('compose-name').textContent = acct.name || shortNpub(acct.npub) || 'Your account';
@@ -284,10 +312,13 @@
     if (posting) return; // mid-publish is the one moment a swap underneath would be worse
     let next;
     try { next = await call({ type: 'SIDECAR_GET_STATE' }); } catch (_) { return; }
+    // A locked store still answers with its accounts, and the lock can land while the tab
+    // sits open: fifteen idle minutes is shorter than a long note.
     if (!next || !next.activePubkey) return;
     const moved = next.activePubkey !== state.activePubkey;
     state = next;
     paintWho();
+    paintLocked();
     if (!moved) return;
     // The draft follows the account, because the slot is keyed by it. What is on screen
     // belongs to the account that was active when it was typed, so it is written back
@@ -455,7 +486,11 @@
       // can do is name where it is. The draft is already safe, which is the other half of
       // why this is survivable.
       else if (/is locked/i.test(e.message || '')) {
-        toast('Sidecar is locked. Unlock it in the panel, then press Post again.', 'error');
+        // It locked between the banner painting and Post being pressed, or the banner was
+        // never shown because the state read failed. Same offer either way.
+        if (state) state.locked = true;
+        paintLocked();
+        toast('Sidecar is locked. Unlock it, then press Post again.', 'error');
       } else toast(e.message || 'Could not post', 'error');
     }
     setMining(false);
@@ -702,6 +737,8 @@
     reduceMotion = !!(settings && settings.reduceBalanceMotion);
 
     paintWho();
+    paintLocked();
+    $('compose-unlock').addEventListener('click', askForUnlock);
 
     dkey = state.activePubkey;
     const saved = await loadDraft();

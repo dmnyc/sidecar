@@ -347,13 +347,35 @@ test('a note posted here reaches the bell as one of your own', () => {
   assert.match(bgSrc, /if \(message\.type === 'SIDECAR_EVENT'\) return false;/);
 });
 
-test('a locked keystore says where the unlock is', () => {
-  // The worker answers "Keystore is locked" or "Sidecar is locked" depending on which
-  // guard refused, and either read as a fault here: a toast, a written note, and nothing
-  // saying what to do about it. The unlock lives in the panel and this page cannot host
-  // it, so the least it can do is name where it is.
+test('A LOCKED STORE IS SAID BEFORE POST, AND CAN BE ASKED TO OPEN', () => {
+  // getState carries `locked`, so the page can say so at boot and on every focus rather
+  // than only after a Post that failed with a note already written. And the lock can land
+  // while the tab sits open: fifteen idle minutes is shorter than a long note.
+  assert.match(pageHtml, /id="compose-locked"/);
+  assert.match(bare, /row\.classList\.toggle\('hidden', !\(state && state\.locked\)\)/);
+  const refresh = bare.slice(bare.indexOf('async function refreshWho()'));
+  assert.match(refresh.slice(0, refresh.indexOf('\n  }')), /paintLocked\(\);/);
+
+  // The unlock is asked for, not hosted. SIDECAR_UNLOCK enumerates its callers because
+  // the throttle and the 21st-strike wipe sit behind it; a fourth surface taking a PIN is
+  // a change that deserves a security look, not a paragraph in a layout commit.
+  assert.ok(!/SIDECAR_UNLOCK/.test(bare), 'this page must not take a PIN');
+  assert.match(bare, /chrome\.sidePanel\.open\(\{ tabId: tab\.id \}\)/);
+  // From the click, because sidePanel.open wants a user gesture and a message handler in
+  // the worker is not one.
+  assert.match(bare, /\$\('compose-unlock'\)\.addEventListener\('click', askForUnlock\)/);
+  assert.ok(!/SIDECAR_OPEN_PANEL|type: 'SIDECAR_.*PANEL'/.test(bare), 'the gesture is lost through the worker');
+  // And it degrades rather than dead-ending, on an older Chrome or a context the API
+  // declines: the words that were always the fallback are still there.
+  const ask = bare.slice(bare.indexOf('async function askForUnlock()'));
+  assert.match(ask.slice(0, ask.indexOf('\n  }')), /catch \(_\) \{\s*\n\s*toast\(/);
+
+  // Post stays enabled behind it. The draft is safe either way, and refusing to let
+  // somebody finish writing because the store is locked is the wrong way round.
+  assert.ok(!/compose-post'\)\.disabled = .*locked/.test(bare));
+
   assert.match(bare, /\/is locked\/i\.test\(e\.message \|\| ''\)/);
-  assert.match(bare, /Unlock it in the panel, then press Post again\./);
+  assert.match(bare, /Unlock it, then press Post again\./);
   // And the draft is still there, which is the other half of why this is survivable: the
   // text is only cleared after a publish that landed.
   const post = bare.slice(bare.indexOf('async function doPost()'));
