@@ -121,6 +121,18 @@ test('the type is bigger, which is the whole point of the page', () => {
   // And a measure, not the whole window: past about 70 characters a line is measurably
   // harder to come back to, which would undo the readability this page is for.
   assert.match(css, /\.compose-sheet \{[^}]*max-width: 720px/);
+
+  // WRITE AND PREVIEW ARE TWO VIEWS OF ONE THING, so switching must not change the type
+  // scale or the height of the card. At the panel's 14px the preview read as a thumbnail
+  // of the 17px being written above it, which is the opposite of what a preview is for.
+  assert.match(pageHtml, /class="compose-preview compose-preview-lg hidden"/);
+  const prev = css.slice(css.indexOf('.compose-preview-lg {'), css.indexOf('.compose-preview-lg .embed-body'));
+  assert.match(prev, /min-height: 340px/);
+  assert.match(prev, /max-height: none/);
+  assert.match(prev, /padding: 18px/);
+  assert.match(prev, /\.compose-preview-lg \.preview-body \{ font-size: 17px/);
+  assert.match(rule, /min-height: 340px/, 'the two panes have to agree on height');
+  assert.match(rule, /padding: 18px/);
 });
 
 test('THE COMPOSER FLOATS, CENTERED BOTH WAYS, ON A SOLID SURFACE', () => {

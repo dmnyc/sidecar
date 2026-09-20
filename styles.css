@@ -2796,6 +2796,20 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-editor-lg:focus { border-color: var(--gold-soft); }
+/* THE SAME FIELD, AT THE SAME SIZE. Write and Preview are two views of one thing, so
+   switching between them must not change the type scale or the height of the card. At the
+   panel's 14px the preview read as a thumbnail of the 17px being written above it, which
+   is the opposite of what a preview is for. */
+.compose-preview-lg {
+  min-height: 340px; max-height: none;
+  padding: 18px; border-radius: 14px;
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.compose-preview-lg .preview-body { font-size: 17px; line-height: 1.6; }
+/* And the things a note carries scale with it. 220px of embedded media is sized for a
+   360px column and looks like a stamp on a 720px one. */
+.compose-preview-lg .embed-body .note-media { max-height: 360px; }
+.compose-preview-lg .note-embed { padding: 14px 16px; }
 .compose-foot { display: flex; align-items: center; gap: 14px; }
 .compose-status { font-size: 12px; color: var(--muted); }
 /* NOT A BUTTON. Leaving is not an action with the same weight as publishing, and two
