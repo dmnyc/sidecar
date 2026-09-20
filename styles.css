@@ -2722,7 +2722,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--muted); font-size: 13px; font-weight: 600; padding: 6px 2px 6px 10px;
 }
 .compose-expand:hover:not(:disabled) { color: var(--lav); }
-.compose-page { margin: 0; min-height: 100vh; }
+/* 12px padding, a 22px wordmark, 12px padding, 1px rule. Written once because the
+   centered card below has to subtract it, and two literals would drift. */
+.compose-page { margin: 0; min-height: 100vh; --compose-topbar-h: 47px; }
 /* THE SAME BAR THE GUIDE WEARS, at the same height: 12px of padding around a 22px
    wordmark. A page that opens in a tab has no panel chrome around it to say whose it is,
    and the guide and the app directory already answered that question this way.
@@ -2741,13 +2743,28 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-brand img { height: 22px; width: auto; }
 .compose-body {
   display: flex; justify-content: center;
+  min-height: calc(100vh - var(--compose-topbar-h));
   padding: 32px 20px 48px; box-sizing: border-box;
 }
 /* WIDE ENOUGH TO READ, not as wide as the window. A line of prose past about 70
    characters is measurably harder to come back to on the next line, and the whole reason
    this page exists is that the panel's line is too short to think in. */
+/* A CARD THAT FLOATS, not a column of controls laid on the page. A tab is a lot of empty
+   field, and text sitting directly on it has nothing holding it: the note being written
+   is one object, so it gets one surface with an edge.
+
+   `margin: auto` rather than `align-items: center` for the vertical half. Both center
+   while the card fits; when it does not, auto margins resolve to zero and the overflow
+   stays reachable, where align-items pushes the top of the card off the top of the
+   window with no way to scroll back to it. */
 .compose-sheet {
-  width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 14px;
+  width: 100%; max-width: 720px; margin: auto 0;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 24px; box-sizing: border-box;
+  background: var(--velvet-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  box-shadow: var(--sheen), 0 18px 50px rgba(0, 0, 0, 0.35);
 }
 .compose-head { display: flex; align-items: center; gap: 12px; }
 .compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
@@ -2766,7 +2783,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-editor-lg {
   font-size: 17px; line-height: 1.6; min-height: 340px; max-height: none;
   padding: 18px; border: 1px solid var(--border); border-radius: 14px;
-  background: var(--velvet-1);
+  /* The same field every input in the app sits on, so it reads as a field rather than as
+     a hole in the card. It was velvet-1, which is now the card itself, and the two would
+     have been one flat plane. */
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-editor-lg:focus { border-color: var(--gold-soft); }
 .compose-foot { display: flex; align-items: center; gap: 10px; }

@@ -123,6 +123,40 @@ test('the type is bigger, which is the whole point of the page', () => {
   assert.match(css, /\.compose-sheet \{[^}]*max-width: 720px/);
 });
 
+test('THE COMPOSER FLOATS, CENTERED BOTH WAYS, ON A SOLID SURFACE', () => {
+  // A tab is a lot of empty field, and text laid straight onto it has nothing holding it.
+  // The note being written is one object, so it gets one surface with an edge.
+  const sheet = css.slice(css.indexOf('.compose-sheet {'), css.indexOf('.compose-head {'));
+  assert.match(sheet, /background: var\(--velvet-1\)/, 'solid, and from the theme');
+  assert.ok(!/gradient|rgba\(\d/.test(sheet.split('box-shadow')[0]), 'the surface is solid, not a wash');
+  assert.match(sheet, /border: 1px solid var\(--border-strong\)/);
+  assert.match(sheet, /border-radius: 18px/);
+  assert.match(sheet, /box-shadow:/, 'a card with no shadow is not floating, it is a box');
+
+  // Horizontally by the flex container, vertically by auto margins. Not align-items:
+  // center, which pushes the top of an oversized card off the top of the window with no
+  // way to scroll back to it; auto margins resolve to zero instead and stay reachable.
+  // Comments stripped before the doesNotMatch, or the rule's own explanation of why it is
+  // not align-items: center is what the guard finds.
+  const body = css.slice(css.indexOf('.compose-body {'), css.indexOf('.compose-sheet'))
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(body, /justify-content: center/);
+  assert.match(body, /min-height: calc\(100vh - var\(--compose-topbar-h\)\)/);
+  assert.match(sheet, /margin: auto 0/);
+  assert.ok(!/align-items: center/.test(body), 'align-items clips an oversized card');
+
+  // The bar's height is written once, because the card subtracts it.
+  assert.match(css, /--compose-topbar-h: 47px/);
+  const bar = css.slice(css.indexOf('.compose-topbar {'), css.indexOf('.compose-brand {'));
+  assert.match(bar, /padding: 12px 24px/);
+  assert.match(css, /\.compose-brand img \{ height: 22px/); // 12 + 22 + 12 + 1px rule
+
+  // And the editor cannot be the same plane as the card it sits on.
+  const ed = css.slice(css.indexOf('.compose-editor-lg {'), css.indexOf('.compose-editor-lg:focus'));
+  assert.ok(!/background: var\(--velvet-1\)/.test(ed), 'the field would vanish into the card');
+  assert.match(ed, /background: var\(--input-bg/);
+});
+
 test('the page dresses itself from the panel stylesheet and themes', () => {
   // The same product at a different size. A second stylesheet would be a second place for
   // every button to drift.
