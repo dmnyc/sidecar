@@ -280,6 +280,7 @@
     const row = $('compose-locked');
     if (!row) return;
     row.classList.toggle('hidden', !(state && state.locked));
+    paintPostButton();
   }
 
   async function askForUnlock() {
@@ -341,8 +342,8 @@
     const n = (draft.text || '').trim().length;
     $('compose-count').textContent = n ? n + (n === 1 ? ' character' : ' characters') : '';
     // Media alone is a postable note, the same as in the panel: an image with no caption
-    // is a thing people post.
-    $('compose-post').disabled = posting || (!n && !draft.media.length);
+    // is a thing people post. The button itself is decided in one place.
+    paintPostButton();
   }
 
   // THE LAST LOOK BEFORE IT GOES OUT, if the account asked for one.
@@ -356,6 +357,9 @@
   // modal would mean rebuilding the editor afterwards around a lost caret.
   async function reviewThenPost() {
     if (posting) return;
+    // Belt and braces for the route the button no longer offers. Starting a countdown, or
+    // worse a mine, against a store that cannot sign is a minute spent on nothing.
+    if (state && state.locked) return askForUnlock();
     const text = (draft.text || '').trim();
     if (!text && !draft.media.length) return;
     let on = true, secs = 5;
@@ -498,6 +502,37 @@
     paintCount();
   }
 
+  // ---- what the one button currently is ----
+  //
+  // There is exactly one primary control on this page, so it has to say which of the
+  // three things it is doing rather than saying Post and doing something else. Decided in
+  // one function because three of them setting label, class and disabled independently is
+  // how a button ends up saying Post while a mine is running.
+  //
+  // LOCKED IS THE ONE THAT WAS BAD. Post stayed lit, so pressing it sat through the whole
+  // review countdown and then a full proof-of-work mine, which is as much as a minute,
+  // before the signer refused and a toast said the store was locked. A note vanishing for
+  // a minute into no feedback at all is worse than any of the things that could follow.
+  function paintPostButton() {
+    const post = $('compose-post');
+    if (mining) {
+      post.textContent = 'Stop mining';
+      post.className = 'secondary compose-post';
+      post.disabled = false;
+      return;
+    }
+    if (state && state.locked) {
+      post.textContent = 'Unlock to post';
+      post.className = 'secondary compose-post';
+      post.disabled = false;
+      return;
+    }
+    post.textContent = 'Post';
+    post.className = 'primary compose-post';
+    const n = (draft.text || '').trim().length;
+    post.disabled = posting || (!n && !draft.media.length);
+  }
+
   // Post and Stop are the same button in two states, because there is only ever one of
   // them on screen and only one thing it could sensibly do at a time.
   //
@@ -511,11 +546,7 @@
   function setMining(on) {
     if (mining === on) return;
     mining = on;
-    const post = $('compose-post');
-    post.textContent = on ? 'Stop mining' : 'Post';
-    post.classList.toggle('secondary', on);
-    post.classList.toggle('primary', !on);
-    post.disabled = false;
+    paintPostButton();
     if (editorApi) {
       editorApi.editor.contentEditable = on ? 'false' : 'true';
       editorApi.editor.classList.toggle('is-locked', on);
@@ -762,8 +793,20 @@
 
     $('compose-post').addEventListener('click', () => {
       if (mining) return composer.powCancel();
+      if (state && state.locked) return askForUnlock();
       if (countdown) return; // the review window owns the screen while it runs
       reviewThenPost();
+    });
+
+    // THE PANEL BESIDE THIS TAB NEVER TAKES ITS FOCUS. Unlocking there would otherwise
+    // leave this page still saying Unlock to post until something else happened to it,
+    // so the worker says so instead. It already broadcast the lock for the same reason.
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (!msg || msg.type !== 'SIDECAR_EVENT') return;
+      if (msg.event !== 'locked' && msg.event !== 'unlocked') return;
+      if (state) state.locked = msg.event === 'locked';
+      paintLocked();
+      if (msg.event === 'unlocked') toast('Unlocked. Your draft is still here.', 'success');
     });
     // Two ways out, the same way out. The corner box is where every sheet in the panel
     // puts one; the word in the footer is for anyone reading the row rather than the

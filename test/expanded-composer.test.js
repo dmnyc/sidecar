@@ -370,9 +370,28 @@ test('A LOCKED STORE IS SAID BEFORE POST, AND CAN BE ASKED TO OPEN', () => {
   const ask = bare.slice(bare.indexOf('async function askForUnlock()'));
   assert.match(ask.slice(0, ask.indexOf('\n  }')), /catch \(_\) \{\s*\n\s*toast\(/);
 
-  // Post stays enabled behind it. The draft is safe either way, and refusing to let
-  // somebody finish writing because the store is locked is the wrong way round.
-  assert.ok(!/compose-post'\)\.disabled = .*locked/.test(bare));
+  // AND POST SAYS SO RATHER THAN DISAPPEARING INTO IT. Leaving it lit meant pressing it
+  // sat through the whole review countdown and then a full proof-of-work mine, as much as
+  // a minute, before the signer refused and a toast explained. A note vanishing for a
+  // minute into no feedback is worse than anything that could follow it.
+  const paint = bare.slice(bare.indexOf('function paintPostButton()'));
+  const pbody = paint.slice(0, paint.indexOf('\n  }'));
+  assert.match(pbody, /if \(state && state\.locked\) \{\s*\n\s*post\.textContent = 'Unlock to post';/);
+  assert.match(bare, /if \(state && state\.locked\) return askForUnlock\(\);/);
+  // Belt and braces on the route the button no longer offers.
+  const review = bare.slice(bare.indexOf('async function reviewThenPost()'));
+  assert.match(review.slice(0, 400), /if \(state && state\.locked\) return askForUnlock\(\);/);
+  // The editor stays writable behind it: the draft is safe either way, and refusing to
+  // let somebody finish writing because the store is locked is the wrong way round.
+  assert.ok(!/contentEditable = .*locked/.test(bare));
+
+  // THE PANEL BESIDE THIS TAB NEVER TAKES ITS FOCUS, so unlocking there would leave this
+  // page still saying Unlock to post. The worker broadcast the lock already; it says the
+  // unlock now too.
+  const bgSrc2 = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  assert.match(bgSrc2, /event: 'unlocked' \}\)\.catch/);
+  assert.match(bare, /if \(msg\.event !== 'locked' && msg\.event !== 'unlocked'\) return;/);
+  assert.match(bare, /state\.locked = msg\.event === 'locked';/);
 
   assert.match(bare, /\/is locked\/i\.test\(e\.message \|\| ''\)/);
   assert.match(bare, /Unlock it, then press Post again\./);
@@ -386,7 +405,7 @@ test('A LOCKED STORE IS SAID BEFORE POST, AND CAN BE ASKED TO OPEN', () => {
 test('a mine can be stopped, and the button that started it is how', () => {
   // Ten seconds at 22 bits and sometimes a minute. The panel offers a Stop for exactly
   // that reason; here the only button that could be pressed is the one that started it.
-  assert.match(bare, /post\.textContent = on \? 'Stop mining' : 'Post';/);
+  assert.match(bare, /post\.textContent = 'Stop mining';/);
   assert.match(bare, /if \(mining\) return composer\.powCancel\(\);/);
   // A stop is a decision, not a fault, so it takes the branch that says nothing at all
   // rather than falling through to an error toast.
@@ -397,7 +416,9 @@ test('media is content on its own', () => {
   // An image with no caption is a thing people post, and an upload with no words yet is
   // still work: dropping it from the draft because nothing had been typed is the kind of
   // thing that makes a draft store worse than none.
-  assert.match(bare, /\$\('compose-post'\)\.disabled = posting \|\| \(!n && !draft\.media\.length\)/);
+  // Decided in paintPostButton, which is the one place that knows whether the button is
+  // Post, Stop mining or Unlock to post right now.
+  assert.match(bare, /post\.disabled = posting \|\| \(!n && !draft\.media\.length\);/);
   assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)\)/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.media\)\) draft\.media = saved\.media;/);
   // The URL goes on its own line, decided from the serialized text, because a URL glued
