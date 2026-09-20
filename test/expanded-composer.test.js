@@ -264,22 +264,39 @@ test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
   assert.match(bare, /poolQuerySync: \(relays, filter, params\) => pool\(\)\.querySync\(/);
 });
 
-test("THE ACCOUNT'S PROOF-OF-WORK SETTING REACHES THIS COMPOSER TOO", () => {
-  // It started every note at off regardless, so an account that had asked for 20 bits in
-  // Settings got none of them the moment it wrote in a tab. Silently, which is the whole
-  // difficulty of a setting that quietly does not apply: the note goes out, it is just
-  // not the note that was asked for.
-  assert.match(bare, /powForThisPost = await composer\.powSetting\(state\.activePubkey\);/);
+test('THE DIFFICULTY TRAVELS WITH THE NOTE, AND FALLS BACK TO THE ACCOUNT', () => {
+  // Two mistakes with one shape. Starting every note at off meant an account that had
+  // asked for 20 bits in Settings got none of them in a tab. Seeding from Settings over a
+  // draft meant a rung chosen in the panel a second before pressing Expand was thrown
+  // away on arrival. The difficulty is a decision about THIS note: it travels with it,
+  // and the account's standing setting is the fallback, not the answer.
+  const seed = bare.slice(bare.indexOf('async function seedPow(saved)'));
+  const sbody = seed.slice(0, seed.indexOf('\n  }'));
+  assert.match(sbody, /if \(saved && saved\.pow && typeof saved\.pow\.bits === 'number'\)/);
+  assert.match(sbody, /return composer\.powSetting\(state\.activePubkey\);/);
+  assert.match(bare, /powForThisPost = await seedPow\(saved\);/);
+
+  // Written on every cycle of the button, on both sides, so the slot holds the rung the
+  // moment it is chosen rather than at the next keystroke.
+  assert.match(bare, /draft\.pow = powForThisPost;\s*\n\s*scheduleSave\(\);/);
+  assert.match(panelBare, /draft\.pow = powForThisPost;\s*\n\s*scheduleSave\(\);/);
+  assert.match(panelBare, /if \(draft\.pow\) all\[key\]\.pow = draft\.pow;/);
+  assert.match(bare, /if \(draft\.pow\) all\[dkey\]\.pow = draft\.pow;/);
+  // And restored when the panel resumes a draft, for the same reason replyTo is: finding
+  // a resumed note's difficulty reset is the same surprise as finding its target reset.
+  assert.match(panelBare, /powForThisPost = \{ on: !!saved\.pow\.on, bits: saved\.pow\.bits \};/);
+
   // One reading of the setting, not two. powBy is keyed by pubkey and the default is off
   // because a mine spends the user's own time; two copies of that judgment would drift.
   assert.ok(core.includes('async function powSetting(pubkey)'), 'the core should own it');
   assert.ok(!panel.includes('async function powSetting(pubkey)'), 'sidepanel.js kept a copy');
-  assert.ok(!page.includes('powBy'), 'compose.js reads the setting for itself');
+  assert.ok(!bare.includes('powBy'), 'compose.js reads the setting for itself');
 
-  // And re-seeded when the account moves under the tab, since powBy is per account.
+  // And re-seeded when the account moves under the tab, since powBy is per account and
+  // the new account has a draft of its own.
   const refresh = bare.slice(bare.indexOf('async function refreshWho()'));
   const body = refresh.slice(0, refresh.indexOf('\n  }'));
-  assert.match(body, /powForThisPost = await composer\.powSetting\(state\.activePubkey\);/);
+  assert.match(body, /powForThisPost = await seedPow\(saved\);/);
   assert.match(body, /repaintPow\(\);/);
 });
 

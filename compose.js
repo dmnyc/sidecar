@@ -202,11 +202,17 @@
     decide: async () => {},
   };
 
-  // Proof of work for THIS note, seeded from Settings and never written back, the same
-  // way the panel treats it. Off until the seed lands, and re-seeded when the account
-  // moves under the tab, because the setting is per account.
+  // Proof of work for THIS note. The draft's own rung if it carries one, otherwise the
+  // account's standing setting, and never written back to Settings either way: the button
+  // in the editor is a decision about this post, not about the account.
   let powForThisPost = { on: false, bits: SC.POW_DEFAULT_BITS };
   let repaintPow = () => {};
+  async function seedPow(saved) {
+    if (saved && saved.pow && typeof saved.pow.bits === 'number') {
+      return { on: !!saved.pow.on, bits: saved.pow.bits };
+    }
+    return composer.powSetting(state.activePubkey);
+  }
 
   const composer = SC.installComposer({
     NT,
@@ -251,6 +257,9 @@
     const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
     if (hasContent) {
       all[dkey] = { ...(all[dkey] || {}), text: draft.text, media: draft.media, savedAt: Date.now() };
+      // The difficulty travels with the note, the same as the text does, so cancelling out
+      // of this tab and reopening the panel's composer finds the rung still chosen.
+      if (draft.pow) all[dkey].pow = draft.pow;
     }
     else delete all[dkey];
     await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
@@ -325,8 +334,9 @@
     const saved = await loadDraft();
     draft.text = (saved && saved.text) || '';
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
-    // Per account, so it re-seeds with everything else the account decides.
-    powForThisPost = await composer.powSetting(state.activePubkey);
+    // Per account, so it re-seeds with everything else the account decides, and from the
+    // new account's own draft if that draft carries a rung.
+    powForThisPost = await seedPow(saved);
     repaintPow();
     editorSetText(draft.text);
     renderThumbs();
@@ -721,6 +731,8 @@
       const at = order.indexOf(powForThisPost.on ? powForThisPost.bits : null);
       const next = order[(at + 1) % order.length];
       powForThisPost = next == null ? { on: false, bits: powForThisPost.bits } : { on: true, bits: next };
+      draft.pow = powForThisPost;
+      scheduleSave();
       paintPow();
     });
     paintPow();
@@ -786,10 +798,12 @@
     $('compose-slot').append(editorApi.wrap);
     editorApi.setText(draft.text);
     buildToolbar();
-    // SEEDED FROM THE ACCOUNT, like the panel. Starting every note at off meant an account
-    // that had asked for 20 bits in Settings got none of them the moment it wrote in a
-    // tab, silently, which is the whole difficulty setting quietly not applying.
-    powForThisPost = await composer.powSetting(state.activePubkey);
+    // THE DRAFT'S OWN RUNG FIRST, then the account's. Seeding from Settings alone meant an
+    // account that had asked for 20 bits got none of them here, and seeding from Settings
+    // over a draft meant a rung chosen in the panel a second before pressing Expand was
+    // thrown away on arrival. Both are the same mistake: the difficulty is a decision
+    // about this note, and it travels with it.
+    powForThisPost = await seedPow(saved);
     repaintPow();
     buildTabs();
     renderThumbs();

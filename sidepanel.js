@@ -10596,6 +10596,12 @@
       if (hasContent) {
         all[key] = { text: draft.text, media: draft.media, savedAt: Date.now() };
         if (draft.poll) all[key].poll = draft.poll;
+        // THE DIFFICULTY TRAVELS WITH THE NOTE. It is a decision about this post, the
+        // same as the text, and the composer it was made in is not where it has to be
+        // spent: Expand hands this draft to a tab, and re-seeding from Settings there
+        // threw away a rung the user had just chosen. Written even when off, because off
+        // can also be the deliberate choice against an account that mines by default.
+        if (draft.pow) all[key].pow = draft.pow;
         if (draft.replyTo) {
           const r = draft.replyTo;
           all[key].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
@@ -11321,6 +11327,8 @@
         const at = order.indexOf(powForThisPost.on ? powForThisPost.bits : null);
         const next = order[(at + 1) % order.length];
         powForThisPost = next == null ? { on: false, bits: powForThisPost.bits } : { on: true, bits: next };
+        draft.pow = powForThisPost;
+        scheduleSave();
         paintPowBtn();
       });
       paintPowBtn();
@@ -11750,6 +11758,13 @@
         // Restore the target too, or this resumes as a note and posts as one.
         replyTo = saved.replyTo || null;
         draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo, poll: saved.poll || null };
+        // The rung chosen for THIS draft, over the account's standing one. Resuming a
+        // note and finding its difficulty reset is the same surprise as finding its
+        // reply target reset, which is why that is restored on the line above.
+        if (saved.pow && typeof saved.pow.bits === 'number') {
+          powForThisPost = { on: !!saved.pow.on, bits: saved.pow.bits };
+          draft.pow = powForThisPost;
+        }
         showEditor();
       });
       const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
