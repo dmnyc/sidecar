@@ -297,7 +297,7 @@ test('THE WAY OUT IS A CORNER BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER'
   assert.match(pageHtml, /class="modal-x compose-x" id="compose-x"/);
   assert.match(bare, /x\.addEventListener\('click', leave\)/);
   assert.match(bare, /\$\('compose-close'\)\.addEventListener\('click', leave\)/);
-  assert.match(bare, /const leave = \(\) => \{ persistDraft\(\)[\s\S]{0,60}window\.close\(\)/);
+  assert.match(bare, /const leave = \(\) => \{ flushDraft\(\)\.then\(\(\) => window\.close\(\)\); \};/);
 
   // Cancel is not a button. Leaving is not an action with the same weight as publishing,
   // and two filled controls side by side claim it is.
@@ -386,10 +386,20 @@ test('ONE COMPOSER PER ACCOUNT, BECAUSE THERE IS ONE DRAFT SLOT PER ACCOUNT', ()
   assert.match(expand.slice(0, 2000), /if \(open\) \{[\s\S]*?\} else \{\n\s*chrome\.tabs\.create\(/);
 });
 
-test('closing the tab keeps what was typed', () => {
-  // The save is debounced 400ms. A close inside that window would lose the last sentence,
-  // which is the one just written.
-  assert.match(bare, /window\.addEventListener\('beforeunload'/);
-  const fn = bare.slice(bare.indexOf("window.addEventListener('beforeunload'"));
-  assert.match(fn.slice(0, fn.indexOf('});')), /persistDraft\(\)/);
+test('CLOSING THE TAB KEEPS WHAT WAS TYPED, AND BEFOREUNLOAD IS NOT HOW', () => {
+  // The save is debounced 400ms, so the last sentence is the one at risk. beforeunload
+  // fires as the document is being torn down and persistDraft is an async round trip
+  // through the worker: the page can be gone before the write lands, which is why the
+  // guidance everywhere is not to start async work there. Hiding a tab fires
+  // visibilitychange first and the document stays alive afterwards, so the write
+  // completes, and switching tabs saves too.
+  assert.match(bare, /document\.addEventListener\('visibilitychange'/);
+  const fn = bare.slice(bare.indexOf("document.addEventListener('visibilitychange'"));
+  assert.match(fn.slice(0, fn.indexOf('});')), /document\.visibilityState === 'hidden'\) flushDraft\(\)/);
+  // Kept as a backstop, not as the mechanism.
+  assert.match(bare, /window\.addEventListener\('beforeunload', flushDraft\)/);
+  // And the flush drops the pending debounce, so the two cannot race to put different
+  // text in the same slot.
+  const flush = bare.slice(bare.indexOf('function flushDraft()'));
+  assert.match(flush.slice(0, flush.indexOf('\n  }')), /clearTimeout\(saveTimer\); saveTimer = null;/);
 });

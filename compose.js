@@ -252,6 +252,12 @@
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { persistDraft().catch(() => {}); }, 400);
   }
+  // Write now rather than at the end of the debounce, and drop the pending one so the two
+  // cannot race to put different text in the same slot.
+  function flushDraft() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    return persistDraft().catch(() => {});
+  }
 
   function paintCount() {
     const n = (draft.text || '').trim().length;
@@ -594,17 +600,28 @@
     // Two ways out, the same way out. The corner box is where every sheet in the panel
     // puts one; the word in the footer is for anyone reading the row rather than the
     // corner. Both keep the draft, because neither is a decision to throw it away.
-    const leave = () => { persistDraft().catch(() => {}).then(() => window.close()); };
+    const leave = () => { flushDraft().then(() => window.close()); };
     const x = $('compose-x');
     x.append(icon('x'));
     x.addEventListener('click', leave);
     $('compose-close').addEventListener('click', leave);
-    // A tab can be closed without pressing anything. The 400ms debounce is short, but a
-    // close inside it would lose the last sentence, which is the one you just wrote.
-    window.addEventListener('beforeunload', () => {
-      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-      persistDraft().catch(() => {});
+    // A tab can be closed without pressing anything, and the 400ms debounce means the
+    // last sentence is the one at risk. Cancel and the close box chain their close off
+    // the save, so they were never the problem.
+    //
+    // VISIBILITYCHANGE IS THE ONE THAT ARRIVES. beforeunload fires as the document is
+    // being torn down, and persistDraft is an async round trip through the worker: the
+    // page can be gone before the write lands, which is why the guidance everywhere is
+    // not to start async work there. Hiding a tab fires visibilitychange first and the
+    // document stays alive afterwards, so the write completes. Switching tabs saves too,
+    // which costs one storage write and means the draft is already safe by the time
+    // anything closes.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushDraft();
     });
+    // Kept as a backstop for the paths visibilitychange can miss, and harmless when the
+    // write does not land, since by then the other one usually has.
+    window.addEventListener('beforeunload', flushDraft);
   }
 
   boot().catch((e) => {
