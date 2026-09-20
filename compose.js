@@ -203,8 +203,10 @@
   };
 
   // Proof of work for THIS note, seeded from Settings and never written back, the same
-  // way the panel treats it. Off unless the account turned it on.
+  // way the panel treats it. Off until the seed lands, and re-seeded when the account
+  // moves under the tab, because the setting is per account.
   let powForThisPost = { on: false, bits: SC.POW_DEFAULT_BITS };
+  let repaintPow = () => {};
 
   const composer = SC.installComposer({
     NT,
@@ -323,6 +325,9 @@
     const saved = await loadDraft();
     draft.text = (saved && saved.text) || '';
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
+    // Per account, so it re-seeds with everything else the account decides.
+    powForThisPost = await composer.powSetting(state.activePubkey);
+    repaintPow();
     editorSetText(draft.text);
     renderThumbs();
     paintCount();
@@ -712,6 +717,7 @@
       powBtn.title = lvl ? lvl.cost : 'Off. Tap to mine one into this post.';
       powBtn.classList.toggle('compose-add-on', !!lvl);
     }
+    repaintPow = paintPow;
     powBtn.addEventListener('click', () => {
       const order = [null, ...SC.POW_LEVELS.map((l) => l.bits)];
       const at = order.indexOf(powForThisPost.on ? powForThisPost.bits : null);
@@ -782,6 +788,11 @@
     $('compose-slot').append(editorApi.wrap);
     editorApi.setText(draft.text);
     buildToolbar();
+    // SEEDED FROM THE ACCOUNT, like the panel. Starting every note at off meant an account
+    // that had asked for 20 bits in Settings got none of them the moment it wrote in a
+    // tab, silently, which is the whole difficulty setting quietly not applying.
+    powForThisPost = await composer.powSetting(state.activePubkey);
+    repaintPow();
     buildTabs();
     renderThumbs();
     paintCount();

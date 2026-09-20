@@ -264,6 +264,25 @@ test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
   assert.match(bare, /poolQuerySync: \(relays, filter, params\) => pool\(\)\.querySync\(/);
 });
 
+test("THE ACCOUNT'S PROOF-OF-WORK SETTING REACHES THIS COMPOSER TOO", () => {
+  // It started every note at off regardless, so an account that had asked for 20 bits in
+  // Settings got none of them the moment it wrote in a tab. Silently, which is the whole
+  // difficulty of a setting that quietly does not apply: the note goes out, it is just
+  // not the note that was asked for.
+  assert.match(bare, /powForThisPost = await composer\.powSetting\(state\.activePubkey\);/);
+  // One reading of the setting, not two. powBy is keyed by pubkey and the default is off
+  // because a mine spends the user's own time; two copies of that judgment would drift.
+  assert.ok(core.includes('async function powSetting(pubkey)'), 'the core should own it');
+  assert.ok(!panel.includes('async function powSetting(pubkey)'), 'sidepanel.js kept a copy');
+  assert.ok(!page.includes('powBy'), 'compose.js reads the setting for itself');
+
+  // And re-seeded when the account moves under the tab, since powBy is per account.
+  const refresh = bare.slice(bare.indexOf('async function refreshWho()'));
+  const body = refresh.slice(0, refresh.indexOf('\n  }'));
+  assert.match(body, /powForThisPost = await composer\.powSetting\(state\.activePubkey\);/);
+  assert.match(body, /repaintPow\(\);/);
+});
+
 test('MINE FIRST, THEN SIGN', () => {
   // The event id commits to the pubkey, so the nonce has to be found against the key that
   // will sign it. Signing afterwards recomputes the id without touching created_at or the

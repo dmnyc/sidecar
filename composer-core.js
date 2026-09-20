@@ -360,6 +360,7 @@ window.SidecarCore = (function () {
       renderNotePreview, uploadMedia, minePow, powCancel,
       resolveClient, showPostCountdown, splitGlyphs, ironDiceStyle,
       resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
+      powSetting,
       // The panel calls these directly as well as through renderNotePreview: the about
       // box resolves its own mentions, a quote preview needs embedRef, a reply's context
       // strip renders with renderNoteText, the web-comment sheet draws its own link card,
@@ -1391,6 +1392,21 @@ window.SidecarCore = (function () {
     const urls = String(text || '').match(/https?:\/\/[^\s]+/g) || [];
     return urls.find((u) => IMG_EXT.test(u)) || null;
   }
+  // WHAT THIS ACCOUNT'S PROOF OF WORK IS, seeded into a composer and never written back:
+  // the button in the editor is a decision about this note, not about the account.
+  //
+  // Shared because the expanded composer was starting every note at off regardless, so
+  // an account that had asked for 20 bits in Settings got none of them in a tab. Two
+  // readings of one setting is one too many.
+  async function powSetting(pubkey) {
+    let s = {};
+    try { s = (await deps.call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
+    const bits = ((s && s.powBy) || {})[pubkey];
+    return POW_LEVELS.some((l) => l.bits === bits)
+      ? { on: true, bits }
+      : { on: false, bits: POW_DEFAULT_BITS }; // default OFF: this spends the user's time
+  }
+
   // ---- the tail the first pass missed ----
   //
   // Each of these is called by something that already moved here and was left behind in

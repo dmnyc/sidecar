@@ -10531,6 +10531,7 @@
     renderNotePreview, uploadMedia, minePow, powCancel, resolveClient,
     showPostCountdown, splitGlyphs, ironDiceStyle,
     resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
+    powSetting,
     renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
     paintCountdownNum,
   } = window.SidecarCore.installComposer({
@@ -10668,14 +10669,6 @@
   //
   // Absent from the map means off. The bits ARE the value, so there is no enabled flag
   // that can drift out of step with the level it is supposed to be gating.
-  async function powSetting(pubkey) {
-    let s = {};
-    try { s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
-    const bits = ((s && s.powBy) || {})[pubkey];
-    return POW_LEVELS.some((l) => l.bits === bits)
-      ? { on: true, bits }
-      : { on: false, bits: POW_DEFAULT_BITS }; // default OFF: this spends the user's time
-  }
 
   // ---- mining ----------------------------------------------------------------------
   //
