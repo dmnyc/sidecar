@@ -358,7 +358,8 @@ window.SidecarCore = (function () {
     return {
       serializeEditor, hydrateEditorFromText, createMentionEditor,
       renderNotePreview, uploadMedia, minePow, powCancel,
-      resolveClient, showPostCountdown, splitGlyphs,
+      resolveClient, showPostCountdown, splitGlyphs, ironDiceStyle,
+      resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
       // The panel calls these directly as well as through renderNotePreview: the about
       // box resolves its own mentions, a quote preview needs embedRef, a reply's context
       // strip renders with renderNoteText, the web-comment sheet draws its own link card,
@@ -1097,7 +1098,7 @@ window.SidecarCore = (function () {
     el.classList.remove('loading');
     el.textContent = '';
     const av = h('span', { className: 'embed-av' });
-    applyAvatar(av, {});
+    deps.applyAvatar(av, {});
     const name = h('span', { className: 'embed-name', textContent: deps.shortNpub(deps.NT.nip19.npubEncode(ev.pubkey)) });
     const head = h('div', { className: 'embed-head' }, [
       av,
@@ -1113,7 +1114,7 @@ window.SidecarCore = (function () {
     el.append(head, body);
     deps.fetchPreviewProfile(ev.pubkey).then((p) => {
       if (!p) return;
-      if (p.picture) applyAvatar(av, { picture: p.picture });
+      if (p.picture) deps.applyAvatar(av, { picture: p.picture });
       if (p.name) name.textContent = '@' + p.name;
     });
   }
@@ -1331,6 +1332,23 @@ window.SidecarCore = (function () {
     return { stop };
   }
 
+  // The strike dice, dealt wherever they are needed. The limits are tight on
+  // purpose — rotation within +-3deg, slippage within +-0.035em sideways, seat
+  // height within +-0.03em up or down — enough that no two strikes of the same
+  // figure ever land alike (a hand-held stamp is never twice in the same place)
+  // without threatening legibility even at 9px. Emitted for every theme; the
+  // cast-iron rules are the only consumers.
+  //
+  // Here because splitGlyphs calls it on every character it deals. Left behind in the
+  // panel it was a ReferenceError inside the review countdown's own digits, thrown after
+  // the editor had been hidden to make room for the countdown, so the card went blank and
+  // the note looked lost. The panel's balance figures strike through the same call.
+  function ironDiceStyle() {
+    return '--iron-rot:' + ((Math.random() * 6) - 3).toFixed(2) + 'deg'
+      + ';--iron-dx:' + ((Math.random() * 0.07) - 0.035).toFixed(3) + 'em'
+      + ';--iron-dy:' + ((Math.random() * 0.06) - 0.03).toFixed(3) + 'em';
+  }
+
   function splitGlyphs(el, text, strike) {
     el.textContent = '';
     const glyphs = Array.from(text);
@@ -1356,6 +1374,119 @@ window.SidecarCore = (function () {
     splitGlyphs(el, text, (i) =>
       !deps.reduceBalanceMotion() && (fresh || prev.charAt(off + i) !== text.charAt(i)));
   }
+
+
+  function quoteSnippet(text) {
+    const s = String(text || '')
+      .replace(/(?:nostr:)?(?:npub1|nprofile1|note1|nevent1|naddr1)[0-9a-z]+/gi, '')
+      .replace(/ln(?:bc|tb)[0-9a-z]+/gi, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!s) return '';
+    return s.length > 140 ? s.slice(0, 140).trimEnd() + '…' : s;
+  }
+
+  function firstQuoteImage(text) {
+    const urls = String(text || '').match(/https?:\/\/[^\s]+/g) || [];
+    return urls.find((u) => IMG_EXT.test(u)) || null;
+  }
+  // ---- the tail the first pass missed ----
+  //
+  // Each of these is called by something that already moved here and was left behind in
+  // the panel, which is a ReferenceError in whichever document runs the caller first.
+  // Found together rather than one screen at a time, because the guard in
+  // composer-core.test.js reads calls and member bases through a tokenizer now instead
+  // of trying to strip strings and comments with a regex.
+  function relTime(ts) {
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (s < 45) return 'just now';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    if (s < 86400) return Math.round(s / 3600) + 'h ago';
+    if (s < 604800) return Math.round(s / 86400) + 'd ago';
+    return new Date(ts).toLocaleDateString();
+  }
+
+  async function resolveQuotePreviews(quotes) {
+    for (const { el, bech } of quotes) {
+      let d = null;
+      try { d = deps.NT.nip19.decode(bech); } catch (_) {}
+      const ref = d ? embedRef(d) : null;
+      let ev = null;
+      if (ref) {
+        try {
+          const relays = [...new Set([...(await deps.relayUrls(false)), ...(ref.relays || [])])];
+          ev = await Promise.race([
+            deps.poolGet(relays, ref.filter),
+            new Promise((r) => setTimeout(() => r(null), 6000)),
+          ]);
+        } catch (_) {}
+      }
+      el.classList.remove('loading');
+      if (!ev) {
+        el.textContent = 'quoted note'; // not found — today's plain link-out
+        continue;
+      }
+      const who = h('span', {
+        className: 'mention',
+        textContent: '@' + deps.shortNpub(deps.NT.nip19.npubEncode(ev.pubkey)),
+      });
+      // The text lives in its own clamped element (the <a> can't clamp once it
+      // also holds a thumbnail), media gets a small thumb below it, and an
+      // invoice becomes a quiet caption under everything — it's metadata about
+      // the note, not prose, and inline it read as a sentence placed above the
+      // image it follows in the content (zap receipts are image + invoice and
+      // nothing else).
+      const content = String(ev.content || '');
+      const hasInvoice = /\bln(?:bc|tb)[0-9a-z]+\b/i.test(content);
+      const text = h('div', { className: 'quote-inline-text' }, [who]);
+      const snip = quoteSnippet(content);
+      const img = firstQuoteImage(content);
+      if (snip) text.append(document.createTextNode(' ' + snip));
+      else if (!img && !hasInvoice) text.append(document.createTextNode(' (no text)'));
+      const kids = [text];
+      if (img) {
+        const im = document.createElement('img');
+        im.className = 'quote-inline-thumb';
+        im.referrerPolicy = 'no-referrer';
+        im.src = img;
+        im.onerror = () => im.remove();
+        kids.push(im);
+      }
+      if (hasInvoice) kids.push(h('div', { className: 'quote-inline-meta', textContent: '⚡ invoice' }));
+      el.replaceChildren(...kids);
+      deps.fetchPreviewProfile(ev.pubkey).then((p) => {
+        if (p && p.name) who.textContent = '@' + p.name;
+      });
+    }
+  }
+
+  const BLOSSOM_CACHE_TTL = 5 * 60 * 1000;
+
+  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }
+
+  async function sha256Hex(buffer) {
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  const STRIKE_DELAY_MOD_MS = 300;
+  const STRIKE_DELAY_WINDOW_MS = 111;
+  const STRIKE_DUR_BASE_MS = 900;
+  const STRIKE_DUR_STEPS = 5;
+  const STRIKE_DUR_STEP_MS = 90;
+  const rawStrikeDelay = (i) => (i * 37) % STRIKE_DELAY_MOD_MS;
+  const glyphBeat = (i, n) => {
+    // The widest raw delay this many glyphs actually reaches — not the modulus, which
+    // only a long figure gets near.
+    let span = 0;
+    for (let k = 0; k < n; k++) span = Math.max(span, rawStrikeDelay(k));
+    const squeeze = span > STRIKE_DELAY_WINDOW_MS ? STRIKE_DELAY_WINDOW_MS / span : 1;
+    return {
+      delay: Math.round(rawStrikeDelay(i) * squeeze),
+      duration: STRIKE_DUR_BASE_MS + ((i * 53) % STRIKE_DUR_STEPS) * STRIKE_DUR_STEP_MS,
+    };
+  };
 
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,

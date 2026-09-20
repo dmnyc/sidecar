@@ -26,6 +26,10 @@ const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 const welcomeCss = fs.readFileSync(path.join(ROOT, 'welcome.css'), 'utf8');
 const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
+const strip = (src) => src
+  .replace(/^\s*\/\/.*$/gm, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/(["'`])(?:\\.|(?!\1)[^\\\n])*\1/g, "''");
 const bare = page.replace(/^\s*\/\/.*$/gm, '');
 const panelBare = panel.replace(/^\s*\/\/.*$/gm, '');
 
@@ -347,28 +351,28 @@ test('a note posted here reaches the bell as one of your own', () => {
   assert.match(bgSrc, /if \(message\.type === 'SIDECAR_EVENT'\) return false;/);
 });
 
-test('A LOCKED STORE IS SAID BEFORE POST, AND CAN BE ASKED TO OPEN', () => {
+test('A LOCKED STORE IS SAID ONCE, AND NOTHING PRETENDS TO FIX IT', () => {
   // getState carries `locked`, so the page can say so at boot and on every focus rather
   // than only after a Post that failed with a note already written. And the lock can land
   // while the tab sits open: fifteen idle minutes is shorter than a long note.
-  assert.match(pageHtml, /id="compose-locked"/);
-  assert.match(bare, /row\.classList\.toggle\('hidden', !\(state && state\.locked\)\)/);
   const refresh = bare.slice(bare.indexOf('async function refreshWho()'));
   assert.match(refresh.slice(0, refresh.indexOf('\n  }')), /paintLocked\(\);/);
 
-  // The unlock is asked for, not hosted. SIDECAR_UNLOCK enumerates its callers because
-  // the throttle and the 21st-strike wipe sit behind it; a fourth surface taking a PIN is
-  // a change that deserves a security look, not a paragraph in a layout commit.
+  // ONCE. A banner above the editor saying it and a button below saying it are the same
+  // sentence twice, and the banner was the one carrying no other information.
+  assert.ok(!/compose-locked/.test(pageHtml), 'the banner is redundant with the button');
+  assert.ok(!/compose-locked/.test(css));
+  assert.match(bare, /status\.textContent = \(state && state\.locked\) \? 'Sidecar is locked\.' : '';/);
+
+  // NOTHING PRETENDS. chrome.sidePanel.open was the obvious way to offer the unlock from
+  // here and it does not work: the API wants a user gesture and declines the click on an
+  // extension tab page, so the button did nothing at all when pressed. A control that
+  // lies about being a control is worse than the sentence it replaced.
+  assert.ok(!/sidePanel/.test(strip(page)), 'that API does not work from this page');
+  // And no PIN field either. SIDECAR_UNLOCK enumerates its callers because the throttle
+  // and the 21st-strike wipe sit behind it; a fourth surface taking a PIN deserves a
+  // security look, not a paragraph in a layout commit.
   assert.ok(!/SIDECAR_UNLOCK/.test(bare), 'this page must not take a PIN');
-  assert.match(bare, /chrome\.sidePanel\.open\(\{ tabId: tab\.id \}\)/);
-  // From the click, because sidePanel.open wants a user gesture and a message handler in
-  // the worker is not one.
-  assert.match(bare, /\$\('compose-unlock'\)\.addEventListener\('click', askForUnlock\)/);
-  assert.ok(!/SIDECAR_OPEN_PANEL|type: 'SIDECAR_.*PANEL'/.test(bare), 'the gesture is lost through the worker');
-  // And it degrades rather than dead-ending, on an older Chrome or a context the API
-  // declines: the words that were always the fallback are still there.
-  const ask = bare.slice(bare.indexOf('async function askForUnlock()'));
-  assert.match(ask.slice(0, ask.indexOf('\n  }')), /catch \(_\) \{\s*\n\s*toast\(/);
 
   // AND POST SAYS SO RATHER THAN DISAPPEARING INTO IT. Leaving it lit meant pressing it
   // sat through the whole review countdown and then a full proof-of-work mine, as much as
@@ -376,11 +380,11 @@ test('A LOCKED STORE IS SAID BEFORE POST, AND CAN BE ASKED TO OPEN', () => {
   // minute into no feedback is worse than anything that could follow it.
   const paint = bare.slice(bare.indexOf('function paintPostButton()'));
   const pbody = paint.slice(0, paint.indexOf('\n  }'));
-  assert.match(pbody, /if \(state && state\.locked\) \{\s*\n\s*post\.textContent = 'Unlock to post';/);
-  assert.match(bare, /if \(state && state\.locked\) return askForUnlock\(\);/);
+  assert.match(pbody, /post\.textContent = 'Unlock to post';/);
+  assert.match(pbody, /post\.disabled = true;/, 'there is no route from here, so it is inert');
   // Belt and braces on the route the button no longer offers.
   const review = bare.slice(bare.indexOf('async function reviewThenPost()'));
-  assert.match(review.slice(0, 400), /if \(state && state\.locked\) return askForUnlock\(\);/);
+  assert.match(review.slice(0, 500), /if \(state && state\.locked\) return;/);
   // The editor stays writable behind it: the draft is safe either way, and refusing to
   // let somebody finish writing because the store is locked is the wrong way round.
   assert.ok(!/contentEditable = .*locked/.test(bare));

@@ -2882,17 +2882,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    control because on this screen it is the only thing anyone came for. */
 .compose-done-open { text-decoration: none; padding: 10px 22px; }
 
-/* The store is locked and this page cannot host the unlock. A notice rather than a
-   refusal: the words keep being written and the draft keeps being saved, because a lock
-   is a thing to clear before pressing Post, not a reason to stop writing. */
-.compose-locked {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px; border-radius: 10px;
-  border: 1px solid var(--border-strong);
-  background: color-mix(in srgb, var(--red) 10%, transparent);
-}
-.compose-locked-text { flex: 1; min-width: 0; font-size: 13px; color: var(--text); }
-
 .compose-empty { padding: 48px 24px; text-align: center; }
 
 /* The offer to take a tracking tail off a pasted link. It lives in the editor's own

@@ -264,33 +264,25 @@
     return persistDraft().catch(() => {});
   }
 
-  // ---- the store is locked, and this page cannot host the unlock ----
+  // ---- the store is locked, and this page can do nothing about it ----
   //
-  // SIDECAR_UNLOCK enumerates its callers in a comment because the throttle and the
-  // 21st-strike wipe are enforced behind it. A fourth surface taking a PIN is a change
-  // that deserves a security look rather than a paragraph in a layout commit, so this
-  // page asks for the panel instead of growing a PIN field.
+  // NO BUTTON, because there is nothing behind one. chrome.sidePanel.open was the obvious
+  // candidate and it does not work from here: the API wants a user gesture and declines
+  // the click on an extension tab page, so an Unlock button did nothing at all when
+  // pressed. A control that lies about being a control is worse than the sentence it
+  // replaced.
   //
-  // sidePanel.open wants a user gesture, and routing it through the worker loses one:
-  // a message handler is not the click. So it is called from the click itself, from this
-  // page, which already has the sidePanel permission and needs no new one. If it throws
-  // anyway, on an older Chrome or a context the API declines, the words that were always
-  // the fallback are still there.
+  // And no PIN field either. SIDECAR_UNLOCK enumerates its callers in a comment because
+  // the throttle and the 21st-strike wipe are enforced behind it; a fourth surface taking
+  // a PIN deserves a security look rather than a paragraph in a layout commit.
+  //
+  // So: the Post button says what is needed and is inert, and the status line beside it
+  // says why. One statement, twice as honest as the banner and a dead button were.
   function paintLocked() {
-    const row = $('compose-locked');
-    if (!row) return;
-    row.classList.toggle('hidden', !(state && state.locked));
     paintPostButton();
-  }
-
-  async function askForUnlock() {
-    try {
-      const tab = await chrome.tabs.getCurrent();
-      if (!tab || !chrome.sidePanel) throw new Error('no side panel here');
-      await chrome.sidePanel.open({ tabId: tab.id });
-    } catch (_) {
-      toast('Open Sidecar from the toolbar and unlock it, then press Post again.', 'error');
-    }
+    const status = $('compose-status');
+    if (posting) return; // it is mid-flight and has something more urgent to say
+    status.textContent = (state && state.locked) ? 'Sidecar is locked.' : '';
   }
 
   function paintWho() {
@@ -358,8 +350,9 @@
   async function reviewThenPost() {
     if (posting) return;
     // Belt and braces for the route the button no longer offers. Starting a countdown, or
-    // worse a mine, against a store that cannot sign is a minute spent on nothing.
-    if (state && state.locked) return askForUnlock();
+    // worse a mine, against a store that cannot sign is a minute spent on nothing: that
+    // is what pressing Post used to buy, and it is the reason the button went inert.
+    if (state && state.locked) return;
     const text = (draft.text || '').trim();
     if (!text && !draft.media.length) return;
     let on = true, secs = 5;
@@ -492,14 +485,16 @@
       else if (/is locked/i.test(e.message || '')) {
         // It locked between the banner painting and Post being pressed, or the banner was
         // never shown because the state read failed. Same offer either way.
+        // It locked between the last paint and Post being pressed. The button and the
+        // status line say so from here on; the toast is for the attempt that just failed.
         if (state) state.locked = true;
-        paintLocked();
         toast('Sidecar is locked. Unlock it, then press Post again.', 'error');
       } else toast(e.message || 'Could not post', 'error');
     }
     setMining(false);
     posting = false;
     paintCount();
+    paintLocked();
   }
 
   // ---- what the one button currently is ----
@@ -522,9 +517,11 @@
       return;
     }
     if (state && state.locked) {
+      // Inert, and saying so. There is no route from this page to the unlock, so a button
+      // that looked pressable would be the third thing today that does nothing when it is.
       post.textContent = 'Unlock to post';
       post.className = 'secondary compose-post';
-      post.disabled = false;
+      post.disabled = true;
       return;
     }
     post.textContent = 'Post';
@@ -769,7 +766,6 @@
 
     paintWho();
     paintLocked();
-    $('compose-unlock').addEventListener('click', askForUnlock);
 
     dkey = state.activePubkey;
     const saved = await loadDraft();
@@ -793,7 +789,6 @@
 
     $('compose-post').addEventListener('click', () => {
       if (mining) return composer.powCancel();
-      if (state && state.locked) return askForUnlock();
       if (countdown) return; // the review window owns the screen while it runs
       reviewThenPost();
     });

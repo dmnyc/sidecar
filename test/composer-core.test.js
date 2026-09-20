@@ -58,10 +58,117 @@ test('EVERY COLLABORATOR THE CORE READS IS ONE THE PAGE HANDS IN', () => {
   }
 });
 
+// ---- code only, and correctly ----
+//
+// Strings, comments and regex literals all say things the code does not do, and stripping
+// them with regexes does not work: an apostrophe in a trailing comment ("calls don't
+// double-fetch") opened a string that ran hundreds of lines and swallowed the very
+// declarations this file checks for, which is how the scan below came back clean twice
+// while the panel was broken. Forty lines of tokenizer is cheaper than a guard nobody can
+// believe.
+//
+// The only hard part is telling a regex literal from a division, and the usual rule holds:
+// a slash starts a regex when the last significant character was one that cannot end an
+// expression.
+function codeOnly(src) {
+  let out = '';
+  let prev = '';
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    const n = src[i + 1];
+    if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i++; out += '\n'; continue; }
+    if (c === '/' && n === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i++; out += ' '; continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      const q = c;
+      i++;
+      while (i < src.length && src[i] !== q) { if (src[i] === '\\') i++; i++; }
+      out += '@@'; prev = '@'; continue;
+    }
+    if (c === '/' && (prev === '' || '(,=:[!&|?{};+-*%~^<>'.includes(prev))) {
+      i++;
+      let cls = false;
+      while (i < src.length) {
+        if (src[i] === '\\') { i += 2; continue; }
+        if (src[i] === '[') cls = true;
+        else if (src[i] === ']') cls = false;
+        else if (src[i] === '/' && !cls) break;
+        i++;
+      }
+      while (i + 1 < src.length && /[gimsuy]/.test(src[i + 1])) i++;
+      out += '@@'; prev = '@'; continue;
+    }
+    out += c;
+    if (!/\s/.test(c)) prev = c;
+  }
+  return out;
+}
+
+// Every identifier a file declares for itself: declarations, parameters, destructures,
+// catch bindings, for-of bindings. Crude next to a real scope analysis and enough to tell
+// "this name exists here" from "this name is somebody else's".
+function declaredIn(src) {
+  const d = new Set();
+  const add = (x) => { if (/^[A-Za-z_$][\w$]*$/.test(x)) d.add(x); };
+  const spread = (g) => (g || '').split(',').forEach((x) =>
+    x.trim().split('=')[0].replace(/[{}\[\]:.]/g, ' ').trim().split(/\s+/).forEach(add));
+  // Multi-declarator too: `let acDropdown = null, acResults = [], acIndex = 0;` declares
+  // three, and only naming the first is how a scan invents problems it then gets ignored
+  // for. Stops at the first line that does not end in a comma.
+  for (const m of src.matchAll(/\b(?:const|let|var)\s+((?:[^;\n]|\n(?=\s*[A-Za-z_$]))*)/g)) {
+    for (const part of m[1].split(',')) add(part.trim().split('=')[0].trim());
+  }
+  for (const m of src.matchAll(/\b(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+  // Method shorthand in an object literal: `setText(text) { ... }` is a definition.
+  for (const m of src.matchAll(/^\s{4,}([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/gm)) add(m[1]);
+  for (const m of src.matchAll(/(?:\(([^()]*)\)|([A-Za-z_$][\w$]*))\s*=>/g)) spread(m[1] || m[2]);
+  for (const m of src.matchAll(/function\s*[\w$]*\s*\(([^)]*)\)/g)) spread(m[1]);
+  for (const m of src.matchAll(/catch\s*\(\s*([A-Za-z_$][\w$]*)/g)) add(m[1]);
+  for (const m of src.matchAll(/(?:const|let|var)\s*\{([^}]*)\}/g)) spread(m[1]);
+  for (const m of src.matchAll(/(?:const|let|var)\s*\[([^\]]*)\]/g)) spread(m[1]);
+  for (const m of src.matchAll(/for\s*\(\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+  return d;
+}
+const BROWSER = new Set(('window document console Math JSON Object Array String Number Boolean Set ' +
+  'Map WeakMap Promise Date RegExp Error URL URLSearchParams setTimeout clearTimeout setInterval ' +
+  'clearInterval requestAnimationFrame getComputedStyle fetch AbortSignal encodeURIComponent ' +
+  'decodeURIComponent parseInt parseFloat isNaN Infinity NaN undefined this arguments Node NodeFilter ' +
+  'Range Selection navigator location structuredClone crypto TextEncoder TextDecoder Intl Symbol Worker ' +
+  'FormData Blob File btoa atob Uint8Array chrome self globalThis performance matchMedia Image Event ' +
+  'CustomEvent DOMParser AbortController').split(' '));
+const KEYWORDS = new Set(('if else for while do return typeof instanceof new delete void in of let const ' +
+  'var function class extends super static get set async await yield try catch finally throw switch case ' +
+  'default break continue null true false').split(' '));
+
+test('THE CORE REACHES FOR NOTHING IT DOES NOT HAVE', () => {
+  // THE MIRROR OF THE CHECK BELOW, and it was a denylist of panel globals until it missed
+  // the one that mattered. splitGlyphs came here calling ironDiceStyle, which stayed in
+  // the panel: a ReferenceError inside the review countdown's own digits, thrown after the
+  // editor had already been hidden to make room for it, so the card went blank and the
+  // note looked lost. The balance animation in the panel went with it, since splitGlyphs
+  // strikes those figures too.
+  //
+  // A name in this file is either declared here, injected through deps, or the browser's.
+  // Nothing else, because anything else is a scope this file cannot see.
+  // CALLS AND MEMBER BASES ONLY: `foo(` and `Foo.`. Every identifier in the file is too
+  // noisy to be useful, because a regex literal's letters and an object key read as names
+  // and the guard gets deleted for crying wolf. Both real escapes were of this shape
+  // anyway: ironDiceStyle() was a call, state.activePubkey a member base.
+  const src = codeOnly(core);
+  const own = declaredIn(src);
+  own.add('deps');
+  const free = new Set();
+  for (const m of src.matchAll(/(?:^|[^.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) {
+    if (!own.has(m[1]) && !BROWSER.has(m[1]) && !KEYWORDS.has(m[1])) free.add(m[1]);
+  }
+  for (const m of src.matchAll(/(?:^|[^.\w$'"])([A-Za-z_$][\w$]*)\s*\.\s*[A-Za-z_$]/g)) {
+    if (!own.has(m[1]) && !BROWSER.has(m[1]) && !KEYWORDS.has(m[1])) free.add(m[1]);
+  }
+  assert.deepEqual([...free].sort(), [], 'composer-core.js reaches for names it does not have');
+});
+
 test('THE CORE REACHES FOR NOTHING THAT ONLY EXISTS IN THE PANEL', () => {
-  // A denylist of the panel's most-used globals rather than a full scope analysis, because
-  // a heuristic that cries wolf gets deleted. These are the ones the moved code sat next
-  // to for years and would reach for out of habit.
+  // The named version of the check above, kept because it says WHY rather than only that.
+  // These are the ones the moved code sat next to for years and would reach for by habit.
   const panelOnly = [
     'state.', 'followListCache', 'followListPubkey', '_profileCache', '_notifProfiles',
     'toast(', 'closeModal(', 'openModal(', 'renderMain(',
