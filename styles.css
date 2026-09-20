@@ -2709,6 +2709,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 7px; margin: 0; flex: 1 0 auto;
 }
 .compose-add svg { width: 15px; height: 15px; }
+/* The offer to take a tracking tail off a pasted link. It lives in the editor's own
+   wrapper rather than in .compose-actions above, because the page-comment box is a
+   composer too and gets links pasted into it the same way; both are built by
+   createMentionEditor, so both get this at once.
+
+   A .mini.ghost compose-add, which means it inherits `flex: 1 0 auto` and spans its row.
+   That is the panel's rule for a control with words on it, and it keeps the offer from
+   reading as a fourth toolbar button: ghost against their filled siblings, on its own
+   line, and only on screen when there is something to take off. */
+.track-row { display: flex; margin: 7px 0 0; }
 /* A compose-add that is currently ON, for the proof-of-work cycle. Color only: the label
    already says which level, so the tint is confirmation rather than the message, and
    nothing about the button's metrics moves as it cycles. */

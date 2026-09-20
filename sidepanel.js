@@ -3777,8 +3777,19 @@
   // stripped where we know what it means. YouTube's `si` is the most common
   // real-world splitter there is: every press of Share mints a fresh one, so one
   // video would otherwise carry a separate thread per sharer.
+  //
+  // Amazon is deliberately absent. Its `tag` is an affiliate code, which is sometimes
+  // the entire reason somebody shared the link, and a button offering to remove
+  // "tracking" should not quietly be a button that removes their earnings.
   const HOST_TRACKING_PARAMS = [
     { host: /(^|\.)(youtube\.com|youtu\.be)$/i, params: ['si', 'pp', 'feature', 'kw'] },
+    // Same shape as YouTube's `si`, and the same consequence: `t` is minted fresh on
+    // every press of Share, so one post would carry a separate thread per sharer.
+    { host: /^(x\.com|twitter\.com)$/i, params: ['s', 't'] },
+    { host: /(^|\.)spotify\.com$/i, params: ['si', 'nd', 'nd_lfid'] },
+    { host: /(^|\.)tiktok\.com$/i, params: ['is_from_webapp', 'sender_device', '_r', '_t'] },
+    { host: /(^|\.)reddit\.com$/i, params: ['share_id', 'rdt', 'correlation_id', 'ref_source', 'ref_campaign'] },
+    { host: /(^|\.)linkedin\.com$/i, params: ['trk', 'trackingid'] },
   ];
 
   // Case-insensitive: the same vendor ships both `ScCid` and `sccid`, and a param
@@ -3786,6 +3797,98 @@
   function isTrackingParam(name) {
     const n = String(name).toLowerCase();
     return TRACKING_PARAMS.includes(n) || TRACKING_PREFIXES.some((p) => n.startsWith(p));
+  }
+
+  // ---- the same list, for a link pasted into a composer ----
+  //
+  // A link copied out of a browser usually arrives with a tail describing the person who
+  // copied it rather than the thing it points at: which campaign reached them, which app
+  // they were in, and an id that ties that click back to them. Posting it forwards all of
+  // that to everyone who reads the note, which is not something anyone means to do by
+  // pasting a link.
+  //
+  // OFFERED, NEVER DONE FOR YOU. Sidecar's claim is that it signs what you asked it to
+  // sign, and quietly rewriting the words in a composer is the same kind of act as
+  // quietly rewriting an event. So a paste that carries a tail says so, once, and one
+  // button takes it off.
+  //
+  // NOT normalizeWebUrl, which is next door and looks like it would do. That one builds a
+  // THREAD IDENTIFIER: it sorts the query and drops the fragment so two people reach the
+  // same address, both of which would be edits to a link the user did not ask us to edit.
+  // What is shared is the list of what counts as tracking, which is the part worth having
+  // in one place.
+  function hostTrackingParams(hostname) {
+    const rule = HOST_TRACKING_PARAMS.find((r) => r.host.test(String(hostname || '')));
+    return rule ? rule.params : null;
+  }
+
+  // Cuts whole k=v segments out of the query, textually. Rebuilding through URL or
+  // URLSearchParams would re-encode every parameter being KEPT: a %20 comes back a +, an
+  // unescaped bracket comes back escaped. That is a change to a link nobody asked us to
+  // change, on a path whose entire promise is that it changes nothing else.
+  //
+  // The query only, never the path. Several sites carry tracking in path segments too,
+  // and nothing tells those apart from an id without knowing the site. Confining this to
+  // whole parameters is what makes it safe against a URL for a site nobody here has heard
+  // of: the output is the input minus entire parameters, so a link that worked still
+  // works. Returns null when there is nothing to take off.
+  function cleanTrackedUrl(raw) {
+    const s = String(raw || '');
+    if (!/^https?:\/\//i.test(s)) return null;
+    const q = s.indexOf('?');
+    if (q === -1) return null;
+    let hostname;
+    try { hostname = new URL(s).hostname; } catch (_) { return null; }
+    const hashAt = s.indexOf('#', q);
+    const head = s.slice(0, q);
+    const tail = hashAt === -1 ? '' : s.slice(hashAt);
+    const query = s.slice(q + 1, hashAt === -1 ? undefined : hashAt);
+    const hostParams = hostTrackingParams(hostname);
+    const parts = query.split('&').filter((part) => part !== '');
+    const kept = parts.filter((part) => {
+      const eq = part.indexOf('=');
+      const encoded = (eq === -1 ? part : part.slice(0, eq)).replace(/\+/g, ' ');
+      let name = encoded;
+      try { name = decodeURIComponent(encoded); } catch (_) { /* a stray % is still a name */ }
+      if (isTrackingParam(name)) return false;
+      return !hostParams || hostParams.indexOf(name.toLowerCase()) === -1;
+    });
+    if (kept.length === parts.length) return null;
+    return head + (kept.length ? '?' + kept.join('&') : '') + tail;
+  }
+
+  // Trailing punctuation belongs to the sentence, not to the link. A URL written at the
+  // end of a line takes the period with it otherwise, and the cleaned version would come
+  // back without one.
+  function trimUrlTail(url) {
+    let out = url;
+    for (;;) {
+      const before = out;
+      out = out.replace(/[.,;:!?'"]+$/, '');
+      for (const [close, open] of [[')', '('], [']', '['], ['}', '{']]) {
+        if (!out.endsWith(close)) continue;
+        if (out.split(close).length > out.split(open).length) out = out.slice(0, -1);
+      }
+      if (out === before) return out;
+    }
+  }
+
+  function findTrackedUrls(text) {
+    const out = [];
+    const seen = new Set();
+    const re = /https?:\/\/[^\s<>"'`]+/gi;
+    let m;
+    while ((m = re.exec(String(text || '')))) {
+      const raw = trimUrlTail(m[0]);
+      if (!raw || seen.has(raw)) continue;
+      seen.add(raw);
+      const clean = cleanTrackedUrl(raw);
+      if (clean && clean !== raw) out.push({ raw, clean });
+    }
+    // Longest first, so replacing one link cannot eat the front of another that starts
+    // with it. Two shares of the same page with different campaign ids do exactly that.
+    out.sort((a, b) => b.raw.length - a.raw.length);
+    return out;
   }
 
   // Reduce a page URL to the identifier the comment is tagged with.
@@ -11503,6 +11606,56 @@
       closeAcDropdown();
     }, 150));
 
+    // ---- the offer, for a link that arrived with a tail ----
+    //
+    // In the wrapper rather than the note composer's own toolbar, because the page
+    // comment box is a composer too and gets its links pasted the same way. Both are
+    // built here, so both get this at once.
+    const trackRow = h('div', { className: 'track-row hidden' });
+    const trackBtn = h('button', { className: 'mini ghost compose-add track-clean', type: 'button' });
+    const trackLabel = h('span', { textContent: 'Remove tracking tags' });
+    trackBtn.append(icon('eye-off'), trackLabel);
+    trackRow.append(trackBtn);
+    wrap.append(trackRow);
+
+    let tracked = [];
+    function scanTracking() {
+      tracked = findTrackedUrls(serializeEditor(editor));
+      if (!tracked.length) { hide(trackRow); return; }
+      // The count only when there is more than one, because "Remove tracking tags from 1
+      // link" is a sentence nobody writes.
+      trackLabel.textContent = tracked.length === 1
+        ? 'Remove tracking tags'
+        : 'Remove tracking tags from ' + tracked.length + ' links';
+      show(trackRow);
+    }
+    trackBtn.addEventListener('click', () => {
+      let text = serializeEditor(editor);
+      for (const hit of tracked) text = text.split(hit.raw).join(hit.clean);
+      editor.innerHTML = '';
+      if (text) hydrateEditorFromText(editor, text);
+      syncEmptyClass();
+      emit(); // the draft and the Post button both read the text, not the DOM
+      scanTracking();
+      // BACK WHERE YOU WERE WRITING. The rewrite replaces every node in the editor, and
+      // focus() on its own leaves the caret at the very top, so tapping this would cost
+      // a click to get back to the end of the sentence you were in the middle of. One
+      // button, one tap, nothing to put right afterwards.
+      editor.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        const end = document.createRange();
+        end.selectNodeContents(editor);
+        end.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(end);
+      }
+    });
+    // AFTER the paste lands, not instead of it. The note composer has its own paste
+    // handler that inserts the plain text itself, and the comment box has none at all;
+    // a scan on the next tick reads whatever either of them ended up with.
+    editor.addEventListener('paste', () => setTimeout(scanTracking, 0));
+
     return {
       wrap,
       editor,
@@ -11515,6 +11668,9 @@
         editor.innerHTML = '';
         if (text) hydrateEditorFromText(editor, text);
         syncEmptyClass();
+        // A paste is not the only way a tail arrives. This is the path a restored draft
+        // takes, so a link pasted yesterday is still offered today.
+        scanTracking();
       },
       focus: () => editor.focus(),
       close: closeAcDropdown,
