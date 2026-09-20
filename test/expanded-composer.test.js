@@ -68,10 +68,34 @@ test('THE PAGE DOES NOT GUESS WHERE TO PUBLISH', () => {
   assert.match(panelBare, /relays = await postRelays\(\)/);
   assert.match(panelBare, /all\[dkey\]\.expandRelays = relays;/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.expandRelays\)\) handoverRelays = saved\.expandRelays;/);
-  // A page opened cold still works, on the configured list, which is the panel's own
+  // A page opened cold still works, on the configured write list, which is the panel's own
   // fallback when an account has declared nothing.
   const fn = bare.slice(bare.indexOf('async function targetRelays()'));
-  assert.match(fn.slice(0, fn.indexOf('\n  }')), /SIDECAR_GET_RELAYS/);
+  assert.match(fn.slice(0, fn.indexOf('\n  }')), /return relayUrls\(true\);/);
+
+  // READING IS NOT PUBLISHING. relayUrls(false) means every configured relay, read-only
+  // ones included, which is what the core asks for when it looks up a profile, an embed
+  // or the kind 10063 Blossom list. Answering all of those with the PUBLISH set meant the
+  // server list was looked for on two or three write relays and, not found, every upload
+  // fell through to the fallback host without a word.
+  assert.match(bare, /relayUrls\(writableOnly\)/);
+  assert.match(bare, /\(writableOnly \? map\[u\]\.write !== false : true\)/);
+  assert.match(bare, /^\s*relayUrls,$/m, 'the core gets the reader, not the publish set');
+  assert.ok(!/relayUrls: \(\) => targetRelays\(\)/.test(bare), 'that conflation was the bug');
+});
+
+test('THE BLOSSOM SERVER LIST IS ACTUALLY LOOKED FOR', () => {
+  // BLOSSOM_SERVER_LIST_KIND stayed in the panel when the uploader moved to the core, so
+  // fetchBlossomServers threw a ReferenceError inside its own try, returned an empty list,
+  // and every upload in BOTH composers went to the fallback host instead of the account's
+  // own server. An empty list and a failed lookup are not the same thing and must not read
+  // the same, so the catch says so now.
+  assert.match(core, /const BLOSSOM_SERVER_LIST_KIND = 10063;/);
+  assert.match(core, /const BLOSSOM_AUTH_KIND = 24242;/);
+  assert.ok(!/BLOSSOM_SERVER_LIST_KIND =/.test(panel), 'sidepanel.js kept a copy');
+  const fn = core.slice(core.indexOf('async function fetchBlossomServers('));
+  assert.match(fn.slice(0, fn.indexOf('\n  }')), /console\.warn\('\[Upload\] could not read the Blossom server list:'/);
+  assert.ok(!/\} catch \(_\) \{\}\n    _blossomServerCache/.test(core), 'a swallowed lookup reads as no servers');
 });
 
 test('A REPLY IS NOT OFFERED THE TAB', () => {

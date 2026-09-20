@@ -70,9 +70,12 @@ test('EVERY COLLABORATOR THE CORE READS IS ONE THE PAGE HANDS IN', () => {
 // The only hard part is telling a regex literal from a division, and the usual rule holds:
 // a slash starts a regex when the last significant character was one that cannot end an
 // expression.
+const REGEX_AFTER = new Set(('return typeof case in of new delete void instanceof do else ' +
+  'yield await throw').split(' '));
 function codeOnly(src) {
   let out = '';
   let prev = '';
+  let word = '';
   for (let i = 0; i < src.length; i++) {
     const c = src[i];
     const n = src[i + 1];
@@ -84,7 +87,10 @@ function codeOnly(src) {
       while (i < src.length && src[i] !== q) { if (src[i] === '\\') i++; i++; }
       out += '@@'; prev = '@'; continue;
     }
-    if (c === '/' && (prev === '' || '(,=:[!&|?{};+-*%~^<>'.includes(prev))) {
+    // A slash starts a regex after punctuation that cannot end an expression, and also
+    // after a keyword: `return /re/`, `typeof /re/`, `case /re/`. Missing the keyword half
+    // left `/(^|\.)primal\.net$/i` unstripped and its letters reading as identifiers.
+    if (c === '/' && (prev === '' || '(,=:[!&|?{};+-*%~^<>'.includes(prev) || REGEX_AFTER.has(word))) {
       i++;
       let cls = false;
       while (i < src.length) {
@@ -99,6 +105,10 @@ function codeOnly(src) {
     }
     out += c;
     if (!/\s/.test(c)) prev = c;
+    // Whitespace KEEPS the last word rather than clearing it: `return /re/` has a space
+    // between the two, and clearing on it was why the keyword half never fired.
+    if (/[A-Za-z_$0-9]/.test(c)) word += c;
+    else if (!/\s/.test(c)) word = '';
   }
   return out;
 }
@@ -134,7 +144,8 @@ const BROWSER = new Set(('window document console Math JSON Object Array String 
   'decodeURIComponent parseInt parseFloat isNaN Infinity NaN undefined this arguments Node NodeFilter ' +
   'Range Selection navigator location structuredClone crypto TextEncoder TextDecoder Intl Symbol Worker ' +
   'FormData Blob File btoa atob Uint8Array chrome self globalThis performance matchMedia Image Event ' +
-  'CustomEvent DOMParser AbortController').split(' '));
+  'CustomEvent DOMParser AbortController CSS Response DecompressionStream createImageBitmap ' +
+  'IntersectionObserver MutationObserver ResizeObserver addEventListener isFinite').split(' '));
 const KEYWORDS = new Set(('if else for while do return typeof instanceof new delete void in of let const ' +
   'var function class extends super static get set async await yield try catch finally throw switch case ' +
   'default break continue null true false').split(' '));
@@ -149,21 +160,54 @@ test('THE CORE REACHES FOR NOTHING IT DOES NOT HAVE', () => {
   //
   // A name in this file is either declared here, injected through deps, or the browser's.
   // Nothing else, because anything else is a scope this file cannot see.
-  // CALLS AND MEMBER BASES ONLY: `foo(` and `Foo.`. Every identifier in the file is too
-  // noisy to be useful, because a regex literal's letters and an object key read as names
-  // and the guard gets deleted for crying wolf. Both real escapes were of this shape
-  // anyway: ironDiceStyle() was a call, state.activePubkey a member base.
+  // EVERY IDENTIFIER, not only calls and member bases. It was those two, which is exactly
+  // narrow enough to miss BLOSSOM_SERVER_LIST_KIND: a bare constant read inside a filter,
+  // left behind in the panel, swallowed by the catch around the lookup, so every upload in
+  // BOTH composers went to the fallback host instead of the account's Blossom server with
+  // nothing said anywhere. The tokenizer above is what makes the wider scan usable: the
+  // noise that made it unbearable was regex literals and strings, and those are gone.
   const src = codeOnly(core);
   const own = declaredIn(src);
   own.add('deps');
+  // Property accesses and object-literal keys are not references to anything in scope.
+  const body = src.replace(/\.\s*([A-Za-z_$][\w$]*)/g, ' ').replace(/([A-Za-z_$][\w$]*)\s*:/g, ' ');
   const free = new Set();
-  for (const m of src.matchAll(/(?:^|[^.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) {
-    if (!own.has(m[1]) && !BROWSER.has(m[1]) && !KEYWORDS.has(m[1])) free.add(m[1]);
-  }
-  for (const m of src.matchAll(/(?:^|[^.\w$'"])([A-Za-z_$][\w$]*)\s*\.\s*[A-Za-z_$]/g)) {
-    if (!own.has(m[1]) && !BROWSER.has(m[1]) && !KEYWORDS.has(m[1])) free.add(m[1]);
+  for (const m of body.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {
+    const n = m[1];
+    if (!own.has(n) && !BROWSER.has(n) && !KEYWORDS.has(n)) free.add(n);
   }
   assert.deepEqual([...free].sort(), [], 'composer-core.js reaches for names it does not have');
+});
+
+test('AND THE PANEL REACHES FOR NOTHING IT DOES NOT HAVE EITHER', () => {
+  // THE SYMMETRIC HALF, and the one that was missing every time this went wrong. Moving a
+  // function into the core leaves a caller behind in the panel, and nothing notices: every
+  // test in this repo reads source rather than running the panel, so the ReferenceError
+  // waits for whoever opens that screen. It has happened four times in a day, taking out
+  // the theme apply, the Profile tab, the review countdown with the balance animation, and
+  // Blossom uploads in both composers.
+  //
+  // Same rule as the core's: every identifier in sidepanel.js is declared there, taken off
+  // SidecarCore, or provided by the browser or a vendored script it loads.
+  const src = codeOnly(panel);
+  const own = declaredIn(src);
+  for (const m of panel.matchAll(/const \{([^{}]*)\} = window\.SidecarCore(?:;|\.installComposer)/g)) {
+    m[1].split(',').forEach((x) => { if (x.trim()) own.add(x.trim()); });
+  }
+  // The scripts sidepanel.html loads beside it, each of which sets one global.
+  ['NostrTools', 'SidecarCore', 'SidecarWsGuard', 'SidecarNWC', 'SidecarRelayHealth',
+   'SidecarWot', 'SidecarEmoji', 'SidecarVersion', 'SidecarQR', 'SidecarPdfBackup',
+   'SidecarCrypto', 'SidecarNip49', 'jsQR', 'qrcode', 'SIDECAR_ON_THIS_DAY',
+   // Firefox's own namespace, used for the sidebarAction fallback the Chrome build never
+   // reaches. Absent in Chrome, which is why every use of it is guarded.
+   'browser'].forEach((g) => own.add(g));
+  const body = src.replace(/\.\s*([A-Za-z_$][\w$]*)/g, ' ').replace(/([A-Za-z_$][\w$]*)\s*:/g, ' ');
+  const free = new Set();
+  for (const m of body.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {
+    const n = m[1];
+    if (!own.has(n) && !BROWSER.has(n) && !KEYWORDS.has(n)) free.add(n);
+  }
+  assert.deepEqual([...free].sort(), [], 'sidepanel.js reaches for names it does not have');
 });
 
 test('THE CORE REACHES FOR NOTHING THAT ONLY EXISTS IN THE PANEL', () => {

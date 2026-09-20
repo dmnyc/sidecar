@@ -118,8 +118,21 @@
   }
   async function targetRelays() {
     if (handoverRelays && handoverRelays.length) return handoverRelays;
+    return relayUrls(true);
+  }
+
+  // READING IS NOT PUBLISHING, and conflating the two cost the uploader its Blossom
+  // server. relayUrls(false) means every configured relay, read-only ones included, and
+  // that is what the core asks for when it looks up a profile, an embed, or the kind
+  // 10063 server list. Answering all of those with the PUBLISH set meant the list was
+  // looked for on two or three write relays and, not found, the upload fell through to
+  // nostr.build without a word.
+  //
+  // targetRelays stays what it was: where this note goes, which is the handover set the
+  // panel worked out, and has no business deciding where a lookup happens.
+  async function relayUrls(writableOnly) {
     const map = await call({ type: 'SIDECAR_GET_RELAYS' });
-    return Object.keys(map || {}).filter((u) => map[u].write !== false);
+    return Object.keys(map || {}).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
   // ---- what the shared editor needs from whichever page it is drawing into ----
@@ -137,7 +150,7 @@
   async function fetchPreviewProfile(pubkey) {
     if (profileCache.has(pubkey)) return profileCache.get(pubkey);
     try {
-      const relays = await targetRelays();
+      const relays = await relayUrls(false);
       const ev = await pool().get(relays, { kinds: [0], authors: [pubkey] });
       const meta = ev ? JSON.parse(ev.content) : null;
       const p = meta ? { pubkey, name: meta.display_name || meta.name || null, picture: meta.picture || null } : null;
@@ -169,7 +182,7 @@
   async function getFollowList() {
     if (followCache) return followCache;
     try {
-      const relays = await targetRelays();
+      const relays = await relayUrls(false);
       const ev = await pool().get(relays, { kinds: [3], authors: [state.activePubkey] });
       const pubkeys = (ev ? ev.tags : []).filter((t) => t[0] === 'p' && t[1]).map((t) => t[1]).slice(0, 400);
       if (!pubkeys.length) return (followCache = []);
@@ -229,7 +242,7 @@
     call,
     poolGet: (relays, filter, params) => pool().get(relays, filter, params),
     poolQuerySync: (relays, filter, params) => pool().querySync(relays, filter, params),
-    relayUrls: () => targetRelays(),
+    relayUrls,
     activePubkey: () => state.activePubkey,
     // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
     // exactly the kind of thing that setting is for.

@@ -891,7 +891,13 @@ window.SidecarCore = (function () {
           .filter((t) => t[0] === 'server' && t[1] && t[1].startsWith('https://'))
           .map((t) => t[1].replace(/\/$/, ''));
       }
-    } catch (_) {}
+    } catch (e) {
+      // NOT SILENT. This swallowed a ReferenceError for BLOSSOM_SERVER_LIST_KIND, left
+      // behind in the panel when the uploader moved here, and an empty list reads exactly
+      // like an account with no Blossom server: every upload went to nostr.build instead,
+      // in both composers, with nothing said anywhere.
+      console.warn('[Upload] could not read the Blossom server list:', e);
+    }
     _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
     return servers;
   }
@@ -1494,6 +1500,9 @@ window.SidecarCore = (function () {
     }
   }
 
+  const BLOSSOM_SERVER_LIST_KIND = 10063;
+  const BLOSSOM_AUTH_KIND = 24242;
+  const BLOSSOM_UPLOAD_TIMEOUT = 30000;
   const BLOSSOM_CACHE_TTL = 5 * 60 * 1000;
 
   const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }

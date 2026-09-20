@@ -1610,7 +1610,11 @@
     naSetting().then((on) => {
       const btn = $('search-mode');
       btn.replaceChildren(icon(on === true ? 'globe' : 'users'));
-      const title = global
+      // `on`, not `global`. There is no `global` in a page, so this threw a ReferenceError
+      // inside the then() and nothing caught it: the button kept whatever title it had,
+      // which on first paint is none at all. Same test as the icon on the line above, so
+      // an undecided setting reads as follows-only in both.
+      const title = on === true
         ? 'Searching every Nostr name (Nostr Archives index) — click to search only your follows'
         : 'Searching only your follows — click to also search every Nostr name';
       btn.title = title;
@@ -10106,9 +10110,6 @@
   // Mirrors zap.cooking: try the user's own Blossom servers (kind:10063) first,
   // then fall back to the nostr.build NIP-98 flow below. No hardcoded server, so
   // users without a Blossom list keep the existing behavior unchanged.
-  const BLOSSOM_AUTH_KIND = 24242;
-  const BLOSSOM_SERVER_LIST_KIND = 10063;
-  const BLOSSOM_UPLOAD_TIMEOUT = 30000;
 
 
 
