@@ -346,6 +346,7 @@ window.SidecarCore = (function () {
     return {
       serializeEditor, hydrateEditorFromText, createMentionEditor,
       renderNotePreview, uploadMedia, minePow, powCancel,
+      resolveClient,
     };
   }
 
@@ -1196,6 +1197,57 @@ window.SidecarCore = (function () {
     });
   }
 
+  // ---- where a note can be read ----
+  //
+  // Sidecar is a companion, not a client, so every note it publishes needs somewhere to
+  // hand you off to. The directory is pure data and a url builder each, and both pages
+  // need it: the panel's post banner and the expanded composer's confirmation are the
+  // same question asked twice.
+  function razrEntity(entity) {
+    try {
+      const d = deps.NT.nip19.decode(entity);
+      if (d.type === 'nevent') return deps.NT.nip19.noteEncode(d.data.id);
+    } catch (_) { /* not bech32 we know, so hand it over unchanged */ }
+    return entity;
+  }
+
+  const VIEW_CLIENTS = {
+    // DEFAULT_CLIENT leads the list; the rest are in the order they were added.
+    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
+    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
+    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
+    iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
+    snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },
+    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
+    zapcooking: { label: 'Zap Cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
+    noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
+    jank: { label: 'JANK', url: (ne) => 'https://jank.army/notes/' + ne, profile: (np) => 'https://jank.army/users/' + np },
+    nostrich: { label: 'Nostrich', url: (ne) => 'https://nostrich.org/e/' + ne, profile: (np) => 'https://nostrich.org/p/' + np },
+    ditto: { label: 'Ditto', url: (ne) => 'https://ditto.pub/' + ne, profile: (np) => 'https://ditto.pub/' + np },
+    // ROUTES, not a catch-all: /e/ for an event and /p/ for a profile. Its own links are
+    // /e/note1… and /e/naddr…, built with encodeNote, so /e/ is known to take a note1
+    // and a naddr, and an nevent is reduced to the note1 Razr writes for itself rather
+    // than handed over on the assumption it decodes one. See razrEntity.
+    razr: { label: 'Razr', url: (ne) => 'https://razr.social/e/' + razrEntity(ne), profile: (np) => 'https://razr.social/p/' + np },
+    // A COMMAND LINE, not routes. `open <bech32>` resolves note, nevent and naddr into
+    // the same viewer, since all three are cases in its own decoder, and a profile has its
+    // own verb, which is what Grimoire builds for itself (`profile <npub>`).
+    grimoire: {
+      label: 'Grimoire',
+      url: (ne) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('open ' + ne),
+      profile: (np) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('profile ' + np),
+    },
+    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
+    njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
+  };
+  const DEFAULT_CLIENT = 'jumble';
+
+  function resolveClient(settings, pubkey) {
+    const by = (settings && settings.defaultClientBy) || null;
+    const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
+    return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
@@ -1205,5 +1257,6 @@ window.SidecarCore = (function () {
     // Furniture: the same three things every composer needs, wired through installComposer
     // so they read their relays and their profile cache from whichever page installed it.
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
+    VIEW_CLIENTS, DEFAULT_CLIENT,
   };
 })();

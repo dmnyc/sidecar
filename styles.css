@@ -2809,6 +2809,30 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* And the one that publishes is the biggest thing in the row, because it is the only
    thing on this page that cannot be taken back. */
 .compose-post { font-size: 15px; padding: 12px 30px; border-radius: 12px; }
+/* ---- the card after the note is out ----
+   The panel drops a banner because its composer is a modal that closes onto a whole app.
+   A tab has nothing underneath it, so the card becomes the receipt rather than emptying
+   out, which would read as a note lost rather than published. */
+.compose-done { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
+.compose-done-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 50%;
+  /* The wash mixed from the glyph's own color rather than from --accent-rgb, so the two
+     cannot disagree on a theme that moves one and not the other. */
+  color: var(--lav);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.compose-done-mark svg { width: 26px; height: 26px; }
+.compose-done-title { margin: 6px 0 0; font-size: 20px; }
+.compose-done-sub { margin: 0; color: var(--muted); font-size: 13px; }
+.compose-done-actions {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 10px; margin-top: 14px;
+}
+/* An anchor, not a button, because it opens somewhere else. Dressed as the primary
+   control because on this screen it is the only thing anyone came for. */
+.compose-done-open { text-decoration: none; padding: 10px 22px; }
+
 .compose-empty { padding: 48px 24px; text-align: center; }
 
 /* The offer to take a tracking tail off a pasted link. It lives in the editor's own

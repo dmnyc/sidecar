@@ -315,7 +315,7 @@
       editorSetText('');
       renderThumbs();
       status.textContent = '';
-      toast('Note published to ' + ok + (ok === 1 ? ' relay' : ' relays'), 'success');
+      await showPosted(signed, ok);
     } catch (e) {
       status.textContent = '';
       // A stop is the user's own decision, and the editor coming back is the answer.
@@ -341,6 +341,67 @@
 
   let editorApi = null;
   function editorSetText(t) { if (editorApi) editorApi.setText(t); }
+
+  // ---- what the page becomes once the note is out ----
+  //
+  // The panel drops a banner because the composer it posted from is a modal that closes
+  // and there is a whole app underneath to go back to. A tab has nothing underneath: the
+  // card IS the page, and leaving an empty editor sitting there says a note was lost
+  // rather than published. So the card becomes the receipt.
+  //
+  // A LINK, because Sidecar is a companion and not a client. It cannot show you the note
+  // in a thread with its replies, and the client this account already chose can.
+  async function neventFor(signed) {
+    let relays = [];
+    try { relays = (await targetRelays()).slice(0, 2); } catch (_) {}
+    return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
+  }
+
+  async function showPosted(signed, relayCount) {
+    const sheet = document.querySelector('.compose-sheet');
+    let href = null;
+    let label = null;
+    try {
+      const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      // The account that SIGNED it, not whatever is active by the time this paints. They
+      // can differ if the panel switched while the tab was open.
+      const client = composer.resolveClient(settings, signed.pubkey || state.activePubkey);
+      href = client.url(await neventFor(signed));
+      label = client.label;
+    } catch (_) { /* no link is better than a broken one */ }
+
+    sheet.innerHTML = '';
+    sheet.classList.add('compose-done');
+    const mark = h('span', { className: 'compose-done-mark' });
+    mark.append(icon('check'));
+    sheet.append(
+      mark,
+      h('h2', { className: 'compose-done-title', textContent: 'Your note is live.' }),
+      h('p', {
+        className: 'compose-done-sub',
+        textContent: 'Published to ' + relayCount + (relayCount === 1 ? ' relay.' : ' relays.'),
+      })
+    );
+
+    const row = h('div', { className: 'compose-done-actions' });
+    if (href) {
+      const open = document.createElement('a');
+      open.className = 'primary compose-done-open';
+      open.href = href;
+      open.target = '_blank';
+      open.rel = 'noreferrer noopener';
+      open.textContent = 'Open in ' + label;
+      row.append(open);
+    }
+    const again = h('button', { className: 'mini ghost', type: 'button', textContent: 'Write another' });
+    again.addEventListener('click', () => window.location.reload());
+    row.append(again);
+    sheet.append(row);
+
+    const done = h('button', { className: 'compose-cancel', type: 'button', textContent: 'Close this tab' });
+    done.addEventListener('click', () => window.close());
+    sheet.append(done);
+  }
 
   // ---- thumbnails for what has been uploaded ----
   function renderThumbs() {

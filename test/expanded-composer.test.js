@@ -279,6 +279,48 @@ test('THE WAY OUT IS A CORNER BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER'
   assert.match(postRule, /padding: 12px 30px/);
 });
 
+test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
+  // The panel drops a banner because its composer is a modal that closes onto a whole
+  // app. A tab has nothing underneath it: the card IS the page, and leaving an empty
+  // editor sitting there reads as a note lost rather than published.
+  assert.match(bare, /await showPosted\(signed, ok\)/);
+  const fn = bare.slice(bare.indexOf('async function showPosted('));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /sheet\.innerHTML = '';/);
+  assert.match(body, /textContent: 'Your note is live\.'/);
+  assert.match(body, /'Published to ' \+ relayCount/);
+
+  // Only after the publish resolved. A receipt for a note no relay took is a lie.
+  const post = bare.slice(bare.indexOf('async function doPost()'));
+  const pbody = post.slice(0, post.indexOf('\n  }'));
+  assert.ok(pbody.indexOf('pool().publish(') < pbody.indexOf('showPosted('));
+});
+
+test('the receipt links to the note, in the client this ACCOUNT chose', () => {
+  // Sidecar is a companion, not a client: it cannot show the note in a thread with its
+  // replies, and the client this account already picked can. Resolved against the account
+  // that SIGNED it rather than whatever is active by the time this paints, since the
+  // panel can switch while the tab is open.
+  const fn = bare.slice(bare.indexOf('async function showPosted('));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /composer\.resolveClient\(settings, signed\.pubkey \|\| state\.activePubkey\)/);
+  assert.match(body, /client\.url\(await neventFor\(signed\)\)/);
+  assert.match(body, /open\.target = '_blank'/);
+  assert.match(body, /open\.rel = 'noreferrer noopener'/);
+  // A failure to work out the link leaves the receipt without one rather than breaking it.
+  assert.match(body, /catch \(_\) \{ \/\* no link is better than a broken one \*\/ \}/);
+  assert.match(body, /if \(href\) \{/);
+
+  // The nevent carries relay hints, or the client has nowhere to look the note up.
+  assert.match(bare, /NT\.nip19\.neventEncode\(\{ id: signed\.id, author: signed\.pubkey, relays \}\)/);
+
+  // One directory, shared. The panel's banner and this receipt ask the same question, and
+  // two copies would answer it differently the first time a client changes its routes.
+  assert.ok(core.includes('const VIEW_CLIENTS = {'), 'the core should own the directory');
+  assert.ok(!panel.includes('const VIEW_CLIENTS = {'), 'sidepanel.js kept a copy');
+  assert.ok(!page.includes('const VIEW_CLIENTS = {'), 'compose.js built its own');
+});
+
 test('closing the tab keeps what was typed', () => {
   // The save is debounced 400ms. A close inside that window would lose the last sentence,
   // which is the one just written.

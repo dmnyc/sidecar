@@ -17,7 +17,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// The client directory moved to composer-core.js: the panel's post banner and the
+// expanded composer's confirmation ask the same question, so they read one list. Both
+// files are the panel's source as far as these assertions are concerned.
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
 
 const stripComments = (src) =>

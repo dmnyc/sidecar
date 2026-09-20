@@ -16,6 +16,9 @@
   // registered, and the expanded composer page would have been one more.
   const { LIGHT_THEMES, logoSrcFor, avatarPhSrc } = window.SidecarCore;
   const { POW_LEVELS, POW_DEFAULT_BITS, powLevelFor } = window.SidecarCore;
+  // Where a note can be read. Shared because the panel's post banner and the expanded
+  // composer's confirmation are the same question asked twice.
+  const { VIEW_CLIENTS, DEFAULT_CLIENT } = window.SidecarCore;
 
   const NT = window.NostrTools;
 
@@ -10245,44 +10248,7 @@
   // The hints are what get dropped: an nevent can carry relays and an author, and a note1
   // is the bare id. That is the trade for a route proven to accept what we send, and it
   // is the same reduction Razr performs on its own ids.
-  function razrEntity(entity) {
-    try {
-      const d = NT.nip19.decode(entity);
-      if (d.type === 'nevent') return NT.nip19.noteEncode(d.data.id);
-    } catch (_) { /* not bech32 we know, so hand it over unchanged */ }
-    return entity;
-  }
 
-  const VIEW_CLIENTS = {
-    // DEFAULT_CLIENT leads the list; the rest are in the order they were added.
-    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
-    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
-    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
-    iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
-    snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },
-    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
-    zapcooking: { label: 'Zap Cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
-    noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
-    jank: { label: 'JANK', url: (ne) => 'https://jank.army/notes/' + ne, profile: (np) => 'https://jank.army/users/' + np },
-    nostrich: { label: 'Nostrich', url: (ne) => 'https://nostrich.org/e/' + ne, profile: (np) => 'https://nostrich.org/p/' + np },
-    ditto: { label: 'Ditto', url: (ne) => 'https://ditto.pub/' + ne, profile: (np) => 'https://ditto.pub/' + np },
-    // ROUTES, not a catch-all: /e/ for an event and /p/ for a profile. Its own links are
-    // /e/note1… and /e/naddr…, built with encodeNote, so /e/ is known to take a note1
-    // and a naddr, and an nevent is reduced to the note1 Razr writes for itself rather
-    // than handed over on the assumption it decodes one. See razrEntity.
-    razr: { label: 'Razr', url: (ne) => 'https://razr.social/e/' + razrEntity(ne), profile: (np) => 'https://razr.social/p/' + np },
-    // A COMMAND LINE, not routes. `open <bech32>` resolves note, nevent and naddr into
-    // the same viewer, since all three are cases in its own decoder, and a profile has its
-    // own verb, which is what Grimoire builds for itself (`profile <npub>`).
-    grimoire: {
-      label: 'Grimoire',
-      url: (ne) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('open ' + ne),
-      profile: (np) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('profile ' + np),
-    },
-    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
-    njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
-  };
-  const DEFAULT_CLIENT = 'jumble';
 
   // Which client this ACCOUNT opens things in. Per-account with a fallback to the
   // global, so an account that has never chosen keeps following the global setting
@@ -10391,11 +10357,6 @@
     return (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
   }
 
-  function resolveClient(settings, pubkey) {
-    const by = (settings && settings.defaultClientBy) || null;
-    const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
-    return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
-  }
 
   async function preferredClient(forPubkey) {
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
@@ -10636,7 +10597,7 @@
   // one. Its collaborators do not: they are this panel's, so they are handed in here.
   const {
     serializeEditor, hydrateEditorFromText, createMentionEditor,
-    renderNotePreview, uploadMedia, minePow, powCancel,
+    renderNotePreview, uploadMedia, minePow, powCancel, resolveClient,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
