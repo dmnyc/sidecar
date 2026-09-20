@@ -386,6 +386,33 @@ test('ONE COMPOSER PER ACCOUNT, BECAUSE THERE IS ONE DRAFT SLOT PER ACCOUNT', ()
   assert.match(expand.slice(0, 2000), /if \(open\) \{[\s\S]*?\} else \{\n\s*chrome\.tabs\.create\(/);
 });
 
+test('WHO THIS IS WRITTEN AS CAN CHANGE UNDER THE TAB', () => {
+  // state was read once at boot and never again. Switch accounts in the panel and this
+  // page went on showing the old name, went on writing the old account's draft slot, and
+  // then failed at Post with a bare error, because owner-sign refuses when expectedPubkey
+  // is not the account it would sign with. Failing closed is right; failing closed with
+  // no explanation, after the note was written, is not.
+  assert.match(bare, /window\.addEventListener\('focus', refreshWho\)/);
+  assert.match(bare, /else refreshWho\(\);/);
+  const fn = bare.slice(bare.indexOf('async function refreshWho()'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /if \(posting\) return;/, 'a swap mid-publish would be worse, not better');
+
+  // The draft follows the account, because the slot is keyed by it. What is on screen
+  // belongs to the account it was typed as, so it is written back THERE before the key
+  // moves rather than being carried into someone else's slot.
+  const flushAt = body.indexOf('await flushDraft();');
+  const rekeyAt = body.indexOf('dkey = state.activePubkey;');
+  assert.ok(flushAt > -1 && rekeyAt > -1, 'could not find the flush or the rekey');
+  assert.ok(flushAt < rekeyAt, "the old account's text would be written to the new one's slot");
+
+  // And everything the old account decided goes with it. A different account publishes
+  // to its own relays and follows its own people.
+  assert.match(body, /handoverRelays = null;/);
+  assert.match(body, /followCache = null;/);
+  assert.match(body, /toast\('Now writing as '/);
+});
+
 test('CLOSING THE TAB KEEPS WHAT WAS TYPED, AND BEFOREUNLOAD IS NOT HOW', () => {
   // The save is debounced 400ms, so the last sentence is the one at risk. beforeunload
   // fires as the document is being torn down and persistDraft is an async round trip

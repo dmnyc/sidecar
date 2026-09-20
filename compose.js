@@ -259,6 +259,48 @@
     return persistDraft().catch(() => {});
   }
 
+  function paintWho() {
+    const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
+    $('compose-name').textContent = acct.name || shortNpub(acct.npub) || 'Your account';
+    applyAvatar($('compose-av'), acct);
+  }
+
+  // WHO THIS IS BEING WRITTEN AS CAN CHANGE UNDER THE TAB.
+  //
+  // state is read once at boot and the panel is a different document: switch accounts
+  // there and this page went on showing the old name and avatar, went on writing the old
+  // account's draft slot, and then failed at Post with a bare error, because owner-sign
+  // refuses when expectedPubkey is not the account it would sign with. Failing closed is
+  // right. Failing closed with no explanation, after the note was written, is not.
+  //
+  // The panel disables its own account switcher while a mine runs for the same reason. It
+  // cannot disable it on this page's behalf, so this page watches instead.
+  async function refreshWho() {
+    if (posting) return; // mid-publish is the one moment a swap underneath would be worse
+    let next;
+    try { next = await call({ type: 'SIDECAR_GET_STATE' }); } catch (_) { return; }
+    if (!next || !next.activePubkey) return;
+    const moved = next.activePubkey !== state.activePubkey;
+    state = next;
+    paintWho();
+    if (!moved) return;
+    // The draft follows the account, because the slot is keyed by it. What is on screen
+    // belongs to the account that was active when it was typed, so it is written back
+    // there before the key moves rather than being carried across into someone else's.
+    await flushDraft();
+    dkey = state.activePubkey;
+    handoverRelays = null; // a different account can publish somewhere else entirely
+    followCache = null;
+    const saved = await loadDraft();
+    draft.text = (saved && saved.text) || '';
+    draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
+    editorSetText(draft.text);
+    renderThumbs();
+    paintCount();
+    const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
+    toast('Now writing as ' + (acct.name || shortNpub(acct.npub) || 'another account'), 'success');
+  }
+
   function paintCount() {
     const n = (draft.text || '').trim().length;
     $('compose-count').textContent = n ? n + (n === 1 ? ' character' : ' characters') : '';
@@ -569,9 +611,7 @@
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
     applyTheme(settings, state.activePubkey);
 
-    const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
-    $('compose-name').textContent = acct.name || shortNpub(acct.npub) || 'Your account';
-    applyAvatar($('compose-av'), acct);
+    paintWho();
 
     dkey = state.activePubkey;
     const saved = await loadDraft();
@@ -618,7 +658,11 @@
     // anything closes.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') flushDraft();
+      else refreshWho();
     });
+    // Focus as well as visibility: a second window can be raised over this one without
+    // the tab ever having been hidden.
+    window.addEventListener('focus', refreshWho);
     // Kept as a backstop for the paths visibilitychange can miss, and harmless when the
     // write does not land, since by then the other one usually has.
     window.addEventListener('beforeunload', flushDraft);
