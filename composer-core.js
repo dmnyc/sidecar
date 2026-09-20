@@ -360,7 +360,7 @@ window.SidecarCore = (function () {
       renderNotePreview, uploadMedia, minePow, powCancel,
       resolveClient, showPostCountdown, splitGlyphs, ironDiceStyle,
       resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
-      powSetting,
+      powSetting, postCountdownSetting,
       // The panel calls these directly as well as through renderNotePreview: the about
       // box resolves its own mentions, a quote preview needs embedRef, a reply's context
       // strip renders with renderNoteText, the web-comment sheet draws its own link card,
@@ -1407,6 +1407,23 @@ window.SidecarCore = (function () {
       : { on: false, bits: POW_DEFAULT_BITS }; // default OFF: this spends the user's time
   }
 
+  // THE REVIEW WINDOW, as the account set it. Shared for the reason the last two were:
+  // the expanded composer read the setting for itself and defaulted to five seconds
+  // where the panel defaults to fifteen, so the same account got three times less time
+  // to catch a mistake depending on which composer it was in. The presets are a list
+  // rather than a range because a stored value outside them is a hand-edited settings
+  // file, not a choice, and falling back to the default beats honoring it.
+  const NOTE_COUNTDOWN_PRESETS = [5, 10, 15, 25, 30];
+  const NOTE_COUNTDOWN_DEFAULT = 15;
+  async function postCountdownSetting() {
+    let s = {};
+    try { s = (await deps.call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
+    const secs = NOTE_COUNTDOWN_PRESETS.includes(s.noteCountdownSecs)
+      ? s.noteCountdownSecs
+      : NOTE_COUNTDOWN_DEFAULT;
+    return { on: s.noteCountdown !== false, secs }; // default on
+  }
+
   // ---- the tail the first pass missed ----
   //
   // Each of these is called by something that already moved here and was left behind in
@@ -1513,6 +1530,7 @@ window.SidecarCore = (function () {
     // Furniture: the same three things every composer needs, wired through installComposer
     // so they read their relays and their profile cache from whichever page installed it.
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
+    NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
     VIEW_CLIENTS, DEFAULT_CLIENT,
     IMG_EXT, VID_EXT,
   };

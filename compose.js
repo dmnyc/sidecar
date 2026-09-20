@@ -360,12 +360,10 @@
     if (state && state.locked) return;
     const text = (draft.text || '').trim();
     if (!text && !draft.media.length) return;
-    let on = true, secs = 5;
-    try {
-      const s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {};
-      on = s.noteCountdown !== false;
-      if (Number.isInteger(s.noteCountdownSecs)) secs = s.noteCountdownSecs;
-    } catch (_) { /* a settings read that failed must not stop a post */ }
+    // Through the core, not read again here. This page had its own copy with its own
+    // default of five seconds, where the panel defaults to fifteen: the same account got
+    // three times less time to catch a mistake depending on which composer it was in.
+    const { on, secs } = await composer.postCountdownSetting();
     if (!on) return doPost();
 
     const pane = $('compose-countdown');

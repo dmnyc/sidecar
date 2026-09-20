@@ -19,7 +19,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// postCountdownSetting and its presets moved to composer-core.js: the expanded composer
+// read the setting for itself and defaulted to five seconds where the panel defaults to
+// fifteen. Both files are the panel's source as far as these lifts are concerned.
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 
 function lift(pattern, label) {
   const m = source.match(pattern);
@@ -28,14 +32,15 @@ function lift(pattern, label) {
 }
 
 function harness(settings, { throws } = {}) {
-  const ctx = {
-    console,
-    call: async (msg) => {
-      if (msg.type !== 'SIDECAR_GET_SETTINGS') throw new Error('unexpected ' + msg.type);
-      if (throws) throw new Error('locked');
-      return settings;
-    },
+  // `deps.call` now, not a bare one: the reader moved into composer-core.js, where the
+  // page it is drawing into hands its own background channel in. Stubbed both ways so
+  // this file keeps testing the function rather than the shape of its imports.
+  const call = async (msg) => {
+    if (msg.type !== 'SIDECAR_GET_SETTINGS') throw new Error('unexpected ' + msg.type);
+    if (throws) throw new Error('locked');
+    return settings;
   };
+  const ctx = { console, call, deps: { call } };
   vm.createContext(ctx);
   vm.runInContext(
     lift(/const NOTE_COUNTDOWN_PRESETS = \[[^\]]*\];/, 'NOTE_COUNTDOWN_PRESETS') + '\n' +

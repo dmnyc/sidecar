@@ -2882,6 +2882,21 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    control because on this screen it is the only thing anyone came for. */
 .compose-done-open { text-decoration: none; padding: 10px 22px; }
 
+/* THE REVIEW WINDOW IS NOT THE EDITOR, so it does not want the editor's height. The pane
+   inherits .countdown-preview's 42vh cap, which on this page sits under a note written at
+   17px with its images at full width: a countdown tall enough to push its own ring and
+   its own buttons off the screen, at the one moment everything in it matters.
+
+   A third of the window, scrolling inside itself, and the images come down to something
+   you can take in at a glance rather than read twice. */
+.compose-countdown .countdown-preview { max-height: 32vh; }
+.compose-countdown .preview-body { font-size: 15px; line-height: 1.5; }
+.compose-countdown .note-media { max-height: 160px; object-fit: contain; }
+.compose-countdown .note-embed { padding: 8px 10px; }
+/* And the ring is what the eye should land on, so it keeps its size while the rest gives
+   way. The actions below it must never be the thing that scrolls out of reach. */
+.compose-countdown .countdown-wrap { flex-shrink: 0; }
+
 .compose-empty { padding: 48px 24px; text-align: center; }
 
 /* The offer to take a tracking tail off a pasted link. It lives in the editor's own

@@ -257,7 +257,9 @@ test('the review preview cannot be squashed to nothing', () => {
   // reply target made it taller — a countdown showing almost nothing right before it
   // publishes. It scrolls internally instead, which is what the cap was always for.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  const rule = css.match(/\.countdown-preview \{[^}]*\}/)[0];
+  // Anchored at the line start: the expanded composer scopes its own override with
+  // `.compose-countdown .countdown-preview {`, which contains this selector.
+  const rule = css.match(/^\.countdown-preview \{[^}]*\}/m)[0];
   assert.match(rule, /flex-shrink: 0/);
   assert.match(rule, /overflow-y: auto/, 'so the cap still bounds it');
 });
@@ -284,7 +286,9 @@ test('the review preview cannot be squashed to nothing', () => {
   // COLLAPSING — measured at 26px tall holding 137px of content once the reply target
   // made it taller, which is a countdown showing almost nothing right before it posts.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  const rule = css.match(/\.countdown-preview \{[^}]*\}/)[0];
+  // Anchored at the line start: the expanded composer scopes its own override with
+  // `.compose-countdown .countdown-preview {`, which contains this selector.
+  const rule = css.match(/^\.countdown-preview \{[^}]*\}/m)[0];
   assert.match(rule, /flex-shrink: 0/);
   assert.match(rule, /overflow-y: auto/, 'so the cap still bounds it');
 });

@@ -16,6 +16,9 @@
   // registered, and the expanded composer page would have been one more.
   const { LIGHT_THEMES, logoSrcFor, avatarPhSrc } = window.SidecarCore;
   const { POW_LEVELS, POW_DEFAULT_BITS, powLevelFor } = window.SidecarCore;
+  // Settings draws the picker from these, so the list the user chooses from and the
+  // list a stored value is validated against are the same list.
+  const { NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT } = window.SidecarCore;
   // Where a note can be read. Shared because the panel's post banner and the expanded
   // composer's confirmation are the same question asked twice.
   const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
@@ -10145,8 +10148,6 @@
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   // The review countdown is user-configurable (Settings): a toggle plus a
   // duration preset. Off → post immediately with no countdown.
-  const NOTE_COUNTDOWN_PRESETS = [5, 10, 15, 25, 30];
-  const NOTE_COUNTDOWN_DEFAULT = 15;
 
   // NIP-13 difficulty, as four rungs rather than the slider other clients offer. Each
   // step is two bits, which is four times the work, so the ladder is even and the whole
@@ -10531,7 +10532,7 @@
     renderNotePreview, uploadMedia, minePow, powCancel, resolveClient,
     showPostCountdown, splitGlyphs, ironDiceStyle,
     resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
-    powSetting,
+    powSetting, postCountdownSetting,
     renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
     paintCountdownNum,
   } = window.SidecarCore.installComposer({
@@ -10775,14 +10776,6 @@
   // zeros. Nothing else about the event moves, which is what lets finalizeEvent recompute
   // the identical id at signing time. onProgress gets { attempts, best } as it runs.
 
-  async function postCountdownSetting() {
-    let s = {};
-    try { s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
-    const secs = NOTE_COUNTDOWN_PRESETS.includes(s.noteCountdownSecs)
-      ? s.noteCountdownSecs
-      : NOTE_COUNTDOWN_DEFAULT;
-    return { on: s.noteCountdown !== false, secs }; // default on
-  }
 
   // opts.replyTo — the event this note answers. Changes the kind and tags (replyTags),
   // and puts the target above the editor so what you are answering is on screen while

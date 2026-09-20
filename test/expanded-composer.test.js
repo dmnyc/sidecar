@@ -302,11 +302,25 @@ test('THE REVIEW COUNTDOWN IS HONORED HERE TOO', () => {
   // noteCountdown defaults on and the panel has honored it since it existed. This page
   // published the instant Post was pressed, which is a setting somebody turned on and one
   // of two composers quietly ignoring it.
-  assert.match(bare, /on = s\.noteCountdown !== false;/);
+  // THROUGH THE CORE, not read again here. This page had its own copy of the reader with
+  // its own default of five seconds, where the panel defaults to fifteen: the same account
+  // got three times less time to catch a mistake depending on which composer it was in.
+  assert.match(bare, /const \{ on, secs \} = await composer\.postCountdownSetting\(\);/);
   assert.match(bare, /if \(!on\) return doPost\(\);/);
   assert.match(bare, /composer\.showPostCountdown\(\{/);
-  // A settings read that failed must not be able to stop a post.
-  assert.match(bare, /catch \(_\) \{ \/\* a settings read that failed must not stop a post \*\/ \}/);
+  assert.ok(core.includes('async function postCountdownSetting()'), 'the core should own it');
+  assert.ok(!panel.includes('async function postCountdownSetting()'), 'sidepanel.js kept a copy');
+  assert.ok(!/noteCountdown/.test(bare), 'compose.js reads the setting for itself');
+  assert.match(core, /const NOTE_COUNTDOWN_DEFAULT = 15;/);
+
+  // THE REVIEW WINDOW IS NOT THE EDITOR, so it does not want the editor's height. The
+  // pane inherits a 42vh cap sized for the panel, which on this page sits under a note
+  // written at 17px with its images at full width: tall enough to push its own ring and
+  // its own buttons off the screen, at the one moment everything in it matters.
+  assert.match(css, /\.compose-countdown \.countdown-preview \{ max-height: 32vh; \}/);
+  assert.match(css, /\.compose-countdown \.note-media \{ max-height: 160px/);
+  assert.match(css, /\.compose-countdown \.countdown-wrap \{ flex-shrink: 0; \}/,
+    'the ring and the buttons below it must never be what scrolls out of reach');
 
   // Its own container, not the card. Taking over the sheet the way the panel takes over
   // its modal would mean rebuilding the editor on cancel around a lost caret.
