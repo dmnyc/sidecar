@@ -342,7 +342,23 @@ test('THE REVIEW COUNTDOWN IS HONORED HERE TOO', () => {
   // Its own container, not the card. Taking over the sheet the way the panel takes over
   // its modal would mean rebuilding the editor on cancel around a lost caret.
   assert.match(pageHtml, /id="compose-countdown"/);
-  assert.match(bare, /modal: pane, author, secs,/);
+  assert.match(bare, /modal: pane, secs,/);
+  // NO AUTHOR STRIP HERE. The panel passes one because its countdown replaces the whole
+  // modal, header and all, so nothing else on screen says who is posting. This card keeps
+  // its own header up, and a second face and name six lines under the first is the same
+  // sentence twice.
+  assert.ok(!/author,/.test(bare), 'the card header already says who');
+  assert.match(panelBare, /author: composeAuthorStrip\(\)/);
+
+  // AND THE SAME ROW AS THE FOOTER IT REPLACES. .actions is only styled under .modal,
+  // where it is a column with the primary on top; with no modal above it the buttons fell
+  // out inline and left-aligned, at the opposite end of the card from where this page
+  // puts Cancel and Post every other second of its life.
+  assert.match(css, /\.compose-countdown \.actions \{[\s\S]{0,120}flex-direction: row-reverse/);
+  assert.match(css, /\.compose-countdown \.actions \.primary \{[^}]*min-width: 184px/);
+  // The whole footer goes, not its two buttons: hiding those alone left the character
+  // count dangling under the countdown's own row, attached to nothing.
+  assert.match(bare, /document\.querySelector\('\.compose-foot'\)\.classList\.toggle\('hidden', on\)/);
   const fn = bare.slice(bare.indexOf('const restore = () =>'));
   assert.match(fn.slice(0, 300), /countdown\.stop\(\); countdown = null;/);
   assert.match(fn.slice(0, 300), /pane\.classList\.add\('hidden'\)/);

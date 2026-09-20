@@ -382,17 +382,6 @@
     composer.renderNotePreview(body, text);
     preview.append(body);
 
-    const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
-    const av = h('span', { className: 'avatar compose-author-av' });
-    applyAvatar(av, acct);
-    const author = h('div', { className: 'compose-author' }, [
-      av,
-      h('div', { className: 'compose-author-info' }, [
-        h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
-        h('span', { className: 'compose-author-name', textContent: acct.name || shortNpub(acct.npub) || '\u2014' }),
-      ]),
-    ]);
-
     const restore = () => {
       if (countdown) { countdown.stop(); countdown = null; }
       pane.innerHTML = '';
@@ -402,7 +391,11 @@
     setReviewing(true);
     pane.classList.remove('hidden');
     countdown = composer.showPostCountdown({
-      modal: pane, author, secs,
+      // NO AUTHOR STRIP. The panel passes one because its countdown replaces the whole
+      // modal, editor and header and all, so nothing else on screen says who is posting.
+      // Here the card's own header stays up: a second face and a second name six lines
+      // below the first is the same sentence twice.
+      modal: pane, secs,
       title: 'Posting your note',
       preview,
       confirmLabel: 'Post now',
@@ -417,8 +410,9 @@
     $('compose-slot').classList.toggle('hidden', on);
     $('compose-tabs').classList.toggle('hidden', on);
     $('compose-actions').classList.toggle('hidden', on);
-    $('compose-post').classList.toggle('hidden', on);
-    $('compose-close').classList.toggle('hidden', on);
+    // The whole footer, not its two buttons. Hiding those alone left the character count
+    // dangling under the countdown's own row, attached to nothing.
+    document.querySelector('.compose-foot').classList.toggle('hidden', on);
   }
 
   async function doPost() {

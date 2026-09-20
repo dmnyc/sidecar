@@ -2896,6 +2896,20 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* And the ring is what the eye should land on, so it keeps its size while the rest gives
    way. The actions below it must never be the thing that scrolls out of reach. */
 .compose-countdown .countdown-wrap { flex-shrink: 0; }
+/* THE SAME ROW AS THE FOOTER IT REPLACES. .actions is only styled under .modal, where it
+   is a column with the primary on top; with no modal above it here the buttons fell out
+   inline and left-aligned, which is the opposite end of the card from where this page
+   puts Cancel and Post every other second of its life.
+
+   row-reverse rather than reordering the shared builder: the countdown appends the
+   primary first because the panel's column wants it on top, and that is right there. */
+.compose-countdown .actions {
+  display: flex; flex-direction: row-reverse; justify-content: flex-start;
+  align-items: center; gap: 14px; margin-top: 4px;
+}
+.compose-countdown .actions .primary { font-size: 15px; padding: 12px 30px; border-radius: 12px; min-width: 184px; }
+.compose-countdown .actions .ghost { background: none; border: none; padding: 6px 2px; color: var(--muted); font-size: 14px; }
+.compose-countdown .actions .ghost:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
 
 .compose-empty { padding: 48px 24px; text-align: center; }
 
