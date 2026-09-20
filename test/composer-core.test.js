@@ -113,6 +113,20 @@ test('what the core hands back is what the panel takes', () => {
   }
 });
 
+test('THE ACTIVITY PING IS THROTTLED WHERE IT IS CALLED, NOT WHERE IT IS SUPPLIED', () => {
+  // It fires on every input event. The panel wrapped its own in a 20s guard; the expanded
+  // composer page passed the bare message, so a keystroke each woke the service worker for
+  // as long as somebody was writing. Only one of the two was ever going to be remembered,
+  // so the guard moved to the one place both go through.
+  assert.match(bareCore, /if \(now - lastActivityPing < 20000\) return;/);
+  const editor = bareCore.slice(bareCore.indexOf('function createMentionEditor(opts)'));
+  const scope = editor.slice(0, editor.indexOf('\n  }\n'));
+  assert.match(scope, /pingActivity\(\);/);
+  assert.ok(!/deps\.noteActivity\(\)/.test(scope), 'the editor must go through the throttle');
+  // And a page whose noteActivity throws does not take a keystroke down with it.
+  assert.match(bareCore, /try \{ deps\.noteActivity\(\); \} catch \(_\) \{\}/);
+});
+
 test('the expanded composer page loads the core before it uses it', () => {
   const coreAt = pageHtml.indexOf('composer-core.js');
   const pageAt = pageHtml.indexOf('compose.js');

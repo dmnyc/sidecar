@@ -340,6 +340,18 @@ window.SidecarCore = (function () {
   // One mutable binding rather than an argument threaded through thirty functions. A
   // document only ever runs one page, so there is only ever one installer, and keeping
   // the moved code otherwise byte-identical was worth more than the purity.
+  // THE THROTTLE LIVES HERE, not at each call site. This fires on every input event, and
+  // the panel wrapped its own in a 20s guard while the expanded composer page passed the
+  // bare message: a keystroke each, waking the service worker the whole time somebody is
+  // writing. Only one of the two was going to be remembered, so neither is asked to.
+  let lastActivityPing = 0;
+  function pingActivity() {
+    const now = Date.now();
+    if (now - lastActivityPing < 20000) return;
+    lastActivityPing = now;
+    try { deps.noteActivity(); } catch (_) {}
+  }
+
   let deps = null;
   function installComposer(d) {
     deps = d;
@@ -634,7 +646,7 @@ window.SidecarCore = (function () {
     editor.addEventListener('input', () => {
       emit();
       updateAcDropdown();
-      deps.noteActivity(); // composing counts as activity — keep auto-lock at bay
+      pingActivity(); // composing counts as activity, which keeps auto-lock at bay
     });
 
     editor.addEventListener('keydown', (e) => {
