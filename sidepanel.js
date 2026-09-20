@@ -15,6 +15,7 @@
   // comment beside LIGHT_THEMES already counts the places a new theme must be
   // registered, and the expanded composer page would have been one more.
   const { LIGHT_THEMES, logoSrcFor, avatarPhSrc } = window.SidecarCore;
+  const { POW_LEVELS, POW_DEFAULT_BITS, powLevelFor } = window.SidecarCore;
 
   const NT = window.NostrTools;
 
@@ -10009,33 +10010,6 @@
     return el;
   }
 
-  async function resolveMentions(mentions) {
-    // Only fetch pubkeys not already in the shared profile cache; batch the rest
-    // in one query (efficient for many authors) and populate the shared cache so
-    // these results are reused by profile previews and future mentions.
-    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !cachedProfile(pk));
-    if (need.length) {
-      try {
-        const events = await Promise.race([
-          poolQuerySync(await relayUrls(false), { kinds: [0], authors: need }),
-          new Promise((res) => setTimeout(() => res([]), 6000)),
-        ]);
-        const latest = {};
-        (events || []).forEach((ev) => {
-          if (!latest[ev.pubkey] || ev.created_at > latest[ev.pubkey].created_at) latest[ev.pubkey] = ev;
-        });
-        need.forEach((pk) => {
-          let content = {};
-          if (latest[pk]) { try { content = JSON.parse(latest[pk].content) || {}; } catch (_) {} }
-          cacheProfile(pk, content);
-        });
-      } catch (_) {}
-    }
-    mentions.forEach(({ el, pubkey }) => {
-      const rec = _profileCache.get(pubkey);
-      if (rec && rec.name) el.textContent = '@' + rec.name;
-    });
-  }
 
   // Render note text into `container`: inline images/videos, links, and
   // resolved nostr:npub/nprofile mentions — like renderNotePreview, but compact
@@ -10043,96 +10017,6 @@
   // embeds). Once the visible-text budget (`maxLen`) is hit, the preview stops
   // cleanly at the "…" — nothing after the cut renders, so a mention or image
   // further down the note can't leak past the ellipsis.
-  function renderNoteText(container, text, maxLen) {
-    const mentions = [];
-    const quotes = [];
-    let last = 0;
-    let used = 0;
-    let truncated = false;
-    // Set after a block-level item: the next text run's leading whitespace
-    // would render under pre-wrap as a blank line stacked on the item's margin.
-    let skipLead = false;
-    let m;
-    PREVIEW_RE.lastIndex = 0;
-    const pushText = (s) => {
-      if (!s || truncated) return;
-      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
-      if (used + s.length > maxLen) {
-        container.append(document.createTextNode(s.slice(0, Math.max(0, maxLen - used)) + '…'));
-        truncated = true;
-      } else {
-        container.append(document.createTextNode(s));
-        used += s.length;
-      }
-    };
-    // Media and the quote box are block-level and carry their own margins, so
-    // the newlines an author puts around the ref are padding on top of that —
-    // pre-wrap renders each one as a full empty line between the prose and the
-    // block. Trim the whitespace off the text node before the block and out of
-    // the run after it; the block's margin is the separation. Mentions and
-    // plain links stay inline, which is why only this path trims.
-    const pushBlock = (el) => {
-      const tail = container.lastChild;
-      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
-      container.append(el);
-      skipLead = true;
-    };
-    while ((m = PREVIEW_RE.exec(text)) !== null) {
-      if (m.index > last) pushText(text.slice(last, m.index));
-      // Text before this token filled the budget → stop; don't render the token
-      // (mention/link/media) that sits past the truncation point.
-      if (truncated) break;
-      if (m[1]) {
-        const url = m[1];
-        if (IMG_EXT.test(url)) {
-          const im = document.createElement('img');
-          im.className = 'note-media';
-          im.referrerPolicy = 'no-referrer';
-          im.src = url;
-          pushBlock(im);
-        } else if (VID_EXT.test(url)) {
-          const v = document.createElement('video');
-          v.className = 'note-media';
-          v.controls = true;
-          // Same host-privacy reason the img branch gives: no referrer to media hosts.
-          v.referrerPolicy = 'no-referrer';
-          v.src = url;
-          pushBlock(v);
-        } else {
-          const a = document.createElement('a');
-          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = url;
-          container.append(a);
-        }
-      } else if (m[2]) {
-        const bech = m[2];
-        let d = null;
-        try { d = NT.nip19.decode(bech); } catch (_) {}
-        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
-          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
-          const span = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
-          if (pubkey) mentions.push({ el: span, pubkey });
-          container.append(span);
-        } else {
-          // Nested note/nevent/naddr ref — one level down only: a truncated
-          // link-out preview (see resolveQuotePreviews), never a second full
-          // embed card. Quoting a note that quotes a note is common, and the
-          // old plain "quoted note" link showed nothing of what's inside.
-          const a = document.createElement('a');
-          a.className = 'quote-inline loading';
-          a.href = 'https://njump.me/' + bech;
-          a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = 'quoted note…';
-          quotes.push({ el: a, bech });
-          pushBlock(a);
-        }
-      }
-      last = PREVIEW_RE.lastIndex;
-    }
-    if (last < text.length) pushText(text.slice(last));
-    resolveMentions(mentions);
-    resolveQuotePreviews(quotes);
-  }
 
   // Fill the one-level-down quote previews renderNoteText collects: fetch the
   // quoted event and show @author + a snippet. Deliberately NOT renderEmbedCard
@@ -10290,75 +10174,11 @@
     return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
-  async function fetchBlossomServers(pubkey) {
-    const cached = _blossomServerCache.get(pubkey);
-    if (cached && cached.expiresAt > Date.now()) return cached.servers;
-    let servers = [];
-    try {
-      const relays = await relayUrls(false);
-      const ev = await poolGet(relays, { kinds: [BLOSSOM_SERVER_LIST_KIND], authors: [pubkey] });
-      if (ev) {
-        servers = ev.tags
-          .filter((t) => t[0] === 'server' && t[1] && t[1].startsWith('https://'))
-          .map((t) => t[1].replace(/\/$/, ''));
-      }
-    } catch (_) {}
-    _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
-    return servers;
-  }
 
-  async function uploadToBlossom(file, servers, forPubkey) {
-    const buffer = await file.arrayBuffer();
-    const hash = await sha256Hex(buffer);
-    const now = Math.floor(Date.now() / 1000);
-    const authEvent = {
-      kind: BLOSSOM_AUTH_KIND,
-      created_at: now,
-      tags: [['t', 'upload'], ['x', hash], ['expiration', String(now + 300)]],
-      content: 'Upload file',
-    };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent, expectedPubkey: forPubkey });
-    const authorization = 'Nostr ' + btoa(JSON.stringify(signed));
-    let lastError;
-    for (const server of servers) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), BLOSSOM_UPLOAD_TIMEOUT);
-      try {
-        const resp = await fetch(server + '/upload', {
-          method: 'PUT',
-          body: file,
-          headers: { Authorization: authorization, 'Content-Type': file.type || 'application/octet-stream' },
-          signal: controller.signal,
-        });
-        clearTimeout(timer);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json().catch(() => null);
-        if (data && data.url) return data.url;
-        throw new Error('No URL in Blossom response');
-      } catch (e) {
-        clearTimeout(timer);
-        console.warn('[Blossom] upload to ' + server + ' failed:', e);
-        lastError = e;
-      }
-    }
-    throw lastError || new Error('All Blossom servers failed');
-  }
 
   // Returns a hosted URL via Blossom, or null when Blossom isn't usable (no
   // active account, no server list, or every server failed) — caller then falls
   // back to nostr.build.
-  async function tryBlossomFirst(file, forPubkey) {
-    const pk = forPubkey || state.activePubkey;
-    if (!pk) return null;
-    try {
-      const servers = await fetchBlossomServers(pk);
-      if (!servers.length) return null;
-      return await uploadToBlossom(file, servers, pk);
-    } catch (e) {
-      console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
-      return null;
-    }
-  }
 
   // ---- image upload (Blossom → nostr.build via NIP-98) ----
   async function uploadImage(file, kind, forPubkey) {
@@ -10387,32 +10207,6 @@
   }
 
   // ---- note media upload (Blossom → nostr.build via NIP-98, images + video) ----
-  async function uploadMedia(file, forPubkey) {
-    const isImg = file.type.startsWith('image/');
-    const isVid = file.type.startsWith('video/');
-    if (!isImg && !isVid) throw new Error('Choose an image or video');
-    if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100MB)');
-    const forPk = forPubkey || state.activePubkey;
-    const blossomUrl = await tryBlossomFirst(file, forPk);
-    if (blossomUrl) return blossomUrl;
-    const url = 'https://nostr.build/api/v2/upload/files';
-    const authEvent = {
-      kind: 27235,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [['u', url], ['method', 'POST']],
-      content: '',
-    };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent, expectedPubkey: forPk });
-    const token = 'Nostr ' + btoa(JSON.stringify(signed));
-    const form = new FormData();
-    form.append('file', file);
-    const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
-    if (!resp.ok) throw new Error('Upload failed (' + resp.status + ')');
-    const json = await resp.json().catch(() => null);
-    const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
-    if (!u) throw new Error('Upload returned no URL');
-    return u;
-  }
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   // The review countdown is user-configurable (Settings): a toggle plus a
@@ -10434,14 +10228,6 @@
   // THE COSTS ARE MEASURED, not guessed: about 240k hashes a second through the bundled
   // getEventHash on a fast machine. Mining is geometric, so the spread matters more than
   // the average, and the copy says the long tail out loud rather than quoting the middle.
-  const POW_LEVELS = [
-    { bits: 16, cost: 'Usually instant.' },
-    { bits: 18, cost: 'About a second.' },
-    { bits: 20, cost: 'A few seconds, sometimes fifteen.' },
-    { bits: 22, cost: 'Ten seconds or so, sometimes a minute.' },
-  ];
-  const POW_DEFAULT_BITS = 18;
-  const powLevelFor = (bits) => POW_LEVELS.find((l) => l.bits === bits) || POW_LEVELS[1];
   // NIP-89 client tag. Positions 3–4 are meant to be a kind:31990 handler
   // coordinate + relay hint; we don't publish a handler, so a bare name is the
   // correct minimal form and avoids adding dead bytes to every note.
@@ -10451,8 +10237,6 @@
   const SIDECAR_SITE_URL = 'https://sidecar.top';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
   const CREATOR_LN = 'daniel@sidecar.top';
-  const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
-  const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
   // An nevent reduced to the note1 Razr's own links carry. Anything else, a naddr or a
@@ -10838,184 +10622,22 @@
   // user's own relays.
   // npub1/note1 are always exactly 63 chars (5+58); use {58} to prevent the regex
   // from greedily consuming adjacent lowercase words as bech32 characters.
-  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})/gi;
-  function renderNotePreview(container, text) {
-    const mentions = [];
-    const embeds = [];
-    let last = 0;
-    let skipLead = false; // see pushBlock in renderNoteText
-    let m;
-    PREVIEW_RE.lastIndex = 0;
-    const flushText = (s) => {
-      if (!s) return;
-      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
-      container.append(document.createTextNode(s));
-    };
-    // Same pre-wrap blank-line problem as renderNoteText, for this pane's own
-    // block items: embed cards, link cards, media.
-    const pushBlock = (el) => {
-      const tail = container.lastChild;
-      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
-      container.append(el);
-      skipLead = true;
-    };
-    while ((m = PREVIEW_RE.exec(text)) !== null) {
-      if (m.index > last) flushText(text.slice(last, m.index));
-      if (m[1]) {
-        const url = m[1];
-        if (IMG_EXT.test(url)) {
-          const im = document.createElement('img');
-          im.className = 'note-media';
-          im.referrerPolicy = 'no-referrer';
-          im.src = url;
-          pushBlock(im);
-        } else if (VID_EXT.test(url)) {
-          const v = document.createElement('video');
-          v.className = 'note-media';
-          v.controls = true;
-          // Same host-privacy reason the img branch gives: no referrer to media hosts.
-          v.referrerPolicy = 'no-referrer';
-          v.src = url;
-          pushBlock(v);
-        } else {
-          const a = document.createElement('a');
-          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = url;
-          container.append(a);
-          if (url.startsWith('https://')) {
-            const card = document.createElement('a');
-            card.className = 'link-card loading';
-            card.textContent = 'Loading preview…';
-            pushBlock(card);
-            fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
-          }
-        }
-      } else if (m[2]) {
-        const bech = m[2];
-        let d = null;
-        try { d = NT.nip19.decode(bech); } catch (_) {}
-        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
-          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
-          const a = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
-          if (pubkey) mentions.push({ el: a, pubkey });
-          container.append(a);
-        } else if (d && (d.type === 'note' || d.type === 'nevent' || d.type === 'naddr')) {
-          const card = h('div', { className: 'note-embed loading', textContent: 'Loading nostr event…' });
-          embeds.push({ el: card, ref: embedRef(d) });
-          pushBlock(card);
-        } else {
-          flushText(bech);
-        }
-      }
-      last = PREVIEW_RE.lastIndex;
-    }
-    flushText(text.slice(last));
-    resolveMentions(mentions);
-    resolveEmbeds(embeds);
-  }
 
   // Decode a nostr entity into a relay filter (+ any relay hints) for fetching.
-  function embedRef(d) {
-    if (d.type === 'note') return { filter: { ids: [d.data] } };
-    if (d.type === 'nevent') return { filter: { ids: [d.data.id] }, relays: d.data.relays || [] };
-    return {
-      filter: { kinds: [d.data.kind], authors: [d.data.pubkey], '#d': [d.data.identifier] },
-      relays: d.data.relays || [],
-    };
-  }
 
-  async function resolveEmbeds(embeds) {
-    for (const { el, ref } of embeds) {
-      let ev = null;
-      try {
-        const relays = [...new Set([...(await relayUrls(false)), ...(ref.relays || [])])];
-        ev = await Promise.race([
-          poolGet(relays, ref.filter),
-          new Promise((r) => setTimeout(() => r(null), 6000)),
-        ]);
-      } catch (_) {}
-      if (!ev) {
-        el.classList.remove('loading');
-        el.classList.add('embed-missing');
-        el.textContent = 'nostr event (not found)';
-        continue;
-      }
-      renderEmbedCard(el, ev);
-    }
-  }
 
-  function renderEmbedCard(el, ev) {
-    el.classList.remove('loading');
-    el.textContent = '';
-    const av = h('span', { className: 'embed-av' });
-    applyAvatar(av, {});
-    const name = h('span', { className: 'embed-name', textContent: shortNpub(NT.nip19.npubEncode(ev.pubkey)) });
-    const head = h('div', { className: 'embed-head' }, [
-      av,
-      h('div', { className: 'embed-who' }, [
-        name,
-        h('span', { className: 'embed-time', textContent: relTime((ev.created_at || 0) * 1000) }),
-      ]),
-    ]);
-    const titleTag = (ev.tags || []).find((t) => t[0] === 'title');
-    const text = (titleTag && titleTag[1]) || ev.content || '';
-    const body = h('div', { className: 'embed-body' });
-    renderNoteText(body, text, 280);
-    el.append(head, body);
-    fetchPreviewProfile(ev.pubkey).then((p) => {
-      if (!p) return;
-      if (p.picture) applyAvatar(av, { picture: p.picture });
-      if (p.name) name.textContent = '@' + p.name;
-    });
-  }
 
   // ---- OG / link preview cards ----
-  const ogCache = new Map(); // url → { title, description, image, site } | null
 
-  async function fetchOgMeta(url) {
-    if (ogCache.has(url)) return ogCache.get(url);
-    ogCache.set(url, null); // mark in-flight so parallel calls don't double-fetch
-    try {
-      const meta = await call({ type: 'SIDECAR_FETCH_OG', url });
-      ogCache.set(url, meta);
-      return meta;
-    } catch (_) { return null; }
-  }
 
-  function decodeHtml(s) {
-    if (!s) return s;
-    const t = document.createElement('textarea');
-    t.innerHTML = s;
-    return t.value;
-  }
 
-  function renderLinkCard(container, url, meta) {
-    container.classList.remove('loading');
-    if (!meta) { container.remove(); return; }
-    container.innerHTML = '';
-    const body = h('div', { className: 'link-card-body' });
-    if (meta.site) body.append(h('div', { className: 'link-card-site', textContent: decodeHtml(meta.site) }));
-    if (meta.title) body.append(h('div', { className: 'link-card-title', textContent: decodeHtml(meta.title) }));
-    if (meta.description) body.append(h('div', { className: 'link-card-desc', textContent: decodeHtml(meta.description) }));
-    const isHttps = (s) => typeof s === 'string' && s.startsWith('https://');
-    if (isHttps(meta.image)) {
-      const img = document.createElement('img');
-      img.className = 'link-card-img';
-      img.referrerPolicy = 'no-referrer';
-      img.src = meta.image;
-      img.onerror = () => img.remove();
-      container.append(img);
-    }
-    container.append(body);
-    container.href = url;
-    container.target = '_blank';
-    container.rel = 'noreferrer noopener';
-  }
 
   // The editor itself lives in composer-core.js so the expanded composer page can build
   // one. Its collaborators do not: they are this panel's, so they are handed in here.
-  const { serializeEditor, hydrateEditorFromText, createMentionEditor } =
-    window.SidecarCore.installComposer({
+  const {
+    serializeEditor, hydrateEditorFromText, createMentionEditor,
+    renderNotePreview, uploadMedia, minePow, powCancel,
+  } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
       // The synchronous half of getFollowList: the already-loaded list for the account
@@ -11023,6 +10645,10 @@
       // both halves change under the editor while it is open.
       cachedFollowList: () =>
         (followListCache && followListPubkey === state.activePubkey) ? followListCache : null,
+      // The relay reads the preview and the uploader make. Handed in rather than shared,
+      // so the core never touches this panel's pool and a second page can bring its own.
+      call, poolGet, poolQuerySync, relayUrls, cacheProfile,
+      activePubkey: () => state.activePubkey,
     });
 
   // ---- composer draft autosave (per account, encrypted at rest) ----
@@ -11205,16 +10831,7 @@
   // nostr-tools than hashing. Cancel TERMINATES it rather than asking it to stop: the
   // mining loop never yields, so a stop message would sit unread in the queue until the
   // work it was meant to interrupt had finished. The next mine builds a fresh one.
-  let powWorker = null;
-  let powSeq = 0;
-  const powPending = new Map();
 
-  function powWorkerSettleAll(err) {
-    for (const [id, p] of powPending) {
-      powPending.delete(id);
-      p.reject(err);
-    }
-  }
 
   // A MINE THAT HAS LEFT THE COMPOSER. Null unless one is minimized.
   //
@@ -11308,54 +10925,10 @@
     }
   }
 
-  function powCancel() {
-    // Nothing in flight: leave the warm worker alone. Called unconditionally when the
-    // composer closes, and terminating an idle one there would make the next Low mine pay
-    // to load nostr-tools again for no reason.
-    if (!powPending.size) return;
-    if (powWorker) {
-      powWorker.terminate();
-      powWorker = null;
-    }
-    // Flagged rather than matched on its message: stopping a mine is a decision, and the
-    // composer has to be able to tell it apart from a mine that broke, which reads the
-    // same way through a rejected promise.
-    const stopped = new Error('Mining canceled');
-    stopped.canceled = true;
-    powWorkerSettleAll(stopped);
-  }
 
   // Resolves with the mined event: same fields, plus a nonce tag whose id carries the
   // zeros. Nothing else about the event moves, which is what lets finalizeEvent recompute
   // the identical id at signing time. onProgress gets { attempts, best } as it runs.
-  function minePow(event, bits, onProgress) {
-    if (typeof Worker !== 'function') {
-      return Promise.reject(new Error('This browser cannot mine in the background'));
-    }
-    if (!powWorker) {
-      powWorker = new Worker(chrome.runtime.getURL('pow-worker.js'));
-      powWorker.onmessage = (e) => {
-        const { id, ok, event: mined, error, progress, attempts, best, difficulty } = e.data || {};
-        const p = powPending.get(id);
-        if (!p) return;
-        if (progress) { if (p.onProgress) p.onProgress({ attempts, best }); return; }
-        powPending.delete(id);
-        if (ok) p.resolve({ event: mined, attempts, difficulty });
-        else p.reject(new Error(error || 'Mining failed'));
-      };
-      powWorker.onerror = () => {
-        // A packaging miss or a load failure. Settle everything waiting rather than
-        // leaving a promise that never resolves and a composer stuck on "Mining".
-        powWorker = null;
-        powWorkerSettleAll(new Error('Mining failed to start'));
-      };
-    }
-    return new Promise((resolve, reject) => {
-      const id = ++powSeq;
-      powPending.set(id, { resolve, reject, onProgress });
-      powWorker.postMessage({ id, event, bits });
-    });
-  }
 
   async function postCountdownSetting() {
     let s = {};

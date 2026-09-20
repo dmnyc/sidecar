@@ -34,6 +34,10 @@
 
   <div class="compose-body">
     <main class="compose-sheet">
+      <!-- The card's own corner, the same slot every sheet in the panel puts its close box
+           in. The page bar above belongs to Sidecar; this one belongs to the note. -->
+      <button type="button" class="modal-x compose-x" id="compose-x" title="Close"></button>
+
       <header class="compose-head">
         <div class="compose-who">
           <span class="avatar compose-av" id="compose-av"></span>
@@ -42,17 +46,27 @@
             <span class="compose-sub" id="compose-sub">Writing as this account</span>
           </span>
         </div>
-        <span class="compose-head-actions">
-          <span class="compose-count" id="compose-count"></span>
-        </span>
       </header>
 
+      <div class="compose-tabs" id="compose-tabs">
+        <button type="button" class="compose-tab active" id="tab-write">Write</button>
+        <button type="button" class="compose-tab" id="tab-preview">Preview</button>
+      </div>
+
       <div id="compose-slot"></div>
+      <div class="compose-preview hidden" id="compose-preview"></div>
+      <div class="compose-thumbs" id="compose-thumbs"></div>
+
+      <div class="compose-actions" id="compose-actions"></div>
+      <p class="error" id="compose-err"></p>
 
       <footer class="compose-foot">
         <span class="compose-status" id="compose-status"></span>
-        <button type="button" class="ghost" id="compose-close">Close</button>
-        <button type="button" class="primary" id="compose-post" disabled>Post</button>
+        <span class="compose-count" id="compose-count"></span>
+        <!-- Not a button. Leaving is not an action with the same weight as publishing, and
+             two buttons side by side say they are. -->
+        <button type="button" class="compose-cancel" id="compose-close">Cancel</button>
+        <button type="button" class="primary compose-post" id="compose-post" disabled>Post</button>
       </footer>
     </main>
   </div>

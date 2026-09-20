@@ -64,11 +64,18 @@ test('THE CORE REACHES FOR NOTHING THAT ONLY EXISTS IN THE PANEL', () => {
   // to for years and would reach for out of habit.
   const panelOnly = [
     'state.', 'followListCache', 'followListPubkey', '_profileCache', '_notifProfiles',
-    'toast(', 'closeModal(', 'openModal(', 'renderMain(', 'chrome.',
+    'toast(', 'closeModal(', 'openModal(', 'renderMain(',
   ];
   for (const name of panelOnly) {
     assert.ok(!bareCore.includes(name), 'composer-core.js reaches for ' + name);
   }
+  // chrome.* was on that list and came off when the proof-of-work miner moved here: it
+  // resolves its worker with chrome.runtime.getURL, which answers the same on every
+  // extension page. The narrower rule is the one that was always meant: nothing that
+  // talks to the background, because a page hands its own `call` in and two routes to the
+  // worker is two places for a message name to drift.
+  assert.ok(!/chrome\.runtime\.sendMessage/.test(bareCore), 'the page supplies call()');
+  assert.ok(!/chrome\.storage/.test(bareCore), 'settings belong to the page that reads them');
   // $('id') is the panel's element lookup and assumes the panel's markup.
   assert.ok(!/\$\(/.test(bareCore), "composer-core.js uses the panel's $() lookup");
 });

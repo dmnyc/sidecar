@@ -204,6 +204,81 @@ test('the theme artwork helpers live in the core, not a fifth copy', () => {
   assert.match(bare, /img\.src = avatarPhSrc\(\);/);
 });
 
+test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
+  // Media, proof of work and the preview renderer all moved to composer-core.js rather
+  // than being rebuilt here. A second preview renderer is the worst of them: it would
+  // disagree with the panel's about a mention, an embed or a link card, and the whole
+  // point of a preview is that it is what will be published.
+  for (const name of ['renderNotePreview', 'uploadMedia', 'minePow', 'powCancel']) {
+    assert.ok(core.includes('function ' + name + '('), 'the core should own ' + name);
+    assert.ok(!new RegExp('function ' + name + '\\(').test(page), 'compose.js reimplements ' + name);
+    assert.ok(!new RegExp('function ' + name + '\\(').test(panel), 'sidepanel.js kept a copy of ' + name);
+  }
+  assert.match(bare, /composer\.renderNotePreview\(box, body\)/);
+  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey\)/);
+  // Its relay reads go through this page's own pool, so the core never learns which
+  // sockets it is using and cannot reach the panel's.
+  assert.match(bare, /poolGet: \(relays, filter, params\) => pool\(\)\.get\(/);
+  assert.match(bare, /poolQuerySync: \(relays, filter, params\) => pool\(\)\.querySync\(/);
+});
+
+test('MINE FIRST, THEN SIGN', () => {
+  // The event id commits to the pubkey, so the nonce has to be found against the key that
+  // will sign it. Signing afterwards recomputes the id without touching created_at or the
+  // tags the miner wrote; mining afterwards would invalidate the signature.
+  const post = bare.slice(bare.indexOf('async function doPost()'));
+  const body = post.slice(0, post.indexOf('\n  }'));
+  const mineAt = body.indexOf('composer.minePow(');
+  const signAt = body.indexOf('SIDECAR_OWNER_SIGN');
+  assert.ok(mineAt > -1 && signAt > -1);
+  assert.ok(mineAt < signAt, 'mining after signing would invalidate the signature');
+  // And the pubkey the miner needed is dropped again, so the signer sets it from the key
+  // it actually signs with rather than agreeing with a copy we sent.
+  assert.match(body, /const \{ pubkey: _mined, \.\.\.rest \} = mined\.event;/);
+});
+
+test('a mine can be stopped, and the button that started it is how', () => {
+  // Ten seconds at 22 bits and sometimes a minute. The panel offers a Stop for exactly
+  // that reason; here the only button that could be pressed is the one that started it.
+  assert.match(bare, /post\.textContent = on \? 'Stop mining' : 'Post';/);
+  assert.match(bare, /if \(mining\) return composer\.powCancel\(\);/);
+  // A stop is a decision, not a fault, so it does not raise an error toast.
+  assert.match(bare, /if \(!\(e && e\.canceled\)\) toast\(/);
+});
+
+test('media is content on its own', () => {
+  // An image with no caption is a thing people post, and an upload with no words yet is
+  // still work: dropping it from the draft because nothing had been typed is the kind of
+  // thing that makes a draft store worse than none.
+  assert.match(bare, /\$\('compose-post'\)\.disabled = posting \|\| \(!n && !draft\.media\.length\)/);
+  assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)\)/);
+  assert.match(bare, /if \(saved && Array\.isArray\(saved\.media\)\) draft\.media = saved\.media;/);
+  // The URL goes on its own line, decided from the serialized text, because a URL glued
+  // to a bech32 or a hashtag corrupts both when the note is parsed.
+  assert.match(bare, /const existing = composer\.serializeEditor\(ed\);/);
+});
+
+test('THE WAY OUT IS A CORNER BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER', () => {
+  // The corner is where every sheet in the panel puts its close box. The word in the
+  // footer is for anyone reading the row rather than the corner. Both keep the draft,
+  // because neither is a decision to throw it away.
+  assert.match(pageHtml, /class="modal-x compose-x" id="compose-x"/);
+  assert.match(bare, /x\.addEventListener\('click', leave\)/);
+  assert.match(bare, /\$\('compose-close'\)\.addEventListener\('click', leave\)/);
+  assert.match(bare, /const leave = \(\) => \{ persistDraft\(\)[\s\S]{0,60}window\.close\(\)/);
+
+  // Cancel is not a button. Leaving is not an action with the same weight as publishing,
+  // and two filled controls side by side claim it is.
+  assert.match(pageHtml, /class="compose-cancel" id="compose-close">Cancel</);
+  const cancel = css.slice(css.indexOf('.compose-cancel {'), css.indexOf('.compose-cancel:hover'));
+  assert.match(cancel, /background: none/);
+  assert.match(cancel, /border: none/);
+  // And the one that cannot be taken back is the biggest thing in the row.
+  const postRule = css.slice(css.indexOf('.compose-post {'), css.indexOf('.compose-post {') + 120);
+  assert.match(postRule, /font-size: 15px/);
+  assert.match(postRule, /padding: 12px 30px/);
+});
+
 test('closing the tab keeps what was typed', () => {
   // The save is debounced 400ms. A close inside that window would lose the last sentence,
   // which is the one just written.

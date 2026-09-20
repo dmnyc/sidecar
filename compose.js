@@ -123,6 +123,15 @@
   // ---- what the shared editor needs from whichever page it is drawing into ----
   const profileCache = new Map();
   function cachedProfile(pubkey) { return profileCache.get(pubkey) || null; }
+  // The preview's mention resolver writes back what it looked up, so the second mention
+  // of the same person costs nothing.
+  function cacheProfile(pubkey, content) {
+    profileCache.set(pubkey, {
+      pubkey,
+      name: (content && (content.display_name || content.name)) || null,
+      picture: (content && content.picture) || null,
+    });
+  }
   async function fetchPreviewProfile(pubkey) {
     if (profileCache.has(pubkey)) return profileCache.get(pubkey);
     try {
@@ -191,13 +200,27 @@
     decide: async () => {},
   };
 
+  // Proof of work for THIS note, seeded from Settings and never written back, the same
+  // way the panel treats it. Off unless the account turned it on.
+  let powForThisPost = { on: false, bits: SC.POW_DEFAULT_BITS };
+
   const composer = SC.installComposer({
     NT,
     applyAvatar,
     cachedProfile,
+    cacheProfile,
     fetchPreviewProfile,
     getFollowList,
     cachedFollowList: () => followCache,
+    // The relay reads the preview and the uploader make, answered by this page's own
+    // pool. The core never learns which sockets it is using, which is the whole reason
+    // the panel could keep its reconnect handling and its auth and this page could not
+    // accidentally inherit them.
+    call,
+    poolGet: (relays, filter, params) => pool().get(relays, filter, params),
+    poolQuerySync: (relays, filter, params) => pool().querySync(relays, filter, params),
+    relayUrls: () => targetRelays(),
+    activePubkey: () => state.activePubkey,
     naAskEl: na.askEl,
     naAvailable: na.available,
     naDecide: na.decide,
@@ -215,8 +238,13 @@
   }
   async function persistDraft() {
     const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-    const hasContent = !!(draft.text && draft.text.trim());
-    if (hasContent) all[dkey] = { ...(all[dkey] || {}), text: draft.text, savedAt: Date.now() };
+    // Media counts as content on its own: an upload with no words yet is still work, and
+    // dropping it because the caption had not been written is the kind of thing that makes
+    // a draft store worse than none.
+    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    if (hasContent) {
+      all[dkey] = { ...(all[dkey] || {}), text: draft.text, media: draft.media, savedAt: Date.now() };
+    }
     else delete all[dkey];
     await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
   }
@@ -228,7 +256,9 @@
   function paintCount() {
     const n = (draft.text || '').trim().length;
     $('compose-count').textContent = n ? n + (n === 1 ? ' character' : ' characters') : '';
-    $('compose-post').disabled = posting || !n;
+    // Media alone is a postable note, the same as in the panel: an image with no caption
+    // is a thing people post.
+    $('compose-post').disabled = posting || (!n && !draft.media.length);
   }
 
   async function doPost() {
@@ -238,14 +268,36 @@
     posting = true;
     paintCount();
     const status = $('compose-status');
-    status.textContent = 'Signing…';
     try {
-      const template = {
+      let template = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['client', 'Sidecar']],
         content: text,
       };
+      // MINE FIRST, THEN SIGN. The event id commits to the pubkey, so the nonce has to be
+      // found against the key that will sign it, and signing afterwards recomputes the id
+      // without touching created_at or the tags the miner wrote.
+      if (powForThisPost.on) {
+        // THE POST BUTTON BECOMES THE WAY OUT. A mine at 22 bits is ten seconds and
+        // sometimes a minute, and the panel offers a Stop for exactly that reason; here
+        // the only button that could be pressed is the one that started it, so it changes
+        // into what it now does.
+        setMining(true);
+        status.textContent = 'Mining ' + powForThisPost.bits + ' bits…';
+        const mined = await composer.minePow(
+          { ...template, pubkey: state.activePubkey },
+          powForThisPost.bits,
+          (p) => { status.textContent = 'Mining ' + powForThisPost.bits + ' bits, best ' + p.best + '…'; }
+        );
+        // The pubkey is dropped again: the signer sets it from the key it signs with, and
+        // sending our own copy invites the two to disagree about the one field neither of
+        // them should be guessing at.
+        const { pubkey: _mined, ...rest } = mined.event;
+        template = rest;
+        setMining(false);
+      }
+      status.textContent = 'Signing…';
       const signed = await call({
         type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey,
       });
@@ -258,20 +310,169 @@
       // The draft goes only once the note is actually out. A cleared draft plus a failed
       // publish is the one outcome worth engineering against.
       draft.text = '';
+      draft.media = [];
       await persistDraft();
       editorSetText('');
+      renderThumbs();
       status.textContent = '';
       toast('Note published to ' + ok + (ok === 1 ? ' relay' : ' relays'), 'success');
     } catch (e) {
       status.textContent = '';
-      toast(e.message || 'Could not post', 'error');
+      // A stop is the user's own decision, and the editor coming back is the answer.
+      if (!(e && e.canceled)) toast(e.message || 'Could not post', 'error');
     }
+    setMining(false);
     posting = false;
     paintCount();
   }
 
+  // Post and Stop are the same button in two states, because there is only ever one of
+  // them on screen and only one thing it could sensibly do at a time.
+  let mining = false;
+  function setMining(on) {
+    if (mining === on) return;
+    mining = on;
+    const post = $('compose-post');
+    post.textContent = on ? 'Stop mining' : 'Post';
+    post.classList.toggle('secondary', on);
+    post.classList.toggle('primary', !on);
+    post.disabled = false;
+  }
+
   let editorApi = null;
   function editorSetText(t) { if (editorApi) editorApi.setText(t); }
+
+  // ---- thumbnails for what has been uploaded ----
+  function renderThumbs() {
+    const host = $('compose-thumbs');
+    host.innerHTML = '';
+    draft.media.forEach((m, i) => {
+      const cell = h('div', { className: 'compose-thumb' });
+      const el = document.createElement(m.isVideo ? 'video' : 'img');
+      // Many media hosts reject a chrome-extension:// referrer and answer 403, which
+      // renders as a broken thumb rather than as an error anyone can act on.
+      el.referrerPolicy = 'no-referrer';
+      el.src = m.url;
+      if (m.isVideo) el.muted = true;
+      cell.append(el);
+      const rm = h('button', { className: 'compose-thumb-x', title: 'Remove', type: 'button' });
+      rm.append(icon('trash'));
+      rm.addEventListener('click', () => {
+        // The URL lives in the text, so removing the thumb has to remove the line too.
+        const ed = editorApi.editor;
+        const walker = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+        let wn;
+        while ((wn = walker.nextNode())) {
+          if (wn.textContent.includes(m.url)) {
+            wn.textContent = wn.textContent.replace('\n' + m.url, '').replace(m.url, '');
+            break;
+          }
+        }
+        draft.media.splice(i, 1);
+        editorApi.sync();
+        renderThumbs();
+      });
+      cell.append(rm);
+      host.append(cell);
+    });
+  }
+
+  // On its own line, with the break decided from the SERIALIZED text rather than the DOM:
+  // a URL glued to a bech32 or a hashtag corrupts both when the note is parsed.
+  function appendMediaUrl(url) {
+    const ed = editorApi.editor;
+    const existing = composer.serializeEditor(ed);
+    const sep = existing && !/\n$/.test(existing) ? '\n' : '';
+    ed.append(document.createTextNode(sep + url));
+  }
+
+  // ---- the toolbar: media, and a proof of work for this note ----
+  function buildToolbar() {
+    const row = $('compose-actions');
+    const err = $('compose-err');
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*,video/*';
+    fileInput.style.display = 'none';
+    const addBtn = h('button', { className: 'mini compose-add', type: 'button' });
+    addBtn.append(icon('camera'), h('span', { textContent: 'Media' }));
+    addBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      err.textContent = '';
+      addBtn.disabled = true;
+      const lbl = addBtn.querySelector('span');
+      const prev = lbl.textContent;
+      lbl.textContent = 'Uploading…';
+      try {
+        const url = await composer.uploadMedia(file, state.activePubkey);
+        draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+        appendMediaUrl(url);
+        editorApi.sync();
+        renderThumbs();
+      } catch (e) {
+        err.textContent = e.message;
+        toast(e.message, 'error');
+      }
+      addBtn.disabled = false;
+      lbl.textContent = prev;
+      fileInput.value = '';
+    });
+
+    // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same labels as the
+    // panel. "PoW 18" and "PoW off" are the same width, so cycling never makes the row
+    // opposite it jump.
+    const powBtn = h('button', { className: 'mini compose-add', type: 'button' });
+    const powLabel = h('span');
+    powBtn.append(icon('pickaxe'), powLabel);
+    function paintPow() {
+      const lvl = powForThisPost.on ? SC.powLevelFor(powForThisPost.bits) : null;
+      powLabel.textContent = lvl ? 'PoW ' + lvl.bits : 'PoW off';
+      powBtn.title = lvl ? lvl.cost : 'Off. Tap to mine one into this post.';
+      powBtn.classList.toggle('compose-add-on', !!lvl);
+    }
+    powBtn.addEventListener('click', () => {
+      const order = [null, ...SC.POW_LEVELS.map((l) => l.bits)];
+      const at = order.indexOf(powForThisPost.on ? powForThisPost.bits : null);
+      const next = order[(at + 1) % order.length];
+      powForThisPost = next == null ? { on: false, bits: powForThisPost.bits } : { on: true, bits: next };
+      paintPow();
+    });
+    paintPow();
+
+    row.append(addBtn, powBtn, fileInput);
+  }
+
+  // ---- Write / Preview ----
+  //
+  // The same renderer the panel previews with, so what this shows and what that shows
+  // cannot disagree about a mention, an embed or a link card.
+  function buildTabs() {
+    const write = $('tab-write');
+    const prev = $('tab-preview');
+    const pane = $('compose-preview');
+    const slot = $('compose-slot');
+    const show_ = (previewing) => {
+      write.classList.toggle('active', !previewing);
+      prev.classList.toggle('active', previewing);
+      slot.classList.toggle('hidden', previewing);
+      pane.classList.toggle('hidden', !previewing);
+      if (!previewing) return;
+      pane.innerHTML = '';
+      const body = (draft.text || '').trim();
+      if (!body) {
+        pane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
+        return;
+      }
+      const box = h('div', { className: 'preview-body' });
+      composer.renderNotePreview(box, body);
+      pane.append(box);
+    };
+    write.addEventListener('click', () => show_(false));
+    prev.addEventListener('click', () => show_(true));
+  }
 
   async function boot() {
     state = await call({ type: 'SIDECAR_GET_STATE' });
@@ -290,6 +491,7 @@
     dkey = state.activePubkey;
     const saved = await loadDraft();
     if (saved && saved.text) draft.text = saved.text;
+    if (saved && Array.isArray(saved.media)) draft.media = saved.media;
     // The relay set the panel worked out, left beside the draft when you pressed expand.
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
 
@@ -300,13 +502,24 @@
     editorApi.editor.classList.add('compose-editor-lg');
     $('compose-slot').append(editorApi.wrap);
     editorApi.setText(draft.text);
+    buildToolbar();
+    buildTabs();
+    renderThumbs();
     paintCount();
     editorApi.focus();
 
-    $('compose-post').addEventListener('click', doPost);
-    $('compose-close').addEventListener('click', () => {
-      persistDraft().catch(() => {}).then(() => window.close());
+    $('compose-post').addEventListener('click', () => {
+      if (mining) return composer.powCancel();
+      doPost();
     });
+    // Two ways out, the same way out. The corner box is where every sheet in the panel
+    // puts one; the word in the footer is for anyone reading the row rather than the
+    // corner. Both keep the draft, because neither is a decision to throw it away.
+    const leave = () => { persistDraft().catch(() => {}).then(() => window.close()); };
+    const x = $('compose-x');
+    x.append(icon('x'));
+    x.addEventListener('click', leave);
+    $('compose-close').addEventListener('click', leave);
     // A tab can be closed without pressing anything. The 400ms debounce is short, but a
     // close inside it would lose the last sentence, which is the one you just wrote.
     window.addEventListener('beforeunload', () => {
