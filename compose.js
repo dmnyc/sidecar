@@ -328,6 +328,13 @@
 
   // Post and Stop are the same button in two states, because there is only ever one of
   // them on screen and only one thing it could sensibly do at a time.
+  //
+  // AND THE EDITOR GOES INERT WITH IT. minePow works on a snapshot of the template taken
+  // when Post was pressed, so anything typed while it runs is not in the note that
+  // publishes. At 22 bits that is ten seconds and sometimes a minute of typing into a box
+  // whose contents no longer matter, and the note goes out as the old text while the
+  // screen shows the new one. The panel cannot reach this state because its mining pane
+  // takes over the screen; here the editor is simply still there, so it is turned off.
   let mining = false;
   function setMining(on) {
     if (mining === on) return;
@@ -337,6 +344,17 @@
     post.classList.toggle('secondary', on);
     post.classList.toggle('primary', !on);
     post.disabled = false;
+    if (editorApi) {
+      editorApi.editor.contentEditable = on ? 'false' : 'true';
+      editorApi.editor.classList.toggle('is-locked', on);
+      if (on) editorApi.close(); // no mention dropdown left open over a box nobody can type in
+    }
+    // Everything that would change what is being mined, or start a second mine on the one
+    // worker. Cancel and the close box stay live: leaving is always allowed, and it takes
+    // the worker with the page.
+    document.querySelectorAll('#compose-actions button, .compose-tab').forEach((b) => {
+      b.disabled = on;
+    });
   }
 
   let editorApi = null;

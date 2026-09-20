@@ -249,6 +249,26 @@ test('MINE FIRST, THEN SIGN', () => {
   assert.match(body, /const \{ pubkey: _mined, \.\.\.rest \} = mined\.event;/);
 });
 
+test('THE EDITOR GOES INERT WHILE A MINE RUNS', () => {
+  // minePow works on a snapshot of the template taken when Post was pressed, so anything
+  // typed while it runs is not in the note that publishes. At 22 bits that is ten seconds
+  // and sometimes a minute of typing into a box whose contents no longer matter, and the
+  // note goes out as the old text while the screen shows the new one. The panel cannot
+  // reach this state because its mining pane takes over; here the editor is still there.
+  const fn = bare.slice(bare.indexOf('function setMining(on)'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /editorApi\.editor\.contentEditable = on \? 'false' : 'true';/);
+  assert.match(body, /editorApi\.editor\.classList\.toggle\('is-locked', on\)/);
+  assert.match(body, /if \(on\) editorApi\.close\(\)/, 'a dropdown over a dead box');
+  // And everything that would change what is being mined, or start a second mine on the
+  // one worker. Cancel and the close box stay live: leaving is always allowed.
+  assert.match(body, /querySelectorAll\('#compose-actions button, \.compose-tab'\)/);
+  assert.ok(!/compose-cancel|compose-x/.test(body), 'leaving must stay possible');
+  // A caret blinking in a field whose contents are already spent is the worst kind of lie
+  // a composer can tell, so it looks disabled too.
+  assert.match(css, /\.compose-editor-lg\.is-locked \{ opacity: 0\.55/);
+});
+
 test('a mine can be stopped, and the button that started it is how', () => {
   // Ten seconds at 22 bits and sometimes a minute. The panel offers a Stop for exactly
   // that reason; here the only button that could be pressed is the one that started it.

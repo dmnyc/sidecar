@@ -2796,6 +2796,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-editor-lg:focus { border-color: var(--gold-soft); }
+/* A box that cannot be typed into should not invite it. Mining holds the editor for as
+   long as a minute at 22 bits, and a caret blinking in a field whose contents are already
+   spent is the worst kind of lie a composer can tell. */
+.compose-editor-lg.is-locked { opacity: 0.55; cursor: default; }
 /* THE SAME FIELD, AT THE SAME SIZE. Write and Preview are two views of one thing, so
    switching between them must not change the type scale or the height of the card. At the
    panel's 14px the preview read as a thumbnail of the 17px being written above it, which
