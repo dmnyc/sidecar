@@ -12085,6 +12085,10 @@
       const err = h('div', { className: 'error' });
       const post = h('button', { className: 'primary', textContent: 'Post' });
       function updatePostState() {
+        // The tab composes a note. A poll is a different kind with its own editor, so
+        // once one is open the way out of the panel goes away rather than quietly
+        // publishing the question without its options.
+        if (expand) expand.classList.toggle('hidden', !!draft.poll);
         if (draft.poll) {
           // A poll needs its question, where a plain note can be an image on its own:
           // the content IS the question, and a 1068 with an empty content is a set of
@@ -12121,7 +12125,55 @@
         ])
       );
 
+      // ---- take this somewhere bigger ----
+      //
+      // The panel is 360px wide, which is the right size for approving a signature and
+      // the wrong size for writing anything you would want to read back. This opens the
+      // same draft in a tab at a type scale you can think in.
+      //
+      // THE SAME DRAFT, not a copy: both ends read and write the one slot in the
+      // background's encrypted draft store, so the text is already there before the tab
+      // exists. Nothing is passed in the URL, because a handover has a moment where the
+      // text lives in one place only and that is the moment a tab gets closed.
+      //
+      // Replies do not offer it. The page composes a top-level note, and a reply that
+      // arrived there would quietly publish as one, which is the exact failure the draft
+      // store learned to carry replyTo to avoid.
+      const expand = replyTo ? null : h('button', {
+        className: 'modal-x compose-expand', type: 'button', title: 'Write in a tab',
+      });
+      if (expand) {
+        expand.setAttribute('aria-label', 'Write in a tab');
+        expand.append(icon('external'));
+        expand.addEventListener('click', async () => {
+          expand.disabled = true;
+          try {
+            persistDraft();
+            // WHERE IT WILL PUBLISH, decided here and left with the draft. Working out an
+            // account's write set means its NIP-65 list, the configured relays, or the
+            // declared set alone when the account asked for NIP-65 only, and that last
+            // case is why the page must not guess: publishing a NIP-65-only account to
+            // the configured list is precisely what the setting exists to stop.
+            let relays = null;
+            try { relays = await postRelays(); } catch (_) {}
+            if (relays && relays.length) {
+              const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+              if (all[dkey]) {
+                all[dkey].expandRelays = relays;
+                await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+              }
+            }
+            chrome.tabs.create({ url: chrome.runtime.getURL('compose.html') });
+            closeModal();
+          } catch (e) {
+            expand.disabled = false;
+            toast(e.message || 'Could not open a tab', 'error');
+          }
+        });
+      }
+
       modal.append(
+        ...(expand ? [expand] : []),
         h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
         author,
         ...(replyTo ? [buildReplyBlock()] : []),

@@ -2709,6 +2709,45 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 7px; margin: 0; flex: 1 0 auto;
 }
 .compose-add svg { width: 15px; height: 15px; }
+/* ---- the expanded composer ----
+   The panel's own corner button for it, and then the page it opens. The page reuses the
+   panel's stylesheet and themes wholesale: it is the same product at a different size, so
+   everything it draws should already know what a button looks like here. */
+.compose-expand { right: 12px; }
+.compose-page {
+  min-height: 100vh; margin: 0; display: flex; justify-content: center;
+  padding: 32px 20px 48px; box-sizing: border-box;
+}
+/* WIDE ENOUGH TO READ, not as wide as the window. A line of prose past about 70
+   characters is measurably harder to come back to on the next line, and the whole reason
+   this page exists is that the panel's line is too short to think in. */
+.compose-sheet {
+  width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 14px;
+}
+.compose-head { display: flex; align-items: center; gap: 12px; }
+.compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.compose-av { width: 40px; height: 40px; flex-shrink: 0; }
+.compose-who-text { display: flex; flex-direction: column; min-width: 0; }
+.compose-name {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.compose-sub { font-size: 12px; color: var(--muted); }
+.compose-head-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.compose-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* THE POINT OF THE PAGE. 17px over the panel's 14, with the line height to match: the
+   panel's type is sized for a 360px column and reads as cramped the moment it is not in
+   one. Nothing else about the editor changes. */
+.compose-editor-lg {
+  font-size: 17px; line-height: 1.6; min-height: 340px; max-height: none;
+  padding: 18px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--velvet-1);
+}
+.compose-editor-lg:focus { border-color: var(--gold-soft); }
+.compose-foot { display: flex; align-items: center; gap: 10px; }
+.compose-status { flex: 1; font-size: 12px; color: var(--muted); }
+.compose-empty { padding: 48px 24px; text-align: center; }
+
 /* The offer to take a tracking tail off a pasted link. It lives in the editor's own
    wrapper rather than in .compose-actions above, because the page-comment box is a
    composer too and gets links pasted into it the same way; both are built by

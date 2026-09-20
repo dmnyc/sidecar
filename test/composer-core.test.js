@@ -23,6 +23,15 @@ const ROOT = path.join(__dirname, '..');
 const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
+const pageHtml = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
+
+// Both installers, checked the same way. Two pages build the editor now, and a dep the
+// second one forgets is undefined at run time in exactly the place no test looks.
+const INSTALLERS = [
+  { name: 'sidepanel.js', src: panel, open: 'window.SidecarCore.installComposer({', close: '\n    });' },
+  { name: 'compose.js', src: page, open: 'SC.installComposer({', close: '\n  });' },
+];
 
 // Comments and string literals say a lot of things the code does not do.
 const strip = (src) => src
@@ -39,12 +48,14 @@ test('EVERY COLLABORATOR THE CORE READS IS ONE THE PAGE HANDS IN', () => {
   const used = new Set([...bareCore.matchAll(/\bdeps\.([A-Za-z_$][\w$]*)/g)].map((m) => m[1]));
   assert.ok(used.size > 5, 'the scan found almost nothing, so it is probably broken');
 
-  const call = panel.slice(panel.indexOf('window.SidecarCore.installComposer({'));
-  const args = call.slice(0, call.indexOf('\n    });'));
-  const supplied = new Set([...args.matchAll(/(?:^|[\s,{])([A-Za-z_$][\w$]*)\s*(?:,|:|$)/gm)].map((m) => m[1]));
-
-  const missing = [...used].filter((name) => !supplied.has(name)).sort();
-  assert.deepEqual(missing, [], 'the core reads collaborators the panel never passes');
+  for (const { name, src, open, close } of INSTALLERS) {
+    const at = src.indexOf(open);
+    assert.ok(at > -1, name + ' does not install the composer');
+    const args = src.slice(at).slice(0, src.slice(at).indexOf(close));
+    const supplied = new Set([...args.matchAll(/(?:^|[\s,{])([A-Za-z_$][\w$]*)\s*(?:,|:|$)/gm)].map((m) => m[1]));
+    const missing = [...used].filter((n) => !supplied.has(n)).sort();
+    assert.deepEqual(missing, [], name + ' never passes: ' + missing.join(', '));
+  }
 });
 
 test('THE CORE REACHES FOR NOTHING THAT ONLY EXISTS IN THE PANEL', () => {
@@ -81,4 +92,13 @@ test('what the core hands back is what the panel takes', () => {
     .filter(Boolean);
   assert.ok(taken.length > 5, 'the scan found almost nothing, so it is probably broken');
   for (const name of taken) assert.ok(exported.has(name), 'the core never returns ' + name);
+});
+
+test('the expanded composer page loads the core before it uses it', () => {
+  const coreAt = pageHtml.indexOf('composer-core.js');
+  const pageAt = pageHtml.indexOf('compose.js');
+  assert.ok(coreAt > -1, 'compose.html does not load composer-core.js');
+  assert.ok(coreAt < pageAt, 'composer-core.js has to come first');
+  // nostr-tools too: the editor decodes and encodes bech32 through it.
+  assert.ok(pageHtml.indexOf('nostr-tools.js') < coreAt);
 });
