@@ -12139,12 +12139,17 @@
       // Replies do not offer it. The page composes a top-level note, and a reply that
       // arrived there would quietly publish as one, which is the exact failure the draft
       // store learned to carry replyTo to avoid.
+      //
+      // A WORD, ON THE TAB BAR, rather than an icon in the corner. The corner already
+      // belongs to the close box, so a second button there sat on top of it, and the
+      // outward arrow that reads as "expand" in most apps reads here as leaving the
+      // browser entirely. Write / Preview / Expand is a row of three things you can do
+      // with what you are writing, and the third one says what it is.
       const expand = replyTo ? null : h('button', {
-        className: 'modal-x compose-expand', type: 'button', title: 'Write in a tab',
+        className: 'compose-expand', type: 'button', textContent: 'Expand',
+        title: 'Write in a tab, with room to read it back',
       });
       if (expand) {
-        expand.setAttribute('aria-label', 'Write in a tab');
-        expand.append(icon('external'));
         expand.addEventListener('click', async () => {
           expand.disabled = true;
           try {
@@ -12172,8 +12177,9 @@
         });
       }
 
+      if (expand) tabBar.append(expand);
+
       modal.append(
-        ...(expand ? [expand] : []),
         h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
         author,
         ...(replyTo ? [buildReplyBlock()] : []),

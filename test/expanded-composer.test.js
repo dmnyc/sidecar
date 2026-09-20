@@ -76,6 +76,22 @@ test('A REPLY IS NOT OFFERED THE TAB', () => {
   assert.match(panelBare, /if \(expand\) expand\.classList\.toggle\('hidden', !!draft\.poll\);/);
 });
 
+test('the way in is a word on the tab bar, not an icon in the corner', () => {
+  // The corner already belongs to the close box, so a second button there landed on top
+  // of it. And the outward arrow that means "expand" in most apps reads here as leaving
+  // the browser, which is the one thing it does not do. Write / Preview / Expand is a row
+  // of three things you can do with what you are writing.
+  assert.match(panelBare, /textContent: 'Expand'/);
+  assert.match(panelBare, /if \(expand\) tabBar\.append\(expand\);/);
+  assert.ok(!/compose-expand[^']*modal-x|modal-x compose-expand/.test(panelBare),
+    'the expand control must not take the corner slot the close box owns');
+  assert.ok(!/expand\.append\(icon\(/.test(panelBare), 'no arrow: it does not leave the browser');
+  // No bottom border, so it cannot read as a third tab that could be selected.
+  const rule = css.slice(css.indexOf('.compose-expand {'), css.indexOf('.compose-expand:hover'));
+  assert.match(rule, /margin-left: auto/);
+  assert.ok(!/border-bottom/.test(rule));
+});
+
 test('it signs through the worker, like everything else that signs', () => {
   // The page holds no key and gains no new way to reach one: the same owner-sign message
   // the panel uses, with the same expectedPubkey, which fails closed if the active

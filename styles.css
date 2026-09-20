@@ -2713,7 +2713,15 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    The panel's own corner button for it, and then the page it opens. The page reuses the
    panel's stylesheet and themes wholesale: it is the same product at a different size, so
    everything it draws should already know what a button looks like here. */
-.compose-expand { right: 12px; }
+/* Sits at the far end of the Write / Preview row, on the right margin. Same metrics as a
+   tab so the baseline lines up, and no bottom border so it never reads as a third tab that
+   could be selected. */
+.compose-expand {
+  margin-left: auto;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 13px; font-weight: 600; padding: 6px 2px 6px 10px;
+}
+.compose-expand:hover:not(:disabled) { color: var(--lav); }
 .compose-page {
   min-height: 100vh; margin: 0; display: flex; justify-content: center;
   padding: 32px 20px 48px; box-sizing: border-box;
