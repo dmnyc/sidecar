@@ -750,6 +750,15 @@
   // while the panel is open) — refresh the wallet if it's the visible tab.
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
+    // A NOTE PUBLISHED SOMEWHERE ELSE IN THIS EXTENSION. _ownNoteIds is what the bell
+    // filters replies against, and it is this document's memory: a note posted from the
+    // expanded composer tab was not in it, so replies to that note stayed out of
+    // notifications until this panel next queried its own notes from relays. The tab says
+    // so instead of waiting to be found.
+    if (msg.event === 'notePublished' && msg.pubkey && msg.id) {
+      rememberOwnNote(msg.pubkey, msg.id);
+      return;
+    }
     if (msg.event === 'walletChanged' && state && !state.locked) {
       // No strike here. A WebLN payment from a page gets its bolt thrown across THAT
       // page by the content script (see notifyTabsPaidByHost) — where the user is

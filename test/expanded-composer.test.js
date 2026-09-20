@@ -300,6 +300,27 @@ test('THE EDITOR GOES INERT WHILE A MINE RUNS', () => {
   assert.match(css, /\.compose-editor-lg\.is-locked \{ opacity: 0\.55/);
 });
 
+test('a note posted here reaches the bell as one of your own', () => {
+  // _ownNoteIds is what the bell filters replies against, and it is the panel's memory. A
+  // note posted from this tab was not in it, so replies stayed out of notifications until
+  // the panel next re-queried its own notes from relays. The tab says so instead.
+  assert.match(bare, /event: 'notePublished', pubkey: signed\.pubkey, id: signed\.id/);
+  assert.match(panelBare, /if \(msg\.event === 'notePublished' && msg\.pubkey && msg\.id\) \{/);
+  assert.match(panelBare, /rememberOwnNote\(msg\.pubkey, msg\.id\);/);
+
+  // Only after the publish landed. Telling the bell about a note the relays refused would
+  // put an id in that filter for an event nobody can reply to.
+  const post = bare.slice(bare.indexOf('async function doPost()'));
+  const body = post.slice(0, post.indexOf('\n  }'));
+  assert.ok(body.indexOf('pool().publish(') < body.indexOf("event: 'notePublished'"));
+
+  // And the worker ignores the broadcast rather than answering it. It falls through the
+  // control switch otherwise and comes back as "Unknown control message" with a dev-log
+  // line for company.
+  const bgSrc = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  assert.match(bgSrc, /if \(message\.type === 'SIDECAR_EVENT'\) return false;/);
+});
+
 test('a locked keystore says where the unlock is', () => {
   // The worker answers "Keystore is locked" or "Sidecar is locked" depending on which
   // guard refused, and either read as a fault here: a toast, a written note, and nothing

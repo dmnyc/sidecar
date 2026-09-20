@@ -3766,6 +3766,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // SIDECAR_EVENT IS A BROADCAST, NOT A REQUEST. The worker emits it to whichever
+  // extension pages are open, and a page emitting one reaches the worker too, where it
+  // would fall through the switch below and come back as "Unknown control message" plus a
+  // line in the dev log. Ignored here so any page can use the channel to tell the panel
+  // something without answering to this listener for it.
+  if (message.type === 'SIDECAR_EVENT') return false;
+
   // ---- debug log: trace every dispatched message + its outcome/timing ----
   // Central instrumentation point — covers page RPCs, control messages, and
   // prompt/queue traffic alike. Deliberately logs only type/method/host/timing/

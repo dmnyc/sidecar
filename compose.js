@@ -428,6 +428,15 @@
       if (!ok) throw new Error('No relay accepted the note. It is still saved as a draft.');
       // The draft goes only once the note is actually out. A cleared draft plus a failed
       // publish is the one outcome worth engineering against.
+      // TELL THE PANEL, if one is open. It filters the notification bell against its own
+      // memory of what this account has posted, and that memory is a different document:
+      // without this, replies to a note written here stay out of notifications until the
+      // panel next re-queries its own notes from relays.
+      try {
+        chrome.runtime.sendMessage({
+          type: 'SIDECAR_EVENT', event: 'notePublished', pubkey: signed.pubkey, id: signed.id,
+        }).catch(() => {});
+      } catch (_) { /* nobody listening is the normal case */ }
       draft.text = '';
       draft.media = [];
       await persistDraft();
