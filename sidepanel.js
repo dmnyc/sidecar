@@ -10903,6 +10903,28 @@
   // opts.replyTo — the event this note answers. Changes the kind and tags (replyTags),
   // and puts the target above the editor so what you are answering is on screen while
   // you write it.
+  // The expanded composer, if one is on screen.
+  //
+  // getContexts, not tabs.query, and the difference is not style. The manifest asks for
+  // https://*/* and nothing else, so tab.url is readable for web pages and blank for a
+  // chrome-extension:// one: a query filtered on compose.html's URL matches nothing, and
+  // adding the "tabs" permission to see a document we own ourselves would widen what
+  // Sidecar can read across every tab the user has open. getContexts lists the
+  // extension's own documents and asks for nothing.
+  async function liveComposeTab() {
+    try {
+      if (!chrome.runtime.getContexts) return null;
+      const url = chrome.runtime.getURL('compose.html');
+      const ctxs = await chrome.runtime.getContexts({ contextTypes: ['TAB'] });
+      return (ctxs || []).find((c) => c.documentUrl && c.documentUrl.split('#')[0] === url) || null;
+    } catch (_) {
+      // An older Chrome without getContexts, or a call that threw. Falling through to
+      // opening the panel composer is the safe direction: the draft store is the same
+      // either way, and refusing to open a composer at all would be worse than a race.
+      return null;
+    }
+  }
+
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
@@ -10913,6 +10935,31 @@
     // yet. It returns quietly rather than telling anyone to stop mining, which would be
     // asking them to throw away work to do something else.
     if (miningStatus) return;
+
+    // ONE COMPOSER PER ACCOUNT, because there is one draft slot per account.
+    //
+    // The expanded composer is the same draft in a tab, and both ends autosave on a 400ms
+    // debounce. Two of them open is last-writer-wins on every keystroke, and it gets worse
+    // than that: posting from one clears the slot while the other still holds the text in
+    // memory, so the next keystroke there republishes a note that already went out as a
+    // fresh draft. Start fresh in this chooser would delete what the tab is editing, and
+    // the tab would put it straight back.
+    //
+    // A reply is a different slot (draftKey appends the id it answers), so only the main
+    // composer collides and only the main composer is held back.
+    if (!(opts && opts.replyTo)) {
+      const open = await liveComposeTab();
+      if (open) {
+        // Focused rather than refused. The tab may be in another window, and a panel that
+        // simply does nothing when you tap Compose is indistinguishable from a broken one.
+        try {
+          await chrome.tabs.update(open.tabId, { active: true });
+          await chrome.windows.update(open.windowId, { focused: true });
+        } catch (_) { /* the tab went away between the query and the focus */ }
+        toast('Your draft is already open in a tab', 'info');
+        return;
+      }
+    }
     const pubkey = state.activePubkey;
     await devBuildReady;
     let devKindEnabled = false;
@@ -11673,7 +11720,16 @@
                 await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
               }
             }
-            chrome.tabs.create({ url: chrome.runtime.getURL('compose.html') });
+            // And never a second tab: same reason the panel composer stands down for one.
+            const open = await liveComposeTab();
+            if (open) {
+              try {
+                await chrome.tabs.update(open.tabId, { active: true });
+                await chrome.windows.update(open.windowId, { focused: true });
+              } catch (_) {}
+            } else {
+              chrome.tabs.create({ url: chrome.runtime.getURL('compose.html') });
+            }
             closeModal();
           } catch (e) {
             expand.disabled = false;

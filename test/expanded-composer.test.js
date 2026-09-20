@@ -333,6 +333,39 @@ test('the receipt links to the note, in the client this ACCOUNT chose', () => {
   assert.ok(!page.includes('const VIEW_CLIENTS = {'), 'compose.js built its own');
 });
 
+test('ONE COMPOSER PER ACCOUNT, BECAUSE THERE IS ONE DRAFT SLOT PER ACCOUNT', () => {
+  // Both ends autosave on a 400ms debounce into drafts[pubkey]. Two composers open is
+  // last-writer-wins on every keystroke, and worse: posting from one clears the slot while
+  // the other still holds the text, so its next keystroke republishes a note that already
+  // went out as a fresh draft. Start fresh in the panel would delete what the tab is
+  // editing and the tab would put it straight back.
+  assert.match(panelBare, /const open = await liveComposeTab\(\);/);
+  const fn = panelBare.slice(panelBare.indexOf('async function liveComposeTab()'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  // getContexts, not tabs.query. The manifest asks for https://*/* and nothing else, so
+  // tab.url is blank for a chrome-extension:// page: a query filtered on compose.html
+  // matches nothing, and adding "tabs" to see a document we own would widen what Sidecar
+  // can read across every tab open. Scoped to this helper, since the panel legitimately
+  // queries tabs elsewhere for the page it is looking at.
+  assert.match(body, /chrome\.runtime\.getContexts\(\{ contextTypes: \['TAB'\] \}\)/);
+  assert.ok(!/chrome\.tabs\.query/.test(body), 'tabs.query cannot see an extension page here');
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+  assert.ok(!(manifest.permissions || []).includes('tabs'), 'this must not have cost a permission');
+  assert.match(body, /return null;/, 'an older Chrome falls through to opening the panel one');
+
+  // Focused rather than refused. The tab can be in another window, and a panel that does
+  // nothing when you tap Compose is indistinguishable from a broken one.
+  assert.match(panelBare, /chrome\.tabs\.update\(open\.tabId, \{ active: true \}\)/);
+  assert.match(panelBare, /toast\('Your draft is already open in a tab', 'info'\)/);
+
+  // A reply is a different slot, so only the main composer is held back.
+  assert.match(panelBare, /if \(!\(opts && opts\.replyTo\)\) \{\n\s*const open = await liveComposeTab\(\)/);
+
+  // And Expand reuses a tab rather than opening a second one with the same draft in it.
+  const expand = panelBare.slice(panelBare.indexOf("expand.addEventListener('click'"));
+  assert.match(expand.slice(0, 2000), /if \(open\) \{[\s\S]*?\} else \{\n\s*chrome\.tabs\.create\(/);
+});
+
 test('closing the tab keeps what was typed', () => {
   // The save is debounced 400ms. A close inside that window would lose the last sentence,
   // which is the one just written.
