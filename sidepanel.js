@@ -18,7 +18,7 @@
   const { POW_LEVELS, POW_DEFAULT_BITS, powLevelFor } = window.SidecarCore;
   // Where a note can be read. Shared because the panel's post banner and the expanded
   // composer's confirmation are the same question asked twice.
-  const { VIEW_CLIENTS, DEFAULT_CLIENT } = window.SidecarCore;
+  const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
 
   const NT = window.NostrTools;
 
@@ -10611,6 +10611,8 @@
     serializeEditor, hydrateEditorFromText, createMentionEditor,
     renderNotePreview, uploadMedia, minePow, powCancel, resolveClient,
     showPostCountdown, splitGlyphs,
+    renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
+    paintCountdownNum,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,

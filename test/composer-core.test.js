@@ -100,17 +100,61 @@ test('what the core hands back is what the panel takes', () => {
   assert.ok(taken.length > 5, 'the scan found almost nothing, so it is probably broken');
   for (const name of taken) assert.ok(exported.has(name), 'the core never returns ' + name);
 
-  // AND THE OTHER HALF, which is the one that actually broke. Moving logoSrcFor and
-  // avatarPhSrc to the core left the panel still calling them and no longer importing
-  // them: a ReferenceError on every theme apply, and nothing here or anywhere else said
-  // so, because every test reads source rather than running the panel. Any exported name
-  // the panel still USES it must also TAKE.
-  const held = new Set(taken);
-  for (const name of exported) {
-    if (name === 'installComposer') continue; // reached through window.SidecarCore by design
-    const uses = new RegExp('(?<![.\\w$])' + name + '\\b').test(strip(panel));
-    if (uses) assert.ok(held.has(name), 'sidepanel.js uses ' + name + ' without taking it');
+  // The other return, which installComposer hands back. It was unguarded, so a name could
+  // be dropped from it while both the panel and the page went on destructuring it: not a
+  // ReferenceError this time, just undefined, called later, somewhere else.
+  const inst = core.slice(core.indexOf('  function installComposer(d) {'));
+  const instRet = inst.slice(inst.indexOf('return {'), inst.indexOf('};') + 2);
+  const given = new Set([...instRet.matchAll(/([A-Za-z_$][\w$]*)\s*(?:,|\n)/g)].map((m) => m[1]));
+  for (const { name, src, open, close } of INSTALLERS) {
+    const at = src.indexOf(open);
+    // The destructure immediately BEFORE the call, found backwards. Searching forwards
+    // finds the first `const {` in the file and runs the whole way here, which is the
+    // same over-match that let the missing-imports check come back clean.
+    const decl = src.slice(0, at);
+    const from = decl.lastIndexOf('const {');
+    if (from === -1) continue; // that page destructures nothing, which is its own business
+    const m = decl.slice(from).match(/const \{([^{}]*)\}\s*=\s*$/);
+    if (!m) continue;
+    for (const want of m[1].split(',').map((x) => x.trim()).filter(Boolean)) {
+      assert.ok(given.has(want), name + ' takes ' + want + ', which installComposer never returns');
+    }
   }
+
+});
+
+test('THE PANEL STILL HAS EVERY NAME IT CALLS', () => {
+  // THE ONE THAT KEEPS BREAKING, three times in a day. A function moves to the core, the
+  // panel goes on calling it, and nothing says so: every test here reads source rather
+  // than running the panel, so a ReferenceError waits until somebody opens the tab it is
+  // on. It took logoSrcFor and avatarPhSrc out on the theme apply, and then IMG_EXT,
+  // embedRef, renderNoteText, renderLinkCard, resolveMentions, paintCountdownNum and
+  // tryBlossomFirst out on the Profile tab, the reply context strip, the web-comment
+  // sheet, the unlock cooldown and the profile-picture uploader at once.
+  //
+  // An earlier version of this checked only the names the core RETURNS, which is why it
+  // missed all seven: they were moved and never exported at all. This checks everything
+  // the core declares.
+  const declared = new Set();
+  for (const m of bareCore.matchAll(/^  (?:async )?function ([A-Za-z_$][\w$]*)\s*\(/gm)) declared.add(m[1]);
+  for (const m of bareCore.matchAll(/^  (?:const|let) ([A-Za-z_$][\w$]*)\s*=/gm)) declared.add(m[1]);
+  assert.ok(declared.size > 20, 'the scan found almost nothing, so it is probably broken');
+
+  // Anchored to the real destructures. A looser pattern swallows the file between the
+  // first `const {` and the installComposer call, which is how the earlier version of
+  // this check came back clean while the panel was broken.
+  const taken = new Set();
+  for (const m of panel.matchAll(/const \{([^{}]*)\} = window\.SidecarCore(?:;|\.installComposer)/g)) {
+    m[1].split(',').forEach((x) => { if (x.trim()) taken.add(x.trim()); });
+  }
+  const barePanel = strip(panel);
+  const own = new Set();
+  for (const m of barePanel.matchAll(/^  (?:async )?function ([A-Za-z_$][\w$]*)\s*\(/gm)) own.add(m[1]);
+  for (const m of barePanel.matchAll(/^  (?:const|let|var) ([A-Za-z_$][\w$]*)\s*[=;]/gm)) own.add(m[1]);
+
+  const missing = [...declared].filter((n) =>
+    !taken.has(n) && !own.has(n) && new RegExp('(?<![.\\w$])' + n + '\\b').test(barePanel)).sort();
+  assert.deepEqual(missing, [], 'sidepanel.js calls these and no longer has them: ' + missing.join(', '));
 });
 
 test('THE ACTIVITY PING IS THROTTLED WHERE IT IS CALLED, NOT WHERE IT IS SUPPLIED', () => {

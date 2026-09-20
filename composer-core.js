@@ -359,6 +359,14 @@ window.SidecarCore = (function () {
       serializeEditor, hydrateEditorFromText, createMentionEditor,
       renderNotePreview, uploadMedia, minePow, powCancel,
       resolveClient, showPostCountdown, splitGlyphs,
+      // The panel calls these directly as well as through renderNotePreview: the about
+      // box resolves its own mentions, a quote preview needs embedRef, a reply's context
+      // strip renders with renderNoteText, the web-comment sheet draws its own link card,
+      // the unlock cooldown paints with paintCountdownNum, and the profile-picture
+      // uploader tries Blossom first. Every one of them is a name that used to be in the
+      // panel's scope for free.
+      renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
+      paintCountdownNum,
     };
   }
 
@@ -1359,5 +1367,6 @@ window.SidecarCore = (function () {
     // so they read their relays and their profile cache from whichever page installed it.
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
     VIEW_CLIENTS, DEFAULT_CLIENT,
+    IMG_EXT, VID_EXT,
   };
 })();
