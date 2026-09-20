@@ -78,6 +78,8 @@
   let posting = false;
   let followCache = null;
   let handoverRelays = null;
+  let reduceMotion = false;
+  let countdown = null;
 
   const shortNpub = (npub) =>
     (typeof npub === 'string' && npub.length > 20 ? npub.slice(0, 10) + '…' + npub.slice(-4) : npub || '');
@@ -221,6 +223,9 @@
     poolQuerySync: (relays, filter, params) => pool().querySync(relays, filter, params),
     relayUrls: () => targetRelays(),
     activePubkey: () => state.activePubkey,
+    // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
+    // exactly the kind of thing that setting is for.
+    reduceBalanceMotion: () => reduceMotion,
     naAskEl: na.askEl,
     naAvailable: na.available,
     naDecide: na.decide,
@@ -307,6 +312,72 @@
     // Media alone is a postable note, the same as in the panel: an image with no caption
     // is a thing people post.
     $('compose-post').disabled = posting || (!n && !draft.media.length);
+  }
+
+  // THE LAST LOOK BEFORE IT GOES OUT, if the account asked for one.
+  //
+  // noteCountdown defaults on and the panel has honored it since it existed. This page
+  // published the instant Post was pressed, which is a setting somebody turned on and one
+  // of two composers quietly ignoring it.
+  //
+  // It renders into its own container rather than over the card, so canceling puts the
+  // editor back exactly as it was. Taking over the sheet the way the panel takes over its
+  // modal would mean rebuilding the editor afterwards around a lost caret.
+  async function reviewThenPost() {
+    if (posting) return;
+    const text = (draft.text || '').trim();
+    if (!text && !draft.media.length) return;
+    let on = true, secs = 5;
+    try {
+      const s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {};
+      on = s.noteCountdown !== false;
+      if (Number.isInteger(s.noteCountdownSecs)) secs = s.noteCountdownSecs;
+    } catch (_) { /* a settings read that failed must not stop a post */ }
+    if (!on) return doPost();
+
+    const pane = $('compose-countdown');
+    const preview = h('div', { className: 'countdown-preview' });
+    const body = h('div', { className: 'preview-body' });
+    composer.renderNotePreview(body, text);
+    preview.append(body);
+
+    const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
+    const av = h('span', { className: 'avatar compose-author-av' });
+    applyAvatar(av, acct);
+    const author = h('div', { className: 'compose-author' }, [
+      av,
+      h('div', { className: 'compose-author-info' }, [
+        h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+        h('span', { className: 'compose-author-name', textContent: acct.name || shortNpub(acct.npub) || '\u2014' }),
+      ]),
+    ]);
+
+    const restore = () => {
+      if (countdown) { countdown.stop(); countdown = null; }
+      pane.innerHTML = '';
+      pane.classList.add('hidden');
+      setReviewing(false);
+    };
+    setReviewing(true);
+    pane.classList.remove('hidden');
+    countdown = composer.showPostCountdown({
+      modal: pane, author, secs,
+      title: 'Posting your note',
+      preview,
+      confirmLabel: 'Post now',
+      onFire: () => { restore(); doPost(); },
+      onCancel: restore,
+    });
+  }
+
+  // The editor and its toolbar go inert while the review window is up, for the same reason
+  // they do while a mine runs: what is being reviewed was decided when Post was pressed.
+  function setReviewing(on) {
+    $('compose-slot').classList.toggle('hidden', on);
+    $('compose-tabs').classList.toggle('hidden', on);
+    $('compose-actions').classList.toggle('hidden', on);
+    $('compose-post').classList.toggle('hidden', on);
+    $('compose-close').classList.toggle('hidden', on);
   }
 
   async function doPost() {
@@ -619,6 +690,7 @@
     }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
     applyTheme(settings, state.activePubkey);
+    reduceMotion = !!(settings && settings.reduceBalanceMotion);
 
     paintWho();
 
@@ -644,7 +716,8 @@
 
     $('compose-post').addEventListener('click', () => {
       if (mining) return composer.powCancel();
-      doPost();
+      if (countdown) return; // the review window owns the screen while it runs
+      reviewThenPost();
     });
     // Two ways out, the same way out. The corner box is where every sheet in the panel
     // puts one; the word in the footer is for anyone reading the row rather than the

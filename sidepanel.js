@@ -1503,6 +1503,9 @@
         cdPreview.append(cdTarget, commentBodyPreview(text));
         countdown = showPostCountdown({
           modal,
+          // Was drawn unconditionally inside the countdown before the strip became a
+          // parameter. A comment carries an identity as publicly as a note does.
+          author: composeAuthorStrip(),
           secs,
           title: 'Posting your comment',
           hint: 'Check the page and your comment before it posts.',
@@ -10598,6 +10601,7 @@
   const {
     serializeEditor, hydrateEditorFromText, createMentionEditor,
     renderNotePreview, uploadMedia, minePow, powCancel, resolveClient,
+    showPostCountdown, splitGlyphs,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
@@ -10610,6 +10614,9 @@
       // so the core never touches this panel's pool and a second page can bring its own.
       call, poolGet, poolQuerySync, relayUrls, cacheProfile,
       activePubkey: () => state.activePubkey,
+      // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
+      // exactly the kind of thing that setting is for.
+      reduceBalanceMotion: () => reduceBalanceMotion,
     });
 
   // ---- composer draft autosave (per account, encrypted at rest) ----
@@ -10703,27 +10710,10 @@
   // is the whole reason this is parameterized rather than duplicated — for a comment
   // the URL is the thing most worth a second look, since it was captured from
   // whichever tab happened to be active.
-  function showPostCountdown(opts) {
-    const { modal, secs, title, hint, preview, confirmLabel, onFire, onCancel } = opts;
-    modal.innerHTML = '';
-    let remaining = secs;
-    let timer = null;
-
-    const R = 30;
-    const C = 2 * Math.PI * R;
-    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    ring.setAttribute('viewBox', '0 0 72 72');
-    ring.setAttribute('class', 'countdown-ring');
-    ring.innerHTML =
-      '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
-      '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
-      'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
-    const num = h('div', { className: 'countdown-num' });
-    paintCountdownNum(num, remaining);
-    const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
-
-    // Same identity strip as the editor — who's posting shouldn't be ambiguous right
-    // before it actually publishes.
+  // Same identity strip the editor carries: who is posting should not be ambiguous at the
+  // moment it actually publishes. Built fresh on each call, because a DOM element lives in
+  // exactly one place and the editor already has one on screen.
+  function composeAuthorStrip() {
     const active = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
     const author = h('div', { className: 'compose-author' });
     author.append(avatarEl(active || {}, 'compose-author-av'));
@@ -10733,39 +10723,9 @@
         h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
       ])
     );
-
-    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-    const now = h('button', { className: 'primary', textContent: confirmLabel || 'Post now' });
-    const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-
-    async function fire() {
-      stop();
-      now.disabled = true;
-      now.textContent = 'Posting…';
-      await onFire();
-    }
-    now.addEventListener('click', fire);
-    cancel.addEventListener('click', () => { stop(); onCancel(); });
-
-    modal.append(
-      h('h3', { textContent: title }),
-      author,
-      h('p', { className: 'hint', textContent: hint || 'Review before it posts.' }),
-      preview,
-      ringWrap,
-      h('div', { className: 'actions' }, [now, cancel])
-    );
-
-    const fill = ring.querySelector('.ring-fill');
-    timer = setInterval(() => {
-      remaining -= 1;
-      paintCountdownNum(num, remaining);
-      fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
-      if (remaining <= 0) fire();
-    }, 1000);
-
-    return { stop };
+    return author;
   }
+
 
   // Resolved once per post: the toggle is worded "Review countdown before posting"
   // and covers everything publishable, so comments read the same setting as notes
@@ -11838,6 +11798,7 @@
       }
       countdown = showPostCountdown({
         modal,
+        author: composeAuthorStrip(),
         secs,
         title: draft.poll && !replyTo ? 'Posting your poll' : replyTo ? 'Posting your reply' : 'Posting your note',
         preview: previewScroll,
@@ -15619,22 +15580,6 @@
       + ';--iron-dy:' + ((Math.random() * 0.06) - 0.03).toFixed(3) + 'em';
   }
 
-  function splitGlyphs(el, text, strike) {
-    el.textContent = '';
-    const glyphs = Array.from(text);
-    // Fresh dice at every split (see ironDiceStyle) — not seeded off --i or the
-    // glyph itself, because re-rendering the same balance should land differently.
-    glyphs.forEach((ch, i) => {
-      const { delay, duration } = glyphBeat(i, glyphs.length);
-      el.append(h('span', {
-        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep')
-          + (i % 2 ? ' bal-alt' : '') + (strike(i) ? ' bal-in' : ''),
-        textContent: ch,
-        style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`
-          + ';' + ironDiceStyle(),
-      }));
-    });
-  }
 
   // ---- hand-stamped display type -------------------------------------------------
   // splitGlyphs strikes the figures; this extends the same deal-every-character-dice
@@ -15773,14 +15718,6 @@
   // on a fresh element strikes everything, because the number is arriving.
   // Reduce motion (settings) keeps the figure plain, and the OS-level
   // prefers-reduced-motion overrides in each theme file are the second gate.
-  function paintCountdownNum(el, n) {
-    const text = String(Math.max(n, 0));
-    const fresh = !el.querySelector('.bal-glyph');
-    const prev = el.textContent;
-    const off = prev.length - text.length;
-    splitGlyphs(el, text, (i) =>
-      !reduceBalanceMotion && (fresh || prev.charAt(off + i) !== text.charAt(i)));
-  }
 
   // Force both balance surfaces to strike on their next paint, whatever figure they
   // are already showing. Hiding or revealing balances changes what the tube

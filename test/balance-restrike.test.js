@@ -28,7 +28,10 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// splitGlyphs moved to composer-core.js with the review countdown, which paints its
+// digits with it and is now shared by three composers. The panel loads both files.
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 
 function lift(pattern, label) {
   const m = source.match(pattern);

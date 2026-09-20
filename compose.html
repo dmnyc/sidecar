@@ -54,6 +54,9 @@
       </div>
 
       <div id="compose-slot"></div>
+      <!-- The review window lands here rather than over the card, so canceling it puts the
+           editor back exactly as it was instead of rebuilding it around a lost caret. -->
+      <div class="compose-countdown hidden" id="compose-countdown"></div>
       <div class="compose-preview compose-preview-lg hidden" id="compose-preview"></div>
       <div class="compose-thumbs" id="compose-thumbs"></div>
 

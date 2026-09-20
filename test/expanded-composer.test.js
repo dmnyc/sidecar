@@ -249,6 +249,37 @@ test('MINE FIRST, THEN SIGN', () => {
   assert.match(body, /const \{ pubkey: _mined, \.\.\.rest \} = mined\.event;/);
 });
 
+test('THE REVIEW COUNTDOWN IS HONORED HERE TOO', () => {
+  // noteCountdown defaults on and the panel has honored it since it existed. This page
+  // published the instant Post was pressed, which is a setting somebody turned on and one
+  // of two composers quietly ignoring it.
+  assert.match(bare, /on = s\.noteCountdown !== false;/);
+  assert.match(bare, /if \(!on\) return doPost\(\);/);
+  assert.match(bare, /composer\.showPostCountdown\(\{/);
+  // A settings read that failed must not be able to stop a post.
+  assert.match(bare, /catch \(_\) \{ \/\* a settings read that failed must not stop a post \*\/ \}/);
+
+  // Its own container, not the card. Taking over the sheet the way the panel takes over
+  // its modal would mean rebuilding the editor on cancel around a lost caret.
+  assert.match(pageHtml, /id="compose-countdown"/);
+  assert.match(bare, /modal: pane, author, secs,/);
+  const fn = bare.slice(bare.indexOf('const restore = () =>'));
+  assert.match(fn.slice(0, 300), /countdown\.stop\(\); countdown = null;/);
+  assert.match(fn.slice(0, 300), /pane\.classList\.add\('hidden'\)/);
+
+  // One countdown at a time, and the editor inert while it is up, for the same reason it
+  // is inert while a mine runs: what is being reviewed was decided when Post was pressed.
+  assert.match(bare, /if \(countdown\) return;/);
+  assert.match(bare, /function setReviewing\(on\)/);
+
+  // The strip that says who is posting became a parameter for this, so the countdown no
+  // longer reaches into the panel's own state to build it. Both panel call sites pass it,
+  // including the page-comment one, which drew it before the change.
+  assert.equal((panelBare.match(/author: composeAuthorStrip\(\)/g) || []).length, 2);
+  assert.ok(core.includes('function showPostCountdown(opts)'), 'the core should own it');
+  assert.ok(!panel.includes('function showPostCountdown(opts)'), 'sidepanel.js kept a copy');
+});
+
 test('THE EDITOR GOES INERT WHILE A MINE RUNS', () => {
   // minePow works on a snapshot of the template taken when Post was pressed, so anything
   // typed while it runs is not in the note that publishes. At 22 bits that is ten seconds

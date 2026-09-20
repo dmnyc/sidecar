@@ -358,7 +358,7 @@ window.SidecarCore = (function () {
     return {
       serializeEditor, hydrateEditorFromText, createMentionEditor,
       renderNotePreview, uploadMedia, minePow, powCancel,
-      resolveClient,
+      resolveClient, showPostCountdown, splitGlyphs,
     };
   }
 
@@ -1258,6 +1258,95 @@ window.SidecarCore = (function () {
     const by = (settings && settings.defaultClientBy) || null;
     const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
+  }
+
+  // ---- the review window before something irreversible goes out ----
+  //
+  // Already parameterized on its container and its preview, because the note composer
+  // and the page-comment sheet had different things worth a second look. The expanded
+  // composer is the third caller, and the only thing left that knew which document it
+  // was drawing into was the identity strip, which is now passed in like the rest.
+  function showPostCountdown(opts) {
+    const { modal, secs, title, hint, preview, confirmLabel, onFire, onCancel } = opts;
+    // WHO IS POSTING, supplied rather than looked up. It was read off the panel's own
+    // state here, which is the one thing in this function that knew which document it was
+    // drawing into. The expanded composer asks the same question of a different page.
+    const author = opts.author || null;
+    modal.innerHTML = '';
+    let remaining = secs;
+    let timer = null;
+
+    const R = 30;
+    const C = 2 * Math.PI * R;
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ring.setAttribute('viewBox', '0 0 72 72');
+    ring.setAttribute('class', 'countdown-ring');
+    ring.innerHTML =
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
+      '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
+      'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
+    const num = h('div', { className: 'countdown-num' });
+    paintCountdownNum(num, remaining);
+    const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
+
+
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const now = h('button', { className: 'primary', textContent: confirmLabel || 'Post now' });
+    const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+
+    async function fire() {
+      stop();
+      now.disabled = true;
+      now.textContent = 'Posting…';
+      await onFire();
+    }
+    now.addEventListener('click', fire);
+    cancel.addEventListener('click', () => { stop(); onCancel(); });
+
+    modal.append(
+      h('h3', { textContent: title }),
+      ...(author ? [author] : []),
+      h('p', { className: 'hint', textContent: hint || 'Review before it posts.' }),
+      preview,
+      ringWrap,
+      h('div', { className: 'actions' }, [now, cancel])
+    );
+
+    const fill = ring.querySelector('.ring-fill');
+    timer = setInterval(() => {
+      remaining -= 1;
+      paintCountdownNum(num, remaining);
+      fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
+      if (remaining <= 0) fire();
+    }, 1000);
+
+    return { stop };
+  }
+
+  function splitGlyphs(el, text, strike) {
+    el.textContent = '';
+    const glyphs = Array.from(text);
+    // Fresh dice at every split (see ironDiceStyle) — not seeded off --i or the
+    // glyph itself, because re-rendering the same balance should land differently.
+    glyphs.forEach((ch, i) => {
+      const { delay, duration } = glyphBeat(i, glyphs.length);
+      el.append(h('span', {
+        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep')
+          + (i % 2 ? ' bal-alt' : '') + (strike(i) ? ' bal-in' : ''),
+        textContent: ch,
+        style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`
+          + ';' + ironDiceStyle(),
+      }));
+    });
+  }
+
+  function paintCountdownNum(el, n) {
+    const text = String(Math.max(n, 0));
+    const fresh = !el.querySelector('.bal-glyph');
+    const prev = el.textContent;
+    const off = prev.length - text.length;
+    splitGlyphs(el, text, (i) =>
+      !deps.reduceBalanceMotion() && (fresh || prev.charAt(off + i) !== text.charAt(i)));
   }
 
   return {

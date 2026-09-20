@@ -37,7 +37,8 @@ function struckTypeHeadingsFromCss() {
 }
 
 function stampedSelectorsFromJs() {
-  const js = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+    '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
   const m = js.match(/const STAMPED_TYPE_SELECTOR = \[([\s\S]*?)\]\.join\(','\)/);
   if (!m) throw new Error('STAMPED_TYPE_SELECTOR not found in sidepanel.js');
   return Array.from(m[1].matchAll(/'([^']+)'/g), (x) => x[1]).sort();
@@ -61,7 +62,8 @@ test('navigation subheads are deliberately excluded from the pose', () => {
 });
 
 test('STAMPED_TYPE_SELECTOR is wired into boot exactly once via initStampedType', () => {
-  const js = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+    '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
   assert.equal(js.match(/initStampedType\(\)/g).length, 2,
     'one definition, one call — extra calls would stack observers');
 });
