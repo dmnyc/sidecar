@@ -20,7 +20,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// The editor and the tracking list moved to composer-core.js, which the panel loads
+// beside itself so the expanded composer page can share them. Both files are the
+// panel's source as far as these lifts and assertions are concerned.
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const bare = source.replace(/^\s*\/\/.*$/gm, '');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
@@ -205,14 +209,18 @@ test('OFFERED, NEVER DONE FOR YOU', () => {
   // to sign, and rewriting the words in a composer on the way in is the same kind of act
   // as rewriting an event on the way out. So the paste handler observes and does not
   // touch the text, and the one place the replacement happens is a click listener.
-  const paste = bare.match(/editor\.addEventListener\('paste', [^\n]*\n?/);
+  // Scoped to the factory, because the note composer has a paste handler of its own
+  // earlier in the joined source and that one DOES preventDefault, on purpose.
+  const factory = bare.slice(bare.indexOf('function createMentionEditor(opts) {'));
+  const scope = factory.slice(0, factory.indexOf('\n  }\n'));
+  const paste = scope.match(/editor\.addEventListener\('paste', [^\n]*\n?/);
   assert.ok(paste, 'no paste hook in the editor factory');
   assert.ok(!/preventDefault/.test(paste[0]), 'the scan must not interfere with the paste');
   assert.match(paste[0], /setTimeout\(scanTracking, 0\)/);
 
-  const replacements = bare.match(/text\.split\(hit\.raw\)\.join\(hit\.clean\)/g) || [];
+  const replacements = scope.match(/text\.split\(hit\.raw\)\.join\(hit\.clean\)/g) || [];
   assert.equal(replacements.length, 1, 'the text is rewritten in exactly one place');
-  const click = bare.slice(bare.indexOf("trackBtn.addEventListener('click'"));
+  const click = scope.slice(scope.indexOf("trackBtn.addEventListener('click'"));
   assert.match(click.slice(0, click.indexOf('});') + 3), /text\.split\(hit\.raw\)\.join\(hit\.clean\)/,
     'and that place is the button');
 });

@@ -23,7 +23,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// The editor and the tracking list moved to composer-core.js, which the panel loads
+// beside itself so the expanded composer page can share them. Both files are the
+// panel's source as far as these lifts and assertions are concerned.
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 
 function lift(pattern, label) {
   const m = source.match(pattern);
