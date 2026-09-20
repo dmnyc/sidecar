@@ -2679,6 +2679,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .embed-time { font-size: 11px; color: var(--muted); }
 .embed-body { font-size: 13px; line-height: 1.5; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .compose-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+/* An empty one is still a flex item: 14px of margin plus the gap on either side of it,
+   which is 42px of nothing between the editor and the toolbar in the expanded composer.
+   The panel pays a smaller version of the same bill. */
+.compose-thumbs:empty { display: none; }
 .compose-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
 .compose-thumb img, .compose-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .compose-thumb-x {
@@ -2723,8 +2727,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .compose-expand:hover:not(:disabled) { color: var(--lav); }
 /* 12px padding, a 22px wordmark, 12px padding, 1px rule. Written once because the
-   centered card below has to subtract it, and two literals would drift. */
-.compose-page { margin: 0; min-height: 100vh; --compose-topbar-h: 47px; }
+   centered card below has to subtract it, and two literals would drift.
+
+   --compose-pane-h is the height Write and Preview share. One variable rather than two
+   equal numbers, because the two panes agreeing is the point: switching tabs must not
+   move the card. */
+.compose-page {
+  margin: 0; min-height: 100vh;
+  --compose-topbar-h: 47px;
+  --compose-pane-h: 340px;
+}
+/* SHORT SCREENS. The card is about 750px tall at rest, which is most of a laptop lid once
+   the browser has taken its chrome, and the Post button ends up on the fold. Everything
+   here is padding and one pane height: 240px is still twice what the panel gives you,
+   which is the whole reason to be on this page. */
+@media (max-height: 820px) {
+  .compose-page { --compose-pane-h: 240px; }
+  .compose-body { padding: 16px 20px 24px; }
+  .compose-sheet { gap: 11px; padding: 18px; }
+}
 /* THE SAME BAR THE GUIDE WEARS, at the same height: 12px of padding around a 22px
    wordmark. A page that opens in a tab has no panel chrome around it to say whose it is,
    and the guide and the app directory already answered that question this way.
@@ -2788,7 +2809,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    panel's type is sized for a 360px column and reads as cramped the moment it is not in
    one. Nothing else about the editor changes. */
 .compose-editor-lg {
-  font-size: 17px; line-height: 1.6; min-height: 340px; max-height: none;
+  font-size: 17px; line-height: 1.6; min-height: var(--compose-pane-h); max-height: none;
   padding: 18px; border: 1px solid var(--border); border-radius: 14px;
   /* The same field every input in the app sits on, so it reads as a field rather than as
      a hole in the card. It was velvet-1, which is now the card itself, and the two would
@@ -2805,7 +2826,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    panel's 14px the preview read as a thumbnail of the 17px being written above it, which
    is the opposite of what a preview is for. */
 .compose-preview-lg {
-  min-height: 340px; max-height: none;
+  min-height: var(--compose-pane-h); max-height: none;
   padding: 18px; border-radius: 14px;
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
@@ -2814,6 +2835,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    360px column and looks like a stamp on a 720px one. */
 .compose-preview-lg .embed-body .note-media { max-height: 360px; }
 .compose-preview-lg .note-embed { padding: 14px 16px; }
+/* The sheet sets the rhythm with its own gap, so the rows inside it do not each add a
+   margin on top of it. Left alone in the panel, where these rows are not flex children. */
+.compose-sheet .compose-actions,
+.compose-sheet .compose-thumbs,
+.compose-sheet .compose-tabs { margin: 0; }
 .compose-foot { display: flex; align-items: center; gap: 14px; }
 .compose-status { font-size: 12px; color: var(--muted); }
 /* NOT A BUTTON. Leaving is not an action with the same weight as publishing, and two
@@ -2825,8 +2851,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .compose-cancel:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
 /* And the one that publishes is the biggest thing in the row, because it is the only
-   thing on this page that cannot be taken back. */
-.compose-post { font-size: 15px; padding: 12px 30px; border-radius: 12px; }
+   thing on this page that cannot be taken back. A floor rather than more padding, so the
+   width is the same whatever the label says: it becomes Stop mining for as long as a mine
+   runs, and a button that changes size when it changes job reads as two buttons. */
+.compose-post {
+  font-size: 15px; padding: 12px 30px; border-radius: 12px;
+  min-width: 184px;
+}
 /* ---- the card after the note is out ----
    The panel drops a banner because its composer is a modal that closes onto a whole app.
    A tab has nothing underneath it, so the card becomes the receipt rather than emptying

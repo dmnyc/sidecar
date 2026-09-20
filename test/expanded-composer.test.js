@@ -127,18 +127,43 @@ test('the type is bigger, which is the whole point of the page', () => {
   // of the 17px being written above it, which is the opposite of what a preview is for.
   assert.match(pageHtml, /class="compose-preview compose-preview-lg hidden"/);
   const prev = css.slice(css.indexOf('.compose-preview-lg {'), css.indexOf('.compose-preview-lg .embed-body'));
-  assert.match(prev, /min-height: 340px/);
   assert.match(prev, /max-height: none/);
   assert.match(prev, /padding: 18px/);
   assert.match(prev, /\.compose-preview-lg \.preview-body \{ font-size: 17px/);
-  assert.match(rule, /min-height: 340px/, 'the two panes have to agree on height');
+  // ONE VARIABLE, NOT TWO EQUAL NUMBERS. The two panes agreeing is the point, and it has
+  // to survive the short-screen override that shrinks both of them at once.
+  assert.match(rule, /min-height: var\(--compose-pane-h\)/, 'the two panes have to agree on height');
+  assert.match(prev, /min-height: var\(--compose-pane-h\)/);
   assert.match(rule, /padding: 18px/);
+  assert.match(css, /--compose-pane-h: 340px/);
+});
+
+test('A SHORT SCREEN DOES NOT PUT POST BELOW THE FOLD', () => {
+  // The card is about 750px tall at rest, which is most of a laptop lid once the browser
+  // has taken its chrome. Everything given back here is padding and one pane height:
+  // 240px is still twice what the panel gives you, which is the whole reason to be here.
+  const short = css.slice(css.indexOf('@media (max-height: 820px)'));
+  const block = short.slice(0, short.indexOf('\n}') + 2);
+  assert.match(block, /--compose-pane-h: 240px/);
+  assert.match(block, /\.compose-body \{ padding: 16px 20px 24px; \}/);
+  assert.match(block, /\.compose-sheet \{ gap: 11px; padding: 18px; \}/);
+
+  // And the dead space that was there at every height: an empty thumbnail row is still a
+  // flex item, so it charged 14px of margin plus the gap on either side of it.
+  assert.match(css, /\.compose-thumbs:empty \{ display: none; \}/);
+  // The sheet sets the rhythm with its own gap; the rows inside do not each add to it.
+  assert.match(css, /\.compose-sheet \.compose-actions,[\s\S]{0,120}margin: 0; \}/);
 });
 
 test('THE COMPOSER FLOATS, CENTERED BOTH WAYS, ON A SOLID SURFACE', () => {
   // A tab is a lot of empty field, and text laid straight onto it has nothing holding it.
   // The note being written is one object, so it gets one surface with an edge.
-  const sheet = css.slice(css.indexOf('.compose-sheet {'), css.indexOf('.compose-head {'));
+  // Indexes walked forward from the full .compose-body rule, because the short-screen
+  // media query declares one-line overrides for both of these and sits earlier in the
+  // file, which is what a plain indexOf finds.
+  const bodyAt = css.indexOf('.compose-body {\n');
+  const sheetAt = css.indexOf('.compose-sheet {\n', bodyAt);
+  const sheet = css.slice(sheetAt, css.indexOf('.compose-head {'));
   assert.match(sheet, /background: var\(--velvet-1\)/, 'solid, and from the theme');
   assert.ok(!/gradient|rgba\(\d/.test(sheet.split('box-shadow')[0]), 'the surface is solid, not a wash');
   assert.match(sheet, /border: 1px solid var\(--border-strong\)/);
@@ -150,8 +175,9 @@ test('THE COMPOSER FLOATS, CENTERED BOTH WAYS, ON A SOLID SURFACE', () => {
   // way to scroll back to it; auto margins resolve to zero instead and stay reachable.
   // Comments stripped before the doesNotMatch, or the rule's own explanation of why it is
   // not align-items: center is what the guard finds.
-  const body = css.slice(css.indexOf('.compose-body {'), css.indexOf('.compose-sheet'))
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+  // The FULL rule, not the one-liner inside the short-screen media query, which sits
+  // earlier in the file now and is what a plain indexOf finds.
+  const body = css.slice(bodyAt, sheetAt).replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(body, /justify-content: center/);
   assert.match(body, /min-height: calc\(100vh - var\(--compose-topbar-h\)\)/);
   assert.match(sheet, /margin: auto 0/);
@@ -373,9 +399,13 @@ test('THE WAY OUT IS A CORNER BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER'
   assert.match(cancel, /background: none/);
   assert.match(cancel, /border: none/);
   // And the one that cannot be taken back is the biggest thing in the row.
-  const postRule = css.slice(css.indexOf('.compose-post {'), css.indexOf('.compose-post {') + 120);
+  const postRule = css.slice(css.indexOf('.compose-post {'), css.indexOf('.compose-post {') + 160);
   assert.match(postRule, /font-size: 15px/);
   assert.match(postRule, /padding: 12px 30px/);
+  // A floor rather than more padding, so the width is the same whatever the label says.
+  // It becomes Stop mining for as long as a mine runs, and a button that changes size
+  // when it changes job reads as two buttons.
+  assert.match(postRule, /min-width: 184px/);
 });
 
 test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
