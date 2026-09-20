@@ -20,7 +20,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// composer-core.js is loaded beside the panel: the DOM toolkit moved there so the
+// expanded composer page could share it rather than keep a second copy of 55 icons.
+// Both files are the panel's source as far as these assertions are concerned.
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
 const stripComments = (src) =>
