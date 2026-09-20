@@ -2722,8 +2722,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--muted); font-size: 13px; font-weight: 600; padding: 6px 2px 6px 10px;
 }
 .compose-expand:hover:not(:disabled) { color: var(--lav); }
-.compose-page {
-  min-height: 100vh; margin: 0; display: flex; justify-content: center;
+.compose-page { margin: 0; min-height: 100vh; }
+/* THE SAME BAR THE GUIDE WEARS, at the same height: 12px of padding around a 22px
+   wordmark. A page that opens in a tab has no panel chrome around it to say whose it is,
+   and the guide and the app directory already answered that question this way.
+
+   Drawn from the theme variables rather than the guide's own background, which is a
+   hardcoded rgba of Speakeasy's velvet and reads as a mistake on the six light themes.
+   The logo itself swaps with the theme too, through logoSrcFor. */
+.compose-topbar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 18px;
+  padding: 12px 24px;
+  background: var(--velvet-1);
+  border-bottom: 1px solid var(--border);
+}
+.compose-brand { display: flex; align-items: center; flex-shrink: 0; }
+.compose-brand img { height: 22px; width: auto; }
+.compose-body {
+  display: flex; justify-content: center;
   padding: 32px 20px 48px; box-sizing: border-box;
 }
 /* WIDE ENOUGH TO READ, not as wide as the window. A line of prose past about 70

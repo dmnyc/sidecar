@@ -18,7 +18,7 @@
 // panel worked out and left with the draft.
 (function () {
   const SC = window.SidecarCore;
-  const { h, icon } = SC;
+  const { h, icon, logoSrcFor, avatarPhSrc } = SC;
   const NT = window.NostrTools;
   const $ = (id) => document.getElementById(id);
 
@@ -91,6 +91,11 @@
     name = THEME_ALIASES[name] || name;
     if (!VALID_THEMES.includes(name)) name = 'speakeasy';
     document.documentElement.setAttribute('data-theme', name);
+    // The wordmark is baked lavender for a dark field and disappears on marble or
+    // eggshell, so the six light themes get the dark-wordmark cut. Same function the
+    // panel uses, from the same set, so a new theme is registered once.
+    const logo = $('compose-logo');
+    if (logo) logo.src = logoSrcFor(name);
   }
 
   // ---- relays, and the one page-local pool ----
@@ -137,8 +142,11 @@
     img.referrerPolicy = 'no-referrer';
     if (a && a.picture) {
       img.src = a.picture;
-      img.onerror = () => { img.onerror = null; box.classList.add('avatar-ph'); img.removeAttribute('src'); };
+      img.onerror = () => { img.src = avatarPhSrc(); img.onerror = null; box.classList.add('avatar-ph'); };
     } else {
+      // The garnish is drawn in white for a dark disc, so a light theme takes the other
+      // cut. Reads the live data-theme attribute, which applyTheme has already set.
+      img.src = avatarPhSrc();
       box.classList.add('avatar-ph');
     }
     box.append(img);

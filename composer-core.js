@@ -290,6 +290,46 @@ window.SidecarCore = (function () {
     return out;
   }
 
+  // ---- which cut of the artwork this theme wants ----
+  //
+  // Here rather than in the panel because the comment below already says why: it is the
+  // place a new light theme has to be registered, and the expanded composer page would
+  // have been one more. Everything in this block is a pure function of the theme name or
+  // of the live data-theme attribute, so any page can call it.
+  // Path to the full Sidecar logo for a given theme. Art Deco uses a variant
+  // whose wordmark is dark purple (#5a4a8a) for legibility on the light
+  // eggshell background; the cocktail-glass mark is identical in both files
+  // (official colors), so only the wordmark changes.
+  // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
+  // prompt.js (the approval window's wordmark). Three documents, no module system between
+  // them; a new light theme has to be registered in all three.
+  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
+  function logoSrcFor(themeName) {
+    // EVERY light theme needs the dark-wordmark variant; the default is baked
+    // lavender for a dark field and disappears on marble, eggshell or plaster.
+    // A set rather than a chain of ||, because this is the fourth place a theme
+    // has to be registered and the chain form is the one that gets forgotten.
+    return LIGHT_THEMES.has(themeName)
+      ? 'icons/sidecar-logo-deco.svg'
+      : 'icons/sidecar-logo.svg';
+  }
+
+  // Which cut of the placeholder garnish to use. It is drawn in white for a dark
+  // avatar disc, and on the five light themes that is white on white — the slice was
+  // simply not there, on the account switcher, the rows, the compose author, the
+  // notification modal, everywhere. Same shape as logoSrcFor above and for exactly the
+  // same reason, so it reads the same LIGHT_THEMES set: one place to register a theme,
+  // not two.
+  //
+  // Reads the live attribute rather than taking a parameter, because applyAvatar is
+  // called from a dozen renderers that have no idea what the theme is and should not
+  // have to be told.
+  function avatarPhSrc() {
+    return LIGHT_THEMES.has(document.documentElement.getAttribute('data-theme'))
+      ? 'icons/avatar-default-dark.svg'
+      : 'icons/avatar-default.svg';
+  }
+
   // ---- the composer's editor ----
   //
   // Everything below was the panel's, and still reads exactly as it did there. What
@@ -686,6 +726,7 @@ window.SidecarCore = (function () {
     show, hide, ICONS, FILLED_ICONS, icon, h,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls,
+    LIGHT_THEMES, logoSrcFor, avatarPhSrc,
     installComposer,
   };
 })();

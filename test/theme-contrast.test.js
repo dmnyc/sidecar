@@ -587,9 +587,12 @@ test('every theme declares a color-scheme, and it matches the theme', () => {
   //
   // Reads the light/dark split from sidepanel.js rather than a list here, so registering
   // a theme stays one edit and this cannot drift out of step with the app.
-  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  // LIGHT_THEMES moved to composer-core.js when the expanded composer page needed it:
+  // it decides which cut of the logo and the avatar placeholder a theme wants, and a
+  // second copy would be one more place to forget a new theme.
+  const panel = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
   const m = panel.match(/const LIGHT_THEMES = new Set\(\[([^\]]*)\]\)/);
-  assert.ok(m, 'could not read LIGHT_THEMES from sidepanel.js');
+  assert.ok(m, 'could not read LIGHT_THEMES from composer-core.js');
   const light = new Set(m[1].match(/'([a-z-]+)'/g).map((q) => q.replace(/'/g, '')));
 
   for (const theme of THEMES) {

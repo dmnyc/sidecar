@@ -21,28 +21,41 @@
   <link rel="stylesheet" href="themes/patterns.css" />
 </head>
 <body class="compose-page">
-  <main class="compose-sheet">
-    <header class="compose-head">
-      <div class="compose-who">
-        <span class="avatar compose-av" id="compose-av"></span>
-        <span class="compose-who-text">
-          <span class="compose-name" id="compose-name">Loading…</span>
-          <span class="compose-sub" id="compose-sub">Writing as this account</span>
+  <!-- Same bar as the guide and the app directory: 12px padding around a 22px wordmark,
+       so a Sidecar page looks like a Sidecar page wherever you arrive at one. What it
+       does not borrow is that bar's hardcoded dark background, which is Speakeasy's and
+       nobody else's. This one is drawn from the theme variables, so it follows the
+       account you are writing as. -->
+  <header class="compose-topbar">
+    <span class="compose-brand">
+      <img id="compose-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
+    </span>
+  </header>
+
+  <div class="compose-body">
+    <main class="compose-sheet">
+      <header class="compose-head">
+        <div class="compose-who">
+          <span class="avatar compose-av" id="compose-av"></span>
+          <span class="compose-who-text">
+            <span class="compose-name" id="compose-name">Loading…</span>
+            <span class="compose-sub" id="compose-sub">Writing as this account</span>
+          </span>
+        </div>
+        <span class="compose-head-actions">
+          <span class="compose-count" id="compose-count"></span>
         </span>
-      </div>
-      <span class="compose-head-actions">
-        <span class="compose-count" id="compose-count"></span>
-      </span>
-    </header>
+      </header>
 
-    <div id="compose-slot"></div>
+      <div id="compose-slot"></div>
 
-    <footer class="compose-foot">
-      <span class="compose-status" id="compose-status"></span>
-      <button type="button" class="ghost" id="compose-close">Close</button>
-      <button type="button" class="primary" id="compose-post" disabled>Post</button>
-    </footer>
-  </main>
+      <footer class="compose-foot">
+        <span class="compose-status" id="compose-status"></span>
+        <button type="button" class="ghost" id="compose-close">Close</button>
+        <button type="button" class="primary" id="compose-post" disabled>Post</button>
+      </footer>
+    </main>
+  </div>
 
   <!-- Same id and class the panel uses, so styles.css dresses it without a second rule. -->
   <div id="toasts" class="toasts"></div>

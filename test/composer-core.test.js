@@ -92,6 +92,18 @@ test('what the core hands back is what the panel takes', () => {
     .filter(Boolean);
   assert.ok(taken.length > 5, 'the scan found almost nothing, so it is probably broken');
   for (const name of taken) assert.ok(exported.has(name), 'the core never returns ' + name);
+
+  // AND THE OTHER HALF, which is the one that actually broke. Moving logoSrcFor and
+  // avatarPhSrc to the core left the panel still calling them and no longer importing
+  // them: a ReferenceError on every theme apply, and nothing here or anywhere else said
+  // so, because every test reads source rather than running the panel. Any exported name
+  // the panel still USES it must also TAKE.
+  const held = new Set(taken);
+  for (const name of exported) {
+    if (name === 'installComposer') continue; // reached through window.SidecarCore by design
+    const uses = new RegExp('(?<![.\\w$])' + name + '\\b').test(strip(panel));
+    if (uses) assert.ok(held.has(name), 'sidepanel.js uses ' + name + ' without taking it');
+  }
 });
 
 test('the expanded composer page loads the core before it uses it', () => {

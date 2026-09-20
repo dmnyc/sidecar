@@ -24,6 +24,8 @@ const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
 const pageHtml = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+const welcomeCss = fs.readFileSync(path.join(ROOT, 'welcome.css'), 'utf8');
+const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const bare = page.replace(/^\s*\/\/.*$/gm, '');
 const panelBare = panel.replace(/^\s*\/\/.*$/gm, '');
 
@@ -129,6 +131,43 @@ test('the page dresses itself from the panel stylesheet and themes', () => {
   assert.match(bare, /document\.documentElement\.setAttribute\('data-theme', name\)/);
   // Per account, like the panel: themeBy first, then the global choice.
   assert.match(bare, /\(by && pubkey && by\[pubkey\]\) \|\| \(settings && settings\.theme\)/);
+});
+
+test('A PAGE THAT OPENS IN A TAB SAYS WHOSE IT IS', () => {
+  // The panel has chrome around it that answers this; a tab has nothing but the page. The
+  // guide and the app directory already settled the shape, so this is the same bar at the
+  // same height: 12px of padding around a 22px wordmark.
+  assert.match(pageHtml, /<header class="compose-topbar">/);
+  assert.match(pageHtml, /id="compose-logo"/);
+  const nav = welcomeCss.slice(welcomeCss.indexOf('.helpnav {'), welcomeCss.indexOf('.helpnav-brand'));
+  const bar = css.slice(css.indexOf('.compose-topbar {'), css.indexOf('.compose-brand {'));
+  assert.match(nav, /padding: 12px 24px/);
+  assert.match(bar, /padding: 12px 24px/, 'the bars have to be the same height');
+  assert.match(welcomeCss, /\.helpnav-brand img \{ height: 22px/);
+  assert.match(css, /\.compose-brand img \{ height: 22px/);
+
+  // IN THE THEME, which is where it parts company with the guide. That bar's background is
+  // a hardcoded rgba of Speakeasy's velvet, so on the six light themes it would be a black
+  // stripe above a marble page.
+  assert.match(nav, /background: rgba\(/, 'if the guide went theme-aware, this note is stale');
+  assert.match(bar, /background: var\(--velvet-1\)/);
+  assert.ok(!/rgba\(/.test(bar), 'no hardcoded color in the composer bar');
+  // And the wordmark itself swaps, since the default is baked lavender and vanishes on a
+  // light field. Same function and same set the panel uses.
+  assert.match(bare, /logo\.src = logoSrcFor\(name\)/);
+  assert.match(bare, /const \{ h, icon, logoSrcFor, avatarPhSrc \} = SC;/);
+});
+
+test('the theme artwork helpers live in the core, not a fifth copy', () => {
+  // Their own comment says LIGHT_THEMES is "the fourth place a theme has to be registered
+  // and the chain form is the one that gets forgotten". This page would have been the
+  // fifth, so they moved to the core and the panel takes them back.
+  assert.match(core, /const LIGHT_THEMES = new Set\(\[/);
+  assert.ok(!/const LIGHT_THEMES = new Set/.test(panel), 'a second copy defeats the point');
+  assert.match(panel, /const \{ LIGHT_THEMES, logoSrcFor, avatarPhSrc \} = window\.SidecarCore;/);
+  // The avatar placeholder is drawn in white, so a light theme needs the other cut. The
+  // page was appending an <img> with no src at all before this.
+  assert.match(bare, /img\.src = avatarPhSrc\(\);/);
 });
 
 test('closing the tab keeps what was typed', () => {
