@@ -185,6 +185,19 @@ test('A DECIDED NOTE IS NOT EDITABLE UNDER THE REVIEW WINDOW', () => {
   assert.match(body, /if \(on\) closeAltEditor\(\);/);
 });
 
+test('THE METER HOLDS ITS WIDTH SO THE SAVE BUTTON HOLDS ITS', () => {
+  // Save is flex: 1 beside whatever shares its foot row, so the button's width is
+  // whatever the meter leaves it. A numeric count's text changes width with its
+  // digits — "1998 left" is a different-sized neighbor from "12 left" — and the
+  // button readjusts with every keystroke, a control changing size under a moving
+  // hand. The meter is a ring with one fixed footprint, in the row from the moment
+  // it opens, saying how full it is in geometry rather than text.
+  const row = core.slice(core.indexOf('function buildAltEditorRow'));
+  assert.match(row, /\[ring, save\]/, 'the ring is in the foot row from the start, not added later');
+  assert.match(row, /stroke-dashoffset/, 'the fill is a dash offset');
+  assert.ok(!row.includes("' left'"), 'no digit counter anywhere in the row');
+});
+
 test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {
   // The functions are pure, so they travel on the global like IMG_EXT rather than
   // through installComposer — and a name forgotten at the panel's destructure is a

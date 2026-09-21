@@ -2720,7 +2720,18 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-alt-remove svg { width: 13px; height: 13px; }
 .compose-alt-text { width: 100%; min-height: 64px; font-size: 14px; }
 .compose-alt-foot { display: flex; align-items: center; gap: 10px; }
-.compose-alt-count { flex-shrink: 0; font-size: 12px; color: var(--muted); }
+/* The room left is a ring, not a count: text changes width with its digits and the
+   Save button beside it (flex: 1) would readjust with every keystroke. The ring is
+   one fixed 20px footprint whether the field is empty or full, so the button's size
+   never moves. Same meter as the review countdown's ring, at row size — and the last
+   stretch of the cap turns the fill amber, which is the codebase's "low" reading. */
+.compose-alt-ring { width: 20px; height: 20px; flex-shrink: 0; }
+.compose-alt-ring .ring-track { fill: none; stroke: var(--border-strong); stroke-width: 2.5; }
+.compose-alt-ring .ring-fill {
+  fill: none; stroke: var(--lav); stroke-width: 2.5; stroke-linecap: round;
+  transition: stroke-dashoffset 150ms linear;
+}
+.compose-alt-ring.is-near .ring-fill { stroke: var(--amber); }
 .compose-alt-save { flex: 1; }
 /* THE COMPOSER'S THREE ADD BUTTONS, ON ONE ROW. Media, Poll and PoW are peers, so they
    read as a toolbar rather than as three stacked decisions, and three short labels fit

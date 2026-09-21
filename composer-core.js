@@ -1030,13 +1030,13 @@ window.SidecarCore = (function () {
   }
 
   // The ALT editor as one full-width row: thumbnail and explainer on top, the
-  // multiline field beneath, the count and its Save stretched under that. Stacked
-  // rather than beside anything, per the only grammar a 360px column has room for.
-  // Both composers seat it under the thumbnail strip; this file builds it and knows
-  // nothing about which one is asking. `onSave` fires once with the field's text —
-  // the caller normalizes and stores it — Save and the trash both route through it
-  // (the trash saves an empty description, which is how one is removed), Escape is
-  // the way out without saving.
+  // multiline field beneath, a meter of the room left and its Save stretched under
+  // that. Stacked rather than beside anything, per the only grammar a 360px column
+  // has room for. Both composers seat it under the thumbnail strip; this file builds
+  // it and knows nothing about which one is asking. `onSave` fires once with the
+  // field's text — the caller normalizes and stores it — Save and the trash both
+  // route through it (the trash saves an empty description, which is how one is
+  // removed), Escape is the way out without saving.
   function buildAltEditorRow(opts) {
     const initial = normalizeAltBreaks(opts.alt || '');
     const onSave = opts.onSave || function () {};
@@ -1066,16 +1066,31 @@ window.SidecarCore = (function () {
     field.value = initial;
     row.append(field);
 
-    const count = h('div', { className: 'compose-alt-count' });
+    // THE ROOM LEFT IS A RING, NOT A NUMBER. Save is flex: 1 beside whatever shares
+    // its row, so a numeric count's changing width — "1998 left" against "12 left" —
+    // would readjust the button with every keystroke, a control changing size under a
+    // moving hand. The ring holds one fixed 20px footprint from the moment the row
+    // opens, empty track included, and says how full it is in geometry: the same meter
+    // as the review countdown's ring, turned down to row size.
+    const RING_R = 8;
+    const RING_C = 2 * Math.PI * RING_R;
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ring.setAttribute('viewBox', '0 0 20 20');
+    ring.setAttribute('class', 'compose-alt-ring');
+    ring.innerHTML =
+      '<circle cx="10" cy="10" r="' + RING_R + '" class="ring-track"/>' +
+      '<circle cx="10" cy="10" r="' + RING_R + '" class="ring-fill" ' +
+      'stroke-dasharray="' + RING_C + '" stroke-dashoffset="' + RING_C + '" transform="rotate(-90 10 10)"/>';
     const save = h('button', { className: 'primary compose-alt-save', type: 'button', textContent: 'Save description' });
-    row.append(h('div', { className: 'compose-alt-foot' }, [count, save]));
+    row.append(h('div', { className: 'compose-alt-foot' }, [ring, save]));
 
-    function paintCount() {
-      const left = ALT_MAX - field.value.length;
-      count.textContent = left < ALT_MAX ? left + ' left' : '';
+    function paintMeter() {
+      const used = field.value.length / ALT_MAX;
+      ring.querySelector('.ring-fill').setAttribute('stroke-dashoffset', String(RING_C * (1 - used)));
+      ring.classList.toggle('is-near', used >= 0.9); // the last stretch, said in color
     }
-    field.addEventListener('input', paintCount);
-    paintCount();
+    field.addEventListener('input', paintMeter);
+    paintMeter();
 
     function finish(alt) {
       row.remove();
