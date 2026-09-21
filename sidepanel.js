@@ -11306,21 +11306,26 @@
         if (altRow && altIndex === i) { closeAltEditor(); return; }
         closeAltEditor();
         altIndex = i;
+        // Commits as it types (the row debounces half a second) and on every way
+        // out — the same autosave promise the text in the editor keeps.
+        function saveAltInto(slot, value) {
+          const cur = draft.media[slot];
+          if (!cur) return;
+          // Normalized once here and again on publish (buildImetaTag), because a
+          // draft can publish without the editor ever being opened.
+          const cleaned = normalizeAltBreaks(value).slice(0, ALT_MAX);
+          if (cleaned) cur.alt = cleaned; else delete cur.alt;
+          scheduleSave();
+          renderThumbs();
+        }
         altRow = buildAltEditorRow({
           url: m.url,
           alt: m.alt,
+          onChange: (value) => saveAltInto(i, value),
           onSave: (value) => {
             closeAltEditor();
-            const cur = draft.media[i];
-            if (!cur) return;
-            // Normalized once here and again on publish (buildImetaTag), because a
-            // draft can publish without the editor ever being opened.
-            const cleaned = normalizeAltBreaks(value).slice(0, ALT_MAX);
-            if (cleaned) cur.alt = cleaned; else delete cur.alt;
-            scheduleSave();
-            renderThumbs();
+            saveAltInto(i, value);
           },
-          onCancel: closeAltEditor,
         });
         mediaDrawer.wrap.after(altRow);
       }

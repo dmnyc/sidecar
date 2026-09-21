@@ -1033,14 +1033,21 @@ window.SidecarCore = (function () {
   // multiline field beneath, a meter of the room left and its Save stretched under
   // that. Stacked rather than beside anything, per the only grammar a 360px column
   // has room for. Both composers seat it under the thumbnail strip; this file builds
-  // it and knows nothing about which one is asking. `onSave` fires once with the
-  // field's text — the caller normalizes and stores it — Save and the trash both
-  // route through it (the trash saves an empty description, which is how one is
-  // removed), Escape is the way out without saving.
+  // it and knows nothing about which one is asking.
+  //
+  // IT AUTOSAVES, like everything else in this composer: a keystroke in the editor
+  // saves the note, so a keystroke here saves the description — `onChange` fires
+  // with the field's text as it is, debounced half a second, and no exit asks
+  // whether the user meant it. `onSave` fires on the way out — Save description,
+  // Escape, the trash (which saves an empty description, which is how one is
+  // removed) — always with the field's current text, so the tail never depends on
+  // the timer. The old contract, commit-on-Save alone, was the trap: the composer
+  // promises that closing is safe, and a field where closing meant losing the words
+  // broke that promise with the rest of the draft there to vouch for it.
   function buildAltEditorRow(opts) {
     const initial = normalizeAltBreaks(opts.alt || '');
     const onSave = opts.onSave || function () {};
-    const onCancel = opts.onCancel || function () {};
+    const onChange = opts.onChange || function () {};
     const row = h('div', { className: 'compose-alt-row' });
 
     const head = h('div', { className: 'compose-alt-head' });
@@ -1057,7 +1064,7 @@ window.SidecarCore = (function () {
     if (initial) {
       const rm = h('button', { className: 'mini ghost compose-alt-remove', title: 'Remove the description', type: 'button' });
       rm.append(icon('trash'));
-      rm.addEventListener('click', () => finish(''));
+      rm.addEventListener('click', () => commit(''));
       head.append(rm);
     }
     row.append(head);
@@ -1092,20 +1099,26 @@ window.SidecarCore = (function () {
       ring.querySelector('.ring-fill').setAttribute('stroke-dashoffset', String(RING_C * (1 - used)));
       ring.classList.toggle('is-near', used >= 0.9); // the last stretch, said in color
     }
-    field.addEventListener('input', paintMeter);
-    paintMeter();
-
-    function finish(alt) {
-      row.remove();
-      onSave(alt);
+    let asTimer = null;
+    function scheduleAutosave() {
+      if (asTimer) clearTimeout(asTimer);
+      asTimer = setTimeout(() => { asTimer = null; onChange(field.value); }, 500);
     }
-    save.addEventListener('click', () => finish(field.value));
+    // Every way out commits what is in the field first, so the last half second
+    // never depends on the timer.
+    function commit(value) {
+      if (asTimer) { clearTimeout(asTimer); asTimer = null; }
+      row.remove();
+      onSave(value);
+    }
+    field.addEventListener('input', () => { paintMeter(); scheduleAutosave(); });
+    paintMeter();
+    save.addEventListener('click', () => commit(field.value));
     field.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       e.preventDefault();
       e.stopPropagation(); // the composer underneath stays open
-      row.remove();
-      onCancel();
+      commit(field.value);
     });
     // The caller appends the row the moment this returns; focus lands on the next
     // frame, once the row is actually in a document.

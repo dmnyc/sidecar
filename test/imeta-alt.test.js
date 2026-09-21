@@ -281,7 +281,10 @@ test('THE METER HOLDS ITS WIDTH SO THE SAVE BUTTON HOLDS ITS', () => {
   // does: the ring is a fixed 20px, the count beside it holds a fixed box of four
   // tabular digits in the stylesheet whether it says 2000 or 12, and neither grows
   // a word.
-  const row = core.slice(core.indexOf('function buildAltEditorRow'));
+  // The last stretch of the cap turns amber with the ring; the count holds a fixed
+  // box of four tabular digits in the stylesheet whether it says 2000 or 12.
+  const rowStart = core.indexOf('function buildAltEditorRow');
+  const row = core.slice(rowStart, core.indexOf('const POW_LEVELS', rowStart));
   assert.match(row, /\[ring, count, save\]/, 'the meter and the count are in the row from the start');
   assert.match(row, /stroke-dashoffset/, 'the fill is a dash offset');
   assert.match(row, /'ghost compose-alt-save'/, 'saving a description is not a primary act');
@@ -302,6 +305,8 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
   assert.ok(onSaveBody, 'could not find the tab onSave handler');
   const persistFn = page.match(/  async function persistDraft\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(persistFn, 'could not find the tab persistDraft');
+  const saveIntoFn = page.match(/function saveAltInto\(slot, value\) \{[\s\S]*?\n    \}/);
+  assert.ok(saveIntoFn, 'could not find the tab saveAltInto');
 
   // Minimal DOM: enough of an element for the row builder to build and for the Save
   // button to be found and clicked.
@@ -354,14 +359,27 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
   vm.createContext(sandbox);
   const handlerSrc = onSaveBody[0].replace(/^onSave: /, '').replace(/,\s*$/, '');
   vm.runInContext(
-    persistFn[0] +
+    persistFn[0] + '\n' + saveIntoFn[0] +
     '\nfunction scheduleSave() { return persistDraft(); }' +
     '\nconst onSaveHandler = ' + handlerSrc + ';' +
-    '\nglobalThis.saveTheAlt = (v) => onSaveHandler(v);',
+    '\nglobalThis.saveTheAlt = (v) => onSaveHandler(v);' +
+    // The autosave path: the row debounces half a second and calls onChange —
+    // the same slot, no Save press, no close.
+    '\nglobalThis.typeTheAlt = (v) => saveAltInto(0, v);',
     sandbox
   );
 
-  // Type the description, press Save description, let the write land.
+  // Type the description without ever pressing Save — the autosave path — then let
+  // the write land.
+  await vm.runInContext('typeTheAlt("a bowl of soup, typed")', sandbox);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(
+    JSON.parse(JSON.stringify(store.pk1)).media[0].alt,
+    'a bowl of soup, typed',
+    'typing alone never reached the store'
+  );
+
+  // Then the explicit commit: Save description, the way out.
   await vm.runInContext('saveTheAlt("a bowl of soup")', sandbox);
   await new Promise((r) => setImmediate(r));
 
@@ -378,6 +396,8 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
   assert.ok(panelOnSave, 'could not find the panel onSave handler');
   const panelSave = panel.match(/  function saveComposeDraft\(key, draft\) \{[\s\S]*?\n  \}\n/);
   assert.ok(panelSave, 'could not find the panel saveComposeDraft');
+  const panelSaveInto = panel.match(/function saveAltInto\(slot, value\) \{[\s\S]*?\n        \}/);
+  assert.ok(panelSaveInto, 'could not find the panel saveAltInto');
   const draft2 = { text: 'another note', media: [{ url: 'https://x/b.png', isVideo: false }] };
   const store2 = {};
   const sandbox2 = {
@@ -395,7 +415,7 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
   vm.createContext(sandbox2);
   const handler2 = panelOnSave[0].replace(/^onSave: /, '').replace(/,\s*$/, '');
   vm.runInContext(
-    panelSave[0] +
+    panelSave[0] + '\n' + panelSaveInto[0] +
     '\nfunction scheduleSave() { return saveComposeDraft("pk2", draft); }' +
     '\nconst onSaveHandler = ' + handler2 + ';' +
     '\nglobalThis.saveTheAlt = (v) => onSaveHandler(v);',
@@ -404,6 +424,29 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
   await vm.runInContext('saveTheAlt("a bridge at dusk")', sandbox2);
   await new Promise((r) => setImmediate(r));
   assert.equal(store2.pk2.media[0].alt, 'a bridge at dusk', 'the panel lost the description');
+});
+
+test('THE ROW AUTOSAVES AS IT TYPES, AND EVERY EXIT COMMITS', () => {
+  // The old row committed only on Save description, and the composer's own promise —
+  // closing is safe, everything already saved — broke for exactly this field: typing
+  // a description and walking away discarded it while the text beside it survived.
+  // The input event schedules the save, and all three exits (Save, Escape, trash)
+  // route through commit, which flushes any pending autosave before closing.
+  // The old row committed only on Save description, and the composer's own promise —
+  // closing is safe, everything already saved — broke for exactly this field: typing
+  // a description and walking away discarded it while the text beside it survived.
+  // The input event schedules the save, and all three exits (Save, Escape, trash)
+  // route through commit, which flushes any pending autosave before closing.
+  const rowStart = core.indexOf('function buildAltEditorRow');
+  const row = core.slice(rowStart, core.indexOf('const POW_LEVELS', rowStart));
+  assert.match(row, /field\.addEventListener\('input', \(\) => \{ paintMeter\(\); scheduleAutosave\(\); \}\);/,
+    'typing never schedules the save');
+  for (const exit of ["save.addEventListener('click', () => commit(field.value));",
+    "rm.addEventListener('click', () => commit(''));",
+    'commit(field.value);']) {
+    assert.ok(row.includes(exit), 'an exit does not commit: ' + exit);
+  }
+  assert.ok(!row.includes('onCancel'), 'a way out that skips the commit is back');
 });
 
 test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {
