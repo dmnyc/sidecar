@@ -265,6 +265,14 @@ test('A DECIDED NOTE IS NOT EDITABLE UNDER THE REVIEW WINDOW', () => {
   const reviewing = pageBare.slice(pageBare.indexOf('function setReviewing(on)'));
   const body = reviewing.slice(0, reviewing.indexOf('\n  }'));
   assert.match(body, /if \(on\) closeAltEditor\(\);/);
+  // And the rest of the card stands down with the editor: the review window renders
+  // the final post itself, so the preview pane, the thumbnails and the attachments'
+  // drawer would each be the same note a second time.
+  assert.match(body, /classList\.toggle\('is-reviewing', on\)/);
+  const sheet = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rule = sheet.slice(sheet.indexOf('.compose-sheet.is-reviewing'));
+  assert.match(rule.slice(0, rule.indexOf('}')), /\.compose-preview[\s\S]*\.compose-thumbs[\s\S]*\.compose-media-note[\s\S]*display: none/,
+    'one class stands the whole card down, drawer included');
 });
 
 test('THE METER HOLDS ITS WIDTH SO THE SAVE BUTTON HOLDS ITS', () => {

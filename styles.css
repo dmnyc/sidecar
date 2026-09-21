@@ -2779,6 +2779,15 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    on takes an edge. The order on the strip is the order the URLs are appended in. */
 .compose-thumb.dragging { opacity: 0.4; }
 .compose-thumb.drop-target { outline: 2px solid var(--lav); outline-offset: 1px; }
+/* While the review window is up, the card shows the review window and nothing else.
+   It renders the final post — prose and attachments, the composed string — so the
+   preview pane beside it, the thumbnail strip under it and the attachments' drawer
+   below that would each be the same note again. A class on the card rather than a
+   handful of hidden toggles, because the drawer and the preview pane manage their
+   own .hidden and would argue with whoever else writes it. */
+.compose-sheet.is-reviewing .compose-preview,
+.compose-sheet.is-reviewing .compose-thumbs,
+.compose-sheet.is-reviewing .compose-media-note { display: none; }
 /* THE COMPOSER'S THREE ADD BUTTONS, ON ONE ROW. Media, Poll and PoW are peers, so they
    read as a toolbar rather than as three stacked decisions, and three short labels fit
    across the sheet where three sentences did not.

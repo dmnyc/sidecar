@@ -427,7 +427,12 @@
   // The editor and its toolbar go inert while the review window is up, for the same reason
   // they do while a mine runs: what is being reviewed was decided when Post was pressed.
   function setReviewing(on) {
+    // One class on the card, and everything that could show the note stands down:
+    // the review window renders the final post itself, so the preview pane, the
+    // thumbnails and the attachments' drawer would each be the same note a second
+    // time, and a second rendering is not a second look.
     if (on) closeAltEditor(); // nothing left to edit: the note was decided at Post
+    document.querySelector('.compose-sheet').classList.toggle('is-reviewing', on);
     $('compose-slot').classList.toggle('hidden', on);
     $('compose-tabs').classList.toggle('hidden', on);
     $('compose-actions').classList.toggle('hidden', on);
