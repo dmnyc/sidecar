@@ -2718,7 +2718,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-alt-hint { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .compose-alt-remove { flex-shrink: 0; width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; }
 .compose-alt-remove svg { width: 13px; height: 13px; }
-.compose-alt-text { width: 100%; min-height: 64px; font-size: 14px; }
+.compose-alt-text { width: 100%; min-height: 64px; font-size: 14px; resize: none; }
 .compose-alt-foot { display: flex; align-items: center; gap: 10px; }
 /* The room left is a ring, not a count: text changes width with its digits and the
    Save button beside it (flex: 1) would readjust with every keystroke. The ring is
