@@ -347,6 +347,9 @@
     const saved = await loadDraft();
     draft.text = (saved && saved.text) || '';
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
+    // The row edits a slot of the PREVIOUS account's draft, which was just swapped
+    // under it — the same reason the editor itself is rewritten below.
+    closeAltEditor();
     // Per account, so it re-seeds with everything else the account decides, and from the
     // new account's own draft if that draft carries a rung.
     powForThisPost = await seedPow(saved);
@@ -420,6 +423,7 @@
   // The editor and its toolbar go inert while the review window is up, for the same reason
   // they do while a mine runs: what is being reviewed was decided when Post was pressed.
   function setReviewing(on) {
+    if (on) closeAltEditor(); // nothing left to edit: the note was decided at Post
     $('compose-slot').classList.toggle('hidden', on);
     $('compose-tabs').classList.toggle('hidden', on);
     $('compose-actions').classList.toggle('hidden', on);
@@ -439,7 +443,10 @@
       let template = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [['client', 'Sidecar']],
+        // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it).
+        // Undescribed media emits nothing, so a note of bare URLs is byte-identical
+        // to what it published before alt text existed.
+        tags: [['client', 'Sidecar'], ...SC.imetaTagsForMedia(draft.media)],
         content: text,
       };
       // MINE FIRST, THEN SIGN. The event id commits to the pubkey, so the nonce has to be
@@ -571,10 +578,13 @@
     }
     // Everything that would change what is being mined, or start a second mine on the one
     // worker. Cancel and the close box stay live: leaving is always allowed, and it takes
-    // the worker with the page.
-    document.querySelectorAll('#compose-actions button, .compose-tab').forEach((b) => {
+    // the worker with the page. The ALT row's buttons go with them — the description it
+    // edits rides in the same draft the mine already snapshotted.
+    document.querySelectorAll('#compose-actions button, .compose-tab, .compose-alt-row button').forEach((b) => {
       b.disabled = on;
     });
+    const altField = document.querySelector('.compose-alt-text');
+    if (altField) altField.readOnly = on;
   }
 
   let editorApi = null;
@@ -654,6 +664,18 @@
       el.src = m.url;
       if (m.isVideo) el.muted = true;
       cell.append(el);
+      if (!m.isVideo) {
+        // Same chip the panel's composer wears: + ALT until the image is described,
+        // ✓ ALT once it is. The tag itself only goes out for described images.
+        const alt = h('button', {
+          className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
+          title: m.alt ? 'Edit the image description' : 'Add a description',
+          type: 'button',
+        });
+        alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
+        alt.addEventListener('click', () => openAltEditor(i));
+        cell.append(alt);
+      }
       const rm = h('button', { className: 'compose-thumb-x', title: 'Remove', type: 'button' });
       rm.append(icon('trash'));
       rm.addEventListener('click', () => {
@@ -669,11 +691,49 @@
         }
         draft.media.splice(i, 1);
         editorApi.sync();
+        closeAltEditor(); // the row edits a media slot that no longer exists
         renderThumbs();
       });
       cell.append(rm);
       host.append(cell);
     });
+  }
+
+  // ---- the ALT editor, one image at a time ----
+  //
+  // The same inline row the panel seats under its thumbnail strip, built by the same
+  // function in the core. It sits outside #compose-slot, so the review window's
+  // setReviewing closes it rather than leaving a live editor under a note that is
+  // already decided.
+  let altRow = null;
+  let altIndex = -1; // the slot the open row edits, so its own chip toggles it shut
+  function closeAltEditor() {
+    if (altRow) { altRow.remove(); altRow = null; }
+    altIndex = -1;
+  }
+  function openAltEditor(i) {
+    const m = draft.media[i];
+    if (!m) return;
+    if (altRow && altIndex === i) { closeAltEditor(); return; }
+    closeAltEditor();
+    altIndex = i;
+    altRow = SC.buildAltEditorRow({
+      url: m.url,
+      alt: m.alt,
+      onSave: (value) => {
+        closeAltEditor();
+        const cur = draft.media[i];
+        if (!cur) return;
+        // Normalized once here and again on publish (buildImetaTag), because a draft
+        // can publish without the editor ever being opened.
+        const cleaned = SC.normalizeAltBreaks(value).slice(0, SC.ALT_MAX);
+        if (cleaned) cur.alt = cleaned; else delete cur.alt;
+        scheduleSave();
+        renderThumbs();
+      },
+      onCancel: closeAltEditor,
+    });
+    $('compose-thumbs').after(altRow);
   }
 
   // On its own line, with the break decided from the SERIALIZED text rather than the DOM:

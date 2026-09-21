@@ -412,8 +412,11 @@ test('THE EDITOR GOES INERT WHILE A MINE RUNS', () => {
   assert.match(body, /editorApi\.editor\.classList\.toggle\('is-locked', on\)/);
   assert.match(body, /if \(on\) editorApi\.close\(\)/, 'a dropdown over a dead box');
   // And everything that would change what is being mined, or start a second mine on the
-  // one worker. Cancel and the close box stay live: leaving is always allowed.
-  assert.match(body, /querySelectorAll\('#compose-actions button, \.compose-tab'\)/);
+  // one worker — including the ALT editor's controls, whose field rides in the same
+  // draft the mine already snapshotted. Cancel and the close box stay live: leaving is
+  // always allowed.
+  assert.match(body, /querySelectorAll\('#compose-actions button, \.compose-tab, \.compose-alt-row button'\)/);
+  assert.match(body, /altField\.readOnly = on/, 'the description field goes inert with the buttons');
   assert.ok(!/compose-cancel|compose-x/.test(body), 'leaving must stay possible');
   // A caret blinking in a field whose contents are already spent is the worst kind of lie
   // a composer can tell, so it looks disabled too.

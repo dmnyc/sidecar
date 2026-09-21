@@ -2691,6 +2691,37 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border-radius: 50%; border: none; cursor: pointer; color: #fff; background: rgba(5, 0, 12, 0.7);
 }
 .compose-thumb-x svg { width: 13px; height: 13px; }
+/* The ALT chip sits in the corner the remove button leaves free (top-left), the same
+   "+ ALT / ✓ ALT" badge zap.cooking puts on its own thumbnails. Badge-sized by design:
+   a 72px thumbnail carries it the way it carries the remove disc, not as a row control
+   squeezed down. Accent when the image is described, so a strip of mixed images shows
+   at a glance which ones still need the words. */
+.compose-thumb-alt {
+  position: absolute; top: 3px; left: 3px; height: 22px; padding: 0 7px;
+  display: flex; align-items: center;
+  border-radius: 7px; border: none; cursor: pointer;
+  color: #fff; background: rgba(5, 0, 12, 0.7);
+  font-family: inherit; font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+}
+.compose-thumb-alt.has-alt { color: var(--lav); }
+/* The ALT editor: one full-width row under the strip — thumbnail and explainer on
+   top, the multiline field beneath, the count and Save stretched under that. Stacked,
+   per the only grammar a column this narrow has; nothing beside anything, nothing
+   shrunk to fit. Both composers seat the same row the same way. */
+.compose-alt-row {
+  display: flex; flex-direction: column; gap: 8px;
+  margin: 8px 0 4px; padding: 10px;
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.compose-alt-head { display: flex; align-items: center; gap: 8px; }
+.compose-alt-thumb { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.compose-alt-hint { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.compose-alt-remove { flex-shrink: 0; width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; }
+.compose-alt-remove svg { width: 13px; height: 13px; }
+.compose-alt-text { width: 100%; min-height: 64px; font-size: 14px; }
+.compose-alt-foot { display: flex; align-items: center; gap: 10px; }
+.compose-alt-count { flex-shrink: 0; font-size: 12px; color: var(--muted); }
+.compose-alt-save { flex: 1; }
 /* THE COMPOSER'S THREE ADD BUTTONS, ON ONE ROW. Media, Poll and PoW are peers, so they
    read as a toolbar rather than as three stacked decisions, and three short labels fit
    across the sheet where three sentences did not.
@@ -2839,7 +2870,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    margin on top of it. Left alone in the panel, where these rows are not flex children. */
 .compose-sheet .compose-actions,
 .compose-sheet .compose-thumbs,
-.compose-sheet .compose-tabs { margin: 0; }
+.compose-sheet .compose-tabs,
+.compose-sheet .compose-alt-row { margin: 0; }
 .compose-foot { display: flex; align-items: center; gap: 14px; }
 .compose-status { font-size: 12px; color: var(--muted); }
 /* NOT A BUTTON. Leaving is not an action with the same weight as publishing, and two

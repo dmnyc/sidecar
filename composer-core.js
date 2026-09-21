@@ -982,6 +982,119 @@ window.SidecarCore = (function () {
     return u;
   }
 
+  // ---- NIP-92 imeta alt text, the write side ----
+  //
+  // Sidecar never renders the images inside a note — the client reading the note does
+  // that — so there is no read path here to keep honest. What a composer owes the note
+  // is the tag: one `imeta` per described attachment, its `alt` slot carrying the
+  // description the way zap.cooking writes them (and Amethyst and Gossip before it),
+  // so the words typed here are what a screen reader says somewhere else.
+  //
+  // A slot's value is everything after its first space, so a description keeps its
+  // spaces, its quotes and its line breaks: JSON escapes them on the wire, the event id
+  // hashes the same bytes either way, and no client has to decode anything. Line breaks
+  // are normalized rather than stripped — CRLF to LF, each line trimmed, runs of blank
+  // lines capped at one paragraph gap — the same shape zap.cooking ships after
+  // learning the flattened version the hard way.
+  const ALT_MAX = 2000;
+
+  function normalizeAltBreaks(text) {
+    return String(text || '')
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  // One tag row for one attachment, or null when there is nothing to say: an empty
+  // description means no alt slot and no imeta tag at all — never empty metadata. The
+  // cap is applied here as well as in the editor because a draft can be restored into
+  // a composer that publishes without the editor ever being opened.
+  function buildImetaTag(url, alt) {
+    const cleaned = normalizeAltBreaks(alt).slice(0, ALT_MAX);
+    if (!url || !cleaned) return null;
+    return ['imeta', 'url ' + url, 'alt ' + cleaned];
+  }
+
+  // In draft order, one tag per described attachment. Undescribed media contributes
+  // nothing, so a note of bare URLs publishes exactly as it did before this existed.
+  function imetaTagsForMedia(media) {
+    const out = [];
+    for (const m of media || []) {
+      const tag = buildImetaTag(m && m.url, m && m.alt);
+      if (tag) out.push(tag);
+    }
+    return out;
+  }
+
+  // The ALT editor as one full-width row: thumbnail and explainer on top, the
+  // multiline field beneath, the count and its Save stretched under that. Stacked
+  // rather than beside anything, per the only grammar a 360px column has room for.
+  // Both composers seat it under the thumbnail strip; this file builds it and knows
+  // nothing about which one is asking. `onSave` fires once with the field's text —
+  // the caller normalizes and stores it — Save and the trash both route through it
+  // (the trash saves an empty description, which is how one is removed), Escape is
+  // the way out without saving.
+  function buildAltEditorRow(opts) {
+    const initial = normalizeAltBreaks(opts.alt || '');
+    const onSave = opts.onSave || function () {};
+    const onCancel = opts.onCancel || function () {};
+    const row = h('div', { className: 'compose-alt-row' });
+
+    const head = h('div', { className: 'compose-alt-head' });
+    if (opts.url) {
+      const im = document.createElement('img');
+      im.className = 'compose-alt-thumb';
+      // Same reason every other media element here carries it: media hosts 403 a
+      // chrome-extension:// referrer.
+      im.referrerPolicy = 'no-referrer';
+      im.src = opts.url;
+      head.append(im);
+    }
+    head.append(h('span', { className: 'compose-alt-hint', textContent: 'Describe this image for screen readers.' }));
+    if (initial) {
+      const rm = h('button', { className: 'mini ghost compose-alt-remove', title: 'Remove the description', type: 'button' });
+      rm.append(icon('trash'));
+      rm.addEventListener('click', () => finish(''));
+      head.append(rm);
+    }
+    row.append(head);
+
+    const field = h('textarea', { className: 'compose-alt-text', maxLength: ALT_MAX, placeholder: 'What does the image show?' });
+    field.value = initial;
+    row.append(field);
+
+    const count = h('div', { className: 'compose-alt-count' });
+    const save = h('button', { className: 'primary compose-alt-save', type: 'button', textContent: 'Save description' });
+    row.append(h('div', { className: 'compose-alt-foot' }, [count, save]));
+
+    function paintCount() {
+      const left = ALT_MAX - field.value.length;
+      count.textContent = left < ALT_MAX ? left + ' left' : '';
+    }
+    field.addEventListener('input', paintCount);
+    paintCount();
+
+    function finish(alt) {
+      row.remove();
+      onSave(alt);
+    }
+    save.addEventListener('click', () => finish(field.value));
+    field.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation(); // the composer underneath stays open
+      row.remove();
+      onCancel();
+    });
+    // The caller appends the row the moment this returns; focus lands on the next
+    // frame, once the row is actually in a document.
+    requestAnimationFrame(() => { if (row.isConnected) field.focus(); });
+    return row;
+  }
+
   const POW_LEVELS = [
     { bits: 16, cost: 'Usually instant.' },
     { bits: 18, cost: 'About a second.' },
@@ -1542,5 +1655,8 @@ window.SidecarCore = (function () {
     NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
     VIEW_CLIENTS, DEFAULT_CLIENT,
     IMG_EXT, VID_EXT,
+    // The imeta write side and its editor row: pure of deps, so both pages take them
+    // straight off the global like IMG_EXT rather than through installComposer.
+    ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
   };
 })();

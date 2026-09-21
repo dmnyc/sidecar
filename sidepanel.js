@@ -22,6 +22,9 @@
   // Where a note can be read. Shared because the panel's post banner and the expanded
   // composer's confirmation are the same question asked twice.
   const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
+  // The imeta write side: describing an attached image so the client that renders the
+  // note can say it. Same tag zap.cooking writes; see composer-core.js for the format.
+  const { ALT_MAX, normalizeAltBreaks, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
 
   const NT = window.NostrTools;
 
@@ -11043,6 +11046,12 @@
       const tags = settings && settings.showClientTag === false
         ? [...base, ...bodyP, ...quotes.tags]
         : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
+      // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after
+      // the body-derived tags. Undescribed media emits nothing, so a note of bare
+      // URLs is byte-identical to what it published before alt text existed. A poll
+      // carries no media — the editor offers one or the other — and this is harmless
+      // even if a draft arrives carrying both.
+      tags.push(...imetaTagsForMedia(draft.media));
       const now = Math.floor(Date.now() / 1000);
       // A poll is never a reply: the editor does not offer one on a reply, and reply
       // drafts live in their own slot, so this cannot arrive carrying both. Guarded
@@ -11201,6 +11210,19 @@
           el.src = m.url;
           if (m.isVideo) el.muted = true;
           cell.append(el);
+          if (!m.isVideo) {
+            // The chip zap.cooking puts on its own thumbnails: + ALT until the image
+            // is described, ✓ ALT once it is. Tapping it opens the editor row below
+            // the strip; the tag itself only goes out for described images.
+            const alt = h('button', {
+              className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
+              title: m.alt ? 'Edit the image description' : 'Add a description',
+              type: 'button',
+            });
+            alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
+            alt.addEventListener('click', () => openAltEditor(i));
+            cell.append(alt);
+          }
           const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
@@ -11214,6 +11236,7 @@
             }
             draft.media.splice(i, 1);
             mentionEditor.sync();
+            closeAltEditor(); // the row edits a media slot that no longer exists
             renderThumbs();
           });
           cell.append(rm);
@@ -11221,6 +11244,43 @@
         });
       }
       renderThumbs();
+
+      // ---- the ALT editor, one image at a time ----
+      //
+      // An inline row under the strip rather than a second modal: the composer IS a
+      // modal here, and rebuilding it around a saved description would cost the caret
+      // the same way the review countdown would have. The row builds in the core, so
+      // the tab gets the same one.
+      let altRow = null;
+      let altIndex = -1; // the slot the open row edits, so its own chip toggles it shut
+      function closeAltEditor() {
+        if (altRow) { altRow.remove(); altRow = null; }
+        altIndex = -1;
+      }
+      function openAltEditor(i) {
+        const m = draft.media[i];
+        if (!m) return;
+        if (altRow && altIndex === i) { closeAltEditor(); return; }
+        closeAltEditor();
+        altIndex = i;
+        altRow = buildAltEditorRow({
+          url: m.url,
+          alt: m.alt,
+          onSave: (value) => {
+            closeAltEditor();
+            const cur = draft.media[i];
+            if (!cur) return;
+            // Normalized once here and again on publish (buildImetaTag), because a
+            // draft can publish without the editor ever being opened.
+            const cleaned = normalizeAltBreaks(value).slice(0, ALT_MAX);
+            if (cleaned) cur.alt = cleaned; else delete cur.alt;
+            scheduleSave();
+            renderThumbs();
+          },
+          onCancel: closeAltEditor,
+        });
+        thumbs.after(altRow);
+      }
 
       // Append a media URL on its own line. Decides the separator from the
       // SERIALIZED text (what gets posted), and breaks on a newline rather than
