@@ -268,16 +268,20 @@ test('A DECIDED NOTE IS NOT EDITABLE UNDER THE REVIEW WINDOW', () => {
 });
 
 test('THE METER HOLDS ITS WIDTH SO THE SAVE BUTTON HOLDS ITS', () => {
-  // Save is flex: 1 beside whatever shares its foot row, so the button's width is
-  // whatever the meter leaves it. A numeric count's text changes width with its
-  // digits — "1998 left" is a different-sized neighbor from "12 left" — and the
-  // button readjusts with every keystroke, a control changing size under a moving
-  // hand. The meter is a ring with one fixed footprint, in the row from the moment
-  // it opens, saying how full it is in geometry rather than text.
+  // Save is the quietest thing in the row — a ghost at its natural width, pushed to
+  // the end — so anything beside it that changes width changes the button. Nothing
+  // does: the ring is a fixed 20px, the count beside it holds a fixed box of four
+  // tabular digits in the stylesheet whether it says 2000 or 12, and neither grows
+  // a word.
   const row = core.slice(core.indexOf('function buildAltEditorRow'));
-  assert.match(row, /\[ring, save\]/, 'the ring is in the foot row from the start, not added later');
+  assert.match(row, /\[ring, count, save\]/, 'the meter and the count are in the row from the start');
   assert.match(row, /stroke-dashoffset/, 'the fill is a dash offset');
-  assert.ok(!row.includes("' left'"), 'no digit counter anywhere in the row');
+  assert.match(row, /'ghost compose-alt-save'/, 'saving a description is not a primary act');
+  assert.ok(!row.includes("' left'"), 'the count carries no word');
+  const sheet = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const at = sheet.indexOf('.compose-alt-count {');
+  assert.ok(at > -1, 'the count was never styled');
+  assert.match(sheet.slice(at, at + 200), /min-width: 4ch/, 'the count holds a fixed box of digits');
 });
 
 test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {

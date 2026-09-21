@@ -1066,12 +1066,13 @@ window.SidecarCore = (function () {
     field.value = initial;
     row.append(field);
 
-    // THE ROOM LEFT IS A RING, NOT A NUMBER. Save is flex: 1 beside whatever shares
-    // its row, so a numeric count's changing width — "1998 left" against "12 left" —
-    // would readjust the button with every keystroke, a control changing size under a
-    // moving hand. The ring holds one fixed 20px footprint from the moment the row
-    // opens, empty track included, and says how full it is in geometry: the same meter
-    // as the review countdown's ring, turned down to row size.
+    // THE ROOM LEFT IS A RING WITH A NUMBER BESIDE IT, NOT A COUNT THE BUTTON
+    // ANSWERS TO. Save is the quietest button in the row — a ghost at its natural
+    // width, not a filled one stretched across it — and what decides its width must
+    // never change: the ring is a fixed 20px and the count is fixed at four digits
+    // (tabular, right-aligned), so "2000" and "12" occupy the same box and the
+    // button never readjusts. The count carries no word; the ring carries the
+    // proportion, amber for the last tenth of the cap.
     const RING_R = 8;
     const RING_C = 2 * Math.PI * RING_R;
     const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1081,10 +1082,12 @@ window.SidecarCore = (function () {
       '<circle cx="10" cy="10" r="' + RING_R + '" class="ring-track"/>' +
       '<circle cx="10" cy="10" r="' + RING_R + '" class="ring-fill" ' +
       'stroke-dasharray="' + RING_C + '" stroke-dashoffset="' + RING_C + '" transform="rotate(-90 10 10)"/>';
-    const save = h('button', { className: 'primary compose-alt-save', type: 'button', textContent: 'Save description' });
-    row.append(h('div', { className: 'compose-alt-foot' }, [ring, save]));
+    const count = h('span', { className: 'compose-alt-count' });
+    const save = h('button', { className: 'ghost compose-alt-save', type: 'button', textContent: 'Save description' });
+    row.append(h('div', { className: 'compose-alt-foot' }, [ring, count, save]));
 
     function paintMeter() {
+      count.textContent = String(ALT_MAX - field.value.length);
       const used = field.value.length / ALT_MAX;
       ring.querySelector('.ring-fill').setAttribute('stroke-dashoffset', String(RING_C * (1 - used)));
       ring.classList.toggle('is-near', used >= 0.9); // the last stretch, said in color

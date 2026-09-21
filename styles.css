@@ -2720,11 +2720,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-alt-remove svg { width: 13px; height: 13px; }
 .compose-alt-text { width: 100%; min-height: 64px; font-size: 14px; resize: none; }
 .compose-alt-foot { display: flex; align-items: center; gap: 10px; }
-/* The room left is a ring, not a count: text changes width with its digits and the
-   Save button beside it (flex: 1) would readjust with every keystroke. The ring is
-   one fixed 20px footprint whether the field is empty or full, so the button's size
-   never moves. Same meter as the review countdown's ring, at row size — and the last
-   stretch of the cap turns the fill amber, which is the codebase's "low" reading. */
+/* The room left is a ring with a bare number beside it, and the Save button keeps
+   out of their way at the row's end. Everything that could change width holds a
+   fixed box instead — the ring 20px, the count four tabular digits right-aligned,
+   whether it says 2000 or 12 — so the button never readjusts under a moving hand.
+   The count has no word after it; the ring is the sentence the number sits in. */
 .compose-alt-ring { width: 20px; height: 20px; flex-shrink: 0; }
 .compose-alt-ring .ring-track { fill: none; stroke: var(--border-strong); stroke-width: 2.5; }
 .compose-alt-ring .ring-fill {
@@ -2732,7 +2732,15 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   transition: stroke-dashoffset 150ms linear;
 }
 .compose-alt-ring.is-near .ring-fill { stroke: var(--amber); }
-.compose-alt-save { flex: 1; }
+.compose-alt-count {
+  flex-shrink: 0; min-width: 4ch; text-align: right;
+  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.compose-alt-ring.is-near + .compose-alt-count { color: var(--amber); }
+/* A ghost at its natural width, not a filled one stretched across the row: saving
+   a description is the least of the three decisions on this row, and the orange
+   fill claimed a prominence the row does not have to give. */
+.compose-alt-save { margin-left: auto; }
 /* ---- the attachments' reference drawer ----
    The URLs leave the editor and are appended to the content at publish, so the
    strip needs one line saying where they went, and a drawer for whoever wants to
