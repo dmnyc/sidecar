@@ -1053,7 +1053,7 @@ window.SidecarCore = (function () {
       im.src = opts.url;
       head.append(im);
     }
-    head.append(h('span', { className: 'compose-alt-hint', textContent: 'Describe this image for screen readers.' }));
+    head.append(h('span', { className: 'compose-alt-hint', textContent: 'Describe this image for anyone who may not be able to see it.' }));
     if (initial) {
       const rm = h('button', { className: 'mini ghost compose-alt-remove', title: 'Remove the description', type: 'button' });
       rm.append(icon('trash'));
