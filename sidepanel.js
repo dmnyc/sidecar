@@ -12986,6 +12986,15 @@
 
   function openProfileEdit(current) {
     const draft = { ...current };
+    // The CLINK noffer, read tolerantly: the field key is not formally standardised —
+    // `noffer` is what bxrd.app writes, but a different client may have chosen
+    // `offer` or `clink_offer` for the same value. Whichever is found becomes the
+    // field's value; publishing consolidates onto `noffer` and clears the others.
+    draft.noffer =
+      (typeof current.noffer === 'string' && current.noffer) ||
+      (typeof current.offer === 'string' && current.offer) ||
+      (typeof current.clink_offer === 'string' && current.clink_offer) ||
+      '';
     const body = $('profile-edit-body');
     body.innerHTML = '';
     const err = h('div', { className: 'error' });
@@ -13072,11 +13081,11 @@
       if (type === 'textarea') autosizeTextarea(el); // after append — see the helper
     });
 
-    // advanced: raw image URLs
+    // advanced: raw image URLs, and the CLINK offer
     const adv = document.createElement('details');
     adv.className = 'advanced';
     const sum = document.createElement('summary');
-    sum.textContent = 'Advanced — image URLs';
+    sum.textContent = 'Advanced — image URLs, CLINK offer';
     adv.append(sum);
     [['picture', 'Avatar URL'], ['banner', 'Banner URL']].forEach(([field, label]) => {
       adv.append(h('label', { className: 'field-label', textContent: label }));
@@ -13090,6 +13099,25 @@
       });
       adv.append(inp);
     });
+    // THE CLINK OFFER, beside the image URLs because it is the same kind of thing:
+    // a string another machine generated that the profile carries verbatim. Stored
+    // as the `noffer` content field zapcooking and bxrd.app read — the one
+    // Lightning address a CLINK wallet can pay without any custodian in the
+    // middle. Cleared as easily as set: an empty field removes it from the
+    // profile entirely.
+    adv.append(h('label', { className: 'field-label', textContent: 'CLINK offer' }));
+    const nofferInp = document.createElement('input');
+    nofferInp.type = 'text';
+    nofferInp.placeholder = 'noffer1…';
+    nofferInp.autocomplete = 'off';
+    nofferInp.spellcheck = false;
+    nofferInp.value = draft.noffer;
+    nofferInp.addEventListener('input', () => { draft.noffer = nofferInp.value.trim(); });
+    adv.append(nofferInp);
+    adv.append(h('p', {
+      className: 'hint',
+      textContent: 'A CLINK static offer for self-custodial Lightning payments. Generate one with Zeus, ShockWallet or Lightning.Pub.',
+    }));
     body.append(adv);
 
     body.append(h('label', { className: 'field-label', textContent: 'PIN (required to publish)' }));
@@ -13105,6 +13133,19 @@
       try {
         const fields = { picture: draft.picture || '', banner: draft.banner || '' };
         fieldDefs.forEach(([k]) => (fields[k] = inputs[k].value));
+        // The offer rides along, shape-checked rather than decoded: a wrong string
+        // here is a payment address that silently fails at a stranger's wallet, so
+        // the prefix and the bech32 charset are checked and nothing deeper — the
+        // TLVs belong to the wallet that made the offer.
+        if (draft.noffer && !/^noffer1[qpzry9x8gf2tvdw0s3jn54khce6mua7]+$/i.test(draft.noffer)) {
+          return (err.textContent = 'That does not look like a CLINK offer — it starts with noffer1.');
+        }
+        fields.noffer = draft.noffer;
+        // Whichever alternate key the value was read from, publishing consolidates
+        // onto `noffer` — leaving the same offer under two keys is a stale duplicate
+        // the day one of them is edited elsewhere.
+        fields.offer = '';
+        fields.clink_offer = '';
         await publishProfile(fields, pin.value);
         hide($('view-profile-edit'));
         show($('view-main'));
