@@ -2779,6 +2779,18 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    on takes an edge. The order on the strip is the order the URLs are appended in. */
 .compose-thumb.dragging { opacity: 0.4; }
 .compose-thumb.drop-target { outline: 2px solid var(--lav); outline-offset: 1px; }
+/* The reorder steppers, bottom corners to the remove disc's top-right. The drag
+   gesture never fires on touch and has no keyboard story, so these buttons are the
+   reorder that always works; the ends hide theirs rather than showing a disabled
+   arrow, which is a control answering "you can't". */
+.compose-thumb-move {
+  position: absolute; bottom: 3px; width: 20px; height: 20px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: none; cursor: pointer; color: #fff; background: rgba(5, 0, 12, 0.7);
+}
+.compose-thumb-move.left { left: 3px; }
+.compose-thumb-move.right { right: 3px; }
+.compose-thumb-move svg { width: 11px; height: 11px; }
 /* While the review window is up, the card shows the review window and nothing else.
    It renders the final post — prose and attachments, the composed string — so the
    preview pane beside it, the thumbnail strip under it and the attachments' drawer

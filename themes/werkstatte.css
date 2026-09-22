@@ -350,6 +350,10 @@
 [data-theme="werkstatte"] .embed-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .ln-recipient-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .compose-thumb-x:not(.theme-card):not(.theme-card *),
+/* The reorder steppers ride the same thumbnail as the remove disc, so they square
+   with it — one round control and one square one on the same 72px cell would read
+   as two different designers. */
+[data-theme="werkstatte"] .compose-thumb-move:not(.theme-card):not(.theme-card *),
 /* Relay icons are logos standing in for an identity, the same job an avatar does, so
    they follow the avatar exception rather than the blanket square. */
 [data-theme="werkstatte"] .relay-icon:not(.theme-card):not(.theme-card *),

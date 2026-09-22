@@ -220,6 +220,27 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   assert.match(pageBare, /tags: \[\['client', 'Sidecar'\], \.\.\.SC\.imetaTagsForMedia\(draft\.media\)\]/);
 });
 
+test('THE STRIP REORDERS BY MORE THAN DRAG', () => {
+  // HTML5 drag-and-drop never fires on touch, so a touchscreen could not reorder
+  // attachments at all and a keyboard had no path either. The steppers are buttons
+  // — reachable by touch and Tab both — they splice the same array the drag does,
+  // and the ends hide theirs rather than disabling an arrow.
+  assert.match(core, /'arrow-right':/, 'the right arrow never existed');
+  for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
+    const at = src.indexOf('compose-thumb-move');
+    assert.ok(at > -1, name + ' never builds the steppers');
+    const block = src.slice(at - 2200, at + 900);
+    assert.match(block, /if \(draft\.media\.length > 1\) \{/, name + ' offers steppers on a single thumb');
+    assert.match(block, /closeAltEditor\(\); \/\/ flush first/, name + ' moves the row\'s slot before flushing it');
+    assert.match(block, /draft\.media\.splice\(i, 1\)\[0\]/, name + ' never splices');
+    assert.match(block, /if \(i > 0\) cell\.append\(step\(-1/, name + ' shows a left arrow at the first slot');
+    assert.match(block, /if \(i < draft\.media\.length - 1\) cell\.append\(step\(1/, name + ' shows a right arrow at the last slot');
+  }
+  const sheet = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(sheet, /\.compose-thumb-move\.left \{ left: 3px; \}/);
+  assert.match(sheet, /\.compose-thumb-move\.right \{ right: 3px; \}/);
+});
+
 test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
   // A kind:1068 carrying appended image URLs and imeta tags is a shape no NIP-88
   // client renders, and the tag push in doPublish once claimed it could not arrive
@@ -232,8 +253,8 @@ test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
   assert.match(panelBare, /addBtn\.classList\.toggle\('hidden', p \|\| !!draft\.poll\);/);
   assert.match(panelBare, /pollAdd\.classList\.toggle\('hidden', p \|\| !!draft\.poll \|\| !!replyTo \|\| !!\(draft\.media && draft\.media\.length\)\);/);
   // And every way media changes repaints, so the excluded button never lingers.
-  assert.equal((panelBare.match(/paintEitherOr\(\);/g) || []).length, 5,
-    'paintPoll + four media mutations must repaint the pair');
+  assert.equal((panelBare.match(/paintEitherOr\(\);/g) || []).length, 6,
+    'paintPoll + the media mutations (uploads, removal, attach, stepper) must repaint the pair');
 });
 
 test('ATTACHING AN ALREADY-ATTACHED URL CONVERTS, NEVER DUPLICATES', () => {
