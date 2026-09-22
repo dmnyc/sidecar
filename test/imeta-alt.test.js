@@ -45,6 +45,7 @@ vm.createContext(ctx);
 vm.runInContext(
   lift(/const ALT_MAX = \d+;/, 'ALT_MAX') + '\n' +
   lift(/function normalizeAltBreaks\(text\) \{[\s\S]*?\n  \}/, 'normalizeAltBreaks') + '\n' +
+  lift(/function capAltText\(text\) \{[\s\S]*?\n  \}/, 'capAltText') + '\n' +
   lift(/function buildImetaTag\(url, alt\) \{[\s\S]*?\n  \}/, 'buildImetaTag') + '\n' +
   lift(/function imetaTagsForMedia\(media\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
   lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
@@ -55,7 +56,7 @@ vm.runInContext(
   // IMG_EXT — a local mirror could drift and the vectors would keep passing.
   lift(/const IMG_EXT = [^;]+;/, 'IMG_EXT') + '\n' +
   'globalThis.ALT_MAX = ALT_MAX;' +
-  'globalThis.normalizeAltBreaks = normalizeAltBreaks;' +
+  'globalThis.normalizeAltBreaks = normalizeAltBreaks; globalThis.capAltText = capAltText;' +
   'globalThis.buildImetaTag = buildImetaTag;' +
   'globalThis.imetaTagsForMedia = imetaTagsForMedia;' +
   'globalThis.composeNoteContent = composeNoteContent;' +
@@ -63,7 +64,7 @@ vm.runInContext(
   'globalThis.loneImageUrl = loneImageUrl; globalThis.urlOnBoundary = urlOnBoundary;',
   ctx
 );
-const { ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls, loneImageUrl, urlOnBoundary } = ctx;
+const { ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls, loneImageUrl, urlOnBoundary } = ctx;
 
 // Values built inside the vm carry its Array.prototype, which strict deep-equal
 // rightly refuses from out here. The tag shape is data, so taking a plain copy at
@@ -128,6 +129,15 @@ test('THE CAP APPLIES AT PUBLISH, NOT ONLY IN THE EDITOR', () => {
   const tag = plain(buildImetaTag('https://example.com/pic.png', long));
   assert.equal(tag[2].length, 'alt '.length + ALT_MAX);
   assert.ok(ALT_MAX === 2000, 'the ceiling is the one zap.cooking authors against');
+  // AND THE CUT IS BY CHARACTER, not code unit: an emoji is two code units for one
+  // character, and a hard .slice(2000) can land mid-pair and ship half an emoji.
+  const astral = 'a'.repeat(ALT_MAX - 1) + '\u{1F389}\u{1F389}';
+  const capped = capAltText(astral);
+  assert.equal(Array.from(capped).length, ALT_MAX, 'ALT_MAX characters survive');
+  assert.ok(!/[\uD800-\uDBFF]$/.test(capped) || /[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(capped),
+    'the cap never ends on half a character');
+  const astralTag = plain(buildImetaTag('https://example.com/pic.png', astral));
+  assert.ok(/[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(astralTag[2]), 'the wire copy ends on a whole character');
 });
 
 test('UNDESCRIBED MEDIA EMITS NOTHING, IN DRAFT ORDER', () => {
@@ -410,7 +420,7 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
     draft: draft2, i: 0,
     closeAltEditor: () => {},
     renderThumbs: () => {},
-    normalizeAltBreaks, ALT_MAX,
+    normalizeAltBreaks, capAltText, ALT_MAX,
     pruneReplyDrafts: () => {}, REPLY_DRAFT_MAX: 20,
     call: async (m) => {
       if (m.type === 'SIDECAR_SECRET_GET') return JSON.parse(JSON.stringify(store2));
@@ -518,7 +528,7 @@ test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {
   }
   assert.match(
     panel,
-    /const \{ ALT_MAX, normalizeAltBreaks, imetaTagsForMedia, buildAltEditorRow \} = window\.SidecarCore;/
+    /const \{ ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow \} = window\.SidecarCore;/
   );
 });
 

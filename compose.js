@@ -859,7 +859,7 @@
       if (!cur) return;
       // Normalized once here and again on publish (buildImetaTag), because a draft
       // can publish without the editor ever being opened.
-      const cleaned = SC.normalizeAltBreaks(value).slice(0, SC.ALT_MAX);
+      const cleaned = SC.capAltText(SC.normalizeAltBreaks(value));
       if (cleaned) cur.alt = cleaned; else delete cur.alt;
       scheduleSave();
       renderThumbs();

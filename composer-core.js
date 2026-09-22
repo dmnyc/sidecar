@@ -1103,12 +1103,19 @@ window.SidecarCore = (function () {
       .trim();
   }
 
+  // The cap counts CHARACTERS, not code units: a hard .slice(0, ALT_MAX) can land
+  // mid-emoji and ship half of one down the wire. Astral pairs are two code units
+  // for one character, so the cut goes by code points and never splits a pair.
+  function capAltText(text) {
+    return Array.from(String(text || '')).slice(0, ALT_MAX).join('');
+  }
+
   // One tag row for one attachment, or null when there is nothing to say: an empty
   // description means no alt slot and no imeta tag at all — never empty metadata. The
   // cap is applied here as well as in the editor because a draft can be restored into
   // a composer that publishes without the editor ever being opened.
   function buildImetaTag(url, alt) {
-    const cleaned = normalizeAltBreaks(alt).slice(0, ALT_MAX);
+    const cleaned = capAltText(normalizeAltBreaks(alt));
     if (!url || !cleaned) return null;
     return ['imeta', 'url ' + url, 'alt ' + cleaned];
   }
@@ -1875,7 +1882,7 @@ window.SidecarCore = (function () {
     IMG_EXT, VID_EXT,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
-    ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
+    ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer,
     loneImageUrl, removeUrlFromEditor, urlOnBoundary,
   };

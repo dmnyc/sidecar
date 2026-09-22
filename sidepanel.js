@@ -24,7 +24,7 @@
   const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
   // The imeta write side: describing an attached image so the client that renders the
   // note can say it. Same tag zap.cooking writes; see composer-core.js for the format.
-  const { ALT_MAX, normalizeAltBreaks, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
+  const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
   const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer } = window.SidecarCore;
@@ -11325,7 +11325,7 @@
           if (!cur) return;
           // Normalized once here and again on publish (buildImetaTag), because a
           // draft can publish without the editor ever being opened.
-          const cleaned = normalizeAltBreaks(value).slice(0, ALT_MAX);
+          const cleaned = capAltText(normalizeAltBreaks(value));
           if (cleaned) cur.alt = cleaned; else delete cur.alt;
           scheduleSave();
           renderThumbs();
