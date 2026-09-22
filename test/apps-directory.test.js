@@ -67,3 +67,31 @@ test('the #339 additions are present, in their categories', () => {
   assert.match(src, /icon: 'icons\/apps\/nym\.png'/);
   assert.ok(fs.existsSync(path.join(ROOT, 'icons/apps/nym.png')), 'the bundled NymChat icon is missing');
 });
+
+// ---- the open slot at the end of the grid ----------------------------------------
+
+test('THE OPEN SLOT IS LAST, AND SURVIVES EVERY FILTER', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'welcome.css'), 'utf8');
+
+  // Appended after the cards, so it is the last thing in the grid rather than sorted
+  // into the middle of a category.
+  const at = src.indexOf("grid.appendChild(slot)");
+  assert.ok(at > src.indexOf('sorted.forEach'), 'the slot is not appended after the cards');
+  assert.match(src, /slot\.className = 'card app-slot';/);
+  assert.match(src, /slot\.href = 'https:\/\/github\.com\/dmnyc\/sidecar\/issues';/,
+    'the slot points somewhere other than the issues tracker');
+  assert.match(src, /slot\.rel = 'noopener';/, 'a target=_blank link without noopener');
+  assert.match(src, /'Your app could be here'/);
+
+  // THE ONE THAT WOULD BREAK QUIETLY. The slot carries no data-cat, so the filter's
+  // `card.dataset.cat === cat` is false for it under every category. Without the
+  // :not() it disappears the moment anything but All is picked, and nothing would
+  // fail: the grid would simply be one card shorter in five of the six views.
+  assert.match(src, /querySelectorAll\('\.card:not\(\.app-slot\)'\)/,
+    'the filter no longer skips the open slot, so it vanishes under every category');
+
+  // Dashed and unfilled, so it reads as a space rather than as an app nobody knows.
+  const rule = css.slice(css.indexOf('.app-slot {'), css.indexOf('.app-slot:hover'));
+  assert.match(rule, /border-style: dashed/);
+  assert.match(rule, /background: none/);
+});

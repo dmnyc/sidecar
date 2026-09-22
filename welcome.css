@@ -368,6 +368,36 @@ body {
   display: none;
 }
 
+/* The open slot at the end of the grid. A dashed outline and no fill, so it reads as a
+   space waiting to be filled rather than as an app you have not heard of: the same
+   language the composer's "+" preset uses for an empty slot.
+
+   Centered, because it has no favicon, no domain and no category to line up against,
+   and a lone left-aligned line in a card this size looks like content that failed to
+   load. Everything else about it is .card, so it keeps the grid's geometry exactly. */
+.app-slot {
+  background: none;
+  border-style: dashed;
+  border-color: rgba(167, 139, 250, 0.28);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  backdrop-filter: none;
+}
+.app-slot:hover {
+  border-color: rgba(167, 139, 250, 0.5);
+  border-style: dashed;
+  box-shadow: none;
+}
+.app-slot-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.app-slot:hover .app-slot-name { color: var(--text); }
+
 /* ===== Responsive ===== */
 
 @media (max-width: 600px) {

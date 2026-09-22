@@ -565,6 +565,26 @@ const sorted = [...APPS].sort((a, b) =>
 );
 sorted.forEach(app => grid.appendChild(renderCard(app)));
 
+// THE OPEN SLOT, always last and always shown. It is an invitation rather than an
+// entry, so it carries no category and the filter below skips it: under Gaming, where
+// there are two apps and a lot of empty grid, it is more apt than it is under All, not
+// less. Same idea as the "Your project here" row CLINK keeps at the foot of its
+// ecosystem table, and it points at the same place the footer tip does.
+const slot = document.createElement('a');
+slot.className = 'card app-slot';
+slot.href = 'https://github.com/dmnyc/sidecar/issues';
+slot.target = '_blank';
+slot.rel = 'noopener';
+const slotName = document.createElement('div');
+slotName.className = 'app-slot-name';
+slotName.textContent = 'Your app could be here';
+const slotCta = document.createElement('div');
+slotCta.className = 'card-cta';
+slotCta.textContent = 'Suggest an app →';
+slot.appendChild(slotName);
+slot.appendChild(slotCta);
+grid.appendChild(slot);
+
 // Category filter
 document.getElementById('filters').addEventListener('click', e => {
   const btn = e.target.closest('.filter-btn');
@@ -574,7 +594,9 @@ document.getElementById('filters').addEventListener('click', e => {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
-  document.querySelectorAll('.card').forEach(card => {
+  // :not(.app-slot) so the open slot survives every filter. It has no data-cat, so
+  // without this it would vanish the moment anything but All was picked.
+  document.querySelectorAll('.card:not(.app-slot)').forEach(card => {
     if (cat === 'all' || card.dataset.cat === cat) {
       card.classList.remove('hidden-cat');
     } else {
