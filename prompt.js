@@ -69,11 +69,20 @@
     });
   }
 
-  // Whether the one-time multi-account "Heads up!" explainer has been dismissed
-  // (shared with the panel via chrome.storage.local).
-  let sharedHeadsUpDismissed = false;
-  chrome.storage.local.get('sharedHeadsUpDismissed', (r) => {
-    sharedHeadsUpDismissed = !!(r && r.sharedHeadsUpDismissed);
+  // The multi-account "Heads up!" state, shared with the panel via
+  // chrome.storage.local: dismissed (the explainer was Seen, the compact caption
+  // remains) and optedOut (the note as a whole was told to go away). Both resolve
+  // BEFORE the first render — the read is async, and a confirm painted before it
+  // completed used to show the full explainer again even after it was dismissed.
+  let sharedHeadsUp = { dismissed: false, optedOut: false };
+  const sharedHeadsUpReady = new Promise((resolve) => {
+    chrome.storage.local.get(['sharedHeadsUpDismissed', 'sharedHeadsUpOptOut'], (r) => {
+      sharedHeadsUp = {
+        dismissed: !!(r && r.sharedHeadsUpDismissed),
+        optedOut: !!(r && r.sharedHeadsUpOptOut),
+      };
+      resolve();
+    });
   });
 
   const METHOD_LABELS = {
@@ -649,14 +658,18 @@
   // flip identities with zero signal to Sidecar), so trust can't skip it. The first
   // such confirm shows a one-time "Heads up!" explainer; later ones show a compact
   // "Multiple accounts used" caption.
-  function renderSharedNote(d) {
+  async function renderSharedNote(d) {
     const prev = $('shared-note-box');
     if (prev) prev.remove();
     if (!d.sharedIdentity) return;
+    await sharedHeadsUpReady; // the flags are known before a branch is taken
     els.switchToggle.textContent = 'Sign as a different account';
     els.trust.classList.add('hidden');
+    // Opted out: no note at all. The confirm itself and the account picker stay —
+    // the opt-out silences the explanation, never the question it explains.
+    if (sharedHeadsUp.optedOut) return;
     let note;
-    if (sharedHeadsUpDismissed) {
+    if (sharedHeadsUp.dismissed) {
       note = document.createElement('div');
       note.id = 'shared-note-box';
       note.className = 'shared-caption';
@@ -672,15 +685,30 @@
       body.className = 'shared-headsup-body';
       body.textContent =
         "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.";
+      const actions = document.createElement('div');
+      actions.className = 'shared-headsup-actions';
       const got = document.createElement('button');
       got.className = 'shared-headsup-btn';
       got.textContent = 'Got it';
       got.addEventListener('click', () => {
-        sharedHeadsUpDismissed = true;
+        sharedHeadsUp.dismissed = true;
         chrome.storage.local.set({ sharedHeadsUpDismissed: true });
         renderSharedNote(d);
       });
-      note.append(title, body, got);
+      // THE QUIET SECOND ANSWER. Some users have seen the explainer, understand the
+      // choice, and want the note gone altogether — "Got it" only ever collapsed it
+      // to the caption, and the caption never ended. This writes the opt-out both
+      // surfaces and the Settings restorer all read.
+      const never = document.createElement('button');
+      never.className = 'shared-headsup-btn shared-headsup-btn-quiet';
+      never.textContent = "Don't show this again";
+      never.addEventListener('click', () => {
+        sharedHeadsUp.optedOut = true;
+        chrome.storage.local.set({ sharedHeadsUpOptOut: true });
+        renderSharedNote(d);
+      });
+      actions.append(got, never);
+      note.append(title, body, actions);
     }
     els.account.parentNode.insertBefore(note, els.account);
   }
