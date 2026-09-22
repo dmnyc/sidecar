@@ -5427,6 +5427,13 @@ button.poll-bar-head {
   cursor: pointer;
 }
 .poll-group-fold:hover { color: var(--muted); }
+/* FOLDED, IT IS A ROW RATHER THAN A LABEL, so it needs the space on both sides.
+   The 4px bottom inherited from .poll-group is right when rows follow: it pulls the
+   heading down onto the group it names, and the row under it brings its own 13px. With
+   the group folded there is nothing under it to lean on, so the heading sat 10px from
+   whatever is above and 4px from whatever is below, which against the card's bottom edge
+   or a second folded heading reads as a line that slipped. */
+.poll-group-fold.is-folded { padding-bottom: 10px; }
 .poll-group-fold svg {
   width: 13px;
   height: 13px;

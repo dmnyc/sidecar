@@ -312,3 +312,19 @@ test('A FOLD OUTLIVES THE PANEL, AND FAILS OPEN', () => {
   const top = fill.slice(0, fill.indexOf('const cached ='));
   assert.match(top, /await _pollFoldReady;/, 'the fold state is read after the list is drawn');
 });
+
+test('a folded heading is padded on both sides', () => {
+  // The 4px bottom is right while rows follow: it pulls the heading onto the group it
+  // names, and the row beneath brings its own 13px. Folded there is nothing to lean on,
+  // so the heading sat 10px from what was above and 4px from what was below, which
+  // against the card's bottom edge or a second folded heading reads as a slipped line.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.poll-group-fold\.is-folded \{ padding-bottom: 10px; \}/);
+  // The base comes from .poll-group, which the heading also carries: .poll-group-fold
+  // declares no padding of its own, so the folded rule only has to override the bottom.
+  // If that ever changes, the one-sided override silently stops balancing anything.
+  const base = css.slice(css.indexOf('.poll-group {'), css.indexOf('.poll-group-fold {'));
+  assert.match(base, /padding: 10px 14px 4px;/, 'the base padding moved');
+  const fold = css.slice(css.indexOf('.poll-group-fold {'), css.indexOf('.poll-group-fold:hover'));
+  assert.doesNotMatch(fold, /padding/, 'the fold rule sets its own padding, so the base no longer applies');
+});
