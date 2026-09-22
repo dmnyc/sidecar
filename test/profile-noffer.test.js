@@ -105,8 +105,28 @@ test('BOTH WAYS YOU CAN BE PAID SIT ON THE PROFILE, BUILT THE SAME WAY', () => {
   assert.match(bare, /if \(content\.lud16\) body\.append\(payLine\(content\.lud16, boltIcon\(\), 'Lightning address'\)\);/,
     'the address is no longer a payment line');
   assert.match(bare, /const ownOffer = profileOffer\(content\);/);
-  assert.match(bare, /if \(ownOffer\) body\.append\(payLine\(ownOffer\.raw, icon\('zap'\), 'CLINK offer'\)\);/,
+  assert.match(bare, /payLine\(ownOffer\.raw, boltIcon\(\), 'CLINK offer', truncMid\(ownOffer\.raw, 18, 6\)\)/,
     'the offer has no line on the profile');
+
+  // THE SAME GLYPH ON BOTH. They drew two different lightning bolts, the panel's filled
+  // one for the address and the feather outline for the offer, which also put the two
+  // lines a couple of pixels out of alignment: 55x94 and 24x24 at equal height are not
+  // equal widths, so the text started at two different offsets.
+  assert.equal((bare.match(/payLine\([^)]*boltIcon\(\)/g) || []).length, 2,
+    'the two payment lines are not drawing the same icon');
+  assert.doesNotMatch(bare, /payLine\([^)]*icon\('zap'\)/, 'the offer line is back on a different bolt');
+
+  // MID-TRUNCATED, and at the same 18/6 the handoff button uses, so an offer reads the
+  // same wherever it is shown. 101 characters become 25. The head identifies it at a
+  // glance and the tail is what you check a paste against; trailing off after the first
+  // forty would give you neither.
+  const truncMid = (s, h, t) => (s.length > h + t + 1 ? s.slice(0, h) + '…' + s.slice(-t) : s);
+  const raw = 'noffer1qqsrf5h4ya83jk8u6t9jgc76h6kalz3plp9vu7x9m2qd8sczq4jkl2mnpwvhkcmn4d3jkuemvda5k7atww35hgnnzv9ex2';
+  assert.equal(truncMid(raw, 18, 6), 'noffer1qqsrf5h4ya8…zv9ex2');
+  assert.equal(truncMid(raw, 18, 6).length, 25);
+  // The shipped helper takes the same arguments as the one the handoff already passes.
+  assert.match(bare, /label: raw\.length > 28 \? raw\.slice\(0, 18\) \+ '…' \+ raw\.slice\(-6\) : raw,/,
+    'the handoff label changed its cut, so the two now disagree');
 
   // THE RAW STRING, not the decoded object. A wallet that is not this one wants the
   // offer exactly as its owner wrote it, and `[object Object]` is what the other
@@ -119,7 +139,12 @@ test('BOTH WAYS YOU CAN BE PAID SIT ON THE PROFILE, BUILT THE SAME WAY', () => {
 });
 
 test('ONE TAP COPIES AND OPENS THE CODE', () => {
-  const fn = lift(/function payLine\(value, iconEl, label\) \{[\s\S]*?\n  \}/, 'payLine');
+  const fn = lift(/function payLine\(value, iconEl, label, display\) \{[\s\S]*?\n  \}/, 'payLine');
+  // THE FULL VALUE IS WHAT TRAVELS. `display` shortens the line and nothing else: a
+  // truncated offer on the clipboard or inside the QR is a payment address with a hole
+  // in it, which fails at a stranger's wallet rather than here.
+  assert.match(fn, /textContent: display \|\| value/);
+  assert.doesNotMatch(fn, /copyPlain\(display\)|openPayQr\(display/, 'the shortened string is being copied or encoded');
   // Both halves of the gesture, and the copy first: the clipboard write is the part
   // somebody is most likely to have meant, so it must not wait on a modal building.
   assert.match(fn, /await copyPlain\(value\)/);

@@ -1974,9 +1974,17 @@
   // opens the code. Built once for both because the lightning address and the CLINK offer
   // are the same kind of fact, and the address line had been the only one of the two on
   // the profile at all, so an offer you had saved was visible nowhere outside the editor.
-  function payLine(value, iconEl, label) {
+  // ONE GLYPH FOR BOTH, and it is boltIcon's. Two lines saying the same thing, that this
+  // is a way to pay you, were drawing two different lightning bolts: the panel's own
+  // filled bolt for the address and the feather outline for the offer. They also sat a
+  // pixel or two out of line with each other, because the two are different aspect ratios
+  // and each was being sized by its own rule. Same element, so nothing left to align.
+  //
+  // `display` is for a value too long to sit on one line whole. It is the display only,
+  // never what gets copied or encoded.
+  function payLine(value, iconEl, label, display) {
     const row = h('button', { className: 'profile-meta profile-pay-line', title: label + ': tap to copy' });
-    row.append(iconEl, h('span', { className: 'profile-pay-val', textContent: value }));
+    row.append(iconEl, h('span', { className: 'profile-pay-val', textContent: display || value }));
     row.addEventListener('click', async () => {
       try { await copyPlain(value); } catch (_) {}
       openPayQr(value, label);
@@ -10263,7 +10271,13 @@
     // behaves on somebody else's sheet.
     if (content.lud16) body.append(payLine(content.lud16, boltIcon(), 'Lightning address'));
     const ownOffer = profileOffer(content);
-    if (ownOffer) body.append(payLine(ownOffer.raw, icon('zap'), 'CLINK offer'));
+    // Cut in the middle, at the same 18/6 the handoff button uses, so an offer reads the
+    // same wherever it is shown. An offer is around a hundred characters of bech32 and
+    // trailing off after the first forty says nothing the first twenty had not: the head
+    // is what identifies it at a glance, and the tail is what you check a paste against.
+    if (ownOffer) {
+      body.append(payLine(ownOffer.raw, boltIcon(), 'CLINK offer', truncMid(ownOffer.raw, 18, 6)));
+    }
     if (content.website) {
       const w = h('div', { className: 'profile-meta' });
       const a = document.createElement('a');

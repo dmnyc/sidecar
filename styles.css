@@ -466,8 +466,11 @@ input:focus, select:focus, textarea:focus {
   text-align: left; cursor: pointer;
 }
 .profile-pay-line:hover { color: var(--text); }
-.profile-pay-line svg { width: 13px; height: 13px; flex-shrink: 0; }
-.profile-pay-line .bolt-ico { width: auto; height: 0.92em; flex-shrink: 0; }
+/* One rule, because both lines now draw the same glyph. They used to carry different
+   bolts sized by different rules, which is what put them out of line with each other:
+   .bolt-ico is 55x94 and the feather zap is 24x24, so equal heights are unequal widths
+   and the text started at two different offsets. Sizing comes from .bolt-ico itself. */
+.profile-pay-line .bolt-ico { flex-shrink: 0; }
 .profile-pay-val { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nip05-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .nip05-badge { display: inline-flex; }
