@@ -360,8 +360,15 @@ test('THE BUTTON SAYS WHICH PANEL IS OPEN', () => {
   // row every time somebody opened one, directly above a form people type into.
   const rule = css.slice(css.indexOf('.peek-pay-row > .peek-pay-on {'), css.indexOf('.peek-pay-row > .peek-pay-on svg'));
   assert.match(rule, /color: var\(--lav\)/);
-  assert.match(rule, /background: rgba\(var\(--accent-rgb\), 0\.08\)/);
   assert.ok(!/padding|font-size|font-weight|border-width/.test(rule), 'the row would move when a panel opens');
+
+  // ONE HUE, AND IT IS THE THEME'S. Border and wash both come off currentColor, so the
+  // lit state is --lav brightened rather than --lav wearing a second palette's edge.
+  // Naming --gold-soft and --accent-rgb here is what put a yellow border on Speakeasy's
+  // purple button: four themes repoint one of that pair and not the other.
+  assert.match(rule, /border-color: color-mix\(in srgb, currentColor \d+%, transparent\)/);
+  assert.match(rule, /background: color-mix\(in srgb, currentColor \d+%, transparent\)/);
+  assert.ok(!/--gold|--accent-rgb/.test(rule), 'the lit state names a palette the label does not use');
 });
 
 test('it ships', () => {
