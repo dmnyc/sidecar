@@ -1933,6 +1933,57 @@
     } catch (_) { return null; }
   }
 
+  // THE QR BOTH PAYMENT LINES OPEN, and the copy that comes with it.
+  //
+  // One tap does both because there are only two things anybody does with one of these
+  // values: paste it somewhere, or hold it up to a phone. Splitting them would put a
+  // second control on a line that is already a label and a long string, which is the
+  // shape this panel has no room for.
+  //
+  // `lightning:` for either value. An offer rides in the same URI as an address, because
+  // that is what ShockWallet and Zeus already read, and it is how the profile sheet's own
+  // pay block builds its code.
+  function openPayQr(value, label) {
+    openModal((modal) => {
+      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      xClose.append(icon('x'));
+      xClose.addEventListener('click', closeModal);
+      modal.append(xClose, h('h3', { textContent: label }));
+
+      const out = h('div', { className: 'recv-out' });
+      const canvas = document.createElement('canvas');
+      canvas.className = 'recv-qr';
+      try { window.SidecarQR.draw(canvas, 'lightning:' + value, 200, 'M'); } catch (_) {}
+      // The value IS the button, the way the pay block's is: the thing you want to copy
+      // and the thing you press should be the same object. It wraps rather than
+      // truncating here, because this is the one place the whole string is readable.
+      const copy = h('button', { className: 'secondary peek-zap-addr', textContent: value });
+      copy.addEventListener('click', async () => {
+        try {
+          await copyPlain(value);
+          copy.textContent = 'Copied ✓';
+          setTimeout(() => (copy.textContent = value), 1200);
+        } catch (_) {}
+      });
+      out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Scan or copy to pay from any wallet.' }));
+      modal.append(out);
+    });
+  }
+
+  // A payment line on your own profile: the icon, the value, and a tap that copies it and
+  // opens the code. Built once for both because the lightning address and the CLINK offer
+  // are the same kind of fact, and the address line had been the only one of the two on
+  // the profile at all, so an offer you had saved was visible nowhere outside the editor.
+  function payLine(value, iconEl, label) {
+    const row = h('button', { className: 'profile-meta profile-pay-line', title: label + ': tap to copy' });
+    row.append(iconEl, h('span', { className: 'profile-pay-val', textContent: value }));
+    row.addEventListener('click', async () => {
+      try { await copyPlain(value); } catch (_) {}
+      openPayQr(value, label);
+    });
+    return row;
+  }
+
   async function openProfileSheet(pubkey) {
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
@@ -10211,7 +10262,13 @@
       body.append(about);
       renderAbout(about, content.about);
     }
-    if (content.lud16) body.append(h('div', { className: 'profile-meta' }, [boltIcon(), document.createTextNode(' ' + content.lud16)]));
+    // The two ways you can be paid, together, because they answer the same question and
+    // splitting them is what hid the offer. The offer reads through profileOffer, so a
+    // field that does not decode shows nothing rather than a broken line, exactly as it
+    // behaves on somebody else's sheet.
+    if (content.lud16) body.append(payLine(content.lud16, boltIcon(), 'Lightning address'));
+    const ownOffer = profileOffer(content);
+    if (ownOffer) body.append(payLine(ownOffer.raw, icon('zap'), 'CLINK offer'));
     if (content.website) {
       const w = h('div', { className: 'profile-meta' });
       const a = document.createElement('a');

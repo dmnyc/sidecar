@@ -445,6 +445,30 @@ input:focus, select:focus, textarea:focus {
 .profile-npub svg { width: 13px; height: 13px; flex-shrink: 0; }
 .profile-meta { font-size: 13px; color: var(--lav); margin: 2px 0; overflow-wrap: anywhere; }
 .profile-meta a { color: var(--lav); }
+/* THE TWO WAYS YOU CAN BE PAID, as controls rather than as text. A tap copies the value
+   and opens its code, so the line itself is the whole affordance and there is no icon
+   button beside it. That matters here: the row is already a glyph plus a hundred-character
+   string, and a control sharing a row with content is the shape this panel has no room
+   for. Rule 3 of the row grammar rather than rule 1.
+
+   The value truncates to one line. That is new for the lightning address, which used to
+   wrap, and it is the right trade now the whole string is one tap away: a noffer would
+   otherwise push the bio down three lines to show something nobody can read off a screen.
+   min-width: 0 is what lets the span shrink inside the flex row at all, and both icons
+   keep their metrics so the text is the only thing that gives.
+
+   Declared after .profile-meta on purpose. Both are (0,1,0), so the later one wins the
+   margin and the wrapping it needs to override. */
+.profile-pay-line {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  margin: 2px 0; padding: 0; border: none; background: none;
+  font: inherit; font-size: 13px; color: var(--lav);
+  text-align: left; cursor: pointer;
+}
+.profile-pay-line:hover { color: var(--text); }
+.profile-pay-line svg { width: 13px; height: 13px; flex-shrink: 0; }
+.profile-pay-line .bolt-ico { width: auto; height: 0.92em; flex-shrink: 0; }
+.profile-pay-val { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nip05-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .nip05-badge { display: inline-flex; }
 .nip05-badge svg { width: 13px; height: 13px; }

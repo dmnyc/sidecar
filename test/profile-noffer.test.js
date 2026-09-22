@@ -87,3 +87,74 @@ test('an empty field removes the offer from the profile', () => {
   const fn = lift(/async function publishProfile\(fields, pin\) \{[\s\S]*?\n  \}/, 'publishProfile');
   assert.match(fn, /if \(v\) merged\[k\] = v;\s*else delete merged\[k\];/);
 });
+
+// ---- your own offer, on your own profile ----------------------------------------
+//
+// It was written in the editor and then visible nowhere. profileOffer had exactly one
+// caller, the sheet you get when you open SOMEBODY ELSE, so the only way to read back
+// what you had published was to reopen the editor and expand a collapsed disclosure. The
+// lightning address had a line on the profile the whole time; the offer is the same kind
+// of fact and is the one that was missing.
+
+const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+const stripComments = (s) =>
+  s.split('\n').filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*') && !l.trim().startsWith('/*')).join('\n');
+
+test('BOTH WAYS YOU CAN BE PAID SIT ON THE PROFILE, BUILT THE SAME WAY', () => {
+  const bare = stripComments(src);
+  assert.match(bare, /if \(content\.lud16\) body\.append\(payLine\(content\.lud16, boltIcon\(\), 'Lightning address'\)\);/,
+    'the address is no longer a payment line');
+  assert.match(bare, /const ownOffer = profileOffer\(content\);/);
+  assert.match(bare, /if \(ownOffer\) body\.append\(payLine\(ownOffer\.raw, icon\('zap'\), 'CLINK offer'\)\);/,
+    'the offer has no line on the profile');
+
+  // THE RAW STRING, not the decoded object. A wallet that is not this one wants the
+  // offer exactly as its owner wrote it, and `[object Object]` is what the other
+  // property would put on the clipboard.
+  assert.doesNotMatch(bare, /payLine\(ownOffer,/, 'the decoded object is being copied instead of the string');
+
+  // Read through profileOffer, so a field that does not decode shows nothing rather than
+  // a broken line. Same treatment the sheet gives a stranger's malformed offer.
+  assert.match(bare, /function profileOffer\(content\) \{/);
+});
+
+test('ONE TAP COPIES AND OPENS THE CODE', () => {
+  const fn = lift(/function payLine\(value, iconEl, label\) \{[\s\S]*?\n  \}/, 'payLine');
+  // Both halves of the gesture, and the copy first: the clipboard write is the part
+  // somebody is most likely to have meant, so it must not wait on a modal building.
+  assert.match(fn, /await copyPlain\(value\)/);
+  assert.match(fn, /openPayQr\(value, label\)/);
+  assert.ok(fn.indexOf('copyPlain') < fn.indexOf('openPayQr'), 'the modal opens before the copy');
+  // A failed clipboard write still shows the code. Falling out of the handler would mean
+  // a denied permission took the QR with it.
+  assert.match(fn, /try \{ await copyPlain\(value\); \} catch \(_\) \{\}/);
+  // It is a button, not a div with a click handler: keyboard and screen readers get it
+  // for free, and the panel has a dozen of these already.
+  assert.match(fn, /h\('button', \{ className: 'profile-meta profile-pay-line'/);
+});
+
+test('the code is a lightning URI, for an offer as much as an address', () => {
+  const fn = lift(/function openPayQr\(value, label\) \{[\s\S]*?\n  \}/, 'openPayQr');
+  // What ShockWallet and Zeus read. The pay block in the profile sheet builds its QR the
+  // same way, so the two cannot disagree about what a scanner receives.
+  assert.match(fn, /SidecarQR\.draw\(canvas, 'lightning:' \+ value/);
+  assert.match(fn, /copyPlain\(value\)/, 'the value in the modal cannot be copied');
+  assert.match(fn, /Copied ✓/);
+  assert.match(fn, /className: 'modal-x'/, 'the modal cannot be closed');
+});
+
+test('a long value gives, and the icons do not', () => {
+  const rule = css.slice(css.indexOf('.profile-pay-line {'), css.indexOf('.profile-pay-val'));
+  const val = css.slice(css.indexOf('.profile-pay-val {'), css.indexOf('\n', css.indexOf('.profile-pay-val {')));
+  // A noffer is about a hundred characters. Without min-width: 0 the span refuses to
+  // shrink inside the flex row and the line overflows the panel instead of ellipsizing.
+  assert.match(val, /min-width: 0/);
+  assert.match(val, /text-overflow: ellipsis/);
+  assert.match(val, /white-space: nowrap/);
+  // The glyph keeps its metrics; the prose is the only thing that truncates.
+  assert.match(rule, /flex-shrink: 0/, 'nothing pins the icons');
+  // Button chrome off, or a payment line reads as a form control in a bio.
+  assert.match(rule, /border: none/);
+  assert.match(rule, /background: none/);
+  assert.match(rule, /cursor: pointer/);
+});
