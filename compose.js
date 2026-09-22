@@ -939,7 +939,16 @@
       if (msg.event !== 'locked' && msg.event !== 'unlocked') return;
       if (state) state.locked = msg.event === 'locked';
       paintLocked();
-      if (msg.event === 'unlocked') toast('Unlocked. Your draft is still here.', 'success');
+      if (msg.event === 'unlocked') {
+        toast('Unlocked. Your draft is still here.', 'success');
+        // AND SAVED, NOW THAT THE STORE ANSWERS. A save attempted while the store was
+        // locked fails, and persistDraft swallows it on purpose — but everything typed
+        // since the lock existed only in this page's memory, so the unlock is the
+        // moment it can finally land. Without this flush, closing the tab the wrong
+        // way (a crash, a discarded tab, a browser quit) loses the last stretch of
+        // the note while the earlier text, saved before the lock, looks fine.
+        flushDraft();
+      }
     });
     // Two ways out, the same way out. The corner box is where every sheet in the panel
     // puts one; the word in the footer is for anyone reading the row rather than the
