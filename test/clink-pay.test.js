@@ -247,10 +247,15 @@ test('a fixed offer is not asked for an amount it already knows', () => {
   assert.match(body, /'Pay ' \+ fmtSats\(offer\.price\) \+ ' sats'/);
 });
 
-test('the sheet says what asking costs in privacy', () => {
-  // A zap goes to a server over HTTPS. This publishes an event signed by your key to a
-  // relay the payee chose, which is a different exposure and not one to discover later.
-  assert.match(bare, /Asks their wallet over ' \+ offer\.relay \+ ', signed by you\./);
+test('THE PANEL SAYS NOTHING IT DOES NOT HAVE TO', () => {
+  // This used to carry a line explaining that asking an offer publishes an event signed
+  // by your key to a relay the payee chose, on the grounds that it is a different
+  // exposure from a zap over HTTPS. It sat under the Pay button, wrapped to two lines
+  // because a relay URL is long, and it told somebody about to pay 21 sats a thing they
+  // could do nothing with. Removed deliberately, so pinned as absent rather than left to
+  // creep back in the next time the sheet is edited.
+  assert.doesNotMatch(bare, /Asks their wallet over/, 'the relay note is back under the Pay button');
+  assert.doesNotMatch(bare, /offerNote/, 'the note element outlived its text');
 });
 
 test('two buttons, one row, neither the other’s fallback', () => {

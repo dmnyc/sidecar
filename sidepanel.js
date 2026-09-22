@@ -2210,7 +2210,6 @@
       const offerAmount = satsInput('sats');
       const offerPresets = zapPresetRow(offerAmount);
       const offerPay = h('button', { className: 'primary', textContent: 'Pay' });
-      const offerNote = h('p', { className: 'hint' });
       let offerData = null;
       let offerHandoff = null; // the QR and copy block, built the first time it is wanted
 
@@ -2250,10 +2249,6 @@
         offerPay.textContent = !needsAmount && offer.price
           ? 'Pay ' + fmtSats(offer.price) + ' sats'
           : 'Pay';
-        // THE ONE THING THIS SHEET OWES THE READER. The request is an event signed by
-        // your key, published to a relay the payee chose, saying you want to pay them.
-        // That is a different exposure from a zap, which goes to a server over HTTPS.
-        offerNote.textContent = 'Asks their wallet over ' + offer.relay + ', signed by you.';
         offerErr.textContent = '';
         // NOT through zapPanel, which is the Zap button's own reference to whichever
         // panel that button opens. Pointing it here made Zap toggle the offer instead of
@@ -2318,7 +2313,7 @@
         offerFormHandoff.classList.toggle('hidden');
       });
       offerPanel.append(offerPresets, h('div', { className: 'zap-inline' }, [offerAmount, offerQrBtn, offerPay]),
-        offerNote, offerErr);
+        offerErr);
 
       const zapWrap = h('div', { className: 'peek-zap hidden' });
       // Both payment buttons live here, side by side. Two short labels with no content
