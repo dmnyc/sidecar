@@ -804,6 +804,9 @@ window.SidecarCore = (function () {
     function refreshAttachOffer() {
       if (!offeredUrl) return;
       if (urlOnBoundary(serializeEditor(editor).split('\n'), offeredUrl)) return;
+      // The line is gone, so the dismissal expires with it: pasting the same URL
+      // afresh later is a new question.
+      attachDismissed.delete(offeredUrl);
       hideAttachOffer();
     }
     attachBtn.addEventListener('click', () => {
@@ -811,10 +814,23 @@ window.SidecarCore = (function () {
       hideAttachOffer();
       if (url) onAttachUrl(url);
     });
+    // A WAY TO SAY "NOT THIS ONE". The offer stands while the URL line stands —
+    // that is what keeps it from vanishing under the typing — but a user who means
+    // the URL as prose was left with an accented row indefinitely and no answer to
+    // it. The ✕ dismisses for THIS url; the offer returns only after the line has
+    // gone and the url is pasted afresh, so a deliberate no is not a forever no.
+    const attachDismissed = new Set();
+    const attachX = h('button', { className: 'attach-x', title: 'Keep it as text', type: 'button' });
+    attachX.append(icon('x'));
+    attachRow.append(attachX);
+    attachX.addEventListener('click', () => {
+      if (offeredUrl) attachDismissed.add(offeredUrl);
+      hideAttachOffer();
+    });
     editor.addEventListener('paste', (e) => {
       if (!onAttachUrl) return;
       const url = loneImageUrl(e.clipboardData && e.clipboardData.getData('text/plain'));
-      if (!url) return;
+      if (!url || attachDismissed.has(url)) return;
       setTimeout(() => {
         // On a line boundary — alone on the line, or glued to one end of it. A URL
         // with words on both sides is inside a sentence, and the offer would be to
