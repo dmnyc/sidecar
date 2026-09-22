@@ -1266,13 +1266,23 @@ window.SidecarCore = (function () {
   // user typed that merely looks like a URL: only a line matching an attachment's
   // own URL is taken out.
   function stripDraftMediaUrls(text, media) {
-    let out = String(text || '');
-    for (const m of media || []) {
-      if (!m || !m.url) continue;
-      out = out.split('\n' + m.url).join('');
-      out = out.split(m.url).join('');
-    }
-    return out.replace(/\s+$/, '');
+    // A LINE-BOUNDARY OCCURRENCE AT A TIME, never every occurrence: the old format
+    // wrote each URL on its own line, so only boundary occurrences are migration
+    // leftovers. A URL the user deliberately put inside a sentence — "mirror at
+    // https://x/a.png if the first dies" — is authored prose and stays; a URL twice
+    // on one line is ambiguous and stays too. The same rule the paste offer uses to
+    // decide what it may cut out (urlOnBoundary), pointed the other way.
+    const urls = (media || []).map((m) => m && m.url).filter(Boolean);
+    if (!urls.length) return String(text || '');
+    const kept = String(text || '').split('\n').map((line) => {
+      for (const url of urls) {
+        if (!line.includes(url)) continue;
+        const parts = line.split(url);
+        if (parts.length === 2 && (!parts[0].trim() || !parts[1].trim())) return line.replace(url, '');
+      }
+      return line;
+    });
+    return kept.join('\n').replace(/\s+$/, '');
   }
 
   // The attachments' reference drawer: one collapsed line saying how many and where
