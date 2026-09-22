@@ -437,7 +437,7 @@ const APPS = [
     // like Iris's apple-touch-icon rather than taking the velvet wrap.
     icon: 'https://brainstorm.world/favicon.svg',
     flush: true,
-    desc: 'Build trust scores from your own connections — the Web of Trust layer for Nostr, with search through the people you already trust.',
+    desc: 'The Web of Trust layer for Nostr: trust scores built from your own connections, not from an algorithm.',
   },
   {
     name: 'NymChat',
@@ -449,7 +449,7 @@ const APPS = [
     // icon is opaque and fills its frame — flush.
     icon: 'icons/apps/nym.png',
     flush: true,
-    desc: 'Ephemeral chat over Nostr — geohash channels for whoever is near you, Bluetooth mesh when there is no signal, and messages that bridge to Bitchat.',
+    desc: 'Ephemeral chat over Nostr: geohash channels for whoever is near you, Bluetooth mesh when there is no signal.',
   },
   {
     name: 'Shakespeare',
@@ -459,7 +459,7 @@ const APPS = [
     // Serves a clean 192x192 PNG at a stable path; filled square, flush.
     icon: 'https://shakespeare.diy/shakespeare-192x192.png',
     flush: true,
-    desc: 'Build small apps and sites by describing them, and publish them to Nostr — an open-source AI builder from Soapbox that runs entirely in your browser.',
+    desc: 'Describe an app and it builds and publishes it to Nostr, in your browser. Open source, from Soapbox.',
   },
   {
     name: 'Nostr Protocol Forum',
