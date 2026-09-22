@@ -45,7 +45,7 @@ function harness(responder) {
     '(function () {\n' +
       lift(/  const NIP05_TIMEOUT = \d+;[\s\S]*?\n  async function checkNip05\(nip05, pubkey\) \{[\s\S]*?\n  \}/, 'checkNip05') +
       '\n' +
-      lift(/  async function verifyNip05\(nip05, pubkey\) \{[\s\S]*?\n  \}/, 'verifyNip05') +
+      lift(/  async function verifyNip05\(nip05, pubkey, opts\) \{[\s\S]*?\n  \}/, 'verifyNip05') +
       '\nthis.check = checkNip05; this.verify = verifyNip05; this.cache = _nip05Cache;\n}).call(this)',
     ctx
   );
@@ -167,5 +167,47 @@ test('no caller decides the badge for itself any more', () => {
   // DELEGATES rather than deciding severity itself. The doesNotMatch below is the
   // assertion that actually enforces it; this one just keeps the number honest.
   assert.doesNotMatch(panel, /nip05-ok' : 'nip05-bad'/);
-  assert.equal((panel.match(/paintNip05Badge\(/g) || []).length, 4, 'one definition, three callers');
+  // Seven now, not four: each caller appears twice — the initial paint, and the
+  // repaint its badge tap triggers (the badge is the refresh; see the revalidate
+  // tests below). Still one definition, still three delegating surfaces.
+  assert.equal((panel.match(/paintNip05Badge\(/g) || []).length, 7, 'one definition, three callers');
+});
+
+test('the check revalidates instead of trusting the HTTP cache', async () => {
+  // THE BUG THIS RUNS ON: nodestrich.com serves its nostr.json with a 48-hour
+  // max-age, so a handle added to the list after the browser first cached the
+  // file read as "the domain doesn't list this name" for two days — across every
+  // panel reload, because the HTTP cache outlives the page. The in-memory TTL
+  // below still rate-limits disclosures; the fetch itself must say no-cache,
+  // which revalidates against the server instead of serving stale.
+  let seen;
+  const c = harness(async (url, opts) => {
+    seen = opts;
+    return { ok: true, status: 200, json: async () => ({ names: { alice: ME } }) };
+  });
+  const r = await c.check('alice@example.com', ME);
+  assert.equal(r.status, 'ok');
+  assert.equal(seen && seen.cache, 'no-cache', 'the HTTP cache answered a check that has to be a check');
+});
+
+test('verify caches by default, and force really checks again', async () => {
+  let calls = 0;
+  const c = harness(async () => {
+    calls++;
+    return { ok: true, status: 200, json: async () => ({ names: { alice: ME } }) };
+  });
+  await c.verify('alice@example.com', ME);
+  await c.verify('alice@example.com', ME);
+  assert.equal(calls, 1, 'the TTL cache exists so re-renders do not re-fire at the domain');
+  await c.verify('alice@example.com', ME, { force: true });
+  assert.equal(calls, 2, 'the badge tap must mean a real check, not a re-read of the last one');
+});
+
+test('the badge is the refresh, and resolution revalidates too', () => {
+  assert.match(panel, /function paintNip05Badge\(badge, res, recheck\)/);
+  assert.match(panel, /badge\.addEventListener\('click', recheck\)/);
+  // Both consumers of a nostr.json — the account verify and the search resolve —
+  // must revalidate: a stale answer there is not a wrong badge, it is the wrong
+  // person.
+  assert.equal((panel.match(/cache: 'no-cache'/g) || []).length, 2);
 });
