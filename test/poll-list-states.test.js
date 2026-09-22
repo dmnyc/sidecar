@@ -169,7 +169,8 @@ test('the winner is counted with the same rules as the tally', () => {
 const bare = source.replace(/^\s*\/\/.*$/gm, '');
 
 test('EVERY GROUP GETS ITS HEADING, INCLUDING A LIST THAT IS ALL ONE', () => {
-  assert.match(bare, /list\.append\(h\('div', \{ className: 'poll-group', textContent: POLL_GROUP_LABELS\[group\] \}\)\);/);
+  assert.match(bare, /const head = pollGroupHeading\(list, group, polls\.filter\(\(o\) => pollGroup\(o\) === group\)\.length\);/);
+  assert.match(bare, /list\.append\(head\.el\);/);
   // This was conditional at first, drawn only when both groups existed, on the reasoning
   // that a heading over the whole list labels nothing. That is exactly backwards in the
   // case it mattered: when every poll has finished, three ended rows and three running
@@ -246,4 +247,42 @@ test('THE SORT AND THE HEADINGS ASK THE SAME QUESTION', () => {
   // Two boundaries across three groups, which is what makes one heading per group right.
   const switches = groups.filter((g, i) => i > 0 && g !== groups[i - 1]).length;
   assert.equal(switches, 2, 'a group is split into more than one run');
+});
+
+// ---- folding the groups away --------------------------------------------------
+
+test('ENDED AND UNTRACKED FOLD, OPEN DOES NOT', () => {
+  // A control that can hide a running poll is a way to lose one, so Open stays a plain
+  // label. The other two are archives and are allowed to get out of the way.
+  assert.match(bare, /const _pollGroupFolded = \{ ended: false, untracked: false \};/,
+    'the fold state names Open, or does not exist');
+  const fn = bare.slice(bare.indexOf('function pollGroupHeading('));
+  const head = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(head, /if \(group === 'open'\) return \{ el: h\('div', \{ className: 'poll-group' \}, \[label\]\), apply: \(\) => \{\} \};/,
+    'Open is foldable');
+  assert.match(head, /_pollGroupFolded\[group\] = !_pollGroupFolded\[group\];/);
+  assert.match(head, /head\.setAttribute\('aria-expanded', String\(!folded\)\)/,
+    'a disclosure that says nothing to anything not looking at the chevron');
+});
+
+test('THE FOLD IS APPLIED AFTER THE ROWS EXIST, NOT WHEN THE HEADING IS MADE', () => {
+  // The ordering bug this design is shaped around. A heading is appended before the rows
+  // beneath it, so a querySelectorAll at construction time matches nothing and a folded
+  // group would paint fully open, every time, silently.
+  assert.match(bare, /const folds = \[\];/);
+  assert.match(bare, /folds\.push\(head\.apply\);/);
+  assert.match(bare, /folds\.forEach\(\(f\) => f\(\)\);/);
+  const paintSrc = bare.slice(bare.indexOf('const paint = (polls, counts, wins)'));
+  const body = paintSrc.slice(0, paintSrc.indexOf('\n    };'));
+  assert.ok(body.indexOf('folds.forEach') > body.indexOf('row.dataset.pollGroup'),
+    'the folds are applied before the rows are tagged, so they hide nothing');
+});
+
+test('a row is findable by its group', () => {
+  // dataset set after construction, not through h(): h runs Object.assign, so a dataset
+  // prop becomes a JS expando and the attribute selector matches nothing.
+  assert.match(bare, /row\.dataset\.pollGroup = group;/);
+  assert.match(bare, /querySelectorAll\('\[data-poll-group="' \+ group \+ '"\]'\)/);
+  assert.doesNotMatch(bare, /h\('div', \{ className: 'item poll-row[^}]*dataset/,
+    'dataset is being passed through h(), where it lands as an expando');
 });

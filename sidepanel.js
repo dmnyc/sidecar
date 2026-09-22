@@ -689,6 +689,14 @@
   // with it. Counts move as votes arrive, so this is a starting picture rather than an
   // answer: the rows paint from it at once and the query behind them corrects it in place.
   const _pollListCache = new Map(); // pubkey → { polls: Event[], counts: Map<id, string> }
+  // WHICH POLL GROUPS ARE FOLDED. Open is never folded and is not listed: a live poll is
+  // what the tab is for, and a control that can hide it is a way to lose one.
+  //
+  // In memory, the same lifetime as _pollListCache above, so a fold survives closing the
+  // bell and reopening it but not a panel reload. Deliberate rather than lazy: it matches
+  // the list it folds, and a preference that outlived the rows would mean opening the tab
+  // one day to a list that is mostly headings with no memory of why.
+  const _pollGroupFolded = { ended: false, untracked: false };
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
   // Set while the notification modal is open, so a live event arriving in the
@@ -3940,6 +3948,36 @@
     if (pollHasEnded(pollEndsAt(ev))) return 'ended';
     if (pollWatchExpired(ev)) return 'untracked';
     return 'open';
+  }
+
+  // A GROUP HEADING, AND FOR THE TWO THAT ARE NOT OPEN, THE CONTROL THAT FOLDS IT.
+  //
+  // Returns the element and the function that applies the current fold, because the rows
+  // it hides do not exist yet: a heading is appended before the rows under it, so the
+  // query would find nothing. paint collects these and runs them once the list is whole.
+  //
+  // The count rides in a capsule rather than in the label, so "Ended 2" is not one string
+  // the eye has to pick a number back out of, and so a folded group still says how much
+  // is behind it. There is no zero case: a heading is only drawn where a row follows.
+  function pollGroupHeading(list, group, count) {
+    const label = h('span', { className: 'poll-group-label', textContent: POLL_GROUP_LABELS[group] });
+    if (group === 'open') return { el: h('div', { className: 'poll-group' }, [label]), apply: () => {} };
+
+    const head = h('button', { className: 'poll-group poll-group-fold', type: 'button' });
+    head.append(icon('chevron-down'), label,
+      h('span', { className: 'poll-group-count', textContent: String(count) }));
+    const apply = () => {
+      const folded = !!_pollGroupFolded[group];
+      head.setAttribute('aria-expanded', String(!folded));
+      head.classList.toggle('is-folded', folded);
+      list.querySelectorAll('[data-poll-group="' + group + '"]')
+        .forEach((r) => r.classList.toggle('hidden', folded));
+    };
+    head.addEventListener('click', () => {
+      _pollGroupFolded[group] = !_pollGroupFolded[group];
+      apply();
+    });
+    return { el: head, apply };
   }
 
   // THE RESULT OF A FINISHED POLL, in the two slots a row already has: the winning
@@ -12975,6 +13013,7 @@
       // only way to tell a poll still taking votes from one that closed in March was to
       // read the small grey line under each question.
       let lastGroup = null;
+      const folds = [];
       polls.forEach((ev) => {
         const group = pollGroup(ev);
         const past = group !== 'open';
@@ -12985,7 +13024,9 @@
           // the whole list labels nothing. That is backwards in the case it mattered most:
           // with every poll finished, three ended rows and three running ones are the same
           // three rows, and the heading is the only thing that says which.
-          list.append(h('div', { className: 'poll-group', textContent: POLL_GROUP_LABELS[group] }));
+          const head = pollGroupHeading(list, group, polls.filter((o) => pollGroup(o) === group).length);
+          list.append(head.el);
+          folds.push(head.apply);
         }
         // The row's own waiting state: a cached count paints as itself, an unknown one
         // shimmers until the vote query answers for it.
@@ -13008,6 +13049,9 @@
         meta.append(lead, document.createTextNode(' · '), count);
         leads.set(ev.id, lead);
         const row = h('div', { className: 'item poll-row' + (past ? ' poll-row-past' : ''), role: 'button', tabIndex: 0 });
+        // Set after construction: h() runs Object.assign, so a dataset prop would land as
+        // a JS expando and the attribute selector above would match nothing.
+        row.dataset.pollGroup = group;
         row.append(
           h('div', { className: 'poll-row-main' }, [
             h('div', { className: 'poll-row-q', textContent: ev.content || '(no question)' }),
@@ -13024,6 +13068,9 @@
         cells.set(ev.id, count);
         list.append(row);
       });
+      // Now that the rows are in, and not before: each apply hides the rows under its own
+      // heading, and at the moment the heading was appended there were none.
+      folds.forEach((f) => f());
       return { cells, leads };
     };
 

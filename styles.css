@@ -5404,6 +5404,51 @@ button.poll-bar-head {
   text-transform: uppercase;
   color: var(--faint);
 }
+/* The two groups that fold. A button, so the whole heading is the target rather than the
+   chevron alone: it is a 360px panel and the label is already the width of the row.
+
+   Button chrome off and the metrics taken from .poll-group above, which it also carries,
+   so folding does not move the list by a pixel. Open has no fold and stays a plain div:
+   a control that can hide a running poll is a way to lose one. */
+.poll-group-fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: left;
+  cursor: pointer;
+}
+.poll-group-fold:hover { color: var(--muted); }
+.poll-group-fold svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  transition: transform 0.15s var(--ease-smooth-out, ease-out);
+}
+/* Pointing at the rows when they are showing, and along the heading when they are not. */
+.poll-group-fold.is-folded svg { transform: rotate(-90deg); }
+.poll-group-label { flex: 1; min-width: 0; }
+/* The count, in a capsule so a folded group still says how much is behind it. Filled from
+   currentColor like .modal-tab-count, so it follows the heading rather than needing a
+   tint picked per theme. */
+.poll-group-count {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
 /* A finished poll is quieter than a running one. The question stays legible; what drops
    is the weight of the row against the ones above it, which is the whole reason the
    groups exist. */
