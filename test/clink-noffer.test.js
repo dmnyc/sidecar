@@ -209,9 +209,9 @@ test('WHAT IT REFUSES, AND WHY EACH ONE MATTERS', () => {
   bad(bech32Encode('noffer', new Uint8Array([0, 32, 1, 2, 3])), 'truncated TLV body');
 });
 
-test('the shape check is shape only, and agrees with the editor that stores one', () => {
-  // The profile editor validates with a regex before saving; this is the reader's half of
-  // the same question, and the two must not disagree about what is worth trying.
+test('the shape check is shape only, and IS the check the editor runs', () => {
+  // The profile editor validates before saving; this is the reader's half of the same
+  // question, and the two must not disagree about what is worth trying.
   const noffer = makeNoffer(base());
   assert.equal(CLINK.isNofferString(noffer), true);
   assert.equal(CLINK.isNofferString('nostr:' + noffer), true);
@@ -220,7 +220,29 @@ test('the shape check is shape only, and agrees with the editor that stores one'
   assert.equal(CLINK.isNofferString(null), false);
   assert.equal(CLINK.isNofferString(undefined), false);
 
-  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
-  assert.match(panel, /\^noffer1\[qpzry9x8gf2tvdw0s3jn54khce6mua7\]\+\$/i,
-    'the editor no longer validates the way the reader detects');
+  // EVERY BECH32 CHARACTER, AND `l` MOST OF ALL. The editor carried its own copy of the
+  // charset with `l` missing, so it refused about 95% of real offers: a 95-character
+  // payload dodges one specific letter roughly one time in twenty, and the first offer
+  // anybody tried to save was refused. The guard that should have caught it compared the
+  // panel's source against that same wrong literal, so it agreed with the bug instead of
+  // failing on it. Run the charset rather than spelling it out a third time.
+  assert.equal(CHARSET.length, 32);
+  assert.ok(CHARSET.includes('l'), 'the fixture charset lost the character this is about');
+  assert.equal(CLINK.isNofferString('noffer1' + CHARSET), true, 'the reader refuses a bech32 character');
+  for (const ch of CHARSET) {
+    assert.equal(CLINK.isNofferString('noffer1' + ch.repeat(8)), true, `the reader refuses "${ch}"`);
+  }
+  // And the four bech32 leaves out, which are the ones people mistype.
+  for (const ch of '1bio') {
+    assert.equal(CLINK.isNofferString('noffer1' + ch.repeat(8)), false, `the reader accepts "${ch}"`);
+  }
+
+  // The editor runs THIS, rather than a second copy that can drift from it. Comments
+  // stripped first, or the refusal below matches the comment that explains it.
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8')
+    .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.match(panel, /!window\.SidecarCLINK\.isNofferString\(draft\.noffer\)/,
+    'the editor validates with something other than the reader');
+  assert.doesNotMatch(panel, /\^noffer1\[[a-z0-9]+\]/i,
+    'the editor is carrying its own bech32 charset again, which is how they drifted apart');
 });

@@ -13363,7 +13363,7 @@
     const adv = document.createElement('details');
     adv.className = 'advanced';
     const sum = document.createElement('summary');
-    sum.textContent = 'Advanced — image URLs, CLINK offer';
+    sum.textContent = 'Advanced';
     adv.append(sum);
     [['picture', 'Avatar URL'], ['banner', 'Banner URL']].forEach(([field, label]) => {
       adv.append(h('label', { className: 'field-label', textContent: label }));
@@ -13413,10 +13413,17 @@
         fieldDefs.forEach(([k]) => (fields[k] = inputs[k].value));
         // The offer rides along, shape-checked rather than decoded: a wrong string
         // here is a payment address that silently fails at a stranger's wallet, so
-        // the prefix and the bech32 charset are checked and nothing deeper — the
-        // TLVs belong to the wallet that made the offer.
-        if (draft.noffer && !/^noffer1[qpzry9x8gf2tvdw0s3jn54khce6mua7]+$/i.test(draft.noffer)) {
-          return (err.textContent = 'That does not look like a CLINK offer — it starts with noffer1.');
+        // the prefix and the bech32 charset are checked and nothing deeper. The TLVs
+        // belong to the wallet that made the offer.
+        //
+        // THE READER'S OWN CHECK, not a second copy of it. This was a hand-written
+        // charset that dropped bech32's `l`, so it refused 95% of real offers,
+        // including the one that sent us looking. Writing the charset out twice is what
+        // allowed the two to disagree, and the test that was supposed to catch that
+        // compared the panel's source against the same wrong literal, so it agreed with
+        // the bug instead. One function, no charset here to get wrong.
+        if (draft.noffer && !window.SidecarCLINK.isNofferString(draft.noffer)) {
+          return (err.textContent = 'That does not look like a CLINK offer. It starts with noffer1.');
         }
         fields.noffer = draft.noffer;
         // Whichever alternate key the value was read from, publishing consolidates

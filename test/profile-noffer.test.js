@@ -31,8 +31,10 @@ test('the editor reads the offer tolerantly and writes it under noffer', () => {
   const fn = lift(/function openProfileEdit\(current\) \{[\s\S]*?\n  \}/, 'openProfileEdit');
   // All three keys are read, in the standard's de-facto priority order.
   assert.match(fn, /current\.noffer[\s\S]*?current\.offer[\s\S]*?current\.clink_offer/);
-  // The input sits in the advanced block, beside the image URLs.
-  assert.match(fn, /Advanced — image URLs, CLINK offer/);
+  // The input sits in the advanced block, beside the image URLs. The summary says
+  // "Advanced" and stops: a disclosure that lists its own contents is a second label for
+  // the labels underneath it, and this one was wrapping to two lines to do it.
+  assert.match(fn, /sum\.textContent = 'Advanced';/);
   assert.match(fn, /textContent: 'CLINK offer'/);
   assert.match(fn, /nofferInp\.placeholder = 'noffer1…';/);
   // And the publish carries it with the alternates cleared.
@@ -48,21 +50,35 @@ test('a malformed offer is refused at publish, by shape only', () => {
   // that silently fails at a stranger's wallet — that is worth refusing, once,
   // in plain words.
   const fn = lift(/function openProfileEdit\(current\) \{[\s\S]*?\n  \}/, 'openProfileEdit');
-  assert.match(fn, /\/\^noffer1\[qpzry9x8gf2tvdw0s3jn54khce6mua7\]\+\$\/i\.test\(draft\.noffer\)/);
-  assert.match(fn, /it starts with noffer1/);
+  assert.match(fn, /!window\.SidecarCLINK\.isNofferString\(draft\.noffer\)/);
+  assert.match(fn, /It starts with noffer1/);
 });
 
-test('the shape check accepts real offers and rejects the near-misses', () => {
-  // The shipped literal is pinned verbatim first — that is the drift guard — and
-  // the vectors below run on the identical literal, character for character.
-  assert.match(src, /\^noffer1\[qpzry9x8gf2tvdw0s3jn54khce6mua7\]\+\$\/i/, 'the shipped shape check drifted');
-  const ok = (v) => /^noffer1[qpzry9x8gf2tvdw0s3jn54khce6mua7]+$/i.test(v);
-  // 32-byte service pubkey + short id, bech32 chars only.
-  assert.equal(ok('noffer1' + 'qpzry9x8gf2tvdw0s3jn54khce6mua7'.repeat(3)), true);
+test('THE SHAPE CHECK IS THE READER’S, RUN, NOT A COPY OF IT RE-TESTED', () => {
+  // This test used to pin the panel's own regex literal verbatim and then re-declare the
+  // identical literal to run vectors through. That proves a copy behaves like itself and
+  // nothing else, and it is how the bug it was guarding survived: the shipped charset was
+  // missing bech32's `l`, so the editor refused roughly 95% of real offers, and every
+  // vector here happened to avoid the one letter that mattered.
+  //
+  // So it runs the shipped function now, loaded from clink.js, and the vectors include
+  // the character that was missing.
+  const ctx = {
+    window: {}, console, TextDecoder, TextEncoder, setTimeout, clearTimeout,
+    Date, Promise, JSON, Math, Array, Uint8Array, Error, String,
+  };
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'clink.js'), 'utf8'), ctx);
+  const ok = (v) => ctx.window.SidecarCLINK.isNofferString(v);
+
+  assert.equal(ok('noffer1' + 'qpzry9x8gf2tvdw0s3jn54khce6mua7l'.repeat(3)), true);
+  assert.equal(ok('noffer1qqsrf5h4ya83jk8u6t9jgc76h6kalz3p'), true, 'an offer containing l is refused');
+  assert.equal(ok('noffer1llllllll'), true, 'l is a bech32 character');
   assert.equal(ok('noffer1'), false, 'no data after the separator');
   assert.equal(ok('noffer1bogus'), false, 'b is not a bech32 character');
   assert.equal(ok('lnurl1qpzry9x8'), false, 'an lnurl is not an offer');
-  assert.equal(ok('NOFFER1QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7'), true, 'case-blind like bech32');
+  assert.equal(ok('NOFFER1QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L'), true, 'case-blind like bech32');
 });
 
 test('an empty field removes the offer from the profile', () => {
