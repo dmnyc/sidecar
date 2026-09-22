@@ -583,6 +583,11 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
   // strip, and saves — the same path an upload takes.
   assert.match(core, /const onAttachUrl = \(opts && opts\.onAttachUrl\) \|\| null;/);
   assert.match(core, /if \(!onAttachUrl\) return;/, 'an editor without a draft never offers');
+  // And a no is possible: the ✕ dismisses for that url only, and the dismissal
+  // expires when the line does, so a deliberate no is not a forever no.
+  assert.match(core, /if \(!url \|\| attachDismissed\.has\(url\)\) return;/, 'a dismissed url re-offers');
+  assert.match(core, /attachDismissed\.delete\(offeredUrl\);/, 'the dismissal never expires');
+  assert.match(core, /'Keep it as text'/, 'the refusal is unnamed');
   assert.match(core, /const url = loneImageUrl\(e\.clipboardData && e\.clipboardData\.getData\('text\/plain'\)\);/);
   assert.match(core, /urlOnBoundary\(serializeEditor\(editor\)\.split\('\\n'\), url\)/, 'the paste must have landed on a line boundary');
   assert.match(core, /attachRow\.classList\.remove\('hidden'\)/);

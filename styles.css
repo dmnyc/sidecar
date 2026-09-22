@@ -3090,6 +3090,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: rgba(var(--accent-rgb, 189, 161, 255), 0.09);
 }
 .attach-row .attach-accept:hover { color: var(--lav); border-color: var(--lav); }
+/* The offer's answer for "not this one". Quiet on purpose — the accent belongs to
+   the offer, not to its refusal — and it does not shrink the offer to fit: the row
+   has room for both, and the button keeps its label whole. */
+.attach-x {
+  flex-shrink: 0; width: 26px; height: 26px; padding: 0; margin-left: 8px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: none; cursor: pointer; color: var(--muted); background: none;
+}
+.attach-x:hover { color: var(--text); }
+.attach-x svg { width: 13px; height: 13px; }
 /* A compose-add that is currently ON, for the proof-of-work cycle. Color only: the label
    already says which level, so the tint is confirmation rather than the message, and
    nothing about the button's metrics moves as it cycles. */
