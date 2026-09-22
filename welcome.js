@@ -122,14 +122,6 @@ const APPS = [
     desc: 'A food culture community and recipe app — share, discover, and zap great #nostrichefs.',
   },
   {
-    name: 'Slidestr',
-    url: 'https://slidestr.net',
-    domain: 'slidestr.net',
-    cat: 'other',
-    desc: 'A beautiful image viewer for Nostr — browse photo content as an effortless slideshow.',
-    icon: 'https://slidestr.net/slidestr.svg',
-  },
-  {
     name: 'Imwald',
     url: 'https://jumble.imwald.eu',
     domain: 'jumble.imwald.eu',
@@ -435,6 +427,49 @@ const APPS = [
     cat: 'other',
     desc: 'A location-based social network for Bitcoiners — a member club with Nostr sign-in.',
   },
+  // ---- additions ahead of 1.14 (#339) ----
+  {
+    name: 'Brainstorm',
+    url: 'https://brainstorm.world',
+    domain: 'brainstorm.world',
+    cat: 'tools',
+    // Their own favicon.svg — a filled rounded square, so it sits flush in the frame
+    // like Iris's apple-touch-icon rather than taking the velvet wrap.
+    icon: 'https://brainstorm.world/favicon.svg',
+    flush: true,
+    desc: 'The Web of Trust layer for Nostr: trust scores built from your own connections, not from an algorithm.',
+  },
+  {
+    name: 'NymChat',
+    url: 'https://nymchat.app',
+    domain: 'nymchat.app',
+    cat: 'social',
+    // Nothing hotlinkable on the site (data-URI favicon, no apple-touch-icon, the
+    // manifest 403s), so the launcher art is bundled like Circl's mark. The squared
+    // icon is opaque and fills its frame — flush.
+    icon: 'icons/apps/nym.png',
+    flush: true,
+    desc: 'Ephemeral chat over Nostr: geohash channels for whoever is near you, Bluetooth mesh when there is no signal.',
+  },
+  {
+    name: 'Shakespeare',
+    url: 'https://shakespeare.diy',
+    domain: 'shakespeare.diy',
+    cat: 'tools',
+    // Serves a clean 192x192 PNG at a stable path; filled square, flush.
+    icon: 'https://shakespeare.diy/shakespeare-192x192.png',
+    flush: true,
+    desc: 'Describe an app and it builds and publishes it to Nostr, in your browser. Open source, from Soapbox.',
+  },
+  {
+    name: 'Nostr Protocol Forum',
+    url: 'https://nostr-proto.org',
+    domain: 'nostr-proto.org',
+    cat: 'social',
+    // Transparent 256px mark, so it takes the framed treatment rather than flush.
+    icon: 'https://nostr-proto.org/nostr-proto-logo.png',
+    desc: 'A forum about Nostr itself, with rooms for the protocol, relays, apps, and help.',
+  },
 ];
 
 const CAT_LABELS = {
@@ -530,6 +565,26 @@ const sorted = [...APPS].sort((a, b) =>
 );
 sorted.forEach(app => grid.appendChild(renderCard(app)));
 
+// THE OPEN SLOT, always last and always shown. It is an invitation rather than an
+// entry, so it carries no category and the filter below skips it: under Gaming, where
+// there are two apps and a lot of empty grid, it is more apt than it is under All, not
+// less. Same idea as the "Your project here" row CLINK keeps at the foot of its
+// ecosystem table, and it points at the same place the footer tip does.
+const slot = document.createElement('a');
+slot.className = 'card app-slot';
+slot.href = 'https://github.com/dmnyc/sidecar/issues';
+slot.target = '_blank';
+slot.rel = 'noopener';
+const slotName = document.createElement('div');
+slotName.className = 'app-slot-name';
+slotName.textContent = 'Your app could be here';
+const slotCta = document.createElement('div');
+slotCta.className = 'card-cta';
+slotCta.textContent = 'Suggest an app →';
+slot.appendChild(slotName);
+slot.appendChild(slotCta);
+grid.appendChild(slot);
+
 // Category filter
 document.getElementById('filters').addEventListener('click', e => {
   const btn = e.target.closest('.filter-btn');
@@ -539,7 +594,9 @@ document.getElementById('filters').addEventListener('click', e => {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
-  document.querySelectorAll('.card').forEach(card => {
+  // :not(.app-slot) so the open slot survives every filter. It has no data-cat, so
+  // without this it would vanish the moment anything but All was picked.
+  document.querySelectorAll('.card:not(.app-slot)').forEach(card => {
     if (cat === 'all' || card.dataset.cat === cat) {
       card.classList.remove('hidden-cat');
     } else {
