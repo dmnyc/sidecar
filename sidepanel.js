@@ -11711,6 +11711,30 @@
             alt.addEventListener('click', () => openAltEditor(i));
             cell.append(alt);
           }
+            // THE STRIP REORDERS BY MORE THAN DRAG. HTML5 drag-and-drop never fires
+            // on touch, so a touchscreen had no way to reorder at all and a keyboard
+            // had none either; the steppers are the cheapest reorder there is, and
+            // they are buttons, which touch and Tab both reach. The ends hide theirs,
+            // because a disabled arrow is a control answering "you can't".
+            if (draft.media.length > 1) {
+              const step = (dir, label) => {
+                const b = h('button', { className: 'compose-thumb-move ' + (dir < 0 ? 'left' : 'right'), title: label, type: 'button' });
+                b.append(icon(dir < 0 ? 'arrow-left' : 'arrow-right'));
+                b.addEventListener('click', () => {
+                  const to = i + dir;
+                  if (to < 0 || to >= draft.media.length) return;
+                  closeAltEditor(); // flush first: the row's slot is still where it was opened
+                  const movedItem = draft.media.splice(i, 1)[0];
+                  draft.media.splice(to, 0, movedItem);
+                  scheduleSave();
+                  renderThumbs();
+                  paintEitherOr();
+                });
+                return b;
+              };
+              if (i > 0) cell.append(step(-1, 'Move earlier'));
+              if (i < draft.media.length - 1) cell.append(step(1, 'Move later'));
+            }
           const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
