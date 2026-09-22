@@ -1881,6 +1881,48 @@
   // before you mention them, follow them or pay them. That is a signer's job. What
   // it deliberately does not do is show their notes — that is a client's job, and
   // the "View in ..." button at the bottom is where the hand-off still lives.
+  // ---- CLINK offers, payer side ----
+  //
+  // clink.js is the protocol and holds nothing: it is handed this panel's signing, its
+  // NIP-44 and its pool, so the request goes out over the sockets the panel already owns
+  // and the key never leaves the worker.
+  //
+  // The relay is the OFFER'S, named in its own TLV, and it is the only place the service
+  // is listening. That is why publish and subscribe both name it explicitly rather than
+  // going to the account's own relays.
+  const clink = window.SidecarCLINK.install({
+    mePubkey: async () => state.activePubkey,
+    sign: (template) => call({
+      type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey,
+    }),
+    encrypt: (peer, plaintext) => call({
+      type: 'SIDECAR_OWNER_ENCRYPT', nip: 44, peer, plaintext,
+    }),
+    decrypt: (peer, ciphertext) => call({
+      type: 'SIDECAR_OWNER_DECRYPT', nip: 44, peer, ciphertext,
+    }),
+    subscribe: (relay, filter, onevent) => poolSubscribeMany([relay], [filter], { onevent }),
+    publish: async (relay, event) => {
+      const results = await Promise.allSettled(poolPublish([relay], event));
+      if (!results.some((r) => !publishFailed(r))) {
+        throw new Error('Could not reach the relay this offer listens on.');
+      }
+    },
+  });
+
+  // The offer a profile carries, or null. Tolerant on the way in for the same reason the
+  // editor is: `noffer` is what bxrd.app writes and what Sidecar writes, but the key was
+  // never formally settled and `offer` and `clink_offer` are both in the wild.
+  //
+  // A field that does not decode is treated as no offer at all rather than as an error.
+  // This is somebody else's profile: there is nothing the reader can do about a malformed
+  // one, and a broken-offer notice on a stranger's sheet is noise about their mistake.
+  function profileOffer(content) {
+    const raw = (content && (content.noffer || content.offer || content.clink_offer)) || '';
+    if (!window.SidecarCLINK.isNofferString(raw)) return null;
+    try { return window.SidecarCLINK.decodeNoffer(raw); } catch (_) { return null; }
+  }
+
   async function openProfileSheet(pubkey) {
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
@@ -2019,15 +2061,119 @@
         // and the address straight onto the sheet made a profile you had only opened to
         // read into a payment page, which is a different sheet from the one you asked for.
         zapPanel = zapHasWallet ? zapForm : zapPayBlock(zapAddr);
-        zapWrap.append(zapBtn, zapPanel);
+        payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
+        zapWrap.append(zapPanel);
+        zapWrap.classList.remove('hidden');
+      }
+
+      // A SECOND WAY TO PAY, beside the first rather than under it. Zap and Pay offer are
+      // two routes to the same person and neither is the other's fallback: a lightning
+      // address is a server that answers for them, an offer is their own wallet answering
+      // for itself, and plenty of profiles carry exactly one of the two.
+      //
+      // Arrives on its own schedule. The offer is read off the kind 0, which paints twice
+      // here (once from cache, once from the relays), so this appends once and the zap
+      // reveal above does not wait for it.
+      function revealOffer(offer) {
+        if (offerShown || !offer || !modal.isConnected) return;
+        offerShown = true;
+        payRow.append(offerBtn);
+        offerBtn.addEventListener('click', () => openOfferPanel(offer));
         zapWrap.classList.remove('hidden');
       }
 
       let lastAbout = null; // guards renderAbout against a second, identical pass
+      // ---- paying an offer ----
+      //
+      // Two steps, because they fail differently and a user who sees one spinner for both
+      // cannot tell a wallet that is offline from a relay that is. Asking is a round trip
+      // to a stranger's service over their relay; paying is the wallet already connected,
+      // the same two lines the zap above runs once it has an invoice.
+      const offerPanel = h('div', { className: 'peek-zap-form hidden' });
+      const offerErr = h('div', { className: 'error' });
+      const offerAmount = satsInput('sats');
+      const offerPresets = zapPresetRow(offerAmount);
+      const offerPay = h('button', { className: 'primary', textContent: 'Pay' });
+      const offerNote = h('p', { className: 'hint' });
+      let offerData = null;
+
+      function openOfferPanel(offer) {
+        offerData = offer;
+        // A fixed offer already knows its price, so asking for one would be asking the
+        // user to agree with a number they cannot change. Variable and spontaneous ones
+        // cannot be asked without an amount at all.
+        const needsAmount = window.SidecarCLINK.amountRequired(offer);
+        offerPresets.classList.toggle('hidden', !needsAmount);
+        offerAmount.classList.toggle('hidden', !needsAmount);
+        if (!needsAmount && offer.price) offerAmount.value = String(offer.price);
+        offerPay.textContent = !needsAmount && offer.price
+          ? 'Pay ' + fmtSats(offer.price) + ' sats'
+          : 'Pay';
+        // THE ONE THING THIS SHEET OWES THE READER. The request is an event signed by
+        // your key, published to a relay the payee chose, saying you want to pay them.
+        // That is a different exposure from a zap, which goes to a server over HTTPS.
+        offerNote.textContent = 'Asks their wallet over ' + offer.relay + ', signed by you.';
+        offerErr.textContent = '';
+        // NOT through zapPanel, which is the Zap button's own reference to whichever
+        // panel that button opens. Pointing it here made Zap toggle the offer instead of
+        // the zap, which is a button doing the other button's job.
+        if (!offerPanel.isConnected) zapWrap.append(offerPanel);
+        if (zapPanel) zapPanel.classList.add('hidden');
+        offerPanel.classList.remove('hidden');
+        if (needsAmount) offerAmount.focus();
+      }
+
+      offerPay.addEventListener('click', async () => {
+        if (!offerData) return;
+        const needsAmount = window.SidecarCLINK.amountRequired(offerData);
+        const sats = parseInt(offerAmount.value, 10);
+        if (needsAmount && (!sats || sats < 1)) {
+          return (offerErr.textContent = 'Enter an amount in sats.');
+        }
+        offerErr.textContent = '';
+        offerPay.disabled = true;
+        const label = offerPay.textContent;
+        let flight = null;
+        try {
+          // The wallet first, because there is no point asking a stranger's service for
+          // an invoice we would then have nothing to pay it with.
+          const client = await ensureNwc();
+          if (!client) throw new Error('Wallet unavailable. Reconnect in the Wallet tab.');
+          offerPay.textContent = 'Asking…';
+          const { bolt11 } = await clink.requestInvoice(offerData, {
+            amountSats: needsAmount ? sats : offerData.price,
+          });
+          const paying = sats || offerData.price || 0;
+          offerPay.textContent = 'Paying…';
+          flight = toast(paying ? 'Paying ' + fmtSats(paying) + ' sats' : 'Paying', 'progress');
+          await client.payInvoice(bolt11);
+          if (flight) flight.close();
+          toast(paying ? 'Paid ' + fmtSats(paying) + ' sats' : 'Paid', 'success');
+          lightningStrike();
+          closeModal();
+          return;
+        } catch (e) {
+          if (flight) flight.close();
+          offerErr.textContent = e.message || 'Could not pay that offer.';
+        }
+        offerPay.disabled = false;
+        offerPay.textContent = label;
+      });
+
+      offerPanel.append(offerPresets, h('div', { className: 'zap-inline' }, [offerAmount, offerPay]),
+        offerNote, offerErr);
+
       const zapWrap = h('div', { className: 'peek-zap hidden' });
+      // Both payment buttons live here, side by side. Two short labels with no content
+      // beside them competing for width, which is the one shape the panel's row rule
+      // allows two worded controls in.
+      const payRow = h('div', { className: 'peek-pay-row' });
       const zapErr = h('div', { className: 'error' });
       const zapBtn = h('button', { className: 'secondary peek-zap-open' });
       zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
+      const offerBtn = h('button', { className: 'secondary peek-zap-open' });
+      offerBtn.append(icon('zap'), h('span', { textContent: 'Pay offer' }));
+      let offerShown = false;
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
       const amount = satsInput('sats');
       // Presets first, keyboard second: most zaps are one of a few round numbers,
@@ -2096,12 +2242,16 @@
       });
       zapBtn.addEventListener('click', () => {
         if (!zapPanel) return;
+        // ONE PAYMENT PANEL AT A TIME. Two open at once is two amount fields and two Pay
+        // buttons on a 358px sheet, and no way to tell which one a number was typed into.
+        offerPanel.classList.add('hidden');
         zapPanel.classList.toggle('hidden');
         // Only the form has anything to type into; focusing the other one focuses a QR.
         if (zapPanel === zapForm && !zapForm.classList.contains('hidden')) amount.focus();
       });
       zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]),
         zapDefaultSaver(amount, presets), zapErr);
+      zapWrap.append(payRow);
       modal.append(zapWrap);   // filled by revealZap once both answers are in
 
       // Asked here, AFTER the pieces it chooses between exist. Started earlier it would
@@ -2139,6 +2289,9 @@
           img.onload = () => { banner.classList.remove('peek-banner-ph'); banner.innerHTML = ''; banner.append(img); };
         }
         if (c.picture) applyAvatar(av, { picture: c.picture });
+        // Their CLINK offer, if the kind 0 carries one. Off the same content paint()
+        // already has, so it costs no lookup.
+        revealOffer(profileOffer(c));
         const display = c.display_name || c.displayName || c.name || '';
         if (display) name.textContent = display;
         nip05Row.classList.add('hidden');

@@ -70,7 +70,10 @@ test('BOTH BRANCHES SIT BEHIND THE SAME ZAP BUTTON', () => {
   // payment page, which is a different sheet from the one you asked for.
   assert.match(sheet, /zapPanel = zapHasWallet \? zapForm : zapPayBlock\(zapAddr\)/,
     'the two branches are no longer chosen by whether a wallet exists');
-  assert.match(sheet, /zapWrap\.append\(zapBtn, zapPanel\)/, 'the Zap button is not always shown');
+  // The Zap button is still unconditional; it just shares a row with Pay offer now, and
+  // goes in first because a zap is the route most profiles can take.
+  assert.match(sheet, /payRow\.prepend\(zapBtn\);/, 'the Zap button is not always shown');
+  assert.match(sheet, /zapWrap\.append\(zapPanel\);/, 'the panel it opens is no longer attached');
   assert.match(sheet, /className: 'recv-out peek-zap-pay hidden'/, 'the pay block is exposed on load again');
   assert.match(sheet, /zapPanel\.classList\.toggle\('hidden'\)/, 'the button no longer opens whichever panel applies');
   // Focus belongs to the form alone; the other panel is a QR and a button.

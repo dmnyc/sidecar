@@ -4464,6 +4464,16 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .peek-status { top: 8px; cursor: default; }
 /* zap control on the peek sheet. */
 .peek-zap { margin-top: 12px; }
+/* Zap and Pay offer, side by side. Two routes to the same person and neither is the
+   other's fallback, so they get equal width rather than a primary and a secondary. Both
+   labels are two words at most and nothing sits beside them competing for the row, which
+   is the one shape this panel allows two worded controls in.
+
+   `flex: 1` with a `min-width: 0` child would let them squash; `1 1 0` on buttons whose
+   labels cannot shrink means they share the row evenly and wrap instead, which is the
+   rule the compose toolbar already follows. */
+.peek-pay-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.peek-pay-row > .peek-zap-open { flex: 1 1 0; min-width: 132px; }
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
 .peek-zap-form { margin-top: 10px; }
