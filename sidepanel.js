@@ -11481,8 +11481,8 @@
       // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after
       // the body-derived tags. Undescribed media emits nothing, so a note of bare
       // URLs is byte-identical to what it published before alt text existed. A poll
-      // carries no media — the editor offers one or the other — and this is harmless
-      // even if a draft arrives carrying both.
+      // carries no media: the editor enforces one-or-the-other (paintEitherOr), so a
+      // 1068 wearing appended URLs and imeta tags cannot be built from here.
       tags.push(...imetaTagsForMedia(draft.media));
       const now = Math.floor(Date.now() / 1000);
       // A poll is never a reply: the editor does not offer one on a reply, and reply
@@ -11596,6 +11596,7 @@
           scheduleSave();
           updatePostState();
           renderThumbs();
+          paintEitherOr();
         },
       });
       mentionEditor.setText(draft.text);
@@ -11639,8 +11640,8 @@
         tabPreview.classList.toggle('active', p);
         editorWrap.classList.toggle('hidden', p);
         thumbs.classList.toggle('hidden', p);
-        addBtn.classList.toggle('hidden', p);
-        pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo);
+        addBtn.classList.toggle('hidden', p || !!draft.poll);
+        pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
         pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
         if (p) { mentionEditor.close(); renderPreview(); }
@@ -11720,6 +11721,7 @@
             scheduleSave();
             updatePostState();
             renderThumbs();
+            paintEitherOr();
           });
           cell.append(rm);
           thumbs.append(cell);
@@ -11807,6 +11809,7 @@
           scheduleSave();
           updatePostState();
           renderThumbs();
+          paintEitherOr();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -11840,6 +11843,7 @@
           scheduleSave();
           updatePostState();
           renderThumbs();
+          paintEitherOr();
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
@@ -11944,10 +11948,19 @@
         });
       }
 
+      // A POLL AND ATTACHMENTS ARE ONE OR THE OTHER. A kind:1068 carrying appended
+      // image URLs and imeta tags is a shape no NIP-88 client renders, and the tag
+      // push in doPublish long claimed it could not arrive. Each side's button
+      // stands down while the other holds the draft, so the pair is decided by what
+      // refuses to appear rather than by what publishes.
+      function paintEitherOr() {
+        pollAdd.classList.toggle('hidden', !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
+        addBtn.classList.toggle('hidden', !!draft.poll);
+      }
       function paintPoll() {
         pollWrap.innerHTML = '';
         pollWrap.classList.toggle('hidden', !draft.poll);
-        pollAdd.classList.toggle('hidden', !!draft.poll || !!replyTo);
+        paintEitherOr();
         const devSelect = modal.querySelector('#compose-dev-kind');
         if (devSelect) devSelect.disabled = !!draft.poll;
         if (!draft.poll) return;
