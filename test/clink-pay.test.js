@@ -257,6 +257,56 @@ test('ONE PAYMENT PANEL AT A TIME, AND NEITHER BUTTON DOES THE OTHER’S JOB', (
   assert.match(zapClick.slice(0, 400), /offerPanel\.classList\.add\('hidden'\);/);
 });
 
+test('NO WALLET IS NOT NO WAY TO PAY', () => {
+  // The lesson the zap branch beside it already learned: picking an amount and pressing
+  // Pay only to be told at the end that there is no wallet is a dead end, and the offer
+  // had exactly that shape until now. Same block, same QR, same copy button.
+  const open = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
+  const body = open.slice(0, open.indexOf('\n      }'));
+  assert.match(body, /if \(!zapHasWallet\) \{/);
+  assert.match(body, /offerHandoff = offerPayBlock\(offer\);/);
+  // Asked at click rather than gated at reveal, because the offer button appears off the
+  // profile paint and the wallet answer lands on its own schedule.
+  assert.match(body, /if \(zapHasWallet === null\) \{/);
+  assert.match(body, /catch \(_\) \{ zapHasWallet = false; \}/, 'an unreachable wallet must read as none');
+
+  // One block for both errands rather than a second one written from scratch.
+  assert.match(bare, /function offerPayBlock\(offer, extra\)/);
+  assert.match(bare, /return zapPayBlock\(raw, Object\.assign\(\{/);
+  // The offer goes into the same lightning: URI that ShockWallet and Zeus read, and the
+  // whole string is copied even though the label is ellipsized.
+  assert.match(bare, /window\.SidecarCLINK\.stripNostrPrefix\(offer\.raw \|\| ''\)/);
+  assert.match(bare, /raw\.slice\(0, 18\) \+ '…' \+ raw\.slice\(-6\)/);
+  assert.match(bare, /qrSize: 240/, 'a longer payload packs more modules into the same square');
+  // profileOffer carries the raw string for exactly this: a wallet that is not this one
+  // wants the offer as its owner wrote it.
+  assert.match(bare, /Object\.assign\(window\.SidecarCLINK\.decodeNoffer\(raw\), \{ raw \}\)/);
+});
+
+test('A CONNECTED WALLET DOES NOT MEAN PAYING FROM THIS MACHINE', () => {
+  // The phone in your pocket is often the wallet. Before this the QR existed only for
+  // people who had connected nothing, which made the better route the one you got for
+  // being worse off.
+  assert.match(bare, /const zapQrBtn = h\('button', \{ className: 'mini ghost peek-qr-toggle'/);
+  assert.match(bare, /const offerQrBtn = h\('button', \{ className: 'mini ghost peek-qr-toggle'/);
+  assert.match(bare, /zapHandoff = zapPayBlock\(zapAddr, \{ hideConnect: true \}\)/);
+  assert.match(bare, /offerFormHandoff = offerPayBlock\(offerData, \{ hideConnect: true \}\)/);
+  // hideConnect, because there IS a wallet here and a line offering to connect one would
+  // be answering a question nobody asked.
+  assert.match(bare, /\.\.\.\(options\.hideConnect \? \[\] : \[connect\]\)/);
+
+  // Icon only: the row already carries a value, and a control sharing a row with content
+  // carries no words. Both forms put it beside the amount, not under it.
+  assert.match(bare, /\[amount, zapQrBtn, send\]/);
+  assert.match(bare, /\[offerAmount, offerQrBtn, offerPay\]/);
+  assert.ok(!/peek-qr-toggle'[^)]*textContent/.test(bare), 'the toggle grew a label');
+  assert.match(css, /\.peek-qr-toggle \{ flex-shrink: 0;/);
+
+  // Built the first time it is wanted, not on every sheet: it draws a QR.
+  assert.match(bare, /if \(!zapHandoff\) \{/);
+  assert.match(bare, /if \(!offerFormHandoff\) \{/);
+});
+
 test('it ships', () => {
   // scripts/package.sh stages from the tree, so a new top-level file is included as soon
   // as it is committed. What is worth pinning is that nothing excludes it.

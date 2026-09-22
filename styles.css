@@ -4473,6 +4473,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    labels cannot shrink means they share the row evenly and wrap instead, which is the
    rule the compose toolbar already follows. */
 .peek-pay-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The way out to another wallet, beside the amount rather than under it. Icon only: the
+   row already carries a value, and a control sharing a row with content carries no words. */
+.peek-qr-toggle { flex-shrink: 0; padding: 7px 10px; }
+.peek-qr-toggle svg { width: 15px; height: 15px; display: block; }
 .peek-pay-row > .peek-zap-open { flex: 1 1 0; min-width: 132px; }
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }

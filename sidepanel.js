@@ -1920,7 +1920,11 @@
   function profileOffer(content) {
     const raw = (content && (content.noffer || content.offer || content.clink_offer)) || '';
     if (!window.SidecarCLINK.isNofferString(raw)) return null;
-    try { return window.SidecarCLINK.decodeNoffer(raw); } catch (_) { return null; }
+    try {
+      // The decoded fields for asking, and the string itself for handing over: a wallet
+      // that is not this one wants the offer exactly as its owner wrote it.
+      return Object.assign(window.SidecarCLINK.decodeNoffer(raw), { raw });
+    } catch (_) { return null; }
   }
 
   async function openProfileSheet(pubkey) {
@@ -2010,17 +2014,35 @@
       // The shape the creator's zap card uses, so meeting one teaches the other: a QR to
       // scan, and the address as the LABEL of the button that copies it, which is what
       // makes it obvious rather than a line of small print with a click handler on it.
-      function zapPayBlock(addr) {
+      // TAKE IT TO ANOTHER WALLET. One block for both routes, because a lightning address
+      // and a CLINK offer are the same errand once Sidecar is not the one paying: scan it
+      // with the phone in your pocket, or copy it into whatever you use.
+      //
+      // `label` is separate from `value` for the one difference between them. An address
+      // is short enough to read across to another device, which is why it was shown whole
+      // and told not to truncate; an offer is well over a hundred characters and nobody
+      // retypes one, so it shows an ellipsized form and copies the lot.
+      function zapPayBlock(addr, opts) {
+        const options = opts || {};
+        const value = options.value || addr;
+        const label = options.label || addr;
         const wrap = h('div', { className: 'recv-out peek-zap-pay hidden' });
         const canvas = document.createElement('canvas');
         canvas.className = 'recv-qr';
-        try { window.SidecarQR.draw(canvas, 'lightning:' + addr, 200, 'M'); } catch (_) {}
-        const copy = h('button', { className: 'secondary peek-zap-addr', textContent: addr, title: 'Copy lightning address' });
+        // A noffer is several times an address, so the QR needs more modules to hold it.
+        // Bigger canvas rather than weaker correction: the payload is a payment address
+        // and a misread one is not a failure anybody would notice at the right moment.
+        try { window.SidecarQR.draw(canvas, 'lightning:' + value, options.qrSize || 200, 'M'); } catch (_) {}
+        const copy = h('button', {
+          className: 'secondary peek-zap-addr',
+          textContent: label,
+          title: options.copyTitle || 'Copy lightning address',
+        });
         copy.addEventListener('click', async () => {
           try {
-            await copyPlain(addr);
+            await copyPlain(value);
             copy.textContent = 'Copied ✓';
-            setTimeout(() => { if (copy.isConnected) copy.textContent = addr; }, 1200);
+            setTimeout(() => { if (copy.isConnected) copy.textContent = label; }, 1200);
           } catch (_) {
             toast('Could not copy', 'error');
           }
@@ -2044,10 +2066,26 @@
           // no zap request is attached, so the provider publishes no receipt and it lands
           // as an anonymous payment. The link below is the one that can say zap, because
           // connecting a wallet is what puts a signed 9734 in front of the invoice.
-          h('p', { className: 'hint', textContent: 'Scan or copy to pay from any wallet.' }),
-          connect
+          h('p', { className: 'hint', textContent: options.hint || 'Scan or copy to pay from any wallet.' }),
+          ...(options.hideConnect ? [] : [connect])
         );
         return wrap;
+      }
+
+      // The same block for an offer. A noffer in a lightning: URI is what ShockWallet,
+      // Zeus and Lightning.Pub read, which is the whole reason it is worth handing over
+      // rather than only paying here.
+      function offerPayBlock(offer, extra) {
+        const raw = window.SidecarCLINK.stripNostrPrefix(offer.raw || '');
+        return zapPayBlock(raw, Object.assign({
+          value: raw,
+          label: raw.length > 28 ? raw.slice(0, 18) + '…' + raw.slice(-6) : raw,
+          copyTitle: 'Copy this CLINK offer',
+          // 240 rather than 200: an offer is a longer payload, so the same canvas would
+          // pack more modules into the same square and a phone camera has to resolve them.
+          qrSize: 240,
+          hint: 'Scan or copy to pay from any CLINK wallet.',
+        }, extra || {}));
       }
 
       // Waits for BOTH answers before drawing either branch, and draws once. paint() runs
@@ -2096,9 +2134,33 @@
       const offerPay = h('button', { className: 'primary', textContent: 'Pay' });
       const offerNote = h('p', { className: 'hint' });
       let offerData = null;
+      let offerHandoff = null; // the QR and copy block, built the first time it is wanted
 
-      function openOfferPanel(offer) {
+      async function openOfferPanel(offer) {
         offerData = offer;
+        // NO WALLET IS NOT NO WAY TO PAY, which is the whole lesson of the zap branch
+        // beside it: picking an amount and pressing Pay only to be told at the end that
+        // there is no wallet is the dead end that block exists to remove.
+        //
+        // Asked here rather than gated on at reveal, because the offer button appears off
+        // the profile paint and the wallet answer lands on its own schedule. By the time
+        // anybody clicks it has almost always arrived.
+        if (zapHasWallet === null) {
+          try {
+            const r = await call({ type: 'SIDECAR_HAS_NWC' });
+            zapHasWallet = !!(r && r.has);
+          } catch (_) { zapHasWallet = false; } // an unreachable wallet is no wallet
+        }
+        if (!zapHasWallet) {
+          if (!offerHandoff) {
+            offerHandoff = offerPayBlock(offer);
+            zapWrap.append(offerHandoff);
+          }
+          if (zapPanel) zapPanel.classList.add('hidden');
+          offerPanel.classList.add('hidden');
+          offerHandoff.classList.toggle('hidden');
+          return;
+        }
         // A fixed offer already knows its price, so asking for one would be asking the
         // user to agree with a number they cannot change. Variable and spontaneous ones
         // cannot be asked without an amount at all.
@@ -2119,6 +2181,7 @@
         // the zap, which is a button doing the other button's job.
         if (!offerPanel.isConnected) zapWrap.append(offerPanel);
         if (zapPanel) zapPanel.classList.add('hidden');
+        if (offerHandoff) offerHandoff.classList.add('hidden');
         offerPanel.classList.remove('hidden');
         if (needsAmount) offerAmount.focus();
       }
@@ -2160,7 +2223,19 @@
         offerPay.textContent = label;
       });
 
-      offerPanel.append(offerPresets, h('div', { className: 'zap-inline' }, [offerAmount, offerPay]),
+      // The same way out, for the same reason.
+      const offerQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: 'Show a QR to pay from another wallet' });
+      offerQrBtn.append(icon('qr'));
+      let offerFormHandoff = null;
+      offerQrBtn.addEventListener('click', () => {
+        if (!offerData) return;
+        if (!offerFormHandoff) {
+          offerFormHandoff = offerPayBlock(offerData, { hideConnect: true });
+          offerPanel.append(offerFormHandoff);
+        }
+        offerFormHandoff.classList.toggle('hidden');
+      });
+      offerPanel.append(offerPresets, h('div', { className: 'zap-inline' }, [offerAmount, offerQrBtn, offerPay]),
         offerNote, offerErr);
 
       const zapWrap = h('div', { className: 'peek-zap hidden' });
@@ -2249,7 +2324,24 @@
         // Only the form has anything to type into; focusing the other one focuses a QR.
         if (zapPanel === zapForm && !zapForm.classList.contains('hidden')) amount.focus();
       });
-      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, send]),
+      // A WAY OUT TO ANOTHER WALLET EVEN WHEN THERE IS ONE HERE. Having connected a wallet
+      // does not mean wanting to pay from this machine: the phone in your pocket is often
+      // the wallet, and before this the QR existed only for people who had connected
+      // nothing. Icon only, beside the field, because the row has a value in it and the
+      // panel's rule is that a control sharing a row with content carries no words.
+      const zapQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: 'Show a QR to pay from another wallet' });
+      zapQrBtn.append(icon('qr'));
+      let zapHandoff = null;
+      zapQrBtn.addEventListener('click', () => {
+        if (!zapHandoff) {
+          // hideConnect: there is a wallet, so the line offering to connect one would be
+          // answering a question nobody asked.
+          zapHandoff = zapPayBlock(zapAddr, { hideConnect: true });
+          zapForm.append(zapHandoff);
+        }
+        zapHandoff.classList.toggle('hidden');
+      });
+      zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, zapQrBtn, send]),
         zapDefaultSaver(amount, presets), zapErr);
       zapWrap.append(payRow);
       modal.append(zapWrap);   // filled by revealZap once both answers are in

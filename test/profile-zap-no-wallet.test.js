@@ -81,12 +81,19 @@ test('BOTH BRANCHES SIT BEHIND THE SAME ZAP BUTTON', () => {
     'opening the pay block tries to focus an amount field that is not there');
 
   const block = sheet.slice(sheet.indexOf('function zapPayBlock('), sheet.indexOf('function revealZap('));
-  assert.match(block, /SidecarQR\.draw\(canvas, 'lightning:' \+ addr/, 'the QR is gone or is not a lightning URI');
+  // `value` rather than `addr` since the block took a second caller: a CLINK offer goes
+  // into the same lightning: URI, which is what ShockWallet and Zeus read. An address
+  // passed alone still becomes the value, so this branch is unchanged.
+  assert.match(block, /SidecarQR\.draw\(canvas, 'lightning:' \+ value/, 'the QR is gone or is not a lightning URI');
+  assert.match(block, /const value = options\.value \|\| addr;/, 'an address alone must still work');
   // The address IS the button. A label above a button is two things where one will do, and
   // the small dim line that used to carry it is exactly what nobody found.
-  assert.match(block, /h\('button', \{ className: 'secondary peek-zap-addr', textContent: addr/,
+  assert.match(block, /className: 'secondary peek-zap-addr',\s*\n\s*textContent: label,/,
     'the address is no longer the label of the button that copies it');
-  assert.match(block, /copyPlain\(addr\)/, 'the button does not copy the address');
+  assert.match(block, /copyPlain\(value\)/, 'the button does not copy the address');
+  // label and value are the same thing for an address, and differ only for an offer,
+  // which is long enough that nobody reads it across to another device.
+  assert.match(block, /const label = options\.label \|\| addr;/);
   assert.match(block, /Copied ✓/, 'copying gives no confirmation');
   assert.match(block, /Connect a wallet to zap from here →/, 'nothing says why the form is absent');
 });
