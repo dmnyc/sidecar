@@ -1,0 +1,170 @@
+'use strict';
+
+// An opt-out from the multi-login safeguard, per host.
+//
+// The safeguard: once 2+ of your accounts have signed in to one host, every content sign
+// there asks who is posting, even on Trusted, because a client's own account switcher
+// can change identity without telling Sidecar. It is right by default and it was the fix
+// for a version that silently posted as the wrong account.
+//
+// It is also wrong for a particular user, who asked for this: one client, identity
+// switched in Sidecar rather than in the client, and a preference for Sidecar simply
+// signing as whatever is active. This file pins the three things that make giving them
+// that safe to ship: it is off until turned on, it is scoped to one host, and it
+// suppresses the confirm WITHOUT touching anything else the same flag drives.
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const ROOT = path.join(__dirname, '..');
+const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+const bgBare = bg.replace(/^\s*\/\/.*$/gm, '');
+const bare = panel.replace(/^\s*\/\/.*$/gm, '');
+
+test('OFF UNTIL TURNED ON, AND SCOPED TO ONE HOST', () => {
+  // Host-scoped, not account-scoped, and that is not an implementation detail. "Do not
+  // ask me which account on this host" is a claim about the host. Per account, A could
+  // opt out while B had not, on the one host where the point is that they share it.
+  assert.match(bgBare, /const SITE_ALWAYS_ACTIVE_KEY = 'sidecar_site_always_active';/);
+  assert.match(bgBare, /async function isAlwaysActiveHost\(host\)/);
+  // Absent means off: a plain lookup with no default that could read as enabled.
+  const fn = bgBare.slice(bgBare.indexOf('async function isAlwaysActiveHost('));
+  assert.match(fn.slice(0, fn.indexOf('\n}')), /\[host\] === true/);
+  // Turning it off deletes rather than storing false, so the map cannot grow forever
+  // with hosts nobody opted into.
+  const setFn = bgBare.slice(bgBare.indexOf('async function setAlwaysActiveHost('));
+  assert.match(setFn.slice(0, setFn.indexOf('\n}')), /else delete all\[host\];/);
+});
+
+test('IT SUPPRESSES THE CONFIRM AND NOTHING ELSE', () => {
+  // The trap, and it was live in the first cut of this: sharedHost drives BOTH the
+  // shared-identity confirm and appDataAutoAllow. Clearing sharedHost would make app-data
+  // signs start asking, which is more prompts rather than fewer, exactly backwards.
+  assert.match(bgBare, /const appDataAutoAllow = appDataExempt && sharedHost;/);
+  const block = bgBare.slice(bgBare.indexOf('let sharedHost = false;'), bgBare.indexOf('const appDataAutoAllow'));
+  assert.match(block, /sharedIdentity = !alwaysActive;/, 'the opt-out must gate sharedIdentity');
+  assert.ok(!/sharedHost = false;/.test(block.slice(block.indexOf('alwaysActive'))),
+    'the opt-out must not clear sharedHost, which also drives appDataAutoAllow');
+});
+
+test('it takes the same account the confirm would have defaulted to', () => {
+  // This is not a different choice, only a skipped question. The swap to the global
+  // active account already ran before this setting existed, and still runs either way.
+  const block = bgBare.slice(bgBare.indexOf('let sharedHost = false;'), bgBare.indexOf('const appDataAutoAllow'));
+  assert.match(block, /const globalActive = await KS\.getActivePubkey\(\);/);
+  assert.match(block, /if \(authorized\.includes\(globalActive\) && globalActive !== activePubkey\)/);
+  // And a block on the account it swaps to is still honored.
+  assert.match(block, /if \(status === 'reject'\) throw new Error\('This site is blocked in Sidecar'\);/);
+});
+
+test('THE OPT-IN OUTRANKS A CLIENT THAT NAMES ITS AUTHOR', () => {
+  // Some clients stamp the intended author's pubkey on the template, and Sidecar honors
+  // it: that is a client saying which identity it means, which is better evidence than
+  // any guess we could make. On a host with this switch on it is still the wrong answer.
+  // The switch reads "Don't ask which account" over "Posts may not match the client",
+  // and a client naming an author is exactly the case that note is about, so following
+  // the stamp would deliver the opposite of what was turned on.
+  //
+  // So the lookup moved above the gate, and the gate lets an opted-in host through even
+  // when the author was named. Read once, and only for a content sign, so a DM decrypt
+  // does not pay for a storage read it has no use for.
+  assert.match(bgBare, /const alwaysActive = isContentSign \? await isAlwaysActiveHost\(host\) : false;/);
+  assert.match(bgBare, /if \(\(isContentSign \|\| appDataExempt\) && \(alwaysActive \|\| !authorNamed\)\) \{/);
+  assert.equal((bgBare.match(/await isAlwaysActiveHost\(/g) || []).length, 1,
+    'one read per request, not two that could disagree with each other');
+});
+
+test('naming the account we already meant to use is still naming it', () => {
+  // authorSwitched answers "did we have to move off the binding". The confirm needs the
+  // other question, "did the client say who it means", and the two part company on the
+  // commonest case of all: a client naming the same account the binding already holds.
+  // Read off authorSwitched, that client was treated as having named nothing, so we
+  // asked, and then defaulted the signature to the globally active account, which is the
+  // one identity it had just told us it did not want.
+  const pick = bgBare.slice(bgBare.indexOf('let authorSwitched = false;'), bgBare.indexOf('if (!activePubkey)'));
+  assert.match(pick, /if \(requestedAuthor && \(await KS\.hasAccount\(requestedAuthor\)\)\) \{/,
+    'the stamp is recognized on its own terms, not through a comparison');
+  assert.match(pick, /authorNamed = true;/);
+  assert.match(pick, /if \(requestedAuthor !== activePubkey\) \{\n\s*activePubkey = requestedAuthor;\n\s*authorSwitched = true;/,
+    'switching is still the narrower fact, and still only true when we actually moved');
+
+  // NOT the relay-auth exemption, which wants the narrow one. A kind 22242 from a client
+  // that stamps the author would otherwise lose its exemption and prompt on every relay
+  // connection, which is the "Signer did not respond in time" failure that exemption
+  // exists to prevent.
+  assert.match(bgBare, /const isRelayAuth = method === 'signEvent' && !authorSwitched && isNip42AuthEvent\(signEvent\);/);
+  // Nor the re-pin, which may only be moved by an identity choice that actually differs.
+  assert.match(bgBare, /if \(method === 'getPublicKey' \|\| authorSwitched \|\| sharedIdentity \|\| !\(await getSiteAccount\(host\)\)\)/);
+});
+
+test('forgetting a site forgets the opt-out with it', () => {
+  // A host the user erased must not keep a standing instruction to skip the check if
+  // they ever go back.
+  const one = bgBare.slice(bgBare.indexOf("case 'SIDECAR_REMOVE_HOST'"));
+  assert.match(one.slice(0, one.indexOf('break;')), /await clearAlwaysActiveHost\(message\.host\)/);
+  const all = bgBare.slice(bgBare.indexOf("case 'SIDECAR_FORGET_ALL_SITES'"));
+  assert.match(all.slice(0, all.indexOf('break;')), /\[SITE_ALWAYS_ACTIVE_KEY\]: \{\}/);
+});
+
+test('THE UI SAYS WHAT IT COSTS, NOT ONLY WHAT IT SAVES', () => {
+  // A setting that removes a safety prompt has to name the consequence in the same
+  // breath, or it reads as a convenience toggle.
+  const fn = bare.slice(bare.indexOf('async function sharedSiteModal('));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /Posts may not match the client/);
+  assert.match(body, /SIDECAR_SET_ALWAYS_ACTIVE/);
+
+  // EVERY STRING IN THIS SHEET FITS ITS LINE. The column is about 240px wide with the
+  // control taking the right edge, so a label over roughly 26 characters wraps and
+  // orphans its last word, and a note over about 34 does the same. Three rewrites went
+  // that way before the lengths were the thing that got fixed rather than the layout.
+  const label = body.match(/always-active-label', textContent: '([^']*)'/);
+  const note = body.match(/always-active-note', textContent: '([^']*)'/);
+  assert.ok(label && label[1].replace(/\\u2019/g, "'").length <= 26,
+    'the label wraps and orphans its last word at this width');
+  assert.ok(note && note[1].length <= 34, 'the note grew back into two lines');
+
+  // And the sheet's own opening paragraph, which was six lines describing what the list
+  // underneath it already shows.
+  const top = body.match(/className: 'hint', textContent: '([^']*)'/);
+  assert.ok(top && top[1].length <= 130, 'the opening paragraph grew back');
+  // A failed write must not leave the switch showing a state that was never stored.
+  assert.match(body, /toggle\.checked = !on;/);
+});
+
+test('the toggle knows its state before the sheet opens', () => {
+  // openModal calls its builder synchronously and does not await it, so an async builder
+  // would show the card and pop the rest of it in afterwards.
+  const fn = bare.slice(bare.indexOf('async function sharedSiteModal('));
+  const head = fn.slice(0, fn.indexOf('openModal('));
+  assert.match(head, /SIDECAR_GET_ALWAYS_ACTIVE/, 'the state has to be fetched before openModal');
+  assert.match(fn, /openModal\(\(modal\) => \{/, 'the builder itself must stay synchronous');
+});
+
+test('IT USES THE PANEL\u2019S OWN TOGGLE, NOT THE PAGE CARD\u2019S', () => {
+  // The first cut borrowed .tg-input / .tg-track / .tg-thumb, which live in content.js's
+  // CARD_CSS and do not exist in the panel stylesheet at all. The switch rendered as a
+  // bare checkbox, and nesting the explanation inside the row squeezed it to one word
+  // per line. The panel's idiom is a .toggle-row carrying the switch and its label, with
+  // the hint as a SIBLING paragraph beneath.
+  const fn = bare.slice(bare.indexOf('async function sharedSiteModal('));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  // Same shape as the account rows above it: text in the left column, control at the
+  // right edge. A leading checkbox pushed the wrapped label into a ragged indent.
+  assert.match(body, /className: 'shared-acct-row always-active-row'/);
+  const labelAt = body.indexOf('always-active-label');
+  const boxAt = body.indexOf('toggle,');
+  assert.ok(labelAt > -1 && boxAt > labelAt, 'the control has to follow the text, not lead it');
+  for (const orphan of ['tg-input', 'tg-track', 'tg-thumb', 'always-active-copy', 'toggle-row']) {
+    assert.ok(!body.includes(orphan), orphan + ' is not the pattern this sheet uses');
+  }
+  // A top rule, NOT a tinted panel: a box inside a box is the thing this sheet does not
+  // need. The weight comes from the warn-colored note and accent instead.
+  assert.match(css, /\.always-active-row \{[^}]*border-top: 1px solid var\(--border\)/);
+  assert.ok(!/\.always-active-row \{[^}]*background:/.test(css), 'the tinted box is back');
+  assert.match(css, /\.always-active-note \{[^}]*color: var\(--warn\)/);
+});

@@ -9377,11 +9377,17 @@
   // Lists every account that has signed in on a shared (multi-login) site, with
   // a way to prune one the user no longer uses there. Dropping back to one
   // account collapses the site to normal — no more shared-identity confirms.
-  function sharedSiteModal(host, authorizedPks) {
+  // Async so the toggle's state is in hand BEFORE the modal opens. openModal calls its
+  // builder synchronously and does not await it, so an async builder would show the card
+  // and then pop the rest of it in a moment later.
+  async function sharedSiteModal(host, authorizedPks) {
+    const alwaysActive = await call({ type: 'SIDECAR_GET_ALWAYS_ACTIVE' })
+      .then((m) => !!(m && m[host]))
+      .catch(() => false);
     openModal((modal) => {
       modal.append(
         h('h3', { textContent: host }),
-        h('p', { className: 'hint', textContent: 'These accounts have signed in on this site. Every post, reaction, or message confirms who’s posting — a multi-account client’s own switcher can’t tell Sidecar which one you picked here. Remove an account below once you’re done using it on this site to go back to signing silently.' })
+        h('p', { className: 'hint', textContent: 'More than one account has signed in here, so Sidecar asks who is posting each time. Remove one to stop.' })
       );
       const list = h('div', { className: 'stack' });
       authorizedPks.forEach((pk) => {
@@ -9400,6 +9406,43 @@
         list.append(row);
       });
       modal.append(list);
+
+      // THE OPT-OUT. Asked for by a user who runs one client, switches identity in
+      // Sidecar rather than in the client, and would rather Sidecar just sign as whatever
+      // is active than be asked every time. That is a reasonable thing to want and a real
+      // thing to give up, so the row says what it costs rather than only what it saves.
+      //
+      // Its own full-width row under the list, not a control beside it: it has words, and
+      // a worded confirm takes its own row in this panel (see CLAUDE.md).
+      const toggle = h('input', { type: 'checkbox' });
+      toggle.checked = alwaysActive;
+      // Built like the account rows directly above it: text takes the left column and
+      // the control sits at the right edge. A leading checkbox pushed the label into a
+      // ragged indent, and a tinted panel inside a panel was a box in a box. One short
+      // line carries the consequence; the long explanation is already at the top of this
+      // sheet and did not need saying twice in smaller type.
+      const row = h('label', { className: 'shared-acct-row always-active-row' }, [
+        h('span', { className: 'shared-acct-name' }, [
+          h('span', { className: 'always-active-label', textContent: 'Don\u2019t ask which account' }),
+          h('span', { className: 'always-active-note', textContent: 'Posts may not match the client.' }),
+        ]),
+        toggle,
+      ]);
+      toggle.addEventListener('change', async () => {
+        const on = toggle.checked;
+        toggle.disabled = true;
+        try {
+          await call({ type: 'SIDECAR_SET_ALWAYS_ACTIVE', host, on });
+          toast(on ? 'Signing as the active account on ' + host : 'Confirms are back on ' + host, 'success');
+        } catch (e) {
+          toggle.checked = !on; // put the switch back where the stored state actually is
+          toast(e.message, 'error');
+        } finally {
+          toggle.disabled = false;
+        }
+      });
+      modal.append(row);
+
       const close = h('button', { className: 'ghost', textContent: 'Close' });
       close.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [close]));

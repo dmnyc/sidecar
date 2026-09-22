@@ -148,6 +148,47 @@ async function clearSiteAccountsForPubkey(pubkey) {
 // account disagree (see handleNostrRpc).
 const SITE_AUTHZ_KEY = 'sidecar_site_authorized';
 
+// ---- opt-out of the multi-login safeguard, per host ----
+//
+// The safeguard above is right by default and wrong for a particular user: one who runs
+// a single client, switches identity in Sidecar rather than in the client, and would
+// rather Sidecar just sign as whatever is active than be asked every time. Their argument
+// is sound as far as it goes. Sidecar cannot see which slot the client has selected, and
+// they are volunteering to be the one who keeps the two in step.
+//
+// HOST-SCOPED, NOT ACCOUNT-SCOPED, and that is not an implementation detail. "Do not ask
+// me which account on this host" is a claim about the host. Storing it per account would
+// let account A opt out while account B has not, on the one host where the whole point is
+// that several accounts share it, and the request would be answered differently depending
+// on which of them happened to be bound.
+//
+// WHAT IT COSTS, so nobody has to guess later: with this on, a client displaying account
+// A while Sidecar is switched to B will publish as B, with no prompt. On Nostr that is
+// public and irreversible. The setting exists because a user asked for it with their eyes
+// open; the UI says this in as many words, and it is off everywhere until turned on.
+const SITE_ALWAYS_ACTIVE_KEY = 'sidecar_site_always_active';
+
+async function getAllAlwaysActive() {
+  return (await sget(SITE_ALWAYS_ACTIVE_KEY))[SITE_ALWAYS_ACTIVE_KEY] || {};
+}
+async function isAlwaysActiveHost(host) {
+  return (await getAllAlwaysActive())[host] === true;
+}
+async function setAlwaysActiveHost(host, on) {
+  const all = await getAllAlwaysActive();
+  if (on) all[host] = true;
+  else delete all[host];
+  await sset({ [SITE_ALWAYS_ACTIVE_KEY]: all });
+}
+// Forgetting a site forgets this with it: a host the user has erased must not keep a
+// standing instruction to skip the check if they ever visit it again.
+async function clearAlwaysActiveHost(host) {
+  const all = await getAllAlwaysActive();
+  if (!(host in all)) return;
+  delete all[host];
+  await sset({ [SITE_ALWAYS_ACTIVE_KEY]: all });
+}
+
 async function getAllAuthorized() {
   return (await sget(SITE_AUTHZ_KEY))[SITE_AUTHZ_KEY] || {};
 }
@@ -1200,16 +1241,30 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // account we hold, honor it — the requested account's own per-site
     // permissions still gate the signature below, so a site can never quietly
     // reach an identity that hasn't approved it.
+    //
+    // NAMING AND SWITCHING ARE TWO DIFFERENT FACTS, and only one of them used to be
+    // recorded. authorSwitched answers "did we have to move off the binding", which is
+    // what the relay-auth exemption and the re-pin below want. The shared-identity
+    // confirm wants the other question, "did the client say who it means", and reading
+    // it off authorSwitched meant a client that named the SAME account as the binding
+    // was treated as having named nothing: we would confirm, and default the signature
+    // to the globally active account, which is the one identity the client just told us
+    // it did not want. noStrudel stamps the author today, so that is a live path to a
+    // post published under an account the client explicitly asked us not to use.
     let activePubkey;
     let authorSwitched = false;
+    let authorNamed = false;
     if (method === 'getPublicKey') {
       activePubkey = await KS.getActivePubkey();
     } else {
       activePubkey = await resolveSiteAccount(host);
       const requestedAuthor = signEvent && typeof signEvent.pubkey === 'string' ? signEvent.pubkey : null;
-      if (requestedAuthor && requestedAuthor !== activePubkey && (await KS.hasAccount(requestedAuthor))) {
-        activePubkey = requestedAuthor;
-        authorSwitched = true;
+      if (requestedAuthor && (await KS.hasAccount(requestedAuthor))) {
+        authorNamed = true;
+        if (requestedAuthor !== activePubkey) {
+          activePubkey = requestedAuthor;
+          authorSwitched = true;
+        }
       }
     }
     if (!activePubkey) throw new Error('No active Sidecar account');
@@ -1277,15 +1332,28 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // client). Drives both the shared-identity confirm and the app-data
     // auto-allow, so we resolve it once for either content sign or exempt sync.
     let sharedHost = false;
-    if ((isContentSign || appDataExempt) && !authorSwitched) {
+    // Read once, up here, because it now settles two questions rather than one: whether
+    // to ask, and whether a client naming an author outranks the user's own standing
+    // choice for this host. It does not. The switch says "Don't ask which account" over
+    // a note reading "Posts may not match the client", and a client stamping the author
+    // is precisely the case that note is about, so honoring the stamp there would answer
+    // the opposite of what was turned on. Content signs only, so nothing else pays for
+    // the storage read.
+    const alwaysActive = isContentSign ? await isAlwaysActiveHost(host) : false;
+    if ((isContentSign || appDataExempt) && (alwaysActive || !authorNamed)) {
       const authorized = await getAuthorizedAccounts(host);
       sharedHost = authorized.length >= 2;
       if (sharedHost && isContentSign && !appDataExempt) {
-        sharedIdentity = true;
-        authorizedPool = authorized;
+        // The opt-out suppresses the CONFIRM and nothing else. It must not touch
+        // sharedHost, which also drives appDataAutoAllow below: clearing that would make
+        // app-data signs start asking, which is more prompts rather than fewer and the
+        // exact opposite of what this setting is for.
+        sharedIdentity = !alwaysActive;
+        if (sharedIdentity) authorizedPool = authorized;
         // Default to the active account when it's authorized here — that's the
         // one the user just deliberately chose in Sidecar, and the one our own
         // guidance tells them to keep in sync with the client's selected slot.
+        // The opt-out takes this same account; all it skips is being asked.
         const globalActive = await KS.getActivePubkey();
         if (authorized.includes(globalActive) && globalActive !== activePubkey) {
           activePubkey = globalActive;
@@ -3525,9 +3593,19 @@ async function handleControl(message, sender, sendResponse) {
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
         await clearAuthorizedForHost(message.host); // and the shared-identity history
+        await clearAlwaysActiveHost(message.host); // and any standing instruction to skip the check
         break;
       case 'SIDECAR_GET_SITE_BINDINGS':
         result = await getAllSiteAccounts();
+        break;
+      case 'SIDECAR_GET_ALWAYS_ACTIVE':
+        // host -> true for hosts where the user has opted out of the shared-identity
+        // confirm. Read by the Activity tab to draw the toggle in its true state.
+        result = await getAllAlwaysActive();
+        break;
+      case 'SIDECAR_SET_ALWAYS_ACTIVE':
+        await setAlwaysActiveHost(message.host, message.on === true);
+        result = true;
         break;
       case 'SIDECAR_GET_SITE_AUTHORIZED':
         // host -> [pubkeys that have signed in there]; a host with 2+ is "shared".
@@ -3560,7 +3638,7 @@ async function handleControl(message, sender, sendResponse) {
         // ask. The log is cleared for ALL accounts, unlike the per-account Clear
         // history button, because every row in it is a site record.
         await PERMS.clearAll();
-        await sset({ [SITE_ACCTS_KEY]: {}, [SITE_AUTHZ_KEY]: {}, [ACTIVITY_KEY]: [] });
+        await sset({ [SITE_ACCTS_KEY]: {}, [SITE_AUTHZ_KEY]: {}, [SITE_ALWAYS_ACTIVE_KEY]: {}, [ACTIVITY_KEY]: [] });
         result = true;
         break;
       // The page-invoice card asks before it appears: is this invoice simply the one

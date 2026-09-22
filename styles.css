@@ -2301,6 +2301,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--lav); font-size: 11.5px; font-weight: 600; padding: 2px 4px;
 }
 .site-shared-manage:hover { color: var(--text); text-decoration: underline; }
+/* The shared-identity opt-out, under the account list in the site's Manage sheet. Just
+   a separator and spacing: the row inside uses .toggle-row, which is the panel's own
+   switch, and the explanation is a sibling .hint beneath it rather than a column wedged
+   next to the control. Nesting the copy inside the row is what squeezed it to one word
+   per line the first time. */
+/* The opt-out sits in the same shape as the account rows above it: text in the left
+   column, control at the right edge. Two earlier attempts were worse. A leading checkbox
+   pushed the wrapped label into a ragged indent, and tinting the row made a box inside a
+   box. It carries a top rule instead, so it reads as a separate decision from the list
+   without becoming its own panel. */
+.always-active-row { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--border); border-bottom: none; cursor: pointer; }
+.always-active-row .shared-acct-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.always-active-label { font-weight: 600; text-wrap: balance; }
+/* The only small text here, and it is one line. The long version of this said the same
+   thing the paragraph at the top of the sheet already says, in a smaller size nobody
+   was going to read twice. */
+.always-active-note { font-size: 11.5px; color: var(--warn); }
+.always-active-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--warn); cursor: pointer; flex-shrink: 0; }
+
 .shared-acct-row {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 2px; border-bottom: 1px solid var(--border);
