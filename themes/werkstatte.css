@@ -355,6 +355,9 @@
 [data-theme="werkstatte"] .relay-icon:not(.theme-card):not(.theme-card *),
 /* The face on a reply's context strip — an avatar, so it follows the avatar exception. */
 [data-theme="werkstatte"] .reply-target-av:not(.theme-card):not(.theme-card *),
+/* The check on the expanded composer's receipt. A disc around a mark is a badge, not a
+   panel, and squaring it turns the one celebratory moment in the app into a tile. */
+[data-theme="werkstatte"] .compose-done-mark:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .fab:not(.theme-card):not(.theme-card *) {
   border-radius: 50%;
 }

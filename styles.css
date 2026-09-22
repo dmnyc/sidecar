@@ -2725,6 +2725,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .embed-time { font-size: 11px; color: var(--muted); }
 .embed-body { font-size: 13px; line-height: 1.5; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .compose-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+/* An empty one is still a flex item: 14px of margin plus the gap on either side of it,
+   which is 42px of nothing between the editor and the toolbar in the expanded composer.
+   The panel pays a smaller version of the same bill. */
+.compose-thumbs:empty { display: none; }
 .compose-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
 .compose-thumb img, .compose-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .compose-thumb-x {
@@ -2733,6 +2737,103 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border-radius: 50%; border: none; cursor: pointer; color: #fff; background: rgba(5, 0, 12, 0.7);
 }
 .compose-thumb-x svg { width: 13px; height: 13px; }
+/* The ALT chip sits in the corner the remove button leaves free (top-left), the same
+   "+ ALT / ✓ ALT" badge zap.cooking puts on its own thumbnails. Badge-sized by design:
+   a 72px thumbnail carries it the way it carries the remove disc, not as a row control
+   squeezed down. Accent when the image is described, so a strip of mixed images shows
+   at a glance which ones still need the words. */
+.compose-thumb-alt {
+  position: absolute; top: 3px; left: 3px; height: 22px; padding: 0 7px;
+  display: flex; align-items: center;
+  border-radius: 7px; border: none; cursor: pointer;
+  color: #fff; background: rgba(5, 0, 12, 0.7);
+  font-family: inherit; font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+}
+.compose-thumb-alt.has-alt { color: var(--lav); }
+/* The ALT editor: one full-width row under the strip — thumbnail and explainer on
+   top, the multiline field beneath, the count and Save stretched under that. Stacked,
+   per the only grammar a column this narrow has; nothing beside anything, nothing
+   shrunk to fit. Both composers seat the same row the same way. */
+.compose-alt-row {
+  display: flex; flex-direction: column; gap: 8px;
+  margin: 8px 0 4px; padding: 10px;
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.compose-alt-head { display: flex; align-items: center; gap: 8px; }
+.compose-alt-thumb { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.compose-alt-hint { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.compose-alt-remove { flex-shrink: 0; width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; }
+.compose-alt-remove svg { width: 13px; height: 13px; }
+.compose-alt-text { width: 100%; min-height: 64px; font-size: 14px; resize: none; }
+.compose-alt-foot { display: flex; align-items: center; gap: 10px; }
+/* The room left is a ring with a bare number beside it, and the Save button keeps
+   out of their way at the row's end. Everything that could change width holds a
+   fixed box instead — the ring 20px, the count four tabular digits right-aligned,
+   whether it says 2000 or 12 — so the button never readjusts under a moving hand.
+   The count has no word after it; the ring is the sentence the number sits in. */
+.compose-alt-ring { width: 20px; height: 20px; flex-shrink: 0; }
+.compose-alt-ring .ring-track { fill: none; stroke: var(--border-strong); stroke-width: 2.5; }
+.compose-alt-ring .ring-fill {
+  fill: none; stroke: var(--lav); stroke-width: 2.5; stroke-linecap: round;
+  transition: stroke-dashoffset 150ms linear;
+}
+.compose-alt-ring.is-near .ring-fill { stroke: var(--amber); }
+.compose-alt-count {
+  flex-shrink: 0; min-width: 4ch; text-align: right;
+  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.compose-alt-ring.is-near + .compose-alt-count { color: var(--amber); }
+/* A ghost at its natural width, not a filled one stretched across the row: saving
+   a description is the least of the three decisions on this row, and the orange
+   fill claimed a prominence the row does not have to give. */
+.compose-alt-save { margin-left: auto; }
+/* ---- the attachments' reference drawer ----
+   The URLs leave the editor and are appended to the content at publish, so the
+   strip needs one line saying where they went, and a drawer for whoever wants to
+   see or copy one. Collapsed it costs a single line; the rows are the panel's row
+   grammar — prose truncating, one icon button that keeps its metrics. */
+.compose-media-note { margin: 0 0 4px; }
+.compose-media-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: none; padding: 4px 2px; cursor: pointer;
+  color: var(--muted); font-size: 12px; font-family: inherit;
+}
+.compose-media-toggle:hover { color: var(--text); }
+.compose-media-toggle svg { width: 14px; height: 14px; flex-shrink: 0; transition: transform 150ms ease; }
+.compose-media-toggle.open svg { transform: rotate(180deg); }
+.compose-media-toggle-label {
+  flex: 1; min-width: 0; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.compose-media-drawer { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 4px; }
+.compose-media-row { display: flex; align-items: center; gap: 8px; }
+.compose-media-url {
+  flex: 1; min-width: 0; font-size: 12px; color: var(--muted);
+  font-family: var(--font-mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  user-select: all;
+}
+.compose-media-copy {
+  flex-shrink: 0; width: 24px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: none; cursor: pointer; color: var(--muted); background: none;
+}
+.compose-media-copy:hover { color: var(--text); }
+.compose-media-copy svg { width: 13px; height: 13px; }
+.compose-media-copy.did { color: var(--lav); }
+/* Dragging a thumb to reorder: the one being carried fades, the one it would land
+   on takes an edge. The order on the strip is the order the URLs are appended in. */
+.compose-thumb.dragging { opacity: 0.4; }
+.compose-thumb.drop-target { outline: 2px solid var(--lav); outline-offset: 1px; }
+/* While the review window is up, the card shows the review window and nothing else.
+   It renders the final post — prose and attachments, the composed string — so the
+   preview pane beside it, the thumbnail strip under it and the attachments' drawer
+   below that would each be the same note again. A class on the card rather than a
+   handful of hidden toggles, because the drawer and the preview pane manage their
+   own .hidden and would argue with whoever else writes it. */
+.compose-sheet.is-reviewing .compose-preview,
+.compose-sheet.is-reviewing .compose-thumbs,
+.compose-sheet.is-reviewing .compose-media-note { display: none; }
 /* THE COMPOSER'S THREE ADD BUTTONS, ON ONE ROW. Media, Poll and PoW are peers, so they
    read as a toolbar rather than as three stacked decisions, and three short labels fit
    across the sheet where three sentences did not.
@@ -2755,6 +2856,208 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 7px; margin: 0; flex: 1 0 auto;
 }
 .compose-add svg { width: 15px; height: 15px; }
+/* ---- the expanded composer ----
+   The panel's own corner button for it, and then the page it opens. The page reuses the
+   panel's stylesheet and themes wholesale: it is the same product at a different size, so
+   everything it draws should already know what a button looks like here. */
+/* Sits at the far end of the Write / Preview row, on the right margin. Same metrics as a
+   tab so the baseline lines up, and no bottom border so it never reads as a third tab that
+   could be selected. */
+.compose-expand {
+  margin-left: auto;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 13px; font-weight: 600; padding: 6px 2px 6px 10px;
+}
+.compose-expand:hover:not(:disabled) { color: var(--lav); }
+/* 12px padding, a 22px wordmark, 12px padding, 1px rule. Written once because the
+   centered card below has to subtract it, and two literals would drift.
+
+   --compose-pane-h is the height Write and Preview share. One variable rather than two
+   equal numbers, because the two panes agreeing is the point: switching tabs must not
+   move the card. */
+.compose-page {
+  margin: 0; min-height: 100vh;
+  --compose-topbar-h: 47px;
+  --compose-pane-h: 340px;
+}
+/* SHORT SCREENS. The card is about 750px tall at rest, which is most of a laptop lid once
+   the browser has taken its chrome, and the Post button ends up on the fold. Everything
+   here is padding and one pane height: 240px is still twice what the panel gives you,
+   which is the whole reason to be on this page. */
+@media (max-height: 820px) {
+  .compose-page { --compose-pane-h: 240px; }
+  .compose-body { padding: 16px 20px 24px; }
+  .compose-sheet { gap: 11px; padding: 18px; }
+}
+/* THE SAME BAR THE GUIDE WEARS, at the same height: 12px of padding around a 22px
+   wordmark. A page that opens in a tab has no panel chrome around it to say whose it is,
+   and the guide and the app directory already answered that question this way.
+
+   Drawn from the theme variables rather than the guide's own background, which is a
+   hardcoded rgba of Speakeasy's velvet and reads as a mistake on the six light themes.
+   The logo itself swaps with the theme too, through logoSrcFor. */
+.compose-topbar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 18px;
+  padding: 12px 24px;
+  background: var(--velvet-1);
+  border-bottom: 1px solid var(--border);
+}
+.compose-brand { display: flex; align-items: center; flex-shrink: 0; }
+.compose-brand img { height: 22px; width: auto; }
+.compose-body {
+  display: flex; justify-content: center;
+  min-height: calc(100vh - var(--compose-topbar-h));
+  padding: 32px 20px 48px; box-sizing: border-box;
+}
+/* WIDE ENOUGH TO READ, not as wide as the window. A line of prose past about 70
+   characters is measurably harder to come back to on the next line, and the whole reason
+   this page exists is that the panel's line is too short to think in. */
+/* A CARD THAT FLOATS, not a column of controls laid on the page. A tab is a lot of empty
+   field, and text sitting directly on it has nothing holding it: the note being written
+   is one object, so it gets one surface with an edge.
+
+   `margin: auto` rather than `align-items: center` for the vertical half. Both center
+   while the card fits; when it does not, auto margins resolve to zero and the overflow
+   stays reachable, where align-items pushes the top of the card off the top of the
+   window with no way to scroll back to it. */
+.compose-sheet {
+  width: 100%; max-width: 720px; margin: auto 0;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 24px; box-sizing: border-box;
+  background: var(--velvet-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  box-shadow: var(--sheen), 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+/* The close box wants a corner to be absolute against, and the card is it. */
+.compose-sheet { position: relative; }
+.compose-x { top: 14px; right: 14px; }
+.compose-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
+.compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.compose-av { width: 40px; height: 40px; flex-shrink: 0; }
+.compose-who-text { display: flex; flex-direction: column; min-width: 0; }
+.compose-name {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.compose-sub { font-size: 12px; color: var(--muted); }
+.compose-count {
+  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+  /* Pushes the two ways out of the page to the right edge, leaving the status line the
+     whole left half to say something in. */
+  margin-right: auto;
+}
+/* THE POINT OF THE PAGE. 17px over the panel's 14, with the line height to match: the
+   panel's type is sized for a 360px column and reads as cramped the moment it is not in
+   one. Nothing else about the editor changes. */
+.compose-editor-lg {
+  font-size: 17px; line-height: 1.6; min-height: var(--compose-pane-h); max-height: none;
+  padding: 18px; border: 1px solid var(--border); border-radius: 14px;
+  /* The same field every input in the app sits on, so it reads as a field rather than as
+     a hole in the card. It was velvet-1, which is now the card itself, and the two would
+     have been one flat plane. */
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.compose-editor-lg:focus { border-color: var(--gold-soft); }
+/* A box that cannot be typed into should not invite it. Mining holds the editor for as
+   long as a minute at 22 bits, and a caret blinking in a field whose contents are already
+   spent is the worst kind of lie a composer can tell. */
+.compose-editor-lg.is-locked { opacity: 0.55; cursor: default; }
+/* THE SAME FIELD, AT THE SAME SIZE. Write and Preview are two views of one thing, so
+   switching between them must not change the type scale or the height of the card. At the
+   panel's 14px the preview read as a thumbnail of the 17px being written above it, which
+   is the opposite of what a preview is for. */
+.compose-preview-lg {
+  min-height: var(--compose-pane-h); max-height: none;
+  padding: 18px; border-radius: 14px;
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.compose-preview-lg .preview-body { font-size: 17px; line-height: 1.6; }
+/* And the things a note carries scale with it. 220px of embedded media is sized for a
+   360px column and looks like a stamp on a 720px one. */
+.compose-preview-lg .embed-body .note-media { max-height: 360px; }
+.compose-preview-lg .note-embed { padding: 14px 16px; }
+/* The sheet sets the rhythm with its own gap, so the rows inside it do not each add a
+   margin on top of it. Left alone in the panel, where these rows are not flex children. */
+.compose-sheet .compose-actions,
+.compose-sheet .compose-thumbs,
+.compose-sheet .compose-tabs,
+.compose-sheet .compose-media-note,
+.compose-sheet .compose-alt-row { margin: 0; }
+.compose-foot { display: flex; align-items: center; gap: 14px; }
+.compose-status { font-size: 12px; color: var(--muted); }
+/* NOT A BUTTON. Leaving is not an action with the same weight as publishing, and two
+   filled controls side by side claim it is. A word that underlines when you reach for it
+   is the whole affordance this needs. */
+.compose-cancel {
+  background: none; border: none; padding: 6px 2px;
+  color: var(--muted); font-size: 14px; cursor: pointer;
+}
+.compose-cancel:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
+/* And the one that publishes is the biggest thing in the row, because it is the only
+   thing on this page that cannot be taken back. A floor rather than more padding, so the
+   width is the same whatever the label says: it becomes Stop mining for as long as a mine
+   runs, and a button that changes size when it changes job reads as two buttons. */
+.compose-post {
+  font-size: 15px; padding: 12px 30px; border-radius: 12px;
+  min-width: 184px;
+}
+/* ---- the card after the note is out ----
+   The panel drops a banner because its composer is a modal that closes onto a whole app.
+   A tab has nothing underneath it, so the card becomes the receipt rather than emptying
+   out, which would read as a note lost rather than published. */
+.compose-done { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
+.compose-done-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 50%;
+  /* The wash mixed from the glyph's own color rather than from --accent-rgb, so the two
+     cannot disagree on a theme that moves one and not the other. */
+  color: var(--lav);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.compose-done-mark svg { width: 26px; height: 26px; }
+.compose-done-title { margin: 6px 0 0; font-size: 20px; }
+.compose-done-sub { margin: 0; color: var(--muted); font-size: 13px; }
+.compose-done-actions {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 10px; margin-top: 14px;
+}
+/* An anchor, not a button, because it opens somewhere else. Dressed as the primary
+   control because on this screen it is the only thing anyone came for. */
+.compose-done-open { text-decoration: none; padding: 10px 22px; }
+
+/* THE REVIEW WINDOW IS NOT THE EDITOR, so it does not want the editor's height. The pane
+   inherits .countdown-preview's 42vh cap, which on this page sits under a note written at
+   17px with its images at full width: a countdown tall enough to push its own ring and
+   its own buttons off the screen, at the one moment everything in it matters.
+
+   A third of the window, scrolling inside itself, and the images come down to something
+   you can take in at a glance rather than read twice. */
+.compose-countdown .countdown-preview { max-height: 32vh; }
+.compose-countdown .preview-body { font-size: 15px; line-height: 1.5; }
+.compose-countdown .note-media { max-height: 160px; object-fit: contain; }
+.compose-countdown .note-embed { padding: 8px 10px; }
+/* And the ring is what the eye should land on, so it keeps its size while the rest gives
+   way. The actions below it must never be the thing that scrolls out of reach. */
+.compose-countdown .countdown-wrap { flex-shrink: 0; }
+/* THE SAME ROW AS THE FOOTER IT REPLACES. .actions is only styled under .modal, where it
+   is a column with the primary on top; with no modal above it here the buttons fell out
+   inline and left-aligned, which is the opposite end of the card from where this page
+   puts Cancel and Post every other second of its life.
+
+   row-reverse rather than reordering the shared builder: the countdown appends the
+   primary first because the panel's column wants it on top, and that is right there. */
+.compose-countdown .actions {
+  display: flex; flex-direction: row-reverse; justify-content: flex-start;
+  align-items: center; gap: 14px; margin-top: 4px;
+}
+.compose-countdown .actions .primary { font-size: 15px; padding: 12px 30px; border-radius: 12px; min-width: 184px; }
+.compose-countdown .actions .ghost { background: none; border: none; padding: 6px 2px; color: var(--muted); font-size: 14px; }
+.compose-countdown .actions .ghost:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
+
+.compose-empty { padding: 48px 24px; text-align: center; }
+
 /* The offer to take a tracking tail off a pasted link. It lives in the editor's own
    wrapper rather than in .compose-actions above, because the page-comment box is a
    composer too and gets links pasted into it the same way; both are built by
@@ -2765,6 +3068,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    reading as a fourth toolbar button: ghost against their filled siblings, on its own
    line, and only on screen when there is something to take off. */
 .track-row { display: flex; margin: 7px 0 0; }
+/* Its sibling: the attachment offer for a URL pasted on its own. It sits ABOVE the
+   editor and wears the accent — lav text on a lav hairline with a faint tint —
+   because an offer the user never notices is not an offer, and the quiet ghost it
+   wore first disappeared against the editor below it. */
+.attach-row { display: flex; margin: 0 0 6px; }
+.attach-row .attach-accept {
+  color: var(--lav); border-color: var(--lav);
+  background: rgba(var(--accent-rgb, 189, 161, 255), 0.09);
+}
+.attach-row .attach-accept:hover { color: var(--lav); border-color: var(--lav); }
 /* A compose-add that is currently ON, for the proof-of-work cycle. Color only: the label
    already says which level, so the tint is confirmation rather than the message, and
    nothing about the button's metrics moves as it cycles. */

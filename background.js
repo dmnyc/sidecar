@@ -3241,6 +3241,12 @@ async function handleControl(message, sender, sendResponse) {
           const state = await KS.unlock(message.pin);
           await clearUnlockGuard();
           bumpAutoLock();
+          // The mirror of the `locked` broadcast above. Another extension page can be
+          // sitting on a locked store waiting to be told otherwise: the expanded composer
+          // holds a written note and a Post button it has turned into Unlock, and without
+          // this it learns nothing until it is focused. A page that unlocks in the panel
+          // beside it is never focused.
+          chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'unlocked' }).catch(() => {});
           result = { status: 'ok', state };
         } catch (e) {
           if (/not initialized/i.test(e.message || '')) { result = { status: 'error', error: e.message }; break; }
@@ -3843,6 +3849,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: false, error: 'Invalid message' });
     return false;
   }
+
+  // SIDECAR_EVENT IS A BROADCAST, NOT A REQUEST. The worker emits it to whichever
+  // extension pages are open, and a page emitting one reaches the worker too, where it
+  // would fall through the switch below and come back as "Unknown control message" plus a
+  // line in the dev log. Ignored here so any page can use the channel to tell the panel
+  // something without answering to this listener for it.
+  if (message.type === 'SIDECAR_EVENT') return false;
 
   // ---- debug log: trace every dispatched message + its outcome/timing ----
   // Central instrumentation point — covers page RPCs, control messages, and

@@ -15,7 +15,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
+// composer-core.js is loaded beside the panel: the preview renderer, the uploader and
+// the proof-of-work miner moved there so the expanded composer page could share them.
+// Both files are the panel's source as far as these lifts are concerned.
+const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(__dirname, '..', 'composer-core.js'), 'utf8');
 function lift(pattern, label) {
   const m = source.match(pattern);
   if (!m) throw new Error('Could not find ' + label + ' in sidepanel.js');

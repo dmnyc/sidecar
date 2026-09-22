@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Write in Sidecar</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+  <link rel="stylesheet" href="themes/film-noir.css" />
+  <link rel="stylesheet" href="themes/industria.css" />
+  <link rel="stylesheet" href="themes/aegean.css" />
+  <link rel="stylesheet" href="themes/brownstone.css" />
+  <link rel="stylesheet" href="themes/bauhaus.css" />
+  <link rel="stylesheet" href="themes/populuxe.css" />
+  <link rel="stylesheet" href="themes/nixie.css" />
+  <link rel="stylesheet" href="themes/cast-iron.css" />
+  <link rel="stylesheet" href="themes/metropolis.css" />
+  <link rel="stylesheet" href="themes/par-avion.css" />
+  <link rel="stylesheet" href="themes/werkstatte.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
+</head>
+<body class="compose-page">
+  <!-- Same bar as the guide and the app directory: 12px padding around a 22px wordmark,
+       so a Sidecar page looks like a Sidecar page wherever you arrive at one. What it
+       does not borrow is that bar's hardcoded dark background, which is Speakeasy's and
+       nobody else's. This one is drawn from the theme variables, so it follows the
+       account you are writing as. -->
+  <header class="compose-topbar">
+    <span class="compose-brand">
+      <img id="compose-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
+    </span>
+  </header>
+
+  <div class="compose-body">
+    <main class="compose-sheet">
+      <!-- The card's own corner, the same slot every sheet in the panel puts its close box
+           in. The page bar above belongs to Sidecar; this one belongs to the note. -->
+      <button type="button" class="modal-x compose-x" id="compose-x" title="Close"></button>
+
+      <header class="compose-head">
+        <div class="compose-who">
+          <span class="avatar compose-av" id="compose-av"></span>
+          <span class="compose-who-text">
+            <span class="compose-name" id="compose-name">Loading…</span>
+            <span class="compose-sub" id="compose-sub">Writing as this account</span>
+          </span>
+        </div>
+      </header>
+
+      <div class="compose-tabs" id="compose-tabs">
+        <button type="button" class="compose-tab active" id="tab-write">Write</button>
+        <button type="button" class="compose-tab" id="tab-preview">Preview</button>
+      </div>
+
+      <div id="compose-slot"></div>
+      <!-- The review window lands here rather than over the card, so canceling it puts the
+           editor back exactly as it was instead of rebuilding it around a lost caret. -->
+      <div class="compose-countdown hidden" id="compose-countdown"></div>
+      <div class="compose-preview compose-preview-lg hidden" id="compose-preview"></div>
+      <div class="compose-thumbs" id="compose-thumbs"></div>
+
+      <div class="compose-actions" id="compose-actions"></div>
+      <p class="error" id="compose-err"></p>
+
+      <footer class="compose-foot">
+        <span class="compose-status" id="compose-status"></span>
+        <span class="compose-count" id="compose-count"></span>
+        <!-- Not a button. Leaving is not an action with the same weight as publishing, and
+             two buttons side by side say they are. -->
+        <button type="button" class="compose-cancel" id="compose-close">Cancel</button>
+        <button type="button" class="primary compose-post" id="compose-post" disabled>Post</button>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Same id and class the panel uses, so styles.css dresses it without a second rule. -->
+  <div id="toasts" class="toasts"></div>
+
+  <script src="nostr-tools.js"></script>
+  <script src="ws-guard.js"></script>
+  <script src="composer-core.js"></script>
+  <script src="compose.js"></script>
+</body>
+</html>

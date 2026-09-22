@@ -4,6 +4,33 @@
 (function () {
   'use strict';
 
+  // The DOM toolkit now lives in composer-core.js, so the expanded composer page can
+  // have one too without a second copy of 55 icons drifting from this one. Destructured
+  // straight back into this scope: every existing h() and icon() call site is unchanged,
+  // and the only thing that moved is where they are written down.
+  const { show, hide, ICONS, FILLED_ICONS, icon, h } = window.SidecarCore;
+  const { TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
+    hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls } = window.SidecarCore;
+  // Which cut of the logo and the avatar garnish a theme wants. There too because the
+  // comment beside LIGHT_THEMES already counts the places a new theme must be
+  // registered, and the expanded composer page would have been one more.
+  const { LIGHT_THEMES, logoSrcFor, avatarPhSrc } = window.SidecarCore;
+  const { POW_LEVELS, POW_DEFAULT_BITS, powLevelFor } = window.SidecarCore;
+  // Settings draws the picker from these, so the list the user chooses from and the
+  // list a stored value is validated against are the same list.
+  const { NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT } = window.SidecarCore;
+  // Where a note can be read. Shared because the panel's post banner and the expanded
+  // composer's confirmation are the same question asked twice.
+  const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
+  // The imeta write side: describing an attached image so the client that renders the
+  // note can say it. Same tag zap.cooking writes; see composer-core.js for the format.
+  const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
+  // Attachments held beside the prose and appended at publish, with the reference
+  // drawer that says so. See composer-core.js for the shape.
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer } = window.SidecarCore;
+  // A URL pasted on its own can be offered a life as an attachment instead of prose.
+  const { loneImageUrl, removeUrlFromEditor } = window.SidecarCore;
+
   const NT = window.NostrTools;
 
   // Default "max per zap" (sats) for the auto-approve-zaps setting, used wherever
@@ -218,126 +245,6 @@
   }
 
 
-  const show = (el) => el.classList.remove('hidden');
-  const hide = (el) => el.classList.add('hidden');
-
-  // ---- flat (line) icons — inherit currentColor ----
-  const ICONS = {
-    plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
-    // A painter's palette, for the per-account theme override. Not `flower`, which is
-    // already Blossom's own mark (see KIND_ICONS 10063/24242) and would read as a
-    // media-server action sitting in the account menu. The wells are filled rather than
-    // stroked, the same as `grip` below: at r=1.5 an unfilled circle is a ring with a
-    // hole in it, not a dot of paint.
-    palette: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.93 0 1.68-.75 1.68-1.68 0-.44-.17-.83-.44-1.13a1.66 1.66 0 0 1 1.24-2.77h1.98A5.54 5.54 0 0 0 22 10.88C22 5.98 17.52 2 12 2z"></path><circle cx="6.5" cy="11.5" r="1.5" fill="currentColor"></circle><circle cx="9.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="14.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="17.5" cy="11.5" r="1.5" fill="currentColor"></circle>',
-    copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
-    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
-    edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
-    trash: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
-    key: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>',
-    feather: '<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15" x2="9" y2="15"></line>',
-    lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
-    unlock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path>',
-    wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line>',
-    more: '<circle cx="5" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="19" cy="12" r="1.6" fill="currentColor"></circle>',
-    'user-plus': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line>',
-    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>',
-    check: '<polyline points="20 6 9 17 4 12"></polyline>',
-    camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle>',
-    alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
-    help: '<circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line>',
-    grip: '<circle cx="9" cy="7" r="1.5" fill="currentColor"></circle><circle cx="15" cy="7" r="1.5" fill="currentColor"></circle><circle cx="9" cy="12" r="1.5" fill="currentColor"></circle><circle cx="15" cy="12" r="1.5" fill="currentColor"></circle><circle cx="9" cy="17" r="1.5" fill="currentColor"></circle><circle cx="15" cy="17" r="1.5" fill="currentColor"></circle>',
-    external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>',
-    x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
-    'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>',
-    'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>',
-    'arrow-up': '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
-    'chevron-down': '<polyline points="6 9 12 15 18 9"></polyline>',
-    'arrow-up-right': '<line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>',
-    'arrow-down-left': '<line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline>',
-    refresh: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
-    eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
-    'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
-    pin: '<path d="M12 17v5"></path><path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76a2 2 0 0 0 .59 1.42l1.12 1.12A2 2 0 0 1 18 14.59V16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .29-1.29l1.12-1.12A2 2 0 0 0 9 10.76Z"></path>',
-    // Bare price line for the chart toggle on the wallet balance card — no axes (the
-    // right angle read as boxy at 15px) and no arrowhead, which would imply a rising
-    // price on a day the chart may well show falling.
-    chart: '<polyline points="3 16 8 10 12 13 16 7 21 11"></polyline>',
-    bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
-    qr: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M21 14v7h-7v-3"></path>',
-    share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line>',
-    bug: '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
-    // ---- activity-log kinds ----
-    // Broadcast tower for relay auth. Drawn as stroke center-lines on the 24x24 grid
-    // rather than imported as filled art: icon() forces viewBox="0 0 24 24" with
-    // fill:none and stroke=currentColor, so a filled path renders as a hollow outline
-    // of itself, in the wrong box. Apex emitter, A-frame mast with a cross-brace, and
-    // two pairs of arcs for near/far signal.
-    tower: '<circle cx="12" cy="6" r="1.6"></circle><path d="M10.6 9.4 7 22"></path><path d="M13.4 9.4 17 22"></path><path d="M9.2 15h5.6"></path><path d="M8.1 4a6 6 0 0 0 0 8"></path><path d="M15.9 4a6 6 0 0 1 0 8"></path><path d="M5.2 1.6a9.6 9.6 0 0 0 0 12.8"></path><path d="M18.8 1.6a9.6 9.6 0 0 1 0 12.8"></path>',
-    // A vector resembling the cherry-blossom emoji the Blossom repo uses in its README
-    // title (github.com/hzrd149/blossom — the protocol has no official vector mark).
-    // Supplied by Daniel; a better read than the circles I first approximated it with.
-    // FILLED art on a 58.48x63.59 viewBox, so
-    // unlike every stroke icon here it needs two things icon() doesn't give it:
-    //   fill="currentColor" stroke="none"  — icon() sets fill:none, which would
-    //     render a filled path invisible (and stroking it draws a doubled outline)
-    //   a transform into the 24x24 box   — scale 63.59 -> 21 and center
-    // Result spans x 2.34..21.66, y 1.5..22.5, matching `tower` (1.6..22) so the two
-    // carry the same weight side by side in the log. Same fill="currentColor" trick
-    // the `more` and `grip` dot glyphs use, so it still follows the theme color.
-    flower: '<g transform="translate(2.34 1.5) scale(0.3302)" fill="currentColor" stroke="none"><path d="M56.88,15.79c-3.15-5.5-10.05-7.56-15.71-4.71C40.66,4.48,34.9-.47,28.29.04c-5.9.45-10.6,5.14-11.05,11.05-5.96-2.89-13.14-.41-16.03,5.56-2.6,5.35-.88,11.8,4.03,15.15-5.42,3.82-6.72,11.3-2.9,16.72,3.33,4.73,9.57,6.41,14.83,3.99.51,6.61,6.27,11.55,12.88,11.05,5.9-.45,10.6-5.14,11.05-11.05,5.96,2.89,13.14.41,16.03-5.56,2.6-5.35.88-11.8-4.03-15.15,5.29-3.5,6.95-10.51,3.78-16ZM37.28,24.68c.91-3.41,3.14-6.32,6.2-8.08.91-.53,1.95-.81,3-.81,3.31,0,6,2.68,6.01,5.99,0,2.15-1.14,4.13-3.01,5.21-3.06,1.77-6.69,2.24-10.1,1.33l-2.87-.77.77-2.87ZM21.05,38.9c-.91,3.41-3.14,6.32-6.2,8.08-.91.53-1.95.81-3,.81-3.31,0-6-2.68-6.01-5.99,0-2.15,1.14-4.13,3.01-5.21,3.06-1.77,6.69-2.24,10.1-1.33l2.87.77-.77,2.87ZM18.95,28.31c-3.41.91-7.04.44-10.1-1.33-2.87-1.65-3.86-5.32-2.2-8.19,0,0,0,0,0,0,1.07-1.86,3.06-3,5.21-3,1.05,0,2.09.28,3,.81,3.06,1.76,5.29,4.67,6.2,8.08l.77,2.87-2.88.77ZM29.17,57.79c-3.31,0-6-2.69-6-6,0-3.53,1.4-6.92,3.9-9.41l2.1-2.1,2.1,2.1c2.5,2.49,3.91,5.88,3.9,9.41,0,3.31-2.69,6-6,6ZM25.17,31.79c0-2.21,1.79-4,4-4s4,1.79,4,4-1.79,4-4,4-4-1.79-4-4ZM31.27,21.2l-2.1,2.1-2.1-2.1c-2.5-2.49-3.91-5.88-3.9-9.41,0-3.31,2.69-6,6-6s6,2.69,6,6c0,3.53-1.4,6.92-3.9,9.41ZM51.69,44.79c-1.07,1.86-3.06,3-5.21,3-1.05,0-2.09-.28-3-.81-3.06-1.76-5.29-4.67-6.2-8.08l-.77-2.87,2.87-.77c3.41-.91,7.04-.44,10.1,1.33,2.87,1.65,3.86,5.32,2.2,8.19,0,0,0,0,0,0h.01Z"></path></g>',
-    // Stock Feather at 24x24, stroke-width 2 (see icon()). Added so the Recent
-    // activity list can distinguish what was signed instead of showing one quill
-    // for everything — a column of identical feathers is unreadable when a client
-    // fires a dozen relay auths.
-    repeat: '<polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>',
-    heart: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>',
-    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
-    wallet: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>',
-    'help-circle': '<circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line>',
-    // Proof of work. A pickaxe rather than the hash it computes: the hash is the subject
-    // of the work, and a button needs the verb. A # also reads as a tag everywhere else on
-    // nostr, which is the one thing it must not be mistaken for here.
-    //
-    // Curved head top right, handle running down to the bottom left on the 45. The angle
-    // is what keeps it from reading as an umbrella, which is where a level head over a
-    // vertical handle lands. Arc and handle meet at the arc's own apex, computed rather
-    // than eyeballed, so the two strokes join cleanly instead of crossing.
-    pickaxe: '<path d="M12.5 3.2a9 9 0 0 1 8.3 8.3"></path><line x1="18.2" y1="5.8" x2="3.5" y2="20.5"></line>',
-    'badge-check': '<path d="M18.9 14.9Q22 12 18.9 9.1Q19.1 4.9 14.9 5.1Q12 2 9.1 5.1Q4.9 4.9 5.1 9.1Q2 12 5.1 14.9Q4.9 19.1 9.1 18.9Q12 22 14.9 18.9Q19.1 19.1 18.9 14.9Z"></path><polyline points="9 12 11 14 15.5 9"></polyline>',
-    'user-check': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline>',
-    'user-x': '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line>',
-    'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>',
-    mail: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline>',
-    // Solid twin of message-circle. At 14px the stroked balloon reads thin and washes
-    // out; filled, it carries the same weight as the zap bolt beside it.
-    'message-filled': '<path d="M12 3C6.5 3 2 6.75 2 11.25c0 2.3 1.18 4.38 3.07 5.86L4 21.5l4.66-2.06c1.05.27 2.17.41 3.34.41 5.5 0 10-3.75 10-8.6S17.5 3 12 3z"></path>',
-    'message-circle': '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
-    bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>',
-    award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
-    'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
-    globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
-  };
-  // Icons that are SOLID shapes rather than strokes.
-  //
-  // Filling a stroked path does not work: Feather's outlines have the stroke width baked
-  // into their proportions, so turning fill on gives a muddy blob with a hairline hole.
-  // A solid glyph needs its own path, and then it must render with fill and no stroke —
-  // which is what this set is for. The zap already lives outside ICONS for the same
-  // reason (boltIcon).
-  const FILLED_ICONS = new Set(['message-filled']);
-
-  function icon(name) {
-    const solid = FILLED_ICONS.has(name);
-    const wrap = document.createElement('span');
-    wrap.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="' + (solid ? 'currentColor' : 'none') +
-      '" stroke="' + (solid ? 'none' : 'currentColor') +
-      '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-      (ICONS[name] || '') +
-      '</svg>';
-    return wrap.firstElementChild;
-  }
 
   // Chrome only adds `update_url` to the manifest object for extensions installed
   // from the Web Store (or with a configured update URL) — never for an unpacked
@@ -392,39 +299,6 @@
     else if (state === 'bad') { ind.classList.add('bad'); ind.appendChild(icon('x')); }
   }
 
-  // Path to the full Sidecar logo for a given theme. Art Deco uses a variant
-  // whose wordmark is dark purple (#5a4a8a) for legibility on the light
-  // eggshell background; the cocktail-glass mark is identical in both files
-  // (official colors), so only the wordmark changes.
-  // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
-  // prompt.js (the approval window's wordmark). Three documents, no module system between
-  // them; a new light theme has to be registered in all three.
-  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
-  function logoSrcFor(themeName) {
-    // EVERY light theme needs the dark-wordmark variant; the default is baked
-    // lavender for a dark field and disappears on marble, eggshell or plaster.
-    // A set rather than a chain of ||, because this is the fourth place a theme
-    // has to be registered and the chain form is the one that gets forgotten.
-    return LIGHT_THEMES.has(themeName)
-      ? 'icons/sidecar-logo-deco.svg'
-      : 'icons/sidecar-logo.svg';
-  }
-
-  // Which cut of the placeholder garnish to use. It is drawn in white for a dark
-  // avatar disc, and on the five light themes that is white on white — the slice was
-  // simply not there, on the account switcher, the rows, the compose author, the
-  // notification modal, everywhere. Same shape as logoSrcFor above and for exactly the
-  // same reason, so it reads the same LIGHT_THEMES set: one place to register a theme,
-  // not two.
-  //
-  // Reads the live attribute rather than taking a parameter, because applyAvatar is
-  // called from a dozen renderers that have no idea what the theme is and should not
-  // have to be told.
-  function avatarPhSrc() {
-    return LIGHT_THEMES.has(document.documentElement.getAttribute('data-theme'))
-      ? 'icons/avatar-default-dark.svg'
-      : 'icons/avatar-default.svg';
-  }
 
   // Swap every full-logo <img> in the panel to the variant for the active theme.
   function swapLogos(themeName) {
@@ -887,6 +761,15 @@
   // while the panel is open) — refresh the wallet if it's the visible tab.
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
+    // A NOTE PUBLISHED SOMEWHERE ELSE IN THIS EXTENSION. _ownNoteIds is what the bell
+    // filters replies against, and it is this document's memory: a note posted from the
+    // expanded composer tab was not in it, so replies to that note stayed out of
+    // notifications until this panel next queried its own notes from relays. The tab says
+    // so instead of waiting to be found.
+    if (msg.event === 'notePublished' && msg.pubkey && msg.id) {
+      rememberOwnNote(msg.pubkey, msg.id);
+      return;
+    }
     if (msg.event === 'walletChanged' && state && !state.locked) {
       // No strike here. A WebLN payment from a page gets its bolt thrown across THAT
       // page by the content script (see notifyTabsPaidByHost) — where the user is
@@ -1640,6 +1523,9 @@
         cdPreview.append(cdTarget, commentBodyPreview(text));
         countdown = showPostCountdown({
           modal,
+          // Was drawn unconditionally inside the countdown before the strip became a
+          // parameter. A comment carries an identity as publicly as a note does.
+          author: composeAuthorStrip(),
           secs,
           title: 'Posting your comment',
           hint: 'Check the page and your comment before it posts.',
@@ -1732,7 +1618,11 @@
     naSetting().then((on) => {
       const btn = $('search-mode');
       btn.replaceChildren(icon(on === true ? 'globe' : 'users'));
-      const title = global
+      // `on`, not `global`. There is no `global` in a page, so this threw a ReferenceError
+      // inside the then() and nothing caught it: the button kept whatever title it had,
+      // which on first paint is none at all. Same test as the icon on the line above, so
+      // an undecided setting reads as follows-only in both.
+      const title = on === true
         ? 'Searching every Nostr name (Nostr Archives index) — click to search only your follows'
         : 'Searching only your follows — click to also search every Nostr name';
       btn.title = title;
@@ -4081,154 +3971,6 @@
     return tags;
   }
 
-  // Params that identify where a visitor came FROM, never which page they're on.
-  // Left in, every share link spawns its own thread.
-  //
-  // Deliberately a denylist, never "strip the whole query". For plenty of sites the
-  // query IS the page (youtube.com/watch?v=…), and dropping a load-bearing param is
-  // strictly worse than a split thread: the published identifier would then point at
-  // a URL rendering different content, or nothing. Anything ambiguous stays — `ref`
-  // in particular is functional often enough to leave alone.
-  const TRACKING_PARAMS = [
-    // ad-click IDs
-    'fbclid', 'gclid', 'dclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'ttclid',
-    'yclid', 'igshid', 'li_fat_id', 'epik', 'rdt_cid', 'sccid', 'srsltid', 's_kwcid',
-    // email + marketing platforms
-    'mc_cid', 'mc_eid', 'mkt_tok', '_hsenc', '_hsmi', 'vero_conv', 'vero_id',
-    'oly_anon_id', 'oly_enc_id', '__s',
-    // analytics and referrer echoes
-    '_ga', '_openstat', 'ref_src', 'ref_url', 'ncid', 'spm', 'at_medium', 'at_campaign',
-    // Yahoo consent-redirect residue
-    'guccounter', 'guce_referrer', 'guce_referrer_sig',
-    // Facebook share callbacks
-    'fb_action_ids', 'fb_action_types', 'fb_ref', 'fb_source',
-    'action_object_map', 'action_type_map', 'action_ref_map',
-  ];
-
-  // Namespaces that exist only for analytics, so the whole family goes without
-  // enumerating it. `utm_` alone has a dozen variants past the common five
-  // (utm_name, utm_source_platform, utm_marketing_tactic, …) and vendors keep adding
-  // more — matching the prefix is what actually answers "utm junk", where a fixed
-  // list silently rots.
-  const TRACKING_PREFIXES = ['utm_', 'pk_', 'piwik_', 'mtm_', 'hsa_'];
-
-  // Pure tracking on a specific host, but possibly load-bearing elsewhere, so only
-  // stripped where we know what it means. YouTube's `si` is the most common
-  // real-world splitter there is: every press of Share mints a fresh one, so one
-  // video would otherwise carry a separate thread per sharer.
-  //
-  // Amazon is deliberately absent. Its `tag` is an affiliate code, which is sometimes
-  // the entire reason somebody shared the link, and a button offering to remove
-  // "tracking" should not quietly be a button that removes their earnings.
-  const HOST_TRACKING_PARAMS = [
-    { host: /(^|\.)(youtube\.com|youtu\.be)$/i, params: ['si', 'pp', 'feature', 'kw'] },
-    // Same shape as YouTube's `si`, and the same consequence: `t` is minted fresh on
-    // every press of Share, so one post would carry a separate thread per sharer.
-    { host: /^(x\.com|twitter\.com)$/i, params: ['s', 't'] },
-    { host: /(^|\.)spotify\.com$/i, params: ['si', 'nd', 'nd_lfid'] },
-    { host: /(^|\.)tiktok\.com$/i, params: ['is_from_webapp', 'sender_device', '_r', '_t'] },
-    { host: /(^|\.)reddit\.com$/i, params: ['share_id', 'rdt', 'correlation_id', 'ref_source', 'ref_campaign'] },
-    { host: /(^|\.)linkedin\.com$/i, params: ['trk', 'trackingid'] },
-  ];
-
-  // Case-insensitive: the same vendor ships both `ScCid` and `sccid`, and a param
-  // that survives on a capital letter splits the thread just as effectively.
-  function isTrackingParam(name) {
-    const n = String(name).toLowerCase();
-    return TRACKING_PARAMS.includes(n) || TRACKING_PREFIXES.some((p) => n.startsWith(p));
-  }
-
-  // ---- the same list, for a link pasted into a composer ----
-  //
-  // A link copied out of a browser usually arrives with a tail describing the person who
-  // copied it rather than the thing it points at: which campaign reached them, which app
-  // they were in, and an id that ties that click back to them. Posting it forwards all of
-  // that to everyone who reads the note, which is not something anyone means to do by
-  // pasting a link.
-  //
-  // OFFERED, NEVER DONE FOR YOU. Sidecar's claim is that it signs what you asked it to
-  // sign, and quietly rewriting the words in a composer is the same kind of act as
-  // quietly rewriting an event. So a paste that carries a tail says so, once, and one
-  // button takes it off.
-  //
-  // NOT normalizeWebUrl, which is next door and looks like it would do. That one builds a
-  // THREAD IDENTIFIER: it sorts the query and drops the fragment so two people reach the
-  // same address, both of which would be edits to a link the user did not ask us to edit.
-  // What is shared is the list of what counts as tracking, which is the part worth having
-  // in one place.
-  function hostTrackingParams(hostname) {
-    const rule = HOST_TRACKING_PARAMS.find((r) => r.host.test(String(hostname || '')));
-    return rule ? rule.params : null;
-  }
-
-  // Cuts whole k=v segments out of the query, textually. Rebuilding through URL or
-  // URLSearchParams would re-encode every parameter being KEPT: a %20 comes back a +, an
-  // unescaped bracket comes back escaped. That is a change to a link nobody asked us to
-  // change, on a path whose entire promise is that it changes nothing else.
-  //
-  // The query only, never the path. Several sites carry tracking in path segments too,
-  // and nothing tells those apart from an id without knowing the site. Confining this to
-  // whole parameters is what makes it safe against a URL for a site nobody here has heard
-  // of: the output is the input minus entire parameters, so a link that worked still
-  // works. Returns null when there is nothing to take off.
-  function cleanTrackedUrl(raw) {
-    const s = String(raw || '');
-    if (!/^https?:\/\//i.test(s)) return null;
-    const q = s.indexOf('?');
-    if (q === -1) return null;
-    let hostname;
-    try { hostname = new URL(s).hostname; } catch (_) { return null; }
-    const hashAt = s.indexOf('#', q);
-    const head = s.slice(0, q);
-    const tail = hashAt === -1 ? '' : s.slice(hashAt);
-    const query = s.slice(q + 1, hashAt === -1 ? undefined : hashAt);
-    const hostParams = hostTrackingParams(hostname);
-    const parts = query.split('&').filter((part) => part !== '');
-    const kept = parts.filter((part) => {
-      const eq = part.indexOf('=');
-      const encoded = (eq === -1 ? part : part.slice(0, eq)).replace(/\+/g, ' ');
-      let name = encoded;
-      try { name = decodeURIComponent(encoded); } catch (_) { /* a stray % is still a name */ }
-      if (isTrackingParam(name)) return false;
-      return !hostParams || hostParams.indexOf(name.toLowerCase()) === -1;
-    });
-    if (kept.length === parts.length) return null;
-    return head + (kept.length ? '?' + kept.join('&') : '') + tail;
-  }
-
-  // Trailing punctuation belongs to the sentence, not to the link. A URL written at the
-  // end of a line takes the period with it otherwise, and the cleaned version would come
-  // back without one.
-  function trimUrlTail(url) {
-    let out = url;
-    for (;;) {
-      const before = out;
-      out = out.replace(/[.,;:!?'"]+$/, '');
-      for (const [close, open] of [[')', '('], [']', '['], ['}', '{']]) {
-        if (!out.endsWith(close)) continue;
-        if (out.split(close).length > out.split(open).length) out = out.slice(0, -1);
-      }
-      if (out === before) return out;
-    }
-  }
-
-  function findTrackedUrls(text) {
-    const out = [];
-    const seen = new Set();
-    const re = /https?:\/\/[^\s<>"'`]+/gi;
-    let m;
-    while ((m = re.exec(String(text || '')))) {
-      const raw = trimUrlTail(m[0]);
-      if (!raw || seen.has(raw)) continue;
-      seen.add(raw);
-      const clean = cleanTrackedUrl(raw);
-      if (clean && clean !== raw) out.push({ raw, clean });
-    }
-    // Longest first, so replacing one link cannot eat the front of another that starts
-    // with it. Two shares of the same page with different campaign ids do exactly that.
-    out.sort((a, b) => b.raw.length - a.raw.length);
-    return out;
-  }
 
   // Reduce a page URL to the identifier the comment is tagged with.
   // Returns { url } or { error } — never throws, and never guesses on refusal.
@@ -7911,12 +7653,6 @@
     closeModal();
   });
 
-  function h(tag, props, children) {
-    const el = document.createElement(tag);
-    if (props) Object.assign(el, props);
-    (children || []).forEach((c) => el.append(c));
-    return el;
-  }
 
   // A LABEL THAT IS WAITING ON THE NETWORK, shimmered for as long as it is.
   //
@@ -9587,14 +9323,6 @@
     'webln.keysend': { icon: 'zap', label: () => 'Sent a keysend payment' },
   };
 
-  function relTime(ts) {
-    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
-    if (s < 45) return 'just now';
-    if (s < 3600) return Math.round(s / 60) + 'm ago';
-    if (s < 86400) return Math.round(s / 3600) + 'h ago';
-    if (s < 604800) return Math.round(s / 86400) + 'd ago';
-    return new Date(ts).toLocaleDateString();
-  }
 
   function siteRow(host, level, boundPk, authorizedPks, onForget) {
     const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
@@ -10732,33 +10460,6 @@
     return el;
   }
 
-  async function resolveMentions(mentions) {
-    // Only fetch pubkeys not already in the shared profile cache; batch the rest
-    // in one query (efficient for many authors) and populate the shared cache so
-    // these results are reused by profile previews and future mentions.
-    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !cachedProfile(pk));
-    if (need.length) {
-      try {
-        const events = await Promise.race([
-          poolQuerySync(await relayUrls(false), { kinds: [0], authors: need }),
-          new Promise((res) => setTimeout(() => res([]), 6000)),
-        ]);
-        const latest = {};
-        (events || []).forEach((ev) => {
-          if (!latest[ev.pubkey] || ev.created_at > latest[ev.pubkey].created_at) latest[ev.pubkey] = ev;
-        });
-        need.forEach((pk) => {
-          let content = {};
-          if (latest[pk]) { try { content = JSON.parse(latest[pk].content) || {}; } catch (_) {} }
-          cacheProfile(pk, content);
-        });
-      } catch (_) {}
-    }
-    mentions.forEach(({ el, pubkey }) => {
-      const rec = _profileCache.get(pubkey);
-      if (rec && rec.name) el.textContent = '@' + rec.name;
-    });
-  }
 
   // Render note text into `container`: inline images/videos, links, and
   // resolved nostr:npub/nprofile mentions — like renderNotePreview, but compact
@@ -10766,154 +10467,11 @@
   // embeds). Once the visible-text budget (`maxLen`) is hit, the preview stops
   // cleanly at the "…" — nothing after the cut renders, so a mention or image
   // further down the note can't leak past the ellipsis.
-  function renderNoteText(container, text, maxLen) {
-    const mentions = [];
-    const quotes = [];
-    let last = 0;
-    let used = 0;
-    let truncated = false;
-    // Set after a block-level item: the next text run's leading whitespace
-    // would render under pre-wrap as a blank line stacked on the item's margin.
-    let skipLead = false;
-    let m;
-    PREVIEW_RE.lastIndex = 0;
-    const pushText = (s) => {
-      if (!s || truncated) return;
-      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
-      if (used + s.length > maxLen) {
-        container.append(document.createTextNode(s.slice(0, Math.max(0, maxLen - used)) + '…'));
-        truncated = true;
-      } else {
-        container.append(document.createTextNode(s));
-        used += s.length;
-      }
-    };
-    // Media and the quote box are block-level and carry their own margins, so
-    // the newlines an author puts around the ref are padding on top of that —
-    // pre-wrap renders each one as a full empty line between the prose and the
-    // block. Trim the whitespace off the text node before the block and out of
-    // the run after it; the block's margin is the separation. Mentions and
-    // plain links stay inline, which is why only this path trims.
-    const pushBlock = (el) => {
-      const tail = container.lastChild;
-      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
-      container.append(el);
-      skipLead = true;
-    };
-    while ((m = PREVIEW_RE.exec(text)) !== null) {
-      if (m.index > last) pushText(text.slice(last, m.index));
-      // Text before this token filled the budget → stop; don't render the token
-      // (mention/link/media) that sits past the truncation point.
-      if (truncated) break;
-      if (m[1]) {
-        const url = m[1];
-        if (IMG_EXT.test(url)) {
-          const im = document.createElement('img');
-          im.className = 'note-media';
-          im.referrerPolicy = 'no-referrer';
-          im.src = url;
-          pushBlock(im);
-        } else if (VID_EXT.test(url)) {
-          const v = document.createElement('video');
-          v.className = 'note-media';
-          v.controls = true;
-          // Same host-privacy reason the img branch gives: no referrer to media hosts.
-          v.referrerPolicy = 'no-referrer';
-          v.src = url;
-          pushBlock(v);
-        } else {
-          const a = document.createElement('a');
-          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = url;
-          container.append(a);
-        }
-      } else if (m[2]) {
-        const bech = m[2];
-        let d = null;
-        try { d = NT.nip19.decode(bech); } catch (_) {}
-        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
-          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
-          const span = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
-          if (pubkey) mentions.push({ el: span, pubkey });
-          container.append(span);
-        } else {
-          // Nested note/nevent/naddr ref — one level down only: a truncated
-          // link-out preview (see resolveQuotePreviews), never a second full
-          // embed card. Quoting a note that quotes a note is common, and the
-          // old plain "quoted note" link showed nothing of what's inside.
-          const a = document.createElement('a');
-          a.className = 'quote-inline loading';
-          a.href = 'https://njump.me/' + bech;
-          a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = 'quoted note…';
-          quotes.push({ el: a, bech });
-          pushBlock(a);
-        }
-      }
-      last = PREVIEW_RE.lastIndex;
-    }
-    if (last < text.length) pushText(text.slice(last));
-    resolveMentions(mentions);
-    resolveQuotePreviews(quotes);
-  }
 
   // Fill the one-level-down quote previews renderNoteText collects: fetch the
   // quoted event and show @author + a snippet. Deliberately NOT renderEmbedCard
   // — this stays read-only and shallow, and quoteSnippet strips nested refs, so
   // a quote-of-a-quote-of-a-quote can't fan out into more fetches.
-  async function resolveQuotePreviews(quotes) {
-    for (const { el, bech } of quotes) {
-      let d = null;
-      try { d = NT.nip19.decode(bech); } catch (_) {}
-      const ref = d ? embedRef(d) : null;
-      let ev = null;
-      if (ref) {
-        try {
-          const relays = [...new Set([...(await relayUrls(false)), ...(ref.relays || [])])];
-          ev = await Promise.race([
-            poolGet(relays, ref.filter),
-            new Promise((r) => setTimeout(() => r(null), 6000)),
-          ]);
-        } catch (_) {}
-      }
-      el.classList.remove('loading');
-      if (!ev) {
-        el.textContent = 'quoted note'; // not found — today's plain link-out
-        continue;
-      }
-      const who = h('span', {
-        className: 'mention',
-        textContent: '@' + shortNpub(NT.nip19.npubEncode(ev.pubkey)),
-      });
-      // The text lives in its own clamped element (the <a> can't clamp once it
-      // also holds a thumbnail), media gets a small thumb below it, and an
-      // invoice becomes a quiet caption under everything — it's metadata about
-      // the note, not prose, and inline it read as a sentence placed above the
-      // image it follows in the content (zap receipts are image + invoice and
-      // nothing else).
-      const content = String(ev.content || '');
-      const hasInvoice = /\bln(?:bc|tb)[0-9a-z]+\b/i.test(content);
-      const text = h('div', { className: 'quote-inline-text' }, [who]);
-      const snip = quoteSnippet(content);
-      const img = firstQuoteImage(content);
-      if (snip) text.append(document.createTextNode(' ' + snip));
-      else if (!img && !hasInvoice) text.append(document.createTextNode(' (no text)'));
-      const kids = [text];
-      if (img) {
-        const im = document.createElement('img');
-        im.className = 'quote-inline-thumb';
-        im.referrerPolicy = 'no-referrer';
-        im.src = img;
-        im.onerror = () => im.remove();
-        kids.push(im);
-      }
-      if (hasInvoice) kids.push(h('div', { className: 'quote-inline-meta', textContent: '⚡ invoice' }));
-      el.replaceChildren(...kids);
-      fetchPreviewProfile(ev.pubkey).then((p) => {
-        if (p && p.name) who.textContent = '@' + p.name;
-      });
-    }
-  }
 
   // Snippet text for a nested quote: plain text only. nostr entity refs and bare
   // URLs are stripped rather than rendered — a 63-char nevent or a long link
@@ -10922,24 +10480,10 @@
   // can read, and resolveQuotePreviews shows a quiet "⚡ invoice" caption for
   // the whole note instead of a marker pretending to be prose. Returns '' when
   // nothing readable remains; the caller decides the placeholder.
-  function quoteSnippet(text) {
-    const s = String(text || '')
-      .replace(/(?:nostr:)?(?:npub1|nprofile1|note1|nevent1|naddr1)[0-9a-z]+/gi, '')
-      .replace(/ln(?:bc|tb)[0-9a-z]+/gi, '')
-      .replace(/https?:\/\/\S+/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (!s) return '';
-    return s.length > 140 ? s.slice(0, 140).trimEnd() + '…' : s;
-  }
 
   // First image URL in a nested quote's content, for the small thumbnail.
   // Video stays out of the interim preview — a playable element inside a link
   // inside an embed is a tangle, and posters aren't in the content string.
-  function firstQuoteImage(text) {
-    const urls = String(text || '').match(/https?:\/\/[^\s]+/g) || [];
-    return urls.find((u) => IMG_EXT.test(u)) || null;
-  }
 
   function renderAbout(container, text) {
     const bodyEl = h('div', { className: 'about-clamp' });
@@ -11002,86 +10546,13 @@
   // Mirrors zap.cooking: try the user's own Blossom servers (kind:10063) first,
   // then fall back to the nostr.build NIP-98 flow below. No hardcoded server, so
   // users without a Blossom list keep the existing behavior unchanged.
-  const BLOSSOM_AUTH_KIND = 24242;
-  const BLOSSOM_SERVER_LIST_KIND = 10063;
-  const BLOSSOM_CACHE_TTL = 5 * 60 * 1000;
-  const BLOSSOM_UPLOAD_TIMEOUT = 30000;
-  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }
 
-  async function sha256Hex(buffer) {
-    const digest = await crypto.subtle.digest('SHA-256', buffer);
-    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
-  }
 
-  async function fetchBlossomServers(pubkey) {
-    const cached = _blossomServerCache.get(pubkey);
-    if (cached && cached.expiresAt > Date.now()) return cached.servers;
-    let servers = [];
-    try {
-      const relays = await relayUrls(false);
-      const ev = await poolGet(relays, { kinds: [BLOSSOM_SERVER_LIST_KIND], authors: [pubkey] });
-      if (ev) {
-        servers = ev.tags
-          .filter((t) => t[0] === 'server' && t[1] && t[1].startsWith('https://'))
-          .map((t) => t[1].replace(/\/$/, ''));
-      }
-    } catch (_) {}
-    _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
-    return servers;
-  }
 
-  async function uploadToBlossom(file, servers, forPubkey) {
-    const buffer = await file.arrayBuffer();
-    const hash = await sha256Hex(buffer);
-    const now = Math.floor(Date.now() / 1000);
-    const authEvent = {
-      kind: BLOSSOM_AUTH_KIND,
-      created_at: now,
-      tags: [['t', 'upload'], ['x', hash], ['expiration', String(now + 300)]],
-      content: 'Upload file',
-    };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent, expectedPubkey: forPubkey });
-    const authorization = 'Nostr ' + btoa(JSON.stringify(signed));
-    let lastError;
-    for (const server of servers) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), BLOSSOM_UPLOAD_TIMEOUT);
-      try {
-        const resp = await fetch(server + '/upload', {
-          method: 'PUT',
-          body: file,
-          headers: { Authorization: authorization, 'Content-Type': file.type || 'application/octet-stream' },
-          signal: controller.signal,
-        });
-        clearTimeout(timer);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json().catch(() => null);
-        if (data && data.url) return data.url;
-        throw new Error('No URL in Blossom response');
-      } catch (e) {
-        clearTimeout(timer);
-        console.warn('[Blossom] upload to ' + server + ' failed:', e);
-        lastError = e;
-      }
-    }
-    throw lastError || new Error('All Blossom servers failed');
-  }
 
   // Returns a hosted URL via Blossom, or null when Blossom isn't usable (no
   // active account, no server list, or every server failed) — caller then falls
   // back to nostr.build.
-  async function tryBlossomFirst(file, forPubkey) {
-    const pk = forPubkey || state.activePubkey;
-    if (!pk) return null;
-    try {
-      const servers = await fetchBlossomServers(pk);
-      if (!servers.length) return null;
-      return await uploadToBlossom(file, servers, pk);
-    } catch (e) {
-      console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
-      return null;
-    }
-  }
 
   // ---- image upload (Blossom → nostr.build via NIP-98) ----
   async function uploadImage(file, kind, forPubkey) {
@@ -11110,38 +10581,10 @@
   }
 
   // ---- note media upload (Blossom → nostr.build via NIP-98, images + video) ----
-  async function uploadMedia(file, forPubkey) {
-    const isImg = file.type.startsWith('image/');
-    const isVid = file.type.startsWith('video/');
-    if (!isImg && !isVid) throw new Error('Choose an image or video');
-    if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100MB)');
-    const forPk = forPubkey || state.activePubkey;
-    const blossomUrl = await tryBlossomFirst(file, forPk);
-    if (blossomUrl) return blossomUrl;
-    const url = 'https://nostr.build/api/v2/upload/files';
-    const authEvent = {
-      kind: 27235,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [['u', url], ['method', 'POST']],
-      content: '',
-    };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: authEvent, expectedPubkey: forPk });
-    const token = 'Nostr ' + btoa(JSON.stringify(signed));
-    const form = new FormData();
-    form.append('file', file);
-    const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
-    if (!resp.ok) throw new Error('Upload failed (' + resp.status + ')');
-    const json = await resp.json().catch(() => null);
-    const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
-    if (!u) throw new Error('Upload returned no URL');
-    return u;
-  }
 
   // ---- compose a kind:1 note (FAB) with Wisp-style send countdown ----
   // The review countdown is user-configurable (Settings): a toggle plus a
   // duration preset. Off → post immediately with no countdown.
-  const NOTE_COUNTDOWN_PRESETS = [5, 10, 15, 25, 30];
-  const NOTE_COUNTDOWN_DEFAULT = 15;
 
   // NIP-13 difficulty, as four rungs rather than the slider other clients offer. Each
   // step is two bits, which is four times the work, so the ladder is even and the whole
@@ -11157,14 +10600,6 @@
   // THE COSTS ARE MEASURED, not guessed: about 240k hashes a second through the bundled
   // getEventHash on a fast machine. Mining is geometric, so the spread matters more than
   // the average, and the copy says the long tail out loud rather than quoting the middle.
-  const POW_LEVELS = [
-    { bits: 16, cost: 'Usually instant.' },
-    { bits: 18, cost: 'About a second.' },
-    { bits: 20, cost: 'A few seconds, sometimes fifteen.' },
-    { bits: 22, cost: 'Ten seconds or so, sometimes a minute.' },
-  ];
-  const POW_DEFAULT_BITS = 18;
-  const powLevelFor = (bits) => POW_LEVELS.find((l) => l.bits === bits) || POW_LEVELS[1];
   // NIP-89 client tag. Positions 3–4 are meant to be a kind:31990 handler
   // coordinate + relay hint; we don't publish a handler, so a bare name is the
   // correct minimal form and avoids adding dead bytes to every note.
@@ -11174,8 +10609,6 @@
   const SIDECAR_SITE_URL = 'https://sidecar.top';
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
   const CREATOR_LN = 'daniel@sidecar.top';
-  const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
-  const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
   // An nevent reduced to the note1 Razr's own links carry. Anything else, a naddr or a
@@ -11184,44 +10617,7 @@
   // The hints are what get dropped: an nevent can carry relays and an author, and a note1
   // is the bare id. That is the trade for a route proven to accept what we send, and it
   // is the same reduction Razr performs on its own ids.
-  function razrEntity(entity) {
-    try {
-      const d = NT.nip19.decode(entity);
-      if (d.type === 'nevent') return NT.nip19.noteEncode(d.data.id);
-    } catch (_) { /* not bech32 we know, so hand it over unchanged */ }
-    return entity;
-  }
 
-  const VIEW_CLIENTS = {
-    // DEFAULT_CLIENT leads the list; the rest are in the order they were added.
-    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
-    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
-    yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
-    iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
-    snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },
-    nostrudel: { label: 'noStrudel', url: (ne) => 'https://nostrudel.ninja/#/n/' + ne, profile: (np) => 'https://nostrudel.ninja/#/u/' + np },
-    zapcooking: { label: 'Zap Cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
-    noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
-    jank: { label: 'JANK', url: (ne) => 'https://jank.army/notes/' + ne, profile: (np) => 'https://jank.army/users/' + np },
-    nostrich: { label: 'Nostrich', url: (ne) => 'https://nostrich.org/e/' + ne, profile: (np) => 'https://nostrich.org/p/' + np },
-    ditto: { label: 'Ditto', url: (ne) => 'https://ditto.pub/' + ne, profile: (np) => 'https://ditto.pub/' + np },
-    // ROUTES, not a catch-all: /e/ for an event and /p/ for a profile. Its own links are
-    // /e/note1… and /e/naddr…, built with encodeNote, so /e/ is known to take a note1
-    // and a naddr, and an nevent is reduced to the note1 Razr writes for itself rather
-    // than handed over on the assumption it decodes one. See razrEntity.
-    razr: { label: 'Razr', url: (ne) => 'https://razr.social/e/' + razrEntity(ne), profile: (np) => 'https://razr.social/p/' + np },
-    // A COMMAND LINE, not routes. `open <bech32>` resolves note, nevent and naddr into
-    // the same viewer, since all three are cases in its own decoder, and a profile has its
-    // own verb, which is what Grimoire builds for itself (`profile <npub>`).
-    grimoire: {
-      label: 'Grimoire',
-      url: (ne) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('open ' + ne),
-      profile: (np) => 'https://grimoire.rocks/run?cmd=' + encodeURIComponent('profile ' + np),
-    },
-    coracle: { label: 'Coracle', url: (ne) => 'https://coracle.social/' + ne, profile: (np) => 'https://coracle.social/' + np },
-    njump: { label: 'njump', url: (ne) => 'https://njump.me/' + ne, profile: (np) => 'https://njump.me/' + np },
-  };
-  const DEFAULT_CLIENT = 'jumble';
 
   // Which client this ACCOUNT opens things in. Per-account with a fallback to the
   // global, so an account that has never chosen keeps following the global setting
@@ -11330,11 +10726,6 @@
     return (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
   }
 
-  function resolveClient(settings, pubkey) {
-    const by = (settings && settings.defaultClientBy) || null;
-    const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
-    return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
-  }
 
   async function preferredClient(forPubkey) {
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
@@ -11561,549 +10952,42 @@
   // user's own relays.
   // npub1/note1 are always exactly 63 chars (5+58); use {58} to prevent the regex
   // from greedily consuming adjacent lowercase words as bech32 characters.
-  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})/gi;
-  function renderNotePreview(container, text) {
-    const mentions = [];
-    const embeds = [];
-    let last = 0;
-    let skipLead = false; // see pushBlock in renderNoteText
-    let m;
-    PREVIEW_RE.lastIndex = 0;
-    const flushText = (s) => {
-      if (!s) return;
-      if (skipLead) { s = s.replace(/^\s+/, ''); skipLead = false; if (!s) return; }
-      container.append(document.createTextNode(s));
-    };
-    // Same pre-wrap blank-line problem as renderNoteText, for this pane's own
-    // block items: embed cards, link cards, media.
-    const pushBlock = (el) => {
-      const tail = container.lastChild;
-      if (tail && tail.nodeType === Node.TEXT_NODE) tail.textContent = tail.textContent.replace(/\s+$/, '');
-      container.append(el);
-      skipLead = true;
-    };
-    while ((m = PREVIEW_RE.exec(text)) !== null) {
-      if (m.index > last) flushText(text.slice(last, m.index));
-      if (m[1]) {
-        const url = m[1];
-        if (IMG_EXT.test(url)) {
-          const im = document.createElement('img');
-          im.className = 'note-media';
-          im.referrerPolicy = 'no-referrer';
-          im.src = url;
-          pushBlock(im);
-        } else if (VID_EXT.test(url)) {
-          const v = document.createElement('video');
-          v.className = 'note-media';
-          v.controls = true;
-          // Same host-privacy reason the img branch gives: no referrer to media hosts.
-          v.referrerPolicy = 'no-referrer';
-          v.src = url;
-          pushBlock(v);
-        } else {
-          const a = document.createElement('a');
-          a.href = url; a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = url;
-          container.append(a);
-          if (url.startsWith('https://')) {
-            const card = document.createElement('a');
-            card.className = 'link-card loading';
-            card.textContent = 'Loading preview…';
-            pushBlock(card);
-            fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
-          }
-        }
-      } else if (m[2]) {
-        const bech = m[2];
-        let d = null;
-        try { d = NT.nip19.decode(bech); } catch (_) {}
-        if (d && (d.type === 'npub' || d.type === 'nprofile')) {
-          const pubkey = d.type === 'npub' ? d.data : d.data.pubkey;
-          const a = h('span', { className: 'mention', textContent: '@' + bech.slice(0, 10) + '…' });
-          if (pubkey) mentions.push({ el: a, pubkey });
-          container.append(a);
-        } else if (d && (d.type === 'note' || d.type === 'nevent' || d.type === 'naddr')) {
-          const card = h('div', { className: 'note-embed loading', textContent: 'Loading nostr event…' });
-          embeds.push({ el: card, ref: embedRef(d) });
-          pushBlock(card);
-        } else {
-          flushText(bech);
-        }
-      }
-      last = PREVIEW_RE.lastIndex;
-    }
-    flushText(text.slice(last));
-    resolveMentions(mentions);
-    resolveEmbeds(embeds);
-  }
 
   // Decode a nostr entity into a relay filter (+ any relay hints) for fetching.
-  function embedRef(d) {
-    if (d.type === 'note') return { filter: { ids: [d.data] } };
-    if (d.type === 'nevent') return { filter: { ids: [d.data.id] }, relays: d.data.relays || [] };
-    return {
-      filter: { kinds: [d.data.kind], authors: [d.data.pubkey], '#d': [d.data.identifier] },
-      relays: d.data.relays || [],
-    };
-  }
 
-  async function resolveEmbeds(embeds) {
-    for (const { el, ref } of embeds) {
-      let ev = null;
-      try {
-        const relays = [...new Set([...(await relayUrls(false)), ...(ref.relays || [])])];
-        ev = await Promise.race([
-          poolGet(relays, ref.filter),
-          new Promise((r) => setTimeout(() => r(null), 6000)),
-        ]);
-      } catch (_) {}
-      if (!ev) {
-        el.classList.remove('loading');
-        el.classList.add('embed-missing');
-        el.textContent = 'nostr event (not found)';
-        continue;
-      }
-      renderEmbedCard(el, ev);
-    }
-  }
 
-  function renderEmbedCard(el, ev) {
-    el.classList.remove('loading');
-    el.textContent = '';
-    const av = h('span', { className: 'embed-av' });
-    applyAvatar(av, {});
-    const name = h('span', { className: 'embed-name', textContent: shortNpub(NT.nip19.npubEncode(ev.pubkey)) });
-    const head = h('div', { className: 'embed-head' }, [
-      av,
-      h('div', { className: 'embed-who' }, [
-        name,
-        h('span', { className: 'embed-time', textContent: relTime((ev.created_at || 0) * 1000) }),
-      ]),
-    ]);
-    const titleTag = (ev.tags || []).find((t) => t[0] === 'title');
-    const text = (titleTag && titleTag[1]) || ev.content || '';
-    const body = h('div', { className: 'embed-body' });
-    renderNoteText(body, text, 280);
-    el.append(head, body);
-    fetchPreviewProfile(ev.pubkey).then((p) => {
-      if (!p) return;
-      if (p.picture) applyAvatar(av, { picture: p.picture });
-      if (p.name) name.textContent = '@' + p.name;
-    });
-  }
 
   // ---- OG / link preview cards ----
-  const ogCache = new Map(); // url → { title, description, image, site } | null
 
-  async function fetchOgMeta(url) {
-    if (ogCache.has(url)) return ogCache.get(url);
-    ogCache.set(url, null); // mark in-flight so parallel calls don't double-fetch
-    try {
-      const meta = await call({ type: 'SIDECAR_FETCH_OG', url });
-      ogCache.set(url, meta);
-      return meta;
-    } catch (_) { return null; }
-  }
 
-  function decodeHtml(s) {
-    if (!s) return s;
-    const t = document.createElement('textarea');
-    t.innerHTML = s;
-    return t.value;
-  }
 
-  function renderLinkCard(container, url, meta) {
-    container.classList.remove('loading');
-    if (!meta) { container.remove(); return; }
-    container.innerHTML = '';
-    const body = h('div', { className: 'link-card-body' });
-    if (meta.site) body.append(h('div', { className: 'link-card-site', textContent: decodeHtml(meta.site) }));
-    if (meta.title) body.append(h('div', { className: 'link-card-title', textContent: decodeHtml(meta.title) }));
-    if (meta.description) body.append(h('div', { className: 'link-card-desc', textContent: decodeHtml(meta.description) }));
-    const isHttps = (s) => typeof s === 'string' && s.startsWith('https://');
-    if (isHttps(meta.image)) {
-      const img = document.createElement('img');
-      img.className = 'link-card-img';
-      img.referrerPolicy = 'no-referrer';
-      img.src = meta.image;
-      img.onerror = () => img.remove();
-      container.append(img);
-    }
-    container.append(body);
-    container.href = url;
-    container.target = '_blank';
-    container.rel = 'noreferrer noopener';
-  }
 
-  // Serialize a contenteditable editor div to plain nostr text.
-  // Text nodes → text, BR → \n, block divs → \n prefix, pill spans → their data-bech32.
-  //   (NBSP used after pills to prevent browser whitespace collapse) → regular space.
-  function serializeEditor(el) {
-    let out = '';
-    const walk = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        out += node.textContent.replace(/ /g, ' ');
-      } else if (node.nodeName === 'BR') {
-        out += '\n';
-      } else if (node.dataset && node.dataset.bech32) {
-        out += node.dataset.bech32;
-      } else {
-        const isBlock = node.nodeName === 'DIV' || node.nodeName === 'P';
-        if (isBlock && out && !out.endsWith('\n')) out += '\n';
-        node.childNodes.forEach(walk);
-      }
-    };
-    el.childNodes.forEach(walk);
-    return out;
-  }
-
-  // Inverse of serializeEditor: rebuild the editor's rich DOM (mention pills,
-  // line breaks) from a raw saved string — used when resuming a draft, since
-  // just setting .textContent leaves 'nostr:npub1…' as visible plain text
-  // instead of a resolved @name pill. A pill's name resolves instantly from the
-  // profile cache when available, else shows a short npub that upgrades in
-  // place once the profile loads (same pattern as embed cards elsewhere).
-  function hydrateEditorFromText(editor, text) {
-    editor.innerHTML = '';
-    const appendText = (s) => {
-      const lines = s.split('\n');
-      lines.forEach((line, i) => {
-        if (line) editor.appendChild(document.createTextNode(line));
-        if (i < lines.length - 1) editor.appendChild(document.createElement('br'));
-      });
-    };
-    const mentionRe = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
-    let last = 0, m;
-    while ((m = mentionRe.exec(text)) !== null) {
-      if (m.index > last) appendText(text.slice(last, m.index));
-      const bech32 = m[0];
-      let pubkey = null, fallback = bech32;
-      try {
-        const decoded = NT.nip19.decode(m[1]);
-        pubkey = decoded.type === 'npub' ? decoded.data : decoded.data.pubkey;
-        fallback = shortNpub(NT.nip19.npubEncode(pubkey));
-      } catch (_) {}
-      const pill = document.createElement('span');
-      pill.className = 'mention-pill';
-      pill.contentEditable = 'false';
-      pill.dataset.bech32 = bech32;
-      const cached = pubkey ? cachedProfile(pubkey) : null;
-      pill.textContent = '@' + (cached && cached.name ? cached.name : fallback);
-      editor.appendChild(pill);
-      last = mentionRe.lastIndex;
-      // A plain space right after the mention is the pill's trailing separator —
-      // render it as NBSP (matching live insertion via the @-autocomplete) so it
-      // isn't visually collapsed; serializeEditor turns it back into a space.
-      if (text[last] === ' ') {
-        editor.appendChild(document.createTextNode(' '));
-        last += 1;
-        mentionRe.lastIndex = last;
-      }
-      if (pubkey && !(cached && cached.name)) {
-        fetchPreviewProfile(pubkey).then((p) => { if (p && p.name) pill.textContent = '@' + p.name; });
-      }
-    }
-    if (last < text.length) appendText(text.slice(last));
-  }
-
-  // A rich text box with @mention autocomplete and pills, shared by the note
-  // composer and the page-comment modal. Owns its own dropdown state so two can
-  // coexist; the caller supplies `onChange` for whatever it does with the text
-  // (draft autosave, enabling a Post button, repainting a preview).
-  //
-  // Returns { wrap, editor, getText, setText, focus, close }. Append `wrap` —
-  // not `editor` — since the dropdown positions itself against the wrapper.
-  function createMentionEditor(opts) {
-    const onChange = (opts && opts.onChange) || (() => {});
-    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
-    editor.dataset.placeholder = (opts && opts.placeholder) || '';
-    const wrap = h('div', { className: 'compose-editor-wrap' });
-    wrap.append(editor);
-
-    let acDropdown = null, acResults = [], acIndex = 0;
-    let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
-
-    function syncEmptyClass() {
-      const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
-      editor.classList.toggle('is-empty', isEmpty);
-      if (isEmpty) editor.innerHTML = '';
-    }
-
-    // Report the text upward, keeping the placeholder state in sync first.
-    function emit() {
-      const text = serializeEditor(editor);
-      syncEmptyClass();
-      onChange(text);
-    }
-
-    function getCaretContext() {
-      const sel = window.getSelection();
-      if (!sel.rangeCount) return null;
-      const range = sel.getRangeAt(0);
-      if (!range.collapsed) return null;
-      const node = range.startContainer;
-      if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
-      const before = node.textContent.slice(0, range.startOffset);
-      const match = before.match(/@([^\s@]*)$/);
-      if (!match) return null;
-      return { node, query: match[1] };
-    }
-
-    function closeAcDropdown() {
-      if (acDropdown) { acDropdown.remove(); acDropdown = null; }
-      acResults = []; acIndex = 0;
-    }
-
-    function updateAcActiveItem() {
-      if (!acDropdown) return;
-      acDropdown.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acIndex));
-    }
-
-    function selectAcItem(contact, query) {
-      const sel = window.getSelection();
-      if (!sel.rangeCount) return;
-      const range = sel.getRangeAt(0);
-      const node = range.startContainer;
-      if (node.nodeType !== Node.TEXT_NODE) return;
-      const offset = range.startOffset;
-      // Text before the '@'. Trim any trailing whitespace and re-add exactly one
-      // space, so the mention is always preceded by a single space (or nothing
-      // at line start). Trimming the whole run both collapses a stray double
-      // space and sidesteps the old single-code-unit check, which mis-read an
-      // emoji's surrogate half (e.g. 🤝) as a non-space char and inserted an
-      // extra space.
-      const beforeAt = node.textContent.slice(0, Math.max(0, offset - (query.length + 1)));
-      const trimmed = beforeAt.replace(/\s+$/, '');
-      const atStart = trimmed.length;
-      const needsLeadingSpace = trimmed.length > 0;
-      range.setStart(node, atStart);
-      range.setEnd(node, offset);
-      range.deleteContents();
-      const pill = document.createElement('span');
-      pill.className = 'mention-pill';
-      pill.contentEditable = 'false';
-      pill.dataset.bech32 = 'nostr:' + NT.nip19.npubEncode(contact.pubkey);
-      pill.textContent = '@' + contact.name;
-      if (needsLeadingSpace) range.insertNode(document.createTextNode(' '));
-      range.collapse(false);
-      range.insertNode(pill);
-      // NBSP after pill: never collapsed by the browser, normalized to space by serializer.
-      const trailingSpace = document.createTextNode(' ');
-      range.setStartAfter(pill);
-      range.insertNode(trailingSpace);
-      range.setStartAfter(trailingSpace);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      closeAcDropdown();
-      emit();
-    }
-
-    // Anchor the dropdown just under the caret line rather than the bottom of
-    // the (tall) editor box. Falls back to the CSS default if no caret rect.
-    function positionAcDropdown() {
-      if (!acDropdown) return;
-      try {
-        const sel = window.getSelection();
-        if (!sel.rangeCount) return;
-        const r = sel.getRangeAt(0).getBoundingClientRect();
-        if (!r || (!r.top && !r.bottom)) return;
-        const wrapRect = wrap.getBoundingClientRect();
-        acDropdown.style.top = Math.round(r.bottom - wrapRect.top + 4) + 'px';
-      } catch (_) {}
-    }
-
-    // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
-    // and keeps the dropdown open even when there are no local matches yet.
-    // `askEl` is the one-time Nostr Archives ask standing in for that footer
-    // while the setting is unset (see the NA block).
-    function renderAcResults(items, ctx, loading, askEl) {
-      acResults = items;
-      if (!acResults.length && !loading && !askEl) { closeAcDropdown(); return; }
-      acIndex = Math.max(0, Math.min(acIndex, Math.max(0, acResults.length - 1)));
-      if (!acDropdown) {
-        acDropdown = h('div', { className: 'ac-dropdown' });
-        wrap.append(acDropdown);
-      }
-      positionAcDropdown();
-      acDropdown.innerHTML = '';
-      acResults.forEach((c, i) => {
-        const item = h('div', { className: 'ac-item' + (i === acIndex ? ' active' : '') });
-        const av = h('span', { className: 'ac-item-av' });
-        applyAvatar(av, c.picture ? { picture: c.picture } : {});
-        item.append(av, h('span', { className: 'ac-item-name', textContent: '@' + c.name }));
-        item.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          const fresh = getCaretContext();
-          selectAcItem(c, fresh ? fresh.query : ctx.query);
-        });
-        acDropdown.append(item);
-      });
-      if (loading) {
-        acDropdown.append(h('div', { className: 'ac-loading' }, [
-          h('span', { className: 'ac-spinner' }),
-          h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
-        ]));
-      }
-      // The ask goes ABOVE the results: the box caps at 200px and scrolls, and
-      // appended last it landed below the fold as soon as matches rendered —
-      // withdrawn from view exactly when results populated, unread.
-      if (askEl) acDropdown.prepend(askEl);
-    }
-
-    // Two async sources feed the dropdown: your follow list (instant from
-    // cache, else a slow first relay load) and a global Nostr search. NEVER
-    // block the UI on the follow list — the first load hits relays and can take
-    // many seconds. Paint immediately (with a spinner), then repaint as each
-    // source resolves. `paint()` renders the deduped union + loading state.
-    async function updateAcDropdown() {
-      const ctx = getCaretContext();
-      if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
-      const seq = ++acSeq;
-      const q = ctx.query.toLowerCase();
-      const willSearchGlobal = ctx.query.length >= 2 && naAvailable();
-
-      const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
-      let followMatches = [];
-      let globals = [];
-      let globalPending = false;
-      let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
-      const paint = () => {
-        if (seq !== acSeq) return;
-        const seen = new Set(followMatches.map((c) => c.pubkey));
-        const merged = followMatches.slice();
-        for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-        renderAcResults(merged.slice(0, 8), ctx, globalPending, askEl);
-      };
-
-      // Follows: use the cache synchronously if present; otherwise load in the
-      // background and repaint when ready (no await here).
-      const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
-      if (cached) followMatches = matchFollows(cached);
-      paint(); // instant feedback: local matches (maybe none)
-      if (!cached) {
-        getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
-      }
-
-      // Global search across all of Nostr so you can tag people you don't
-      // follow. Debounced; best-effort — a failure/rate-limit just clears the
-      // spinner and leaves the follow matches. With the Nostr Archives setting
-      // still unset, the spinner's slot carries the one-time ask instead;
-      // answering it re-enters here with the decision written.
-      if (!willSearchGlobal) return;
-      const na = await naSetting();
-      if (seq !== acSeq) return;
-      if (na === true) {
-        globalPending = true;
-        paint();
-        if (acSuggestTimer) clearTimeout(acSuggestTimer);
-        acSuggestTimer = setTimeout(async () => {
-          const res = await naSuggest(ctx.query);
-          if (seq !== acSeq) return; // query changed since
-          globals = res;
-          globalPending = false;
-          paint();
-        }, 250);
-      } else if (na !== false) {
-        askEl = naAskEl((on) => { naDecide(on).then(updateAcDropdown); });
-        paint();
-      }
-    }
-
-    editor.addEventListener('input', () => {
-      emit();
-      updateAcDropdown();
-      noteActivity(); // composing counts as activity — keep auto-lock at bay
+  // The editor itself lives in composer-core.js so the expanded composer page can build
+  // one. Its collaborators do not: they are this panel's, so they are handed in here.
+  const {
+    serializeEditor, hydrateEditorFromText, createMentionEditor,
+    renderNotePreview, uploadMedia, minePow, powCancel, resolveClient,
+    showPostCountdown, splitGlyphs, ironDiceStyle,
+    resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
+    powSetting, postCountdownSetting,
+    renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
+    paintCountdownNum,
+  } = window.SidecarCore.installComposer({
+      NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
+      naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
+      // The synchronous half of getFollowList: the already-loaded list for the account
+      // that is active right now, or null. Kept as a function rather than a value because
+      // both halves change under the editor while it is open.
+      cachedFollowList: () =>
+        (followListCache && followListPubkey === state.activePubkey) ? followListCache : null,
+      // The relay reads the preview and the uploader make. Handed in rather than shared,
+      // so the core never touches this panel's pool and a second page can bring its own.
+      call, poolGet, poolQuerySync, relayUrls, cacheProfile,
+      activePubkey: () => state.activePubkey,
+      // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
+      // exactly the kind of thing that setting is for.
+      reduceBalanceMotion: () => reduceBalanceMotion,
     });
-
-    editor.addEventListener('keydown', (e) => {
-      if (!acDropdown) return;
-      if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
-      else if (e.key === 'Enter' || e.key === 'Tab') {
-        if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
-      } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
-    });
-
-    // A pending one-time ask is a consent question, not search chrome: focus
-    // moving away (a click elsewhere in the panel, another window) must not
-    // withdraw it before it's answered. Escape still dismisses, and an
-    // unanswered ask simply returns on the next @-keystroke.
-    editor.addEventListener('blur', () => setTimeout(() => {
-      if (acDropdown && acDropdown.querySelector('.na-ask')) return;
-      closeAcDropdown();
-    }, 150));
-
-    // ---- the offer, for a link that arrived with a tail ----
-    //
-    // In the wrapper rather than the note composer's own toolbar, because the page
-    // comment box is a composer too and gets its links pasted the same way. Both are
-    // built here, so both get this at once.
-    const trackRow = h('div', { className: 'track-row hidden' });
-    const trackBtn = h('button', { className: 'mini ghost compose-add track-clean', type: 'button' });
-    const trackLabel = h('span', { textContent: 'Remove tracking tags' });
-    trackBtn.append(icon('eye-off'), trackLabel);
-    trackRow.append(trackBtn);
-    wrap.append(trackRow);
-
-    let tracked = [];
-    function scanTracking() {
-      tracked = findTrackedUrls(serializeEditor(editor));
-      if (!tracked.length) { hide(trackRow); return; }
-      // The count only when there is more than one, because "Remove tracking tags from 1
-      // link" is a sentence nobody writes.
-      trackLabel.textContent = tracked.length === 1
-        ? 'Remove tracking tags'
-        : 'Remove tracking tags from ' + tracked.length + ' links';
-      show(trackRow);
-    }
-    trackBtn.addEventListener('click', () => {
-      let text = serializeEditor(editor);
-      for (const hit of tracked) text = text.split(hit.raw).join(hit.clean);
-      editor.innerHTML = '';
-      if (text) hydrateEditorFromText(editor, text);
-      syncEmptyClass();
-      emit(); // the draft and the Post button both read the text, not the DOM
-      scanTracking();
-      // BACK WHERE YOU WERE WRITING. The rewrite replaces every node in the editor, and
-      // focus() on its own leaves the caret at the very top, so tapping this would cost
-      // a click to get back to the end of the sentence you were in the middle of. One
-      // button, one tap, nothing to put right afterwards.
-      editor.focus();
-      const sel = window.getSelection();
-      if (sel) {
-        const end = document.createRange();
-        end.selectNodeContents(editor);
-        end.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(end);
-      }
-    });
-    // AFTER the paste lands, not instead of it. The note composer has its own paste
-    // handler that inserts the plain text itself, and the comment box has none at all;
-    // a scan on the next tick reads whatever either of them ended up with.
-    editor.addEventListener('paste', () => setTimeout(scanTracking, 0));
-
-    return {
-      wrap,
-      editor,
-      getText: () => serializeEditor(editor),
-      // Re-read the editor after the caller mutated its DOM directly (e.g.
-      // appending an uploaded media URL) so the text, placeholder and any
-      // onChange-driven state agree with what's on screen.
-      sync: emit,
-      setText(text) {
-        editor.innerHTML = '';
-        if (text) hydrateEditorFromText(editor, text);
-        syncEmptyClass();
-        // A paste is not the only way a tail arrives. This is the path a restored draft
-        // takes, so a link pasted yesterday is still offered today.
-        scanTracking();
-      },
-      focus: () => editor.focus(),
-      close: closeAcDropdown,
-    };
-  }
 
   // ---- composer draft autosave (per account, encrypted at rest) ----
   // Routed through the background's secret store (audit M5/S1): the draft text
@@ -12149,6 +11033,12 @@
       if (hasContent) {
         all[key] = { text: draft.text, media: draft.media, savedAt: Date.now() };
         if (draft.poll) all[key].poll = draft.poll;
+        // THE DIFFICULTY TRAVELS WITH THE NOTE. It is a decision about this post, the
+        // same as the text, and the composer it was made in is not where it has to be
+        // spent: Expand hands this draft to a tab, and re-seeding from Settings there
+        // threw away a rung the user had just chosen. Written even when off, because off
+        // can also be the deliberate choice against an account that mines by default.
+        if (draft.pow) all[key].pow = draft.pow;
         if (draft.replyTo) {
           const r = draft.replyTo;
           all[key].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
@@ -12196,27 +11086,10 @@
   // is the whole reason this is parameterized rather than duplicated — for a comment
   // the URL is the thing most worth a second look, since it was captured from
   // whichever tab happened to be active.
-  function showPostCountdown(opts) {
-    const { modal, secs, title, hint, preview, confirmLabel, onFire, onCancel } = opts;
-    modal.innerHTML = '';
-    let remaining = secs;
-    let timer = null;
-
-    const R = 30;
-    const C = 2 * Math.PI * R;
-    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    ring.setAttribute('viewBox', '0 0 72 72');
-    ring.setAttribute('class', 'countdown-ring');
-    ring.innerHTML =
-      '<circle cx="36" cy="36" r="' + R + '" class="ring-track"/>' +
-      '<circle cx="36" cy="36" r="' + R + '" class="ring-fill" ' +
-      'stroke-dasharray="' + C + '" stroke-dashoffset="0" transform="rotate(-90 36 36)"/>';
-    const num = h('div', { className: 'countdown-num' });
-    paintCountdownNum(num, remaining);
-    const ringWrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
-
-    // Same identity strip as the editor — who's posting shouldn't be ambiguous right
-    // before it actually publishes.
+  // Same identity strip the editor carries: who is posting should not be ambiguous at the
+  // moment it actually publishes. Built fresh on each call, because a DOM element lives in
+  // exactly one place and the editor already has one on screen.
+  function composeAuthorStrip() {
     const active = state.accounts.find((acc) => acc.pubkey === state.activePubkey);
     const author = h('div', { className: 'compose-author' });
     author.append(avatarEl(active || {}, 'compose-author-av'));
@@ -12226,39 +11099,9 @@
         h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
       ])
     );
-
-    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-    const now = h('button', { className: 'primary', textContent: confirmLabel || 'Post now' });
-    const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-
-    async function fire() {
-      stop();
-      now.disabled = true;
-      now.textContent = 'Posting…';
-      await onFire();
-    }
-    now.addEventListener('click', fire);
-    cancel.addEventListener('click', () => { stop(); onCancel(); });
-
-    modal.append(
-      h('h3', { textContent: title }),
-      author,
-      h('p', { className: 'hint', textContent: hint || 'Review before it posts.' }),
-      preview,
-      ringWrap,
-      h('div', { className: 'actions' }, [now, cancel])
-    );
-
-    const fill = ring.querySelector('.ring-fill');
-    timer = setInterval(() => {
-      remaining -= 1;
-      paintCountdownNum(num, remaining);
-      fill.setAttribute('stroke-dashoffset', String(C * (1 - remaining / secs)));
-      if (remaining <= 0) fire();
-    }, 1000);
-
-    return { stop };
+    return author;
   }
+
 
   // Resolved once per post: the toggle is worded "Review countdown before posting"
   // and covers everything publishable, so comments read the same setting as notes
@@ -12270,14 +11113,6 @@
   //
   // Absent from the map means off. The bits ARE the value, so there is no enabled flag
   // that can drift out of step with the level it is supposed to be gating.
-  async function powSetting(pubkey) {
-    let s = {};
-    try { s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
-    const bits = ((s && s.powBy) || {})[pubkey];
-    return POW_LEVELS.some((l) => l.bits === bits)
-      ? { on: true, bits }
-      : { on: false, bits: POW_DEFAULT_BITS }; // default OFF: this spends the user's time
-  }
 
   // ---- mining ----------------------------------------------------------------------
   //
@@ -12285,16 +11120,7 @@
   // nostr-tools than hashing. Cancel TERMINATES it rather than asking it to stop: the
   // mining loop never yields, so a stop message would sit unread in the queue until the
   // work it was meant to interrupt had finished. The next mine builds a fresh one.
-  let powWorker = null;
-  let powSeq = 0;
-  const powPending = new Map();
 
-  function powWorkerSettleAll(err) {
-    for (const [id, p] of powPending) {
-      powPending.delete(id);
-      p.reject(err);
-    }
-  }
 
   // A MINE THAT HAS LEFT THE COMPOSER. Null unless one is minimized.
   //
@@ -12388,67 +11214,37 @@
     }
   }
 
-  function powCancel() {
-    // Nothing in flight: leave the warm worker alone. Called unconditionally when the
-    // composer closes, and terminating an idle one there would make the next Low mine pay
-    // to load nostr-tools again for no reason.
-    if (!powPending.size) return;
-    if (powWorker) {
-      powWorker.terminate();
-      powWorker = null;
-    }
-    // Flagged rather than matched on its message: stopping a mine is a decision, and the
-    // composer has to be able to tell it apart from a mine that broke, which reads the
-    // same way through a rejected promise.
-    const stopped = new Error('Mining canceled');
-    stopped.canceled = true;
-    powWorkerSettleAll(stopped);
-  }
 
   // Resolves with the mined event: same fields, plus a nonce tag whose id carries the
   // zeros. Nothing else about the event moves, which is what lets finalizeEvent recompute
   // the identical id at signing time. onProgress gets { attempts, best } as it runs.
-  function minePow(event, bits, onProgress) {
-    if (typeof Worker !== 'function') {
-      return Promise.reject(new Error('This browser cannot mine in the background'));
-    }
-    if (!powWorker) {
-      powWorker = new Worker(chrome.runtime.getURL('pow-worker.js'));
-      powWorker.onmessage = (e) => {
-        const { id, ok, event: mined, error, progress, attempts, best, difficulty } = e.data || {};
-        const p = powPending.get(id);
-        if (!p) return;
-        if (progress) { if (p.onProgress) p.onProgress({ attempts, best }); return; }
-        powPending.delete(id);
-        if (ok) p.resolve({ event: mined, attempts, difficulty });
-        else p.reject(new Error(error || 'Mining failed'));
-      };
-      powWorker.onerror = () => {
-        // A packaging miss or a load failure. Settle everything waiting rather than
-        // leaving a promise that never resolves and a composer stuck on "Mining".
-        powWorker = null;
-        powWorkerSettleAll(new Error('Mining failed to start'));
-      };
-    }
-    return new Promise((resolve, reject) => {
-      const id = ++powSeq;
-      powPending.set(id, { resolve, reject, onProgress });
-      powWorker.postMessage({ id, event, bits });
-    });
-  }
 
-  async function postCountdownSetting() {
-    let s = {};
-    try { s = (await call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
-    const secs = NOTE_COUNTDOWN_PRESETS.includes(s.noteCountdownSecs)
-      ? s.noteCountdownSecs
-      : NOTE_COUNTDOWN_DEFAULT;
-    return { on: s.noteCountdown !== false, secs }; // default on
-  }
 
   // opts.replyTo — the event this note answers. Changes the kind and tags (replyTags),
   // and puts the target above the editor so what you are answering is on screen while
   // you write it.
+  // The expanded composer, if one is on screen.
+  //
+  // getContexts, not tabs.query, and the difference is not style. The manifest asks for
+  // https://*/* and nothing else, so tab.url is readable for web pages and blank for a
+  // chrome-extension:// one: a query filtered on compose.html's URL matches nothing, and
+  // adding the "tabs" permission to see a document we own ourselves would widen what
+  // Sidecar can read across every tab the user has open. getContexts lists the
+  // extension's own documents and asks for nothing.
+  async function liveComposeTab() {
+    try {
+      if (!chrome.runtime.getContexts) return null;
+      const url = chrome.runtime.getURL('compose.html');
+      const ctxs = await chrome.runtime.getContexts({ contextTypes: ['TAB'] });
+      return (ctxs || []).find((c) => c.documentUrl && c.documentUrl.split('#')[0] === url) || null;
+    } catch (_) {
+      // An older Chrome without getContexts, or a call that threw. Falling through to
+      // opening the panel composer is the safe direction: the draft store is the same
+      // either way, and refusing to open a composer at all would be worse than a race.
+      return null;
+    }
+  }
+
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
       toast('Add an account first', 'error');
@@ -12459,6 +11255,31 @@
     // yet. It returns quietly rather than telling anyone to stop mining, which would be
     // asking them to throw away work to do something else.
     if (miningStatus) return;
+
+    // ONE COMPOSER PER ACCOUNT, because there is one draft slot per account.
+    //
+    // The expanded composer is the same draft in a tab, and both ends autosave on a 400ms
+    // debounce. Two of them open is last-writer-wins on every keystroke, and it gets worse
+    // than that: posting from one clears the slot while the other still holds the text in
+    // memory, so the next keystroke there republishes a note that already went out as a
+    // fresh draft. Start fresh in this chooser would delete what the tab is editing, and
+    // the tab would put it straight back.
+    //
+    // A reply is a different slot (draftKey appends the id it answers), so only the main
+    // composer collides and only the main composer is held back.
+    if (!(opts && opts.replyTo)) {
+      const open = await liveComposeTab();
+      if (open) {
+        // Focused rather than refused. The tab may be in another window, and a panel that
+        // simply does nothing when you tap Compose is indistinguishable from a broken one.
+        try {
+          await chrome.tabs.update(open.tabId, { active: true });
+          await chrome.windows.update(open.windowId, { focused: true });
+        } catch (_) { /* the tab went away between the query and the focus */ }
+        toast('Your draft is already open in a tab', 'info');
+        return;
+      }
+    }
     const pubkey = state.activePubkey;
     await devBuildReady;
     let devKindEnabled = false;
@@ -12629,14 +11450,13 @@
     }
 
     async function doPublish() {
-      const content = draft.text.trim();
-      // Shared with the page-comment path — see mentionPTags. Was inline here, which
-      // is how comments ended up shipping without it.
-      const pTags = mentionPTags(content);
-      // A body reference makes this a NIP-18 quote — see quoteTags. The quoted author
-      // gets a `p` tag as well (that's what turns the quote into a notification for
-      // them), without duplicating an @mention of the same person.
-      const quotes = quoteTags(content);
+      // The prose as typed is what mentions and quotes are scanned in; the content
+      // the note carries is that prose with the attachments appended at the end,
+      // which is the same thing the preview showed.
+      const prose = draft.text.trim();
+      const content = composeNoteContent(prose, draft.media);
+      const pTags = mentionPTags(prose);
+      const quotes = quoteTags(prose);
       const seenP = new Set(pTags.map((t) => t[1]));
       for (const pk of quotes.authors) {
         if (seenP.has(pk)) continue;
@@ -12658,6 +11478,12 @@
       const tags = settings && settings.showClientTag === false
         ? [...base, ...bodyP, ...quotes.tags]
         : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
+      // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after
+      // the body-derived tags. Undescribed media emits nothing, so a note of bare
+      // URLs is byte-identical to what it published before alt text existed. A poll
+      // carries no media — the editor offers one or the other — and this is harmless
+      // even if a draft arrives carrying both.
+      tags.push(...imetaTagsForMedia(draft.media));
       const now = Math.floor(Date.now() / 1000);
       // A poll is never a reply: the editor does not offer one on a reply, and reply
       // drafts live in their own slot, so this cannot arrive carrying both. Guarded
@@ -12756,6 +11582,16 @@
       const mentionEditor = createMentionEditor({
         placeholder: replyTo ? 'Write your reply…' : "What’s on your mind?",
         onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
+        // A URL pasted on its own becomes a real attachment: cut from the prose,
+        // into the strip, appended at publish — as if it had been uploaded.
+        onAttachUrl: (url) => {
+          removeUrlFromEditor(editor, url);
+          draft.media.push({ url, isVideo: false });
+          mentionEditor.sync(); // re-emit after the direct DOM cut, so the draft agrees
+          scheduleSave();
+          updatePostState();
+          renderThumbs();
+        },
       });
       mentionEditor.setText(draft.text);
       const editor = mentionEditor.editor;
@@ -12764,7 +11600,10 @@
       const previewPane = h('div', { className: 'compose-preview hidden' });
       function renderPreview() {
         previewPane.innerHTML = '';
-        const bodyText = draft.text.trim();
+        // What will actually go out: the prose and, appended at the end, the
+        // attachments — the preview and the published note are rendered from the
+        // one composed string.
+        const bodyText = composeNoteContent(draft.text, draft.media);
         if (bodyText) {
           const body = h('div', { className: 'preview-body' });
           renderNotePreview(body, bodyText);
@@ -12805,6 +11644,8 @@
       tabPreview.addEventListener('click', () => setMode(true));
 
       const thumbs = h('div', { className: 'compose-thumbs' });
+      // Where a dragged thumb will land, across renderThumbs' rebuilds.
+      let dragFrom = -1;
       function renderThumbs() {
         thumbs.innerHTML = '';
         draft.media.forEach((m, i) => {
@@ -12814,39 +11655,119 @@
           // chrome-extension:// referrer and 403, which renders as a broken thumb.
           el.referrerPolicy = 'no-referrer';
           el.src = m.url;
+          // The cell is what drags; an img's own native drag would hijack the gesture.
+          el.draggable = false;
           if (m.isVideo) el.muted = true;
           cell.append(el);
+          // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the
+          // editor and are appended at publish in this array's order, so with more
+          // than one attachment the thumbs drag.
+          cell.draggable = draft.media.length > 1;
+          cell.addEventListener('dragstart', (e) => {
+            dragFrom = i;
+            cell.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', String(i)); } catch (_) {}
+          });
+          cell.addEventListener('dragover', (e) => {
+            if (dragFrom === -1 || dragFrom === i) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            cell.classList.add('drop-target');
+          });
+          cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
+          cell.addEventListener('drop', (e) => {
+            e.preventDefault();
+            cell.classList.remove('drop-target');
+            if (dragFrom === -1 || dragFrom === i) return;
+            const moved = draft.media.splice(dragFrom, 1)[0];
+            draft.media.splice(i, 0, moved);
+            dragFrom = -1;
+            closeAltEditor(); // the open row edits a slot the drag may have moved
+            scheduleSave();
+            renderThumbs();
+          });
+          cell.addEventListener('dragend', () => {
+            dragFrom = -1;
+            cell.classList.remove('dragging');
+            thumbs.querySelectorAll('.drop-target').forEach((t) => t.classList.remove('drop-target'));
+          });
+          if (!m.isVideo) {
+            // The chip zap.cooking puts on its own thumbnails: + ALT until the image
+            // is described, ✓ ALT once it is. Tapping it opens the editor row below
+            // the strip; the tag itself only goes out for described images.
+            const alt = h('button', {
+              className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
+              title: m.alt ? 'Edit the image description' : 'Add a description',
+              type: 'button',
+            });
+            alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
+            alt.addEventListener('click', () => openAltEditor(i));
+            cell.append(alt);
+          }
           const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
-            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-            let wn;
-            while ((wn = walker.nextNode())) {
-              if (wn.textContent.includes(m.url)) {
-                wn.textContent = wn.textContent.replace('\n' + m.url, '').replace(m.url, '');
-                break;
-              }
-            }
+            // The URL lives in the media slot alone now; taking the thumb off is
+            // just taking the attachment off the note.
             draft.media.splice(i, 1);
-            mentionEditor.sync();
+            closeAltEditor(); // the row edits a media slot that no longer exists
+            scheduleSave();
+            updatePostState();
             renderThumbs();
           });
           cell.append(rm);
           thumbs.append(cell);
         });
+        mediaDrawer.sync();
       }
+      // The attachments' reference drawer, seated between the strip and whatever
+      // row comes next: collapsed it is one line saying where the attachments go.
+      // Appended as a sibling in the modal's own list — a thumbs.after() here would
+      // run while thumbs is still detached and never reach the document.
+      const mediaDrawer = buildMediaDrawer(() => draft.media);
       renderThumbs();
 
-      // Append a media URL on its own line. Decides the separator from the
-      // SERIALIZED text (what gets posted), and breaks on a newline rather than
-      // any trailing whitespace — so an image pasted right after a mention/tag
-      // can never glue to it (a bech32 or #hashtag followed by a URL corrupts
-      // both when the note is parsed). No-ops the break for an empty editor or
-      // one already ending in a newline.
-      function appendMediaUrl(url) {
-        const existing = serializeEditor(editor);
-        const sep = existing && !/\n$/.test(existing) ? '\n' : '';
-        editor.append(document.createTextNode(sep + url));
+      // ---- the ALT editor, one image at a time ----
+      //
+      // An inline row under the strip rather than a second modal: the composer IS a
+      // modal here, and rebuilding it around a saved description would cost the caret
+      // the same way the review countdown would have. The row builds in the core, so
+      // the tab gets the same one.
+      let altRow = null;
+      let altIndex = -1; // the slot the open row edits, so its own chip toggles it shut
+      function closeAltEditor() {
+        if (altRow) { altRow.remove(); altRow = null; }
+        altIndex = -1;
+      }
+      function openAltEditor(i) {
+        const m = draft.media[i];
+        if (!m) return;
+        if (altRow && altIndex === i) { closeAltEditor(); return; }
+        closeAltEditor();
+        altIndex = i;
+        // Commits as it types (the row debounces half a second) and on every way
+        // out — the same autosave promise the text in the editor keeps.
+        function saveAltInto(slot, value) {
+          const cur = draft.media[slot];
+          if (!cur) return;
+          // Normalized once here and again on publish (buildImetaTag), because a
+          // draft can publish without the editor ever being opened.
+          const cleaned = capAltText(normalizeAltBreaks(value));
+          if (cleaned) cur.alt = cleaned; else delete cur.alt;
+          scheduleSave();
+          renderThumbs();
+        }
+        altRow = buildAltEditorRow({
+          url: m.url,
+          alt: m.alt,
+          onChange: (value) => saveAltInto(i, value),
+          onSave: (value) => {
+            closeAltEditor();
+            saveAltInto(i, value);
+          },
+        });
+        mediaDrawer.wrap.after(altRow);
       }
 
       const fileInput = document.createElement('input');
@@ -12866,9 +11787,13 @@
         lbl.textContent = 'Uploading…';
         try {
           const url = await uploadMedia(file, pubkey);
+          // Into the media slot only. The URL is appended to the content at publish
+          // (composeNoteContent), so nothing touches the editor here — and since no
+          // input event fires, both the autosave and the Post button (media alone is
+          // postable) have to be told by hand.
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
-          appendMediaUrl(url);
-          mentionEditor.sync();
+          scheduleSave();
+          updatePostState();
           renderThumbs();
         } catch (e) {
           err.textContent = e.message;
@@ -12899,9 +11824,9 @@
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey);
             draft.media.push({ url, isVideo: false });
-            appendMediaUrl(url);
           }
-          mentionEditor.sync();
+          scheduleSave();
+          updatePostState();
           renderThumbs();
         } catch (e) {
           err.textContent = e.message;
@@ -12943,6 +11868,8 @@
         const at = order.indexOf(powForThisPost.on ? powForThisPost.bits : null);
         const next = order[(at + 1) % order.length];
         powForThisPost = next == null ? { on: false, bits: powForThisPost.bits } : { on: true, bits: next };
+        draft.pow = powForThisPost;
+        scheduleSave();
         paintPowBtn();
       });
       paintPowBtn();
@@ -13136,6 +12063,10 @@
       const err = h('div', { className: 'error' });
       const post = h('button', { className: 'primary', textContent: 'Post' });
       function updatePostState() {
+        // The tab composes a note. A poll is a different kind with its own editor, so
+        // once one is open the way out of the panel goes away rather than quietly
+        // publishing the question without its options.
+        if (expand) expand.classList.toggle('hidden', !!draft.poll);
         if (draft.poll) {
           // A poll needs its question, where a plain note can be an image on its own:
           // the content IS the question, and a 1068 with an empty content is a set of
@@ -13172,6 +12103,69 @@
         ])
       );
 
+      // ---- take this somewhere bigger ----
+      //
+      // The panel is 360px wide, which is the right size for approving a signature and
+      // the wrong size for writing anything you would want to read back. This opens the
+      // same draft in a tab at a type scale you can think in.
+      //
+      // THE SAME DRAFT, not a copy: both ends read and write the one slot in the
+      // background's encrypted draft store, so the text is already there before the tab
+      // exists. Nothing is passed in the URL, because a handover has a moment where the
+      // text lives in one place only and that is the moment a tab gets closed.
+      //
+      // Replies do not offer it. The page composes a top-level note, and a reply that
+      // arrived there would quietly publish as one, which is the exact failure the draft
+      // store learned to carry replyTo to avoid.
+      //
+      // A WORD, ON THE TAB BAR, rather than an icon in the corner. The corner already
+      // belongs to the close box, so a second button there sat on top of it, and the
+      // outward arrow that reads as "expand" in most apps reads here as leaving the
+      // browser entirely. Write / Preview / Expand is a row of three things you can do
+      // with what you are writing, and the third one says what it is.
+      const expand = replyTo ? null : h('button', {
+        className: 'compose-expand', type: 'button', textContent: 'Expand',
+        title: 'Write in a tab, with room to read it back',
+      });
+      if (expand) {
+        expand.addEventListener('click', async () => {
+          expand.disabled = true;
+          try {
+            persistDraft();
+            // WHERE IT WILL PUBLISH, decided here and left with the draft. Working out an
+            // account's write set means its NIP-65 list, the configured relays, or the
+            // declared set alone when the account asked for NIP-65 only, and that last
+            // case is why the page must not guess: publishing a NIP-65-only account to
+            // the configured list is precisely what the setting exists to stop.
+            let relays = null;
+            try { relays = await postRelays(); } catch (_) {}
+            if (relays && relays.length) {
+              const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+              if (all[dkey]) {
+                all[dkey].expandRelays = relays;
+                await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+              }
+            }
+            // And never a second tab: same reason the panel composer stands down for one.
+            const open = await liveComposeTab();
+            if (open) {
+              try {
+                await chrome.tabs.update(open.tabId, { active: true });
+                await chrome.windows.update(open.windowId, { focused: true });
+              } catch (_) {}
+            } else {
+              chrome.tabs.create({ url: chrome.runtime.getURL('compose.html') });
+            }
+            closeModal();
+          } catch (e) {
+            expand.disabled = false;
+            toast(e.message || 'Could not open a tab', 'error');
+          }
+        });
+      }
+
+      if (expand) tabBar.append(expand);
+
       modal.append(
         h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
         author,
@@ -13181,6 +12175,7 @@
         editorWrap,
         previewPane,
         thumbs,
+        mediaDrawer.wrap,
         h('div', { className: 'compose-actions' }, [addBtn, pollAdd, powBtn]),
         fileInput,
         pollWrap,
@@ -13246,7 +12241,9 @@
         previewScroll.append(h('p', { className: 'hint', textContent: 'Demo event kind: ' + devKind }));
       }
       const previewBody = h('div', { className: 'preview-body' });
-      const bodyText = draft.text.trim();
+      // The composed string — attachments appended — is what publishes, so it is
+      // what this last screen shows. Media alone still previews as the note it is.
+      const bodyText = composeNoteContent(draft.text, draft.media);
       if (bodyText) renderNotePreview(previewBody, bodyText);
       else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
       previewScroll.append(previewBody);
@@ -13270,6 +12267,7 @@
       }
       countdown = showPostCountdown({
         modal,
+        author: composeAuthorStrip(),
         secs,
         title: draft.poll && !replyTo ? 'Posting your poll' : replyTo ? 'Posting your reply' : 'Posting your note',
         preview: previewScroll,
@@ -13292,8 +12290,12 @@
       // No length-based truncation here: a fixed character cutoff could slice
       // through the middle of a nostr:npub1… mention, breaking it — the box
       // already clips visually (max-height + overflow:hidden), matching how
-      // the Preview tab and the final review screen handle the same text.
-      const preview = (saved.text || '').trim().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
+      // the Preview tab and the final review screen handle the same text. The saved
+      // text is stripped of the attachment URLs an older draft carried in it — since
+      // they moved to the media slot, prose and attachments are previewed the way
+      // they publish.
+      const preview = stripDraftMediaUrls(saved.text, saved.media).trim()
+        .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
       const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
         ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
@@ -13301,9 +12303,23 @@
 
       const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
       resume.addEventListener('click', () => {
-        // Restore the target too, or this resumes as a note and posts as one.
+        // Restore the target too, or this resumes as a note and posts as one. And
+        // strip the attachment URLs an older draft carried in its text: they live in
+        // the media slot alone now, or publishing would append them a second time.
         replyTo = saved.replyTo || null;
-        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo, poll: saved.poll || null };
+        draft = {
+          text: stripDraftMediaUrls(saved.text, saved.media),
+          media: (saved.media || []).slice(),
+          replyTo,
+          poll: saved.poll || null,
+        };
+        // The rung chosen for THIS draft, over the account's standing one. Resuming a
+        // note and finding its difficulty reset is the same surprise as finding its
+        // reply target reset, which is why that is restored on the line above.
+        if (saved.pow && typeof saved.pow.bits === 'number') {
+          powForThisPost = { on: !!saved.pow.on, bits: saved.pow.bits };
+          draft.pow = powForThisPost;
+        }
         showEditor();
       });
       const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
@@ -16931,23 +15947,6 @@
   // four-glyph figures (and the countdown rings, which are one or two) are untouched
   // and only longer figures compress. Scaling rather than clamping each value keeps
   // the ragged ORDER intact: it is the same pattern played faster, not a different one.
-  const STRIKE_DELAY_MOD_MS = 300;
-  const STRIKE_DELAY_WINDOW_MS = 111;
-  const STRIKE_DUR_BASE_MS = 900;
-  const STRIKE_DUR_STEPS = 5;
-  const STRIKE_DUR_STEP_MS = 90;
-  const rawStrikeDelay = (i) => (i * 37) % STRIKE_DELAY_MOD_MS;
-  const glyphBeat = (i, n) => {
-    // The widest raw delay this many glyphs actually reaches — not the modulus, which
-    // only a long figure gets near.
-    let span = 0;
-    for (let k = 0; k < n; k++) span = Math.max(span, rawStrikeDelay(k));
-    const squeeze = span > STRIKE_DELAY_WINDOW_MS ? STRIKE_DELAY_WINDOW_MS / span : 1;
-    return {
-      delay: Math.round(rawStrikeDelay(i) * squeeze),
-      duration: STRIKE_DUR_BASE_MS + ((i * 53) % STRIKE_DUR_STEPS) * STRIKE_DUR_STEP_MS,
-    };
-  };
 
   // The figure each balance SURFACE last painted, as raw sats, per account. Two jobs:
   //
@@ -17087,34 +16086,6 @@
   //
   // The balances and the countdown rings share this; the theme rules key off the
   // classes, not off where the figure hangs.
-  // The strike dice, dealt wherever they are needed. The limits are tight on
-  // purpose — rotation within +-3deg, slippage within +-0.035em sideways, seat
-  // height within +-0.03em up or down — enough that no two strikes of the same
-  // figure ever land alike (a hand-held stamp is never twice in the same place)
-  // without threatening legibility even at 9px. Emitted for every theme; the
-  // cast-iron rules are the only consumers.
-  function ironDiceStyle() {
-    return '--iron-rot:' + ((Math.random() * 6) - 3).toFixed(2) + 'deg'
-      + ';--iron-dx:' + ((Math.random() * 0.07) - 0.035).toFixed(3) + 'em'
-      + ';--iron-dy:' + ((Math.random() * 0.06) - 0.03).toFixed(3) + 'em';
-  }
-
-  function splitGlyphs(el, text, strike) {
-    el.textContent = '';
-    const glyphs = Array.from(text);
-    // Fresh dice at every split (see ironDiceStyle) — not seeded off --i or the
-    // glyph itself, because re-rendering the same balance should land differently.
-    glyphs.forEach((ch, i) => {
-      const { delay, duration } = glyphBeat(i, glyphs.length);
-      el.append(h('span', {
-        className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep')
-          + (i % 2 ? ' bal-alt' : '') + (strike(i) ? ' bal-in' : ''),
-        textContent: ch,
-        style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`
-          + ';' + ironDiceStyle(),
-      }));
-    });
-  }
 
   // ---- hand-stamped display type -------------------------------------------------
   // splitGlyphs strikes the figures; this extends the same deal-every-character-dice
@@ -17253,14 +16224,6 @@
   // on a fresh element strikes everything, because the number is arriving.
   // Reduce motion (settings) keeps the figure plain, and the OS-level
   // prefers-reduced-motion overrides in each theme file are the second gate.
-  function paintCountdownNum(el, n) {
-    const text = String(Math.max(n, 0));
-    const fresh = !el.querySelector('.bal-glyph');
-    const prev = el.textContent;
-    const off = prev.length - text.length;
-    splitGlyphs(el, text, (i) =>
-      !reduceBalanceMotion && (fresh || prev.charAt(off + i) !== text.charAt(i)));
-  }
 
   // Force both balance surfaces to strike on their next paint, whatever figure they
   // are already showing. Hiding or revealing balances changes what the tube

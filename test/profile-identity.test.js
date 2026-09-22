@@ -23,7 +23,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// resolveMentions moved to composer-core.js with the rest of the preview renderer, so
+// the expanded composer page could share it. Both files are the panel's source here.
+const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const bare = panel.replace(/^\s*\/\/.*$/gm, '');
 
 function lift(src, decl) {
