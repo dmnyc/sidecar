@@ -246,7 +246,7 @@ test('THE TAB OPENS ON WHAT IT SHOWED LAST TIME', () => {
   assert.match(fill, /const cached = _pollListCache\.get\(pubkey\);/);
 
   // Painted before the query, or the cache buys nothing: the point is not waiting.
-  const paintedFromCache = fill.indexOf('rows = paint(cached.polls, cached.counts);');
+  const paintedFromCache = fill.indexOf('rows = paint(cached.polls, cached.counts, cached.wins);');
   const firstQuery = fill.indexOf('kinds: [POLL_KIND], authors: [active.pubkey]');
   assert.ok(paintedFromCache > -1, 'nothing paints from the cache');
   assert.ok(firstQuery > -1 && paintedFromCache < firstQuery, 'the cache must paint before the relays are asked');
@@ -260,11 +260,13 @@ test('THE TAB OPENS ON WHAT IT SHOWED LAST TIME', () => {
   // ONE RENDERER, or a cached row and a fresh row drift apart in everything but the number.
   // Two calls: the cache paints, and the fresh set repaints when it differs. The definition
   // reads `paint = (`, so it is deliberately not one of them.
-  assert.match(fill, /const paint = \(polls, counts\) =>/, 'the shared renderer');
+  // Three arguments now: the third carries the result of a finished poll, which is what
+  // its row shows instead of its age.
+  assert.match(fill, /const paint = \(polls, counts, wins\) =>/, 'the shared renderer');
   assert.equal((fill.match(/paint\(/g) || []).length, 2, 'one cache paint, one fresh paint');
   // Redrawn only when the set moved, since a rebuild puts the pane back at the top and the
   // usual news here is a number rather than a new row.
-  assert.match(fill, /if \(!sameSet\) rows = paint\(polls, counts\);/);
+  assert.match(fill, /if \(!sameSet\) rows = paint\(polls, counts, wins\);/);
 });
 
 test('AN OPTION TITLE STARTS AT THE CHEVRON, WHATEVER ITS LENGTH', () => {
@@ -330,10 +332,18 @@ test('the waiting line reads as work, and cannot drift from its own shadow', () 
     assert.doesNotMatch(bare, new RegExp("textContent: '" + label + "'"), label + ' needs an indicator');
     assert.ok(bare.includes("waitingRow('" + label + "')"), label + ' must use the shared row');
   }
-  // The count cell shimmers only while it is unknown, and is cleared when the votes land.
+  // The count cell shimmers only while it is unknown, and is cleared when the value lands.
+  //
+  // `shown` rather than `known`, because the cell carries two different values now: a
+  // running poll shows its vote total, a finished one shows the winner's share. One
+  // setWaiting covers both, which is the point. A second call for the finished case would
+  // be a second thing to remember to turn off, and the shimmer guard in
+  // loading-indicators.test.js would have been loosened to let it through.
   assert.match(bare, /const known = counts\.get\(ev\.id\);/);
-  assert.match(bare, /setWaiting\(h\('span', \{ className: 'poll-row-count' \}\), known \|\| '…', !known\)/);
+  assert.match(bare, /const shown = past && win \? win\.share : known;/);
+  assert.match(bare, /setWaiting\(h\('span', \{ className: 'poll-row-count' \}\), shown \|\| '…', !shown\)/);
   assert.match(bare, /setWaiting\(cell, fresh\.get\(ev\.id\), false\)/, 'the landed count must stop sweeping');
+  assert.match(bare, /setWaiting\(cell, win\.share, false\)/, 'a late result must stop sweeping too');
 
   // THE COLORS BELONG ON THE ELEMENT, NOT ON :root. A var() inside a custom property
   // resolves against the element the property is declared on, and :root is where the themes

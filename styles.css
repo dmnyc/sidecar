@@ -5390,6 +5390,41 @@ button.poll-bar-head {
   color: var(--muted);
 }
 .poll-row-count { font-variant-numeric: tabular-nums; }
+/* THE GROUP HEADING, and it is a label rather than a row. No border, no hover, no
+   padding to match .item: those would make it look like a poll you could open, and the
+   one thing it must not be is clickable-looking in a list where everything else is.
+
+   The flat list paints borders on .item only, so this sits in the gap between groups
+   without needing the border rules undone. */
+.poll-group {
+  padding: 10px 14px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+/* A finished poll is quieter than a running one. The question stays legible; what drops
+   is the weight of the row against the ones above it, which is the whole reason the
+   groups exist. */
+.poll-row-past .poll-row-q { color: var(--text-2); }
+/* The winning option, in the slot that used to hold "ended 180d ago". Truncates because
+   an option label has no length limit and the line already carries the share beside it.
+
+   inline-block with a max-width rather than a flex row, deliberately. The separator
+   between the two halves is a bare " · " text node, and in a flex container that becomes
+   an anonymous flex item whose leading and trailing spaces are dropped, so the line would
+   close up to "Gimli·24 of 46". Keeping the meta a block leaves the text node alone. */
+.poll-row-win {
+  display: inline-block;
+  max-width: 58%;
+  vertical-align: bottom;
+  color: var(--lav);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* The arrow on a vote notification. Up-right means "leaves Sidecar" on every other row
    in this panel; a vote opens the tally in place, so its chevron is turned to point
