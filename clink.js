@@ -205,6 +205,13 @@ window.SidecarCLINK = (function () {
     return new Promise((resolve, reject) => {
       let settled = false;
       let sub = null;
+      // SILENCE AND GIBBERISH ARE DIFFERENT FAILURES, so they get different sentences.
+      // A reply we cannot decrypt still has to be ignored rather than thrown on, since a
+      // relay may hand us somebody else's traffic, but if NOTHING readable ever arrives
+      // the distinction is the whole diagnosis: "offline" sends you to ask the payee,
+      // "could not be read" sends you here. Reporting both as offline is what made the
+      // pre-wrapped REQ filter look like a relay problem for five commits.
+      let unreadable = 0;
       const finish = (fn, arg) => {
         if (settled) return;
         settled = true;
@@ -213,7 +220,9 @@ window.SidecarCLINK = (function () {
         fn(arg);
       };
       const timer = setTimeout(
-        () => finish(reject, new Error('The offer did not answer. Its wallet may be offline.')),
+        () => finish(reject, new Error(unreadable
+          ? 'Its wallet answered, but the reply could not be read.'
+          : 'The offer did not answer. Its wallet may be offline.')),
         options.timeoutMs || DEFAULT_TIMEOUT_MS
       );
 
@@ -232,7 +241,8 @@ window.SidecarCLINK = (function () {
         try {
           parsed = JSON.parse(await deps.decrypt(offer.pubkey, ev.content));
         } catch (_) {
-          return; // not ours, or not readable: keep listening rather than fail on it
+          unreadable++; // keep listening, but remember this for the timeout's wording
+          return;
         }
         if (parsed && typeof parsed.bolt11 === 'string' && parsed.bolt11) {
           finish(resolve, { bolt11: parsed.bolt11, offer });

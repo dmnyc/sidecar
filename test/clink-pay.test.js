@@ -159,6 +159,22 @@ test('UNREADABLE EVENTS ARE STEPPED OVER, NOT FATAL', async () => {
   assert.equal(res.bolt11, 'lnbc-real');
 });
 
+test('BUT NOTHING READABLE AT ALL IS A DIFFERENT SENTENCE FROM NOTHING AT ALL', async () => {
+  // Both used to time out with "its wallet may be offline", which sends somebody to ask
+  // the payee about a wallet that is answering fine. The two cases point at opposite
+  // ends: silence is theirs, gibberish is ours. Telling them apart is what a swallowed
+  // catch costs, and this exchange has already paid it once.
+  const junk = { pubkey: OFFER.pubkey, content: 'sealed:not json at all' };
+  const { api } = harness([junk]);
+  await assert.rejects(api.requestInvoice(OFFER, { amountSats: 21, timeoutMs: 60 }),
+    /could not be read/, 'an unreadable reply still reports the wallet as offline');
+
+  // And silence keeps the sentence that fits it.
+  const { api: quiet } = harness(undefined);
+  await assert.rejects(quiet.requestInvoice(OFFER, { amountSats: 21, timeoutMs: 40 }),
+    /may be offline/);
+});
+
 // ---- the panel side --------------------------------------------------------------
 
 test('THE PANEL LENDS ITS OWN SIGNER AND POOL, AND CLINK HOLDS NEITHER', () => {
@@ -175,8 +191,13 @@ test('THE PANEL LENDS ITS OWN SIGNER AND POOL, AND CLINK HOLDS NEITHER', () => {
   assert.match(bare, /type: 'SIDECAR_OWNER_DECRYPT', nip: 44, peer, ciphertext/);
   assert.match(bare, /type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state\.activePubkey/);
   // Both halves name the offer's relay explicitly rather than using the account's.
-  assert.match(bare, /subscribe: \(relay, filter, onevent\) => poolSubscribeMany\(\[relay\], \[filter\], \{ onevent \}\)/);
+  assert.match(bare, /subscribe: \(relay, filter, onevent\) => poolSubscribeMany\(\[relay\], filter, \{ onevent \}\)/);
   assert.match(bare, /poolPublish\(\[relay\], event\)/);
+  // AND THE FILTER IS NOT PRE-WRAPPED. This assertion used to pin the bug rather than
+  // catch it: it matched `[filter]`, which is what shipped, and what made every offer
+  // report itself offline. Stated as a refusal so the shape cannot come back.
+  assert.doesNotMatch(bare, /poolSubscribeMany\(\[relay\], \[filter\]/,
+    'the filter is wrapped in an array again, which sends a REQ no relay will match');
 
   // Loaded before the panel that installs it, or that install throws on the way up and
   // takes the whole side panel with it.

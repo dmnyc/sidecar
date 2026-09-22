@@ -1901,7 +1901,13 @@
     decrypt: (peer, ciphertext) => call({
       type: 'SIDECAR_OWNER_DECRYPT', nip: 44, peer, ciphertext,
     }),
-    subscribe: (relay, filter, onevent) => poolSubscribeMany([relay], [filter], { onevent }),
+    // ONE FILTER OBJECT, NOT AN ARRAY. The vendored nostr-tools wraps it itself, so a
+    // filter handed over pre-wrapped is serialized straight into the REQ frame as
+    // `["REQ","<id>",[{…}]]`, an array where the relay expects a filter. strfry matches
+    // nothing against that, no reply is ever delivered, and the 30s timer reports the
+    // offer as offline when the wallet answered fine. Same rule as the notification
+    // subscriptions below; this was the one call site that broke it.
+    subscribe: (relay, filter, onevent) => poolSubscribeMany([relay], filter, { onevent }),
     publish: async (relay, event) => {
       const results = await Promise.allSettled(poolPublish([relay], event));
       if (!results.some((r) => !publishFailed(r))) {
