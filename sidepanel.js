@@ -1772,7 +1772,10 @@
     const domain = at === -1 ? id : id.slice(at + 1);
     const resp = await fetch(
       'https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name),
-      { signal: AbortSignal.timeout(8000) }
+      // no-cache, like the account verify: a handle re-pointed at a new key must
+      // not read as the old key for as long as the host's cache-control says so —
+      // stale here is not a wrong badge, it is the wrong PERSON.
+      { signal: AbortSignal.timeout(8000), cache: 'no-cache' }
     );
     if (!resp.ok) throw new Error('lookup failed');
     const data = await resp.json();
@@ -2147,7 +2150,11 @@
           nip05Row.innerHTML = '';
           nip05Row.append(h('span', { textContent: c.nip05 }), badge);
           nip05Row.classList.remove('hidden');
-          verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res); });
+          const paint = () => verifyNip05(c.nip05, pubkey, { force: true }).then((res) => {
+            badge.innerHTML = '';
+            paintNip05Badge(badge, res, paint);
+          });
+          verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res, paint); });
         }
         // renderAbout APPENDS, and paint() runs twice — once from cache, once from
         // the relays — so the bio rendered twice on any already-cached profile.
@@ -7343,7 +7350,11 @@
         const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
         const badge = h('span', { className: 'nip05-badge' });
         nip05Val.append(badge, document.createTextNode(nip05));
-        verifyNip05(content.nip05, pubkey).then((res) => paintNip05Badge(badge, res));
+        const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
+          badge.innerHTML = '';
+          paintNip05Badge(badge, res, paint);
+        });
+        verifyNip05(content.nip05, pubkey).then((res) => paintNip05Badge(badge, res, paint));
       } else {
         nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
       }
@@ -9727,7 +9738,13 @@
     try {
       res = await fetch(
         'https://' + domain + '/.well-known/nostr.json?name=' + encodeURIComponent(name),
-        { signal: AbortSignal.timeout(NIP05_TIMEOUT) }
+        // no-cache REVALIDATES before serving: some hosts (nodestrich.com, for one)
+        // send their list with a 48-hour max-age, so a handle added to it after the
+        // browser first cached the file read as "the domain doesn't list this name"
+        // for two days — across every panel reload, since the HTTP cache outlives
+        // the page. The in-memory cache below still rate-limits disclosures; this
+        // only stops the HTTP cache from answering a check that has to be a check.
+        { signal: AbortSignal.timeout(NIP05_TIMEOUT), cache: 'no-cache' }
       );
     } catch (_) {
       // Offline, DNS failure, TLS failure, or a timeout. We did not reach the domain, so
@@ -9754,10 +9771,15 @@
   // CACHED, because the overview drawer is expanded by default: every render of the
   // Accounts tab used to fire a request at a third party, telling that host when the user
   // is active and how often. Same answer, far fewer disclosures.
-  async function verifyNip05(nip05, pubkey) {
+  // Cached, with force as the way around it: the in-memory TTL rate-limits
+  // disclosures to the domain, but the badge is also the refresh affordance — a
+  // tap must mean a real check, not a re-read of the last one.
+  async function verifyNip05(nip05, pubkey, opts) {
     const cacheKey = nip05 + '|' + pubkey;
-    const hit = _nip05Cache.get(cacheKey);
-    if (hit && hit.expiresAt > Date.now()) return hit.res;
+    if (!(opts && opts.force)) {
+      const hit = _nip05Cache.get(cacheKey);
+      if (hit && hit.expiresAt > Date.now()) return hit.res;
+    }
     const res = await checkNip05(nip05, pubkey);
     _nip05Cache.set(cacheKey, {
       res,
@@ -9777,11 +9799,18 @@
     malformed:   { cls: 'nip05-unknown', glyph: 'help',  title: 'The domain’s nostr.json isn’t valid' },
     unreachable: { cls: 'nip05-unknown', glyph: 'help',  title: 'Couldn’t reach the domain to check' },
   };
-  function paintNip05Badge(badge, res) {
+  function paintNip05Badge(badge, res, recheck) {
     const b = NIP05_BADGE[res && res.status] || NIP05_BADGE.unreachable;
     badge.classList.add(b.cls);
-    badge.title = b.title;
+    badge.title = b.title + (recheck ? ' Tap to check again.' : '');
     badge.append(icon(b.glyph));
+    // The badge is the refresh: a check is only as fresh as its last network trip,
+    // and the verdict a user is staring at may be days stale for reasons (a host's
+    // long cache, a train) that have already stopped being true.
+    if (recheck) {
+      badge.style.cursor = 'pointer';
+      badge.addEventListener('click', recheck);
+    }
   }
 
   async function renderProfile() {
@@ -9835,9 +9864,13 @@
         nip05Badge,
       ]);
       body.append(nip05Row);
+      const paint = () => verifyNip05(content.nip05, active.pubkey, { force: true }).then((res) => {
+        nip05Badge.innerHTML = '';
+        paintNip05Badge(nip05Badge, res, paint);
+      });
       verifyNip05(content.nip05, active.pubkey).then((res) => {
         nip05Badge.innerHTML = '';
-        paintNip05Badge(nip05Badge, res);
+        paintNip05Badge(nip05Badge, res, paint);
       });
     }
     // The chip copies; the button beside it shows the code. Two affordances rather than
