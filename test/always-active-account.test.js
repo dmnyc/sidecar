@@ -61,6 +61,46 @@ test('it takes the same account the confirm would have defaulted to', () => {
   assert.match(block, /if \(status === 'reject'\) throw new Error\('This site is blocked in Sidecar'\);/);
 });
 
+test('THE OPT-IN OUTRANKS A CLIENT THAT NAMES ITS AUTHOR', () => {
+  // Some clients stamp the intended author's pubkey on the template, and Sidecar honors
+  // it: that is a client saying which identity it means, which is better evidence than
+  // any guess we could make. On a host with this switch on it is still the wrong answer.
+  // The switch reads "Don't ask which account" over "Posts may not match the client",
+  // and a client naming an author is exactly the case that note is about, so following
+  // the stamp would deliver the opposite of what was turned on.
+  //
+  // So the lookup moved above the gate, and the gate lets an opted-in host through even
+  // when the author was named. Read once, and only for a content sign, so a DM decrypt
+  // does not pay for a storage read it has no use for.
+  assert.match(bgBare, /const alwaysActive = isContentSign \? await isAlwaysActiveHost\(host\) : false;/);
+  assert.match(bgBare, /if \(\(isContentSign \|\| appDataExempt\) && \(alwaysActive \|\| !authorNamed\)\) \{/);
+  assert.equal((bgBare.match(/await isAlwaysActiveHost\(/g) || []).length, 1,
+    'one read per request, not two that could disagree with each other');
+});
+
+test('naming the account we already meant to use is still naming it', () => {
+  // authorSwitched answers "did we have to move off the binding". The confirm needs the
+  // other question, "did the client say who it means", and the two part company on the
+  // commonest case of all: a client naming the same account the binding already holds.
+  // Read off authorSwitched, that client was treated as having named nothing, so we
+  // asked, and then defaulted the signature to the globally active account, which is the
+  // one identity it had just told us it did not want.
+  const pick = bgBare.slice(bgBare.indexOf('let authorSwitched = false;'), bgBare.indexOf('if (!activePubkey)'));
+  assert.match(pick, /if \(requestedAuthor && \(await KS\.hasAccount\(requestedAuthor\)\)\) \{/,
+    'the stamp is recognized on its own terms, not through a comparison');
+  assert.match(pick, /authorNamed = true;/);
+  assert.match(pick, /if \(requestedAuthor !== activePubkey\) \{\n\s*activePubkey = requestedAuthor;\n\s*authorSwitched = true;/,
+    'switching is still the narrower fact, and still only true when we actually moved');
+
+  // NOT the relay-auth exemption, which wants the narrow one. A kind 22242 from a client
+  // that stamps the author would otherwise lose its exemption and prompt on every relay
+  // connection, which is the "Signer did not respond in time" failure that exemption
+  // exists to prevent.
+  assert.match(bgBare, /const isRelayAuth = method === 'signEvent' && !authorSwitched && isNip42AuthEvent\(signEvent\);/);
+  // Nor the re-pin, which may only be moved by an identity choice that actually differs.
+  assert.match(bgBare, /if \(method === 'getPublicKey' \|\| authorSwitched \|\| sharedIdentity \|\| !\(await getSiteAccount\(host\)\)\)/);
+});
+
 test('forgetting a site forgets the opt-out with it', () => {
   // A host the user erased must not keep a standing instruction to skip the check if
   // they ever go back.

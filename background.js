@@ -1241,16 +1241,30 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // account we hold, honor it — the requested account's own per-site
     // permissions still gate the signature below, so a site can never quietly
     // reach an identity that hasn't approved it.
+    //
+    // NAMING AND SWITCHING ARE TWO DIFFERENT FACTS, and only one of them used to be
+    // recorded. authorSwitched answers "did we have to move off the binding", which is
+    // what the relay-auth exemption and the re-pin below want. The shared-identity
+    // confirm wants the other question, "did the client say who it means", and reading
+    // it off authorSwitched meant a client that named the SAME account as the binding
+    // was treated as having named nothing: we would confirm, and default the signature
+    // to the globally active account, which is the one identity the client just told us
+    // it did not want. noStrudel stamps the author today, so that is a live path to a
+    // post published under an account the client explicitly asked us not to use.
     let activePubkey;
     let authorSwitched = false;
+    let authorNamed = false;
     if (method === 'getPublicKey') {
       activePubkey = await KS.getActivePubkey();
     } else {
       activePubkey = await resolveSiteAccount(host);
       const requestedAuthor = signEvent && typeof signEvent.pubkey === 'string' ? signEvent.pubkey : null;
-      if (requestedAuthor && requestedAuthor !== activePubkey && (await KS.hasAccount(requestedAuthor))) {
-        activePubkey = requestedAuthor;
-        authorSwitched = true;
+      if (requestedAuthor && (await KS.hasAccount(requestedAuthor))) {
+        authorNamed = true;
+        if (requestedAuthor !== activePubkey) {
+          activePubkey = requestedAuthor;
+          authorSwitched = true;
+        }
       }
     }
     if (!activePubkey) throw new Error('No active Sidecar account');
@@ -1318,7 +1332,15 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // client). Drives both the shared-identity confirm and the app-data
     // auto-allow, so we resolve it once for either content sign or exempt sync.
     let sharedHost = false;
-    if ((isContentSign || appDataExempt) && !authorSwitched) {
+    // Read once, up here, because it now settles two questions rather than one: whether
+    // to ask, and whether a client naming an author outranks the user's own standing
+    // choice for this host. It does not. The switch says "Don't ask which account" over
+    // a note reading "Posts may not match the client", and a client stamping the author
+    // is precisely the case that note is about, so honoring the stamp there would answer
+    // the opposite of what was turned on. Content signs only, so nothing else pays for
+    // the storage read.
+    const alwaysActive = isContentSign ? await isAlwaysActiveHost(host) : false;
+    if ((isContentSign || appDataExempt) && (alwaysActive || !authorNamed)) {
       const authorized = await getAuthorizedAccounts(host);
       sharedHost = authorized.length >= 2;
       if (sharedHost && isContentSign && !appDataExempt) {
@@ -1326,7 +1348,6 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // sharedHost, which also drives appDataAutoAllow below: clearing that would make
         // app-data signs start asking, which is more prompts rather than fewer and the
         // exact opposite of what this setting is for.
-        const alwaysActive = await isAlwaysActiveHost(host);
         sharedIdentity = !alwaysActive;
         if (sharedIdentity) authorizedPool = authorized;
         // Default to the active account when it's authorized here — that's the
