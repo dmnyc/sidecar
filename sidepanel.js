@@ -697,6 +697,34 @@
   // the list it folds, and a preference that outlived the rows would mean opening the tab
   // one day to a list that is mostly headings with no memory of why.
   const _pollGroupFolded = { ended: false, untracked: false };
+  const POLL_FOLD_KEY = 'pollGroupsFolded';
+  // Read once at load rather than on each open, and awaited before the first paint so a
+  // fold cannot flash open before the answer arrives. Resolves either way: a storage read
+  // that fails leaves the defaults, which is both groups showing, and a list that shows
+  // too much is a better failure than one that hides rows somebody did not ask to hide.
+  const _pollFoldReady = new Promise((resolve) => {
+    try {
+      chrome.storage.local.get(POLL_FOLD_KEY, (got) => {
+        void chrome.runtime.lastError;
+        const saved = got && got[POLL_FOLD_KEY];
+        // Read field by field rather than assigned over: a stored blob from an older or
+        // newer build must not be able to introduce a group this one does not know how to
+        // draw, or remove one it does.
+        if (saved && typeof saved === 'object') {
+          _pollGroupFolded.ended = !!saved.ended;
+          _pollGroupFolded.untracked = !!saved.untracked;
+        }
+        resolve();
+      });
+    } catch (_) { resolve(); }
+  });
+  function savePollFolds() {
+    try {
+      chrome.storage.local.set({
+        [POLL_FOLD_KEY]: { ended: !!_pollGroupFolded.ended, untracked: !!_pollGroupFolded.untracked },
+      });
+    } catch (_) {}
+  }
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
   // Set while the notification modal is open, so a live event arriving in the
@@ -3976,6 +4004,7 @@
     head.addEventListener('click', () => {
       _pollGroupFolded[group] = !_pollGroupFolded[group];
       apply();
+      savePollFolds();
     });
     return { el: head, apply };
   }
@@ -12991,6 +13020,10 @@
   // as the rows are built, for the count on the tab's own label.
   async function fillPollsList(list, pubkey, { openPoll, onCount }) {
     const active = { pubkey };
+    // Before anything is drawn. The read is almost always long settled by the time anybody
+    // reaches this tab, but awaiting it is what stops a folded group painting open for a
+    // frame on the one occasion it is not.
+    await _pollFoldReady;
     const cached = _pollListCache.get(pubkey);
 
     // ONE RENDERER FOR BOTH PASSES, so a list drawn from cache and a list drawn from the

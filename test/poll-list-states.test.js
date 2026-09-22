@@ -261,6 +261,7 @@ test('ENDED AND UNTRACKED FOLD, OPEN DOES NOT', () => {
   assert.match(head, /if \(group === 'open'\) return \{ el: h\('div', \{ className: 'poll-group' \}, \[label\]\), apply: \(\) => \{\} \};/,
     'Open is foldable');
   assert.match(head, /_pollGroupFolded\[group\] = !_pollGroupFolded\[group\];/);
+  assert.match(head, /savePollFolds\(\);/, 'a fold is forgotten the moment the panel reloads');
   assert.match(head, /head\.setAttribute\('aria-expanded', String\(!folded\)\)/,
     'a disclosure that says nothing to anything not looking at the chevron');
 });
@@ -285,4 +286,29 @@ test('a row is findable by its group', () => {
   assert.match(bare, /querySelectorAll\('\[data-poll-group="' \+ group \+ '"\]'\)/);
   assert.doesNotMatch(bare, /h\('div', \{ className: 'item poll-row[^}]*dataset/,
     'dataset is being passed through h(), where it lands as an expando');
+});
+
+test('A FOLD OUTLIVES THE PANEL, AND FAILS OPEN', () => {
+  // chrome.storage.local, the same place the panel keeps its other one-flag preferences,
+  // rather than sidecar_settings: this is panel furniture, not something the worker reads.
+  assert.match(bare, /const POLL_FOLD_KEY = 'pollGroupsFolded';/);
+  assert.match(bare, /chrome\.storage\.local\.get\(POLL_FOLD_KEY/);
+  assert.match(bare, /chrome\.storage\.local\.set\(\{\s*\[POLL_FOLD_KEY\]:/);
+
+  // READ FIELD BY FIELD, not assigned over. A blob written by an older or newer build
+  // must not be able to add a group this one cannot draw, or drop one it needs.
+  assert.match(bare, /_pollGroupFolded\.ended = !!saved\.ended;/);
+  assert.match(bare, /_pollGroupFolded\.untracked = !!saved\.untracked;/);
+  assert.doesNotMatch(bare, /Object\.assign\(_pollGroupFolded/, 'a stored blob is copied wholesale');
+
+  // FAILS OPEN. A read that throws or never answers leaves the defaults, which show both
+  // groups. Hiding rows nobody asked to hide is the worse of the two failures.
+  const loader = bare.slice(bare.indexOf('const _pollFoldReady'), bare.indexOf('function savePollFolds'));
+  assert.match(loader, /catch \(_\) \{ resolve\(\); \}/, 'a failed read never resolves, so the list never paints');
+  assert.equal((loader.match(/resolve\(\)/g) || []).length, 2, 'not every path resolves');
+
+  // Awaited before the first paint, or a folded group shows for a frame and then vanishes.
+  const fill = bare.slice(bare.indexOf('async function fillPollsList'));
+  const top = fill.slice(0, fill.indexOf('const cached ='));
+  assert.match(top, /await _pollFoldReady;/, 'the fold state is read after the list is drawn');
 });
