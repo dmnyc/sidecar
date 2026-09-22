@@ -292,6 +292,120 @@ test('THE METER HOLDS ITS WIDTH SO THE SAVE BUTTON HOLDS ITS', () => {
   assert.match(sheet.slice(at, at + 200), /min-width: 4ch/, 'the count holds a fixed box of digits');
 });
 
+test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
+  // The whole chain, driven through the page's own code: the editor row's onSave
+  // exactly as compose.js wires it, into persistDraft exactly as compose.js writes
+  // it, through the store's JSON round trip. The slot is shared with the panel, so
+  // the one thing this cannot survive is a writer that rebuilds the media entries —
+  // this is the tripwire for that.
+  const onSaveBody = page.match(/onSave: \(value\) => \{[\s\S]*?\n      \},/);
+  assert.ok(onSaveBody, 'could not find the tab onSave handler');
+  const persistFn = page.match(/  async function persistDraft\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(persistFn, 'could not find the tab persistDraft');
+
+  // Minimal DOM: enough of an element for the row builder to build and for the Save
+  // button to be found and clicked.
+  function makeEl(tag) {
+    const el = {
+      tagName: String(tag).toUpperCase(), children: [], listeners: {},
+      className: '', textContent: '', value: '', attrs: {}, parentNode: null,
+      classList: {
+        _s: new Set(),
+        add(...c) { c.forEach((x) => this._s.add(x)); },
+        remove(...c) { c.forEach((x) => this._s.delete(x)); },
+        toggle(c, on) { (on === undefined ? !this._s.has(c) : on) ? this._s.add(c) : this._s.delete(c); },
+        contains(c) { return this._s.has(c); },
+      },
+      append(...kids) { kids.forEach((k) => { k.parentNode = el; el.children.push(k); }); },
+      after() {},
+      remove() { el.parentNode = null; },
+      addEventListener(t, fn) { (el.listeners[t] = el.listeners[t] || []).push(fn); },
+      click() { (el.listeners.click || []).forEach((fn) => fn({})); },
+      setAttribute(k, v) { el.attrs[k] = v; },
+      querySelector(sel) { return sel === '.ring-fill' ? makeEl('circle') : makeEl('div'); },
+      querySelectorAll() { return []; },
+      focus() {},
+      get isConnected() { return true; },
+      set innerHTML(v) { el.children = []; if (v.includes('<svg')) el.firstElementChild = makeEl('svg'); },
+      get innerHTML() { return ''; },
+    };
+    return el;
+  }
+  const ctx2 = { document: { createElement: makeEl, createElementNS: () => makeEl('svg') } };
+  ctx2.window = ctx2;
+  ctx2.requestAnimationFrame = () => {};
+  vm.createContext(ctx2);
+  vm.runInContext(core + '\n;globalThis.SC = window.SidecarCore;', ctx2);
+
+  // The shared draft, and the handler body lifted verbatim out of compose.js.
+  const draft = { text: 'a note', media: [{ url: 'https://x/a.png', isVideo: false }] };
+  const store = {};
+  const sandbox = {
+    SC: ctx2.SC, draft, i: 0,
+    closeAltEditor: () => {},
+    renderThumbs: () => {},
+    dkey: 'pk1',
+    call: async (m) => {
+      if (m.type === 'SIDECAR_SECRET_GET') return JSON.parse(JSON.stringify(store));
+      if (m.type === 'SIDECAR_SECRET_SET') { store.pk1 = JSON.parse(JSON.stringify(m.value)).pk1; return true; }
+      return null;
+    },
+  };
+  vm.createContext(sandbox);
+  const handlerSrc = onSaveBody[0].replace(/^onSave: /, '').replace(/,\s*$/, '');
+  vm.runInContext(
+    persistFn[0] +
+    '\nfunction scheduleSave() { return persistDraft(); }' +
+    '\nconst onSaveHandler = ' + handlerSrc + ';' +
+    '\nglobalThis.saveTheAlt = (v) => onSaveHandler(v);',
+    sandbox
+  );
+
+  // Type the description, press Save description, let the write land.
+  await vm.runInContext('saveTheAlt("a bowl of soup")', sandbox);
+  await new Promise((r) => setImmediate(r));
+
+  // What the store now holds is what a reopen gets.
+  const restored = store.pk1;
+  assert.ok(restored, 'the draft never landed in the store');
+  assert.equal(restored.media[0].alt, 'a bowl of soup', 'the store lost the description');
+  assert.equal(restored.text, 'a note', 'the prose is still there');
+
+  // And the panel: its own onSave handler and its own saveComposeDraft, driven the
+  // same way, because the slot is shared and either writer dropping the field is a
+  // loss the other composer gets blamed for.
+  const panelOnSave = panel.match(/onSave: \(value\) => \{[\s\S]*?\n          \},/);
+  assert.ok(panelOnSave, 'could not find the panel onSave handler');
+  const panelSave = panel.match(/  function saveComposeDraft\(key, draft\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(panelSave, 'could not find the panel saveComposeDraft');
+  const draft2 = { text: 'another note', media: [{ url: 'https://x/b.png', isVideo: false }] };
+  const store2 = {};
+  const sandbox2 = {
+    draft: draft2, i: 0,
+    closeAltEditor: () => {},
+    renderThumbs: () => {},
+    normalizeAltBreaks, ALT_MAX,
+    pruneReplyDrafts: () => {}, REPLY_DRAFT_MAX: 20,
+    call: async (m) => {
+      if (m.type === 'SIDECAR_SECRET_GET') return JSON.parse(JSON.stringify(store2));
+      if (m.type === 'SIDECAR_SECRET_SET') { store2.pk2 = JSON.parse(JSON.stringify(m.value)).pk2; return true; }
+      return null;
+    },
+  };
+  vm.createContext(sandbox2);
+  const handler2 = panelOnSave[0].replace(/^onSave: /, '').replace(/,\s*$/, '');
+  vm.runInContext(
+    panelSave[0] +
+    '\nfunction scheduleSave() { return saveComposeDraft("pk2", draft); }' +
+    '\nconst onSaveHandler = ' + handler2 + ';' +
+    '\nglobalThis.saveTheAlt = (v) => onSaveHandler(v);',
+    sandbox2
+  );
+  await vm.runInContext('saveTheAlt("a bridge at dusk")', sandbox2);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(store2.pk2.media[0].alt, 'a bridge at dusk', 'the panel lost the description');
+});
+
 test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {
   // The functions are pure, so they travel on the global like IMG_EXT rather than
   // through installComposer — and a name forgotten at the panel's destructure is a
