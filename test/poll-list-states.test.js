@@ -186,3 +186,32 @@ test('a running poll is never given a leader', () => {
   assert.match(bare, /if \(pollIsPast\(ev\)\) \{\s*const win = pollWinner\(ev, votes\);/);
   assert.match(bare, /_pollListCache\.set\(pubkey, \{ polls, counts: fresh, wins: freshWins \}\)/);
 });
+
+test('THE SORT AND THE GROUPS ASK THE SAME QUESTION', () => {
+  // They did not, and it showed. The sort used pollHasEnded while the headings used
+  // pollIsPast, so an open-ended poll left a month sorted to the TOP as though it were
+  // live and then rendered under a heading saying Ended, with the genuinely finished ones
+  // below it. Two runs of past polls with the live ones between them is not a group.
+  const sortSrc = source.slice(source.indexOf('// pollIsPast, THE SAME QUESTION'));
+  assert.match(sortSrc.slice(0, 500), /const xPast = pollIsPast\(x\);/);
+  assert.match(sortSrc.slice(0, 500), /const yPast = pollIsPast\(y\);/);
+
+  // And run, because the contiguity is the property that matters rather than the call.
+  const set = [
+    poll({ endsAt: NOW() - 10 * DAY }),                 // finished
+    poll({ createdAt: NOW() - 90 * DAY }),              // open-ended, long past the window
+    poll({ endsAt: NOW() + DAY }),                      // running
+    poll({ createdAt: NOW() - 2 * DAY }),               // open-ended, still watched
+  ].map((p, i) => ({ ...p, id: 'p' + i, created_at: p.created_at - i }));
+  set.sort((x, y) => {
+    const xPast = pollIsPast(x);
+    const yPast = pollIsPast(y);
+    if (xPast !== yPast) return xPast ? 1 : -1;
+    return y.created_at - x.created_at;
+  });
+  const flags = set.map(pollIsPast);
+  assert.deepEqual(flags, [false, false, true, true], 'the two groups are interleaved');
+  // One boundary, which is what makes a single heading per group correct.
+  const switches = flags.filter((v, i) => i > 0 && v !== flags[i - 1]).length;
+  assert.equal(switches, 1, 'the list crosses between groups more than once');
+});

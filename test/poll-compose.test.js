@@ -1050,7 +1050,13 @@ test('a poll that is still running is listed above one that has closed', () => {
   // The tab is this function, so the ordering belongs here rather than at the call site.
   const fn = bare.slice(bare.indexOf('async function fillPollsList'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /const xEnded = pollHasEnded\(pollEndsAt\(x\)\)/);
-  assert.match(body, /if \(xEnded !== yEnded\) return xEnded \? 1 : -1;/, 'open ones first');
+  // pollIsPast, not pollHasEnded, and the difference is not cosmetic: the headings ask
+  // pollIsPast, so sorting on the narrower question put an open-ended poll left a month at
+  // the top of the list under a heading reading Ended, and split the finished ones into
+  // two runs with the live ones between them.
+  assert.match(body, /const xPast = pollIsPast\(x\)/);
+  assert.match(body, /if \(xPast !== yPast\) return xPast \? 1 : -1;/, 'open ones first');
+  assert.doesNotMatch(body, /pollHasEnded\(pollEndsAt\(x\)\)/,
+    'the sort is back on the narrower question and will interleave the groups');
   assert.match(body, /return y\.created_at - x\.created_at;/, 'newest first inside each group');
 });

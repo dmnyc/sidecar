@@ -13039,10 +13039,14 @@
     // OPEN ONES FIRST, newest first within each group. By created_at alone a poll still
     // taking votes sits wherever it was posted, under everything written since, and a poll
     // that is running is the one you opened the tab to look at.
+    // pollIsPast, THE SAME QUESTION THE GROUPS ASK. Sorting on pollHasEnded while the
+    // headings read pollIsPast put an open-ended poll left a month at the top of the list
+    // under a heading saying Ended, and split the finished ones into two runs with the
+    // live ones in between. The two have to be one question or the groups are not groups.
     polls.sort((x, y) => {
-      const xEnded = pollHasEnded(pollEndsAt(x));
-      const yEnded = pollHasEnded(pollEndsAt(y));
-      if (xEnded !== yEnded) return xEnded ? 1 : -1;
+      const xPast = pollIsPast(x);
+      const yPast = pollIsPast(y);
+      if (xPast !== yPast) return xPast ? 1 : -1;
       return y.created_at - x.created_at;
     });
 
