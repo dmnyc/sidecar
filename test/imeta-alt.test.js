@@ -49,15 +49,20 @@ vm.runInContext(
   lift(/function imetaTagsForMedia\(media\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
   lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
   lift(/function stripDraftMediaUrls\(text, media\) \{[\s\S]*?\n  \}/, 'stripDraftMediaUrls') + '\n' +
+  lift(/function loneImageUrl\(text\) \{[\s\S]*?\n  \}/, 'loneImageUrl') + '\n' +
+  // loneImageUrl judges with the REAL extension list, lifted like quoteSnippet's
+  // IMG_EXT — a local mirror could drift and the vectors would keep passing.
+  lift(/const IMG_EXT = [^;]+;/, 'IMG_EXT') + '\n' +
   'globalThis.ALT_MAX = ALT_MAX;' +
   'globalThis.normalizeAltBreaks = normalizeAltBreaks;' +
   'globalThis.buildImetaTag = buildImetaTag;' +
   'globalThis.imetaTagsForMedia = imetaTagsForMedia;' +
   'globalThis.composeNoteContent = composeNoteContent;' +
-  'globalThis.stripDraftMediaUrls = stripDraftMediaUrls;',
+  'globalThis.stripDraftMediaUrls = stripDraftMediaUrls;' +
+  'globalThis.loneImageUrl = loneImageUrl;',
   ctx
 );
-const { ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls } = ctx;
+const { ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls, loneImageUrl } = ctx;
 
 // Values built inside the vm carry its Array.prototype, which strict deep-equal
 // rightly refuses from out here. The tag shape is data, so taking a plain copy at
@@ -232,13 +237,13 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
     // An upload fires no editor input, so the autosave is told by hand — and so is
     // the Post button, since media alone is postable: without this, a first upload
     // into an empty composer leaves Post inert and a last removal leaves it lit.
-    // The panel repaints at three sites (file upload, paste upload, removal); the
-    // tab has no image-paste path, so two.
+    // The panel repaints at four sites (file upload, paste upload, removal, and the
+    // pasted-URL conversion); the tab likewise, minus the image-paste upload.
     assert.match(src, /draft\.media\.push\(/, name + ' lost the upload push');
     const taps = name === 'sidepanel.js'
       ? src.match(/scheduleSave\(\);\n\s*updatePostState\(\);\n\s*renderThumbs\(\);/g) || []
       : src.match(/scheduleSave\(\);\n\s*paintCount\(\);\n\s*renderThumbs\(\);/g) || [];
-    const want = name === 'sidepanel.js' ? 3 : 2;
+    const want = name === 'sidepanel.js' ? 4 : 3;
     assert.equal(taps.length, want, name + ' repaints the button at every media change (found ' + taps.length + ')');
   }
 });
@@ -447,6 +452,51 @@ test('THE ROW AUTOSAVES AS IT TYPES, AND EVERY EXIT COMMITS', () => {
     assert.ok(row.includes(exit), 'an exit does not commit: ' + exit);
   }
   assert.ok(!row.includes('onCancel'), 'a way out that skips the commit is back');
+});
+
+test('A URL PASTED ON ITS OWN IS AN ATTACHMENT WAITING TO BE OFFERED', () => {
+  // The paste, not the editor, is what is judged: the whole paste has to be exactly
+  // one image URL. Anything riding inside a larger chunk of text is prose and stays
+  // prose, and the offer — like the tracking offer it is modeled on — is one button
+  // the next keystroke withdraws.
+  assert.equal(loneImageUrl('https://example.com/pic.png'), 'https://example.com/pic.png');
+  assert.equal(loneImageUrl('  https://example.com/pic.png  '), 'https://example.com/pic.png', 'paste edges are trim');
+  assert.equal(loneImageUrl('https://example.com/PICT.PNG'), 'https://example.com/PICT.PNG', 'extensions are case-blind');
+  assert.equal(loneImageUrl('https://example.com/pic.jpeg'), 'https://example.com/pic.jpeg');
+  assert.equal(loneImageUrl('https://example.com/pic.webp?v=2'), 'https://example.com/pic.webp?v=2', 'a query rides along');
+  assert.equal(loneImageUrl('https://example.com/pic'), null, 'no extension, no offer');
+  assert.equal(loneImageUrl('look at https://example.com/pic.png'), null, 'prose stays prose');
+  assert.equal(loneImageUrl('https://example.com/pic.png and text'), null);
+  assert.equal(loneImageUrl('https://example.com/a.png\nhttps://example.com/b.png'), null, 'two URLs is a chunk');
+  assert.equal(loneImageUrl('ftp://example.com/pic.png'), null, 'not a web URL');
+  assert.equal(loneImageUrl('https://example.com/clip.mp4'), null, 'sidecar writes image alt text; video stays out of scope');
+  assert.equal(loneImageUrl(''), null);
+  assert.equal(loneImageUrl(null), null);
+});
+
+test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', () => {
+  // The offer exists where a draft can hold an attachment, and only there: the note
+  // composers hand in the conversion, the page-comment box does not, and the core
+  // stays silent without one. Accepting cuts the URL from the prose, puts it in the
+  // strip, and saves — the same path an upload takes.
+  assert.match(core, /const onAttachUrl = \(opts && opts\.onAttachUrl\) \|\| null;/);
+  assert.match(core, /if \(!onAttachUrl\) return;/, 'an editor without a draft never offers');
+  assert.match(core, /const url = loneImageUrl\(e\.clipboardData && e\.clipboardData\.getData\('text\/plain'\)\);/);
+  assert.match(core, /lines\.includes\(url\)/, 'the URL must have landed as its own line');
+  assert.match(core, /attachRow\.classList\.remove\('hidden'\)/);
+  assert.match(core, /Attach this image/);
+  for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
+    assert.ok(src.includes('onAttachUrl: (url) => {'), name + ' never hands in the conversion');
+    assert.match(src, /removeUrlFromEditor\(/, name + ' never cuts the URL from the prose');
+    assert.match(src, /draft\.media\.push\(\{ url, isVideo: false \}\)/, name + ' never adds the attachment');
+    assert.match(src, /\.sync\(\); \/\/ re-emit after the direct DOM cut/, name + ' never re-emits the prose');
+  }
+  // And the detection travels on the global with the rest of the write side, so the
+  // vectors above ran against the code the pages actually load.
+  assert.match(
+    panel,
+    /const \{ loneImageUrl, removeUrlFromEditor \} = window\.SidecarCore;/
+  );
 });
 
 test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {

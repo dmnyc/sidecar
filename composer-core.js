@@ -443,6 +443,34 @@ window.SidecarCore = (function () {
     if (last < text.length) appendText(text.slice(last));
   }
 
+  // ---- a URL pasted on its own is a picture asking to be attached ----
+  //
+  // Offered, never done — the same rule the tracking-tags row lives by. A paste whose
+  // whole content is one image URL gets a single offer to become an attachment
+  // (thumbnail in the strip, URL appended to the note's end at publish, exactly as
+  // if it had been uploaded), and the offer is one button that the next keystroke
+  // withdraws. Riding inside a larger paste is prose and stays prose.
+  function loneImageUrl(text) {
+    const s = String(text || '').trim();
+    if (!/^https?:\/\/\S+$/i.test(s)) return null;
+    return IMG_EXT.test(s) ? s : null;
+  }
+
+  // Cut a URL line back out of the editor — the reverse of appending it. Text-node
+  // surgery rather than a rebuild, so the caret and every other word stay where the
+  // user left them.
+  function removeUrlFromEditor(editor, url) {
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let wn;
+    while ((wn = walker.nextNode())) {
+      if (wn.textContent.includes(url)) {
+        wn.textContent = wn.textContent.replace('\n' + url, '').replace(url, '');
+        return true;
+      }
+    }
+    return false;
+  }
+
   // A rich text box with @mention autocomplete and pills, shared by the note
   // composer and the page-comment modal. Owns its own dropdown state so two can
   // coexist; the caller supplies `onChange` for whatever it does with the text
@@ -452,6 +480,10 @@ window.SidecarCore = (function () {
   // not `editor` — since the dropdown positions itself against the wrapper.
   function createMentionEditor(opts) {
     const onChange = (opts && opts.onChange) || (() => {});
+    // The attachment offer only exists where a draft can hold one: the note
+    // composers hand in the conversion, and an editor without one (the page-comment
+    // box) never shows the row.
+    const onAttachUrl = (opts && opts.onAttachUrl) || null;
     const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
     editor.dataset.placeholder = (opts && opts.placeholder) || '';
     const wrap = h('div', { className: 'compose-editor-wrap' });
@@ -657,6 +689,9 @@ window.SidecarCore = (function () {
       emit();
       updateAcDropdown();
       pingActivity(); // composing counts as activity, which keeps auto-lock at bay
+      // And any keystroke after the paste withdraws the attachment offer: the text
+      // it was offered about has changed.
+      hideAttachOffer();
     });
 
     editor.addEventListener('keydown', (e) => {
@@ -726,6 +761,40 @@ window.SidecarCore = (function () {
     // handler that inserts the plain text itself, and the comment box has none at all;
     // a scan on the next tick reads whatever either of them ended up with.
     editor.addEventListener('paste', () => setTimeout(scanTracking, 0));
+
+    // ---- the attachment offer, for a URL pasted on its own ----
+    //
+    // The paste is checked, not the editor: only a paste whose whole content is one
+    // image URL qualifies. The offer row is the tracking row's sibling — one button,
+    // full width below the text — and the next keystroke anywhere in the editor
+    // withdraws it, because the text it was offered about has changed.
+    const attachRow = h('div', { className: 'attach-row hidden' });
+    const attachBtn = h('button', { className: 'mini ghost compose-add attach-accept', type: 'button' });
+    attachBtn.append(icon('plus'), h('span', { textContent: 'Attach this image' }));
+    attachRow.append(attachBtn);
+    wrap.append(attachRow);
+    let offeredUrl = null;
+    function hideAttachOffer() {
+      offeredUrl = null;
+      attachRow.classList.add('hidden');
+    }
+    attachBtn.addEventListener('click', () => {
+      const url = offeredUrl;
+      hideAttachOffer();
+      if (url) onAttachUrl(url);
+    });
+    editor.addEventListener('paste', (e) => {
+      if (!onAttachUrl) return;
+      const url = loneImageUrl(e.clipboardData && e.clipboardData.getData('text/plain'));
+      if (!url) return;
+      setTimeout(() => {
+        // Landed as its own line, or the offer would be to rip it out of a sentence.
+        const lines = serializeEditor(editor).split('\n').map((l) => l.trim());
+        if (!lines.includes(url)) return;
+        offeredUrl = url;
+        attachRow.classList.remove('hidden');
+      }, 0);
+    });
 
     return {
       wrap,
@@ -1782,5 +1851,6 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer,
+    loneImageUrl, removeUrlFromEditor,
   };
 })();

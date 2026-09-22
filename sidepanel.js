@@ -28,6 +28,8 @@
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
   const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer } = window.SidecarCore;
+  // A URL pasted on its own can be offered a life as an attachment instead of prose.
+  const { loneImageUrl, removeUrlFromEditor } = window.SidecarCore;
 
   const NT = window.NostrTools;
 
@@ -11152,6 +11154,16 @@
       const mentionEditor = createMentionEditor({
         placeholder: replyTo ? 'Write your reply…' : "What’s on your mind?",
         onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
+        // A URL pasted on its own becomes a real attachment: cut from the prose,
+        // into the strip, appended at publish — as if it had been uploaded.
+        onAttachUrl: (url) => {
+          removeUrlFromEditor(editor, url);
+          draft.media.push({ url, isVideo: false });
+          mentionEditor.sync(); // re-emit after the direct DOM cut, so the draft agrees
+          scheduleSave();
+          updatePostState();
+          renderThumbs();
+        },
       });
       mentionEditor.setText(draft.text);
       const editor = mentionEditor.editor;

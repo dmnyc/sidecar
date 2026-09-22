@@ -913,6 +913,16 @@
     editorApi = composer.createMentionEditor({
       placeholder: 'What’s on your mind?',
       onChange: (text) => { draft.text = text; paintCount(); scheduleSave(); },
+      // A URL pasted on its own becomes a real attachment: cut from the prose,
+      // into the strip, appended at publish — as if it had been uploaded.
+      onAttachUrl: (url) => {
+        SC.removeUrlFromEditor(editorApi.editor, url);
+        draft.media.push({ url, isVideo: false });
+        editorApi.sync(); // re-emit after the direct DOM cut, so the draft agrees
+        scheduleSave();
+        paintCount();
+        renderThumbs();
+      },
     });
     editorApi.editor.classList.add('compose-editor-lg');
     $('compose-slot').append(editorApi.wrap);

@@ -3022,6 +3022,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    reading as a fourth toolbar button: ghost against their filled siblings, on its own
    line, and only on screen when there is something to take off. */
 .track-row { display: flex; margin: 7px 0 0; }
+/* Its sibling: the attachment offer for a URL pasted on its own. Same grammar — one
+   full-width row, one button, gone the moment the text changes again. */
+.attach-row { display: flex; margin: 7px 0 0; }
 /* A compose-add that is currently ON, for the proof-of-work cycle. Color only: the label
    already says which level, so the tint is confirmation rather than the message, and
    nothing about the button's metrics moves as it cycles. */
