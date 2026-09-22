@@ -11252,10 +11252,10 @@
             e.preventDefault();
             cell.classList.remove('drop-target');
             if (dragFrom === -1 || dragFrom === i) return;
+            closeAltEditor(); // flush first: the row's slot is still where it was opened
             const moved = draft.media.splice(dragFrom, 1)[0];
             draft.media.splice(i, 0, moved);
             dragFrom = -1;
-            closeAltEditor(); // the open row edits a slot the drag may have moved
             scheduleSave();
             renderThumbs();
           });
@@ -11283,7 +11283,7 @@
             // The URL lives in the media slot alone now; taking the thumb off is
             // just taking the attachment off the note.
             draft.media.splice(i, 1);
-            closeAltEditor(); // the row edits a media slot that no longer exists
+            closeAltEditor(false); // the row edits a media slot that no longer exists
             scheduleSave();
             updatePostState();
             renderThumbs();
@@ -11308,8 +11308,15 @@
       // the tab gets the same one.
       let altRow = null;
       let altIndex = -1; // the slot the open row edits, so its own chip toggles it shut
-      function closeAltEditor() {
-        if (altRow) { altRow.remove(); altRow = null; }
+      function closeAltEditor(flush) {
+        if (altRow) {
+          // THE TAIL OF THE DESCRIPTION RIDES ALONG, unless the caller says the slot
+          // is gone or moved — flushing into a spliced array would write one image's
+          // words onto another.
+          if (flush !== false && altRow.flushPending) altRow.flushPending();
+          altRow.remove();
+          altRow = null;
+        }
         altIndex = -1;
       }
       function openAltEditor(i) {
@@ -11652,6 +11659,7 @@
       }
       post.addEventListener('click', async () => {
         if (post.disabled) return;
+        closeAltEditor(); // the description commits before the note is snapshotted
         const { on, secs } = await postCountdownSetting();
         if (on) {
           showCountdown(secs);

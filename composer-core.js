@@ -1225,6 +1225,19 @@ window.SidecarCore = (function () {
     // The caller appends the row the moment this returns; focus lands on the next
     // frame, once the row is actually in a document.
     requestAnimationFrame(() => { if (row.isConnected) field.focus(); });
+    // A PENDING AUTOSAVE THE PAGE CAN FLUSH ON ITS OWN CLOSE PATHS. The row commits
+    // on its three own exits, but pages close it for their own reasons — a chip
+    // toggle, the review window starting, an account moving under the tab — and a
+    // close that skips this drops the last half-second of typing on the floor. The
+    // page decides when the slot is still the one the row was opened for; flushing
+    // after the media array has been spliced would write one image's words onto
+    // another.
+    row.flushPending = () => {
+      if (!asTimer) return;
+      clearTimeout(asTimer);
+      asTimer = null;
+      onChange(field.value);
+    };
     return row;
   }
 
