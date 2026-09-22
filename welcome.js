@@ -469,6 +469,15 @@ const APPS = [
     flush: true,
     desc: 'Build small apps and sites by describing them, and publish them to Nostr — an open-source AI builder from Soapbox that runs entirely in your browser.',
   },
+  {
+    name: 'Nostr Protocol Forum',
+    url: 'https://nostr-proto.org',
+    domain: 'nostr-proto.org',
+    cat: 'social',
+    // Transparent 256px mark, so it takes the framed treatment rather than flush.
+    icon: 'https://nostr-proto.org/nostr-proto-logo.png',
+    desc: 'A forum about Nostr itself, with rooms for the protocol, relays, apps, and help.',
+  },
 ];
 
 const CAT_LABELS = {
