@@ -237,7 +237,13 @@ test('two buttons, one row, neither the other’s fallback', () => {
   // answering for itself. Plenty of profiles carry exactly one of the two, so the row
   // holds whichever apply and gives them equal width.
   assert.match(css, /\.peek-pay-row \{ display: flex; flex-wrap: wrap; gap: 8px; \}/);
-  assert.match(css, /\.peek-pay-row > \.peek-zap-open \{ flex: 1 1 0; min-width: 132px; \}/);
+  assert.match(css, /\.peek-pay-row > \.peek-zap-open \{ flex: 1 1 0; \}/);
+  // NO min-width. A flex item's default `min-width: auto` is already its own content, so
+  // these refuse to squash their labels and wrap only when two truly will not fit. A
+  // hand-picked 132px came to 272px for the pair, which is wider than the row in a panel
+  // dragged narrow: they stacked at widths where they would have fitted side by side.
+  const row = css.slice(css.indexOf('.peek-pay-row > .peek-zap-open'), css.indexOf('.peek-zap-open {'));
+  assert.ok(!/min-width/.test(row), 'a hand-picked floor wraps the row before the labels need it');
   assert.match(bare, /payRow\.prepend\(zapBtn\)/);
   assert.match(bare, /payRow\.append\(offerBtn\)/);
 });

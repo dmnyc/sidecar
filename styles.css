@@ -4477,7 +4477,13 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    row already carries a value, and a control sharing a row with content carries no words. */
 .peek-qr-toggle { flex-shrink: 0; padding: 7px 10px; }
 .peek-qr-toggle svg { width: 15px; height: 15px; display: block; }
-.peek-pay-row > .peek-zap-open { flex: 1 1 0; min-width: 132px; }
+/* NO min-width HERE, and that is the whole rule. A flex item's default `min-width: auto`
+   already resolves to its own content, so these two refuse to squash their labels and wrap
+   only when two genuinely will not fit. Pinning 132px instead was a number picked by eye:
+   two of them plus the gap came to 272px, which is wider than the row in a panel dragged
+   narrow, so they wrapped at widths where they would have sat side by side perfectly well.
+   The floor the panel actually wants is the label, and the label already is it. */
+.peek-pay-row > .peek-zap-open { flex: 1 1 0; }
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
 .peek-zap-form { margin-top: 10px; }
