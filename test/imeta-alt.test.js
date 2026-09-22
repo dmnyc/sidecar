@@ -175,8 +175,10 @@ test('THE ATTACHMENTS MEET THE PROSE ONCE, AT PUBLISH', () => {
 
 test('AN OLD DRAFT DOES NOT PUBLISH ITS URLS TWICE', () => {
   // Drafts saved before the URLs left the editor carry them in the saved text — the
-  // same URLs the media slot holds. Stripped on restore, idempotent on drafts saved
-  // since, and only a line matching an attachment's OWN url is taken out.
+  // same URLs the media slot holds. Only LINE-BOUNDARY occurrences are migration
+  // leftovers and only those are stripped; a URL inside a sentence is authored prose
+  // and stays, because silently losing a sentence's URL on restore is the same loss
+  // this migration exists to prevent.
   const media = [{ url: 'https://x/a.png' }, { url: 'https://x/b.png' }];
   assert.equal(stripDraftMediaUrls('hello\nhttps://x/a.png\nhttps://x/b.png', media), 'hello');
   assert.equal(stripDraftMediaUrls('hello\n\nhttps://x/a.png', [media[0]]), 'hello', 'blank line before the block');
@@ -186,6 +188,25 @@ test('AN OLD DRAFT DOES NOT PUBLISH ITS URLS TWICE', () => {
     stripDraftMediaUrls('look at https://x/other.png', [{ url: 'https://x/a.png' }]),
     'look at https://x/other.png',
     'prose carrying a different URL is prose, not an attachment line'
+  );
+  // The boundary rule, both edges: what the old format never wrote is not migration
+  // leftover and must survive the restore.
+  assert.equal(
+    stripDraftMediaUrls('mirror at https://x/a.png if the first dies', [media[0]]),
+    'mirror at https://x/a.png if the first dies',
+    'an authored mid-sentence mention stays'
+  );
+  assert.equal(
+    stripDraftMediaUrls('https://x/a.png and https://x/a.png again', [media[0]]),
+    'https://x/a.png and https://x/a.png again',
+    'twice on one line is ambiguous and stays'
+  );
+  // A leftover line AND an authored mention of the same URL: the line goes, the
+  // sentence keeps its copy.
+  assert.equal(
+    stripDraftMediaUrls('see https://x/a.png inline\nhttps://x/a.png', [media[0]]),
+    'see https://x/a.png inline',
+    'only the boundary occurrence is migration leftover'
   );
 });
 
