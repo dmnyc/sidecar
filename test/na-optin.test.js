@@ -148,3 +148,81 @@ test('the memo serves later reads without going back to storage', async () => {
   await ctx.naSetting();
   assert.equal(reads, 1, 'storage is read once; every keystroke after that is synchronous');
 });
+
+// ---- the expanded composer runs the same gate ----
+//
+// The tab once answered every name search with a stub — follows only — so a name
+// the sidebar found in a keystroke did not exist in the expanded composer unless
+// the account followed it. Its client is the real gate now: same setting, same
+// one-time ask, same endpoint. These run the tab's own copy of the code through
+// the same no-fetch-until-consent vectors the panel's copy answers to.
+
+const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
+
+function pageHarness({ enabled }) {
+  const fetchCalls = [];
+  const listeners = [];
+  const ctx = {
+    NA_BASE: 'https://api.nostrarchives.test',
+    console,
+    AbortSignal: { timeout: (ms) => ms },
+    Date,
+    NT: { nip19: { npubEncode: (pk) => 'npub1' + pk.slice(0, 20) } },
+    shortNpub: (npub) => npub.slice(0, 12) + '…',
+    call: async () => {},
+    chrome: {
+      storage: {
+        local: { get: (key, cb) => cb({ sidecar_settings: { nostrArchives: enabled } }) },
+        onChanged: { addListener: (fn) => listeners.push(fn) },
+      },
+    },
+    fetch: async (url, opts) => {
+      fetchCalls.push({ url: String(url), opts });
+      return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ suggestions: [] }) };
+    },
+  };
+  vm.createContext(ctx);
+  const liftPage = (pattern, label) => {
+    const m = page.match(pattern);
+    if (!m) throw new Error('Could not find ' + label + ' in compose.js');
+    return m[0];
+  };
+  vm.runInContext(
+    liftPage(/const isHex64 = \(s\) =>[^\n]*\n/, 'isHex64') + '\n' +
+    liftPage(/let naCooldownUntil = 0;[\s\S]*?const naAvailable[^\n]*\n/, 'cooldown helpers') + '\n' +
+    liftPage(/let naSettingMemo;[\s\S]*?let naSettingLoaded = false;\n/, 'memo state') + '\n' +
+    liftPage(/function naSetting\(\) \{[\s\S]*?\n  \}\n/, 'naSetting') + '\n' +
+    liftPage(/async function naDecide\(on\) \{[\s\S]*?\n  \}\n/, 'naDecide') + '\n' +
+    liftPage(/async function naSuggest\(query\) \{[\s\S]*?\n  \}\n/, 'naSuggest') + '\n' +
+    'globalThis.naSuggest = naSuggest; globalThis.naSetting = naSetting; globalThis.naDecide = naDecide;',
+    ctx
+  );
+  return { ctx, fetchCalls, listeners };
+}
+
+test('expanded composer, setting unset: the gate stays shut and the ask is what would open it', async () => {
+  const { ctx, fetchCalls } = pageHarness({ enabled: undefined });
+  assert.equal((await ctx.naSuggest('alice')).length, 0);
+  assert.equal(fetchCalls.length, 0, 'no request may leave the tab before the one-time ask is answered');
+  // And the ask is really here — the stub used to fake "already decided" so the
+  // question could never be asked in this document.
+  assert.match(page, /Also search every Nostr name\?/);
+  assert.match(page, /Search everyone/);
+  assert.match(page, /Just my follows/);
+});
+
+test('expanded composer, setting on: same endpoint as the sidebar', async () => {
+  const { ctx, fetchCalls } = pageHarness({ enabled: true });
+  await ctx.naSuggest('alice');
+  assert.equal(fetchCalls.length, 1);
+  assert.ok(fetchCalls[0].url.includes('/v1/search/suggest'), fetchCalls[0].url);
+});
+
+test('expanded composer: a decision made in the panel reaches the open tab', () => {
+  // The tab memoizes like the panel, but the decision it mirrors is often made in
+  // a different document (the panel's Settings), so the memo listens to storage
+  // instead of trusting its own first read forever. The registration sits at
+  // module scope, outside the lifted functions — asserted on the source.
+  assert.match(page, /chrome\.storage\.onChanged\.addListener/);
+  assert.match(page, /changes\.sidecar_settings/);
+});

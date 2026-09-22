@@ -203,16 +203,103 @@
     } catch (_) { return (followCache = []); }
   }
 
-  // The global name search and its one-time consent ask. Both live in the panel, and the
-  // honest answer for this page is that it does not offer them: the ask is a privacy
-  // decision with a paragraph attached, and re-rendering that paragraph here would be a
-  // second place for it to drift. Follows still autocomplete, which is the common case.
+  // ---- the global name search, at full parity with the panel ----
+  //
+  // This used to be a stub — follows only — on the theory that the consent ask was
+  // panel UI and this page should not ask its own question. What that actually
+  // bought was two composers with two memories: a name the sidebar found in a
+  // keystroke did not exist in the tab unless the account followed it. The ask is
+  // not panel UI; it belongs to the decision, and the decision is stored
+  // browser-wide, so this page renders the same one-time ask, writes the same
+  // setting, and searches the same index — api.nostrarchives.com, the one
+  // centralized service whose trade (it sees what you type and who you follow,
+  // which the relays never see together) the user is asked about exactly once.
+  const NA_BASE = 'https://api.nostrarchives.com';
+  const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
+  // Tri-state memo: undefined = never asked, true/false = decided. Read straight
+  // from storage rather than through call(), so autocomplete keystrokes cannot wake
+  // the service worker; after that it is memoized, and storage.onChanged keeps this
+  // document current — the one thing the panel's memo cannot do for itself, because
+  // the decision changed in Settings is a decision changed in a DIFFERENT document
+  // from the one writing this note.
+  let naSettingMemo;
+  let naSettingLoaded = false;
+  function naSetting() {
+    if (naSettingLoaded) return Promise.resolve(naSettingMemo);
+    return new Promise((resolve) =>
+      chrome.storage.local.get('sidecar_settings', (r) => {
+        naSettingLoaded = true;
+        naSettingMemo = ((r && r.sidecar_settings) || {}).nostrArchives;
+        resolve(naSettingMemo);
+      }));
+  }
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.sidecar_settings) return;
+    naSettingLoaded = true;
+    naSettingMemo = (changes.sidecar_settings.newValue || {}).nostrArchives;
+  });
+  // Either button on the ask writes the decision. The memo is set first,
+  // optimistically: if the write somehow fails, showing the ask again right after
+  // a deliberate "Just my follows" would be worse than re-asking next session.
+  async function naDecide(on) {
+    naSettingLoaded = true;
+    naSettingMemo = on;
+    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: on } }); } catch (_) {}
+  }
+  // The ask itself, rendered where the search spinner would sit in the dropdown.
+  // mousedown + preventDefault like the result rows: a plain click would blur the
+  // composer first and close the dropdown before the decision lands.
+  function naAskEl(onDecided) {
+    const row = h('div', { className: 'na-ask' });
+    row.addEventListener('mousedown', (e) => e.preventDefault());
+    row.append(h('p', {
+      className: 'na-ask-text',
+      textContent: 'Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.',
+    }));
+    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: 'Search everyone' });
+    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: 'Just my follows' });
+    const pick = (on) => (e) => { e.preventDefault(); e.stopPropagation(); onDecided(on); };
+    yes.addEventListener('mousedown', pick(true));
+    no.addEventListener('mousedown', pick(false));
+    row.append(h('div', { className: 'na-ask-actions' }, [yes, no]));
+    return row;
+  }
+  let naCooldownUntil = 0; // epoch ms; a 429 backs us off until this time
+  const naAvailable = () => Date.now() >= naCooldownUntil;
+  function naBackoff(retryAfter) {
+    const secs = Math.min(3600, Math.max(30, Number(retryAfter) || 60));
+    naCooldownUntil = Date.now() + secs * 1000;
+  }
+  const naName = (p) => p.display_name || p.preferred_name || p.name || null;
+
+  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure.
+  async function naSuggest(query) {
+    if (!query || query.length < 2 || !naAvailable()) return [];
+    if ((await naSetting()) !== true) return [];
+    try {
+      const resp = await fetch(NA_BASE + '/v1/search/suggest?q=' + encodeURIComponent(query) + '&limit=8', {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); return []; }
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      return (data.suggestions || [])
+        .filter((s) => s && isHex64(s.pubkey))
+        .map((s) => {
+          const pk = s.pubkey.toLowerCase();
+          let name = naName(s);
+          if (!name) { try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; } }
+          return { pubkey: pk, name, picture: s.picture || null };
+        });
+    } catch (_) { return []; }
+  }
+
   const na = {
-    available: () => false,
-    setting: async () => true, // "decided", so the ask never renders
-    suggest: async () => [],
-    askEl: () => h('div'),
-    decide: async () => {},
+    available: naAvailable,
+    setting: naSetting,
+    decide: naDecide,
+    askEl: naAskEl,
+    suggest: naSuggest,
   };
 
   // Proof of work for THIS note. The draft's own rung if it carries one, otherwise the
