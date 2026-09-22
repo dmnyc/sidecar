@@ -257,7 +257,10 @@ test('ONE PAYMENT PANEL AT A TIME, AND NEITHER BUTTON DOES THE OTHER’S JOB', (
   const body = open.slice(0, open.indexOf('\n      }'));
   assert.ok(!/zapPanel = offerPanel/.test(body), 'the offer hijacked the zap button');
   assert.match(body, /if \(zapPanel\) zapPanel\.classList\.add\('hidden'\);/);
-  assert.match(body, /offerPanel\.classList\.remove\('hidden'\);/);
+  // Toggled rather than forced open: pressing Pay offer twice shuts it again, the same way
+  // pressing Zap twice does, and a button that only ever opens is a button that lies about
+  // being a toggle.
+  assert.match(body, /offerPanel\.classList\.toggle\('hidden', offerPanel\.isConnected && !offerPanel\.classList\.contains\('hidden'\)\);/);
 
   const zapClick = bare.slice(bare.indexOf("zapBtn.addEventListener('click'"));
   assert.match(zapClick.slice(0, 400), /offerPanel\.classList\.add\('hidden'\);/);
@@ -311,6 +314,33 @@ test('A CONNECTED WALLET DOES NOT MEAN PAYING FROM THIS MACHINE', () => {
   // Built the first time it is wanted, not on every sheet: it draws a QR.
   assert.match(bare, /if \(!zapHandoff\) \{/);
   assert.match(bare, /if \(!offerFormHandoff\) \{/);
+});
+
+test('THE BUTTON SAYS WHICH PANEL IS OPEN', () => {
+  // Both buttons are identical and both toggle a panel, so without this the only thing
+  // saying which one you pressed is the panel itself, which is off the top of a scrolled
+  // sheet the moment it has a QR in it.
+  const fn = bare.slice(bare.indexOf('function paintPayState()'));
+  const body = fn.slice(0, fn.indexOf('\n      }'));
+  // Read off the DOM, not a flag: three things open and close these panels, and a flag
+  // would be a fourth to keep in step with them.
+  assert.match(body, /const lit = \(el\) => !!el && el\.isConnected && !el\.classList\.contains\('hidden'\);/);
+  assert.match(body, /const offerOn = lit\(offerPanel\) \|\| lit\(offerHandoff\);/);
+  assert.match(body, /zapBtn\.classList\.toggle\('peek-pay-on', zapOn\)/);
+  assert.match(body, /offerBtn\.classList\.toggle\('peek-pay-on', offerOn\)/);
+  // A disclosure, so it says so to anything not looking at the color.
+  assert.match(body, /aria-expanded/);
+
+  // Every route that opens or closes one repaints. Miss one and the tint outlives the
+  // panel it was describing, which is worse than never having had it.
+  assert.equal((bare.match(/paintPayState\(\);/g) || []).length, 5);
+
+  // Color and a wash, no metrics. A border weight or a size change here would move the
+  // row every time somebody opened one, directly above a form people type into.
+  const rule = css.slice(css.indexOf('.peek-pay-row > .peek-pay-on {'), css.indexOf('.peek-pay-row > .peek-pay-on svg'));
+  assert.match(rule, /color: var\(--lav\)/);
+  assert.match(rule, /background: rgba\(var\(--accent-rgb\), 0\.08\)/);
+  assert.ok(!/padding|font-size|font-weight|border-width/.test(rule), 'the row would move when a panel opens');
 });
 
 test('it ships', () => {

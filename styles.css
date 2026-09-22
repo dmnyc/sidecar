@@ -4484,6 +4484,19 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    narrow, so they wrapped at widths where they would have sat side by side perfectly well.
    The floor the panel actually wants is the label, and the label already is it. */
 .peek-pay-row > .peek-zap-open { flex: 1 1 0; }
+/* THE ONE THAT IS OPEN. Both buttons are identical and both toggle a panel, so without
+   this the only thing saying which you pressed is the panel, which is off the top of the
+   sheet the moment it has a QR in it.
+
+   Color and a wash, no metrics: the same deal .compose-add-on makes, and for the same
+   reason. A border or a weight change here would move the row every time somebody opened
+   one, and this pair sits directly above a form people are typing into. */
+.peek-pay-row > .peek-pay-on {
+  color: var(--lav);
+  border-color: var(--gold-soft);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.peek-pay-row > .peek-pay-on svg { color: var(--lav); }
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
 .peek-zap-form { margin-top: 10px; }

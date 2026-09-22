@@ -2092,6 +2092,25 @@
       // twice on a cached profile, and the wallet lookup lands whenever it lands, so a
       // reveal that fired on first-answer-wins would swap the sheet under whoever was
       // already typing in it.
+      // WHICH ONE IS OPEN. Both buttons look the same and both toggle a panel, so without
+      // this the only thing saying which one you pressed is the panel itself, and by the
+      // time it has a QR in it the button is off the top of a scrolled sheet.
+      //
+      // Read off the DOM rather than tracked in a flag, because three things can open or
+      // close these panels (each button, and the no-wallet handoff) and a flag would be a
+      // fourth thing to keep in step with them. Whatever is actually on screen is the
+      // answer by definition.
+      function paintPayState() {
+        const lit = (el) => !!el && el.isConnected && !el.classList.contains('hidden');
+        const zapOn = lit(zapPanel);
+        const offerOn = lit(offerPanel) || lit(offerHandoff);
+        zapBtn.classList.toggle('peek-pay-on', zapOn);
+        offerBtn.classList.toggle('peek-pay-on', offerOn);
+        // A disclosure, so say so to anything that is not looking at the color.
+        zapBtn.setAttribute('aria-expanded', String(zapOn));
+        offerBtn.setAttribute('aria-expanded', String(offerOn));
+      }
+
       function revealZap() {
         if (zapShown || !zapZappable || zapHasWallet === null || !modal.isConnected) return;
         zapShown = true;
@@ -2101,6 +2120,7 @@
         zapPanel = zapHasWallet ? zapForm : zapPayBlock(zapAddr);
         payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
         zapWrap.append(zapPanel);
+        paintPayState();
         zapWrap.classList.remove('hidden');
       }
 
@@ -2117,6 +2137,7 @@
         offerShown = true;
         payRow.append(offerBtn);
         offerBtn.addEventListener('click', () => openOfferPanel(offer));
+        paintPayState();
         zapWrap.classList.remove('hidden');
       }
 
@@ -2159,6 +2180,7 @@
           if (zapPanel) zapPanel.classList.add('hidden');
           offerPanel.classList.add('hidden');
           offerHandoff.classList.toggle('hidden');
+          paintPayState();
           return;
         }
         // A fixed offer already knows its price, so asking for one would be asking the
@@ -2182,8 +2204,11 @@
         if (!offerPanel.isConnected) zapWrap.append(offerPanel);
         if (zapPanel) zapPanel.classList.add('hidden');
         if (offerHandoff) offerHandoff.classList.add('hidden');
-        offerPanel.classList.remove('hidden');
-        if (needsAmount) offerAmount.focus();
+        // Toggled, not forced open: pressing Pay offer twice should shut it again, the
+        // same way pressing Zap twice does.
+        offerPanel.classList.toggle('hidden', offerPanel.isConnected && !offerPanel.classList.contains('hidden'));
+        paintPayState();
+        if (needsAmount && !offerPanel.classList.contains('hidden')) offerAmount.focus();
       }
 
       offerPay.addEventListener('click', async () => {
@@ -2320,7 +2345,9 @@
         // ONE PAYMENT PANEL AT A TIME. Two open at once is two amount fields and two Pay
         // buttons on a 358px sheet, and no way to tell which one a number was typed into.
         offerPanel.classList.add('hidden');
+        if (offerHandoff) offerHandoff.classList.add('hidden');
         zapPanel.classList.toggle('hidden');
+        paintPayState();
         // Only the form has anything to type into; focusing the other one focuses a QR.
         if (zapPanel === zapForm && !zapForm.classList.contains('hidden')) amount.focus();
       });
