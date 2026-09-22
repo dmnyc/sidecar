@@ -3974,6 +3974,14 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   color: var(--gold); font-weight: 600; font-size: 12.5px;
 }
 .shared-headsup-btn:hover { filter: brightness(1.12); }
+/* The two answers sit on one row: Got it collapses the card, "Don't show this
+   again" ends the note. The quiet twin is un-filled so the primary read of the row
+   stays the acknowledgment, not the refusal. */
+.shared-headsup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.shared-headsup-btn-quiet {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+}
+.shared-headsup-btn-quiet:hover { filter: none; color: var(--text); border-color: var(--gold-soft); }
 /* compact reminder once the explainer has been dismissed */
 .shared-caption {
   display: flex; align-items: center; justify-content: center; gap: 6px;

@@ -497,6 +497,17 @@
         <div class="settings-section-body" id="section-body-apps">
 
           <div class="setting">
+            <h3>Multi-account note</h3>
+            <!-- The restorer for the shared-identity "Heads up!" and its caption.
+                 "Don't show this again" on the card silences the note for good, and a
+                 decision like that needs a way back that does not involve editing
+                 storage by hand. Restoring brings back the one-time explainer, as if
+                 it had never been seen. -->
+            <p class="hint">The "Heads up!" card and the "Multiple accounts used" line on shared-site confirms.</p>
+            <button type="button" class="mini ghost" id="headsup-restore">Show the note again</button>
+          </div>
+
+          <div class="setting">
             <h3>Background app syncs</h3>
             <!-- WHY THIS EXISTS, kept out of the panel: clients quietly sign app settings
                  (read status, preferences) as you browse. They are not posts, so Sidecar

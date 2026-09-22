@@ -9034,6 +9034,14 @@
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
+    // The way back from "Don't show this again": clears both flags in the local
+    // store both surfaces read, and refreshes this document's memo so the next
+    // shared-site confirm in the panel explains again.
+    $('headsup-restore').addEventListener('click', async () => {
+      await chrome.storage.local.remove(['sharedHeadsUpDismissed', 'sharedHeadsUpOptOut']);
+      sharedHeadsUp = { dismissed: false, optedOut: false };
+      toast('The multi-account note will show again', 'success');
+    });
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     $('hidebalance-toggle').checked = settings.hideBalances === true; // default off
@@ -20191,22 +20199,37 @@
   // Shared-identity explainer: the first time a shared-host confirm appears, show a
   // one-time "Heads up!" card; after the user dismisses it, every later confirm just
   // carries a compact "Multiple accounts used" caption above the "Signing as" line.
-  let sharedHeadsUpDismissed = false;
-  chrome.storage.local.get('sharedHeadsUpDismissed', (r) => {
-    sharedHeadsUpDismissed = !!(r && r.sharedHeadsUpDismissed);
+  // Dismissed (Seen — the compact caption remains) and optedOut (the note as a
+  // whole told to go away), both shared with the prompt windows via
+  // chrome.storage.local and both resolved BEFORE the first render: the read is
+  // async, and a sheet painted before it completed used to show the full explainer
+  // again even after it was dismissed.
+  let sharedHeadsUp = { dismissed: false, optedOut: false };
+  const sharedHeadsUpReady = new Promise((resolve) => {
+    chrome.storage.local.get(['sharedHeadsUpDismissed', 'sharedHeadsUpOptOut'], (r) => {
+      sharedHeadsUp = {
+        dismissed: !!(r && r.sharedHeadsUpDismissed),
+        optedOut: !!(r && r.sharedHeadsUpOptOut),
+      };
+      resolve();
+    });
   });
-  function renderSharedNote(data) {
+  async function renderSharedNote(data) {
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
     if (!data.sharedIdentity) {
       $('approval-switch-toggle').textContent = 'Sign in with a different account';
       return;
     }
+    await sharedHeadsUpReady; // the flags are known before a branch is taken
     $('approval-switch-toggle').textContent = 'Sign as a different account';
     const acct = $('approval-account');
     if (!acct) return;
+    // Opted out: no note at all. The confirm itself and the account picker stay —
+    // the opt-out silences the explanation, never the question it explains.
+    if (sharedHeadsUp.optedOut) return;
     let note;
-    if (sharedHeadsUpDismissed) {
+    if (sharedHeadsUp.dismissed) {
       note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
         icon('users'),
         h('span', { textContent: 'Multiple accounts used' }),
@@ -20221,11 +20244,21 @@
       ]);
       const got = h('button', { className: 'shared-headsup-btn', textContent: 'Got it' });
       got.addEventListener('click', () => {
-        sharedHeadsUpDismissed = true;
+        sharedHeadsUp.dismissed = true;
         chrome.storage.local.set({ sharedHeadsUpDismissed: true });
         renderSharedNote(data); // collapse to the compact caption immediately
       });
-      note.append(got);
+      // THE QUIET SECOND ANSWER. Some users have seen the explainer, understand the
+      // choice, and want the note gone altogether — "Got it" only ever collapsed it
+      // to the caption, and the caption never ended. This writes the opt-out both
+      // surfaces and the Settings restorer all read.
+      const never = h('button', { className: 'shared-headsup-btn shared-headsup-btn-quiet', textContent: "Don't show this again" });
+      never.addEventListener('click', () => {
+        sharedHeadsUp.optedOut = true;
+        chrome.storage.local.set({ sharedHeadsUpOptOut: true });
+        renderSharedNote(data); // gone altogether, immediately
+      });
+      note.append(h('div', { className: 'shared-headsup-actions' }, [got, never]));
     }
     acct.parentNode.insertBefore(note, acct);
   }
