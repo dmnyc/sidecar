@@ -3022,9 +3022,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    reading as a fourth toolbar button: ghost against their filled siblings, on its own
    line, and only on screen when there is something to take off. */
 .track-row { display: flex; margin: 7px 0 0; }
-/* Its sibling: the attachment offer for a URL pasted on its own. Same grammar — one
-   full-width row, one button, gone the moment the text changes again. */
-.attach-row { display: flex; margin: 7px 0 0; }
+/* Its sibling: the attachment offer for a URL pasted on its own. It sits ABOVE the
+   editor and wears the accent — lav text on a lav hairline with a faint tint —
+   because an offer the user never notices is not an offer, and the quiet ghost it
+   wore first disappeared against the editor below it. */
+.attach-row { display: flex; margin: 0 0 6px; }
+.attach-row .attach-accept {
+  color: var(--lav); border-color: var(--lav);
+  background: rgba(var(--accent-rgb, 189, 161, 255), 0.09);
+}
+.attach-row .attach-accept:hover { color: var(--lav); border-color: var(--lav); }
 /* A compose-add that is currently ON, for the proof-of-work cycle. Color only: the label
    already says which level, so the tint is confirmation rather than the message, and
    nothing about the button's metrics moves as it cycles. */

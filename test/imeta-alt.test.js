@@ -457,8 +457,9 @@ test('THE ROW AUTOSAVES AS IT TYPES, AND EVERY EXIT COMMITS', () => {
 test('A URL PASTED ON ITS OWN IS AN ATTACHMENT WAITING TO BE OFFERED', () => {
   // The paste, not the editor, is what is judged: the whole paste has to be exactly
   // one image URL. Anything riding inside a larger chunk of text is prose and stays
-  // prose, and the offer — like the tracking offer it is modeled on — is one button
-  // the next keystroke withdraws.
+  // prose. The offer stays up while the URL still stands as its own line — typing
+  // the caption that goes with the picture must not lose the offer — and goes only
+  // when the line does.
   assert.equal(loneImageUrl('https://example.com/pic.png'), 'https://example.com/pic.png');
   assert.equal(loneImageUrl('  https://example.com/pic.png  '), 'https://example.com/pic.png', 'paste edges are trim');
   assert.equal(loneImageUrl('https://example.com/PICT.PNG'), 'https://example.com/PICT.PNG', 'extensions are case-blind');
@@ -485,6 +486,12 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
   assert.match(core, /lines\.includes\(url\)/, 'the URL must have landed as its own line');
   assert.match(core, /attachRow\.classList\.remove\('hidden'\)/);
   assert.match(core, /Attach this image/);
+  // And it stays visible, in both senses: seated above the editor where the eye
+  // starts, and still standing while the user types beside the pasted line.
+  assert.match(core, /wrap\.prepend\(attachRow\)/, 'the offer sits below the fold');
+  assert.match(core, /function refreshAttachOffer/, 'no re-check on input');
+  assert.match(core, /refreshAttachOffer\(\);/, 'input never re-checks the offer');
+  assert.match(core, /lines\.includes\(offeredUrl\)/, 'the offer does not survive its own line going away');
   for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
     assert.ok(src.includes('onAttachUrl: (url) => {'), name + ' never hands in the conversion');
     assert.match(src, /removeUrlFromEditor\(/, name + ' never cuts the URL from the prose');

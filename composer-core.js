@@ -689,9 +689,11 @@ window.SidecarCore = (function () {
       emit();
       updateAcDropdown();
       pingActivity(); // composing counts as activity, which keeps auto-lock at bay
-      // And any keystroke after the paste withdraws the attachment offer: the text
-      // it was offered about has changed.
-      hideAttachOffer();
+      // Typing does not withdraw the attachment offer — writing the caption that
+      // goes with the picture is exactly what a user who intends to accept is
+      // about to do. The offer re-checks instead: it stands while the URL still
+      // sits on its own line, and goes only when that line does.
+      refreshAttachOffer();
     });
 
     editor.addEventListener('keydown', (e) => {
@@ -765,18 +767,26 @@ window.SidecarCore = (function () {
     // ---- the attachment offer, for a URL pasted on its own ----
     //
     // The paste is checked, not the editor: only a paste whose whole content is one
-    // image URL qualifies. The offer row is the tracking row's sibling — one button,
-    // full width below the text — and the next keystroke anywhere in the editor
-    // withdraws it, because the text it was offered about has changed.
+    // image URL qualifies. The offer sits ABOVE the editor, where the eye starts —
+    // under a long note it was below the fold and read as nothing — and it wears
+    // the accent for the same reason. It stays up while the offered URL still sits
+    // on its own line, so typing the caption beside it never loses the offer; the
+    // moment the line is edited away, the offer follows.
     const attachRow = h('div', { className: 'attach-row hidden' });
     const attachBtn = h('button', { className: 'mini ghost compose-add attach-accept', type: 'button' });
     attachBtn.append(icon('plus'), h('span', { textContent: 'Attach this image' }));
     attachRow.append(attachBtn);
-    wrap.append(attachRow);
+    wrap.prepend(attachRow);
     let offeredUrl = null;
     function hideAttachOffer() {
       offeredUrl = null;
       attachRow.classList.add('hidden');
+    }
+    function refreshAttachOffer() {
+      if (!offeredUrl) return;
+      const lines = serializeEditor(editor).split('\n').map((l) => l.trim());
+      if (lines.includes(offeredUrl)) return;
+      hideAttachOffer();
     }
     attachBtn.addEventListener('click', () => {
       const url = offeredUrl;
