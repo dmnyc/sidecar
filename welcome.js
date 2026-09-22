@@ -435,6 +435,40 @@ const APPS = [
     cat: 'other',
     desc: 'A location-based social network for Bitcoiners — a member club with Nostr sign-in.',
   },
+  // ---- additions ahead of 1.14 (#339) ----
+  {
+    name: 'Brainstorm',
+    url: 'https://brainstorm.world',
+    domain: 'brainstorm.world',
+    cat: 'tools',
+    // Their own favicon.svg — a filled rounded square, so it sits flush in the frame
+    // like Iris's apple-touch-icon rather than taking the velvet wrap.
+    icon: 'https://brainstorm.world/favicon.svg',
+    flush: true,
+    desc: 'Build trust scores from your own connections — the Web of Trust layer for Nostr, with search through the people you already trust.',
+  },
+  {
+    name: 'NymChat',
+    url: 'https://nymchat.app',
+    domain: 'nymchat.app',
+    cat: 'social',
+    // Nothing hotlinkable on the site (data-URI favicon, no apple-touch-icon, the
+    // manifest 403s), so the launcher art is bundled like Circl's mark. The squared
+    // icon is opaque and fills its frame — flush.
+    icon: 'icons/apps/nym.png',
+    flush: true,
+    desc: 'Ephemeral chat over Nostr — geohash channels for whoever is near you, Bluetooth mesh when there is no signal, and messages that bridge to Bitchat.',
+  },
+  {
+    name: 'Shakespeare',
+    url: 'https://shakespeare.diy',
+    domain: 'shakespeare.diy',
+    cat: 'tools',
+    // Serves a clean 192x192 PNG at a stable path; filled square, flush.
+    icon: 'https://shakespeare.diy/shakespeare-192x192.png',
+    flush: true,
+    desc: 'Build small apps and sites by describing them, and publish them to Nostr — an open-source AI builder from Soapbox that runs entirely in your browser.',
+  },
 ];
 
 const CAT_LABELS = {
