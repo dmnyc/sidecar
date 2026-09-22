@@ -345,7 +345,9 @@
     handoverRelays = null; // a different account can publish somewhere else entirely
     followCache = null;
     const saved = await loadDraft();
-    draft.text = (saved && saved.text) || '';
+    // Strip the attachment URLs an older draft carried in its text: they live in the
+    // media slot alone now, or publishing would append them a second time.
+    draft.text = SC.stripDraftMediaUrls(saved && saved.text, saved && saved.media);
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
     // The row edits a slot of the PREVIOUS account's draft, which was just swapped
     // under it — the same reason the editor itself is rewritten below.
@@ -395,7 +397,9 @@
     const pane = $('compose-countdown');
     const preview = h('div', { className: 'countdown-preview' });
     const body = h('div', { className: 'preview-body' });
-    composer.renderNotePreview(body, text);
+    // The note that will go out, attachments appended — not just the prose the
+    // editor was showing.
+    composer.renderNotePreview(body, SC.composeNoteContent(text, draft.media));
     preview.append(body);
 
     const restore = () => {
@@ -435,7 +439,9 @@
   async function doPost() {
     if (posting) return;
     const text = (draft.text || '').trim();
-    if (!text) return;
+    // Media alone is a postable note: the URLs live in the media slot, not in the
+    // text, so the prose being empty no longer means the note is.
+    if (!text && !draft.media.length) return;
     posting = true;
     paintCount();
     const status = $('compose-status');
@@ -443,11 +449,12 @@
       let template = {
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it).
-        // Undescribed media emits nothing, so a note of bare URLs is byte-identical
-        // to what it published before alt text existed.
+        // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it),
+        // describing the same URLs composeNoteContent appends to the content, in
+        // the same order. Undescribed media emits nothing, so a note of bare URLs
+        // is byte-identical to what it published before alt text existed.
         tags: [['client', 'Sidecar'], ...SC.imetaTagsForMedia(draft.media)],
-        content: text,
+        content: SC.composeNoteContent(text, draft.media),
       };
       // MINE FIRST, THEN SIGN. The event id commits to the pubkey, so the nonce has to be
       // found against the key that will sign it, and signing afterwards recomputes the id
@@ -679,25 +686,24 @@
       const rm = h('button', { className: 'compose-thumb-x', title: 'Remove', type: 'button' });
       rm.append(icon('trash'));
       rm.addEventListener('click', () => {
-        // The URL lives in the text, so removing the thumb has to remove the line too.
-        const ed = editorApi.editor;
-        const walker = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
-        let wn;
-        while ((wn = walker.nextNode())) {
-          if (wn.textContent.includes(m.url)) {
-            wn.textContent = wn.textContent.replace('\n' + m.url, '').replace(m.url, '');
-            break;
-          }
-        }
+        // The URL lives in the media slot alone now; taking the thumb off is just
+        // taking the attachment off the note.
         draft.media.splice(i, 1);
-        editorApi.sync();
         closeAltEditor(); // the row edits a media slot that no longer exists
+        scheduleSave();
+        paintCount();
         renderThumbs();
       });
       cell.append(rm);
       host.append(cell);
     });
+    mediaDrawer.sync();
   }
+
+  // The attachments' reference drawer, seated between the strip and whatever row
+  // comes next: collapsed it is one line saying where the attachments go.
+  const mediaDrawer = SC.buildMediaDrawer(() => draft.media);
+  $('compose-thumbs').after(mediaDrawer.wrap);
 
   // ---- the ALT editor, one image at a time ----
   //
@@ -733,16 +739,7 @@
       },
       onCancel: closeAltEditor,
     });
-    $('compose-thumbs').after(altRow);
-  }
-
-  // On its own line, with the break decided from the SERIALIZED text rather than the DOM:
-  // a URL glued to a bech32 or a hashtag corrupts both when the note is parsed.
-  function appendMediaUrl(url) {
-    const ed = editorApi.editor;
-    const existing = composer.serializeEditor(ed);
-    const sep = existing && !/\n$/.test(existing) ? '\n' : '';
-    ed.append(document.createTextNode(sep + url));
+    mediaDrawer.wrap.after(altRow);
   }
 
   // ---- the toolbar: media, and a proof of work for this note ----
@@ -767,9 +764,13 @@
       lbl.textContent = 'Uploading…';
       try {
         const url = await composer.uploadMedia(file, state.activePubkey);
+        // Into the media slot only. The URL is appended to the content at publish
+        // (SC.composeNoteContent), so nothing touches the editor here — and since no
+        // input event fires, both the autosave and the Post button (media alone is
+        // postable) have to be told by hand.
         draft.media.push({ url, isVideo: file.type.startsWith('video/') });
-        appendMediaUrl(url);
-        editorApi.sync();
+        scheduleSave();
+        paintCount();
         renderThumbs();
       } catch (e) {
         err.textContent = e.message;
@@ -823,7 +824,10 @@
       pane.classList.toggle('hidden', !previewing);
       if (!previewing) return;
       pane.innerHTML = '';
-      const body = (draft.text || '').trim();
+      // What will actually go out: the prose and, appended at the end, the
+      // attachments — the preview and the published note are rendered from the one
+      // composed string.
+      const body = SC.composeNoteContent(draft.text, draft.media);
       if (!body) {
         pane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
         return;
@@ -852,7 +856,9 @@
 
     dkey = state.activePubkey;
     const saved = await loadDraft();
-    if (saved && saved.text) draft.text = saved.text;
+    // Same strip as the account switch: a draft saved before the URLs left the editor
+    // carries them in its text, and publishing must not append them twice.
+    if (saved) draft.text = SC.stripDraftMediaUrls(saved.text, saved.media);
     if (saved && Array.isArray(saved.media)) draft.media = saved.media;
     // The relay set the panel worked out, left beside the draft when you pressed expand.
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;

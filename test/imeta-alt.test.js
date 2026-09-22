@@ -47,13 +47,17 @@ vm.runInContext(
   lift(/function normalizeAltBreaks\(text\) \{[\s\S]*?\n  \}/, 'normalizeAltBreaks') + '\n' +
   lift(/function buildImetaTag\(url, alt\) \{[\s\S]*?\n  \}/, 'buildImetaTag') + '\n' +
   lift(/function imetaTagsForMedia\(media\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
+  lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
+  lift(/function stripDraftMediaUrls\(text, media\) \{[\s\S]*?\n  \}/, 'stripDraftMediaUrls') + '\n' +
   'globalThis.ALT_MAX = ALT_MAX;' +
   'globalThis.normalizeAltBreaks = normalizeAltBreaks;' +
   'globalThis.buildImetaTag = buildImetaTag;' +
-  'globalThis.imetaTagsForMedia = imetaTagsForMedia;',
+  'globalThis.imetaTagsForMedia = imetaTagsForMedia;' +
+  'globalThis.composeNoteContent = composeNoteContent;' +
+  'globalThis.stripDraftMediaUrls = stripDraftMediaUrls;',
   ctx
 );
-const { ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia } = ctx;
+const { ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls } = ctx;
 
 // Values built inside the vm carry its Array.prototype, which strict deep-equal
 // rightly refuses from out here. The tag shape is data, so taking a plain copy at
@@ -136,6 +140,39 @@ test('UNDESCRIBED MEDIA EMITS NOTHING, IN DRAFT ORDER', () => {
   assert.deepEqual(plain(imetaTagsForMedia([cleared])), []);
 });
 
+test('THE ATTACHMENTS MEET THE PROSE ONCE, AT PUBLISH', () => {
+  // The editor shows prose only; the URLs ride in the media slot. One function puts
+  // them back together — for the note and for the preview, so the review window
+  // shows the note that will actually go out rather than the half of it the editor
+  // was showing.
+  assert.equal(composeNoteContent('hello', [{ url: 'https://x/a.png' }]), 'hello\n\nhttps://x/a.png');
+  assert.equal(
+    composeNoteContent('hello', [{ url: 'https://x/a.png' }, { url: 'https://x/b.png' }]),
+    'hello\n\nhttps://x/a.png\nhttps://x/b.png',
+    'each attachment on its own line, in strip order'
+  );
+  assert.equal(composeNoteContent('', [{ url: 'https://x/a.png' }]), 'https://x/a.png', 'media alone is a note');
+  assert.equal(composeNoteContent('  hello  ', []), 'hello');
+  assert.equal(composeNoteContent('', []), '');
+  assert.equal(composeNoteContent('hello'), 'hello', 'no media slot at all');
+});
+
+test('AN OLD DRAFT DOES NOT PUBLISH ITS URLS TWICE', () => {
+  // Drafts saved before the URLs left the editor carry them in the saved text — the
+  // same URLs the media slot holds. Stripped on restore, idempotent on drafts saved
+  // since, and only a line matching an attachment's OWN url is taken out.
+  const media = [{ url: 'https://x/a.png' }, { url: 'https://x/b.png' }];
+  assert.equal(stripDraftMediaUrls('hello\nhttps://x/a.png\nhttps://x/b.png', media), 'hello');
+  assert.equal(stripDraftMediaUrls('hello\n\nhttps://x/a.png', [media[0]]), 'hello', 'blank line before the block');
+  assert.equal(stripDraftMediaUrls('hello', media), 'hello', 'a clean draft is untouched');
+  assert.equal(stripDraftMediaUrls('', media), '');
+  assert.equal(
+    stripDraftMediaUrls('look at https://x/other.png', [{ url: 'https://x/a.png' }]),
+    'look at https://x/other.png',
+    'prose carrying a different URL is prose, not an attachment line'
+  );
+});
+
 // ---- the wiring: both composers write the tag, from one copy of the code ----
 
 test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
@@ -174,6 +211,48 @@ test('THE ROW EDITS ONE SLOT AND THE DRAFT KEEPS WHAT IT WROTE', () => {
   // to drift.
   assert.match(panelBare, /altRow = buildAltEditorRow\(\{/, 'the panel builds the shared row');
   assert.match(pageBare, /altRow = SC\.buildAltEditorRow\(\{/, 'the tab builds the shared row');
+});
+
+test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
+  // The note that publishes — and the preview the review window shows — is the
+  // composed string, prose and attachments together. The upload path pushes into the
+  // media slot and leaves the editor alone.
+  assert.match(panelBare, /const content = composeNoteContent\(prose, draft\.media\);/);
+  assert.match(panelBare, /composer\.renderNotePreview\(body, composeNoteContent\(draft\.text, draft\.media\)\)|composeNoteContent\(draft\.text, draft\.media\)/);
+  assert.match(panelBare, /const preview = stripDraftMediaUrls\(saved\.text, saved\.media\)/, 'the chooser previews the stripped text');
+  for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
+    assert.ok(!src.includes('appendMediaUrl'), name + ' still appends URLs into the editor');
+    // The drawer, built once and re-read from the live draft — the draft is rebound
+    // when the account moves, so a captured array would go stale.
+    assert.match(src, /buildMediaDrawer\(\(\) => draft\.media\)/, name + ' never builds the reference drawer');
+    assert.match(src, /mediaDrawer\.sync\(\)/, name + ' never syncs the drawer');
+    // An upload fires no editor input, so the autosave is told by hand — and so is
+    // the Post button, since media alone is postable: without this, a first upload
+    // into an empty composer leaves Post inert and a last removal leaves it lit.
+    // The panel repaints at three sites (file upload, paste upload, removal); the
+    // tab has no image-paste path, so two.
+    assert.match(src, /draft\.media\.push\(/, name + ' lost the upload push');
+    const taps = name === 'sidepanel.js'
+      ? src.match(/scheduleSave\(\);\n\s*updatePostState\(\);\n\s*renderThumbs\(\);/g) || []
+      : src.match(/scheduleSave\(\);\n\s*paintCount\(\);\n\s*renderThumbs\(\);/g) || [];
+    const want = name === 'sidepanel.js' ? 3 : 2;
+    assert.equal(taps.length, want, name + ' repaints the button at every media change (found ' + taps.length + ')');
+  }
+});
+
+test('THE REFERENCE DRAWER SAYS WHERE THE ATTACHMENTS GO', () => {
+  // Collapsed it is one line — the whole point of taking the URLs out of the editor
+  // is that nobody should have to look at them to write — and that line must say
+  // where they went, because the composer no longer shows it.
+  const at = core.indexOf('function buildMediaDrawer');
+  assert.ok(at > -1, 'composer-core.js never builds the drawer');
+  const fn = core.slice(at, core.indexOf('\n  }\n', at));
+  assert.match(fn, /added to the end of your post/);
+  assert.match(fn, /attachment/, 'the count, in words');
+  // And the copy affordance rides the row, in the icon slot: a URL in a reference
+  // drawer that cannot leave it is a tease.
+  assert.match(fn, /compose-media-copy/);
+  assert.match(fn, /navigator\.clipboard\.writeText\(m\.url\)/);
 });
 
 test('A DECIDED NOTE IS NOT EDITABLE UNDER THE REVIEW WINDOW', () => {

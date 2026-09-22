@@ -1110,6 +1110,98 @@ window.SidecarCore = (function () {
     return row;
   }
 
+  // ---- media in the composer: held beside the prose, appended at publish ----
+  //
+  // The composer shows the prose only. A 100-character CDN URL is not text anybody
+  // is thinking about while writing, and it pushed every real sentence down the
+  // panel; the attachments live in the draft's media slot and are appended to the
+  // content at publish, each URL on its own line after a blank line. The wire format
+  // does not change — the URL in the content is still what most clients read, and
+  // the imeta tags beside it describe those same URLs in the same order.
+
+  // What the note says on the wire, and what the preview should show: the one place
+  // prose and attachments meet again, so the review window previews the note that
+  // will actually go out rather than the half of it the editor was showing.
+  function composeNoteContent(text, media) {
+    const prose = String(text || '').trim();
+    const urls = (media || []).map((m) => m && m.url).filter(Boolean);
+    if (!urls.length) return prose;
+    return (prose ? prose + '\n\n' : '') + urls.join('\n');
+  }
+
+  // Drafts saved before the URLs moved out of the editor carry them in the saved
+  // text — the same URLs the media slot holds. Stripped on restore, or the publish
+  // would append them a second time. A no-op on drafts saved since, and on prose a
+  // user typed that merely looks like a URL: only a line matching an attachment's
+  // own URL is taken out.
+  function stripDraftMediaUrls(text, media) {
+    let out = String(text || '');
+    for (const m of media || []) {
+      if (!m || !m.url) continue;
+      out = out.split('\n' + m.url).join('');
+      out = out.split(m.url).join('');
+    }
+    return out.replace(/\s+$/, '');
+  }
+
+  // The attachments' reference drawer: one collapsed line saying how many and where
+  // they go, expanding to one row per attachment — the URL, truncated, with a copy
+  // button in the icon slot. Read-only on purpose: the order shown is the thumbs'
+  // order, and reordering happens on the thumbnails themselves. `getMedia` is a
+  // function because the draft is rebound when the account moves under the tab; the
+  // drawer re-reads it on every sync.
+  function buildMediaDrawer(getMedia, opts) {
+    const wrap = h('div', { className: 'compose-media-note hidden' });
+    const toggle = h('button', { className: 'compose-media-toggle', type: 'button' });
+    const chev = icon('chevron-down');
+    const label = h('span', { className: 'compose-media-toggle-label' });
+    toggle.append(chev, label);
+    const drawer = h('div', { className: 'compose-media-drawer hidden' });
+    wrap.append(toggle, drawer);
+
+    function sync() {
+      const media = (getMedia && getMedia()) || [];
+      const urls = media.filter((m) => m && m.url);
+      if (!urls.length) {
+        wrap.classList.add('hidden');
+        drawer.classList.add('hidden');
+        toggle.classList.remove('open');
+        return;
+      }
+      wrap.classList.remove('hidden');
+      label.textContent = urls.length + (urls.length === 1 ? ' attachment' : ' attachments')
+        + ' — added to the end of your post';
+      drawer.innerHTML = '';
+      for (const m of urls) {
+        const rowEl = h('div', { className: 'compose-media-row' });
+        const u = h('span', { className: 'compose-media-url', textContent: m.url });
+        u.title = m.url;
+        const cp = h('button', { className: 'compose-media-copy', title: 'Copy link', type: 'button' });
+        cp.append(icon('copy'));
+        cp.addEventListener('click', () => {
+          navigator.clipboard.writeText(m.url).then(() => {
+            cp.innerHTML = '';
+            cp.append(icon('check'));
+            cp.classList.add('did');
+            setTimeout(() => {
+              cp.innerHTML = '';
+              cp.append(icon('copy'));
+              cp.classList.remove('did');
+            }, 900);
+          }).catch(() => {});
+        });
+        rowEl.append(u, cp);
+        drawer.append(rowEl);
+      }
+    }
+    toggle.addEventListener('click', () => {
+      drawer.classList.toggle('hidden');
+      toggle.classList.toggle('open', !drawer.classList.contains('hidden'));
+    });
+    sync();
+    return { wrap, drawer, sync };
+  }
+
   const POW_LEVELS = [
     { bits: 16, cost: 'Usually instant.' },
     { bits: 18, cost: 'About a second.' },
@@ -1673,5 +1765,6 @@ window.SidecarCore = (function () {
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
+    composeNoteContent, stripDraftMediaUrls, buildMediaDrawer,
   };
 })();

@@ -179,8 +179,10 @@ test('A SHORT SCREEN DOES NOT PUT POST BELOW THE FOLD', () => {
   // And the dead space that was there at every height: an empty thumbnail row is still a
   // flex item, so it charged 14px of margin plus the gap on either side of it.
   assert.match(css, /\.compose-thumbs:empty \{ display: none; \}/);
-  // The sheet sets the rhythm with its own gap; the rows inside do not each add to it.
-  assert.match(css, /\.compose-sheet \.compose-actions,[\s\S]{0,120}margin: 0; \}/);
+  // The sheet sets the rhythm with its own gap; the rows inside do not each add to it —
+  // including the attachments' reference drawer and the ALT editor row that seat
+  // themselves beside these.
+  assert.match(css, /\.compose-sheet \.compose-actions,[\s\S]{0,240}margin: 0; \}/);
 });
 
 test('THE COMPOSER FLOATS, CENTERED BOTH WAYS, ON A SOLID SURFACE', () => {
@@ -518,9 +520,15 @@ test('media is content on its own', () => {
   assert.match(bare, /post\.disabled = posting \|\| \(!n && !draft\.media\.length\);/);
   assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)\)/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.media\)\) draft\.media = saved\.media;/);
-  // The URL goes on its own line, decided from the serialized text, because a URL glued
-  // to a bech32 or a hashtag corrupts both when the note is parsed.
-  assert.match(bare, /const existing = composer\.serializeEditor\(ed\);/);
+  // And the empty prose of a media-only note is not a reason to stop either: the URL
+  // lives in the media slot now, so "no text" no longer means "no note".
+  assert.match(bare, /if \(!text && !draft\.media\.length\) return;/);
+  // The URL never enters the editor. It is appended to the content at publish — the
+  // one composed string the review window previews too — so the prose the user sees
+  // while writing is the prose they wrote.
+  assert.match(bare, /content: SC\.composeNoteContent\(text, draft\.media\)/);
+  assert.match(bare, /composer\.renderNotePreview\(body, SC\.composeNoteContent\(text, draft\.media\)\)/);
+  assert.ok(!bare.includes('appendMediaUrl'), 'uploads must not write URLs into the editor');
 });
 
 test('THE WAY OUT IS A CORNER BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER', () => {

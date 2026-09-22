@@ -305,9 +305,12 @@ test('A SAVED REPLY REMEMBERS WHAT IT ANSWERS', () => {
 
 test('resuming a draft restores its target', () => {
   const at = source.indexOf("const resume = h('button'");
-  const block = source.slice(at, at + 400);
+  const block = source.slice(at, at + 600);
   assert.match(block, /replyTo = saved\.replyTo \|\| null/);
-  assert.match(block, /media: \(saved\.media \|\| \[\]\)\.slice\(\), replyTo/);
+  assert.match(block, /media: \(saved\.media \|\| \[\]\)\.slice\(\),/);
+  // A draft saved before the attachment URLs left the editor carries them in its
+  // text; resuming strips them, or publishing would append them a second time.
+  assert.match(block, /stripDraftMediaUrls\(saved\.text, saved\.media\)/);
 });
 
 test('starting fresh keeps the target you arrived with', () => {

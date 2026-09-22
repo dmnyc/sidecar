@@ -25,6 +25,9 @@
   // The imeta write side: describing an attached image so the client that renders the
   // note can say it. Same tag zap.cooking writes; see composer-core.js for the format.
   const { ALT_MAX, normalizeAltBreaks, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
+  // Attachments held beside the prose and appended at publish, with the reference
+  // drawer that says so. See composer-core.js for the shape.
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer } = window.SidecarCore;
 
   const NT = window.NostrTools;
 
@@ -11017,14 +11020,13 @@
     }
 
     async function doPublish() {
-      const content = draft.text.trim();
-      // Shared with the page-comment path — see mentionPTags. Was inline here, which
-      // is how comments ended up shipping without it.
-      const pTags = mentionPTags(content);
-      // A body reference makes this a NIP-18 quote — see quoteTags. The quoted author
-      // gets a `p` tag as well (that's what turns the quote into a notification for
-      // them), without duplicating an @mention of the same person.
-      const quotes = quoteTags(content);
+      // The prose as typed is what mentions and quotes are scanned in; the content
+      // the note carries is that prose with the attachments appended at the end,
+      // which is the same thing the preview showed.
+      const prose = draft.text.trim();
+      const content = composeNoteContent(prose, draft.media);
+      const pTags = mentionPTags(prose);
+      const quotes = quoteTags(prose);
       const seenP = new Set(pTags.map((t) => t[1]));
       for (const pk of quotes.authors) {
         if (seenP.has(pk)) continue;
@@ -11158,7 +11160,10 @@
       const previewPane = h('div', { className: 'compose-preview hidden' });
       function renderPreview() {
         previewPane.innerHTML = '';
-        const bodyText = draft.text.trim();
+        // What will actually go out: the prose and, appended at the end, the
+        // attachments — the preview and the published note are rendered from the
+        // one composed string.
+        const bodyText = composeNoteContent(draft.text, draft.media);
         if (bodyText) {
           const body = h('div', { className: 'preview-body' });
           renderNotePreview(body, bodyText);
@@ -11226,23 +11231,24 @@
           const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
-            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-            let wn;
-            while ((wn = walker.nextNode())) {
-              if (wn.textContent.includes(m.url)) {
-                wn.textContent = wn.textContent.replace('\n' + m.url, '').replace(m.url, '');
-                break;
-              }
-            }
+            // The URL lives in the media slot alone now; taking the thumb off is
+            // just taking the attachment off the note.
             draft.media.splice(i, 1);
-            mentionEditor.sync();
             closeAltEditor(); // the row edits a media slot that no longer exists
+            scheduleSave();
+            updatePostState();
             renderThumbs();
           });
           cell.append(rm);
           thumbs.append(cell);
         });
+        mediaDrawer.sync();
       }
+      // The attachments' reference drawer, seated between the strip and whatever
+      // row comes next: collapsed it is one line saying where the attachments go.
+      // Appended as a sibling in the modal's own list — a thumbs.after() here would
+      // run while thumbs is still detached and never reach the document.
+      const mediaDrawer = buildMediaDrawer(() => draft.media);
       renderThumbs();
 
       // ---- the ALT editor, one image at a time ----
@@ -11279,19 +11285,7 @@
           },
           onCancel: closeAltEditor,
         });
-        thumbs.after(altRow);
-      }
-
-      // Append a media URL on its own line. Decides the separator from the
-      // SERIALIZED text (what gets posted), and breaks on a newline rather than
-      // any trailing whitespace — so an image pasted right after a mention/tag
-      // can never glue to it (a bech32 or #hashtag followed by a URL corrupts
-      // both when the note is parsed). No-ops the break for an empty editor or
-      // one already ending in a newline.
-      function appendMediaUrl(url) {
-        const existing = serializeEditor(editor);
-        const sep = existing && !/\n$/.test(existing) ? '\n' : '';
-        editor.append(document.createTextNode(sep + url));
+        mediaDrawer.wrap.after(altRow);
       }
 
       const fileInput = document.createElement('input');
@@ -11311,9 +11305,13 @@
         lbl.textContent = 'Uploading…';
         try {
           const url = await uploadMedia(file, pubkey);
+          // Into the media slot only. The URL is appended to the content at publish
+          // (composeNoteContent), so nothing touches the editor here — and since no
+          // input event fires, both the autosave and the Post button (media alone is
+          // postable) have to be told by hand.
           draft.media.push({ url, isVideo: file.type.startsWith('video/') });
-          appendMediaUrl(url);
-          mentionEditor.sync();
+          scheduleSave();
+          updatePostState();
           renderThumbs();
         } catch (e) {
           err.textContent = e.message;
@@ -11344,9 +11342,9 @@
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey);
             draft.media.push({ url, isVideo: false });
-            appendMediaUrl(url);
           }
-          mentionEditor.sync();
+          scheduleSave();
+          updatePostState();
           renderThumbs();
         } catch (e) {
           err.textContent = e.message;
@@ -11695,6 +11693,7 @@
         editorWrap,
         previewPane,
         thumbs,
+        mediaDrawer.wrap,
         h('div', { className: 'compose-actions' }, [addBtn, pollAdd, powBtn]),
         fileInput,
         pollWrap,
@@ -11760,7 +11759,9 @@
         previewScroll.append(h('p', { className: 'hint', textContent: 'Demo event kind: ' + devKind }));
       }
       const previewBody = h('div', { className: 'preview-body' });
-      const bodyText = draft.text.trim();
+      // The composed string — attachments appended — is what publishes, so it is
+      // what this last screen shows. Media alone still previews as the note it is.
+      const bodyText = composeNoteContent(draft.text, draft.media);
       if (bodyText) renderNotePreview(previewBody, bodyText);
       else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
       previewScroll.append(previewBody);
@@ -11807,8 +11808,12 @@
       // No length-based truncation here: a fixed character cutoff could slice
       // through the middle of a nostr:npub1… mention, breaking it — the box
       // already clips visually (max-height + overflow:hidden), matching how
-      // the Preview tab and the final review screen handle the same text.
-      const preview = (saved.text || '').trim().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
+      // the Preview tab and the final review screen handle the same text. The saved
+      // text is stripped of the attachment URLs an older draft carried in it — since
+      // they moved to the media slot, prose and attachments are previewed the way
+      // they publish.
+      const preview = stripDraftMediaUrls(saved.text, saved.media).trim()
+        .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
       const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
         ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
@@ -11816,9 +11821,16 @@
 
       const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
       resume.addEventListener('click', () => {
-        // Restore the target too, or this resumes as a note and posts as one.
+        // Restore the target too, or this resumes as a note and posts as one. And
+        // strip the attachment URLs an older draft carried in its text: they live in
+        // the media slot alone now, or publishing would append them a second time.
         replyTo = saved.replyTo || null;
-        draft = { text: saved.text || '', media: (saved.media || []).slice(), replyTo, poll: saved.poll || null };
+        draft = {
+          text: stripDraftMediaUrls(saved.text, saved.media),
+          media: (saved.media || []).slice(),
+          replyTo,
+          poll: saved.poll || null,
+        };
         // The rung chosen for THIS draft, over the account's standing one. Resuming a
         // note and finding its difficulty reset is the same surprise as finding its
         // reply target reset, which is why that is restored on the line above.

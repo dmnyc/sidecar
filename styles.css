@@ -2733,6 +2733,40 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .compose-alt-ring.is-near .ring-fill { stroke: var(--amber); }
 .compose-alt-save { flex: 1; }
+/* ---- the attachments' reference drawer ----
+   The URLs leave the editor and are appended to the content at publish, so the
+   strip needs one line saying where they went, and a drawer for whoever wants to
+   see or copy one. Collapsed it costs a single line; the rows are the panel's row
+   grammar — prose truncating, one icon button that keeps its metrics. */
+.compose-media-note { margin: 0 0 4px; }
+.compose-media-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: none; padding: 4px 2px; cursor: pointer;
+  color: var(--muted); font-size: 12px; font-family: inherit;
+}
+.compose-media-toggle:hover { color: var(--text); }
+.compose-media-toggle svg { width: 14px; height: 14px; flex-shrink: 0; transition: transform 150ms ease; }
+.compose-media-toggle.open svg { transform: rotate(180deg); }
+.compose-media-toggle-label {
+  flex: 1; min-width: 0; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.compose-media-drawer { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 4px; }
+.compose-media-row { display: flex; align-items: center; gap: 8px; }
+.compose-media-url {
+  flex: 1; min-width: 0; font-size: 12px; color: var(--muted);
+  font-family: var(--font-mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  user-select: all;
+}
+.compose-media-copy {
+  flex-shrink: 0; width: 24px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: none; cursor: pointer; color: var(--muted); background: none;
+}
+.compose-media-copy:hover { color: var(--text); }
+.compose-media-copy svg { width: 13px; height: 13px; }
+.compose-media-copy.did { color: var(--lav); }
 /* THE COMPOSER'S THREE ADD BUTTONS, ON ONE ROW. Media, Poll and PoW are peers, so they
    read as a toolbar rather than as three stacked decisions, and three short labels fit
    across the sheet where three sentences did not.
@@ -2882,6 +2916,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-sheet .compose-actions,
 .compose-sheet .compose-thumbs,
 .compose-sheet .compose-tabs,
+.compose-sheet .compose-media-note,
 .compose-sheet .compose-alt-row { margin: 0; }
 .compose-foot { display: flex; align-items: center; gap: 14px; }
 .compose-status { font-size: 12px; color: var(--muted); }
