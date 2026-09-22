@@ -220,6 +220,22 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   assert.match(pageBare, /tags: \[\['client', 'Sidecar'\], \.\.\.SC\.imetaTagsForMedia\(draft\.media\)\]/);
 });
 
+test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
+  // A kind:1068 carrying appended image URLs and imeta tags is a shape no NIP-88
+  // client renders, and the tag push in doPublish once claimed it could not arrive
+  // while nothing enforced it. Each side's button stands down while the other holds
+  // the draft, and every media mutation repaints the pair.
+  assert.match(panelBare, /function paintEitherOr\(\) \{/);
+  assert.match(panelBare, /pollAdd\.classList\.toggle\('hidden', !!draft\.poll \|\| !!replyTo \|\| !!\(draft\.media && draft\.media\.length\)\)/);
+  assert.match(panelBare, /addBtn\.classList\.toggle\('hidden', !!draft\.poll\);/, 'Media stays offered under an open poll');
+  // In preview mode the clauses compose with the preview hide.
+  assert.match(panelBare, /addBtn\.classList\.toggle\('hidden', p \|\| !!draft\.poll\);/);
+  assert.match(panelBare, /pollAdd\.classList\.toggle\('hidden', p \|\| !!draft\.poll \|\| !!replyTo \|\| !!\(draft\.media && draft\.media\.length\)\);/);
+  // And every way media changes repaints, so the excluded button never lingers.
+  assert.equal((panelBare.match(/paintEitherOr\(\);/g) || []).length, 5,
+    'paintPoll + four media mutations must repaint the pair');
+});
+
 test('ATTACHING AN ALREADY-ATTACHED URL CONVERTS, NEVER DUPLICATES', () => {
   // Pasting the same URL twice and accepting both used to append the image twice —
   // two identical thumbnails, the URL twice in the published content, two imeta
