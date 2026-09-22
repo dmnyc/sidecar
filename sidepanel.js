@@ -11204,6 +11204,8 @@
       tabPreview.addEventListener('click', () => setMode(true));
 
       const thumbs = h('div', { className: 'compose-thumbs' });
+      // Where a dragged thumb will land, across renderThumbs' rebuilds.
+      let dragFrom = -1;
       function renderThumbs() {
         thumbs.innerHTML = '';
         draft.media.forEach((m, i) => {
@@ -11213,8 +11215,43 @@
           // chrome-extension:// referrer and 403, which renders as a broken thumb.
           el.referrerPolicy = 'no-referrer';
           el.src = m.url;
+          // The cell is what drags; an img's own native drag would hijack the gesture.
+          el.draggable = false;
           if (m.isVideo) el.muted = true;
           cell.append(el);
+          // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the
+          // editor and are appended at publish in this array's order, so with more
+          // than one attachment the thumbs drag.
+          cell.draggable = draft.media.length > 1;
+          cell.addEventListener('dragstart', (e) => {
+            dragFrom = i;
+            cell.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', String(i)); } catch (_) {}
+          });
+          cell.addEventListener('dragover', (e) => {
+            if (dragFrom === -1 || dragFrom === i) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            cell.classList.add('drop-target');
+          });
+          cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
+          cell.addEventListener('drop', (e) => {
+            e.preventDefault();
+            cell.classList.remove('drop-target');
+            if (dragFrom === -1 || dragFrom === i) return;
+            const moved = draft.media.splice(dragFrom, 1)[0];
+            draft.media.splice(i, 0, moved);
+            dragFrom = -1;
+            closeAltEditor(); // the open row edits a slot the drag may have moved
+            scheduleSave();
+            renderThumbs();
+          });
+          cell.addEventListener('dragend', () => {
+            dragFrom = -1;
+            cell.classList.remove('dragging');
+            thumbs.querySelectorAll('.drop-target').forEach((t) => t.classList.remove('drop-target'));
+          });
           if (!m.isVideo) {
             // The chip zap.cooking puts on its own thumbnails: + ALT until the image
             // is described, ✓ ALT once it is. Tapping it opens the editor row below

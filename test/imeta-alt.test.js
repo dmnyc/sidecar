@@ -222,6 +222,9 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
   assert.match(panelBare, /const preview = stripDraftMediaUrls\(saved\.text, saved\.media\)/, 'the chooser previews the stripped text');
   for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
     assert.ok(!src.includes('appendMediaUrl'), name + ' still appends URLs into the editor');
+    // A single thumb does not need reordering; more than one drags.
+    assert.match(src, /cell\.draggable = draft\.media\.length > 1;/, name + ' never offers the drag');
+    assert.match(src, /draft\.media\.splice\(dragFrom, 1\)\[0\]/, name + ' never reorders on drop');
     // The drawer, built once and re-read from the live draft — the draft is rebound
     // when the account moves, so a captured array would go stale.
     assert.match(src, /buildMediaDrawer\(\(\) => draft\.media\)/, name + ' never builds the reference drawer');

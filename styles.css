@@ -2767,6 +2767,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-media-copy:hover { color: var(--text); }
 .compose-media-copy svg { width: 13px; height: 13px; }
 .compose-media-copy.did { color: var(--lav); }
+/* Dragging a thumb to reorder: the one being carried fades, the one it would land
+   on takes an edge. The order on the strip is the order the URLs are appended in. */
+.compose-thumb.dragging { opacity: 0.4; }
+.compose-thumb.drop-target { outline: 2px solid var(--lav); outline-offset: 1px; }
 /* THE COMPOSER'S THREE ADD BUTTONS, ON ONE ROW. Media, Poll and PoW are peers, so they
    read as a toolbar rather than as three stacked decisions, and three short labels fit
    across the sheet where three sentences did not.
