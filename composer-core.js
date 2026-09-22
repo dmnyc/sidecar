@@ -456,6 +456,22 @@ window.SidecarCore = (function () {
     return IMG_EXT.test(s) ? s : null;
   }
 
+  // Where the pasted URL landed. An offer may cut it out of the text only when it
+  // sits on a boundary: alone on its line, or glued to either END of one — a paste
+  // straight after a paragraph, no return pressed, is attach intent too. A URL with
+  // words on both sides of it is inside a sentence and stays in the sentence; a URL
+  // appearing twice on one line is ambiguous and declines.
+  function urlOnBoundary(lines, url) {
+    for (const raw of lines) {
+      const t = raw.trim();
+      if (!t.includes(url)) continue;
+      const parts = t.split(url);
+      if (parts.length !== 2) return false;
+      return !parts[0].trim() || !parts[1].trim();
+    }
+    return false;
+  }
+
   // Cut a URL line back out of the editor — the reverse of appending it. Text-node
   // surgery rather than a rebuild, so the caret and every other word stay where the
   // user left them.
@@ -784,8 +800,7 @@ window.SidecarCore = (function () {
     }
     function refreshAttachOffer() {
       if (!offeredUrl) return;
-      const lines = serializeEditor(editor).split('\n').map((l) => l.trim());
-      if (lines.includes(offeredUrl)) return;
+      if (urlOnBoundary(serializeEditor(editor).split('\n'), offeredUrl)) return;
       hideAttachOffer();
     }
     attachBtn.addEventListener('click', () => {
@@ -798,9 +813,10 @@ window.SidecarCore = (function () {
       const url = loneImageUrl(e.clipboardData && e.clipboardData.getData('text/plain'));
       if (!url) return;
       setTimeout(() => {
-        // Landed as its own line, or the offer would be to rip it out of a sentence.
-        const lines = serializeEditor(editor).split('\n').map((l) => l.trim());
-        if (!lines.includes(url)) return;
+        // On a line boundary — alone on the line, or glued to one end of it. A URL
+        // with words on both sides is inside a sentence, and the offer would be to
+        // rip it out of one.
+        if (!urlOnBoundary(serializeEditor(editor).split('\n'), url)) return;
         offeredUrl = url;
         attachRow.classList.remove('hidden');
       }, 0);
@@ -1861,6 +1877,6 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer,
-    loneImageUrl, removeUrlFromEditor,
+    loneImageUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();

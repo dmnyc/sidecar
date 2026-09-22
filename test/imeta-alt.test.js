@@ -50,6 +50,7 @@ vm.runInContext(
   lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
   lift(/function stripDraftMediaUrls\(text, media\) \{[\s\S]*?\n  \}/, 'stripDraftMediaUrls') + '\n' +
   lift(/function loneImageUrl\(text\) \{[\s\S]*?\n  \}/, 'loneImageUrl') + '\n' +
+  lift(/function urlOnBoundary\(lines, url\) \{[\s\S]*?\n  \}/, 'urlOnBoundary') + '\n' +
   // loneImageUrl judges with the REAL extension list, lifted like quoteSnippet's
   // IMG_EXT — a local mirror could drift and the vectors would keep passing.
   lift(/const IMG_EXT = [^;]+;/, 'IMG_EXT') + '\n' +
@@ -59,10 +60,10 @@ vm.runInContext(
   'globalThis.imetaTagsForMedia = imetaTagsForMedia;' +
   'globalThis.composeNoteContent = composeNoteContent;' +
   'globalThis.stripDraftMediaUrls = stripDraftMediaUrls;' +
-  'globalThis.loneImageUrl = loneImageUrl;',
+  'globalThis.loneImageUrl = loneImageUrl; globalThis.urlOnBoundary = urlOnBoundary;',
   ctx
 );
-const { ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls, loneImageUrl } = ctx;
+const { ALT_MAX, normalizeAltBreaks, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls, loneImageUrl, urlOnBoundary } = ctx;
 
 // Values built inside the vm carry its Array.prototype, which strict deep-equal
 // rightly refuses from out here. The tag shape is data, so taking a plain copy at
@@ -483,7 +484,7 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
   assert.match(core, /const onAttachUrl = \(opts && opts\.onAttachUrl\) \|\| null;/);
   assert.match(core, /if \(!onAttachUrl\) return;/, 'an editor without a draft never offers');
   assert.match(core, /const url = loneImageUrl\(e\.clipboardData && e\.clipboardData\.getData\('text\/plain'\)\);/);
-  assert.match(core, /lines\.includes\(url\)/, 'the URL must have landed as its own line');
+  assert.match(core, /urlOnBoundary\(serializeEditor\(editor\)\.split\('\\n'\), url\)/, 'the paste must have landed on a line boundary');
   assert.match(core, /attachRow\.classList\.remove\('hidden'\)/);
   assert.match(core, /Attach this image/);
   // And it stays visible, in both senses: seated above the editor where the eye
@@ -491,7 +492,7 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
   assert.match(core, /wrap\.prepend\(attachRow\)/, 'the offer sits below the fold');
   assert.match(core, /function refreshAttachOffer/, 'no re-check on input');
   assert.match(core, /refreshAttachOffer\(\);/, 'input never re-checks the offer');
-  assert.match(core, /lines\.includes\(offeredUrl\)/, 'the offer does not survive its own line going away');
+  assert.match(core, /urlOnBoundary\(serializeEditor\(editor\)\.split\('\\n'\), offeredUrl\)/, 'the offer does not survive its line becoming a sentence');
   for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
     assert.ok(src.includes('onAttachUrl: (url) => {'), name + ' never hands in the conversion');
     assert.match(src, /removeUrlFromEditor\(/, name + ' never cuts the URL from the prose');
@@ -519,4 +520,19 @@ test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {
     panel,
     /const \{ ALT_MAX, normalizeAltBreaks, imetaTagsForMedia, buildAltEditorRow \} = window\.SidecarCore;/
   );
+});
+
+test('GLUED TO THE END OF A PARAGRAPH IS STILL A BOUNDARY', () => {
+  // Pasting a picture after a block of text without pressing return glues the URL
+  // to the last word. That is attach intent as much as a lone line is — the offer
+  // stands whenever the URL sits at an END of a line, and stays silent only when
+  // words sit on both sides of it (a URL inside a sentence stays in the sentence).
+  const u = 'https://example.com/pic.png';
+  assert.equal(urlOnBoundary([u], u), true, 'its own line');
+  assert.equal(urlOnBoundary(['my note' + u], u), true, 'glued to the end, no space, no return');
+  assert.equal(urlOnBoundary(['my note ' + u], u), true, 'after a space at the end of the line');
+  assert.equal(urlOnBoundary([u + ' and then the caption'], u), true, 'glued to the start');
+  assert.equal(urlOnBoundary(['look at ' + u + ' now'], u), false, 'words on both sides: a sentence');
+  assert.equal(urlOnBoundary([u + u], u), false, 'twice on one line is ambiguous');
+  assert.equal(urlOnBoundary(['no url here', '   '], u), false, 'nowhere on the page');
 });
