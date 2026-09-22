@@ -11158,7 +11158,12 @@
         // into the strip, appended at publish — as if it had been uploaded.
         onAttachUrl: (url) => {
           removeUrlFromEditor(editor, url);
-          draft.media.push({ url, isVideo: false });
+          // CONVERT, NEVER DUPLICATE: pasting a URL that is already attached takes
+          // the prose line and keeps the existing entry — and its description —
+          // rather than appending the image a second time.
+          if (!draft.media.some((m) => m && m.url === url)) {
+            draft.media.push({ url, isVideo: false });
+          }
           mentionEditor.sync(); // re-emit after the direct DOM cut, so the draft agrees
           scheduleSave();
           updatePostState();

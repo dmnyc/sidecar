@@ -199,6 +199,17 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   assert.match(pageBare, /tags: \[\['client', 'Sidecar'\], \.\.\.SC\.imetaTagsForMedia\(draft\.media\)\]/);
 });
 
+test('ATTACHING AN ALREADY-ATTACHED URL CONVERTS, NEVER DUPLICATES', () => {
+  // Pasting the same URL twice and accepting both used to append the image twice —
+  // two identical thumbnails, the URL twice in the published content, two imeta
+  // tags for one picture. Accepting a URL the draft already holds now takes the
+  // prose line and keeps the existing entry, description included.
+  for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
+    assert.match(src, /if \(!draft\.media\.some\(\(m\) => m && m\.url === url\)\) \{/,
+      name + ' appends a duplicate attachment');
+  }
+});
+
 test('THE CHIP IS ON EVERY IMAGE THUMB IN BOTH COMPOSERS', () => {
   // "+ ALT" until described, "✓ ALT" after, accent-colored so a strip of images shows
   // at a glance which ones still need the words. Videos are out of scope — sidecar
