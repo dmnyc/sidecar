@@ -45,6 +45,9 @@ vm.runInContext(
     lift(/const POLL_WATCH_SECS = [^;]*;/, 'POLL_WATCH_SECS') + '\n' +
     lift(/function pollWatchExpired\(ev\)\s*\{[\s\S]*?\n  \}/, 'pollWatchExpired') + '\n' +
     lift(/function pollHasEnded\(endsAt\)\s*\{[\s\S]*?\n  \}/, 'pollHasEnded') + '\n' +
+    lift(/const POLL_GROUPS = \[[^\]]*\];/, 'POLL_GROUPS') + '\n' +
+    lift(/const POLL_GROUP_LABELS = \{[^}]*\};/, 'POLL_GROUP_LABELS') + '\n' +
+    lift(/function pollGroup\(ev\)\s*\{[\s\S]*?\n  \}/, 'pollGroup') + '\n' +
     lift(/function pollIsPast\(ev\)\s*\{[\s\S]*?\n  \}/, 'pollIsPast') + '\n' +
     lift(/function pollWinner\(ev, votes\)\s*\{[\s\S]*?\n  \}/, 'pollWinner') + '\n' +
     lift(/function pollEndsText\(endsAt\)\s*\{[\s\S]*?\n  \}/, 'pollEndsText') + '\n' +
@@ -53,11 +56,15 @@ vm.runInContext(
     'globalThis.pollWatchExpired = pollWatchExpired;' +
     'globalThis.pollHasEnded = pollHasEnded;' +
     'globalThis.pollIsPast = pollIsPast;' +
+    'globalThis.POLL_GROUPS = POLL_GROUPS;' +
+    'globalThis.POLL_GROUP_LABELS = POLL_GROUP_LABELS;' +
+    'globalThis.pollGroup = pollGroup;' +
     'globalThis.pollWinner = pollWinner;' +
     'globalThis.pollEndsText = pollEndsText;',
   ctx
 );
-const { POLL_WATCH_SECS, pollWatchExpired, pollHasEnded, pollIsPast, pollWinner, pollEndsText } = ctx;
+const { POLL_WATCH_SECS, pollWatchExpired, pollHasEnded, pollIsPast, pollWinner, pollEndsText,
+        POLL_GROUPS, POLL_GROUP_LABELS, pollGroup } = ctx;
 
 const NOW = () => Math.floor(Date.now() / 1000);
 const DAY = 86400;
@@ -161,12 +168,14 @@ test('the winner is counted with the same rules as the tally', () => {
 
 const bare = source.replace(/^\s*\/\/.*$/gm, '');
 
-test('the list groups, and only when there is something on both sides', () => {
-  assert.match(bare, /list\.append\(h\('div', \{ className: 'poll-group', textContent: past \? 'Ended' : 'Open' \}\)\);/);
-  // A heading over the whole list labels nothing. It just spends a row's height saying
-  // what the tab said.
-  assert.match(bare, /if \(polls\.some\(\(o\) => pollIsPast\(o\) !== past\)\) \{/,
-    'a single-group list still draws a heading over itself');
+test('EVERY GROUP GETS ITS HEADING, INCLUDING A LIST THAT IS ALL ONE', () => {
+  assert.match(bare, /list\.append\(h\('div', \{ className: 'poll-group', textContent: POLL_GROUP_LABELS\[group\] \}\)\);/);
+  // This was conditional at first, drawn only when both groups existed, on the reasoning
+  // that a heading over the whole list labels nothing. That is exactly backwards in the
+  // case it mattered: when every poll has finished, three ended rows and three running
+  // ones are the same three rows, and the heading is the only thing that says which.
+  assert.doesNotMatch(bare, /if \(polls\.some\(\(o\) => pollIsPast\(o\) !== past\)\)/,
+    'the heading is conditional again, so an all-ended list is unlabelled');
 });
 
 test('A LATE RESULT IS WRITTEN IN, NOT REPAINTED', () => {
@@ -187,31 +196,54 @@ test('a running poll is never given a leader', () => {
   assert.match(bare, /_pollListCache\.set\(pubkey, \{ polls, counts: fresh, wins: freshWins \}\)/);
 });
 
-test('THE SORT AND THE GROUPS ASK THE SAME QUESTION', () => {
-  // They did not, and it showed. The sort used pollHasEnded while the headings used
-  // pollIsPast, so an open-ended poll left a month sorted to the TOP as though it were
-  // live and then rendered under a heading saying Ended, with the genuinely finished ones
-  // below it. Two runs of past polls with the live ones between them is not a group.
-  const sortSrc = source.slice(source.indexOf('// pollIsPast, THE SAME QUESTION'));
-  assert.match(sortSrc.slice(0, 500), /const xPast = pollIsPast\(x\);/);
-  assert.match(sortSrc.slice(0, 500), /const yPast = pollIsPast\(y\);/);
 
-  // And run, because the contiguity is the property that matters rather than the call.
+test('THREE GROUPS, AND THE THIRD IS THE HONEST ONE', () => {
+  // An expired end date is Ended, and saying so only reports what the author set. A poll
+  // with no end date that aged out never closed and can still take a vote, so the only
+  // true thing to say is that Sidecar stopped following it. Filing it under Ended would
+  // put a close on somebody else's poll that nobody ever made.
+  assert.deepEqual([...POLL_GROUPS], ['open', 'ended', 'untracked'], 'the group order moved');
+  assert.equal(POLL_GROUP_LABELS.untracked, 'Untracked');
+
+  assert.equal(pollGroup(poll({ endsAt: NOW() + DAY })), 'open');
+  assert.equal(pollGroup(poll({ createdAt: NOW() - 3 * DAY })), 'open', 'young and open-ended is live');
+  assert.equal(pollGroup(poll({ endsAt: NOW() - DAY })), 'ended');
+  assert.equal(pollGroup(poll({ createdAt: NOW() - 90 * DAY })), 'untracked');
+  // An end date decides it even for an ancient poll: the author said when it closes.
+  assert.equal(pollGroup(poll({ createdAt: NOW() - 90 * DAY, endsAt: NOW() + DAY })), 'open');
+  assert.equal(pollGroup(poll({ createdAt: NOW() - 90 * DAY, endsAt: NOW() - DAY })), 'ended');
+
+  // Both non-open groups show a result rather than a countdown, which is the one thing
+  // pollIsPast is still for.
+  assert.equal(pollIsPast(poll({ endsAt: NOW() - DAY })), true);
+  assert.equal(pollIsPast(poll({ createdAt: NOW() - 90 * DAY })), true);
+  assert.equal(pollIsPast(poll({ endsAt: NOW() + DAY })), false);
+});
+
+test('THE SORT AND THE HEADINGS ASK THE SAME QUESTION', () => {
+  // They did not once, and it showed: the sort read pollHasEnded while the headings read
+  // pollIsPast, so an open-ended poll left a month sorted to the top as though live and
+  // rendered under a heading saying Ended. A group split into two runs with another group
+  // between them is not a group, whatever the heading over the first run says.
+  const sortSrc = source.slice(source.indexOf('// pollGroup, THE SAME QUESTION'));
+  assert.match(sortSrc.slice(0, 600), /POLL_GROUPS\.indexOf\(pollGroup\(x\)\) - POLL_GROUPS\.indexOf\(pollGroup\(y\)\)/);
+
+  // Run, because contiguity is the property that matters rather than the call.
   const set = [
-    poll({ endsAt: NOW() - 10 * DAY }),                 // finished
-    poll({ createdAt: NOW() - 90 * DAY }),              // open-ended, long past the window
-    poll({ endsAt: NOW() + DAY }),                      // running
-    poll({ createdAt: NOW() - 2 * DAY }),               // open-ended, still watched
+    poll({ endsAt: NOW() - 10 * DAY }),
+    poll({ createdAt: NOW() - 90 * DAY }),
+    poll({ endsAt: NOW() + DAY }),
+    poll({ createdAt: NOW() - 2 * DAY }),
+    poll({ createdAt: NOW() - 200 * DAY }),
+    poll({ endsAt: NOW() - 40 * DAY }),
   ].map((p, i) => ({ ...p, id: 'p' + i, created_at: p.created_at - i }));
   set.sort((x, y) => {
-    const xPast = pollIsPast(x);
-    const yPast = pollIsPast(y);
-    if (xPast !== yPast) return xPast ? 1 : -1;
-    return y.created_at - x.created_at;
+    const rank = POLL_GROUPS.indexOf(pollGroup(x)) - POLL_GROUPS.indexOf(pollGroup(y));
+    return rank || y.created_at - x.created_at;
   });
-  const flags = set.map(pollIsPast);
-  assert.deepEqual(flags, [false, false, true, true], 'the two groups are interleaved');
-  // One boundary, which is what makes a single heading per group correct.
-  const switches = flags.filter((v, i) => i > 0 && v !== flags[i - 1]).length;
-  assert.equal(switches, 1, 'the list crosses between groups more than once');
+  const groups = set.map(pollGroup);
+  assert.deepEqual(groups, ['open', 'open', 'ended', 'ended', 'untracked', 'untracked']);
+  // Two boundaries across three groups, which is what makes one heading per group right.
+  const switches = groups.filter((g, i) => i > 0 && g !== groups[i - 1]).length;
+  assert.equal(switches, 2, 'a group is split into more than one run');
 });

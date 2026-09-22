@@ -3924,6 +3924,24 @@
   //
   // This one answers a question about the LIST: should this still sit among the live
   // ones. An expired end date and an open-ended poll left a month both answer yes.
+  //
+  // THREE GROUPS, NOT TWO, and the third is why. A poll whose end date passed is Ended,
+  // and saying so is just reporting what its author set. A poll with no end date that has
+  // aged out is something else: it never closed, a vote can still arrive, and the only
+  // true statement is that Sidecar stopped following it. Untracked says that. Filing it
+  // under Ended would put a close on somebody else's poll that nobody ever made.
+  //
+  // Ordered by how much is settled: running, finished, and the one whose result is
+  // provisional because the poll is still technically open.
+  const POLL_GROUPS = ['open', 'ended', 'untracked'];
+  const POLL_GROUP_LABELS = { open: 'Open', ended: 'Ended', untracked: 'Untracked' };
+
+  function pollGroup(ev) {
+    if (pollHasEnded(pollEndsAt(ev))) return 'ended';
+    if (pollWatchExpired(ev)) return 'untracked';
+    return 'open';
+  }
+
   // THE RESULT OF A FINISHED POLL, in the two slots a row already has: the winning
   // option, and how many of the voters picked it.
   //
@@ -3942,8 +3960,9 @@
     return { label: leaders[0].label, share: top + ' of ' + voters };
   }
 
+  // Whether the row shows a result rather than a countdown. Both non-open groups do.
   function pollIsPast(ev) {
-    return pollHasEnded(pollEndsAt(ev)) || pollWatchExpired(ev);
+    return pollGroup(ev) !== 'open';
   }
 
   // What the composer offers. Durations rather than dates, because "7 days" is the
@@ -12955,17 +12974,18 @@
       // polls came first and then finished ones, in rows identical to the pixel, so the
       // only way to tell a poll still taking votes from one that closed in March was to
       // read the small grey line under each question.
-      let lastPast = null;
+      let lastGroup = null;
       polls.forEach((ev) => {
-        const past = pollIsPast(ev);
-        if (past !== lastPast) {
-          lastPast = past;
-          // Only when there is something on both sides of it. A heading over the whole
-          // list labels nothing, it just takes a row's worth of height to repeat what the
-          // tab already said.
-          if (polls.some((o) => pollIsPast(o) !== past)) {
-            list.append(h('div', { className: 'poll-group', textContent: past ? 'Ended' : 'Open' }));
-          }
+        const group = pollGroup(ev);
+        const past = group !== 'open';
+        if (group !== lastGroup) {
+          lastGroup = group;
+          // ALWAYS, INCLUDING WHEN THE LIST IS ALL ONE GROUP. This was conditional at
+          // first, drawn only where two groups met, on the reasoning that a heading over
+          // the whole list labels nothing. That is backwards in the case it mattered most:
+          // with every poll finished, three ended rows and three running ones are the same
+          // three rows, and the heading is the only thing that says which.
+          list.append(h('div', { className: 'poll-group', textContent: POLL_GROUP_LABELS[group] }));
         }
         // The row's own waiting state: a cached count paints as itself, an unknown one
         // shimmers until the vote query answers for it.
@@ -13039,15 +13059,13 @@
     // OPEN ONES FIRST, newest first within each group. By created_at alone a poll still
     // taking votes sits wherever it was posted, under everything written since, and a poll
     // that is running is the one you opened the tab to look at.
-    // pollIsPast, THE SAME QUESTION THE GROUPS ASK. Sorting on pollHasEnded while the
-    // headings read pollIsPast put an open-ended poll left a month at the top of the list
-    // under a heading saying Ended, and split the finished ones into two runs with the
-    // live ones in between. The two have to be one question or the groups are not groups.
+    // pollGroup, THE SAME QUESTION THE HEADINGS ASK. Sorting on anything narrower splits
+    // a group into two runs with another group in between, and a heading over a run that
+    // resumes further down is not a heading. That happened once already, when the sort
+    // read pollHasEnded while the headings read pollIsPast.
     polls.sort((x, y) => {
-      const xPast = pollIsPast(x);
-      const yPast = pollIsPast(y);
-      if (xPast !== yPast) return xPast ? 1 : -1;
-      return y.created_at - x.created_at;
+      const rank = POLL_GROUPS.indexOf(pollGroup(x)) - POLL_GROUPS.indexOf(pollGroup(y));
+      return rank || y.created_at - x.created_at;
     });
 
     // REDRAW ONLY IF THE SET MOVED. A rebuild replaces every node and puts the pane back
