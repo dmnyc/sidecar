@@ -424,6 +424,9 @@
     paintWho();
     paintLocked();
     if (!moved) return;
+    // The description commits FIRST: its tail lives in the row's textarea until
+    // flushed, and flushDraft below is the old account's last chance to take it.
+    closeAltEditor(); // the old account's draft takes the tail with it
     // The draft follows the account, because the slot is keyed by it. What is on screen
     // belongs to the account that was active when it was typed, so it is written back
     // there before the key moves rather than being carried across into someone else's.
@@ -788,10 +791,10 @@
         e.preventDefault();
         cell.classList.remove('drop-target');
         if (dragFrom === -1 || dragFrom === i) return;
+        closeAltEditor(); // flush first: the row's slot is still where it was opened
         const moved = draft.media.splice(dragFrom, 1)[0];
         draft.media.splice(i, 0, moved);
         dragFrom = -1;
-        closeAltEditor(); // the open row edits a slot the drag may have moved
         scheduleSave();
         renderThumbs();
       });
@@ -818,7 +821,7 @@
         // The URL lives in the media slot alone now; taking the thumb off is just
         // taking the attachment off the note.
         draft.media.splice(i, 1);
-        closeAltEditor(); // the row edits a media slot that no longer exists
+        closeAltEditor(false); // the row edits a media slot that no longer exists
         scheduleSave();
         paintCount();
         renderThumbs();
@@ -842,8 +845,15 @@
   // already decided.
   let altRow = null;
   let altIndex = -1; // the slot the open row edits, so its own chip toggles it shut
-  function closeAltEditor() {
-    if (altRow) { altRow.remove(); altRow = null; }
+  function closeAltEditor(flush) {
+    if (altRow) {
+      // THE TAIL OF THE DESCRIPTION RIDES ALONG, unless the caller says the slot
+      // is gone or moved — flushing into a spliced array would write one image's
+      // words onto another.
+      if (flush !== false && altRow.flushPending) altRow.flushPending();
+      altRow.remove();
+      altRow = null;
+    }
     altIndex = -1;
   }
   function openAltEditor(i) {

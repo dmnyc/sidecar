@@ -220,8 +220,8 @@ test('THE ROW EDITS ONE SLOT AND THE DRAFT KEEPS WHAT IT WROTE', () => {
   // slot that no longer exists.
   for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
     assert.ok(src.includes('media: draft.media'), name + ' saves the media array whole');
-    assert.match(src, /closeAltEditor\(\); \/\/ the row edits a media slot that no longer exists/,
-      name + ' closes the row when its image is removed');
+    assert.match(src, /closeAltEditor\(false\); \/\/ the row edits a media slot that no longer exists/,
+      name + ' closes the row when its image is removed — without flushing into the spliced array');
   }
   // Both take the row from the core — a second copy is a second wire format waiting
   // to drift.
@@ -463,6 +463,27 @@ test('THE ROW AUTOSAVES AS IT TYPES, AND EVERY EXIT COMMITS', () => {
     assert.ok(row.includes(exit), 'an exit does not commit: ' + exit);
   }
   assert.ok(!row.includes('onCancel'), 'a way out that skips the commit is back');
+  // AND THE PAGES CAN FLUSH ON THEIR OWN CLOSE PATHS: the row commits its three own
+  // exits, but pages close it for theirs (chip toggle, review window, account move)
+  // and a close that skips the flush drops the last half-second of typing. The one
+  // exception is carved out explicitly: removal passes false, because the slot is
+  // gone and flushing would write one image's words onto another.
+  assert.match(row, /row\.flushPending = \(\) => \{/, 'the row never exposes its pending save');
+  for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
+    assert.match(src, /function closeAltEditor\(flush\) \{/, name + ' cannot flush on close');
+    assert.match(src, /if \(flush !== false && altRow\.flushPending\) altRow\.flushPending\(\);/, name + ' never calls the flush');
+    assert.match(src, /closeAltEditor\(false\); \/\/ the row edits a media slot that no longer exists/,
+      name + ' flushes into a spliced array');
+    // Drag reorders flush BEFORE the splice, while the row's slot is still valid.
+    const drag = src.slice(src.indexOf("closeAltEditor(); // flush first: the row's slot is still where it was opened"));
+    assert.ok(drag.indexOf('closeAltEditor(); // flush first') < drag.indexOf('draft.media.splice(dragFrom, 1)'),
+      name + ' flushes the row after moving its slot under it');
+  }
+  // The panel's Post press and the tab's account switch are the two closes whose
+  // flush actually reaches a published note or a persisted draft.
+  assert.match(panelBare, /closeAltEditor\(\); \/\/ the description commits before the note is snapshotted/);
+  assert.match(pageBare, /closeAltEditor\(\); \/\/ the old account's draft takes the tail with it/,
+    'the tab closes the row after the old draft was already persisted');
 });
 
 test('A URL PASTED ON ITS OWN IS AN ATTACHMENT WAITING TO BE OFFERED', () => {
