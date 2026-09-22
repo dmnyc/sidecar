@@ -122,14 +122,6 @@ const APPS = [
     desc: 'A food culture community and recipe app — share, discover, and zap great #nostrichefs.',
   },
   {
-    name: 'Slidestr',
-    url: 'https://slidestr.net',
-    domain: 'slidestr.net',
-    cat: 'other',
-    desc: 'A beautiful image viewer for Nostr — browse photo content as an effortless slideshow.',
-    icon: 'https://slidestr.net/slidestr.svg',
-  },
-  {
     name: 'Imwald',
     url: 'https://jumble.imwald.eu',
     domain: 'jumble.imwald.eu',
