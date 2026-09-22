@@ -572,7 +572,10 @@ sorted.forEach(app => grid.appendChild(renderCard(app)));
 // ecosystem table, and it points at the same place the footer tip does.
 const slot = document.createElement('a');
 slot.className = 'card app-slot';
-slot.href = 'https://github.com/dmnyc/sidecar/issues';
+// Straight to the app form rather than the issue tracker, so a suggestion arrives
+// with the questions already asked: NIP-07 sign-in, NWC, category, icon. Those are
+// the ones that otherwise get answered by reading somebody else's bundled JS.
+slot.href = 'https://github.com/dmnyc/sidecar/issues/new?template=app-suggestion.yml';
 slot.target = '_blank';
 slot.rel = 'noopener';
 const slotName = document.createElement('div');
