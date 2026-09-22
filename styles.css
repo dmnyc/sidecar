@@ -445,6 +445,33 @@ input:focus, select:focus, textarea:focus {
 .profile-npub svg { width: 13px; height: 13px; flex-shrink: 0; }
 .profile-meta { font-size: 13px; color: var(--lav); margin: 2px 0; overflow-wrap: anywhere; }
 .profile-meta a { color: var(--lav); }
+/* THE TWO WAYS YOU CAN BE PAID, as controls rather than as text. A tap copies the value
+   and opens its code, so the line itself is the whole affordance and there is no icon
+   button beside it. That matters here: the row is already a glyph plus a hundred-character
+   string, and a control sharing a row with content is the shape this panel has no room
+   for. Rule 3 of the row grammar rather than rule 1.
+
+   The value truncates to one line. That is new for the lightning address, which used to
+   wrap, and it is the right trade now the whole string is one tap away: a noffer would
+   otherwise push the bio down three lines to show something nobody can read off a screen.
+   min-width: 0 is what lets the span shrink inside the flex row at all, and both icons
+   keep their metrics so the text is the only thing that gives.
+
+   Declared after .profile-meta on purpose. Both are (0,1,0), so the later one wins the
+   margin and the wrapping it needs to override. */
+.profile-pay-line {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  margin: 2px 0; padding: 0; border: none; background: none;
+  font: inherit; font-size: 13px; color: var(--lav);
+  text-align: left; cursor: pointer;
+}
+.profile-pay-line:hover { color: var(--text); }
+/* One rule, because both lines now draw the same glyph. They used to carry different
+   bolts sized by different rules, which is what put them out of line with each other:
+   .bolt-ico is 55x94 and the feather zap is 24x24, so equal heights are unequal widths
+   and the text started at two different offsets. Sizing comes from .bolt-ico itself. */
+.profile-pay-line .bolt-ico { flex-shrink: 0; }
+.profile-pay-val { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nip05-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .nip05-badge { display: inline-flex; }
 .nip05-badge svg { width: 13px; height: 13px; }
@@ -4491,6 +4518,52 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .peek-status { top: 8px; cursor: default; }
 /* zap control on the peek sheet. */
 .peek-zap { margin-top: 12px; }
+/* Zap and Pay offer, side by side. Two routes to the same person and neither is the
+   other's fallback, so they get equal width rather than a primary and a secondary. Both
+   labels are two words at most and nothing sits beside them competing for the row, which
+   is the one shape this panel allows two worded controls in.
+
+   `flex: 1` with a `min-width: 0` child would let them squash; `1 1 0` on buttons whose
+   labels cannot shrink means they share the row evenly and wrap instead, which is the
+   rule the compose toolbar already follows. */
+.peek-pay-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The way out to another wallet, beside the amount rather than under it. Icon only: the
+   row already carries a value, and a control sharing a row with content carries no words. */
+.peek-qr-toggle { flex-shrink: 0; padding: 7px 10px; }
+.peek-qr-toggle svg { width: 15px; height: 15px; display: block; }
+/* NO min-width HERE, and that is the whole rule. A flex item's default `min-width: auto`
+   already resolves to its own content, so these two refuse to squash their labels and wrap
+   only when two genuinely will not fit. Pinning 132px instead was a number picked by eye:
+   two of them plus the gap came to 272px, which is wider than the row in a panel dragged
+   narrow, so they wrapped at widths where they would have sat side by side perfectly well.
+   The floor the panel actually wants is the label, and the label already is it. */
+.peek-pay-row > .peek-zap-open { flex: 1 1 0; }
+/* THE ONE THAT IS OPEN. Both buttons are identical and both toggle a panel, so without
+   this the only thing saying which you pressed is the panel, which is off the top of the
+   sheet the moment it has a QR in it.
+
+   Color and a wash, no metrics: the same deal .compose-add-on makes, and for the same
+   reason. A border or a weight change here would move the row every time somebody opened
+   one, and this pair sits directly above a form people are typing into.
+
+   ONE HUE, THE THEME'S OWN, DERIVED FROM currentColor. The first version named three
+   tokens: --lav for the label, --gold-soft for the border, --accent-rgb for the wash. In
+   the default theme those agree, because --gold and --accent-rgb are the same gold. In a
+   theme that repoints one and not the other they do not, and Speakeasy, Brownstone, Film
+   Noir and Industria never override --accent-rgb at all, so the wash stayed base gold
+   while the label went the theme's own color: a lit purple button with a yellow edge.
+
+   Deriving both from currentColor makes the on state the theme's accent brightened,
+   whatever that accent is, with no per-theme value to keep in step. --lav is already the
+   lighter of each palette's pair, so it reads as light purple in Speakeasy, blue in
+   Aegean, teal in Populuxe, silver in Film Noir. Same trick and the same reason as
+   .modal-tab-count; color-mix is safe at this project's floors (see .relax-status-dot). */
+.peek-pay-row > .peek-pay-on {
+  color: var(--lav);
+  border-color: color-mix(in srgb, currentColor 55%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.peek-pay-row > .peek-pay-on svg { color: currentColor; }
 .peek-zap-open { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .peek-zap-open svg { width: 15px; height: 15px; flex-shrink: 0; }
 .peek-zap-form { margin-top: 10px; }

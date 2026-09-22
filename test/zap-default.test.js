@@ -145,10 +145,15 @@ test('BOTH ZAP FORMS SHARE ONE ROW', () => {
   // The profile sheet and the notification row. Two copies is how a settable preset gets
   // added to one and not the other.
   const src = stripComments(source);
-  // Definition, the two forms, and the rebuild inside zapDefaultSaver when the default
-  // changes under an open form. A fifth means someone hand-rolled a row again.
-  assert.equal((src.match(/zapPresetRow\(/g) || []).length, 4,
-    'expected the definition, two call sites, and the rebuild');
+  // Definition, the three forms, and the rebuild inside zapDefaultSaver when the default
+  // changes under an open form. A sixth means someone hand-rolled a row again.
+  //
+  // The third form is the CLINK offer's. It shares this row rather than growing its own
+  // amount field, which is the point of counting: an offer asked for in round numbers
+  // should offer the same round numbers a zap does.
+  assert.equal((src.match(/zapPresetRow\(/g) || []).length, 5,
+    'expected the definition, three call sites, and the rebuild');
+  assert.ok(src.includes('zapPresetRow(offerAmount)'), 'the offer form hand-rolled its own row');
   assert.doesNotMatch(src, /\[21, 100, 1000, 5000\]/, 'a hand-rolled preset row came back');
   const peek = src.indexOf('const presets = zapPresetRow(amount);');
   const notif = src.indexOf('const presets = zapPresetRow(amount, stop);');
