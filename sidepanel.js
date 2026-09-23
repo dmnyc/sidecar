@@ -689,6 +689,42 @@
   // with it. Counts move as votes arrive, so this is a starting picture rather than an
   // answer: the rows paint from it at once and the query behind them corrects it in place.
   const _pollListCache = new Map(); // pubkey → { polls: Event[], counts: Map<id, string> }
+  // WHICH POLL GROUPS ARE FOLDED. Open is never folded and is not listed: a live poll is
+  // what the tab is for, and a control that can hide it is a way to lose one.
+  //
+  // In memory, the same lifetime as _pollListCache above, so a fold survives closing the
+  // bell and reopening it but not a panel reload. Deliberate rather than lazy: it matches
+  // the list it folds, and a preference that outlived the rows would mean opening the tab
+  // one day to a list that is mostly headings with no memory of why.
+  const _pollGroupFolded = { ended: false, untracked: false };
+  const POLL_FOLD_KEY = 'pollGroupsFolded';
+  // Read once at load rather than on each open, and awaited before the first paint so a
+  // fold cannot flash open before the answer arrives. Resolves either way: a storage read
+  // that fails leaves the defaults, which is both groups showing, and a list that shows
+  // too much is a better failure than one that hides rows somebody did not ask to hide.
+  const _pollFoldReady = new Promise((resolve) => {
+    try {
+      chrome.storage.local.get(POLL_FOLD_KEY, (got) => {
+        void chrome.runtime.lastError;
+        const saved = got && got[POLL_FOLD_KEY];
+        // Read field by field rather than assigned over: a stored blob from an older or
+        // newer build must not be able to introduce a group this one does not know how to
+        // draw, or remove one it does.
+        if (saved && typeof saved === 'object') {
+          _pollGroupFolded.ended = !!saved.ended;
+          _pollGroupFolded.untracked = !!saved.untracked;
+        }
+        resolve();
+      });
+    } catch (_) { resolve(); }
+  });
+  function savePollFolds() {
+    try {
+      chrome.storage.local.set({
+        [POLL_FOLD_KEY]: { ended: !!_pollGroupFolded.ended, untracked: !!_pollGroupFolded.untracked },
+      });
+    } catch (_) {}
+  }
   let _notifSeenAt = {}; // pubkey → unix timestamp, persisted to chrome.storage.local
   let _notifSeenLoaded = false;
   // Set while the notification modal is open, so a live event arriving in the
@@ -3879,10 +3915,30 @@
     return voters > 0 ? count / voters : 0;
   }
 
+  // HOW LONG SIDECAR KEEPS WATCHING A POLL THAT NEVER CLOSES.
+  //
+  // kind 1068 has no close: a poll posted without `endsAt` can take a vote on day 400,
+  // and nothing in the protocol says otherwise. But a list that treats a poll from March
+  // as live forever is a list where nothing is ever live, so after this long an
+  // open-ended poll moves in with the finished ones.
+  //
+  // It is a display rule and only a display rule. The tally still counts every ballot,
+  // because discarding votes to match a number we invented would be the panel lying
+  // about somebody else's poll rather than about its own housekeeping.
+  const POLL_WATCH_SECS = 30 * 86400;
+
+  // True when a poll has no end date and has aged past the watch window.
+  function pollWatchExpired(ev) {
+    if (!ev || pollEndsAt(ev)) return false;
+    return (ev.created_at || 0) + POLL_WATCH_SECS <= Math.floor(Date.now() / 1000);
+  }
+
   // "ends in 5d", "ended 2h ago", or the open-ended case. Deliberately coarse: the exact
   // minute a poll closes is never the thing you want off a row this size.
   function pollEndsText(endsAt) {
-    if (!endsAt) return 'no end date';
+    // "open", not "no end date". The old wording named a field the poll does not carry,
+    // which reads as something missing rather than as the state it actually is.
+    if (!endsAt) return 'open';
     const secs = endsAt - Math.floor(Date.now() / 1000);
     const mag = Math.abs(secs);
     const unit =
@@ -3894,6 +3950,86 @@
 
   function pollHasEnded(endsAt) {
     return !!endsAt && endsAt <= Math.floor(Date.now() / 1000);
+  }
+
+  // DONE WITH, WHICH IS NOT THE SAME AS ENDED, and the difference is why this is its own
+  // function rather than a widened pollHasEnded. That one answers a fact about the poll:
+  // its end date passed. The tally sheet asks it and says "ended" on the strength of the
+  // answer, so folding the watch window in there would have the sheet tell you a poll
+  // closed when its author never closed it.
+  //
+  // This one answers a question about the LIST: should this still sit among the live
+  // ones. An expired end date and an open-ended poll left a month both answer yes.
+  //
+  // THREE GROUPS, NOT TWO, and the third is why. A poll whose end date passed is Ended,
+  // and saying so is just reporting what its author set. A poll with no end date that has
+  // aged out is something else: it never closed, a vote can still arrive, and the only
+  // true statement is that Sidecar stopped following it. Untracked says that. Filing it
+  // under Ended would put a close on somebody else's poll that nobody ever made.
+  //
+  // Ordered by how much is settled: running, finished, and the one whose result is
+  // provisional because the poll is still technically open.
+  const POLL_GROUPS = ['open', 'ended', 'untracked'];
+  const POLL_GROUP_LABELS = { open: 'Open', ended: 'Ended', untracked: 'Untracked' };
+
+  function pollGroup(ev) {
+    if (pollHasEnded(pollEndsAt(ev))) return 'ended';
+    if (pollWatchExpired(ev)) return 'untracked';
+    return 'open';
+  }
+
+  // A GROUP HEADING, AND FOR THE TWO THAT ARE NOT OPEN, THE CONTROL THAT FOLDS IT.
+  //
+  // Returns the element and the function that applies the current fold, because the rows
+  // it hides do not exist yet: a heading is appended before the rows under it, so the
+  // query would find nothing. paint collects these and runs them once the list is whole.
+  //
+  // The count rides in a capsule rather than in the label, so "Ended 2" is not one string
+  // the eye has to pick a number back out of, and so a folded group still says how much
+  // is behind it. There is no zero case: a heading is only drawn where a row follows.
+  function pollGroupHeading(list, group, count) {
+    const label = h('span', { className: 'poll-group-label', textContent: POLL_GROUP_LABELS[group] });
+    if (group === 'open') return { el: h('div', { className: 'poll-group' }, [label]), apply: () => {} };
+
+    const head = h('button', { className: 'poll-group poll-group-fold', type: 'button' });
+    head.append(icon('chevron-down'), label,
+      h('span', { className: 'poll-group-count', textContent: String(count) }));
+    const apply = () => {
+      const folded = !!_pollGroupFolded[group];
+      head.setAttribute('aria-expanded', String(!folded));
+      head.classList.toggle('is-folded', folded);
+      list.querySelectorAll('[data-poll-group="' + group + '"]')
+        .forEach((r) => r.classList.toggle('hidden', folded));
+    };
+    head.addEventListener('click', () => {
+      _pollGroupFolded[group] = !_pollGroupFolded[group];
+      apply();
+      savePollFolds();
+    });
+    return { el: head, apply };
+  }
+
+  // THE RESULT OF A FINISHED POLL, in the two slots a row already has: the winning
+  // option, and how many of the voters picked it.
+  //
+  // Returns null rather than a guess when there is nothing to report. No voters means
+  // no winner, and a tie means the poll did not produce one: naming either of the two
+  // leaders would be inventing an outcome the ballots do not support, which matters more
+  // here than anywhere because the row is the only place most people will read it.
+  function pollWinner(ev, votes) {
+    const { options, counts, voters } = tallyPollVotes(ev, votes);
+    if (!voters || !options.length) return null;
+    let top = 0;
+    options.forEach((o) => { top = Math.max(top, counts.get(o.id) || 0); });
+    if (!top) return null;
+    const leaders = options.filter((o) => (counts.get(o.id) || 0) === top);
+    if (leaders.length > 1) return { label: 'Tied', share: top + ' of ' + voters };
+    return { label: leaders[0].label, share: top + ' of ' + voters };
+  }
+
+  // Whether the row shows a result rather than a countdown. Both non-open groups do.
+  function pollIsPast(ev) {
+    return pollGroup(ev) !== 'open';
   }
 
   // What the composer offers. Durations rather than dates, because "7 days" is the
@@ -12884,33 +13020,75 @@
   // as the rows are built, for the count on the tab's own label.
   async function fillPollsList(list, pubkey, { openPoll, onCount }) {
     const active = { pubkey };
+    // Before anything is drawn. The read is almost always long settled by the time anybody
+    // reaches this tab, but awaiting it is what stops a folded group painting open for a
+    // frame on the one occasion it is not.
+    await _pollFoldReady;
     const cached = _pollListCache.get(pubkey);
 
     // ONE RENDERER FOR BOTH PASSES, so a list drawn from cache and a list drawn from the
     // relays cannot differ in anything but their numbers. Returns the count cells by poll
     // id, which is what the vote query fills in.
-    const paint = (polls, counts) => {
+    const paint = (polls, counts, wins) => {
       list.innerHTML = '';
       if (!polls.length) {
         list.classList.add('empty');
         list.append(
           h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
         );
-        return new Map();
+        return { cells: new Map(), leads: new Map() };
       }
       list.classList.remove('empty'); // rows are what the card was drawn for
       const cells = new Map();
+      const leads = new Map();
+      // TWO GROUPS, because the sort was already doing this and nothing showed it. Open
+      // polls came first and then finished ones, in rows identical to the pixel, so the
+      // only way to tell a poll still taking votes from one that closed in March was to
+      // read the small grey line under each question.
+      let lastGroup = null;
+      const folds = [];
       polls.forEach((ev) => {
+        const group = pollGroup(ev);
+        const past = group !== 'open';
+        if (group !== lastGroup) {
+          lastGroup = group;
+          // ALWAYS, INCLUDING WHEN THE LIST IS ALL ONE GROUP. This was conditional at
+          // first, drawn only where two groups met, on the reasoning that a heading over
+          // the whole list labels nothing. That is backwards in the case it mattered most:
+          // with every poll finished, three ended rows and three running ones are the same
+          // three rows, and the heading is the only thing that says which.
+          const head = pollGroupHeading(list, group, polls.filter((o) => pollGroup(o) === group).length);
+          list.append(head.el);
+          folds.push(head.apply);
+        }
         // The row's own waiting state: a cached count paints as itself, an unknown one
         // shimmers until the vote query answers for it.
         const known = counts.get(ev.id);
-        const count = setWaiting(h('span', { className: 'poll-row-count' }), known || '…', !known);
-        const ends = h('span', { className: 'poll-row-ends', textContent: pollEndsText(pollEndsAt(ev)) });
-        const row = h('div', { className: 'item poll-row', role: 'button', tabIndex: 0 });
+        const win = wins && wins.get(ev.id);
+        // A finished poll puts its share here instead of its vote total, so the one
+        // setWaiting covers both: whichever value this row is for, it shimmers until it
+        // has it. A second call would be a second thing to remember to turn off.
+        const shown = past && win ? win.share : known;
+        const count = setWaiting(h('span', { className: 'poll-row-count' }), shown || '…', !shown);
+        // A FINISHED POLL SHOWS ITS RESULT, NOT ITS AGE. "ended 180d ago" is a
+        // subtraction nobody asked for, and the winner is the thing you would have
+        // opened the row to find. It costs nothing: the vote query below already runs
+        // tallyPollVotes and was throwing the per-option counts away.
+        const meta = h('div', { className: 'poll-row-meta' });
+        const lead = h('span', {
+          className: past && win ? 'poll-row-ends poll-row-win' : 'poll-row-ends',
+          textContent: past && win ? win.label : pollEndsText(pollEndsAt(ev)),
+        });
+        meta.append(lead, document.createTextNode(' · '), count);
+        leads.set(ev.id, lead);
+        const row = h('div', { className: 'item poll-row' + (past ? ' poll-row-past' : ''), role: 'button', tabIndex: 0 });
+        // Set after construction: h() runs Object.assign, so a dataset prop would land as
+        // a JS expando and the attribute selector above would match nothing.
+        row.dataset.pollGroup = group;
         row.append(
           h('div', { className: 'poll-row-main' }, [
             h('div', { className: 'poll-row-q', textContent: ev.content || '(no question)' }),
-            h('div', { className: 'poll-row-meta' }, [ends, document.createTextNode(' · '), count]),
+            meta,
           ])
         );
         const open = () => openPoll(ev);
@@ -12923,14 +13101,17 @@
         cells.set(ev.id, count);
         list.append(row);
       });
-      return cells;
+      // Now that the rows are in, and not before: each apply hides the rows under its own
+      // heading, and at the moment the heading was appended there were none.
+      folds.forEach((f) => f());
+      return { cells, leads };
     };
 
     let rows = null;
     if (cached) {
       // Straight to rows, with last time's numbers already in them. The query below still
       // runs and still corrects them; what it no longer does is make you watch it.
-      rows = paint(cached.polls, cached.counts);
+      rows = paint(cached.polls, cached.counts, cached.wins);
       onCount(cached.polls.length);
     } else {
       list.innerHTML = '';
@@ -12958,11 +13139,13 @@
     // OPEN ONES FIRST, newest first within each group. By created_at alone a poll still
     // taking votes sits wherever it was posted, under everything written since, and a poll
     // that is running is the one you opened the tab to look at.
+    // pollGroup, THE SAME QUESTION THE HEADINGS ASK. Sorting on anything narrower splits
+    // a group into two runs with another group in between, and a heading over a run that
+    // resumes further down is not a heading. That happened once already, when the sort
+    // read pollHasEnded while the headings read pollIsPast.
     polls.sort((x, y) => {
-      const xEnded = pollHasEnded(pollEndsAt(x));
-      const yEnded = pollHasEnded(pollEndsAt(y));
-      if (xEnded !== yEnded) return xEnded ? 1 : -1;
-      return y.created_at - x.created_at;
+      const rank = POLL_GROUPS.indexOf(pollGroup(x)) - POLL_GROUPS.indexOf(pollGroup(y));
+      return rank || y.created_at - x.created_at;
     });
 
     // REDRAW ONLY IF THE SET MOVED. A rebuild replaces every node and puts the pane back
@@ -12974,7 +13157,8 @@
       rows &&
       cached.polls.length === polls.length &&
       polls.every((ev, i) => cached.polls[i].id === ev.id);
-    if (!sameSet) rows = paint(polls, counts);
+    const wins = (cached && cached.wins) || new Map();
+    if (!sameSet) rows = paint(polls, counts, wins);
     // The moment the rows exist, not after the vote query below: the count is a fact about
     // this list, and it would be odd for the rows to be on screen under a number that
     // still disagrees with them for the eight seconds that query is allowed.
@@ -13008,14 +13192,33 @@
     // The cache is written even if the sheet has gone, since the answer is about the
     // account rather than about this list, and it is what the next open paints from.
     const fresh = new Map();
+    const freshWins = new Map();
     polls.forEach((ev) => {
       const { voters } = tallyPollVotes(ev, votes);
       fresh.set(ev.id, voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes');
+      // Only for the ones that will show it. A running poll has no result to report yet,
+      // and naming a leader mid-vote invites reading it as one.
+      if (pollIsPast(ev)) {
+        const win = pollWinner(ev, votes);
+        if (win) freshWins.set(ev.id, win);
+      }
     });
-    _pollListCache.set(pubkey, { polls, counts: fresh });
+    _pollListCache.set(pubkey, { polls, counts: fresh, wins: freshWins });
     if (!list.isConnected) return;
+    // WRITTEN INTO THE CELLS RATHER THAN REPAINTED. A rebuild here would replace every
+    // node and send the pane back to the top while somebody is reading it, which is the
+    // rule the sameSet check above exists to keep; the result arriving late is no more a
+    // reason to break it than the count arriving late was.
     polls.forEach((ev) => {
-      const cell = rows.get(ev.id);
+      const cell = rows.cells.get(ev.id);
+      const win = freshWins.get(ev.id);
+      const lead = rows.leads.get(ev.id);
+      if (win && lead) {
+        lead.textContent = win.label;
+        lead.classList.add('poll-row-win');
+        if (cell) setWaiting(cell, win.share, false);
+        return;
+      }
       if (cell) setWaiting(cell, fresh.get(ev.id), false); // landed: stop sweeping
     });
   }
