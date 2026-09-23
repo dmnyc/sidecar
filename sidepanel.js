@@ -2081,6 +2081,12 @@
           // as an anonymous payment. The link below is the one that can say zap, because
           // connecting a wallet is what puts a signed 9734 in front of the invoice.
           h('p', { className: 'hint', textContent: options.hint || 'Scan or copy to pay from any wallet.' }),
+          // Why there is no amount field here, on the one sheet where its absence is not
+          // self-explanatory. Everywhere else the handoff block appears it is because no
+          // wallet is connected, and the line below it already says so by offering to
+          // connect one; on your own profile the wallet is right there and its absence
+          // needs its own sentence.
+          ...(options.note ? [h('p', { className: 'hint zap-pay-note', textContent: options.note })] : []),
           ...(options.hideConnect ? [] : [connect])
         );
         return wrap;
@@ -2136,7 +2142,11 @@
         // your wallet, pay a routing fee, and land them at your own address, publishing
         // a receipt of you paying yourself on the way. hideConnect because you are not
         // missing a wallet, and the hint is addressed to you rather than to a payer.
-        const selfPay = { hideConnect: true, hint: 'Scan or copy to show someone how to pay you.' };
+        const selfPay = {
+          hideConnect: true,
+          hint: 'Scan or copy to show someone how to pay you.',
+          note: 'Sending is off on your own profile.',
+        };
         zapPanel = (zapHasWallet && !isSelf)
           ? zapForm
           : zapPayBlock(zapAddr, isSelf ? selfPay : undefined);
@@ -2195,9 +2205,11 @@
         }
         if (!zapHasWallet || isSelf) {
           if (!offerHandoff) {
-            offerHandoff = offerPayBlock(offer, isSelf
-              ? { hideConnect: true, hint: 'Scan or copy to show someone how to pay you.' }
-              : undefined);
+            offerHandoff = offerPayBlock(offer, isSelf ? {
+              hideConnect: true,
+              hint: 'Scan or copy to show someone how to pay you.',
+              note: 'Sending is off on your own profile.',
+            } : undefined);
             zapWrap.append(offerHandoff);
           }
           if (zapPanel) zapPanel.classList.add('hidden');

@@ -94,6 +94,26 @@ test('NO CONNECT-A-WALLET LINE ON YOUR OWN PROFILE', () => {
   assert.match(offerFn.slice(0, 900), /offerPayBlock\(offer, isSelf[\s\S]{0,120}hideConnect: true/);
 });
 
+test('IT SAYS WHY THERE IS NO AMOUNT FIELD', () => {
+  // Everywhere else this block appears it is because no wallet is connected, and the
+  // connect line under it says so. On your own profile the wallet is right there, so the
+  // absence of a send form needs its own sentence or it reads as the sheet being broken.
+  //
+  // "Sending", not "payments": the QR directly above this line is a working payment path.
+  // What is off is paying OUT of your own wallet.
+  assert.match(bare, /note: 'Sending is off on your own profile\.'/);
+  const uses = (bare.match(/note: 'Sending is off on your own profile\.'/g) || []).length;
+  assert.equal(uses, 2, 'the zap block and the offer block should both carry it, found ' + uses);
+
+  // Rendered under the hint and above the connect slot, and only when asked for.
+  assert.match(bare, /options\.note \? \[h\('p', \{ className: 'hint zap-pay-note'/);
+  const block = bare.slice(bare.indexOf('function zapPayBlock('));
+  const hintAt = block.indexOf("options.hint ||");
+  const noteAt = block.indexOf('options.note ?');
+  const connectAt = block.indexOf('options.hideConnect ?');
+  assert.ok(hintAt < noteAt && noteAt < connectAt, 'the note is not between the hint and the connect slot');
+});
+
 test('and the provider is never asked about your own address', () => {
   // Zappability decides whether a button may promise a RECEIPT. The block your own
   // profile opens is a plain lightning: QR that any wallet can pay regardless, so the
