@@ -2004,15 +2004,19 @@
       // The old sheet offered the form either way: you picked an amount, wrote a note,
       // pressed Send, and only then learned there was no wallet. The outcome is the same
       // either way; what changes is whether finding out costs you anything.
-      // PAYING YOURSELF IS NOT A PAYMENT. Opening your own profile from search must not
-      // offer Zap or Pay offer: the sats would leave your wallet, pay a routing fee, and
-      // arrive at your own address, and the zap would publish a public receipt of you
-      // paying yourself. Every key the keystore holds counts, not just the active one,
-      // because the other ones are equally you.
+      // YOUR OWN PROFILE IS A HANDOFF, NOT A PAYMENT. Both buttons still appear, and both
+      // open the block they would open for somebody with no wallet connected: the QR and
+      // the copyable address. What is withheld is the send form, because paying yourself
+      // moves sats out of your wallet, costs a routing fee, and lands them at your own
+      // address, publishing a receipt of you paying yourself on the way.
       //
-      // NEITHER BUTTON IS DRAWN, rather than drawn and disabled. A control that does
-      // nothing reads as broken software, and there is nothing to explain here that the
-      // name and face at the top of the sheet have not already said.
+      // Withholding the whole row was the first shape of this and it was worse: the row
+      // is genuinely useful on your own sheet, since showing somebody your zap QR is a
+      // thing people do, and that is exactly what the no-wallet branch already draws.
+      //
+      // Every key the keystore holds counts, not just the active one. A second account is
+      // equally you, so a wallet attached to one must not be offered a send form pointed
+      // at another.
       const isSelf = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
 
       let zapAddr = '';
@@ -2122,13 +2126,20 @@
       }
 
       function revealZap() {
-        if (isSelf) return;
         if (zapShown || !zapZappable || zapHasWallet === null || !modal.isConnected) return;
         zapShown = true;
         // The Zap button either way, and it opens whichever panel applies. Putting the QR
         // and the address straight onto the sheet made a profile you had only opened to
         // read into a payment page, which is a different sheet from the one you asked for.
-        zapPanel = zapHasWallet ? zapForm : zapPayBlock(zapAddr);
+        // YOUR OWN PROFILE TAKES THE NO-WALLET BRANCH WHATEVER YOUR WALLET SAYS. The
+        // row exists on your own sheet to hand somebody your QR, not to move sats out of
+        // your wallet, pay a routing fee, and land them at your own address, publishing
+        // a receipt of you paying yourself on the way. hideConnect because you are not
+        // missing a wallet, and the hint is addressed to you rather than to a payer.
+        const selfPay = { hideConnect: true, hint: 'Scan or copy to show someone how to pay you.' };
+        zapPanel = (zapHasWallet && !isSelf)
+          ? zapForm
+          : zapPayBlock(zapAddr, isSelf ? selfPay : undefined);
         payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
         zapWrap.append(zapPanel);
         paintPayState();
@@ -2144,7 +2155,6 @@
       // here (once from cache, once from the relays), so this appends once and the zap
       // reveal above does not wait for it.
       function revealOffer(offer) {
-        if (isSelf) return;
         if (offerShown || !offer || !modal.isConnected) return;
         offerShown = true;
         payRow.append(offerBtn);
@@ -2183,9 +2193,11 @@
             zapHasWallet = !!(r && r.has);
           } catch (_) { zapHasWallet = false; } // an unreachable wallet is no wallet
         }
-        if (!zapHasWallet) {
+        if (!zapHasWallet || isSelf) {
           if (!offerHandoff) {
-            offerHandoff = offerPayBlock(offer);
+            offerHandoff = offerPayBlock(offer, isSelf
+              ? { hideConnect: true, hint: 'Scan or copy to show someone how to pay you.' }
+              : undefined);
             zapWrap.append(offerHandoff);
           }
           if (zapPanel) zapPanel.classList.add('hidden');
@@ -2466,7 +2478,14 @@
           // Only offered once the provider is known to support NIP-57. A lightning
           // address without allowsNostr can take a payment but can never produce a
           // receipt, and a button saying Zap would be a promise it cannot keep.
-          if (!isSelf) {
+          if (isSelf) {
+            // No lookup on your own address. Zappability decides whether a button may
+            // promise a RECEIPT, and the block your own profile opens is a plain
+            // lightning: QR that any wallet can pay whether or not the provider signs
+            // 9734s. Asking would be a disclosure bought for a question already answered.
+            zapZappable = true;
+            revealZap();
+          } else {
             lnAddressParams(c.lud16).then((p) => {
               if (!p.zappable) return;
               zapZappable = true;
