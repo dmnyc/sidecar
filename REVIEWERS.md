@@ -77,7 +77,7 @@ byte-identical to the same file in this repository at the tag, except
 
 ## 4. Vendored third-party code
 
-Four files in the package are third-party bundles rather than hand-written
+Five files in the package are third-party or generated rather than hand-written
 source. They are the reason this source submission exists.
 
 | File | Origin | Modified? |
@@ -86,8 +86,9 @@ source. They are the reason this source submission exists.
 | `jsqr.js` | `jsqr@1.4.0`, `dist/jsQR.js` from npm | No — byte-exact copy |
 | `qrcode-generator.js` | `qrcode-generator@2.0.4`, `dist/qrcode.js` from npm | No — byte-exact copy |
 | `nip49.js` | built here with `esbuild@0.28.1` from `nostr-tools@2.23.11` | Generated, see below |
+| `emoji-data.js` | reduced from `unicode-emoji-json@0.9.0` and `emojibase-data@17.0.0` | Generated, see below |
 
-None of the four are minified or obfuscated. They are readable bundler output,
+None of the five are minified or obfuscated. They are readable bundler output,
 shipped as published upstream.
 
 **`nip49.js` is the only file we generate ourselves.** nostr-tools' prebuilt
@@ -96,6 +97,19 @@ from the same pinned package:
 
 - entry point: `export * from "nostr-tools/nip49";`
 - command: `esbuild entry.js --bundle --format=iife --global-name=SidecarNip49`
+
+**`emoji-data.js` is DATA, not code, and is the other file we generate.** It is the
+table behind the reaction picker: the characters, names and groups come from
+`unicode-emoji-json@0.9.0` (`data-by-group.json`), and the search keywords are the
+CLDR 48 annotations from `emojibase-data@17.0.0` (`en/compact.json`). Both are
+reduced and joined by `scripts/update-vendor.sh`, and the result is hash-pinned in
+`scripts/vendor-hashes.sha256` like the other four.
+
+It is worth calling out because of its shape rather than its origin: the table is a
+single line of roughly 102,000 characters. That is one nested array literal of emoji
+and strings, not minified JavaScript. The file's own header comment names both
+sources and says it is generated. Re-derive it with `scripts/update-vendor.sh` and
+compare against the pinned hash.
 
 ### Re-deriving and verifying all four
 
@@ -129,11 +143,16 @@ makes no network requests and needs no image assets:
 
 | File | Line | Content |
 |---|---|---|
-| `welcome.js` | 282 | app logo, inline `<svg>` |
+| `welcome.js` | 229, 275, 342 | app and card logos, inline `<svg>` |
 | `wallets.js` | 38 | wallet logo, inline `<svg>` |
-| `sidepanel.js` | 89 | decorative icon `<g>` element |
+| `composer-core.js` | 84 | icon path data shared by both composers |
 | `pdf-backup.js` | 556 | illustration path data for the printable backup sheet |
-| `content.js` | 349–353 | logo path data |
+| `content.js` | 467–473 | logo path data |
+
+Line numbers are for the 1.14.0 package and move between releases; the rule to apply
+is the shape, not the line. `sidepanel.js` no longer has a line long enough to
+qualify. `emoji-data.js` has one very long line and is covered in section 4 above,
+because it is generated data rather than first-party source.
 
 Every one is a single string of SVG coordinates. No first-party JavaScript in
 this repository is minified, transpiled, concatenated, or otherwise
