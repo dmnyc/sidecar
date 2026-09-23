@@ -20994,7 +20994,7 @@
         h('label', { className: 'toggle-row' }, [
           silentToggle, h('span', { textContent: 'Silent p tags' }),
         ]),
-        h('p', { className: 'hint', textContent: 'Tag keys in the composer that the note itself never mentions. For testing what reads p tags.' }),
+        h('p', { className: 'hint', textContent: 'Tag keys in the composer that the note itself never mentions. Applies when you next open the composer.' }),
       ]));
 
       const scroll = h('div', { className: 'notif-scroll' });

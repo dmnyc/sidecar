@@ -91,6 +91,58 @@ test('THE GATE IS THE BUILD, NOT A SETTING A STORE BUILD CAN REACH', () => {
   assert.doesNotMatch(html, /devSilentTags|silent-tag/i, 'a store-reachable switch for this exists');
 });
 
+// ---- the assembly, lifted and RUN ----
+//
+// Every other assertion in this file reads source, and source-reading goes green while
+// the app is broken. The tags either come out or they do not, so run the real lines and
+// look at what they produce.
+function assembleTags({ dev = true, enabled = true, setting = true, clientTag = false,
+                        field = '', built = true, pTags = [], reply = null } = {}) {
+  const seg = panel.slice(
+    panel.indexOf('const already = new Set('),
+    panel.indexOf('// One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after')
+  );
+  const c = {
+    isDevBuild: () => dev,
+    devSilentEnabled: enabled,
+    settings: { devSilentTags: setting, showClientTag: clientTag },
+    devSilentInput: built ? { value: field } : null,
+    reply, pTags, quotes: { tags: [] }, CLIENT_TAG: ['client', 'Sidecar'],
+    Set, String, TextDecoder, TextEncoder, crypto,
+  };
+  c.globalThis = c;
+  vm.createContext(c);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8'), c);
+  c.NT = c.NostrTools;
+  vm.runInContext(panel.match(/function parseSilentTags\(text\)[\s\S]*?\n    \}/)[0], c);
+  vm.runInContext('(function(){' + seg + '; globalThis.OUT = tags; })()', c);
+  return JSON.parse(JSON.stringify(c.OUT));
+}
+
+test('THE TAG ACTUALLY COMES OUT, AND ONLY WHEN IT SHOULD', () => {
+  assert.deepEqual(assembleTags({ field: NPUB_A }), [['p', HEX_A]],
+    'the whole feature: an npub in the field becomes a p tag');
+  assert.deepEqual(assembleTags({ field: NPUB_A, clientTag: true }),
+    [['client', 'Sidecar'], ['p', HEX_A]], 'it rides alongside the client tag');
+  assert.deepEqual(assembleTags({ field: NPUB_A + ' garbage' }), [['p', HEX_A]]);
+
+  // The three states that produce an empty tag list, which is what a report of "it did
+  // not work" looks like from outside. Each is a different thing to check.
+  assert.deepEqual(assembleTags({ field: '' }), [], 'nothing typed');
+  assert.deepEqual(assembleTags({ built: false, field: NPUB_A }), [],
+    'the control never rendered, so the composer opened before the toggle was on');
+  assert.deepEqual(assembleTags({ enabled: false, field: NPUB_A }), [], 'toggle off at open');
+  assert.deepEqual(assembleTags({ setting: false, field: NPUB_A }), [], 'toggle off at publish');
+  assert.deepEqual(assembleTags({ dev: false, field: NPUB_A }), [], 'a store build');
+});
+
+test('a key already tagged for a reason is not tagged twice', () => {
+  assert.deepEqual(assembleTags({ field: NPUB_A, pTags: [['p', HEX_A]] }), [['p', HEX_A]],
+    'a body mention plus a silent tag for the same key should be one tag');
+  assert.deepEqual(assembleTags({ field: NPUB_A + ' ' + HEX_B, pTags: [['p', HEX_A]] }),
+    [['p', HEX_A], ['p', HEX_B]], 'and the other key still lands');
+});
+
 test('THE TAGS ARE ADDITIVE, AND CHANGE NOTHING ELSE', () => {
   // A key already tagged for a reason (threading, or a mention in the body) keeps its
   // one tag and its position. A silent tag is additive or it is nothing.
