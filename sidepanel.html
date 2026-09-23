@@ -497,15 +497,29 @@
         <div class="settings-section-body" id="section-body-apps">
 
           <div class="setting">
-            <h3>Multi-account note</h3>
-            <!-- The restorer for the shared-identity "Heads up!" and its caption.
-                 "Don't show this again" on the card silences the note for good, and a
-                 decision like that needs a way back that does not involve editing
-                 storage by hand. Restoring brings back the one-time explainer, as if
-                 it had never been seen. -->
-            <p class="hint">The "Heads up!" card and the "Multiple accounts used" line on shared-site confirms.</p>
-            <button type="button" class="mini ghost" id="headsup-restore">Show the note again</button>
+            <h3>Open notes in</h3>
+            <p class="hint">Which web client to open your published notes in. Set per account, so a brand account and a personal one can read in different places.</p>
+            <select id="client-select">
+              <option value="">Use the default</option>
+              <option value="jumble">Jumble</option>
+              <option value="primal">Primal</option>
+              <option value="yakihonne">YakiHonne</option>
+              <option value="iris">Iris</option>
+              <option value="snort">Snort</option>
+              <option value="nostrudel">noStrudel</option>
+              <option value="zapcooking">Zap Cooking</option>
+              <option value="noornote">NoorNote</option>
+              <option value="jank">JANK</option>
+              <option value="nostrich">Nostrich</option>
+              <option value="ditto">Ditto</option>
+              <option value="razr">Razr</option>
+              <option value="grimoire">Grimoire</option>
+              <option value="coracle">Coracle</option>
+              <option value="njump">njump</option>
+            </select>
+            <label class="toggle-row"><input type="checkbox" id="reuse-tab-toggle" /> <span>Reuse an open client tab</span></label>
           </div>
+
 
           <div class="setting">
             <h3>Background app syncs</h3>
@@ -533,33 +547,25 @@
           </div>
 
           <div class="setting">
-            <h3>Open notes in</h3>
-            <p class="hint">Which web client to open your published notes in. Set per account, so a brand account and a personal one can read in different places.</p>
-            <select id="client-select">
-              <option value="">Use the default</option>
-              <option value="jumble">Jumble</option>
-              <option value="primal">Primal</option>
-              <option value="yakihonne">YakiHonne</option>
-              <option value="iris">Iris</option>
-              <option value="snort">Snort</option>
-              <option value="nostrudel">noStrudel</option>
-              <option value="zapcooking">Zap Cooking</option>
-              <option value="noornote">NoorNote</option>
-              <option value="jank">JANK</option>
-              <option value="nostrich">Nostrich</option>
-              <option value="ditto">Ditto</option>
-              <option value="razr">Razr</option>
-              <option value="grimoire">Grimoire</option>
-              <option value="coracle">Coracle</option>
-              <option value="njump">njump</option>
-            </select>
-            <label class="toggle-row"><input type="checkbox" id="reuse-tab-toggle" /> <span>Reuse an open client tab</span></label>
-          </div>
-
-          <div class="setting">
             <h3>Pay button on web pages</h3>
             <p class="hint">Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
             <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span>Show pay button</span></label>
+          </div>
+
+          <div class="setting">
+            <h3>Shared site confirmations</h3>
+            <!-- The restorer for the shared-identity "Heads up!" and its caption.
+                 "Don't show this again" on the card silences the note for good, and a
+                 decision like that needs a way back that does not involve editing
+                 storage by hand. Resetting brings back the one-time explainer, as if
+                 it had never been seen.
+
+                 LAST IN THE SECTION, and that is the point of it being here at all:
+                 everything above is a preference somebody might come looking for, and
+                 this is a way back from a decision most people will make once and never
+                 revisit. A reset belongs under the settings it undoes, not over them. -->
+            <p class="hint">The "Heads up!" card and the "Multiple accounts used" line on shared-site confirms.</p>
+            <button type="button" class="mini ghost" id="headsup-restore">Reset all</button>
           </div>
 
         </div>

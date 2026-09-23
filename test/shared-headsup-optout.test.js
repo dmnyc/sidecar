@@ -57,6 +57,18 @@ test('the opt-out is recoverable, from Settings', () => {
   // storage by hand. The Apps & browsing section restores both flags at once, so the
   // one-time explainer returns as if never seen.
   assert.match(panelHtml, /id="headsup-restore"/);
+  // LAST IN ITS SECTION, AND CALLED A RESET. Everything above it in Apps & browsing is a
+  // preference somebody might come looking for; this is a way back from a decision most
+  // people make once and never revisit, so it sits under the settings it undoes rather
+  // than over them. "Show the note again" described one of the two things it restores;
+  // "Reset all" describes the button.
+  assert.match(panelHtml, /<h3>Shared site confirmations<\/h3>/);
+  assert.match(panelHtml, /id="headsup-restore">Reset all</);
+  const apps = panelHtml.slice(panelHtml.indexOf('id="section-body-apps"'), panelHtml.indexOf('data-section="wallet"'));
+  const heads = [...apps.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1]);
+  assert.equal(heads[0], 'Open notes in', 'the client picker is not first: ' + heads.join(' / '));
+  assert.equal(heads[heads.length - 1], 'Shared site confirmations',
+    'the reset is not last: ' + heads.join(' / '));
   assert.match(panel, /headsup-restore'\)\.addEventListener\('click'/);
   assert.match(panel, /chrome\.storage\.local\.remove\(\['sharedHeadsUpDismissed', 'sharedHeadsUpOptOut'\]\)/);
   assert.match(panel, /sharedHeadsUp = \{ dismissed: false, optedOut: false \};/, 'the panel memo must refresh with the store');
