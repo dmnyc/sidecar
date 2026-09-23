@@ -2756,10 +2756,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   position: absolute; top: 3px; left: 3px; height: 22px; padding: 0 7px;
   display: flex; align-items: center;
   border-radius: 7px; border: none; cursor: pointer;
-  color: #fff; background: rgba(5, 0, 12, 0.7);
+  color: #fff; background: rgba(5, 0, 12, 0.85);
   font-family: inherit; font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
 }
-.compose-thumb-alt.has-alt { color: var(--lav); }
+/* THE ACCENT IS LIFTED HALFWAY TO WHITE, and the backdrop carries more of its own
+   weight (0.7 to 0.85), because this chip is the one place a theme color is asked to
+   read against near-black. --lav is the lighter half of each palette's pair, which is
+   true in the dark themes and false in the daylight ones: Par Avion lands it #1B4C8C,
+   Werkstatte #3F3A22, Industria #7A5A18. Raw against this pill that is 1.02:1 in Par
+   Avion, which is not dim, it is invisible. Seven of the twelve themes were under
+   3:1. Mixed, the worst reads 5.4:1 even over a white photograph, and every theme still
+   shows its own color rather than all of them collapsing to white. Same trick and the
+   same reason as .peek-pay-on; color-mix is safe at this project's floors. */
+.compose-thumb-alt.has-alt { color: color-mix(in srgb, var(--lav) 50%, #fff); }
 /* The ALT editor: one full-width row under the strip — thumbnail and explainer on
    top, the multiline field beneath, the count and Save stretched under that. Stacked,
    per the only grammar a column this narrow has; nothing beside anything, nothing

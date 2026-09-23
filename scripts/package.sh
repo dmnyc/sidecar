@@ -118,6 +118,11 @@ build_zip() {
   echo "  sha256:  ${sha}"
 }
 
+# File the previous release before this one lands, so dist/ and store/ always show
+# exactly one version loose at the top and everything older under archive/<version>/.
+# Moves only, and both directories are gitignored, so this touches nothing committed.
+"$(dirname "$0")/archive-release.sh" "${VERSION_NO_V}"
+
 mkdir -p dist
 echo "Packaging ${TAG} (${SHORT})"
 # Both outputs carry their store's name — the Chrome zip used to be bare

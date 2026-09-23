@@ -7,6 +7,14 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [1.14.1] — 2026-09-23
+
+### Fixed
+- **The ✓ ALT chip was unreadable in seven of the twelve themes.** The chip carries its own near-black backdrop so it can sit on any photograph, and the described state tinted its label with `--lav`. That variable is the lighter half of each palette's pair, which is true in the dark themes and false in the daylight ones, so it landed `#1B4C8C` in Par Avion, `#3F3A22` in Werkstätte and `#7A5A18` in Industria: dark ink on near-black, measuring 1.02:1 at worst, which is not dim but absent. Since that chip is the only confirmation you get that a description saved, the release's headline feature appeared to do nothing. The accent is now lifted halfway to white and the backdrop carries more of its own weight, so the worst theme reads 5.4:1 even over a white photograph and each one still shows its own color. Every value involved was individually correct, so the defect existed only in the combination; the theme-contrast suite now resolves `--lav` per theme, composites the pill, evaluates the `color-mix` and fails under 4.5:1.
+
+### Changed
+- `REVIEWERS.md` declares `emoji-data.js` to add-on reviewers and refreshes the long-line table, so the source archive uploaded to AMO is self-consistent with what the package contains.
+
 ## [1.14.0] — 2026-09-22
 
 ### Added
