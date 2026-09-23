@@ -298,8 +298,12 @@ test('NO WALLET IS NOT NO WAY TO PAY', () => {
   // had exactly that shape until now. Same block, same QR, same copy button.
   const open = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
   const body = open.slice(0, open.indexOf('\n      }'));
-  assert.match(body, /if \(!zapHasWallet\) \{/);
-  assert.match(body, /offerHandoff = offerPayBlock\(offer\);/);
+  // Widened to `|| isSelf`: your own profile takes this same branch whatever your wallet
+  // says, because the row exists there to hand somebody the QR rather than to pay
+  // yourself. The property under test is unchanged, which is that no-wallet reaches the
+  // handoff rather than a dead end.
+  assert.match(body, /if \(!zapHasWallet \|\| isSelf\) \{/);
+  assert.match(body, /offerHandoff = offerPayBlock\(offer, isSelf/);
   // Asked at click rather than gated at reveal, because the offer button appears off the
   // profile paint and the wallet answer lands on its own schedule.
   assert.match(body, /if \(zapHasWallet === null\) \{/);

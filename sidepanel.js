@@ -2004,6 +2004,21 @@
       // The old sheet offered the form either way: you picked an amount, wrote a note,
       // pressed Send, and only then learned there was no wallet. The outcome is the same
       // either way; what changes is whether finding out costs you anything.
+      // YOUR OWN PROFILE IS A HANDOFF, NOT A PAYMENT. Both buttons still appear, and both
+      // open the block they would open for somebody with no wallet connected: the QR and
+      // the copyable address. What is withheld is the send form, because paying yourself
+      // moves sats out of your wallet, costs a routing fee, and lands them at your own
+      // address, publishing a receipt of you paying yourself on the way.
+      //
+      // Withholding the whole row was the first shape of this and it was worse: the row
+      // is genuinely useful on your own sheet, since showing somebody your zap QR is a
+      // thing people do, and that is exactly what the no-wallet branch already draws.
+      //
+      // Every key the keystore holds counts, not just the active one. A second account is
+      // equally you, so a wallet attached to one must not be offered a send form pointed
+      // at another.
+      const isSelf = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
+
       let zapAddr = '';
       let zapZappable = false;
       let zapHasWallet = null;   // null until asked, so neither branch is guessed at
@@ -2066,6 +2081,12 @@
           // as an anonymous payment. The link below is the one that can say zap, because
           // connecting a wallet is what puts a signed 9734 in front of the invoice.
           h('p', { className: 'hint', textContent: options.hint || 'Scan or copy to pay from any wallet.' }),
+          // Why there is no amount field here, on the one sheet where its absence is not
+          // self-explanatory. Everywhere else the handoff block appears it is because no
+          // wallet is connected, and the line below it already says so by offering to
+          // connect one; on your own profile the wallet is right there and its absence
+          // needs its own sentence.
+          ...(options.note ? [h('p', { className: 'hint zap-pay-note', textContent: options.note })] : []),
           ...(options.hideConnect ? [] : [connect])
         );
         return wrap;
@@ -2116,7 +2137,19 @@
         // The Zap button either way, and it opens whichever panel applies. Putting the QR
         // and the address straight onto the sheet made a profile you had only opened to
         // read into a payment page, which is a different sheet from the one you asked for.
-        zapPanel = zapHasWallet ? zapForm : zapPayBlock(zapAddr);
+        // YOUR OWN PROFILE TAKES THE NO-WALLET BRANCH WHATEVER YOUR WALLET SAYS. The
+        // row exists on your own sheet to hand somebody your QR, not to move sats out of
+        // your wallet, pay a routing fee, and land them at your own address, publishing
+        // a receipt of you paying yourself on the way. hideConnect because you are not
+        // missing a wallet, and the hint is addressed to you rather than to a payer.
+        const selfPay = {
+          hideConnect: true,
+          hint: 'Scan or copy to show someone how to pay you.',
+          note: 'Sending is off on your own profile.',
+        };
+        zapPanel = (zapHasWallet && !isSelf)
+          ? zapForm
+          : zapPayBlock(zapAddr, isSelf ? selfPay : undefined);
         payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
         zapWrap.append(zapPanel);
         paintPayState();
@@ -2170,9 +2203,13 @@
             zapHasWallet = !!(r && r.has);
           } catch (_) { zapHasWallet = false; } // an unreachable wallet is no wallet
         }
-        if (!zapHasWallet) {
+        if (!zapHasWallet || isSelf) {
           if (!offerHandoff) {
-            offerHandoff = offerPayBlock(offer);
+            offerHandoff = offerPayBlock(offer, isSelf ? {
+              hideConnect: true,
+              hint: 'Scan or copy to show someone how to pay you.',
+              note: 'Sending is off on your own profile.',
+            } : undefined);
             zapWrap.append(offerHandoff);
           }
           if (zapPanel) zapPanel.classList.add('hidden');
@@ -2416,8 +2453,13 @@
           const paint = () => verifyNip05(c.nip05, pubkey, { force: true }).then((res) => {
             badge.innerHTML = '';
             paintNip05Badge(badge, res, paint);
+            paintNip05Favicon(nip05Row, c.nip05, res);
           });
-          verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res, paint); });
+          verifyNip05(c.nip05, pubkey).then((res) => {
+            badge.innerHTML = '';
+            paintNip05Badge(badge, res, paint);
+            paintNip05Favicon(nip05Row, c.nip05, res);
+          });
         }
         // renderAbout APPENDS, and paint() runs twice — once from cache, once from
         // the relays — so the bio rendered twice on any already-cached profile.
@@ -2448,11 +2490,20 @@
           // Only offered once the provider is known to support NIP-57. A lightning
           // address without allowsNostr can take a payment but can never produce a
           // receipt, and a button saying Zap would be a promise it cannot keep.
-          lnAddressParams(c.lud16).then((p) => {
-            if (!p.zappable) return;
+          if (isSelf) {
+            // No lookup on your own address. Zappability decides whether a button may
+            // promise a RECEIPT, and the block your own profile opens is a plain
+            // lightning: QR that any wallet can pay whether or not the provider signs
+            // 9734s. Asking would be a disclosure bought for a question already answered.
             zapZappable = true;
             revealZap();
-          }).catch(() => {});
+          } else {
+            lnAddressParams(c.lud16).then((p) => {
+              if (!p.zappable) return;
+              zapZappable = true;
+              revealZap();
+            }).catch(() => {});
+          }
         }
       }
 
@@ -7624,8 +7675,12 @@
         const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
           badge.innerHTML = '';
           paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
         });
-        verifyNip05(content.nip05, pubkey).then((res) => paintNip05Badge(badge, res, paint));
+        verifyNip05(content.nip05, pubkey).then((res) => {
+          paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
+        });
       } else {
         nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
       }
@@ -10121,6 +10176,77 @@
     }
   }
 
+  // ---- the domain's own mark, beside a NIP-05 that verified ---------------------------
+  //
+  // ONLY WHEN IT VERIFIED, which is the whole design rather than a refinement of it. A
+  // favicon beside a name is borrowed credibility, and beside an identifier that has just
+  // FAILED to verify it would be borrowed from the very domain that declined to vouch for
+  // it. "satoshi@bitcoin.org" wearing bitcoin.org's mark is a better lie than the same
+  // text on its own, so a verdict of anything but ok paints nothing.
+  //
+  // PRIVACY: this costs no disclosure that has not already happened. Verification fetches
+  // /.well-known/nostr.json from this exact host moments earlier, so the host has already
+  // seen a request attributable to the same person at the same moment; the image adds no
+  // new party and carries no referrer and no credentials. Gating on the verdict also means
+  // a domain we could not reach is not asked a second time. Noted in PRIVACY.md.
+  //
+  // The host -> icon store is shared with the relay rows (declared further down, with
+  // them). A host's favicon does not depend on why we wanted it, and a relay that is also
+  // somebody's NIP-05 domain should cost one lookup rather than two.
+  function nip05Domain(nip05) {
+    const s = String(nip05 || '').trim();
+    const at = s.indexOf('@');
+    const domain = at === -1 ? s : s.slice(at + 1);
+    // A BARE DOMAIN OR NOTHING. This value comes from a stranger's kind 0 and is about to
+    // be interpolated into a URL, so anything carrying a scheme, a path, a port, a query
+    // or credentials is refused rather than cleaned up: "evil.com/a@x" must not become a
+    // fetch of evil.com, and "localhost" must not become a request to the user's machine.
+    return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/i
+      .test(domain) ? domain.toLowerCase() : '';
+  }
+
+  function nip05FaviconEl(nip05) {
+    const domain = nip05Domain(nip05);
+    if (!domain) return null;
+    const img = h('img', {
+      className: 'nip05-favicon', alt: '', loading: 'lazy', referrerPolicy: 'no-referrer',
+    });
+    let candidates = [];
+    let i = 0;
+    img.addEventListener('error', () => {
+      if (++i < candidates.length) { img.src = candidates[i]; return; }
+      // Exhausted. Remembered as having none, or every repaint walks four 404s again for
+      // exactly the domains that will never answer.
+      img.remove();
+      rememberRelayIcon(domain, '');
+    });
+    img.addEventListener('load', () => {
+      img.classList.add('ok');
+      rememberRelayIcon(domain, candidates[i]);
+    });
+    loadRelayIcons().then(() => {
+      if (!img.isConnected) return;
+      const known = relayIconCache.get(domain);
+      // has(), not get(): '' is a real answer meaning "checked, has none", and it is
+      // falsy, so the two must not be conflated.
+      if (relayIconCache.has(domain) && !known) { img.remove(); return; }
+      candidates = known ? [known] : FAVICON_PATHS.map((path) => 'https://' + domain + path);
+      img.src = candidates[0];
+    }, () => {});
+    return img;
+  }
+
+  // Idempotent, because the badge beside it is also the recheck affordance: a second
+  // verdict arriving on the same row must replace the mark rather than add one.
+  function paintNip05Favicon(row, nip05, res) {
+    if (!row) return;
+    const existing = row.querySelector('.nip05-favicon');
+    if (existing) existing.remove();
+    if (!res || !res.ok) return;
+    const fav = nip05FaviconEl(nip05);
+    if (fav) row.insertBefore(fav, row.firstChild);
+  }
+
   async function renderProfile() {
     const view = $('profile-view');
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
@@ -10175,10 +10301,12 @@
       const paint = () => verifyNip05(content.nip05, active.pubkey, { force: true }).then((res) => {
         nip05Badge.innerHTML = '';
         paintNip05Badge(nip05Badge, res, paint);
+        paintNip05Favicon(nip05Row, content.nip05, res);
       });
       verifyNip05(content.nip05, active.pubkey).then((res) => {
         nip05Badge.innerHTML = '';
         paintNip05Badge(nip05Badge, res, paint);
+        paintNip05Favicon(nip05Row, content.nip05, res);
       });
     }
     // The chip copies; the button beside it shows the code. Two affordances rather than
@@ -11480,12 +11608,18 @@
     const pubkey = state.activePubkey;
     await devBuildReady;
     let devKindEnabled = false;
+    let devSilentEnabled = false;
     if (isDevBuild()) {
-      try { devKindEnabled = (await call({ type: 'SIDECAR_GET_SETTINGS' }))?.devComposerKinds === true; }
+      try {
+        const ds = await call({ type: 'SIDECAR_GET_SETTINGS' });
+        devKindEnabled = ds?.devComposerKinds === true;
+        devSilentEnabled = ds?.devSilentTags === true;
+      }
       catch (_) {} // Missing/unavailable settings leave demo controls off.
     }
     // Deliberately not saved in drafts: a demo override belongs to this opening only.
     let devKind = 0;
+    let devSilentInput = null;   // the field, so publish can read it without a lookup
     // `let`, not const: a saved draft can carry its own reply target, and resuming one
     // has to put the composer back into reply mode.
     let replyTo = (opts && opts.replyTo) || null;
@@ -11671,10 +11805,23 @@
         : replyTo ? replyTags(replyTo) : null;
       const already = new Set((reply ? reply.tags : []).filter((t) => t[0] === 'p').map((t) => t[1]));
       const bodyP = pTags.filter((t) => !already.has(t[1]));
+      // DEV ONLY, and gated three ways like the kind override beside it: the build, the
+      // flag read at open, and the setting re-read here at publish. The last one matters
+      // because the composer can be open for a long time and this is the control whose
+      // effect is invisible in the thing it produces.
+      //
+      // Deduped against the threading tags and the body's own mentions, so a key already
+      // tagged for a reason stays tagged once and keeps its position. A silent tag is
+      // additive or it is nothing.
+      const silentP = isDevBuild() && devSilentEnabled && settings?.devSilentTags === true
+        ? parseSilentTags(devSilentInput ? devSilentInput.value : '')
+            .filter((hex) => !already.has(hex) && !bodyP.some((t) => t[1] === hex))
+            .map((hex) => ['p', hex])
+        : [];
       const base = reply ? reply.tags : [];
       const tags = settings && settings.showClientTag === false
-        ? [...base, ...bodyP, ...quotes.tags]
-        : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
+        ? [...base, ...bodyP, ...silentP, ...quotes.tags]
+        : [...base, CLIENT_TAG.slice(), ...bodyP, ...silentP, ...quotes.tags];
       // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after
       // the body-derived tags. Undescribed media emits nothing, so a note of bare
       // URLs is byte-identical to what it published before alt text existed. A poll
@@ -11736,6 +11883,57 @@
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: toSign, expectedPubkey: pubkey });
       await publishSigned(signed);
       return signed;
+    }
+
+    // A p TAG WITH NO MENTION IN THE CONTENT. The person is notified and the note says
+    // nothing about why, which is exactly the shape of the reply spam Sidecar's own
+    // notification filter exists to demote. That is the reason this lives behind the dev
+    // build and not a setting: it is a fixture generator for testing that filter and
+    // anything else that reads p tags, not a feature.
+    //
+    // Pure, so the decoding can be tested without a composer: takes whatever was typed,
+    // gives back deduped hex pubkeys, and silently drops anything it cannot read rather
+    // than guessing. A malformed npub must not become a tag pointing at somebody else.
+    function parseSilentTags(text) {
+      const out = [];
+      const seen = new Set();
+      String(text || '').split(/[\s,]+/).forEach((tok) => {
+        const t = tok.trim().replace(/^nostr:/i, '');
+        if (!t) return;
+        let hex = '';
+        if (/^[0-9a-f]{64}$/i.test(t)) hex = t.toLowerCase();
+        else if (/^npub1/i.test(t)) {
+          try {
+            const d = NT.nip19.decode(t);
+            if (d && d.type === 'npub' && typeof d.data === 'string') hex = d.data;
+          } catch (_) {}
+        }
+        if (hex && !seen.has(hex)) { seen.add(hex); out.push(hex); }
+      });
+      return out;
+    }
+
+    function buildDevSilentTags() {
+      if (!isDevBuild() || !devSilentEnabled) return null;
+      const field = h('input', {
+        type: 'text', id: 'compose-dev-silent', className: 'status-input',
+        placeholder: 'npub1… or hex, space separated',
+      });
+      devSilentInput = field;
+      const hint = h('p', { className: 'hint' });
+      const paint = () => {
+        const n = parseSilentTags(field.value).length;
+        const typed = field.value.trim();
+        hint.textContent = !typed
+          ? 'Dev build only. Adds a p tag with no mention in the text.'
+          : n === 0 ? 'Nothing readable here yet. npub1… or 64 hex characters.'
+          : n + (n === 1 ? ' key' : ' keys') + ' will be tagged, invisibly.';
+      };
+      field.addEventListener('input', paint);
+      paint();
+      return h('div', { className: 'compose-dev-kind' }, [
+        h('label', { htmlFor: 'compose-dev-silent', textContent: 'Silent p tags' }), field, hint,
+      ]);
     }
 
     function buildDevKindSelector() {
@@ -12472,6 +12670,7 @@
         author,
         ...(replyTo ? [buildReplyBlock()] : []),
         ...(isDevBuild() && devKindEnabled ? [buildDevKindSelector()] : []),
+        ...(isDevBuild() && devSilentEnabled ? [buildDevSilentTags()] : []),
         tabBar,
         editorWrap,
         previewPane,
@@ -12538,6 +12737,19 @@
       // is the last screen before it goes out.
       const parent = buildReplyBlock();
       if (parent) previewScroll.append(parent);
+      // THE ONE PLACE IT IS VISIBLE, and it has to be. Everything else in Preview is what
+      // a reader will see; this is the opposite, so the line says the tags are going out
+      // and that the note will not mention them. A control whose whole effect is hidden
+      // needs somewhere the author can check it before pressing Post.
+      if (isDevBuild() && devSilentEnabled) {
+        const n = parseSilentTags(devSilentInput ? devSilentInput.value : '').length;
+        if (n) {
+          previewScroll.append(h('p', {
+            className: 'hint',
+            textContent: 'Silent p tags: ' + n + '. Notified, not mentioned in the text.',
+          }));
+        }
+      }
       if (isDevBuild() && devKindEnabled && devKind && !draft.poll) {
         previewScroll.append(h('p', { className: 'hint', textContent: 'Demo event kind: ' + devKind }));
       }
@@ -20810,6 +21022,25 @@
           demoToggle.disabled = false;
         }
       });
+      // Same shape and the same one-line saver as the toggle above. Kept as its own
+      // switch rather than folded into one "dev composer extras", because these do very
+      // different things and only one of them leaves no trace in what it publishes.
+      const silentToggle = h('input', {
+        type: 'checkbox', checked: devSettings.devSilentTags === true,
+      });
+      silentToggle.addEventListener('change', async () => {
+        const enabled = silentToggle.checked;
+        silentToggle.disabled = true;
+        try {
+          await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devSilentTags: enabled } });
+        } catch (_) {
+          silentToggle.checked = !enabled;
+          toast('Could not save the demo setting', 'error');
+        } finally {
+          silentToggle.disabled = false;
+        }
+      });
+
       // SEEING THE UPDATE CARD WITHOUT UPDATING. It is armed by chrome.runtime.onInstalled,
       // which is exactly the event you cannot fire at yourself on an unpacked build, so
       // without this there is no way to look at it on a local build. It writes the same
@@ -20833,6 +21064,10 @@
           demoToggle, h('span', { textContent: 'Demo event kind selector' }),
         ]),
         h('p', { className: 'hint', textContent: 'Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.' }),
+        h('label', { className: 'toggle-row' }, [
+          silentToggle, h('span', { textContent: 'Silent p tags' }),
+        ]),
+        h('p', { className: 'hint', textContent: 'Tag keys in the composer that the note itself never mentions. Applies when you next open the composer.' }),
         cardBtn,
       ]));
 

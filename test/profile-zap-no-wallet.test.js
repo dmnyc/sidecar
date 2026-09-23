@@ -68,7 +68,10 @@ test('BOTH BRANCHES SIT BEHIND THE SAME ZAP BUTTON', () => {
   // The button is the constant; what it opens is the variable. Dropping the QR and the
   // address straight onto the sheet turned a profile you had only opened to read into a
   // payment page, which is a different sheet from the one you asked for.
-  assert.match(sheet, /zapPanel = zapHasWallet \? zapForm : zapPayBlock\(zapAddr\)/,
+  // `&& !isSelf`: your own profile takes the handoff branch whatever your wallet says,
+  // since paying yourself is not a payment. What is asserted here is unchanged, that the
+  // send form is reached only by having a wallet and the QR is the other branch.
+  assert.match(sheet, /zapPanel = \(zapHasWallet && !isSelf\)\s*\n?\s*\? zapForm\s*\n?\s*: zapPayBlock\(zapAddr/,
     'the two branches are no longer chosen by whether a wallet exists');
   // The Zap button is still unconditional; it just shares a row with Pay offer now, and
   // goes in first because a zap is the route most profiles can take.
