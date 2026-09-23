@@ -20810,12 +20810,30 @@
           demoToggle.disabled = false;
         }
       });
+      // SEEING THE UPDATE CARD WITHOUT UPDATING. It is armed by chrome.runtime.onInstalled,
+      // which is exactly the event you cannot fire at yourself on an unpacked build, so
+      // without this there is no way to look at it on a local build. It writes the same
+      // flag the worker writes rather than building a lookalike, so what you preview is
+      // what ships.
+      const cardBtn = h('button', { className: 'secondary', textContent: 'Preview the update card' });
+      cardBtn.addEventListener('click', () => {
+        chrome.storage.local.set({ versionCard: { to: ver || 'this version', from: null } }, () => {
+          // Through afterModalClose, or the card paints under the sheet you are standing
+          // in and is gone by the time you have dismissed it.
+          afterModalClose(() => {
+            hide($('view-settings'));
+            show($('view-main'));
+            maybeShowVersionCard();
+          });
+        });
+      });
       modal.append(h('section', { className: 'dev-controls-section' }, [
         h('h3', { className: 'settings-section-title', textContent: 'Dev controls' }),
         h('label', { className: 'toggle-row' }, [
           demoToggle, h('span', { textContent: 'Demo event kind selector' }),
         ]),
         h('p', { className: 'hint', textContent: 'Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.' }),
+        cardBtn,
       ]));
 
       const scroll = h('div', { className: 'notif-scroll' });

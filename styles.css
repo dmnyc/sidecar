@@ -5578,4 +5578,6 @@ button.poll-bar-head {
 
 .dev-controls-section { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .dev-controls-section .hint { margin: 6px 0 0; }
+/* The hint carries no bottom margin, so a button after it needs its own gap. */
+.dev-controls-section .hint + button { margin-top: 12px; }
 .dev-log-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 12px; }

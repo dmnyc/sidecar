@@ -128,3 +128,34 @@ test('it reuses the switch tip rather than inventing a second banner', () => {
   assert.ok(css.indexOf('.version-card .switch-tip-link') > css.indexOf('.switch-tip-link:hover'),
     'the lavender link loses to the gold one on source order');
 });
+
+test('THE PREVIEW LIVES BEHIND THE DEV-BUILD GATE', () => {
+  // The card is armed by chrome.runtime.onInstalled, which is the one event you cannot
+  // fire at yourself on an unpacked build, so without this there is no way to look at it
+  // on a local build.
+  //
+  // It sits in the bug-badge Dev tools sheet with the rest of the dev affordances, so it
+  // is gated the way they all are: openDebugPanel returns before building anything if the
+  // build is not a development one, and the badge that opens it is hidden besides. Two
+  // gates, neither of them a condition wrapped around this button that someone could
+  // forget to write.
+  const fn = bare.slice(bare.indexOf('async function openDebugPanel()'));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+
+  assert.match(body.slice(0, 200), /await devBuildReady;\s*\n\s*if \(!isDevBuild\(\)\) return;/,
+    'the sheet builds before it knows whether this is a dev build');
+  assert.match(body, /'Preview the update card'/);
+  // And it is not ALSO hanging off a settings row, where it would need its own gate.
+  const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  assert.doesNotMatch(html, /dev-version-card/,
+    'a second copy of the preview outside the dev-build gate');
+
+  // It arms the real flag rather than building a lookalike card, so what you preview is
+  // what ships.
+  assert.match(body, /chrome\.storage\.local\.set\(\{ versionCard: \{ to: ver \|\| 'this version', from: null \} \}/);
+
+  // Through afterModalClose, and only then to the main view: arming the flag while the
+  // sheet is still up paints the card underneath it, and it is spent by the time the
+  // sheet is dismissed.
+  assert.match(body, /afterModalClose\(\(\) => \{\s*\n\s*hide\(\$\('view-settings'\)\);\s*\n\s*show\(\$\('view-main'\)\);\s*\n\s*maybeShowVersionCard\(\)/);
+});
