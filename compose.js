@@ -559,19 +559,18 @@
         // sometimes a minute, and the panel offers a Stop for exactly that reason; here
         // the only button that could be pressed is the one that started it, so it changes
         // into what it now does.
-        setMining(true);
-        status.textContent = 'Mining ' + powForThisPost.bits + ' bits…';
+        setMining(true, powForThisPost.bits);
         const mined = await composer.minePow(
           { ...template, pubkey: state.activePubkey },
           powForThisPost.bits,
-          (p) => { status.textContent = 'Mining ' + powForThisPost.bits + ' bits, best ' + p.best + '…'; }
+          (p) => paintMineProgress(p.best)
         );
         // The pubkey is dropped again: the signer sets it from the key it signs with, and
         // sending our own copy invites the two to disagree about the one field neither of
         // them should be guessing at.
         const { pubkey: _mined, ...rest } = mined.event;
         template = rest;
-        setMining(false);
+        mineDone();
       }
       status.textContent = 'Signing…';
       const signed = await call({
@@ -668,25 +667,100 @@
   // whose contents no longer matter, and the note goes out as the old text while the
   // screen shows the new one. The panel cannot reach this state because its mining pane
   // takes over the screen; here the editor is simply still there, so it is turned off.
+  // MINING TAKES THE CARD, the way publishing does one step later. It used to leave the
+  // editor on screen and switch off everything in it: the editor itself, the toolbar, the
+  // tabs, the ALT row's buttons, the ALT field. That was a whole function spent
+  // neutralizing a surface that had no business being there, and it still left the note
+  // you had written sitting under a mine that had already snapshotted it, which reads as
+  // though it were still being edited.
+  //
+  // The panel never had this problem because its mining pane takes over the screen, and
+  // this page already knows the move: showPosted turns the card into the receipt on the
+  // same argument, that a tab has nothing underneath it. So mining gets the same
+  // treatment one step earlier.
+  //
+  // HIDDEN, NOT REPLACED, which is the one way this differs from the receipt. The receipt
+  // empties the sheet because it never comes back; a mine can be stopped, and can fail,
+  // and the editor has to return with the draft and the caret exactly as they were. So
+  // the card's own children are hidden by a class and the mining panel sits beside them,
+  // and setMining(false) on every exit path from doPost is what puts them back.
   let mining = false;
-  function setMining(on) {
+  let mineCard = null;
+  function setMining(on, bits) {
     if (mining === on) return;
     mining = on;
     paintPostButton();
-    if (editorApi) {
-      editorApi.editor.contentEditable = on ? 'false' : 'true';
-      editorApi.editor.classList.toggle('is-locked', on);
-      if (on) editorApi.close(); // no mention dropdown left open over a box nobody can type in
+    const sheet = document.querySelector('.compose-sheet');
+    if (!on) {
+      sheet.classList.remove('is-mining');
+      if (mineCard) { clearInterval(mineCard._tick); mineCard.remove(); mineCard = null; }
+      return;
     }
-    // Everything that would change what is being mined, or start a second mine on the one
-    // worker. Cancel and the close box stay live: leaving is always allowed, and it takes
-    // the worker with the page. The ALT row's buttons go with them — the description it
-    // edits rides in the same draft the mine already snapshotted.
-    document.querySelectorAll('#compose-actions button, .compose-tab, .compose-alt-row button').forEach((b) => {
-      b.disabled = on;
-    });
-    const altField = document.querySelector('.compose-alt-text');
-    if (altField) altField.readOnly = on;
+    if (editorApi) editorApi.close(); // no mention dropdown left hanging over a hidden box
+    // THE PANEL'S OWN MINING PANE, IN THIS PAGE'S CARD. Same classes, not a parallel set:
+    // .mining-glyph, .mining-line and the hint are the panel's, so the two screens cannot
+    // drift into looking like different features, and the reasoning already written into
+    // those rules comes with them. Chiefly the pulse, which is deliberate and which a
+    // rotation quietly undid: mining is a search with no position in it, so anything that
+    // sweeps or turns implies progress toward a finish that does not exist.
+    //
+    // The elapsed seconds come with it too. Without them the screen reads as frozen at
+    // exactly the difficulty where somebody most needs to see it is alive, and the line
+    // is tabular so the count does not jitter the text beside it.
+    mineCard = h('div', { className: 'compose-mining' });
+    const glyph = icon('pickaxe');
+    glyph.classList.add('mining-glyph');
+    const line = h('div', { className: 'mining-line' });
+    const note = h('p', { className: 'hint', textContent: 'Stopping keeps your draft.' });
+    const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
+    stop.addEventListener('click', () => composer.powCancel());
+    mineCard.append(
+      h('h2', { className: 'compose-done-title', textContent: 'Mining proof of work' }),
+      h('div', { className: 'mining-body' }, [glyph, line, note]),
+      h('div', { className: 'compose-done-actions' }, [stop])
+    );
+
+    const startedAt = Date.now();
+    let best = 0;
+    const paint = () => {
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      line.textContent = bits + ' bits · ' + secs + 's' + (best ? ' · best ' + best : '');
+    };
+    paint();
+    // Its own clock rather than only painting when the worker reports, for the reason the
+    // panel gives: reports arrive per block of attempts, so on a slow machine they can be
+    // seconds apart, and a screen that moved only with them would look stopped.
+    const timer = setInterval(paint, 1000);
+    mineCard._tick = timer;
+    mineCard._progress = (b) => { if (b > best) best = b; paint(); };
+    sheet.append(mineCard);
+    sheet.classList.add('is-mining');
+  }
+  // Every attempt is independent, so there is no progress to report and nothing that could
+  // honestly fill a bar. The best difficulty found so far is the one true number, and it
+  // is the one the panel shows too.
+  function paintMineProgress(best) {
+    if (mineCard && mineCard._progress) mineCard._progress(best);
+  }
+
+  // THE WORK IS DONE BUT THE POST IS NOT, which is the panel's own wording for this and
+  // its own handling. Signing and the relays still have to happen, and dropping the card
+  // the instant the nonce is found put the editor back on screen for that second or two:
+  // reported as "after mining stopped I saw the post preview briefly", which is exactly
+  // what it was, and reads as the note having been handed back rather than sent.
+  //
+  // So the card stays until the receipt replaces it, with Stop taken away rather than
+  // left offering to cancel a mine that has already finished. setMining(false) in the
+  // tail of doPost still runs, and on the success path it now finds a card the receipt
+  // has already detached, which costs nothing.
+  function mineDone() {
+    if (!mineCard) return;
+    clearInterval(mineCard._tick);
+    mineCard._progress = null;
+    const stop = mineCard.querySelector('.compose-done-actions button');
+    if (stop) stop.disabled = true;
+    const line = mineCard.querySelector('.mining-line');
+    if (line) line.textContent = 'Found it. Posting…';
   }
 
   let editorApi = null;
@@ -721,6 +795,9 @@
     } catch (_) { /* no link is better than a broken one */ }
 
     sheet.innerHTML = '';
+    // Defensively, though setMining(false) already ran: is-mining hides every child of
+    // the sheet but the close box, so a receipt painted under it would be invisible.
+    sheet.classList.remove('is-mining');
     sheet.classList.add('compose-done');
     const mark = h('span', { className: 'compose-done-mark' });
     mark.append(icon('check'));

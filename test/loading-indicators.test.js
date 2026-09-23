@@ -78,8 +78,14 @@ test('shimmer is for values waiting in place, and nothing else', () => {
   // Everything left is a number sitting in a line of prose: a poll's vote count, and the
   // following and muted counts on the profile. None of them has room for a spinner beside
   // it, which is the whole reason this idiom survives.
+  //
+  // `setWaiting(lbl, prev` is the composer's Media button, added 2026-09-22 and admitted
+  // by the same rule rather than as an exception to it: a 15px icon and one word has no
+  // room for a spinner either. It shimmers the label it already has instead of swapping
+  // in "Uploading…", which was 21px wider and took 10px each off Poll and PoW, since
+  // .compose-add sizes from its own label.
   for (const c of calls) {
-    assert.match(c, /poll-row-count|cell|followNum|muteNum|numEl|h\('strong'\)/,
+    assert.match(c, /poll-row-count|cell|followNum|muteNum|numEl|h\('strong'\)|setWaiting\(lbl, prev/,
       'setWaiting outside an in-place value: ' + c.slice(0, 60));
   }
 
