@@ -402,27 +402,48 @@ test('THE REVIEW COUNTDOWN IS HONORED HERE TOO', () => {
   assert.ok(!panel.includes('function showPostCountdown(opts)'), 'sidepanel.js kept a copy');
 });
 
-test('THE EDITOR GOES INERT WHILE A MINE RUNS', () => {
+test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   // minePow works on a snapshot of the template taken when Post was pressed, so anything
-  // typed while it runs is not in the note that publishes. At 22 bits that is ten seconds
-  // and sometimes a minute of typing into a box whose contents no longer matter, and the
-  // note goes out as the old text while the screen shows the new one. The panel cannot
-  // reach this state because its mining pane takes over; here the editor is still there.
-  const fn = bare.slice(bare.indexOf('function setMining(on)'));
+  // typed while it runs is not in the note that publishes. This used to be handled by
+  // leaving the editor on screen and switching off everything in it one control at a
+  // time, which was a lot of code spent neutralizing a surface that had no business being
+  // there, and it still showed you a note the mine had already taken a copy of as though
+  // it were live text.
+  //
+  // showPosted turns the card into the receipt on the argument that a tab has nothing
+  // underneath it. Mining is the same situation half a second earlier, so it gets the
+  // same treatment, and the editor cannot be typed into because it is not on screen.
+  const fn = bare.slice(bare.indexOf('function setMining(on, bits)'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /editorApi\.editor\.contentEditable = on \? 'false' : 'true';/);
-  assert.match(body, /editorApi\.editor\.classList\.toggle\('is-locked', on\)/);
-  assert.match(body, /if \(on\) editorApi\.close\(\)/, 'a dropdown over a dead box');
-  // And everything that would change what is being mined, or start a second mine on the
-  // one worker — including the ALT editor's controls, whose field rides in the same
-  // draft the mine already snapshotted. Cancel and the close box stay live: leaving is
-  // always allowed.
-  assert.match(body, /querySelectorAll\('#compose-actions button, \.compose-tab, \.compose-alt-row button'\)/);
-  assert.match(body, /altField\.readOnly = on/, 'the description field goes inert with the buttons');
-  assert.ok(!/compose-cancel|compose-x/.test(body), 'leaving must stay possible');
-  // A caret blinking in a field whose contents are already spent is the worst kind of lie
-  // a composer can tell, so it looks disabled too.
-  assert.match(css, /\.compose-editor-lg\.is-locked \{ opacity: 0\.55/);
+  assert.match(body, /sheet\.classList\.add\('is-mining'\)/);
+  assert.match(body, /mineCard = h\('div', \{ className: 'compose-mining' \}\)/);
+  assert.match(body, /editorApi\.close\(\)/, 'a dropdown left hanging over a hidden box');
+
+  // HIDDEN, NOT REPLACED, which is the whole difference from the receipt. A mine can be
+  // stopped and can fail, so the editor has to return with the draft and the caret as
+  // they were. Emptying the sheet here would be the bug the receipt is allowed to be.
+  assert.doesNotMatch(body, /sheet\.innerHTML = ''/, 'a stopped mine would lose the draft');
+  assert.match(body, /sheet\.classList\.remove\('is-mining'\)/);
+  assert.match(body, /mineCard\.remove\(\); mineCard = null;/);
+  // setMining(false) runs on every exit from doPost, which is what makes the above the
+  // restore path for a success, a stop and a failure alike.
+  assert.ok(bare.includes('setMining(false);\n    posting = false;'),
+    'the tail of doPost no longer restores the card');
+
+  // LEAVING IS ALWAYS ALLOWED, and it takes the worker with the page.
+  assert.match(css, /\.compose-sheet\.is-mining > :not\(\.compose-mining\):not\(\.compose-x\) \{ display: none; \}/,
+    'either the card is not hidden, or the close box went with it');
+  // Same container as the receipt, which is the point: one padding, one alignment.
+  assert.match(css, /\.compose-sheet\.is-mining \{ align-items: center; text-align: center; gap: 10px; padding: 48px 24px; \}/);
+
+  // The best-so-far is read back off the live card rather than closed over, so a mine
+  // that outlives its card cannot write into a node that has left the page.
+  assert.match(bare, /function paintMineProgress\(best\) \{/);
+  assert.match(bare, /if \(!mineCard \|\| !mineCard\._sub\) return;/);
+  assert.match(bare, /\(p\) => paintMineProgress\(p\.best\)/);
+  // No bar: every attempt is independent, so there is no progress that could honestly
+  // fill one, and the best difficulty found is the only true number.
+  assert.doesNotMatch(css, /\.compose-mining[^{]*\{[^}]*progress/s);
 });
 
 test('a note posted here reaches the bell as one of your own', () => {

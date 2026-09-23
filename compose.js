@@ -559,12 +559,11 @@
         // sometimes a minute, and the panel offers a Stop for exactly that reason; here
         // the only button that could be pressed is the one that started it, so it changes
         // into what it now does.
-        setMining(true);
-        status.textContent = 'Mining ' + powForThisPost.bits + ' bits…';
+        setMining(true, powForThisPost.bits);
         const mined = await composer.minePow(
           { ...template, pubkey: state.activePubkey },
           powForThisPost.bits,
-          (p) => { status.textContent = 'Mining ' + powForThisPost.bits + ' bits, best ' + p.best + '…'; }
+          (p) => paintMineProgress(p.best)
         );
         // The pubkey is dropped again: the signer sets it from the key it signs with, and
         // sending our own copy invites the two to disagree about the one field neither of
@@ -668,25 +667,60 @@
   // whose contents no longer matter, and the note goes out as the old text while the
   // screen shows the new one. The panel cannot reach this state because its mining pane
   // takes over the screen; here the editor is simply still there, so it is turned off.
+  // MINING TAKES THE CARD, the way publishing does one step later. It used to leave the
+  // editor on screen and switch off everything in it: the editor itself, the toolbar, the
+  // tabs, the ALT row's buttons, the ALT field. That was a whole function spent
+  // neutralizing a surface that had no business being there, and it still left the note
+  // you had written sitting under a mine that had already snapshotted it, which reads as
+  // though it were still being edited.
+  //
+  // The panel never had this problem because its mining pane takes over the screen, and
+  // this page already knows the move: showPosted turns the card into the receipt on the
+  // same argument, that a tab has nothing underneath it. So mining gets the same
+  // treatment one step earlier.
+  //
+  // HIDDEN, NOT REPLACED, which is the one way this differs from the receipt. The receipt
+  // empties the sheet because it never comes back; a mine can be stopped, and can fail,
+  // and the editor has to return with the draft and the caret exactly as they were. So
+  // the card's own children are hidden by a class and the mining panel sits beside them,
+  // and setMining(false) on every exit path from doPost is what puts them back.
   let mining = false;
-  function setMining(on) {
+  let mineCard = null;
+  function setMining(on, bits) {
     if (mining === on) return;
     mining = on;
     paintPostButton();
-    if (editorApi) {
-      editorApi.editor.contentEditable = on ? 'false' : 'true';
-      editorApi.editor.classList.toggle('is-locked', on);
-      if (on) editorApi.close(); // no mention dropdown left open over a box nobody can type in
+    const sheet = document.querySelector('.compose-sheet');
+    if (!on) {
+      sheet.classList.remove('is-mining');
+      if (mineCard) { mineCard.remove(); mineCard = null; }
+      return;
     }
-    // Everything that would change what is being mined, or start a second mine on the one
-    // worker. Cancel and the close box stay live: leaving is always allowed, and it takes
-    // the worker with the page. The ALT row's buttons go with them — the description it
-    // edits rides in the same draft the mine already snapshotted.
-    document.querySelectorAll('#compose-actions button, .compose-tab, .compose-alt-row button').forEach((b) => {
-      b.disabled = on;
-    });
-    const altField = document.querySelector('.compose-alt-text');
-    if (altField) altField.readOnly = on;
+    if (editorApi) editorApi.close(); // no mention dropdown left hanging over a hidden box
+    mineCard = h('div', { className: 'compose-mining' });
+    const mark = h('span', { className: 'compose-done-mark compose-mining-mark' });
+    mark.append(icon('pickaxe'));
+    const sub = h('p', { className: 'compose-done-sub', textContent: 'Looking for a nonce…' });
+    const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
+    stop.addEventListener('click', () => composer.powCancel());
+    mineCard.append(
+      mark,
+      h('h2', { className: 'compose-done-title', textContent: 'Mining ' + bits + ' bits' }),
+      sub,
+      h('div', { className: 'compose-done-actions' }, [stop])
+    );
+    // Read back by the progress callback rather than closed over, so a mine that outlives
+    // one of these cards cannot write into a node that has been taken off the page.
+    mineCard._sub = sub;
+    sheet.append(mineCard);
+    sheet.classList.add('is-mining');
+  }
+  // Every attempt is independent, so there is no progress to report and nothing that could
+  // honestly fill a bar. The best difficulty found so far is the one true number, and it
+  // is the one the panel shows too.
+  function paintMineProgress(best) {
+    if (!mineCard || !mineCard._sub) return;
+    mineCard._sub.textContent = 'Best so far: ' + best + ' bits';
   }
 
   let editorApi = null;

@@ -2985,7 +2985,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* A box that cannot be typed into should not invite it. Mining holds the editor for as
    long as a minute at 22 bits, and a caret blinking in a field whose contents are already
    spent is the worst kind of lie a composer can tell. */
-.compose-editor-lg.is-locked { opacity: 0.55; cursor: default; }
 /* THE SAME FIELD, AT THE SAME SIZE. Write and Preview are two views of one thing, so
    switching between them must not change the type scale or the height of the card. At the
    panel's 14px the preview read as a thumbnail of the 17px being written above it, which
@@ -3030,6 +3029,18 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    A tab has nothing underneath it, so the card becomes the receipt rather than emptying
    out, which would read as a note lost rather than published. */
 .compose-done { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
+/* ---- and the card while it is mining ----
+   The same container as the receipt, one step earlier, because it is the same situation:
+   the card is the page, and a mine that leaves the editor up is showing you a note it
+   snapshotted a moment ago as though it were still being written.
+
+   HIDDEN RATHER THAN REPLACED. The receipt empties the sheet because it never returns; a
+   mine can be stopped and can fail, so the editor has to come back with the draft and the
+   caret untouched. The close box is the one thing that stays: leaving is always allowed,
+   and it takes the worker with the page. */
+.compose-sheet.is-mining { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
+.compose-sheet.is-mining > :not(.compose-mining):not(.compose-x) { display: none; }
+.compose-mining { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .compose-done-mark {
   display: flex; align-items: center; justify-content: center;
   width: 52px; height: 52px; border-radius: 50%;
@@ -3039,6 +3050,22 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: color-mix(in srgb, currentColor 14%, transparent);
 }
 .compose-done-mark svg { width: 26px; height: 26px; }
+/* Amber rather than the receipt's lavender, and the pickaxe rather than the check: this
+   is work in progress, and the two screens are half a second apart.
+
+   AFTER .compose-done-mark, not before. Both are one class, so they tie on specificity
+   and source order decides: written above it, the mark inherited the receipt's lavender
+   and the colour rule looked like it had simply failed. The wash follows, since
+   .compose-done-mark mixes it from currentColor. */
+.compose-mining-mark { color: var(--amber); }
+.compose-mining-mark svg { animation: t-mine-tap 1.1s ease-in-out infinite; }
+@keyframes t-mine-tap {
+  0%, 100% { transform: rotate(-12deg); }
+  50%      { transform: rotate(8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .compose-mining-mark svg { animation: none; }
+}
 .compose-done-title { margin: 6px 0 0; font-size: 20px; }
 .compose-done-sub { margin: 0; color: var(--muted); font-size: 13px; }
 .compose-done-actions {
