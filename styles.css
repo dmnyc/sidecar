@@ -3873,6 +3873,32 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .recv-waiting { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
 /* Both spinner classes, one rule. They were separate and identical; the names stay
    because themes/werkstatte.css squares them by name. */
+/* On this day. Sits at the foot of the Accounts tab, below everything that does a job,
+   so it can be read or ignored without being in the way of anything. Quiet by
+   construction: no fill, one hairline, and the date in the same gold kicker the rest of
+   the panel uses for a label. */
+.otd {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 18px 0 4px; padding: 12px 0 0;
+  border-top: 1px solid var(--border);
+}
+.otd.hidden { display: none; }
+.otd-main { flex: 1; min-width: 0; }
+.otd-kicker {
+  margin: 0 0 3px; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gold); font-weight: 600;
+}
+.otd-text { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+/* flex-shrink guards the icon's metrics so the prose beside it does the wrapping,
+   per the row-controls rule in CLAUDE.md. */
+.otd-share {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; margin-top: 2px;
+  border: none; border-radius: 8px; background: none; color: var(--muted); cursor: pointer;
+}
+.otd-share:hover { color: var(--lav); background: var(--hover-medium); }
+.otd-share svg { width: 14px; height: 14px; }
+
 .recv-spinner,
 .ac-spinner {
   width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
