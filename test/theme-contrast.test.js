@@ -962,3 +962,77 @@ test('the sealed VALUE takes no color of its own', () => {
     );
   }
 });
+
+// ---------------------------------------------------------------------------------
+// The "✓ ALT" chip on a composer thumbnail.
+//
+// This one is different from every case above, and that is why it was missed. The chip
+// carries its OWN near-black backdrop so it can sit on an arbitrary photograph, which
+// means the theme's accent is being asked to read against near-black rather than
+// against the theme's own surface. --lav is the lighter half of each palette's pair,
+// true in the dark themes and false in the daylight ones, so the described state was
+// #1B4C8C on near-black in Par Avion: 1.02:1, which is not dim, it is gone. Seven of
+// the twelve were under 3:1 and nothing caught it, because every value involved was
+// individually correct.
+//
+// The chip is 10px/600, well under WCAG large text, so the bar is 4.5:1. Measured over
+// a WHITE photograph, the worst case for a dark ink, since the backdrop is translucent
+// and the image underneath is not ours to choose.
+
+// color-mix(in srgb, <color> <pct>%, <color>), enough of it for the one call site.
+// sRGB is a straight channel average at these alphas, no premultiplication to undo.
+function colorMix(expr, themeVars) {
+  const m = String(expr).trim().match(/^color-mix\(in srgb,\s*([\s\S]+)\)$/);
+  if (!m) return resolve(expr, themeVars);
+  const parts = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of m[1]) {
+    if (ch === '(') { depth++; cur += ch; }
+    else if (ch === ')') { depth--; cur += ch; }
+    else if (ch === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  parts.push(cur.trim());
+  assert.equal(parts.length, 2, 'color-mix with more than two colors: ' + expr);
+
+  const weights = [];
+  const colors = parts.map((p) => {
+    const pm = p.match(/\s(\d+(?:\.\d+)?)%$/);
+    weights.push(pm ? Number(pm[1]) / 100 : null);
+    return resolve(pm ? p.slice(0, pm.index) : p, themeVars);
+  });
+  // One stated percentage means the other takes the remainder, which is the form used here.
+  const w0 = weights[0] != null ? weights[0] : 1 - weights[1];
+  const [a, b] = colors.map(toRgb);
+  return hex(a.map((c, i) => c * w0 + b[i] * (1 - w0)));
+}
+
+test('THE DESCRIBED-ALT CHIP IS LEGIBLE ON ITS OWN BACKDROP IN EVERY THEME', () => {
+  const chip = rule(css, '.compose-thumb-alt');
+  const bg = chip.match(/background:\s*([^;]+);/);
+  assert.ok(bg, '.compose-thumb-alt lost its own backdrop, so it now depends on the photo');
+
+  const described = css.match(/\.compose-thumb-alt\.has-alt \{[^}]*color:\s*([^;]+);/);
+  assert.ok(described, '.compose-thumb-alt.has-alt moved');
+
+  for (const t of THEMES) {
+    // Worst case: a white image under a translucent pill.
+    const pill = flatten(bg[1], '#ffffff', t.vars);
+    const ink = colorMix(described[1], t.vars);
+    const r = contrast(ink, pill);
+    assert.ok(
+      r >= 4.5,
+      `${t.name}: the ✓ ALT label (${ink}, from --lav ${t.vars['--lav']}) on its own ` +
+      `chip (${pill} over a white photo) is ${r.toFixed(2)}:1, and needs 4.5. ` +
+      `Lift the accent further toward white, or give the chip more backdrop.`
+    );
+  }
+});
+
+test('the undescribed chip stays white, so only the accent state is themed', () => {
+  // The two states sit side by side in one strip, and the difference between them is
+  // the whole affordance. If both go to the accent there is nothing to read at a glance.
+  const chip = rule(css, '.compose-thumb-alt');
+  assert.match(chip, /color:\s*#fff\b/, 'the + ALT chip no longer has a fixed light label');
+});
