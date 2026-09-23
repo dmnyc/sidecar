@@ -18423,7 +18423,6 @@
         amount,
         comment,
         err,
-        flight,
         h('div', { className: 'actions' }, [pay, cancel])
       );
     });
