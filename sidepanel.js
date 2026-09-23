@@ -2004,6 +2004,17 @@
       // The old sheet offered the form either way: you picked an amount, wrote a note,
       // pressed Send, and only then learned there was no wallet. The outcome is the same
       // either way; what changes is whether finding out costs you anything.
+      // PAYING YOURSELF IS NOT A PAYMENT. Opening your own profile from search must not
+      // offer Zap or Pay offer: the sats would leave your wallet, pay a routing fee, and
+      // arrive at your own address, and the zap would publish a public receipt of you
+      // paying yourself. Every key the keystore holds counts, not just the active one,
+      // because the other ones are equally you.
+      //
+      // NEITHER BUTTON IS DRAWN, rather than drawn and disabled. A control that does
+      // nothing reads as broken software, and there is nothing to explain here that the
+      // name and face at the top of the sheet have not already said.
+      const isSelf = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
+
       let zapAddr = '';
       let zapZappable = false;
       let zapHasWallet = null;   // null until asked, so neither branch is guessed at
@@ -2111,6 +2122,7 @@
       }
 
       function revealZap() {
+        if (isSelf) return;
         if (zapShown || !zapZappable || zapHasWallet === null || !modal.isConnected) return;
         zapShown = true;
         // The Zap button either way, and it opens whichever panel applies. Putting the QR
@@ -2132,6 +2144,7 @@
       // here (once from cache, once from the relays), so this appends once and the zap
       // reveal above does not wait for it.
       function revealOffer(offer) {
+        if (isSelf) return;
         if (offerShown || !offer || !modal.isConnected) return;
         offerShown = true;
         payRow.append(offerBtn);
@@ -2453,11 +2466,13 @@
           // Only offered once the provider is known to support NIP-57. A lightning
           // address without allowsNostr can take a payment but can never produce a
           // receipt, and a button saying Zap would be a promise it cannot keep.
-          lnAddressParams(c.lud16).then((p) => {
-            if (!p.zappable) return;
-            zapZappable = true;
-            revealZap();
-          }).catch(() => {});
+          if (!isSelf) {
+            lnAddressParams(c.lud16).then((p) => {
+              if (!p.zappable) return;
+              zapZappable = true;
+              revealZap();
+            }).catch(() => {});
+          }
         }
       }
 
