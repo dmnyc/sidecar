@@ -169,6 +169,11 @@
       text: 'There are only two or three human stories, and they go on repeating themselves as fiercely as if they had never happened before.',
       who: 'Willa Cather, 1913',
     },
+    // 1.14.0. Both checked against the Project Gutenberg texts rather than a quote site,
+    // which is the half of the bar the tests cannot enforce, and both are writers the
+    // list did not already have.
+    { text: 'It is not down in any map; true places never are.', who: 'Herman Melville, 1851' },
+    { text: 'Things do not change; we change.', who: 'Henry David Thoreau, 1854' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
