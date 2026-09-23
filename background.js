@@ -363,7 +363,39 @@ chrome.runtime.onInstalled.addListener((details) => {
     chrome.storage.local.remove('firstPostTipDismissed');
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
   }
+  // THE ONE SIGNAL THAT KNOWS AN UPDATE FROM A FRESH INSTALL, which is the whole
+  // difficulty with a "what's new" card. Comparing a stored version against the running
+  // one cannot tell them apart: a new install has no stored version and neither does a
+  // browser that cleared storage, and showing somebody release notes for software they
+  // have never opened is the one case this must not do. onInstalled says which happened,
+  // and carries what they came from.
+  //
+  // Written by the worker rather than the panel because this fires once, at update, and
+  // the panel may not be open for hours. The panel reads it, shows the card, and clears
+  // it; until then it survives restarts, which is what makes the card reliable rather
+  // than something you had to be watching to catch.
+  if (details.reason === 'update') {
+    const to = chrome.runtime.getManifest().version;
+    // A downgrade is not news. It happens when a build is rolled back or sideloaded over
+    // a newer one, and "what's new" pointing backwards would be a lie.
+    if (!details.previousVersion || isNewerVersion(to, details.previousVersion)) {
+      chrome.storage.local.set({ versionCard: { to, from: details.previousVersion || null } });
+    }
+  }
 });
+
+// Numeric compare, part by part, so 1.14.0 beats 1.9.1. A string compare gets that pair
+// backwards, and it is exactly the pair this will meet.
+function isNewerVersion(a, b) {
+  const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0;
+    const y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
 chrome.action.onClicked.addListener((tab) => {
   if (chrome.sidePanel) {
     chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});

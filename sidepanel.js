@@ -2691,6 +2691,62 @@
     });
   }
 
+  // THE CARD AFTER AN UPDATE. Says which version you are now on and offers the notes,
+  // once per update, then never again until the next one.
+  //
+  // The worker decides WHETHER there was an update (see onInstalled in background.js);
+  // this only decides whether it has been acknowledged yet. Splitting it that way is what
+  // keeps a fresh install from being shown release notes for software it has not run.
+  //
+  // CLEARED ON DISMISS, NOT ON SHOW. Painting it is not the same as reading it: a panel
+  // opened and closed while somebody was doing something else would otherwise spend the
+  // one showing this ever gets. So it stands until the X or the link is used, which is
+  // also how the switch tip behaves.
+  function maybeShowVersionCard() {
+    chrome.storage.local.get('versionCard', ({ versionCard }) => {
+      if (!versionCard || !versionCard.to || $('version-card')) return;
+      const done = () => {
+        chrome.storage.local.remove('versionCard');
+        card.remove();
+      };
+      const x = h('button', { className: 'switch-tip-x', title: 'Dismiss' });
+      x.append(icon('x'));
+      x.addEventListener('click', done);
+
+      const link = h('a', {
+        className: 'switch-tip-link',
+        href: '#',
+        textContent: "See what's new →",
+      });
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Reading the notes IS acknowledging the update, so the card does not survive to
+        // be dismissed a second time when they come back.
+        done();
+        openExtensionPage('help.html', '#whats-new');
+      });
+
+      const card = h('div', { id: 'version-card', className: 'switch-tip version-card' }, [
+        h('div', { className: 'switch-tip-title' }, [
+          icon('sparkle'),
+          h('span', { textContent: 'Updated to ' + versionCard.to }),
+        ]),
+        h('p', {
+          className: 'switch-tip-body',
+          // The version somebody came FROM is only worth saying when it is not the one
+          // just before: a jump of several releases explains why so much looks different,
+          // and a single step does not need explaining at all.
+          textContent: versionCard.from
+            ? 'You were on ' + versionCard.from + '.'
+            : 'Sidecar updated in the background.',
+        }),
+        link,
+        x,
+      ]);
+      document.querySelector('nav.tabs').insertAdjacentElement('afterend', card);
+    });
+  }
+
   // ---- web of trust: who is worth putting first ------------------------------------
   //
   // See wot.js for why this is an allowlist. Here is the part that needs relays: hop two,
@@ -20942,4 +20998,8 @@
   initHostPermGuard();
   initSettingsSections();
   initStampedType();
+  // At boot rather than on a tab or an account switch, because an update is about the
+  // whole extension rather than about anything you did. A no-op unless the worker left a
+  // flag, so it costs one storage read per panel open.
+  maybeShowVersionCard();
 })();
