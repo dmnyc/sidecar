@@ -11822,7 +11822,17 @@
         addBtn.disabled = true;
         const lbl = addBtn.querySelector('span');
         const prev = lbl.textContent;
-        lbl.textContent = 'Uploading…';
+        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
+        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
+        // label: a longer one claims more of the row and leaves less free space to share,
+        // which took 10px off Poll and 10px off PoW every time an upload started. The
+        // rule against it is already written three functions down, on the PoW button,
+        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
+        // the row. Same toolbar, same reason.
+        //
+        // The shimmer is the panel's idiom for a value waiting in place where a spinner
+        // does not fit beside it, which is exactly a 15px icon and one word.
+        setWaiting(lbl, prev, true);
         try {
           const url = await uploadMedia(file, pubkey);
           // Into the media slot only. The URL is appended to the content at publish
@@ -11839,7 +11849,7 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        lbl.textContent = prev;
+        setWaiting(lbl, prev, false);
         fileInput.value = '';
       });
 
@@ -11858,7 +11868,17 @@
         addBtn.disabled = true;
         const lbl = addBtn.querySelector('span');
         const prev = lbl.textContent;
-        lbl.textContent = 'Uploading…';
+        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
+        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
+        // label: a longer one claims more of the row and leaves less free space to share,
+        // which took 10px off Poll and 10px off PoW every time an upload started. The
+        // rule against it is already written three functions down, on the PoW button,
+        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
+        // the row. Same toolbar, same reason.
+        //
+        // The shimmer is the panel's idiom for a value waiting in place where a spinner
+        // does not fit beside it, which is exactly a 15px icon and one word.
+        setWaiting(lbl, prev, true);
         try {
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey);
@@ -11873,7 +11893,7 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        lbl.textContent = prev;
+        setWaiting(lbl, prev, false);
       });
 
       // ---- poll editor ----
