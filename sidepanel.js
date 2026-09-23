@@ -11652,6 +11652,11 @@
       const thumbs = h('div', { className: 'compose-thumbs' });
       // Where a dragged thumb will land, across renderThumbs' rebuilds.
       let dragFrom = -1;
+      // Two retries at 600ms and 1200ms. Long enough to outlast a host finishing a
+      // write, short enough that a genuinely bad link is marked before the note is
+      // posted rather than after.
+      const THUMB_RETRIES = 2;
+      const THUMB_RETRY_MS = 600;
       function renderThumbs() {
         thumbs.innerHTML = '';
         draft.media.forEach((m, i) => {
@@ -11660,6 +11665,35 @@
           // Match the rest of the app: many media hosts (e.g. Blossom) reject the
           // chrome-extension:// referrer and 403, which renders as a broken thumb.
           el.referrerPolicy = 'no-referrer';
+          // A FILE CAN 404 FOR A MOMENT AFTER IT UPLOADS, while the host finishes
+          // writing it, and this strip renders the instant the upload returns. An img
+          // tries exactly once, so losing that race left a blank cell that stayed blank
+          // until something else happened to repaint the strip, with nothing on screen
+          // saying whether the URL was bad or merely early. The URL is in the draft
+          // either way and gets appended to the note at publish, so a silently blank
+          // thumbnail is a note about to ship a link nobody checked.
+          //
+          // Retried on a rising delay, then given up on visibly. The retry writes a
+          // throwaway query onto the ELEMENT only: a browser that cached the 404 will
+          // not refetch the same URL, and m.url has to stay exactly as the host gave it
+          // because that is the string that gets published.
+          let tries = 0;
+          el.addEventListener('error', () => {
+            if (tries >= THUMB_RETRIES) {
+              cell.classList.add('is-broken');
+              cell.title = 'This image did not load. It may still be uploading, or the link may be bad.';
+              return;
+            }
+            tries += 1;
+            setTimeout(() => {
+              if (!cell.isConnected) return;
+              el.src = m.url + (m.url.includes('?') ? '&' : '?') + 'retry=' + tries;
+            }, THUMB_RETRY_MS * tries);
+          });
+          el.addEventListener('load', () => {
+            cell.classList.remove('is-broken');
+            cell.removeAttribute('title');
+          });
           el.src = m.url;
           // The cell is what drags; an img's own native drag would hijack the gesture.
           el.draggable = false;

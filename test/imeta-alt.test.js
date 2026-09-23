@@ -641,3 +641,35 @@ test('GLUED TO THE END OF A PARAGRAPH IS STILL A BOUNDARY', () => {
   assert.equal(urlOnBoundary([u + u], u), false, 'twice on one line is ambiguous');
   assert.equal(urlOnBoundary(['no url here', '   '], u), false, 'nowhere on the page');
 });
+
+test('A THUMBNAIL THAT LOSES THE UPLOAD RACE IS RETRIED, THEN MARKED', () => {
+  // The strip renders the instant an upload returns, and a host can still be writing
+  // the file: an img tries exactly once, so losing that race left a blank cell that
+  // stayed blank until something else repainted the strip. The URL is in the draft
+  // either way and is appended at publish, so a silent blank is a note about to ship a
+  // link nobody checked.
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8')
+    .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.match(panel, /const THUMB_RETRIES = 2;/);
+  assert.match(panel, /const THUMB_RETRY_MS = 600;/);
+  assert.match(panel, /el\.addEventListener\('error', \(\) => \{/);
+  assert.match(panel, /if \(tries >= THUMB_RETRIES\) \{/);
+  assert.match(panel, /cell\.classList\.add\('is-broken'\);/);
+
+  // THE RETRY QUERY GOES ON THE ELEMENT, NEVER ON THE DRAFT. A browser that cached the
+  // 404 will not refetch the same URL, but m.url is the string that gets published and
+  // has to stay exactly as the host gave it.
+  assert.match(panel, /el\.src = m\.url \+ \(m\.url\.includes\('\?'\) \? '&' : '\?'\) \+ 'retry=' \+ tries;/);
+  assert.doesNotMatch(panel, /m\.url = m\.url \+|m\.url \+= /, 'the retry query is written back into the draft');
+
+  // Recovering clears the mark, or a thumbnail that loaded on the second try keeps a
+  // warning about a problem it no longer has.
+  assert.match(panel, /el\.addEventListener\('load', \(\) => \{\s*cell\.classList\.remove\('is-broken'\);/);
+
+  // And a strip that repainted while a retry was pending does not write into a dead cell.
+  assert.match(panel, /if \(!cell\.isConnected\) return;/);
+
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.compose-thumb\.is-broken \{[^}]*border: 1px dashed var\(--amber\)/s,
+    'a failed thumbnail is indistinguishable from a loading one');
+});
