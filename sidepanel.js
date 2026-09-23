@@ -2416,8 +2416,13 @@
           const paint = () => verifyNip05(c.nip05, pubkey, { force: true }).then((res) => {
             badge.innerHTML = '';
             paintNip05Badge(badge, res, paint);
+            paintNip05Favicon(nip05Row, c.nip05, res);
           });
-          verifyNip05(c.nip05, pubkey).then((res) => { badge.innerHTML = ''; paintNip05Badge(badge, res, paint); });
+          verifyNip05(c.nip05, pubkey).then((res) => {
+            badge.innerHTML = '';
+            paintNip05Badge(badge, res, paint);
+            paintNip05Favicon(nip05Row, c.nip05, res);
+          });
         }
         // renderAbout APPENDS, and paint() runs twice — once from cache, once from
         // the relays — so the bio rendered twice on any already-cached profile.
@@ -7568,8 +7573,12 @@
         const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
           badge.innerHTML = '';
           paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
         });
-        verifyNip05(content.nip05, pubkey).then((res) => paintNip05Badge(badge, res, paint));
+        verifyNip05(content.nip05, pubkey).then((res) => {
+          paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
+        });
       } else {
         nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
       }
@@ -10065,6 +10074,77 @@
     }
   }
 
+  // ---- the domain's own mark, beside a NIP-05 that verified ---------------------------
+  //
+  // ONLY WHEN IT VERIFIED, which is the whole design rather than a refinement of it. A
+  // favicon beside a name is borrowed credibility, and beside an identifier that has just
+  // FAILED to verify it would be borrowed from the very domain that declined to vouch for
+  // it. "satoshi@bitcoin.org" wearing bitcoin.org's mark is a better lie than the same
+  // text on its own, so a verdict of anything but ok paints nothing.
+  //
+  // PRIVACY: this costs no disclosure that has not already happened. Verification fetches
+  // /.well-known/nostr.json from this exact host moments earlier, so the host has already
+  // seen a request attributable to the same person at the same moment; the image adds no
+  // new party and carries no referrer and no credentials. Gating on the verdict also means
+  // a domain we could not reach is not asked a second time. Noted in PRIVACY.md.
+  //
+  // The host -> icon store is shared with the relay rows (declared further down, with
+  // them). A host's favicon does not depend on why we wanted it, and a relay that is also
+  // somebody's NIP-05 domain should cost one lookup rather than two.
+  function nip05Domain(nip05) {
+    const s = String(nip05 || '').trim();
+    const at = s.indexOf('@');
+    const domain = at === -1 ? s : s.slice(at + 1);
+    // A BARE DOMAIN OR NOTHING. This value comes from a stranger's kind 0 and is about to
+    // be interpolated into a URL, so anything carrying a scheme, a path, a port, a query
+    // or credentials is refused rather than cleaned up: "evil.com/a@x" must not become a
+    // fetch of evil.com, and "localhost" must not become a request to the user's machine.
+    return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/i
+      .test(domain) ? domain.toLowerCase() : '';
+  }
+
+  function nip05FaviconEl(nip05) {
+    const domain = nip05Domain(nip05);
+    if (!domain) return null;
+    const img = h('img', {
+      className: 'nip05-favicon', alt: '', loading: 'lazy', referrerPolicy: 'no-referrer',
+    });
+    let candidates = [];
+    let i = 0;
+    img.addEventListener('error', () => {
+      if (++i < candidates.length) { img.src = candidates[i]; return; }
+      // Exhausted. Remembered as having none, or every repaint walks four 404s again for
+      // exactly the domains that will never answer.
+      img.remove();
+      rememberRelayIcon(domain, '');
+    });
+    img.addEventListener('load', () => {
+      img.classList.add('ok');
+      rememberRelayIcon(domain, candidates[i]);
+    });
+    loadRelayIcons().then(() => {
+      if (!img.isConnected) return;
+      const known = relayIconCache.get(domain);
+      // has(), not get(): '' is a real answer meaning "checked, has none", and it is
+      // falsy, so the two must not be conflated.
+      if (relayIconCache.has(domain) && !known) { img.remove(); return; }
+      candidates = known ? [known] : FAVICON_PATHS.map((path) => 'https://' + domain + path);
+      img.src = candidates[0];
+    }, () => {});
+    return img;
+  }
+
+  // Idempotent, because the badge beside it is also the recheck affordance: a second
+  // verdict arriving on the same row must replace the mark rather than add one.
+  function paintNip05Favicon(row, nip05, res) {
+    if (!row) return;
+    const existing = row.querySelector('.nip05-favicon');
+    if (existing) existing.remove();
+    if (!res || !res.ok) return;
+    const fav = nip05FaviconEl(nip05);
+    if (fav) row.insertBefore(fav, row.firstChild);
+  }
+
   async function renderProfile() {
     const view = $('profile-view');
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
@@ -10119,10 +10199,12 @@
       const paint = () => verifyNip05(content.nip05, active.pubkey, { force: true }).then((res) => {
         nip05Badge.innerHTML = '';
         paintNip05Badge(nip05Badge, res, paint);
+        paintNip05Favicon(nip05Row, content.nip05, res);
       });
       verifyNip05(content.nip05, active.pubkey).then((res) => {
         nip05Badge.innerHTML = '';
         paintNip05Badge(nip05Badge, res, paint);
+        paintNip05Favicon(nip05Row, content.nip05, res);
       });
     }
     // The chip copies; the button beside it shows the code. Two affordances rather than

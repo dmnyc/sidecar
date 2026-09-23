@@ -79,6 +79,13 @@ Sidecar only talks to services **you choose**:
   a plain image request with no referrer and no credentials, made to hosts
   already named in your relay list. Successful icons are cached locally for a
   month so the request is not repeated.
+- **NIP-05 domain marks** — a verified NIP-05 shows its domain's favicon beside
+  it. Sidecar loads that image from the domain's own web host, trying the usual
+  favicon paths. It is a plain image request with no referrer and no credentials,
+  and it is made **only after that domain has already answered the verification
+  request** for the same identifier, so it discloses nothing new: a domain that
+  could not be reached, or that did not vouch for the name, is never asked for an
+  image. Results are cached locally for a month.
 - **Media uploads** — when you attach an image or video to a note, it is
   uploaded so it can be included. Uploads go to your own Blossom media
   server(s) (from your kind:10063 list) when you have them configured, and

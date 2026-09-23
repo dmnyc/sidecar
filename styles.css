@@ -474,6 +474,15 @@ input:focus, select:focus, textarea:focus {
 .profile-pay-val { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nip05-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .nip05-badge { display: inline-flex; }
+/* The domain's own mark, on a NIP-05 that verified. Display:none until it loads, so a
+   domain with no favicon leaves the line exactly as it was rather than a gap or a
+   broken-image box. Sized to the text, not to the badge: it is punctuation on the
+   identifier, not a second status beside the first. Each row is already flex with a
+   gap, so it needs no margin of its own. */
+.nip05-favicon { display: none; width: 13px; height: 13px; border-radius: 3px;
+  flex-shrink: 0; object-fit: contain; }
+.nip05-favicon.ok { display: inline-block; }
+.account-stat-id-val .nip05-favicon.ok { width: 12px; height: 12px; }
 .nip05-badge svg { width: 13px; height: 13px; }
 .nip05-badge.nip05-ok { color: var(--success); }
 .nip05-badge.nip05-bad { color: var(--warn); }
