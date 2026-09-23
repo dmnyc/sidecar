@@ -2729,6 +2729,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    which is 42px of nothing between the editor and the toolbar in the expanded composer.
    The panel pays a smaller version of the same bill. */
 .compose-thumbs:empty { display: none; }
+/* A thumbnail that never loaded, after its retries. Marked rather than left blank,
+   because the URL is in the draft either way and is appended to the note at publish:
+   a cell that says nothing is a broken link about to be posted. Dashed and warm, the
+   same language the panel uses elsewhere for a thing that is not right yet, and the
+   trash stays reachable so it can be dropped. */
+.compose-thumb.is-broken {
+  border: 1px dashed var(--amber);
+  background: rgba(var(--accent-rgb), 0.06);
+}
+.compose-thumb.is-broken img { opacity: 0; }
 .compose-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
 .compose-thumb img, .compose-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .compose-thumb-x {
@@ -2975,7 +2985,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* A box that cannot be typed into should not invite it. Mining holds the editor for as
    long as a minute at 22 bits, and a caret blinking in a field whose contents are already
    spent is the worst kind of lie a composer can tell. */
-.compose-editor-lg.is-locked { opacity: 0.55; cursor: default; }
 /* THE SAME FIELD, AT THE SAME SIZE. Write and Preview are two views of one thing, so
    switching between them must not change the type scale or the height of the card. At the
    panel's 14px the preview read as a thumbnail of the 17px being written above it, which
@@ -3020,6 +3029,23 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    A tab has nothing underneath it, so the card becomes the receipt rather than emptying
    out, which would read as a note lost rather than published. */
 .compose-done { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
+/* ---- and the card while it is mining ----
+   The same container as the receipt, one step earlier, because it is the same situation:
+   the card is the page, and a mine that leaves the editor up is showing you a note it
+   snapshotted a moment ago as though it were still being written.
+
+   HIDDEN RATHER THAN REPLACED. The receipt empties the sheet because it never returns; a
+   mine can be stopped and can fail, so the editor has to come back with the draft and the
+   caret untouched. The close box is the one thing that stays: leaving is always allowed,
+   and it takes the worker with the page. */
+.compose-sheet.is-mining { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
+.compose-sheet.is-mining > :not(.compose-mining):not(.compose-x) { display: none; }
+/* The panel's own .mining-body sits inside this, bringing its glyph, its line, its pulse
+   and its copy, so the two screens are one design rather than two that resemble each
+   other. All this adds is the card's column; the padding comes off because .mining-body
+   already carries its own and the card's is-mining padding wraps the lot. */
+.compose-mining { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.compose-mining .mining-body { padding: 8px 8px 4px; }
 .compose-done-mark {
   display: flex; align-items: center; justify-content: center;
   width: 52px; height: 52px; border-radius: 50%;

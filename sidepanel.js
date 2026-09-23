@@ -11788,6 +11788,11 @@
       const thumbs = h('div', { className: 'compose-thumbs' });
       // Where a dragged thumb will land, across renderThumbs' rebuilds.
       let dragFrom = -1;
+      // Two retries at 600ms and 1200ms. Long enough to outlast a host finishing a
+      // write, short enough that a genuinely bad link is marked before the note is
+      // posted rather than after.
+      const THUMB_RETRIES = 2;
+      const THUMB_RETRY_MS = 600;
       function renderThumbs() {
         thumbs.innerHTML = '';
         draft.media.forEach((m, i) => {
@@ -11796,6 +11801,35 @@
           // Match the rest of the app: many media hosts (e.g. Blossom) reject the
           // chrome-extension:// referrer and 403, which renders as a broken thumb.
           el.referrerPolicy = 'no-referrer';
+          // A FILE CAN 404 FOR A MOMENT AFTER IT UPLOADS, while the host finishes
+          // writing it, and this strip renders the instant the upload returns. An img
+          // tries exactly once, so losing that race left a blank cell that stayed blank
+          // until something else happened to repaint the strip, with nothing on screen
+          // saying whether the URL was bad or merely early. The URL is in the draft
+          // either way and gets appended to the note at publish, so a silently blank
+          // thumbnail is a note about to ship a link nobody checked.
+          //
+          // Retried on a rising delay, then given up on visibly. The retry writes a
+          // throwaway query onto the ELEMENT only: a browser that cached the 404 will
+          // not refetch the same URL, and m.url has to stay exactly as the host gave it
+          // because that is the string that gets published.
+          let tries = 0;
+          el.addEventListener('error', () => {
+            if (tries >= THUMB_RETRIES) {
+              cell.classList.add('is-broken');
+              cell.title = 'This image did not load. It may still be uploading, or the link may be bad.';
+              return;
+            }
+            tries += 1;
+            setTimeout(() => {
+              if (!cell.isConnected) return;
+              el.src = m.url + (m.url.includes('?') ? '&' : '?') + 'retry=' + tries;
+            }, THUMB_RETRY_MS * tries);
+          });
+          el.addEventListener('load', () => {
+            cell.classList.remove('is-broken');
+            cell.removeAttribute('title');
+          });
           el.src = m.url;
           // The cell is what drags; an img's own native drag would hijack the gesture.
           el.draggable = false;
@@ -11958,7 +11992,17 @@
         addBtn.disabled = true;
         const lbl = addBtn.querySelector('span');
         const prev = lbl.textContent;
-        lbl.textContent = 'Uploading…';
+        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
+        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
+        // label: a longer one claims more of the row and leaves less free space to share,
+        // which took 10px off Poll and 10px off PoW every time an upload started. The
+        // rule against it is already written three functions down, on the PoW button,
+        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
+        // the row. Same toolbar, same reason.
+        //
+        // The shimmer is the panel's idiom for a value waiting in place where a spinner
+        // does not fit beside it, which is exactly a 15px icon and one word.
+        setWaiting(lbl, prev, true);
         try {
           const url = await uploadMedia(file, pubkey);
           // Into the media slot only. The URL is appended to the content at publish
@@ -11975,7 +12019,7 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        lbl.textContent = prev;
+        setWaiting(lbl, prev, false);
         fileInput.value = '';
       });
 
@@ -11994,7 +12038,17 @@
         addBtn.disabled = true;
         const lbl = addBtn.querySelector('span');
         const prev = lbl.textContent;
-        lbl.textContent = 'Uploading…';
+        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
+        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
+        // label: a longer one claims more of the row and leaves less free space to share,
+        // which took 10px off Poll and 10px off PoW every time an upload started. The
+        // rule against it is already written three functions down, on the PoW button,
+        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
+        // the row. Same toolbar, same reason.
+        //
+        // The shimmer is the panel's idiom for a value waiting in place where a spinner
+        // does not fit beside it, which is exactly a 15px icon and one word.
+        setWaiting(lbl, prev, true);
         try {
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey);
@@ -12009,7 +12063,7 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        lbl.textContent = prev;
+        setWaiting(lbl, prev, false);
       });
 
       // ---- poll editor ----
