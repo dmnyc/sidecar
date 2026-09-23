@@ -1,0 +1,92 @@
+name: Suggest a Nostr app
+description: Propose an app for the directory on Sidecar's welcome page.
+title: "App: "
+labels: ["app-candidate"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting one. The directory is the list a new Sidecar user browses
+        before they have any other client, so there is one hard bar and one soft one.
+
+        **Hard:** the app has to let you sign in with a NIP-07 browser extension.
+        That is what makes Sidecar useful there, and an app you cannot sign into with
+        it does not belong on a page about signing in with it.
+
+        **Soft:** a social client where people expect to zap should support NWC.
+        Categories where zapping is not the point, a forum for instance, are judged
+        without it.
+
+        You do not have to be the developer, and you are welcome to suggest your own.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: As it should appear on the card.
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: URL
+      placeholder: https://example.com
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Social
+        - Media
+        - Gaming
+        - Commerce
+        - Tools
+        - Other Stuff
+    validations:
+      required: true
+  - type: dropdown
+    id: nip07
+    attributes:
+      label: Can you sign in with a NIP-07 extension?
+      description: The hard bar. "Not sure" is a fine answer; it will be checked either way.
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: nwc
+    attributes:
+      label: Does it support NWC (NIP-47) for zaps?
+      description: Matters for social clients. Less so elsewhere.
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What is it
+      description: >
+        A sentence or two on what a person actually does there. Card descriptions are
+        capped at 110 characters, so the shorter and more concrete this is, the more
+        likely it survives intact.
+    validations:
+      required: true
+  - type: input
+    id: icon
+    attributes:
+      label: Icon URL
+      description: >
+        A square PNG or an SVG at a stable path. Transparent art gets a frame;
+        a filled tile sits flush. Leave blank if there is nothing hotlinkable.
+  - type: input
+    id: repo
+    attributes:
+      label: Source repository
+      description: Optional.

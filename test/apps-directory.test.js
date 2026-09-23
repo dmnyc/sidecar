@@ -78,8 +78,11 @@ test('THE OPEN SLOT IS LAST, AND SURVIVES EVERY FILTER', () => {
   const at = src.indexOf("grid.appendChild(slot)");
   assert.ok(at > src.indexOf('sorted.forEach'), 'the slot is not appended after the cards');
   assert.match(src, /slot\.className = 'card app-slot';/);
-  assert.match(src, /slot\.href = 'https:\/\/github\.com\/dmnyc\/sidecar\/issues';/,
-    'the slot points somewhere other than the issues tracker');
+  // The FORM, not the bare tracker. A suggestion that arrives through the form has
+  // already answered NIP-07, NWC, category and icon, which are the questions that
+  // otherwise get settled by reading the candidate's shipped JavaScript.
+  assert.match(src, /slot\.href = 'https:\/\/github\.com\/dmnyc\/sidecar\/issues\/new\?template=app-suggestion\.yml';/,
+    'the slot no longer points at the app suggestion form');
   assert.match(src, /slot\.rel = 'noopener';/, 'a target=_blank link without noopener');
   assert.match(src, /'Your app could be here'/);
 
@@ -94,4 +97,22 @@ test('THE OPEN SLOT IS LAST, AND SURVIVES EVERY FILTER', () => {
   const rule = css.slice(css.indexOf('.app-slot {'), css.indexOf('.app-slot:hover'));
   assert.match(rule, /border-style: dashed/);
   assert.match(rule, /background: none/);
+});
+
+test('the suggestion forms exist and carry their labels', () => {
+  // The slot and the footer both point at app-suggestion.yml. A template URL that
+  // names a file which is not there does not 404, it silently drops you on the blank
+  // issue chooser, so the link would look fine and quietly lose every field.
+  const dir = path.join(ROOT, '.github', 'ISSUE_TEMPLATE');
+  for (const f of ['app-suggestion.yml', 'wallet-suggestion.yml']) {
+    assert.ok(fs.existsSync(path.join(dir, f)), f + ' is missing, so its template URL falls back to a blank issue');
+  }
+  const app = fs.readFileSync(path.join(dir, 'app-suggestion.yml'), 'utf8');
+  const wallet = fs.readFileSync(path.join(dir, 'wallet-suggestion.yml'), 'utf8');
+  assert.match(app, /labels: \["app-candidate"\]/, 'app suggestions would arrive unlabelled');
+  assert.match(wallet, /labels: \["wallet-candidate"\]/, 'wallet suggestions would arrive unlabelled');
+  // The two bars, asked up front rather than reverse-engineered later.
+  assert.match(app, /NIP-07 extension/);
+  assert.match(app, /NWC \(NIP-47\)/);
+  assert.match(wallet, /NWC \(NIP-47\) connection string/);
 });

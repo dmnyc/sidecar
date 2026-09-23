@@ -1,0 +1,67 @@
+name: Suggest a Lightning wallet
+description: Propose a wallet for the directory on Sidecar's wallets page.
+title: "Wallet: "
+labels: ["wallet-candidate"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The wallets page exists to answer one question: where do I get a Nostr Wallet
+        Connect string to paste into Sidecar?
+
+        **So there is a single bar, and it is absolute.** The wallet has to be able to
+        hand you an NWC (NIP-47) connection string. A good Lightning wallet that cannot
+        do that has nothing to paste, and Sidecar cannot talk to it.
+
+        Custodial, self-custodial and ecash are all welcome; that is a category, not a
+        judgement.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: URL
+      placeholder: https://example.com
+    validations:
+      required: true
+  - type: dropdown
+    id: nwc
+    attributes:
+      label: Can it give you an NWC connection string?
+      description: The whole bar. If this is No, it cannot be listed, however good the wallet is.
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: how
+    attributes:
+      label: Where in the wallet do you get it?
+      description: >
+        The menu path, roughly. Useful because the page is aimed at people who have
+        never done this, and it is the step that stalls them.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Self-custodial
+        - Custodial
+        - Ecash
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What is it
+      description: >
+        A sentence on what it is and who it suits. Wallet cards run a little longer
+        than app cards, because there are only six of them.
+    validations:
+      required: true
