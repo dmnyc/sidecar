@@ -1358,6 +1358,19 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   text-decoration: none;
 }
 .switch-tip-link:hover { text-decoration: underline; }
+/* THE UPDATE CARD, which is a switch tip wearing a different colour. It reuses that
+   banner's metrics and its dismiss button on purpose: it sits in the same place, does
+   the same job, and a second set of numbers for it would be two things to keep in step.
+
+   Lavender rather than gold, because the switch tip is a caution about posting from the
+   wrong account and this is news. Two banners in the same spot that looked identical
+   would train people to dismiss both without reading either.
+
+   After .switch-tip-link, so the link colour wins the tie: both are one class, and
+   source order is what decides. */
+.version-card { border-color: rgba(167, 139, 250, 0.35); background: rgba(167, 139, 250, 0.08); }
+.version-card .switch-tip-title { color: var(--lav); }
+.version-card .switch-tip-link { color: var(--lav); }
 .switch-tip-x {
   position: absolute; top: 6px; right: 6px;
   background: none; border: none; padding: 2px;
@@ -5578,4 +5591,6 @@ button.poll-bar-head {
 
 .dev-controls-section { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .dev-controls-section .hint { margin: 6px 0 0; }
+/* The hint carries no bottom margin, so a button after it needs its own gap. */
+.dev-controls-section .hint + button { margin-top: 12px; }
 .dev-log-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 12px; }
