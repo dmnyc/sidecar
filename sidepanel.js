@@ -11552,12 +11552,18 @@
     const pubkey = state.activePubkey;
     await devBuildReady;
     let devKindEnabled = false;
+    let devSilentEnabled = false;
     if (isDevBuild()) {
-      try { devKindEnabled = (await call({ type: 'SIDECAR_GET_SETTINGS' }))?.devComposerKinds === true; }
+      try {
+        const ds = await call({ type: 'SIDECAR_GET_SETTINGS' });
+        devKindEnabled = ds?.devComposerKinds === true;
+        devSilentEnabled = ds?.devSilentTags === true;
+      }
       catch (_) {} // Missing/unavailable settings leave demo controls off.
     }
     // Deliberately not saved in drafts: a demo override belongs to this opening only.
     let devKind = 0;
+    let devSilentInput = null;   // the field, so publish can read it without a lookup
     // `let`, not const: a saved draft can carry its own reply target, and resuming one
     // has to put the composer back into reply mode.
     let replyTo = (opts && opts.replyTo) || null;
@@ -11743,10 +11749,23 @@
         : replyTo ? replyTags(replyTo) : null;
       const already = new Set((reply ? reply.tags : []).filter((t) => t[0] === 'p').map((t) => t[1]));
       const bodyP = pTags.filter((t) => !already.has(t[1]));
+      // DEV ONLY, and gated three ways like the kind override beside it: the build, the
+      // flag read at open, and the setting re-read here at publish. The last one matters
+      // because the composer can be open for a long time and this is the control whose
+      // effect is invisible in the thing it produces.
+      //
+      // Deduped against the threading tags and the body's own mentions, so a key already
+      // tagged for a reason stays tagged once and keeps its position. A silent tag is
+      // additive or it is nothing.
+      const silentP = isDevBuild() && devSilentEnabled && settings?.devSilentTags === true
+        ? parseSilentTags(devSilentInput ? devSilentInput.value : '')
+            .filter((hex) => !already.has(hex) && !bodyP.some((t) => t[1] === hex))
+            .map((hex) => ['p', hex])
+        : [];
       const base = reply ? reply.tags : [];
       const tags = settings && settings.showClientTag === false
-        ? [...base, ...bodyP, ...quotes.tags]
-        : [...base, CLIENT_TAG.slice(), ...bodyP, ...quotes.tags];
+        ? [...base, ...bodyP, ...silentP, ...quotes.tags]
+        : [...base, CLIENT_TAG.slice(), ...bodyP, ...silentP, ...quotes.tags];
       // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after
       // the body-derived tags. Undescribed media emits nothing, so a note of bare
       // URLs is byte-identical to what it published before alt text existed. A poll
@@ -11808,6 +11827,57 @@
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: toSign, expectedPubkey: pubkey });
       await publishSigned(signed);
       return signed;
+    }
+
+    // A p TAG WITH NO MENTION IN THE CONTENT. The person is notified and the note says
+    // nothing about why, which is exactly the shape of the reply spam Sidecar's own
+    // notification filter exists to demote. That is the reason this lives behind the dev
+    // build and not a setting: it is a fixture generator for testing that filter and
+    // anything else that reads p tags, not a feature.
+    //
+    // Pure, so the decoding can be tested without a composer: takes whatever was typed,
+    // gives back deduped hex pubkeys, and silently drops anything it cannot read rather
+    // than guessing. A malformed npub must not become a tag pointing at somebody else.
+    function parseSilentTags(text) {
+      const out = [];
+      const seen = new Set();
+      String(text || '').split(/[\s,]+/).forEach((tok) => {
+        const t = tok.trim().replace(/^nostr:/i, '');
+        if (!t) return;
+        let hex = '';
+        if (/^[0-9a-f]{64}$/i.test(t)) hex = t.toLowerCase();
+        else if (/^npub1/i.test(t)) {
+          try {
+            const d = NT.nip19.decode(t);
+            if (d && d.type === 'npub' && typeof d.data === 'string') hex = d.data;
+          } catch (_) {}
+        }
+        if (hex && !seen.has(hex)) { seen.add(hex); out.push(hex); }
+      });
+      return out;
+    }
+
+    function buildDevSilentTags() {
+      if (!isDevBuild() || !devSilentEnabled) return null;
+      const field = h('input', {
+        type: 'text', id: 'compose-dev-silent', className: 'status-input',
+        placeholder: 'npub1… or hex, space separated',
+      });
+      devSilentInput = field;
+      const hint = h('p', { className: 'hint' });
+      const paint = () => {
+        const n = parseSilentTags(field.value).length;
+        const typed = field.value.trim();
+        hint.textContent = !typed
+          ? 'Dev build only. Adds a p tag with no mention in the text.'
+          : n === 0 ? 'Nothing readable here yet. npub1… or 64 hex characters.'
+          : n + (n === 1 ? ' key' : ' keys') + ' will be tagged, invisibly.';
+      };
+      field.addEventListener('input', paint);
+      paint();
+      return h('div', { className: 'compose-dev-kind' }, [
+        h('label', { htmlFor: 'compose-dev-silent', textContent: 'Silent p tags' }), field, hint,
+      ]);
     }
 
     function buildDevKindSelector() {
@@ -12544,6 +12614,7 @@
         author,
         ...(replyTo ? [buildReplyBlock()] : []),
         ...(isDevBuild() && devKindEnabled ? [buildDevKindSelector()] : []),
+        ...(isDevBuild() && devSilentEnabled ? [buildDevSilentTags()] : []),
         tabBar,
         editorWrap,
         previewPane,
@@ -12610,6 +12681,19 @@
       // is the last screen before it goes out.
       const parent = buildReplyBlock();
       if (parent) previewScroll.append(parent);
+      // THE ONE PLACE IT IS VISIBLE, and it has to be. Everything else in Preview is what
+      // a reader will see; this is the opposite, so the line says the tags are going out
+      // and that the note will not mention them. A control whose whole effect is hidden
+      // needs somewhere the author can check it before pressing Post.
+      if (isDevBuild() && devSilentEnabled) {
+        const n = parseSilentTags(devSilentInput ? devSilentInput.value : '').length;
+        if (n) {
+          previewScroll.append(h('p', {
+            className: 'hint',
+            textContent: 'Silent p tags: ' + n + '. Notified, not mentioned in the text.',
+          }));
+        }
+      }
       if (isDevBuild() && devKindEnabled && devKind && !draft.poll) {
         previewScroll.append(h('p', { className: 'hint', textContent: 'Demo event kind: ' + devKind }));
       }
@@ -20882,12 +20966,35 @@
           demoToggle.disabled = false;
         }
       });
+      // Same shape and the same one-line saver as the toggle above. Kept as its own
+      // switch rather than folded into one "dev composer extras", because these do very
+      // different things and only one of them leaves no trace in what it publishes.
+      const silentToggle = h('input', {
+        type: 'checkbox', checked: devSettings.devSilentTags === true,
+      });
+      silentToggle.addEventListener('change', async () => {
+        const enabled = silentToggle.checked;
+        silentToggle.disabled = true;
+        try {
+          await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devSilentTags: enabled } });
+        } catch (_) {
+          silentToggle.checked = !enabled;
+          toast('Could not save the demo setting', 'error');
+        } finally {
+          silentToggle.disabled = false;
+        }
+      });
+
       modal.append(h('section', { className: 'dev-controls-section' }, [
         h('h3', { className: 'settings-section-title', textContent: 'Dev controls' }),
         h('label', { className: 'toggle-row' }, [
           demoToggle, h('span', { textContent: 'Demo event kind selector' }),
         ]),
         h('p', { className: 'hint', textContent: 'Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.' }),
+        h('label', { className: 'toggle-row' }, [
+          silentToggle, h('span', { textContent: 'Silent p tags' }),
+        ]),
+        h('p', { className: 'hint', textContent: 'Tag keys in the composer that the note itself never mentions. For testing what reads p tags.' }),
       ]));
 
       const scroll = h('div', { className: 'notif-scroll' });
