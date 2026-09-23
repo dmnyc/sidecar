@@ -693,25 +693,46 @@
     const sheet = document.querySelector('.compose-sheet');
     if (!on) {
       sheet.classList.remove('is-mining');
-      if (mineCard) { mineCard.remove(); mineCard = null; }
+      if (mineCard) { clearInterval(mineCard._tick); mineCard.remove(); mineCard = null; }
       return;
     }
     if (editorApi) editorApi.close(); // no mention dropdown left hanging over a hidden box
+    // THE PANEL'S OWN MINING PANE, IN THIS PAGE'S CARD. Same classes, not a parallel set:
+    // .mining-glyph, .mining-line and the hint are the panel's, so the two screens cannot
+    // drift into looking like different features, and the reasoning already written into
+    // those rules comes with them. Chiefly the pulse, which is deliberate and which a
+    // rotation quietly undid: mining is a search with no position in it, so anything that
+    // sweeps or turns implies progress toward a finish that does not exist.
+    //
+    // The elapsed seconds come with it too. Without them the screen reads as frozen at
+    // exactly the difficulty where somebody most needs to see it is alive, and the line
+    // is tabular so the count does not jitter the text beside it.
     mineCard = h('div', { className: 'compose-mining' });
-    const mark = h('span', { className: 'compose-done-mark compose-mining-mark' });
-    mark.append(icon('pickaxe'));
-    const sub = h('p', { className: 'compose-done-sub', textContent: 'Looking for a nonce…' });
+    const glyph = icon('pickaxe');
+    glyph.classList.add('mining-glyph');
+    const line = h('div', { className: 'mining-line' });
+    const note = h('p', { className: 'hint', textContent: 'Stopping keeps your draft.' });
     const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
     stop.addEventListener('click', () => composer.powCancel());
     mineCard.append(
-      mark,
-      h('h2', { className: 'compose-done-title', textContent: 'Mining ' + bits + ' bits' }),
-      sub,
+      h('h2', { className: 'compose-done-title', textContent: 'Mining proof of work' }),
+      h('div', { className: 'mining-body' }, [glyph, line, note]),
       h('div', { className: 'compose-done-actions' }, [stop])
     );
-    // Read back by the progress callback rather than closed over, so a mine that outlives
-    // one of these cards cannot write into a node that has been taken off the page.
-    mineCard._sub = sub;
+
+    const startedAt = Date.now();
+    let best = 0;
+    const paint = () => {
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      line.textContent = bits + ' bits · ' + secs + 's' + (best ? ' · best ' + best : '');
+    };
+    paint();
+    // Its own clock rather than only painting when the worker reports, for the reason the
+    // panel gives: reports arrive per block of attempts, so on a slow machine they can be
+    // seconds apart, and a screen that moved only with them would look stopped.
+    const timer = setInterval(paint, 1000);
+    mineCard._tick = timer;
+    mineCard._progress = (b) => { if (b > best) best = b; paint(); };
     sheet.append(mineCard);
     sheet.classList.add('is-mining');
   }
@@ -719,8 +740,7 @@
   // honestly fill a bar. The best difficulty found so far is the one true number, and it
   // is the one the panel shows too.
   function paintMineProgress(best) {
-    if (!mineCard || !mineCard._sub) return;
-    mineCard._sub.textContent = 'Best so far: ' + best + ' bits';
+    if (mineCard && mineCard._progress) mineCard._progress(best);
   }
 
   let editorApi = null;
@@ -755,6 +775,9 @@
     } catch (_) { /* no link is better than a broken one */ }
 
     sheet.innerHTML = '';
+    // Defensively, though setMining(false) already ran: is-mining hides every child of
+    // the sheet but the close box, so a receipt painted under it would be invisible.
+    sheet.classList.remove('is-mining');
     sheet.classList.add('compose-done');
     const mark = h('span', { className: 'compose-done-mark' });
     mark.append(icon('check'));

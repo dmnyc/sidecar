@@ -417,6 +417,25 @@ test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /sheet\.classList\.add\('is-mining'\)/);
   assert.match(body, /mineCard = h\('div', \{ className: 'compose-mining' \}\)/);
+
+  // THE PANEL'S CLASSES, NOT A PARALLEL SET. .mining-glyph, .mining-line and the hint are
+  // the ones showMiningPane uses, so the two screens cannot drift into looking like
+  // different features, and the reasoning already written into those rules comes along.
+  // Chiefly the pulse: mining is a search with no position in it, so anything that sweeps
+  // or turns implies progress toward a finish that does not exist. A bespoke rotating
+  // mark quietly undid that, which is what matching the panel is for.
+  assert.match(body, /glyph\.classList\.add\('mining-glyph'\)/);
+  assert.match(body, /const line = h\('div', \{ className: 'mining-line' \}\)/);
+  assert.match(body, /textContent: 'Stopping keeps your draft\.'/);
+  assert.match(body, /textContent: 'Mining proof of work'/);
+  assert.match(body, /line\.textContent = bits \+ ' bits · ' \+ secs \+ 's' \+ \(best \? ' · best ' \+ best : ''\);/,
+    'the line no longer matches the panel word for word');
+
+  // Its own clock, because reports arrive per block of attempts and can be seconds apart
+  // on a slow machine: a screen that moved only with them reads as frozen at exactly the
+  // difficulty where somebody most needs to see it is alive.
+  assert.match(body, /const timer = setInterval\(paint, 1000\);/);
+  assert.match(bare, /clearInterval\(mineCard\._tick\)/, 'the clock outlives the card it paints');
   assert.match(body, /editorApi\.close\(\)/, 'a dropdown left hanging over a hidden box');
 
   // HIDDEN, NOT REPLACED, which is the whole difference from the receipt. A mine can be
@@ -436,14 +455,20 @@ test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   // Same container as the receipt, which is the point: one padding, one alignment.
   assert.match(css, /\.compose-sheet\.is-mining \{ align-items: center; text-align: center; gap: 10px; padding: 48px 24px; \}/);
 
-  // The best-so-far is read back off the live card rather than closed over, so a mine
-  // that outlives its card cannot write into a node that has left the page.
+  // The best-so-far goes through the live card rather than a closure, so a mine that
+  // outlives its card cannot write into a node that has left the page.
   assert.match(bare, /function paintMineProgress\(best\) \{/);
-  assert.match(bare, /if \(!mineCard \|\| !mineCard\._sub\) return;/);
+  assert.match(bare, /if \(mineCard && mineCard\._progress\) mineCard\._progress\(best\);/);
   assert.match(bare, /\(p\) => paintMineProgress\(p\.best\)/);
   // No bar: every attempt is independent, so there is no progress that could honestly
   // fill one, and the best difficulty found is the only true number.
   assert.doesNotMatch(css, /\.compose-mining[^{]*\{[^}]*progress/s);
+
+  // And the receipt can never inherit the mining class, which hides every child of the
+  // sheet but the close box. setMining(false) already runs first, so this is belt and
+  // braces against a future reordering rather than a live bug.
+  assert.match(bare, /sheet\.classList\.remove\('is-mining'\);\s*sheet\.classList\.add\('compose-done'\);/,
+    'a reordering would paint the receipt invisibly');
 });
 
 test('a note posted here reaches the bell as one of your own', () => {
