@@ -570,7 +570,7 @@
         // them should be guessing at.
         const { pubkey: _mined, ...rest } = mined.event;
         template = rest;
-        setMining(false);
+        mineDone();
       }
       status.textContent = 'Signing…';
       const signed = await call({
@@ -741,6 +741,26 @@
   // is the one the panel shows too.
   function paintMineProgress(best) {
     if (mineCard && mineCard._progress) mineCard._progress(best);
+  }
+
+  // THE WORK IS DONE BUT THE POST IS NOT, which is the panel's own wording for this and
+  // its own handling. Signing and the relays still have to happen, and dropping the card
+  // the instant the nonce is found put the editor back on screen for that second or two:
+  // reported as "after mining stopped I saw the post preview briefly", which is exactly
+  // what it was, and reads as the note having been handed back rather than sent.
+  //
+  // So the card stays until the receipt replaces it, with Stop taken away rather than
+  // left offering to cancel a mine that has already finished. setMining(false) in the
+  // tail of doPost still runs, and on the success path it now finds a card the receipt
+  // has already detached, which costs nothing.
+  function mineDone() {
+    if (!mineCard) return;
+    clearInterval(mineCard._tick);
+    mineCard._progress = null;
+    const stop = mineCard.querySelector('.compose-done-actions button');
+    if (stop) stop.disabled = true;
+    const line = mineCard.querySelector('.mining-line');
+    if (line) line.textContent = 'Found it. Posting…';
   }
 
   let editorApi = null;

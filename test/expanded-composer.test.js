@@ -464,6 +464,21 @@ test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   // fill one, and the best difficulty found is the only true number.
   assert.doesNotMatch(css, /\.compose-mining[^{]*\{[^}]*progress/s);
 
+  // THE CARD STAYS UNTIL THE RECEIPT REPLACES IT. Dropping it the instant the nonce was
+  // found put the editor back for the second or two that signing and the relays take,
+  // which reads as the note having been handed back rather than sent. Reported during
+  // 1.14 QA as seeing the preview flash by after mining stopped.
+  assert.match(bare, /function mineDone\(\) \{/);
+  assert.match(bare, /line\.textContent = 'Found it\. Posting…';/);
+  assert.match(bare, /if \(stop\) stop\.disabled = true;/,
+    'Stop still offers to cancel a mine that has already finished');
+  // The mine branch ends with mineDone, never with setMining(false): that is what used
+  // to cause the flash, and it is one word away from coming back.
+  const mineBranch = bare.slice(bare.indexOf('if (powForThisPost.on) {'));
+  const branch = mineBranch.slice(0, mineBranch.indexOf('\n      }'));
+  assert.match(branch, /mineDone\(\);/);
+  assert.doesNotMatch(branch, /setMining\(false\)/, 'the editor comes back mid-publish again');
+
   // And the receipt can never inherit the mining class, which hides every child of the
   // sheet but the close box. setMining(false) already runs first, so this is belt and
   // braces against a future reordering rather than a live bug.
