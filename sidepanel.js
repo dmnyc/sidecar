@@ -27,7 +27,7 @@
   const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
-  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer } = window.SidecarCore;
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
   const { loneImageUrl, removeUrlFromEditor } = window.SidecarCore;
 
@@ -12060,6 +12060,12 @@
           // Match the rest of the app: many media hosts (e.g. Blossom) reject the
           // chrome-extension:// referrer and 403, which renders as a broken thumb.
           el.referrerPolicy = 'no-referrer';
+          // A VIDEO IS NEVER DECODED FOR THE STRIP. metadata is the header alone, which is
+          // all that is needed to know the URL resolves; the cover appended below is opaque
+          // so no frame is ever painted. Left as a real element rather than replaced by the
+          // cover outright, because the 404 check below is the reason this strip is
+          // trustworthy and a video deserves it as much as an image does.
+          if (m.isVideo) { el.preload = 'metadata'; el.muted = true; }
           // A FILE CAN 404 FOR A MOMENT AFTER IT UPLOADS, while the host finishes
           // writing it, and this strip renders the instant the upload returns. An img
           // tries exactly once, so losing that race left a blank cell that stayed blank
@@ -12076,7 +12082,8 @@
           el.addEventListener('error', () => {
             if (tries >= THUMB_RETRIES) {
               cell.classList.add('is-broken');
-              cell.title = 'This image did not load. It may still be uploading, or the link may be bad.';
+              cell.title = 'This ' + (m.isVideo ? 'video' : 'image')
+                + ' did not load. It may still be uploading, or the link may be bad.';
               return;
             }
             tries += 1;
@@ -12085,15 +12092,19 @@
               el.src = m.url + (m.url.includes('?') ? '&' : '?') + 'retry=' + tries;
             }, THUMB_RETRY_MS * tries);
           });
-          el.addEventListener('load', () => {
+          // 'load' IS AN <img> EVENT. A <video> does not fire it, so before this the success
+          // path never ran for a video at all: a cell that recovered on retry kept its broken
+          // styling and its title, and the only way out was a repaint from somewhere else.
+          el.addEventListener(m.isVideo ? 'loadedmetadata' : 'load', () => {
             cell.classList.remove('is-broken');
             cell.removeAttribute('title');
           });
           el.src = m.url;
           // The cell is what drags; an img's own native drag would hijack the gesture.
           el.draggable = false;
-          if (m.isVideo) el.muted = true;
           cell.append(el);
+          // Before the remove button and the steppers, so those stay on top of it.
+          if (m.isVideo) cell.append(videoThumbCover(m.url));
           // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the
           // editor and are appended at publish in this array's order, so with more
           // than one attachment the thumbs drag.

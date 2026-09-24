@@ -16,6 +16,10 @@ window.SidecarCore = (function () {
 
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
+    // Feather's video: a camera body with the lens flare cut out of its side. Used as
+    // the placeholder on a video attachment's thumbnail, where a decoded frame is both
+    // expensive and, in a 72px square, not actually informative.
+    video: '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>',
     plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
     // A painter's palette, for the per-account theme override. Not `flower`, which is
     // already Blossom's own mark (see KIND_ICONS 10063/24242) and would read as a
@@ -1308,6 +1312,25 @@ window.SidecarCore = (function () {
     return kept.join('\n').replace(/\s+$/, '');
   }
 
+  // THE COVER A VIDEO WEARS INSTEAD OF A FRAME.
+  //
+  // A <video> in a 72px cell is a bad thumbnail three ways: it paints black until it has
+  // decoded something, it downloads part of a file nobody asked to watch, and a single
+  // frame at that size tells you less than the word VIDEO does. The element stays in the
+  // cell, at preload=metadata, purely so a 404 is still detectable; this covers it.
+  //
+  // It carries the extension because two videos in a strip are otherwise the same square
+  // twice, and the strip's whole job is to say what is attached and in what order.
+  function videoThumbCover(url) {
+    const cover = h('div', { className: 'compose-thumb-vid' });
+    cover.append(icon('video'));
+    // From the PATH, never the query: a signed URL can carry ?x=y.mp4 and the extension
+    // is not whatever the last dot in the whole string happens to precede.
+    const m = /\.([a-z0-9]{2,5})$/i.exec(String(url || '').split('?')[0].split('#')[0]);
+    if (m) cover.append(h('span', { textContent: m[1].toUpperCase() }));
+    return cover;
+  }
+
   // The attachments' reference drawer: one collapsed line saying how many and where
   // they go, expanding to one row per attachment — the URL, truncated, with a copy
   // button in the icon slot. Read-only on purpose: the order shown is the thumbs'
@@ -1929,7 +1952,7 @@ window.SidecarCore = (function () {
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
-    composeNoteContent, stripDraftMediaUrls, buildMediaDrawer,
+    composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover,
     loneImageUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();

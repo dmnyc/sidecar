@@ -664,7 +664,11 @@ test('A THUMBNAIL THAT LOSES THE UPLOAD RACE IS RETRIED, THEN MARKED', () => {
 
   // Recovering clears the mark, or a thumbnail that loaded on the second try keeps a
   // warning about a problem it no longer has.
-  assert.match(panel, /el\.addEventListener\('load', \(\) => \{\s*cell\.classList\.remove\('is-broken'\);/);
+  //
+  // The event is now chosen by media type: 'load' is an <img> event and a <video> never
+  // fires it, so a video cell could not clear its broken state at all. Same property
+  // under test, now true for both.
+  assert.match(panel, /el\.addEventListener\(m\.isVideo \? 'loadedmetadata' : 'load', \(\) => \{\s*cell\.classList\.remove\('is-broken'\);/);
 
   // And a strip that repainted while a retry was pending does not write into a dead cell.
   assert.match(panel, /if \(!cell\.isConnected\) return;/);
