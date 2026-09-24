@@ -852,7 +852,10 @@
       el.draggable = false;
       cell.append(el);
       // Before the remove button and the steppers, so those stay on top of it.
-      if (m.isVideo) cell.append(SC.videoThumbCover(m.url));
+      if (m.isVideo) {
+        cell.append(SC.videoThumbCover(m.url));
+        SC.primeVideoThumb(el, cell);
+      }
       // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the editor
       // and are appended at publish in this array's order, so with more than one
       // attachment the thumbs drag.

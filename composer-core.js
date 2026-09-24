@@ -1335,6 +1335,36 @@ window.SidecarCore = (function () {
   //
   // It carries the extension because two videos in a strip are otherwise the same square
   // twice, and the strip's whole job is to say what is attached and in what order.
+  // A FRAME IS WORTH MORE THAN A GLYPH, but it has to be asked for. preload=metadata
+  // fetches the header and stops: dimensions and duration, no decoded picture, so the
+  // element paints nothing. Seeking a fraction of a second in forces exactly one frame
+  // to decode, and the browser range-requests only what that needs.
+  //
+  // NOT 0. The first frame of a video is very often black or a fade-in, which is a
+  // thumbnail that says less than the glyph it replaced. A tenth of a second in is past
+  // most of them and still the opening shot. Clamped to the duration, because a clip
+  // shorter than that would seek past its end and never fire `seeked`.
+  //
+  // Everything here is best-effort and silent on failure. A codec the browser will not
+  // decode, a host that refuses range requests, a seek that never completes: each leaves
+  // the cover exactly as it was, which is a working thumbnail, so none of them is worth
+  // an error anybody has to read.
+  function primeVideoThumb(el, cell) {
+    let asked = false;
+    el.addEventListener('loadedmetadata', () => {
+      if (asked) return;
+      asked = true;
+      try {
+        const d = Number(el.duration);
+        el.currentTime = Number.isFinite(d) && d > 0 ? Math.min(0.1, d / 2) : 0.1;
+      } catch (_) {}
+    });
+    // The frame is on screen from here, so the cover gets out of its way and becomes a
+    // corner badge. Still a badge, because a still frame does not say "this is a video"
+    // and the strip's job is to say what is attached.
+    el.addEventListener('seeked', () => cell.classList.add('has-frame'));
+  }
+
   function videoThumbCover(url) {
     const cover = h('div', { className: 'compose-thumb-vid' });
     cover.append(icon('video'));
@@ -1966,7 +1996,7 @@ window.SidecarCore = (function () {
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
-    composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover,
+    composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();

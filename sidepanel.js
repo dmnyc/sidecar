@@ -27,7 +27,7 @@
   const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
-  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover } = window.SidecarCore;
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
   const { loneMediaUrl, removeUrlFromEditor, urlIsVideo } = window.SidecarCore;
 
@@ -12104,7 +12104,10 @@
           el.draggable = false;
           cell.append(el);
           // Before the remove button and the steppers, so those stay on top of it.
-          if (m.isVideo) cell.append(videoThumbCover(m.url));
+          if (m.isVideo) {
+            cell.append(videoThumbCover(m.url));
+            primeVideoThumb(el, cell);
+          }
           // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the
           // editor and are appended at publish in this array's order, so with more
           // than one attachment the thumbs drag.

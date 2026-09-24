@@ -83,10 +83,10 @@ test('BOTH COMPOSERS DRAW IT, FROM ONE BUILDER', () => {
   // them is reported. The builder lives in composer-core and both call it.
   assert.match(core, /function videoThumbCover\(url\)/);
   assert.match(core, /composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover,/);
-  assert.match(bare(panel), /if \(m\.isVideo\) cell\.append\(videoThumbCover\(m\.url\)\);/);
-  assert.match(bare(expanded), /if \(m\.isVideo\) cell\.append\(SC\.videoThumbCover\(m\.url\)\);/);
+  assert.match(bare(panel), /cell\.append\(videoThumbCover\(m\.url\)\);\s*\n\s*primeVideoThumb\(el, cell\);/);
+  assert.match(bare(expanded), /cell\.append\(SC\.videoThumbCover\(m\.url\)\);\s*\n\s*SC\.primeVideoThumb\(el, cell\);/);
   // Imported, not reached for off the global, matching how this file takes the rest.
-  assert.match(panel, /buildMediaDrawer, videoThumbCover \} = window\.SidecarCore;/);
+  assert.match(panel, /buildMediaDrawer, videoThumbCover, primeVideoThumb \} = window\.SidecarCore;/);
 });
 
 test('the cover is opaque and does not eat the controls', () => {
@@ -99,6 +99,36 @@ test('the cover is opaque and does not eat the controls', () => {
   const at = bare(panel).indexOf('cell.append(videoThumbCover(m.url));');
   assert.ok(at < bare(panel).indexOf("className: 'compose-thumb-x'"),
     'the cover is appended after the remove button');
+});
+
+test('A FRAME IS ASKED FOR, AND THE BADGE MOVES ASIDE WHEN IT ARRIVES', () => {
+  const fn = core.slice(core.indexOf('function primeVideoThumb('));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+
+  // preload=metadata stops at the header, so nothing is decoded and the element paints
+  // nothing. A seek is what forces exactly one frame.
+  assert.match(body, /el\.addEventListener\('loadedmetadata'/);
+  assert.match(body, /el\.currentTime = /);
+
+  // NOT FRAME ZERO. It is very often black or a fade-in, which is a thumbnail saying
+  // less than the glyph it replaced.
+  assert.match(body, /Math\.min\(0\.1, d \/ 2\)/,
+    'the seek target is not clamped, so a clip under 0.1s never fires seeked');
+  assert.doesNotMatch(body, /currentTime = 0;/);
+
+  // Asked once. loadedmetadata fires again after a retry re-sets src, and seeking on
+  // every one of those would fight the seek already in flight.
+  assert.match(body, /if \(asked\) return;/);
+
+  // Best-effort throughout: a codec the browser will not decode, or a host refusing
+  // range requests, leaves the full cover in place, which is still a working thumbnail.
+  assert.match(body, /try \{[\s\S]*?\} catch \(_\) \{\}/);
+
+  // And the badge survives the frame rather than vanishing: a still does not say video.
+  assert.match(body, /cell\.classList\.add\('has-frame'\)/);
+  assert.match(css, /\.compose-thumb\.has-frame \.compose-thumb-vid \{/);
+  assert.match(css, /\.compose-thumb\.has-frame \.compose-thumb-vid \{[\s\S]*?inset: auto auto 3px 3px;/,
+    'the badge does not move to a corner, so it still covers the frame it uncovered');
 });
 
 test('the broken message names what actually failed', () => {

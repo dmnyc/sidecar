@@ -2778,6 +2778,21 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .compose-thumb-vid svg { width: 22px; height: 22px; }
 .compose-thumb-vid span { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; }
+/* ONCE A FRAME HAS DECODED the cover gets out of its way and becomes a corner badge.
+   It does not disappear: a still frame does not say "this is a video", and the strip
+   exists to say what is attached. Bottom left, the one corner the remove button and
+   the reorder steppers leave free. Transitioned, because the frame arrives whenever the
+   seek completes and a badge that snaps from full cell to corner reads as a glitch. */
+.compose-thumb-vid { transition: inset 0.18s ease, background 0.18s ease, border-radius 0.18s ease; }
+.compose-thumb.has-frame .compose-thumb-vid {
+  inset: auto auto 3px 3px;
+  flex-direction: row; gap: 4px;
+  padding: 0 5px; height: 16px;
+  border-radius: 5px;
+  background: rgba(5, 0, 12, 0.72); color: #fff;
+}
+.compose-thumb.has-frame .compose-thumb-vid svg { width: 11px; height: 11px; }
+.compose-thumb.has-frame .compose-thumb-vid span { font-size: 8px; }
 .compose-thumb-x {
   position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; padding: 0;
   display: flex; align-items: center; justify-content: center;
