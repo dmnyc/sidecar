@@ -29,7 +29,7 @@
   // drawer that says so. See composer-core.js for the shape.
   const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
-  const { loneImageUrl, removeUrlFromEditor } = window.SidecarCore;
+  const { loneMediaUrl, removeUrlFromEditor, urlIsVideo } = window.SidecarCore;
 
   const NT = window.NostrTools;
 
@@ -11985,7 +11985,7 @@
           // the prose line and keeps the existing entry — and its description —
           // rather than appending the image a second time.
           if (!draft.media.some((m) => m && m.url === url)) {
-            draft.media.push({ url, isVideo: false });
+            draft.media.push({ url, isVideo: urlIsVideo(url) });
           }
           mentionEditor.sync(); // re-emit after the direct DOM cut, so the draft agrees
           scheduleSave();
@@ -12322,7 +12322,7 @@
         try {
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey);
-            draft.media.push({ url, isVideo: false });
+            draft.media.push({ url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();
           updatePostState();

@@ -1124,7 +1124,7 @@
         // the prose line and keeps the existing entry — and its description —
         // rather than appending the image a second time.
         if (!draft.media.some((m) => m && m.url === url)) {
-          draft.media.push({ url, isVideo: false });
+          draft.media.push({ url, isVideo: SC.urlIsVideo(url) });
         }
         editorApi.sync(); // re-emit after the direct DOM cut, so the draft agrees
         scheduleSave();

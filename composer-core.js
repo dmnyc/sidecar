@@ -461,10 +461,20 @@ window.SidecarCore = (function () {
   // (thumbnail in the strip, URL appended to the note's end at publish, exactly as
   // if it had been uploaded), and the offer is one button that the next keystroke
   // withdraws. Riding inside a larger paste is prose and stays prose.
-  function loneImageUrl(text) {
+  // A VIDEO IS AS ATTACHABLE AS AN IMAGE. This gated on IMG_EXT alone, so pasting a
+  // .mp4 got no offer at all and the URL stayed as prose, while the identical paste of
+  // a .png became an attachment. VID_EXT was already in this file and already used to
+  // decide how a URL RENDERS; the offer simply never asked it.
+  function loneMediaUrl(text) {
     const s = String(text || '').trim();
     if (!/^https?:\/\/\S+$/i.test(s)) return null;
-    return IMG_EXT.test(s) ? s : null;
+    return IMG_EXT.test(s) || VID_EXT.test(s) ? s : null;
+  }
+
+  // Which of the two it was, for the draft slot. Read here rather than at each call
+  // site, so the thumbnail strip and the offer can never disagree about a URL.
+  function urlIsVideo(url) {
+    return VID_EXT.test(String(url || ''));
   }
 
   // Where the pasted URL landed. An offer may cut it out of the text only when it
@@ -801,7 +811,10 @@ window.SidecarCore = (function () {
     // moment the line is edited away, the offer follows.
     const attachRow = h('div', { className: 'attach-row hidden' });
     const attachBtn = h('button', { className: 'mini ghost compose-add attach-accept', type: 'button' });
-    attachBtn.append(icon('plus'), h('span', { textContent: 'Attach this image' }));
+    // Named per paste, not fixed: the offer now covers video too, and "Attach this
+    // image" over an .mp4 is the offer describing something else.
+    const attachLabel = h('span', { textContent: 'Attach this image' });
+    attachBtn.append(icon('plus'), attachLabel);
     attachRow.append(attachBtn);
     wrap.prepend(attachRow);
     let offeredUrl = null;
@@ -837,7 +850,7 @@ window.SidecarCore = (function () {
     });
     editor.addEventListener('paste', (e) => {
       if (!onAttachUrl) return;
-      const url = loneImageUrl(e.clipboardData && e.clipboardData.getData('text/plain'));
+      const url = loneMediaUrl(e.clipboardData && e.clipboardData.getData('text/plain'));
       if (!url || attachDismissed.has(url)) return;
       setTimeout(() => {
         // On a line boundary — alone on the line, or glued to one end of it. A URL
@@ -845,6 +858,7 @@ window.SidecarCore = (function () {
         // rip it out of one.
         if (!urlOnBoundary(serializeEditor(editor).split('\n'), url)) return;
         offeredUrl = url;
+        attachLabel.textContent = 'Attach this ' + (urlIsVideo(url) ? 'video' : 'image');
         attachRow.classList.remove('hidden');
       }, 0);
     });
@@ -1948,11 +1962,11 @@ window.SidecarCore = (function () {
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
     NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
     VIEW_CLIENTS, DEFAULT_CLIENT,
-    IMG_EXT, VID_EXT,
+    IMG_EXT, VID_EXT, urlIsVideo,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover,
-    loneImageUrl, removeUrlFromEditor, urlOnBoundary,
+    loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();
