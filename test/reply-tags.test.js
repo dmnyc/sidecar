@@ -209,7 +209,10 @@ test('NOTHING IN AN EXPANDED ROW ALSO FOLLOWS THE ROW LINK', () => {
 
 test('the composer shows what is being answered', () => {
   const fn = lift('function buildReplyBlock(');
-  assert.match(fn, /renderNoteText\(body, replyTo\.content/);
+  // Hoisted into `full` so the Show more toggle can re-render at no cap; still the
+  // target's own content and nothing else.
+  assert.match(fn, /const full = replyTo\.content \|\| '';/);
+  assert.match(fn, /renderNoteText\(body, full, 240\)/);
   assert.match(fn, /notifAuthorName\(replyTo\.pubkey\)/);
 });
 
@@ -387,7 +390,8 @@ test('media is clipped, not stripped', () => {
   // Sometimes the image IS the note being answered. Removing it loses the context the
   // strip exists to give.
   const fn = lift('function buildReplyBlock(');
-  assert.match(fn, /renderNoteText\(body, replyTo\.content/, 'still the full renderer');
+  assert.match(fn, /renderNoteText\(body, full,/, 'still the full renderer');
+  assert.match(fn, /const full = replyTo\.content \|\| '';/, 'and still the target\u2019s own content');
   assert.doesNotMatch(fn, /replace\(.*http/, 'no url stripping');
 });
 

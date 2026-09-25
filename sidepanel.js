@@ -12655,12 +12655,46 @@
       // elements — one photo took this to 305px, most of a 360px panel, pushing the
       // editor off screen before a word was typed. So the block is clipped in CSS too.
       // Clipped rather than stripped: sometimes the image IS the note being answered.
-      renderNoteText(body, replyTo.content || '', 240);
+      const full = replyTo.content || '';
+      renderNoteText(body, full, 240);
       block.append(who, body);
-      // Fade only when something was actually cut, so a short note has no phantom edge.
-      // After layout, because scrollHeight is 0 until it has one.
+
+      // READING THE REST OF WHAT YOU ARE ANSWERING.
+      //
+      // Two caps stack here and both have to lift, which is why this re-renders rather
+      // than only dropping a class: renderNoteText's 240 truncates the TEXT with an
+      // ellipsis, and the CSS max-height clips whatever survives that. Dropping the
+      // class alone would expand the box to show a note that still ends in "…".
+      //
+      // It SCROLLS rather than growing without limit. The composer lives in a 360px
+      // panel and the thing being answered is context, not the subject: a long note
+      // allowed to push the editor off the bottom of the sheet would answer this
+      // request by creating the problem one step further down.
+      let expanded = false;
+      const toggle = h('button', { className: 'show-toggle', type: 'button', textContent: 'Show more' });
+      toggle.addEventListener('click', () => {
+        expanded = !expanded;
+        body.innerHTML = '';
+        // Infinity, not 0: the cap is compared with `used + s.length > maxLen`, so 0
+        // exceeds on the first character and would render the whole note as one ellipsis.
+        renderNoteText(body, full, expanded ? Infinity : 240);
+        block.classList.toggle('is-open', expanded);
+        // The fade means "there is more below". Once it scrolls, the scrollbar says so
+        // and a gradient over a scrollable region only hides the last line.
+        block.classList.toggle('is-clipped', !expanded && wasClipped);
+        toggle.textContent = expanded ? 'Show less' : 'Show more';
+        if (!expanded) body.scrollTop = 0;
+      });
+
+      // Fade and toggle only when something was actually cut, so a short note has no
+      // phantom edge and no control that does nothing. After layout, because
+      // scrollHeight is 0 until it has one.
+      let wasClipped = false;
       requestAnimationFrame(() => {
-        if (body.scrollHeight > body.clientHeight + 1) block.classList.add('is-clipped');
+        wasClipped = body.scrollHeight > body.clientHeight + 1 || full.length > 240;
+        if (!wasClipped) return;
+        block.classList.add('is-clipped');
+        block.append(toggle);
       });
       return block;
     }

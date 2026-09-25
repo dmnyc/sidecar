@@ -1784,6 +1784,18 @@ a.notif-clickable:hover { background: var(--hover-soft); }
   opacity: 0;
 }
 .reply-target.is-clipped::after { opacity: 1; }
+/* OPEN IT AND IT SCROLLS, rather than growing without limit. The composer lives in a
+   360px panel and the note being answered is context, not the subject: a long one
+   allowed to push the editor off the bottom would answer "let me read the rest" by
+   moving the problem one step down the sheet. Roughly three times the clamped height,
+   which is enough to read a paragraph at a time without the editor leaving the screen. */
+.reply-target.is-open .reply-target-body { max-height: 320px; overflow-y: auto; }
+/* The fade means "there is more below". Once it scrolls the scrollbar says that, and a
+   gradient over a scrollable region only hides the line you are trying to read. */
+.reply-target.is-open::after { opacity: 0; }
+/* Its own row under the quote, left-aligned with the text rather than centered, so it
+   reads as belonging to the block it opens. */
+.reply-target .show-toggle { margin-top: 4px; }
 .reply-target-body img,
 .reply-target-body video { max-width: 100%; border-radius: 6px; }
 .notif-content {
