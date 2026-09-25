@@ -16,6 +16,10 @@ window.SidecarCore = (function () {
 
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
+    // Feather's video: a camera body with the lens flare cut out of its side. Used as
+    // the placeholder on a video attachment's thumbnail, where a decoded frame is both
+    // expensive and, in a 72px square, not actually informative.
+    video: '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>',
     plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
     // A painter's palette, for the per-account theme override. Not `flower`, which is
     // already Blossom's own mark (see KIND_ICONS 10063/24242) and would read as a
@@ -457,10 +461,20 @@ window.SidecarCore = (function () {
   // (thumbnail in the strip, URL appended to the note's end at publish, exactly as
   // if it had been uploaded), and the offer is one button that the next keystroke
   // withdraws. Riding inside a larger paste is prose and stays prose.
-  function loneImageUrl(text) {
+  // A VIDEO IS AS ATTACHABLE AS AN IMAGE. This gated on IMG_EXT alone, so pasting a
+  // .mp4 got no offer at all and the URL stayed as prose, while the identical paste of
+  // a .png became an attachment. VID_EXT was already in this file and already used to
+  // decide how a URL RENDERS; the offer simply never asked it.
+  function loneMediaUrl(text) {
     const s = String(text || '').trim();
     if (!/^https?:\/\/\S+$/i.test(s)) return null;
-    return IMG_EXT.test(s) ? s : null;
+    return IMG_EXT.test(s) || VID_EXT.test(s) ? s : null;
+  }
+
+  // Which of the two it was, for the draft slot. Read here rather than at each call
+  // site, so the thumbnail strip and the offer can never disagree about a URL.
+  function urlIsVideo(url) {
+    return VID_EXT.test(String(url || ''));
   }
 
   // Where the pasted URL landed. An offer may cut it out of the text only when it
@@ -797,7 +811,10 @@ window.SidecarCore = (function () {
     // moment the line is edited away, the offer follows.
     const attachRow = h('div', { className: 'attach-row hidden' });
     const attachBtn = h('button', { className: 'mini ghost compose-add attach-accept', type: 'button' });
-    attachBtn.append(icon('plus'), h('span', { textContent: 'Attach this image' }));
+    // Named per paste, not fixed: the offer now covers video too, and "Attach this
+    // image" over an .mp4 is the offer describing something else.
+    const attachLabel = h('span', { textContent: 'Attach this image' });
+    attachBtn.append(icon('plus'), attachLabel);
     attachRow.append(attachBtn);
     wrap.prepend(attachRow);
     let offeredUrl = null;
@@ -833,7 +850,7 @@ window.SidecarCore = (function () {
     });
     editor.addEventListener('paste', (e) => {
       if (!onAttachUrl) return;
-      const url = loneImageUrl(e.clipboardData && e.clipboardData.getData('text/plain'));
+      const url = loneMediaUrl(e.clipboardData && e.clipboardData.getData('text/plain'));
       if (!url || attachDismissed.has(url)) return;
       setTimeout(() => {
         // On a line boundary — alone on the line, or glued to one end of it. A URL
@@ -841,6 +858,7 @@ window.SidecarCore = (function () {
         // rip it out of one.
         if (!urlOnBoundary(serializeEditor(editor).split('\n'), url)) return;
         offeredUrl = url;
+        attachLabel.textContent = 'Attach this ' + (urlIsVideo(url) ? 'video' : 'image');
         attachRow.classList.remove('hidden');
       }, 0);
     });
@@ -1306,6 +1324,55 @@ window.SidecarCore = (function () {
       return line;
     });
     return kept.join('\n').replace(/\s+$/, '');
+  }
+
+  // THE COVER A VIDEO WEARS INSTEAD OF A FRAME.
+  //
+  // A <video> in a 72px cell is a bad thumbnail three ways: it paints black until it has
+  // decoded something, it downloads part of a file nobody asked to watch, and a single
+  // frame at that size tells you less than the word VIDEO does. The element stays in the
+  // cell, at preload=metadata, purely so a 404 is still detectable; this covers it.
+  //
+  // It carries the extension because two videos in a strip are otherwise the same square
+  // twice, and the strip's whole job is to say what is attached and in what order.
+  // A FRAME IS WORTH MORE THAN A GLYPH, but it has to be asked for. preload=metadata
+  // fetches the header and stops: dimensions and duration, no decoded picture, so the
+  // element paints nothing. Seeking a fraction of a second in forces exactly one frame
+  // to decode, and the browser range-requests only what that needs.
+  //
+  // NOT 0. The first frame of a video is very often black or a fade-in, which is a
+  // thumbnail that says less than the glyph it replaced. A tenth of a second in is past
+  // most of them and still the opening shot. Clamped to the duration, because a clip
+  // shorter than that would seek past its end and never fire `seeked`.
+  //
+  // Everything here is best-effort and silent on failure. A codec the browser will not
+  // decode, a host that refuses range requests, a seek that never completes: each leaves
+  // the cover exactly as it was, which is a working thumbnail, so none of them is worth
+  // an error anybody has to read.
+  function primeVideoThumb(el, cell) {
+    let asked = false;
+    el.addEventListener('loadedmetadata', () => {
+      if (asked) return;
+      asked = true;
+      try {
+        const d = Number(el.duration);
+        el.currentTime = Number.isFinite(d) && d > 0 ? Math.min(0.1, d / 2) : 0.1;
+      } catch (_) {}
+    });
+    // The frame is on screen from here, so the cover gets out of its way and becomes a
+    // corner badge. Still a badge, because a still frame does not say "this is a video"
+    // and the strip's job is to say what is attached.
+    el.addEventListener('seeked', () => cell.classList.add('has-frame'));
+  }
+
+  function videoThumbCover(url) {
+    const cover = h('div', { className: 'compose-thumb-vid' });
+    cover.append(icon('video'));
+    // From the PATH, never the query: a signed URL can carry ?x=y.mp4 and the extension
+    // is not whatever the last dot in the whole string happens to precede.
+    const m = /\.([a-z0-9]{2,5})$/i.exec(String(url || '').split('?')[0].split('#')[0]);
+    if (m) cover.append(h('span', { textContent: m[1].toUpperCase() }));
+    return cover;
   }
 
   // The attachments' reference drawer: one collapsed line saying how many and where
@@ -1925,11 +1992,11 @@ window.SidecarCore = (function () {
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
     NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
     VIEW_CLIENTS, DEFAULT_CLIENT,
-    IMG_EXT, VID_EXT,
+    IMG_EXT, VID_EXT, urlIsVideo,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
-    composeNoteContent, stripDraftMediaUrls, buildMediaDrawer,
-    loneImageUrl, removeUrlFromEditor, urlOnBoundary,
+    composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
+    loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();

@@ -842,11 +842,20 @@
       // Many media hosts reject a chrome-extension:// referrer and answer 403, which
       // renders as a broken thumb rather than as an error anyone can act on.
       el.referrerPolicy = 'no-referrer';
+      // A VIDEO IS NEVER DECODED FOR THE STRIP: metadata is the header alone, and the
+      // cover below is opaque so no frame is ever painted. Same treatment as the panel,
+      // from the same builder, because two strips drawing a video two ways is the kind
+      // of difference nobody notices until somebody reports one of them.
+      if (m.isVideo) { el.preload = 'metadata'; el.muted = true; }
       el.src = m.url;
       // The cell is what drags; an img's own native drag would hijack the gesture.
       el.draggable = false;
-      if (m.isVideo) el.muted = true;
       cell.append(el);
+      // Before the remove button and the steppers, so those stay on top of it.
+      if (m.isVideo) {
+        cell.append(SC.videoThumbCover(m.url));
+        SC.primeVideoThumb(el, cell);
+      }
       // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the editor
       // and are appended at publish in this array's order, so with more than one
       // attachment the thumbs drag.
@@ -1118,7 +1127,7 @@
         // the prose line and keeps the existing entry — and its description —
         // rather than appending the image a second time.
         if (!draft.media.some((m) => m && m.url === url)) {
-          draft.media.push({ url, isVideo: false });
+          draft.media.push({ url, isVideo: SC.urlIsVideo(url) });
         }
         editorApi.sync(); // re-emit after the direct DOM cut, so the draft agrees
         scheduleSave();

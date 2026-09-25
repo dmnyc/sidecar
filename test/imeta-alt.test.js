@@ -50,21 +50,22 @@ vm.runInContext(
   lift(/function imetaTagsForMedia\(media\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
   lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
   lift(/function stripDraftMediaUrls\(text, media\) \{[\s\S]*?\n  \}/, 'stripDraftMediaUrls') + '\n' +
-  lift(/function loneImageUrl\(text\) \{[\s\S]*?\n  \}/, 'loneImageUrl') + '\n' +
+  lift(/function loneMediaUrl\(text\) \{[\s\S]*?\n  \}/, 'loneMediaUrl') + '\n' +
   lift(/function urlOnBoundary\(lines, url\) \{[\s\S]*?\n  \}/, 'urlOnBoundary') + '\n' +
-  // loneImageUrl judges with the REAL extension list, lifted like quoteSnippet's
+  // loneMediaUrl judges with the REAL extension lists, lifted like quoteSnippet's
   // IMG_EXT — a local mirror could drift and the vectors would keep passing.
   lift(/const IMG_EXT = [^;]+;/, 'IMG_EXT') + '\n' +
+  lift(/const VID_EXT = [^;]+;/, 'VID_EXT') + '\n' +
   'globalThis.ALT_MAX = ALT_MAX;' +
   'globalThis.normalizeAltBreaks = normalizeAltBreaks; globalThis.capAltText = capAltText;' +
   'globalThis.buildImetaTag = buildImetaTag;' +
   'globalThis.imetaTagsForMedia = imetaTagsForMedia;' +
   'globalThis.composeNoteContent = composeNoteContent;' +
   'globalThis.stripDraftMediaUrls = stripDraftMediaUrls;' +
-  'globalThis.loneImageUrl = loneImageUrl; globalThis.urlOnBoundary = urlOnBoundary;',
+  'globalThis.loneMediaUrl = loneMediaUrl; globalThis.urlOnBoundary = urlOnBoundary;',
   ctx
 );
-const { ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls, loneImageUrl, urlOnBoundary } = ctx;
+const { ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, composeNoteContent, stripDraftMediaUrls, loneMediaUrl, urlOnBoundary } = ctx;
 
 // Values built inside the vm carry its Array.prototype, which strict deep-equal
 // rightly refuses from out here. The tag shape is data, so taking a plain copy at
@@ -561,19 +562,29 @@ test('A URL PASTED ON ITS OWN IS AN ATTACHMENT WAITING TO BE OFFERED', () => {
   // prose. The offer stays up while the URL still stands as its own line — typing
   // the caption that goes with the picture must not lose the offer — and goes only
   // when the line does.
-  assert.equal(loneImageUrl('https://example.com/pic.png'), 'https://example.com/pic.png');
-  assert.equal(loneImageUrl('  https://example.com/pic.png  '), 'https://example.com/pic.png', 'paste edges are trim');
-  assert.equal(loneImageUrl('https://example.com/PICT.PNG'), 'https://example.com/PICT.PNG', 'extensions are case-blind');
-  assert.equal(loneImageUrl('https://example.com/pic.jpeg'), 'https://example.com/pic.jpeg');
-  assert.equal(loneImageUrl('https://example.com/pic.webp?v=2'), 'https://example.com/pic.webp?v=2', 'a query rides along');
-  assert.equal(loneImageUrl('https://example.com/pic'), null, 'no extension, no offer');
-  assert.equal(loneImageUrl('look at https://example.com/pic.png'), null, 'prose stays prose');
-  assert.equal(loneImageUrl('https://example.com/pic.png and text'), null);
-  assert.equal(loneImageUrl('https://example.com/a.png\nhttps://example.com/b.png'), null, 'two URLs is a chunk');
-  assert.equal(loneImageUrl('ftp://example.com/pic.png'), null, 'not a web URL');
-  assert.equal(loneImageUrl('https://example.com/clip.mp4'), null, 'sidecar writes image alt text; video stays out of scope');
-  assert.equal(loneImageUrl(''), null);
-  assert.equal(loneImageUrl(null), null);
+  assert.equal(loneMediaUrl('https://example.com/pic.png'), 'https://example.com/pic.png');
+  assert.equal(loneMediaUrl('  https://example.com/pic.png  '), 'https://example.com/pic.png', 'paste edges are trim');
+  assert.equal(loneMediaUrl('https://example.com/PICT.PNG'), 'https://example.com/PICT.PNG', 'extensions are case-blind');
+  assert.equal(loneMediaUrl('https://example.com/pic.jpeg'), 'https://example.com/pic.jpeg');
+  assert.equal(loneMediaUrl('https://example.com/pic.webp?v=2'), 'https://example.com/pic.webp?v=2', 'a query rides along');
+  assert.equal(loneMediaUrl('https://example.com/pic'), null, 'no extension, no offer');
+  assert.equal(loneMediaUrl('look at https://example.com/pic.png'), null, 'prose stays prose');
+  assert.equal(loneMediaUrl('https://example.com/pic.png and text'), null);
+  assert.equal(loneMediaUrl('https://example.com/a.png\nhttps://example.com/b.png'), null, 'two URLs is a chunk');
+  assert.equal(loneMediaUrl('ftp://example.com/pic.png'), null, 'not a web URL');
+  // VIDEO IS IN SCOPE NOW. It was excluded when the offer was written, on the grounds
+  // that Sidecar's alt text is an image concern. But the strip already accepted an
+  // uploaded video, so pasting a .mp4 and uploading the same file produced different
+  // results from the same intent, and only the paste left the URL sitting in the prose.
+  assert.equal(loneMediaUrl('https://example.com/clip.mp4'), 'https://example.com/clip.mp4');
+  assert.equal(loneMediaUrl('https://example.com/clip.webm'), 'https://example.com/clip.webm');
+  assert.equal(loneMediaUrl('https://example.com/clip.MOV'), 'https://example.com/clip.MOV');
+  assert.equal(loneMediaUrl('https://example.com/clip.mp4?v=2'), 'https://example.com/clip.mp4?v=2');
+  // Still only the two lists. An arbitrary file is not an attachment.
+  assert.equal(loneMediaUrl('https://example.com/a.pdf'), null);
+  assert.equal(loneMediaUrl('https://example.com/a.zip'), null);
+  assert.equal(loneMediaUrl(''), null);
+  assert.equal(loneMediaUrl(null), null);
 });
 
 test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', () => {
@@ -588,10 +599,12 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
   assert.match(core, /if \(!url \|\| attachDismissed\.has\(url\)\) return;/, 'a dismissed url re-offers');
   assert.match(core, /attachDismissed\.delete\(offeredUrl\);/, 'the dismissal never expires');
   assert.match(core, /'Keep it as text'/, 'the refusal is unnamed');
-  assert.match(core, /const url = loneImageUrl\(e\.clipboardData && e\.clipboardData\.getData\('text\/plain'\)\);/);
+  assert.match(core, /const url = loneMediaUrl\(e\.clipboardData && e\.clipboardData\.getData\('text\/plain'\)\);/);
   assert.match(core, /urlOnBoundary\(serializeEditor\(editor\)\.split\('\\n'\), url\)/, 'the paste must have landed on a line boundary');
   assert.match(core, /attachRow\.classList\.remove\('hidden'\)/);
-  assert.match(core, /Attach this image/);
+  // Named per paste: the offer covers video now, and a fixed "image" would be the
+  // offer describing something other than what it is about to do.
+  assert.match(core, /'Attach this ' \+ \(urlIsVideo\(url\) \? 'video' : 'image'\)/);
   // And it stays visible, in both senses: seated above the editor where the eye
   // starts, and still standing while the user types beside the pasted line.
   assert.match(core, /wrap\.prepend\(attachRow\)/, 'the offer sits below the fold');
@@ -601,14 +614,17 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
   for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
     assert.ok(src.includes('onAttachUrl: (url) => {'), name + ' never hands in the conversion');
     assert.match(src, /removeUrlFromEditor\(/, name + ' never cuts the URL from the prose');
-    assert.match(src, /draft\.media\.push\(\{ url, isVideo: false \}\)/, name + ' never adds the attachment');
+    // TYPED BY ITS OWN EXTENSION, not hardcoded false. Every pasted video used to enter
+    // the draft claiming to be an image, which is what the thumbnail strip then drew.
+    assert.match(src, /draft\.media\.push\(\{ url, isVideo: (SC\.)?urlIsVideo\(url\) \}\)/,
+      name + ' never adds the attachment, or types it wrong');
     assert.match(src, /\.sync\(\); \/\/ re-emit after the direct DOM cut/, name + ' never re-emits the prose');
   }
   // And the detection travels on the global with the rest of the write side, so the
   // vectors above ran against the code the pages actually load.
   assert.match(
     panel,
-    /const \{ loneImageUrl, removeUrlFromEditor \} = window\.SidecarCore;/
+    /const \{ loneMediaUrl, removeUrlFromEditor, urlIsVideo \} = window\.SidecarCore;/
   );
 });
 
@@ -664,7 +680,11 @@ test('A THUMBNAIL THAT LOSES THE UPLOAD RACE IS RETRIED, THEN MARKED', () => {
 
   // Recovering clears the mark, or a thumbnail that loaded on the second try keeps a
   // warning about a problem it no longer has.
-  assert.match(panel, /el\.addEventListener\('load', \(\) => \{\s*cell\.classList\.remove\('is-broken'\);/);
+  //
+  // The event is now chosen by media type: 'load' is an <img> event and a <video> never
+  // fires it, so a video cell could not clear its broken state at all. Same property
+  // under test, now true for both.
+  assert.match(panel, /el\.addEventListener\(m\.isVideo \? 'loadedmetadata' : 'load', \(\) => \{\s*cell\.classList\.remove\('is-broken'\);/);
 
   // And a strip that repainted while a retry was pending does not write into a dead cell.
   assert.match(panel, /if \(!cell\.isConnected\) return;/);
