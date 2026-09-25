@@ -50,7 +50,7 @@ test('THE DRAFT IS SHARED, NOT HANDED OVER', () => {
   // The query is appended to the RESOLVED url, not passed to getURL inside the path:
   // getURL takes a path and what it does with a "?" in one is not worth discovering
   // from a bug report.
-  assert.match(panelBare, /chrome\.runtime\.getURL\('compose\.html'\)\s*\n?\s*\+ \(replyTo && replyTo\.id \? '\?reply=' \+ encodeURIComponent\(replyTo\.id\) : ''\)/);
+  assert.match(panelBare, /chrome\.runtime\.getURL\('compose\.html'\)\s*\n?\s*\+ \(wantId \? '\?reply=' \+ encodeURIComponent\(wantId\) : ''\)/);
   const q = panelBare.match(/'\?([a-z]+)=' \+ encodeURIComponent/g) || [];
   assert.deepEqual([...new Set(q)], ["'?reply=' + encodeURIComponent"],
     'a second query parameter appeared; check it is a pointer and not content');
@@ -124,7 +124,7 @@ test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
     'the tab is refused to replies again');
 
   // 1. The panel names the slot in the URL.
-  assert.match(panelBare, /'\?reply=' \+ encodeURIComponent\(replyTo\.id\)/);
+  assert.match(panelBare, /'\?reply=' \+ encodeURIComponent\(wantId\)/);
   // 2. The page turns that into the same draft key draftKey() builds.
   assert.match(pageBare, /return replyId \? pubkey \+ '\|r:' \+ replyId : pubkey;/);
   assert.match(panelBare, /replyTo && replyTo\.id \? pubkey \+ '\|r:' \+ replyTo\.id : pubkey/,
@@ -157,7 +157,7 @@ test('ONE TAB, AND IT IS THE RIGHT DRAFT', () => {
   // another URL needs the "tabs" permission, which this extension does not ask for, and
   // chrome.tabs.update fails silently without it: the tab stays on the old draft and
   // says nothing, which is how expanding a reply landed on a blank new note.
-  assert.match(panelBare, /if \(open\.replyId !== wantId\) \{[\s\S]{0,200}SIDECAR_COMPOSE_OPEN/);
+  assert.match(panelBare, /if \(open\.replyId !== wantId\) \{[\s\S]{0,240}SIDECAR_COMPOSE_OPEN/);
   assert.ok(!/chrome\.tabs\.update\([^)]*url:/.test(panelBare),
     'navigating an open tab needs a permission the manifest does not ask for');
 });
@@ -767,11 +767,16 @@ test('ONE COMPOSER PER ACCOUNT, BECAUSE THERE IS ONE DRAFT SLOT PER ACCOUNT', ()
   // And Expand reuses a tab rather than opening a second one. A tab on a DIFFERENT
   // draft is navigated to this one, since merely focusing it would show the wrong draft
   // and say nothing about why.
-  const expand = panelBare.slice(panelBare.indexOf("expand.addEventListener('click'"));
-  const head = expand.slice(0, 2200);
+  // The handoff itself moved into handOffToTab, shared with the always-expanded setting:
+  // two copies of it drifted once already, and a missing reply target was the result.
+  const handoff = panelBare.slice(panelBare.indexOf('async function handOffToTab('));
+  const head = handoff.slice(0, 2400);
   assert.match(head, /if \(open\) \{/);
   assert.match(head, /SIDECAR_COMPOSE_OPEN/, 'an open tab is never told to switch drafts');
-  assert.match(head, /\} else \{[\s\S]{0,500}chrome\.tabs\.create\(/);
+  assert.match(head, /chrome\.tabs\.create\(\{ url \}\)/);
+  // And Expand still goes through it rather than keeping its own copy.
+  const expand = panelBare.slice(panelBare.indexOf("expand.addEventListener('click'"), panelBare.indexOf('if (expand) tabBar.append(expand);'));
+  assert.match(expand, /await handOffToTab\(dkey, replyTo\)/);
 });
 
 test('WHO THIS IS WRITTEN AS CAN CHANGE UNDER THE TAB', () => {

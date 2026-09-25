@@ -320,9 +320,15 @@ test('REPLYING COMES BACK TO WHERE YOU WERE', () => {
   assert.match(actions, /returnTo: \(\) => showNotifModal\(a, place\)/, 'nothing brings the sheet back');
   const composer = stripComments(lift('async function openComposer('));
   assert.match(composer, /typeof opts\.returnTo === 'function'/, 'the composer ignores returnTo');
-  // Guarded and last: it opens a modal, and must not be able to stop the draft save.
-  const at = composer.indexOf('opts.returnTo');
-  assert.match(composer.slice(at - 200, at), /persistDraft\(\)/, 'the return runs before the draft is saved');
+  // Guarded and last in the CLOSE handler: it opens a modal, and must not be able to
+  // stop the draft save. Anchored on the guarded form rather than the first occurrence,
+  // because there is a second call site now: when the always-expanded setting sends a
+  // reply to the tab, the way back is owed just the same, and the slot was written by
+  // handOffToTab before that point rather than by persistDraft.
+  const at = composer.indexOf("typeof opts.returnTo === 'function'");
+  assert.match(composer.slice(at - 260, at), /persistDraft\(\)/, 'the return runs before the draft is saved');
+  assert.match(composer, /await handOffToTab\(dk, \(opts && opts\.replyTo\) \|\| null\);\s*\n(\s*\n)?\s*if \(opts && opts\.returnTo\) opts\.returnTo\(\);/,
+    'a reply sent to the tab never gives the bell back');
   assert.match(composer.slice(at, at + 120), /try \{/, 'a failing return can break closing the composer');
 });
 

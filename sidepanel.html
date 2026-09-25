@@ -514,6 +514,16 @@
         </h3>
         <div class="settings-section-body" id="section-body-posting">
 
+          <!-- The tab is the same draft in the same slot, so this is only about which
+               one opens first. A poll still opens here whatever this says: the tab has
+               no poll editor, and silently dropping somebody into one without it would
+               be worse than ignoring the preference. -->
+          <div class="setting">
+            <h3>Where to write</h3>
+            <p class="hint">Open notes and replies in a tab instead of the panel. Polls stay here, and it is the same draft either way.</p>
+            <label class="toggle-row"><input type="checkbox" id="compose-tab-toggle" /> <span>Write in a tab by default</span></label>
+          </div>
+
           <div class="setting">
             <h3 data-i18n="Post countdown">Post countdown</h3>
             <p class="hint" data-i18n="A countdown before a note publishes, so you can read it or cancel.">A countdown before a note publishes, so you can read it or cancel.</p>

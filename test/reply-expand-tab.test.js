@@ -130,9 +130,10 @@ test('EXPANDING A REPLY WITH NOTHING TYPED STILL HANDS OVER THE TARGET', async (
   //
   // Run rather than read, because every individual line was fine and the defect was in
   // what the sequence produced.
+  // Lifted from handOffToTab, which Expand and the always-expanded setting both call.
   const handoff = panel.slice(
     panel.indexOf('let relays = null;'),
-    panel.indexOf('// And never a second tab'));
+    panel.indexOf('const wantId = (replyTo && replyTo.id) || null;'));
   const target = { id: 'f'.repeat(64), pubkey: THEM, kind: 1, tags: [], content: 'the parent note' };
   const dkey = ME + '|r:' + target.id;
   const store = {};

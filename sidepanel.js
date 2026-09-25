@@ -10243,6 +10243,10 @@
     $('autozap-max-row').classList.toggle('hidden', !$('autozap-toggle').checked);
     $('autozap-daily-row').classList.toggle('hidden', !$('autozap-toggle').checked);
 
+    // Off by default: the panel is where this app lives, and a setting that moves you
+    // into a browser tab is one to opt into.
+    $('compose-tab-toggle').checked = settings.composeInTab === true;
+
     const cdOn = settings.noteCountdown !== false; // default on
     const cdSecs = NOTE_COUNTDOWN_PRESETS.includes(settings.noteCountdownSecs) ? settings.noteCountdownSecs : NOTE_COUNTDOWN_DEFAULT;
     $('countdown-toggle').checked = cdOn;
@@ -12443,6 +12447,55 @@
     }
   }
 
+  // HANDING A DRAFT TO THE TAB, from Expand and from the always-expanded setting alike.
+  //
+  // Both need the same four things: the slot to exist, the target to be in it, the relay
+  // set to be beside it, and one tab rather than two. Two copies of that drifted once
+  // already, which is what the reply target being missing came down to.
+  //
+  // The SLOT IS CREATED IF ABSENT, which it is whenever nothing has been typed yet:
+  // saveComposeDraft writes nothing for an empty draft and deletes the slot outright, so
+  // a fresh reply would otherwise hand the tab an empty key and no target.
+  async function handOffToTab(dkey, replyTo) {
+    let relays = null;
+    try { relays = await postRelays(); } catch (_) {}
+    const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+    if (!all[dkey]) all[dkey] = { text: '', media: [], savedAt: Date.now() };
+    if (relays && relays.length) all[dkey].expandRelays = relays;
+    // The target, always. It is the one thing the tab cannot work out for itself and the
+    // one thing whose absence is invisible until the reply publishes as a note.
+    if (replyTo && replyTo.id) {
+      all[dkey].replyTo = {
+        id: replyTo.id, pubkey: replyTo.pubkey, kind: replyTo.kind,
+        tags: replyTo.tags, content: replyTo.content,
+      };
+      pruneReplyDrafts(all);
+    }
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+
+    const wantId = (replyTo && replyTo.id) || null;
+    const open = await liveComposeTab();
+    if (open) {
+      try {
+        // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the "tabs"
+        // permission, which this extension does not ask for, and chrome.tabs.update
+        // fails silently without it.
+        if (open.replyId !== wantId) {
+          chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId }).catch(() => {});
+        }
+        await chrome.tabs.update(open.tabId, { active: true });
+        await chrome.windows.update(open.windowId, { focused: true });
+      } catch (_) {}
+      return;
+    }
+    // The query is appended to the RESOLVED url rather than handed to getURL as part of
+    // the path. getURL takes a path, and what it does with a "?" in one is not something
+    // to find out from a bug report.
+    const url = chrome.runtime.getURL('compose.html')
+      + (wantId ? '?reply=' + encodeURIComponent(wantId) : '');
+    chrome.tabs.create({ url });
+  }
+
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
       toast(t('Add an account first'), 'error');
@@ -12481,6 +12534,40 @@
         return;
       }
     }
+    // WRITE IN A TAB BY DEFAULT, if that is the preference. Read here rather than at
+    // each of the five call sites, so a route added later gets it for free.
+    {
+      let inTab = false;
+      try { inTab = (await call({ type: 'SIDECAR_GET_SETTINGS' }))?.composeInTab === true; }
+      catch (_) {} // A settings read that fails leaves the panel composer, which always works.
+      if (inTab) {
+        const dk = draftKey(state.activePubkey, (opts && opts.replyTo) || null);
+        const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+        const slot = all[dk];
+        // A DRAFT WITH A POLL IN IT STAYS HERE, whatever the preference says. The tab
+        // has no poll editor, so opening one there would show the question and the
+        // options as nothing at all and publish a plain note over the top of them.
+        // Ignoring a preference is the smaller harm.
+        if (slot && slot.poll) {
+          toast('This draft has a poll, so it opens in the panel', 'info');
+        } else {
+          // Seeded FIRST, or "Just setting up my Sidecar" and a quote-repost arrive in
+          // the tab blank: those routes pass their text in rather than typing it.
+          // Never over what is already there, because a draft in progress outranks a
+          // prefill.
+          if (initialText && !(slot && slot.text && slot.text.trim())) {
+            all[dk] = { ...(slot || { media: [] }), text: initialText, savedAt: Date.now() };
+            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+          }
+          await handOffToTab(dk, (opts && opts.replyTo) || null);
+          // The bell's reply route hands back a way to the list it came from, and that
+          // is as true when the composer opens somewhere else.
+          if (opts && opts.returnTo) opts.returnTo();
+          return;
+        }
+      }
+    }
+
     const pubkey = state.activePubkey;
     await devBuildReady;
     let devKindEnabled = false;
@@ -13576,75 +13663,18 @@
         expand.addEventListener('click', async () => {
           expand.disabled = true;
           try {
-            // AWAITED. It is a read-modify-write of the whole draft store and so is the
-            // block below; running them concurrently means whichever finishes last wins,
-            // and for an empty reply this one's answer is "delete the slot".
+            // AWAITED. It is a read-modify-write of the whole draft store and so is
+            // handOffToTab; running them concurrently means whichever finishes last
+            // wins, and for an empty reply this one's answer is "delete the slot".
             await persistDraft();
-            // WHERE IT WILL PUBLISH, decided here and left with the draft. Working out an
-            // account's write set means its NIP-65 list, the configured relays, or the
-            // declared set alone when the account asked for NIP-65 only, and that last
-            // case is why the page must not guess: publishing a NIP-65-only account to
-            // the configured list is precisely what the setting exists to stop.
-            let relays = null;
-            try { relays = await postRelays(); } catch (_) {}
-            const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-            // THE SLOT IS CREATED IF IT IS NOT THERE, which it is not when nothing has
-            // been typed yet: saveComposeDraft writes nothing for an empty draft, and
-            // deletes the slot outright. Pressing Expand on a fresh reply therefore
-            // handed the tab an empty key, and the tab, finding no draft, had no target
-            // and showed no parent note.
-            //
-            // Pressing Expand IS the intent, whether or not a word has been written, so
-            // the handoff carries what the tab needs either way.
-            if (!all[dkey]) all[dkey] = { text: '', media: [], savedAt: Date.now() };
-            if (relays && relays.length) all[dkey].expandRelays = relays;
-            // The target, always. It is the one thing the tab cannot work out for itself
-            // and the one thing whose absence is invisible until the reply publishes as
-            // a note.
-            if (replyTo && replyTo.id) {
-              all[dkey].replyTo = {
-                id: replyTo.id, pubkey: replyTo.pubkey, kind: replyTo.kind,
-                tags: replyTo.tags, content: replyTo.content,
-              };
-              pruneReplyDrafts(all);
-            }
-            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
-            // From here the slot belongs to the tab. Set BEFORE closeModal below, which
-            // is what would otherwise write over it.
+            // From here the slot belongs to the tab. Set BEFORE closeModal below, whose
+            // own close handler would otherwise save, and therefore delete, an empty one.
             handedToTab = true;
-            // And never a second tab: same reason the panel composer stands down for one.
-            // A tab already on another draft is NAVIGATED rather than left showing it,
-            // which is safe because that tab flushes its draft on visibilitychange and
-            // hiding fires before the load.
-            const open = await liveComposeTab();
-            const wantId = (replyTo && replyTo.id) || null;
-            if (open) {
-              try {
-                // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the
-                // "tabs" permission, which this extension does not ask for, and
-                // chrome.tabs.update fails silently without it, which is precisely how
-                // expanding a reply landed on a blank new note. The tab re-keys itself.
-                if (open.replyId !== wantId) {
-                  chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId })
-                    .catch(() => {});
-                }
-                await chrome.tabs.update(open.tabId, { active: true });
-                await chrome.windows.update(open.windowId, { focused: true });
-              } catch (_) {}
-            } else {
-              // The id names the draft slot, the same key draftKey() built. Without it
-              // the tab opens the plain slot and the reply appears to have vanished.
-              //
-              // The query is appended to the RESOLVED url rather than handed to getURL
-              // as part of the path. getURL takes a path, and what it does with a "?" in
-              // one is not something to find out from a bug report.
-              const url = chrome.runtime.getURL('compose.html')
-                + (replyTo && replyTo.id ? '?reply=' + encodeURIComponent(replyTo.id) : '');
-              chrome.tabs.create({ url });
-            }
+            await handOffToTab(dkey, replyTo);
             closeModal();
           } catch (e) {
             expand.disabled = false;
+            handedToTab = false;
             toast(e.message || t('Could not open a tab'), 'error');
           }
         });
@@ -21256,6 +21286,10 @@
     $('pow-presets').querySelectorAll('.preset-chip').forEach((c) => c.classList.toggle('active', c === btn));
     paintPowDetail(true, bits);
     await call({ type: 'SIDECAR_SET_POW', pubkey: state.activePubkey, bits });
+  });
+
+  $('compose-tab-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { composeInTab: e.target.checked } });
   });
 
   $('countdown-toggle').addEventListener('change', async (e) => {
