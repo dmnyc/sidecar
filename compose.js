@@ -377,6 +377,13 @@
       // of this tab and reopening the panel's composer finds the rung still chosen.
       if (draft.pow) all[dkey].pow = draft.pow;
     }
+    // A REPLY WITH NOTHING TYPED YET STILL KEEPS ITS SLOT, because the slot is where the
+    // target lives and the target is the one thing here that cannot be reconstructed.
+    // Deleting it on the first save of an untouched reply is the same shape of bug the
+    // panel's handoff had: reload the tab and the parent note is simply gone.
+    else if (replyTo) {
+      all[dkey] = { ...(all[dkey] || {}), text: '', media: [], replyTo, savedAt: Date.now() };
+    }
     else delete all[dkey];
     await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
   }

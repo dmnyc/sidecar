@@ -122,6 +122,60 @@ test('A STALE OR FORGED reply IN THE URL CANNOT BECOME A DRAFT KEY', () => {
   assert.doesNotMatch(publish.slice(0, 200), /replyId/, 'publishing reads the URL instead of the draft');
 });
 
+test('EXPANDING A REPLY WITH NOTHING TYPED STILL HANDS OVER THE TARGET', async () => {
+  // The bug this caught. saveComposeDraft writes NOTHING for an empty draft and deletes
+  // the slot outright, so pressing Expand before typing a word handed the tab an empty
+  // key. The tab found no draft, had no target, and showed no parent note: you could not
+  // see what you were answering, which is the commonest way to reach this at all.
+  //
+  // Run rather than read, because every individual line was fine and the defect was in
+  // what the sequence produced.
+  const handoff = panel.slice(
+    panel.indexOf('let relays = null;'),
+    panel.indexOf('// And never a second tab'));
+  const target = { id: 'f'.repeat(64), pubkey: THEM, kind: 1, tags: [], content: 'the parent note' };
+  const dkey = ME + '|r:' + target.id;
+  const store = {};
+  const c = {
+    Date, Object, JSON, replyTo: target, dkey, pruneReplyDrafts: () => {},
+    postRelays: async () => ['wss://a'],
+    call: async (m) => {
+      if (m.type === 'SIDECAR_SECRET_GET') return JSON.parse(JSON.stringify(store));
+      if (m.type === 'SIDECAR_SECRET_SET') {
+        Object.keys(store).forEach((k) => delete store[k]);
+        Object.assign(store, JSON.parse(JSON.stringify(m.value)));
+        return true;
+      }
+      return null;
+    },
+  };
+  c.globalThis = c;
+  vm.createContext(c);
+  vm.runInContext('globalThis.go = async () => {' + handoff + '};', c);
+  await c.go();
+
+  assert.ok(store[dkey], 'Expand on an untyped reply wrote no slot, so the tab gets nothing');
+  assert.equal(store[dkey].replyTo.id, target.id, 'the slot carries no target');
+  assert.equal(store[dkey].replyTo.content, 'the parent note');
+  assert.ok(store[dkey].expandRelays, 'the relay set was lost with it');
+
+  // And the tab's own read of that slot resolves a target.
+  const saved = store[dkey];
+  const resolved = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+  assert.ok(resolved, 'the tab cannot resolve the target out of the slot it was handed');
+});
+
+test('and the tab does not delete that slot on its first save', () => {
+  // The mirror of the same bug. persistDraft drops a slot with no content, which for an
+  // untouched reply would take the target with it: reload and the parent note is gone.
+  const fn = page.slice(page.indexOf('async function persistDraft()'));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+  assert.match(body, /else if \(replyTo\) \{[\s\S]{0,200}replyTo,/,
+    'an untouched reply loses its slot, and its target with it');
+  // The plain-note case is untouched: no content and no target still deletes.
+  assert.match(body, /else delete all\[dkey\];/);
+});
+
 test('the target survives an account switch, or follows it', () => {
   // The slot is keyed by account, so switching accounts inside the tab moves to that
   // account's draft for the same note. Replying from two accounts is two drafts, and the

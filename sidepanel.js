@@ -13552,13 +13552,28 @@
             // the configured list is precisely what the setting exists to stop.
             let relays = null;
             try { relays = await postRelays(); } catch (_) {}
-            if (relays && relays.length) {
-              const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-              if (all[dkey]) {
-                all[dkey].expandRelays = relays;
-                await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
-              }
+            const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+            // THE SLOT IS CREATED IF IT IS NOT THERE, which it is not when nothing has
+            // been typed yet: saveComposeDraft writes nothing for an empty draft, and
+            // deletes the slot outright. Pressing Expand on a fresh reply therefore
+            // handed the tab an empty key, and the tab, finding no draft, had no target
+            // and showed no parent note.
+            //
+            // Pressing Expand IS the intent, whether or not a word has been written, so
+            // the handoff carries what the tab needs either way.
+            if (!all[dkey]) all[dkey] = { text: '', media: [], savedAt: Date.now() };
+            if (relays && relays.length) all[dkey].expandRelays = relays;
+            // The target, always. It is the one thing the tab cannot work out for itself
+            // and the one thing whose absence is invisible until the reply publishes as
+            // a note.
+            if (replyTo && replyTo.id) {
+              all[dkey].replyTo = {
+                id: replyTo.id, pubkey: replyTo.pubkey, kind: replyTo.kind,
+                tags: replyTo.tags, content: replyTo.content,
+              };
+              pruneReplyDrafts(all);
             }
+            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
             // And never a second tab: same reason the panel composer stands down for one.
             // A tab already on another draft is NAVIGATED rather than left showing it,
             // which is safe because that tab flushes its draft on visibilitychange and
