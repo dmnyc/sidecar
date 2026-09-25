@@ -12494,27 +12494,23 @@
         const dk = draftKey(state.activePubkey, (opts && opts.replyTo) || null);
         const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
         const slot = all[dk];
-        // A DRAFT WITH A POLL IN IT STAYS HERE, whatever the preference says. The tab
-        // has no poll editor, so opening one there would show the question and the
-        // options as nothing at all and publish a plain note over the top of them.
-        // Ignoring a preference is the smaller harm.
-        if (slot && slot.poll) {
-          toast('This draft has a poll, so it opens in the panel', 'info');
-        } else {
-          // Seeded FIRST, or "Just setting up my Sidecar" and a quote-repost arrive in
-          // the tab blank: those routes pass their text in rather than typing it.
-          // Never over what is already there, because a draft in progress outranks a
-          // prefill.
-          if (initialText && !(slot && slot.text && slot.text.trim())) {
-            all[dk] = { ...(slot || { media: [] }), text: initialText, savedAt: Date.now() };
-            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
-          }
-          await handOffToTab(dk, (opts && opts.replyTo) || null);
-          // The bell's reply route hands back a way to the list it came from, and that
-          // is as true when the composer opens somewhere else.
-          if (opts && opts.returnTo) opts.returnTo();
-          return;
+        // A poll draft used to be held back here, because the tab had no poll editor and
+        // opening one there showed the question and the options as nothing before
+        // publishing a plain note over the top of them. The tab builds the same editor
+        // out of composer-core now, so there is nothing left to hold back.
+        //
+        // Seeded FIRST, or "Just setting up my Sidecar" and a quote-repost arrive in the
+        // tab blank: those routes pass their text in rather than having it typed. Never
+        // over what is already there, because a draft in progress outranks a prefill.
+        if (initialText && !(slot && slot.text && slot.text.trim())) {
+          all[dk] = { ...(slot || { media: [] }), text: initialText, savedAt: Date.now() };
+          await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
         }
+        await handOffToTab(dk, (opts && opts.replyTo) || null);
+        // The bell's reply route hands back a way to the list it came from, and that is
+        // as true when the composer opens somewhere else.
+        if (opts && opts.returnTo) opts.returnTo();
+        return;
       }
     }
 

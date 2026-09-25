@@ -74,7 +74,7 @@
 
   // ---- state ----
   let state = null;
-  let draft = { text: '', media: [] };
+  let draft = { text: '', media: [], poll: null };
   let dkey = null;
   let saveTimer = null;
   let posting = false;
@@ -366,13 +366,16 @@
     // Media counts as content on its own: an upload with no words yet is still work, and
     // dropping it because the caption had not been written is the kind of thing that makes
     // a draft store worse than none.
-    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length)
+      || (draft.poll && draft.poll.options && draft.poll.options.some((o) => o.trim())));
     if (hasContent) {
       all[dkey] = { ...(all[dkey] || {}), text: draft.text, media: draft.media, savedAt: Date.now() };
       // Written back on every save. The spread above preserves it when it is already
       // there, but a slot this tab created from scratch would otherwise hold a reply
       // with no target, and the panel would reopen it as a plain note.
       if (replyTo) all[dkey].replyTo = replyTo;
+      if (draft.poll) all[dkey].poll = draft.poll;
+      else if (all[dkey]) delete all[dkey].poll;
       // The difficulty travels with the note, the same as the text does, so cancelling out
       // of this tab and reopening the panel's composer finds the rung still chosen.
       if (draft.pow) all[dkey].pow = draft.pow;
@@ -516,6 +519,8 @@
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
+    draft.poll = (saved && saved.poll) || null;
+    if (pollEditor) pollEditor.paint();
     paintReplyTarget();
     closeAltEditor();
     powForThisPost = await seedPow(saved);
@@ -571,6 +576,8 @@
     // The slot moved with the account, so what it is answering moves too. Replying to
     // one note from two accounts is two drafts, and the new account may not have one.
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    draft.poll = (saved && saved.poll) || null;
+    if (pollEditor) pollEditor.paint();
     paintReplyTarget();
     // The row edits a slot of the PREVIOUS account's draft, which was just swapped
     // under it — the same reason the editor itself is rewritten below.
@@ -678,14 +685,22 @@
       // first e marked root as the thread and NIP-22 scope is read positionally, so
       // these lead; the client tag and imeta follow.
       const reply = replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
+      // A POLL IS ITS OWN KIND, and never a reply: a 1068 answering a note is not a
+      // shape anything threads, which is why the editor refuses to offer one there.
+      const asPoll = draft.poll && !replyTo;
       let template = {
-        kind: reply ? reply.kind : 1,
+        kind: asPoll ? SC.POLL_KIND : reply ? reply.kind : 1,
         created_at: Math.floor(Date.now() / 1000),
         // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it),
         // describing the same URLs composeNoteContent appends to the content, in
         // the same order. Undescribed media emits nothing, so a note of bare URLs
         // is byte-identical to what it published before alt text existed.
-        tags: [...(reply ? reply.tags : []), ['client', 'Sidecar'], ...SC.imetaTagsForMedia(draft.media)],
+        tags: [
+          ...(reply ? reply.tags : []),
+          ['client', 'Sidecar'],
+          ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
+          ...SC.imetaTagsForMedia(draft.media),
+        ],
         content: SC.composeNoteContent(text, draft.media),
       };
       // MINE FIRST, THEN SIGN. The event id commits to the pubkey, so the nonce has to be
@@ -792,6 +807,15 @@
     post.textContent = t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
+    if (draft.poll) {
+      // A poll needs its question, where a plain note can be an image on its own: the
+      // content IS the question, and a 1068 with empty content is a set of options
+      // nobody can interpret. Two filled options is the other floor, and a custom end
+      // time nobody has picked yet is not postable either. Same three as the panel.
+      const endsOk = draft.poll.ends.kind !== 'at' || draft.poll.ends.at > 0;
+      post.disabled = posting || !n || !SC.pollDraftIsPostable(draft.poll) || !endsOk;
+      return;
+    }
     post.disabled = posting || (!n && !draft.media.length);
   }
 
@@ -1132,7 +1156,11 @@
     mediaDrawer.wrap.after(altRow);
   }
 
-  // ---- the toolbar: media, and a proof of work for this note ----
+  // The poll editor, from composer-core, the same one the panel builds. Held here so
+  // the draft load and the publish path can both reach it.
+  let pollEditor = null;
+
+  // ---- the toolbar: media, a poll, and a proof of work for this note ----
   function buildToolbar() {
     const row = $('compose-actions');
     const err = $('compose-err');
@@ -1197,7 +1225,22 @@
     });
     paintPow();
 
-    row.append(addBtn, powBtn, fileInput);
+    pollEditor = SC.buildPollEditor({
+      poll: () => draft.poll || null,
+      setPoll: (p) => { draft.poll = p; },
+      // Both, always. They were two calls in the panel and two sites only saved, which
+      // is how one of them stopped repainting Post.
+      changed: () => { paintCount(); scheduleSave(); },
+      // A reply CAN be a poll here as much as it cannot in the panel: same rule, same
+      // reason, that a kind 1068 answering a note is not a shape anything threads.
+      isReply: () => !!replyTo,
+      hasMedia: () => !!(draft.media && draft.media.length),
+      mediaBtn: () => addBtn,
+    });
+    row.append(addBtn, pollEditor.addBtn, powBtn, fileInput);
+    // Below the toolbar rather than inside it: the editor is a form, and the row is a
+    // row of buttons.
+    row.after(pollEditor.wrap);
   }
 
   // ---- Write / Preview ----
@@ -1264,6 +1307,9 @@
     // reply is visible, a reply silently published as a note is not.
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
     paintReplyTarget();
+    // The poll rides in the same slot as the text, so a poll started in the panel and
+    // expanded here arrives whole. Painted after buildToolbar has made the editor.
+    draft.poll = (saved && saved.poll) || null;
 
     editorApi = composer.createMentionEditor({
       placeholder: t('What’s on your mind?'),
@@ -1288,6 +1334,9 @@
     $('compose-slot').append(editorApi.wrap);
     editorApi.setText(draft.text);
     buildToolbar();
+    // After the toolbar, because that is what builds the poll editor: a poll restored
+    // from the slot above has nothing to paint into until it exists.
+    paintCount();
     // THE DRAFT'S OWN RUNG FIRST, then the account's. Seeding from Settings alone meant an
     // account that had asked for 20 bits got none of them here, and seeding from Settings
     // over a draft meant a rung chosen in the panel a second before pressing Expand was

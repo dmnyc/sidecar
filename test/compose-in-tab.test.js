@@ -46,17 +46,17 @@ test('DECIDED ONCE, NOT AT EACH CALL SITE', () => {
     'the setting is read in more than one place, so a route can disagree with another');
 });
 
-test('A DRAFT WITH A POLL IN IT IGNORES THE SETTING', () => {
-  // The tab has no poll editor at all. Opening one there would show the question and the
-  // options as nothing, and then publish a plain note over the top of them. Ignoring a
-  // preference is much the smaller harm, and it says so rather than doing it silently.
-  assert.match(composer, /if \(slot && slot\.poll\) \{/);
-  assert.match(composer, /This draft has a poll, so it opens in the panel/);
+test('A POLL IS NO LONGER AN EXCEPTION', () => {
+  // A poll draft used to be held back, because the tab had no editor for one: opening it
+  // there showed the question and the options as nothing, then published a plain note
+  // over the top of them. The tab builds the same editor out of composer-core now.
   const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
-  assert.equal((page.match(/poll/gi) || []).length, 0,
-    'the tab grew a poll editor, so this exception can go');
-  // And the hint says so, rather than leaving it to be discovered.
-  assert.match(html, /Polls stay here/);
+  assert.match(page, /SC\.buildPollEditor\(\{/, 'the tab lost its poll editor, so the exception has to come back');
+  assert.ok(!/This draft has a poll, so it opens in the panel/.test(panel),
+    'the setting still refuses a poll draft');
+  // And the hint no longer promises polls stay in the panel.
+  assert.ok(!/Polls stay here/.test(html));
+  assert.match(html, /Open notes, replies and polls in a tab/);
 });
 
 test('TEXT PASSED IN IS SEEDED BEFORE THE TAB OPENS', () => {

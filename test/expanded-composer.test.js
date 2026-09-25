@@ -134,8 +134,12 @@ test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
   assert.match(pageBare, /replyTo = \(saved && saved\.replyTo && saved\.replyTo\.id\) \? saved\.replyTo : null;/);
   // 4. And publishing runs it through the shared builder.
   assert.match(pageBare, /const reply = replyTo \? SC\.replyTags\(replyTo, state\.activePubkey\) : null;/);
-  assert.match(pageBare, /kind: reply \? reply\.kind : 1,/);
-  assert.match(pageBare, /tags: \[\.\.\.\(reply \? reply\.tags : \[\]\), \['client', 'Sidecar'\]/,
+  // A poll is its own kind and is never a reply, so the ternary has a third arm now.
+  assert.match(pageBare, /kind: asPoll \? SC\.POLL_KIND : reply \? reply\.kind : 1,/);
+  // Threading leads, then the client tag, then the poll tags, then imeta. NIP-10 takes
+  // the first e marked root and NIP-22 reads scope positionally, so the order is
+  // load-bearing rather than tidy.
+  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\['client', 'Sidecar'\],/,
     'threading must lead: NIP-10 takes the first e marked root, NIP-22 reads scope positionally');
 
   // A poll is still refused. It is a different kind with its own editor, and none of
@@ -653,7 +657,10 @@ test('media is content on its own', () => {
   // Decided in paintPostButton, which is the one place that knows whether the button is
   // Post, Stop mining or Unlock to post right now.
   assert.match(bare, /post\.disabled = posting \|\| \(!n && !draft\.media\.length\);/);
-  assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)\)/);
+  // A poll with options typed and no question yet is also work worth keeping, so the
+  // clause grew a third arm rather than changing meaning.
+  assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)/);
+  assert.match(bare, /\|\| \(draft\.poll && draft\.poll\.options && draft\.poll\.options\.some\(\(o\) => o\.trim\(\)\)\)\);/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.media\)\) draft\.media = saved\.media;/);
   // And the empty prose of a media-only note is not a reason to stop either: the URL
   // lives in the media slot now, so "no text" no longer means "no note".

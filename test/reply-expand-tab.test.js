@@ -96,7 +96,10 @@ test('WHAT THE TAB PUBLISHES PUTS THREADING BEFORE EVERYTHING ELSE', () => {
   // positionally by some clients, so the order is load-bearing rather than tidy.
   // The whole line: a character class excluding ] stops at the empty array inside
   // `reply ? reply.tags : []` and matches nothing.
-  const tmpl = page.match(/^.*tags: \[.*imetaTagsForMedia\(draft\.media\)\],$/m)[0];
+  // The list spans several lines now that a poll can contribute tags too, and closing
+  // on the first '],' finds the one inside ['client', 'Sidecar'] instead of the end.
+  const at = page.indexOf('tags: [', page.indexOf('let template = {'));
+  const tmpl = page.slice(at, page.indexOf('content:', at));
   const reply = tmpl.indexOf('reply ? reply.tags');
   const client = tmpl.indexOf("['client', 'Sidecar']");
   const imeta = tmpl.indexOf('imetaTagsForMedia');
@@ -104,7 +107,7 @@ test('WHAT THE TAB PUBLISHES PUTS THREADING BEFORE EVERYTHING ELSE', () => {
   assert.ok(reply < client && client < imeta, 'threading has to lead the tag list');
   // And the kind follows the target rather than being hardcoded to 1, or a reply to a
   // NIP-22 comment would publish as a kind 1 note nobody in that thread can see.
-  assert.match(page, /kind: reply \? reply\.kind : 1,/);
+  assert.match(page, /kind: asPoll \? SC\.POLL_KIND : reply \? reply\.kind : 1,/);
 });
 
 test('A STALE OR FORGED reply IN THE URL CANNOT BECOME A DRAFT KEY', () => {

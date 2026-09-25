@@ -222,7 +222,9 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   assert.match(panelBare, /tags\.push\(\.\.\.imetaTagsForMedia\(draft\.media\)\);/);
   // Threading leads the list now that the tab can publish a reply; the client tag and
   // the imeta rows follow it, in that order, exactly as the panel assembles them.
-  assert.match(pageBare, /tags: \[\.\.\.\(reply \? reply\.tags : \[\]\), \['client', 'Sidecar'\], \.\.\.SC\.imetaTagsForMedia\(draft\.media\)\]/);
+  // imeta comes last, after threading, the client tag and any poll tags.
+  assert.match(pageBare, /\.\.\.SC\.imetaTagsForMedia\(draft\.media\),\s*\n\s*\],/);
+  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\['client', 'Sidecar'\],/);
 });
 
 test('THE STRIP REORDERS BY MORE THAN DRAG', () => {
