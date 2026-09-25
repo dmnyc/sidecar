@@ -1020,6 +1020,23 @@ window.SidecarCore = (function () {
           quotes.push({ el: a, bech });
           pushBlock(a);
         }
+      } else if (m[3]) {
+        // A fence is block-level, so it goes through pushBlock and takes the newlines
+        // around it with it, the same as an image or a quote box.
+        //
+        // COUNTED AGAINST THE CAP, or a truncated context strip could be one enormous
+        // listing. It is counted whole and refused whole: half a code block is worse
+        // than a line saying there is one, because a reader cannot tell a cut from the
+        // code actually ending there.
+        if (!truncated) {
+          if (used + m[3].length > maxLen) { pushText('…'); truncated = true; }
+          else { pushBlock(codeBlockEl(m[3])); used += m[3].length; }
+        }
+      } else if (m[4]) {
+        if (!truncated) {
+          if (used + m[4].length > maxLen) { pushText('…'); truncated = true; }
+          else { container.append(codeInlineEl(m[4])); used += m[4].length; }
+        }
       }
       last = PREVIEW_RE.lastIndex;
     }
@@ -1521,7 +1538,33 @@ window.SidecarCore = (function () {
 
   const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
-  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})/gi;
+  // CODE IS APPENDED, NOT PREPENDED, so m[1] and m[2] keep meaning what they meant to
+  // every existing branch. It still wins over a URL inside a fence: the engine takes the
+  // LEFTMOST match, and a fence opens before anything it contains.
+  //
+  // Fenced first, then inline, or ``` would match as an empty inline pair followed by a
+  // stray backtick. Inline refuses newlines, so an unclosed backtick in prose cannot
+  // swallow the rest of a note looking for its partner.
+  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})|(```[\s\S]*?```)|(`[^`\n]+`)/gi;
+
+  // The text inside a fence, without the fences and without the language tag authors put
+  // on the opening line. The tag is dropped rather than shown: it is an instruction to a
+  // highlighter, and there is no highlighter here.
+  function fenceBody(raw) {
+    let t = String(raw).slice(3, -3);
+    t = t.replace(/^[^\n`]*\n/, '');   // ```js\n  -> drop the tag line
+    return t.replace(/^\n+/, '').replace(/\s+$/, '');
+  }
+
+  function codeBlockEl(raw) {
+    const pre = h('pre', { className: 'note-code' });
+    pre.append(h('code', { textContent: fenceBody(raw) }));
+    return pre;
+  }
+
+  function codeInlineEl(raw) {
+    return h('code', { className: 'note-code-inline', textContent: String(raw).slice(1, -1) });
+  }
 
   function renderNotePreview(container, text) {
     const mentions = [];
@@ -1590,6 +1633,12 @@ window.SidecarCore = (function () {
         } else {
           flushText(bech);
         }
+      } else if (m[3]) {
+        // No cap in the preview: this pane is what the note will look like, so a fence
+        // shows whole or the preview is not one.
+        pushBlock(codeBlockEl(m[3]));
+      } else if (m[4]) {
+        container.append(codeInlineEl(m[4]));
       }
       last = PREVIEW_RE.lastIndex;
     }
