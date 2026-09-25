@@ -213,11 +213,37 @@ test('the target survives an account switch, or follows it', () => {
   assert.match(body, /paintReplyTarget\(\);/);
 });
 
+test('THE HANDOFF WAITS FOR THE AUTOSAVE IT RACES', () => {
+  // Both are read-modify-writes of the whole draft store, and for an EMPTY reply the
+  // autosave's answer is "delete this slot". Unawaited, that delete could land after the
+  // handoff's own write and erase the target it had just put there, so the tab opened on
+  // a slot that was not there and showed a blank note. Nothing logged it.
+  assert.match(panel, /await persistDraft\(\);/, 'the handoff does not wait for the save it races');
+  assert.match(panel, /function persistDraft\(\) \{ return saveComposeDraft\(dkey, draft\); \}/,
+    'persistDraft swallows its promise, so awaiting it waits for nothing');
+  // And the saver has to hand its promise back for any of that to mean anything.
+  const saver = panel.slice(panel.indexOf('function saveComposeDraft(key, draft)'));
+  assert.match(saver.slice(0, 2600), /return \(async \(\) => \{/,
+    'saveComposeDraft is fire-and-forget again');
+});
+
+test('THE TAB RENDERS THE QUOTE WITH A FUNCTION THAT EXISTS', () => {
+  // renderNoteText is returned by installComposer, NOT exported on the core object. The
+  // core's own comment lists "a reply's context strip" among the reasons it is handed
+  // back that way. SC.renderNoteText is undefined, and calling it throws mid-paint with
+  // the page half built.
+  const coreRet = core.slice(core.lastIndexOf('  return {'));
+  assert.ok(!/\brenderNoteText\b/.test(coreRet),
+    'it is exported on the core now, so this whole hazard is gone and the note can go');
+  assert.match(page, /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
+  assert.ok(!/SC\.renderNoteText\(/.test(page), 'calling an undefined core export again');
+});
+
 test('the quote is shown whole in the tab, which is the room the panel lacks', () => {
   // The panel caps at 240 because it has 360px. The tab is the space the panel does not
   // have, so capping there would reproduce the problem the tab exists to solve.
   const fn = page.slice(page.indexOf('function paintReplyTarget()'));
-  assert.match(fn.slice(0, 1200), /renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
+  assert.match(fn.slice(0, 1400), /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
   // Above the tabs, not inside a pane, or switching to Preview would hide the subject.
   const html = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
   const target = html.indexOf('id="compose-reply-target"');

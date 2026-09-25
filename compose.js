@@ -459,7 +459,11 @@
     // NO CAP HERE. The panel truncates at 240 because it has 360px to work with; this
     // tab is the room the panel does not have, so the note it is answering is shown
     // whole and the CSS lets it scroll if it is very long.
-    SC.renderNoteText(body, replyTo.content || '', Infinity);
+    // composer.renderNoteText, NOT SC.renderNoteText. It is returned by installComposer,
+    // not exported on the core: the core's own comment says so, listing "a reply's
+    // context strip" among the callers. SC.renderNoteText is undefined, and calling it
+    // throws mid-paint with the page half built.
+    composer.renderNoteText(body, replyTo.content || '', Infinity);
     box.append(body);
     box.classList.add('is-open');
 

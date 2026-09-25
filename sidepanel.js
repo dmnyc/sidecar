@@ -12176,6 +12176,11 @@
       .then((all) => (all && all[key]) || null)
       .catch(() => null);
   }
+  // RETURNS ITS PROMISE. Most callers are a debounced autosave and do not care, but the
+  // Expand handoff has to know this has finished before it reads the store: for an empty
+  // draft this DELETES the slot, and an unawaited delete landing after the handoff's own
+  // write erased the reply target it had just put there. The tab then opened on a slot
+  // that was not there and showed a blank note.
   function saveComposeDraft(key, draft) {
     // A poll counts as content on its own: options are typed one at a time and losing
     // four of them because the question had not been written yet is the kind of thing
@@ -12185,7 +12190,7 @@
       (draft.media && draft.media.length) ||
       (draft.poll && draft.poll.options && draft.poll.options.some((o) => o.trim()))
     );
-    (async () => {
+    return (async () => {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
       // replyTo TRAVELS WITH THE DRAFT.
       //
@@ -12584,7 +12589,7 @@
     }
     let enteredEditor = false;
 
-    function persistDraft() { saveComposeDraft(dkey, draft); }
+    function persistDraft() { return saveComposeDraft(dkey, draft); }
     function scheduleSave() {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(persistDraft, 400);
@@ -13544,7 +13549,10 @@
         expand.addEventListener('click', async () => {
           expand.disabled = true;
           try {
-            persistDraft();
+            // AWAITED. It is a read-modify-write of the whole draft store and so is the
+            // block below; running them concurrently means whichever finishes last wins,
+            // and for an empty reply this one's answer is "delete the slot".
+            await persistDraft();
             // WHERE IT WILL PUBLISH, decided here and left with the draft. Working out an
             // account's write set means its NIP-65 list, the configured relays, or the
             // declared set alone when the account asked for NIP-65 only, and that last
