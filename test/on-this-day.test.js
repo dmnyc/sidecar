@@ -44,6 +44,13 @@ const DATA_SRC = 'const ON_THIS_DAY = ' + JSON.stringify(ENTRIES) + ';';
 const pick = new Function(
   DATA_SRC + '\nconst HISTORY_MIN_AGE = 75;\n' + lift('function pickOnThisDay(') + '\nreturn pickOnThisDay;'
 )();
+// The same function over a list WE choose, so the empty-day behavior can be checked
+// whatever the shipped one happens to cover. It covered 125 days when these were
+// written and covers all 366 now, which took a real gap away from the test below.
+const pickOver = (entries) => new Function(
+  'const ON_THIS_DAY = ' + JSON.stringify(entries) + ';\nconst HISTORY_MIN_AGE = 75;\n'
+  + lift('function pickOnThisDay(') + '\nreturn pickOnThisDay;'
+)();
 
 test('every entry is a real date, a year and a line that fits the panel', () => {
   const days = Object.keys(ENTRIES);
@@ -84,7 +91,15 @@ test('THE AGE RULE IS COMPUTED, NOT WRITTEN DOWN', () => {
 test('a day with nothing written for it shows no card at all', () => {
   // Not "nothing happened today", which would be false about every date in the
   // calendar. Absence has to read as silence or the list can never ship partial.
-  assert.equal(pick(new Date('2026-06-02T12:00:00')), null);
+  // Against a list with a hole in it, rather than against whichever date the shipped
+  // list has not reached yet: it reaches all of them now, and a date that fills in is
+  // not a reason for this to start failing.
+  const sparse = pickOver({ '01-01': [{ year: 1800, text: 'Something happened.' }] });
+  assert.equal(sparse(new Date('2026-06-02T12:00:00')), null, 'a day with no entry still produced one');
+  assert.ok(sparse(new Date('2026-01-01T12:00:00')), 'and a day with one produced nothing');
+  // The shipped list happens to be complete, which is worth knowing when it stops being.
+  assert.equal(Object.keys(ENTRIES).length, 366,
+    'coverage changed; the card is silent on any date that lost its entry');
   const fn = lift('function renderOnThisDay(');
   assert.match(fn, /if \(!entry\) \{ host\.textContent = ''; hide\(host\); return; \}/,
     'the card is left on screen when there is no entry for today');
