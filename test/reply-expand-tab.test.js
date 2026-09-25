@@ -262,6 +262,29 @@ test('A HANDOFF THAT DID NOT ARRIVE SAYS SO, INSTEAD OF LOOKING NORMAL', () => {
   assert.match(css, /\.reply-target-lost \{ border-left-color: var\(--warn\); \}/);
 });
 
+test('CLOSING THE MODAL DOES NOT DELETE THE SLOT IT JUST HANDED OVER', () => {
+  // The bug that survived four passes, because it is AFTER the code that looked wrong.
+  // closeModal() is the last line of the Expand handler, and the modal's close callback
+  // saves the draft one more time. For a reply with nothing typed yet, that save deletes
+  // the slot, taking the target the handoff had just written. The tab then opened on a
+  // slot that was not there and drew a blank note.
+  assert.match(panel, /if \(!published && !handedToTab && enteredEditor\) persistDraft\(\);/,
+    'the close handler writes over the draft the tab now owns');
+  // Set BEFORE the close, or it is set too late to matter.
+  const handler = panel.slice(panel.indexOf("expand.addEventListener('click'"));
+  const head = handler.slice(0, 5000);
+  const flagAt = head.indexOf('handedToTab = true;');
+  const closeAt = head.indexOf('closeModal();');
+  assert.ok(flagAt > -1 && closeAt > -1 && flagAt < closeAt,
+    'the flag is set after the close it exists to suppress');
+
+  // NOT called `expanded`. buildReplyBlock has its own `expanded` for the Show more
+  // toggle, and two flags with one name in nested scopes is the next bug in this chain.
+  const composer = panel.slice(panel.indexOf('async function openComposer('));
+  assert.ok(!/let expanded = false;[\s\S]{0,400}handedToTab/.test(composer),
+    'the handoff flag is shadowed by, or shadows, the Show more toggle');
+});
+
 test('the quote is shown whole in the tab, which is the room the panel lacks', () => {
   // The panel caps at 240 because it has 360px. The tab is the space the panel does not
   // have, so capping there would reproduce the problem the tab exists to solve.

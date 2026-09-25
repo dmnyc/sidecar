@@ -12497,6 +12497,15 @@
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
     let published = false;
+    // HANDED TO THE TAB. Same meaning as `published` for the close handler below: this
+    // draft is no longer this composer's to write. Without it, closing the modal at the
+    // end of Expand ran persistDraft one last time, and for a reply with nothing typed
+    // yet that call DELETES the slot, taking with it the reply target the handoff had
+    // just put there. The tab then opened on a slot that was not there.
+    //
+    // NOT named `expanded`: buildReplyBlock has its own `expanded` for the Show more
+    // toggle, and a shadowed flag whose two meanings are both "expanded" is the next bug.
+    let handedToTab = false;
     // PER POST, seeded from Settings when the composer opens. Changing it here is a
     // decision about this note, not a new preference: at 22 bits a mine is tens of
     // seconds, which is worth opting into for one post without signing up for it on
@@ -13582,6 +13591,9 @@
               pruneReplyDrafts(all);
             }
             await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+            // From here the slot belongs to the tab. Set BEFORE closeModal below, which
+            // is what would otherwise write over it.
+            handedToTab = true;
             // And never a second tab: same reason the panel composer stands down for one.
             // A tab already on another draft is NAVIGATED rather than left showing it,
             // which is safe because that tab flushes its draft on visibilitychange and
@@ -13863,7 +13875,7 @@
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
-        if (!published && enteredEditor) persistDraft();
+        if (!published && !handedToTab && enteredEditor) persistDraft();
         // WHERE THIS CAME FROM. A reply started in the bell sheet had to give the
         // composer the whole panel, and dropping the user out onto the main view
         // afterwards loses their place in a list they were working through. Runs whether

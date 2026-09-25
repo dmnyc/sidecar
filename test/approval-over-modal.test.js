@@ -96,7 +96,9 @@ test('closing a modal cannot lose a draft', () => {
   // The two draft-bearing modals persist on close, which is what makes dismissing one
   // non-destructive. If either stopped doing that, this fix would start costing the
   // user typed text.
-  assert.match(panel, /if \(!published && enteredEditor\) persistDraft\(\);/,
+    // `!handedToTab` joined it: Expand gives the slot to the tab, and this save would
+  // otherwise run right after and delete it for an empty reply.
+  assert.match(panel, /if \(!published && !handedToTab && enteredEditor\) persistDraft\(\);/,
     "the composer's onClose must still persist its draft");
   assert.match(panel, /onChange: \(text\) => saveWebCommentDraft\(/,
     'page comments must still save on every keystroke');
