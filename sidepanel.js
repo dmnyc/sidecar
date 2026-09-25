@@ -4430,7 +4430,7 @@
   // The identifier is the URL itself, so normalization decides whether two people
   // commenting on the same page land in the same thread. Getting it wrong doesn't
   // error — it silently splits the conversation.
-  const WEB_COMMENT_KIND = 1111;
+  const { replyTags: SC_replyTags, WEB_COMMENT_KIND } = window.SidecarCore;
 
   // ---- Polls (NIP-88) ----
   //
@@ -4882,53 +4882,10 @@
   //              comment whose scope drifts lands in a different thread.
   //
   // Replying to anything else is not offered — see notifReplyTarget.
-  function replyTags(target) {
-    const tags = [];
-    const tgTags = (target && target.tags) || [];
-    const id = target && target.id;
-    const author = target && target.pubkey;
-
-    // Everyone already in the conversation, so they are notified. Deduped, and never
-    // the replier themselves — self-p-tagging shows up as a notification from you.
-    const people = [];
-    const seenP = new Set([state.activePubkey]);
-    const addP = (pk) => {
-      if (!pk || seenP.has(pk)) return;
-      seenP.add(pk);
-      people.push(['p', pk]);
-    };
-    addP(author);
-    tgTags.forEach((t) => { if (t[0] === 'p' && t[1]) addP(t[1]); });
-
-    if (target.kind === WEB_COMMENT_KIND) {
-      // Scope, verbatim. A 1111 always carries its root in uppercase tags.
-      tgTags.forEach((t) => { if (t[0] === 'I' || t[0] === 'K' || t[0] === 'E' || t[0] === 'A') tags.push(t.slice()); });
-      // AND THE ROOT AUTHOR, which NIP-22 says a comment MUST carry and this did not.
-      // It is the mirror of the bug this branch fixes: a client watching `#P` for replies
-      // in its own threads could not see ours. Copied from the parent when the parent is
-      // itself the root, since then the two are the same person.
-      const rootP = tgTags.find((t) => t[0] === 'P' && t[1]);
-      if (rootP) tags.push(rootP.slice());
-      else {
-        // No P on the parent. The spec also carries the root author as the FOURTH element
-        // of the E tag, so that is where to look before giving up rather than guessing at
-        // the parent's author, who is only the same person on a top-level comment. A
-        // web-rooted comment (an I tag) has no author at all and correctly gets none.
-        const rootE = tgTags.find((t) => t[0] === 'E' && t[3]);
-        if (rootE) tags.push(['P', rootE[3]]);
-      }
-      // Parent: the comment being answered.
-      tags.push(['e', id], ['k', String(target.kind)]);
-      return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
-    }
-
-    // NIP-10. Reuse the target's root when it has one; otherwise the target is the root.
-    const rootTag = tgTags.find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
-    const root = rootTag ? rootTag[1] : id;
-    tags.push(['e', root, '', 'root']);
-    if (root !== id) tags.push(['e', id, '', 'reply']);
-    return { kind: 1, tags: [...tags, ...people] };
-  }
+  // replyTags LIVES IN composer-core NOW, so the expanded tab can build the same
+  // threading. Wrapped here rather than changing thirty call sites, and because the
+  // active account is the panel's to know: the core must not reach for a global.
+  const replyTags = (target) => SC_replyTags(target, state.activePubkey);
 
   // Unpacked-build fixture authoring only. Production replies always use replyTags.
   async function devComposerReply(target, selectedKind) {

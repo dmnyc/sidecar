@@ -1339,6 +1339,66 @@ window.SidecarCore = (function () {
     return kept.join('\n').replace(/\s+$/, '');
   }
 
+  // ---- reply threading, shared by both composers ------------------------------------
+  //
+  // MOVED HERE so the panel and the expanded tab build byte-identical threading. It used
+  // to live in sidepanel.js, which is why Expand was disabled on replies: the tab had no
+  // way to produce these tags and popping a reply out would have published a top-level
+  // note, detached from the thread, with nothing on screen saying so.
+  //
+  // selfPubkey is a parameter rather than a read of some global, because the two callers
+  // keep the active account in different places and the one thing this must not get wrong
+  // is which key to leave OUT of the p tags.
+  const WEB_COMMENT_KIND = 1111;
+
+  function replyTags(target, selfPubkey) {
+    const tags = [];
+    const tgTags = (target && target.tags) || [];
+    const id = target && target.id;
+    const author = target && target.pubkey;
+
+    // Everyone already in the conversation, so they are notified. Deduped, and never
+    // the replier themselves — self-p-tagging shows up as a notification from you.
+    const people = [];
+    const seenP = new Set([selfPubkey]);
+    const addP = (pk) => {
+      if (!pk || seenP.has(pk)) return;
+      seenP.add(pk);
+      people.push(['p', pk]);
+    };
+    addP(author);
+    tgTags.forEach((t) => { if (t[0] === 'p' && t[1]) addP(t[1]); });
+
+    if (target.kind === WEB_COMMENT_KIND) {
+      // Scope, verbatim. A 1111 always carries its root in uppercase tags.
+      tgTags.forEach((t) => { if (t[0] === 'I' || t[0] === 'K' || t[0] === 'E' || t[0] === 'A') tags.push(t.slice()); });
+      // AND THE ROOT AUTHOR, which NIP-22 says a comment MUST carry and this did not.
+      // It is the mirror of the bug this branch fixes: a client watching `#P` for replies
+      // in its own threads could not see ours. Copied from the parent when the parent is
+      // itself the root, since then the two are the same person.
+      const rootP = tgTags.find((t) => t[0] === 'P' && t[1]);
+      if (rootP) tags.push(rootP.slice());
+      else {
+        // No P on the parent. The spec also carries the root author as the FOURTH element
+        // of the E tag, so that is where to look before giving up rather than guessing at
+        // the parent's author, who is only the same person on a top-level comment. A
+        // web-rooted comment (an I tag) has no author at all and correctly gets none.
+        const rootE = tgTags.find((t) => t[0] === 'E' && t[3]);
+        if (rootE) tags.push(['P', rootE[3]]);
+      }
+      // Parent: the comment being answered.
+      tags.push(['e', id], ['k', String(target.kind)]);
+      return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
+    }
+
+    // NIP-10. Reuse the target's root when it has one; otherwise the target is the root.
+    const rootTag = tgTags.find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
+    const root = rootTag ? rootTag[1] : id;
+    tags.push(['e', root, '', 'root']);
+    if (root !== id) tags.push(['e', id, '', 'reply']);
+    return { kind: 1, tags: [...tags, ...people] };
+  }
+
   // THE COVER A VIDEO WEARS INSTEAD OF A FRAME.
   //
   // A <video> in a 72px cell is a bad thumbnail three ways: it paints black until it has
@@ -2016,6 +2076,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
+    replyTags, WEB_COMMENT_KIND,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();
