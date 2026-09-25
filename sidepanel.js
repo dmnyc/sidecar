@@ -13582,21 +13582,27 @@
             const wantId = (replyTo && replyTo.id) || null;
             if (open) {
               try {
+                // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the
+                // "tabs" permission, which this extension does not ask for, and
+                // chrome.tabs.update fails silently without it, which is precisely how
+                // expanding a reply landed on a blank new note. The tab re-keys itself.
                 if (open.replyId !== wantId) {
-                  const page = wantId ? 'compose.html?reply=' + encodeURIComponent(wantId) : 'compose.html';
-                  await chrome.tabs.update(open.tabId, { url: chrome.runtime.getURL(page), active: true });
-                } else {
-                  await chrome.tabs.update(open.tabId, { active: true });
+                  chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId })
+                    .catch(() => {});
                 }
+                await chrome.tabs.update(open.tabId, { active: true });
                 await chrome.windows.update(open.windowId, { focused: true });
               } catch (_) {}
             } else {
               // The id names the draft slot, the same key draftKey() built. Without it
               // the tab opens the plain slot and the reply appears to have vanished.
-              const page = replyTo && replyTo.id
-                ? 'compose.html?reply=' + encodeURIComponent(replyTo.id)
-                : 'compose.html';
-              chrome.tabs.create({ url: chrome.runtime.getURL(page) });
+              //
+              // The query is appended to the RESOLVED url rather than handed to getURL
+              // as part of the path. getURL takes a path, and what it does with a "?" in
+              // one is not something to find out from a bug report.
+              const url = chrome.runtime.getURL('compose.html')
+                + (replyTo && replyTo.id ? '?reply=' + encodeURIComponent(replyTo.id) : '');
+              chrome.tabs.create({ url });
             }
             closeModal();
           } catch (e) {

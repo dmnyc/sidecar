@@ -427,9 +427,12 @@
     return replyId ? pubkey + '|r:' + replyId : pubkey;
   }
 
-  // Which note this tab was opened to answer, from its own URL. The panel puts it there
-  // when Expand is pressed on a reply.
-  const replyId = (() => {
+  // Which note this tab is answering. Seeded from the URL it was opened with and
+  // REASSIGNABLE, because an already-open tab cannot be navigated to a new one: doing
+  // that needs the "tabs" permission, which this extension deliberately does not ask
+  // for, and chrome.tabs.update fails silently without it. So the panel sends a message
+  // and the tab re-keys itself instead. `let`, not `const`, for exactly that.
+  let replyId = (() => {
     try {
       const v = new URLSearchParams(location.search).get('reply') || '';
       // A draft key is built from this, so it has to be a note id and nothing else.
@@ -471,6 +474,26 @@
       }
       if (p && p.picture) applyAvatar(av, p);
     }).catch(() => {});
+  }
+
+  // RELOAD FROM WHATEVER SLOT dkey NOW NAMES. The account switch does this inline for
+  // its own reasons; this is the same work for the other thing that moves a slot, which
+  // is the panel pointing this tab at a different draft.
+  async function reopenDraft() {
+    dkey = slotFor(state.activePubkey);
+    handoverRelays = null;
+    const saved = await loadDraft();
+    draft.text = SC.stripDraftMediaUrls(saved && saved.text, saved && saved.media);
+    draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
+    replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
+    paintReplyTarget();
+    closeAltEditor();
+    powForThisPost = await seedPow(saved);
+    repaintPow();
+    editorSetText(draft.text);
+    renderThumbs();
+    paintCount();
   }
 
   function paintWho() {
@@ -1258,6 +1281,18 @@
     // leave this page still saying Unlock to post until something else happened to it,
     // so the worker says so instead. It already broadcast the lock for the same reason.
     chrome.runtime.onMessage.addListener((msg) => {
+      // SWITCH TO ANOTHER DRAFT, sent by the panel when Expand is pressed while this tab
+      // is already open on something else. Focusing it without this showed whatever was
+      // already here, which is how a reply arrived looking like a blank new note.
+      if (msg && msg.type === 'SIDECAR_COMPOSE_OPEN') {
+        const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
+          ? msg.replyId.toLowerCase() : null;
+        if (want === replyId) return;   // already here
+        // Whatever is on screen belongs to the slot it was typed in, so it goes back
+        // there before the key moves. Same rule as the account switch.
+        flushDraft().then(() => { replyId = want; return reopenDraft(); }).catch(() => {});
+        return;
+      }
       if (!msg || msg.type !== 'SIDECAR_EVENT') return;
       if (msg.event !== 'locked' && msg.event !== 'unlocked') return;
       if (state) state.locked = msg.event === 'locked';

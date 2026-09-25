@@ -109,7 +109,7 @@ test('WHAT THE TAB PUBLISHES PUTS THREADING BEFORE EVERYTHING ELSE', () => {
 
 test('A STALE OR FORGED reply IN THE URL CANNOT BECOME A DRAFT KEY', () => {
   // The id is used to build a storage key, so it is validated as a note id first.
-  const guard = page.match(/const replyId = \(\(\) => \{[\s\S]*?\}\)\(\);/)[0];
+  const guard = page.match(/let replyId = \(\(\) => \{[\s\S]*?\}\)\(\);/)[0];
   assert.match(guard, /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(v\)/);
   assert.match(guard, /\.toLowerCase\(\)/, 'case would split one note into two slots');
 
@@ -174,6 +174,32 @@ test('and the tab does not delete that slot on its first save', () => {
     'an untouched reply loses its slot, and its target with it');
   // The plain-note case is untouched: no content and no target still deletes.
   assert.match(body, /else delete all\[dkey\];/);
+});
+
+test('AN OPEN TAB IS TOLD TO SWITCH, BECAUSE IT CANNOT BE NAVIGATED', () => {
+  // The manifest asks for storage, sidePanel, alarms, contextMenus and notifications,
+  // and deliberately not "tabs". chrome.tabs.update(id, {url}) needs that permission and
+  // fails silently without it, so an open tab stayed on whatever it already held: expand
+  // a reply while a blank note is open and you get the blank note, with no error.
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+  assert.ok(!manifest.permissions.includes('tabs'),
+    'if tabs was added, revisit this: navigation would become possible and simpler');
+
+  // So the panel sends, and the tab re-keys itself.
+  assert.match(panel, /SIDECAR_COMPOSE_OPEN/);
+  assert.match(page, /msg\.type === 'SIDECAR_COMPOSE_OPEN'/);
+  // Validated on arrival as well as in the URL: a message is another way in.
+  const handler = page.slice(page.indexOf("msg.type === 'SIDECAR_COMPOSE_OPEN'"));
+  assert.match(handler.slice(0, 700), /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(msg\.replyId\)/);
+  // The open draft is written back before the key moves, or the text on screen lands in
+  // the slot it was not typed in.
+  assert.match(handler.slice(0, 700), /flushDraft\(\)\.then\(\(\) => \{ replyId = want; return reopenDraft\(\); \}\)/);
+  // And a message naming the draft already open does nothing.
+  assert.match(handler.slice(0, 700), /if \(want === replyId\) return;/);
+
+  // replyId has to be reassignable for any of that to work.
+  assert.match(page, /let replyId = \(\(\) => \{/);
+  assert.ok(!/const replyId = /.test(page), 'replyId is const again, so the tab cannot re-key');
 });
 
 test('the target survives an account switch, or follows it', () => {
