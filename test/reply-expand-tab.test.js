@@ -285,6 +285,21 @@ test('CLOSING THE MODAL DOES NOT DELETE THE SLOT IT JUST HANDED OVER', () => {
     'the handoff flag is shadowed by, or shadows, the Show more toggle');
 });
 
+test('THE QUOTE IS SIZED FOR THE PAGE IT IS ON', () => {
+  // .reply-target-body is 12px because the panel is 360px wide. On this page that is a
+  // footnote under a 17px preview, and the note being answered is what the reply is
+  // about. Scoped to .compose-page, so the panel's own block keeps the size that fits it.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.compose-page \.reply-target-body \{ font-size: 15px;/);
+  assert.match(css, /\.compose-page \.reply-target-name \{ font-size: 14px; \}/);
+  // A step UNDER the preview, not level with it: still context, not the subject.
+  const prev = Number((css.match(/\.compose-preview-lg \.preview-body \{ font-size: (\d+)px/) || [])[1]);
+  const quote = Number((css.match(/\.compose-page \.reply-target-body \{ font-size: (\d+)px/) || [])[1]);
+  assert.ok(prev > quote, 'the quote is as loud as the note being written, or louder');
+  // And the panel's own is untouched.
+  assert.match(css, /\.reply-target-body \{[\s\S]*?font-size: 12px;/);
+});
+
 test('the quote is shown whole in the tab, which is the room the panel lacks', () => {
   // The panel caps at 240 because it has 360px. The tab is the space the panel does not
   // have, so capping there would reproduce the problem the tab exists to solve.

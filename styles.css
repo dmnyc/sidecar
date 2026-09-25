@@ -3193,6 +3193,20 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-preview-lg .preview-body { font-size: 17px; line-height: 1.6; }
+/* THE QUOTE SCALES WITH THE PAGE. .reply-target-body is 12px because the panel is
+   360px wide; on this page that is the size of a footnote under a 17px preview, and the
+   thing being answered is what the reply is about. A step under the preview rather than
+   level with it: it is still context, not the subject.
+
+   Scoped to .compose-page so the panel's own reply block is untouched, where 12px is
+   correct and where the whole block is deliberately small enough to keep the editor on
+   screen. */
+.compose-page .reply-target-body { font-size: 15px; line-height: 1.55; }
+.compose-page .reply-target-name { font-size: 14px; }
+.compose-page .reply-target-av { width: 24px; height: 24px; }
+/* Inline code tracks its own line, so it needs nothing here; a fence does not, and at
+   11.5px it would read as smaller than the prose around it rather than as code. */
+.compose-page pre.note-code code { font-size: 13px; }
 /* And the things a note carries scale with it. 220px of embedded media is sized for a
    360px column and looks like a stamp on a 720px one. */
 .compose-preview-lg .embed-body .note-media { max-height: 360px; }
