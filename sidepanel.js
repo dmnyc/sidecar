@@ -4440,10 +4440,14 @@
   // kind:1018 carrying an `e` tag to the poll and one ["response", <optionId>] tag per
   // choice. Sidecar creates polls and counts them; it does not vote, because voting
   // needs a feed to find polls in and Sidecar is the signer, not the reader.
-  const POLL_KIND = 1068;
+  // Polls moved to composer-core so the expanded tab can compose one too; the panel
+  // takes them back off the same object it takes the rest of the write side from.
+  const {
+    POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
+    pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable,
+    buildPollTags,
+  } = window.SidecarCore;
   const POLL_RESPONSE_KIND = 1018;
-  const POLL_SINGLE = 'singlechoice';
-  const POLL_MULTIPLE = 'multiplechoice';
 
   // TWENTY-FOUR HOURS unless the author says otherwise.
   //
@@ -4452,22 +4456,10 @@
   // the answer. A default that closes is the more useful one, and it can still be changed
   // or removed per poll.
   //
-  // A day rather than the week this started at, because a week is not what anyone means by
-  // "I'm asking". Twitter defaults to a day and caps at seven; Amethyst's own poll composer
-  // opens on oneDayAhead. Longer is still offered here, up to thirty days, since a poll
-  // about something slow is a real thing to want. The default is the common case.
-  const POLL_DEFAULT_SECS = 86400;
 
   // Alphanumeric, which is all NIP-88 asks of an option id. Nine characters matches what
   // Jumble writes, so ids from either client look the same on a relay.
-  function pollOptionId() {
-    const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    const bytes = new Uint8Array(9);
-    crypto.getRandomValues(bytes);
-    let out = '';
-    for (const b of bytes) out += abc[b % abc.length];
-    return out;
-  }
+
 
   // The choices, in the order the author wrote them. A tag missing either field is
   // dropped rather than rendered blank, and a duplicate id is dropped rather than
@@ -4701,51 +4693,26 @@
   // What the composer offers. Durations rather than dates, because "7 days" is the
   // thing an author actually means and a date picker in a 344px sheet is a fight.
   // A specific moment is still reachable through the custom option below.
-  const POLL_DURATIONS = [
-    { secs: 3600, label: '1 hour' },
-    { secs: 6 * 3600, label: '6 hours' },
-    { secs: POLL_DEFAULT_SECS, label: '1 day' },
-    { secs: 3 * 86400, label: '3 days' },
-    { secs: 7 * 86400, label: '7 days' },
-    { secs: 14 * 86400, label: '14 days' },
-    { secs: 30 * 86400, label: '30 days' },
-  ];
 
-  function newPollDraft() {
-    return {
-      options: ['', ''],
-      multiple: false,
-      ends: { kind: 'in', secs: POLL_DEFAULT_SECS },
-    };
-  }
+
 
   // A DURATION IS RESOLVED AT PUBLISH, NOT AT DRAFT. Storing the absolute timestamp when
   // the editor opened meant a poll drafted on Monday and posted on Thursday went out with
   // three of its days already gone, and one left in a draft past its own duration
   // published already closed. `kind: 'at'` is the one case the author really did name a
   // moment, so that one is passed through untouched.
-  function pollEndsAtFor(pollDraft, nowSecs) {
-    const ends = pollDraft && pollDraft.ends;
-    if (!ends || ends.kind === 'none') return null;
-    if (ends.kind === 'at') return ends.at > 0 ? ends.at : null;
-    return nowSecs + ends.secs;
-  }
+
 
   // Two options with something in them is the floor: one option is not a question, and
   // a blank is not a choice anyone can pick. Blanks are dropped rather than rejected so
   // an author can leave the trailing empty row alone instead of tidying it.
-  function pollDraftOptions(pollDraft) {
-    return ((pollDraft && pollDraft.options) || []).map((o) => o.trim()).filter(Boolean);
-  }
 
-  function pollDraftIsPostable(pollDraft) {
-    return pollDraftOptions(pollDraft).length >= 2;
-  }
+
+
 
   // Four, matching what Jumble writes. These tags tell a voter where to publish, and a
   // long list is not more reachable: it is the same votes scattered wider, which makes
   // the count slower to gather and more likely to be partial.
-  const POLL_RELAY_LIMIT = 4;
 
   // The tags that turn a note into a poll. Pure, so the shape of a published poll is
   // testable without a relay or a signer.
@@ -4754,24 +4721,7 @@
   // business, and because an id has to be unique WITHIN the poll: pollOptions drops a
   // duplicate rather than merging it, so a collision would silently lose an option
   // between what the author typed and what anyone can vote for.
-  function buildPollTags(pollDraft, nowSecs, relays) {
-    const tags = [];
-    const used = new Set();
-    pollDraftOptions(pollDraft).forEach((label) => {
-      let id = pollOptionId();
-      while (used.has(id)) id = pollOptionId();
-      used.add(id);
-      tags.push(['option', id, label]);
-    });
-    // Written even for the default. NIP-88 says an absent polltype is singlechoice, so
-    // this is redundant on paper, and it is the difference between a reader having to
-    // know the default and being told.
-    tags.push(['polltype', pollDraft.multiple ? POLL_MULTIPLE : POLL_SINGLE]);
-    const endsAt = pollEndsAtFor(pollDraft, nowSecs);
-    if (endsAt) tags.push(['endsAt', String(endsAt)]);
-    (relays || []).slice(0, POLL_RELAY_LIMIT).forEach((u) => tags.push(['relay', u]));
-    return tags;
-  }
+
 
 
   // Reduce a page URL to the identifier the comment is tagged with.
