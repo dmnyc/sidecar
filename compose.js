@@ -488,6 +488,7 @@
     // context strip" among the callers. SC.renderNoteText is undefined, and calling it
     // throws mid-paint with the page half built.
     composer.renderNoteText(body, replyTo.content || '', Infinity);
+    SC.makeMediaExpandable(box, body);
     box.append(body);
     box.classList.add('is-open');
 

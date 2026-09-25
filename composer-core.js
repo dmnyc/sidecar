@@ -1593,6 +1593,47 @@ window.SidecarCore = (function () {
     return wrap;
   }
 
+  // MEDIA IN A QUOTED NOTE OPENS AND SHUTS.
+  //
+  // The block a reply is written under is capped, so a photo in the note being answered
+  // arrived as a 108px-tall slice of itself. Sometimes the image IS the note, which is
+  // why it was clipped rather than stripped in the first place, and a slice of it
+  // answers nothing.
+  //
+  // A BUTTON, NOT A CLICK ON THE MEDIA. A <video> carries its own controls and a click
+  // on it means play; overloading that would make the same gesture mean two things
+  // depending on where in the frame it landed. The button is the same corner control the
+  // code block already uses, so the quote has one idiom rather than two.
+  function makeMediaExpandable(block, body) {
+    body.querySelectorAll('.note-media').forEach((el) => {
+      if (el.parentNode && el.parentNode.classList.contains('note-media-wrap')) return;
+      const wrap = h('div', { className: 'note-media-wrap' });
+      el.replaceWith(wrap);
+      wrap.append(el);
+
+      const btn = h('button', { className: 'note-media-zoom', type: 'button', title: 'Show the full image' });
+      btn.append(icon('arrow-up-right'));
+      let full = false;
+      btn.addEventListener('click', (e) => {
+        // The quote can sit inside something clickable, and on the panel it sits inside
+        // a sheet that closes on an outside click.
+        e.preventDefault();
+        e.stopPropagation();
+        full = !full;
+        wrap.classList.toggle('is-full', full);
+        btn.title = full ? 'Shrink it again' : 'Show the full image';
+        btn.innerHTML = '';
+        btn.append(icon(full ? 'arrow-down-left' : 'arrow-up-right'));
+        // OPENING THE MEDIA OPENS THE BLOCK. Without this the block's own clip is still
+        // 108px and the full image is a taller thing behind the same small window, which
+        // reads as the button doing nothing.
+        if (full && block) block.classList.add('is-open');
+        if (full) wrap.scrollIntoView({ block: 'nearest' });
+      });
+      wrap.append(btn);
+    });
+  }
+
   // Text with code in it, and nothing else rendered. The notification list wants the
   // code boxes without the images, videos and quote cards renderNoteText also draws: a
   // row there is a snippet beside two dozen others, not a note.
@@ -2191,7 +2232,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, WEB_COMMENT_KIND, renderTextWithCode,
+    replyTags, WEB_COMMENT_KIND, renderTextWithCode, makeMediaExpandable,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();

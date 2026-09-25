@@ -4430,7 +4430,7 @@
   // The identifier is the URL itself, so normalization decides whether two people
   // commenting on the same page land in the same thread. Getting it wrong doesn't
   // error — it silently splits the conversation.
-  const { replyTags: SC_replyTags, WEB_COMMENT_KIND, renderTextWithCode } = window.SidecarCore;
+  const { replyTags: SC_replyTags, WEB_COMMENT_KIND, renderTextWithCode, makeMediaExpandable } = window.SidecarCore;
 
   // ---- Polls (NIP-88) ----
   //
@@ -12657,6 +12657,7 @@
       // Clipped rather than stripped: sometimes the image IS the note being answered.
       const full = replyTo.content || '';
       renderNoteText(body, full, 240);
+      makeMediaExpandable(block, body);
       block.append(who, body);
 
       // READING THE REST OF WHAT YOU ARE ANSWERING.
@@ -12678,6 +12679,8 @@
         // Infinity, not 0: the cap is compared with `used + s.length > maxLen`, so 0
         // exceeds on the first character and would render the whole note as one ellipsis.
         renderNoteText(body, full, expanded ? Infinity : 240);
+        // Re-wrapped, because the redraw threw away the wrappers with the old DOM.
+        makeMediaExpandable(block, body);
         block.classList.toggle('is-open', expanded);
         // The fade means "there is more below". Once it scrolls, the scrollbar says so
         // and a gradient over a scrollable region only hides the last line.

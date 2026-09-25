@@ -1854,6 +1854,30 @@ pre.note-code code {
 }
 .reply-target-body img,
 .reply-target-body video { max-width: 100%; border-radius: 6px; }
+/* ---- media in a quoted note ----
+   CAPPED AT REST, so the quote stays a strip and the editor stays on screen: an
+   uncapped photo in a 360px column is most of the panel before a word is typed. Cover,
+   not contain, because a letterboxed sliver in a short box shows less of the picture
+   than a crop of its middle does.
+
+   Opened, the cap lifts and it becomes contain, which is the whole point: the full
+   frame, nothing cropped away. The block's own scroll carries whatever is taller than
+   the window. */
+.note-media-wrap { position: relative; display: block; margin: 6px 0; }
+.note-media-wrap .note-media { max-height: 120px; width: 100%; object-fit: cover; display: block; }
+.note-media-wrap.is-full .note-media { max-height: none; object-fit: contain; }
+.note-media-zoom {
+  position: absolute; top: 6px; right: 6px;
+  width: 24px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: rgba(5, 0, 12, 0.72); color: #fff; cursor: pointer;
+}
+.note-media-zoom svg { width: 13px; height: 13px; }
+.note-media-zoom:hover { border-color: var(--gold-soft); }
+/* The page has room, so the resting cap is bigger there. Same reasoning as the type
+   scale beside it: this is the space the panel does not have. */
+.compose-page .note-media-wrap .note-media { max-height: 260px; }
 .notif-content {
   font-size: 12.5px;
   color: var(--text-2);
