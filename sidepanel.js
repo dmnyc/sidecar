@@ -4445,7 +4445,7 @@
   const {
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable,
-    buildPollTags,
+    buildPollTags, buildPollEditor,
   } = window.SidecarCore;
   const POLL_RESPONSE_KIND = 1018;
 
@@ -13341,200 +13341,21 @@
       });
       paintPowBtn();
 
-      const pollWrap = h('div', { className: 'poll-editor hidden' });
-      const pollAdd = h('button', { className: 'mini compose-add' });
-      pollAdd.append(icon('bar-chart'), h('span', { textContent: t('Poll') }));
-      pollAdd.addEventListener('click', () => {
-        draft.poll = newPollDraft();
-        paintPoll();
-        // Turning a note into a poll RAISES the bar for posting: a note needs text or an
-        // image, a poll needs its question and two filled options. Post was already enabled
-        // under the note rule, and without this it stayed that way, so typing a question,
-        // tapping here and tapping Post published a kind:1068 carrying no options at all.
-        // Nothing downstream re-checks; the click handler only asks whether Post is
-        // disabled. Remove poll has always done this, which is the tell.
-        updatePostState();
-        scheduleSave();
-        const first = pollWrap.querySelector('.poll-option-input');
-        if (first) first.focus();
+      const pollEditor = buildPollEditor({
+        poll: () => draft.poll,
+        setPoll: (p) => { draft.poll = p; },
+        // One callback for both, because they always went together here except at two
+        // sites that only saved, and those two stopped updating Post when they did not.
+        changed: () => { updatePostState(); scheduleSave(); },
+        isReply: () => !!replyTo,
+        hasMedia: () => !!(draft.media && draft.media.length),
+        mediaBtn: () => addBtn,
+        devSelect: () => modal.querySelector('#compose-dev-kind'),
       });
-
-      // Rebuilt wholesale on add/remove. The rows carry an index in their own handlers,
-      // and patching a list in place while indices shift underneath is how a remove
-      // button ends up deleting the row below the one it sits on.
-      function paintPollOptions(list) {
-        list.innerHTML = '';
-        const opts = draft.poll.options;
-        opts.forEach((value, i) => {
-          const row = h('div', { className: 'poll-option' });
-          row.append(h('span', { className: 'poll-option-num', textContent: String(i + 1) + '.' }));
-          const input = h('input', {
-            className: 'poll-option-input',
-            type: 'text',
-            value,
-            maxLength: 200,
-            placeholder: t('Option {{number}}', { number: i + 1 }),
-          });
-          input.addEventListener('input', () => {
-            draft.poll.options[i] = input.value;
-            updatePostState();
-            scheduleSave();
-          });
-          row.append(input);
-          // TWO IS THE FLOOR, so below that there is nothing to remove and the button
-          // would only ever be disabled. An icon-only control in the inline slot, per
-          // the panel's row rules: a worded button here would leave the input no width.
-          if (opts.length > 2) {
-            const rm = h('button', { className: 'poll-option-x', title: t('Remove option {{number}}', { number: i + 1 }) });
-            rm.append(icon('x'));
-            rm.addEventListener('click', () => {
-              draft.poll.options.splice(i, 1);
-              paintPollOptions(list);
-              updatePostState();
-              scheduleSave();
-            });
-            row.append(rm);
-          }
-          list.append(row);
-        });
-      }
-
-      // A POLL AND ATTACHMENTS ARE ONE OR THE OTHER. A kind:1068 carrying appended
-      // image URLs and imeta tags is a shape no NIP-88 client renders, and the tag
-      // push in doPublish long claimed it could not arrive. Each side's button
-      // stands down while the other holds the draft, so the pair is decided by what
-      // refuses to appear rather than by what publishes.
-      function paintEitherOr() {
-        pollAdd.classList.toggle('hidden', !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
-        addBtn.classList.toggle('hidden', !!draft.poll);
-      }
-      function paintPoll() {
-        pollWrap.innerHTML = '';
-        pollWrap.classList.toggle('hidden', !draft.poll);
-        paintEitherOr();
-        const devSelect = modal.querySelector('#compose-dev-kind');
-        if (devSelect) devSelect.disabled = !!draft.poll;
-        if (!draft.poll) return;
-
-        const list = h('div', { className: 'poll-options' });
-        paintPollOptions(list);
-
-        const addOpt = h('button', { className: 'poll-add-option' });
-        addOpt.append(icon('plus'), h('span', { textContent: t('Add option') }));
-        addOpt.addEventListener('click', () => {
-          draft.poll.options.push('');
-          paintPollOptions(list);
-          scheduleSave();
-          const inputs = list.querySelectorAll('.poll-option-input');
-          if (inputs.length) inputs[inputs.length - 1].focus();
-        });
-
-        const multi = h('input', { type: 'checkbox', checked: draft.poll.multiple });
-        multi.addEventListener('change', () => {
-          draft.poll.multiple = multi.checked;
-          scheduleSave();
-        });
-        const multiRow = h('label', { className: 'toggle-row' }, [
-          multi,
-          h('span', { textContent: t('Allow multiple choices') }),
-        ]);
-
-        // Durations, plus the two ends of the range: a specific moment, and none at all.
-        const sel = h('select', { className: 'poll-ends-select' });
-        POLL_DURATIONS.forEach((d) => {
-          sel.append(h('option', { value: 'in:' + d.secs, textContent: d.label }));
-        });
-        sel.append(h('option', { value: 'at', textContent: t('Custom date and time…') }));
-        sel.append(h('option', { value: 'none', textContent: t('No end date') }));
-        sel.value =
-          draft.poll.ends.kind === 'in' ? 'in:' + draft.poll.ends.secs : draft.poll.ends.kind;
-
-        const custom = h('input', { className: 'poll-ends-custom', type: 'datetime-local' });
-        if (draft.poll.ends.kind === 'at' && draft.poll.ends.at) {
-          // datetime-local wants local wall time with no zone, which is what an author
-          // picked in the first place; toISOString would shift it by the offset.
-          const d = new Date(draft.poll.ends.at * 1000);
-          const pad = (n) => String(n).padStart(2, '0');
-          custom.value =
-            d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-            'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-        }
-        custom.addEventListener('change', () => {
-          const at = custom.value ? Math.floor(new Date(custom.value).getTime() / 1000) : 0;
-          draft.poll.ends = { kind: 'at', at };
-          paintEndsNote();
-          updatePostState();
-          scheduleSave();
-        });
-
-        const endsNote = h('p', { className: 'hint poll-ends-note' });
-        function paintEndsNote() {
-          const k = draft.poll.ends.kind;
-          custom.classList.toggle('hidden', k !== 'at');
-          endsNote.classList.toggle('warn', k === 'none');
-          if (k === 'none') {
-            // Said plainly rather than blocked. It is the author's poll, and there are
-            // real uses for one that never closes, but a running total is not a result:
-            // there is no moment the number means anything, and nothing stops a late
-            // arrival moving it a year from now.
-            endsNote.textContent = t('Not recommended: the count never settles, so the poll has no final result.');
-          } else if (k === 'at' && !(draft.poll.ends.at > 0)) {
-            endsNote.textContent = t('Pick the date and time the poll should close.');
-          } else {
-            const at = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
-            endsNote.textContent = at && at <= Math.floor(Date.now() / 1000)
-              ? t('That time has already passed, so the poll would close on posting.')
-              : t('Votes stop counting when the poll closes.');
-          }
-        }
-        sel.addEventListener('change', () => {
-          const v = sel.value;
-          if (v === 'none') draft.poll.ends = { kind: 'none' };
-          else if (v === 'at') draft.poll.ends = { kind: 'at', at: draft.poll.ends.at || 0 };
-          else draft.poll.ends = { kind: 'in', secs: parseInt(v.slice(3), 10) };
-          paintEndsNote();
-          updatePostState();
-          scheduleSave();
-        });
-        paintEndsNote();
-
-        // WHAT POSTING A POLL ACTUALLY COSTS, said where it can still change the decision.
-        // A 1068 is not a kind:1, so a client that has not implemented NIP-88 does not render
-        // it at all: it never appears in a feed filtered to notes, and the author gets no
-        // signal. Silence from the other side is indistinguishable from nobody caring.
-        //
-        // A box rather than a second amber line, because the ends note directly above is
-        // already amber text on the no-end-date case and two of those read as one sentence.
-        // No glyph: .kind-warn is bordered and filled, so the warning is not carried by
-        // color alone (the point made above .destructive-warn).
-        const clientWarn = h('div', {
-          className: 'kind-warn',
-          textContent: t('Some clients cannot show polls. On those, this will not appear at all.'),
-        });
-
-        const remove = h('button', { className: 'poll-remove' });
-        remove.append(icon('trash'), h('span', { textContent: t('Remove poll') }));
-        remove.addEventListener('click', () => {
-          draft.poll = null;
-          paintPoll();
-          updatePostState();
-          scheduleSave();
-        });
-
-        pollWrap.append(
-          list,
-          addOpt,
-          h('div', { className: 'poll-editor-sep' }),
-          multiRow,
-          h('label', { className: 'poll-ends-label', textContent: t('Runs for') }),
-          sel,
-          custom,
-          endsNote,
-          h('div', { className: 'poll-editor-sep' }),
-          clientWarn,
-          remove
-        );
-      }
+      const pollWrap = pollEditor.wrap;
+      const pollAdd = pollEditor.addBtn;
+      const paintPoll = pollEditor.paint;
+      const paintEitherOr = pollEditor.paintEitherOr;
 
       const err = h('div', { className: 'error' });
       const post = h('button', { className: 'primary', textContent: t('Post') });
