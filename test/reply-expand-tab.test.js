@@ -239,11 +239,34 @@ test('THE TAB RENDERS THE QUOTE WITH A FUNCTION THAT EXISTS', () => {
   assert.ok(!/SC\.renderNoteText\(/.test(page), 'calling an undefined core export again');
 });
 
+test('A HANDOFF THAT DID NOT ARRIVE SAYS SO, INSTEAD OF LOOKING NORMAL', () => {
+  // Four passes were spent on this feature partly because every failure looked
+  // identical to success: the tab rendered an ordinary blank note, which is also what a
+  // tab somebody opened themselves looks like. There was no way to tell a broken
+  // handoff from nothing being wrong.
+  //
+  // A ?reply= with no draft behind it can only mean the handoff failed, and the
+  // consequence is a note about to publish detached from the thread it was meant to
+  // answer, so it interrupts.
+  const fn = page.slice(page.indexOf('function paintReplyTarget()'));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+  assert.match(body, /if \(!replyTo && replyId\) \{/,
+    'a tab sent to answer a note it cannot find goes back to looking like a new note');
+  assert.match(body, /could not be loaded/);
+  assert.match(body, /will post as a new note, not a reply/,
+    'it does not say what the consequence is, which is the part that matters');
+  // Named slot, so the next report carries the fact instead of a description.
+  assert.match(body, /'slot ' \+ dkey/);
+  // Warn-colored: this is not context, it is a problem with what is about to publish.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.reply-target-lost \{ border-left-color: var\(--warn\); \}/);
+});
+
 test('the quote is shown whole in the tab, which is the room the panel lacks', () => {
   // The panel caps at 240 because it has 360px. The tab is the space the panel does not
   // have, so capping there would reproduce the problem the tab exists to solve.
   const fn = page.slice(page.indexOf('function paintReplyTarget()'));
-  assert.match(fn.slice(0, 1400), /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
+  assert.match(fn.slice(0, 2600), /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
   // Above the tabs, not inside a pane, or switching to Preview would hide the subject.
   const html = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
   const target = html.indexOf('id="compose-reply-target"');

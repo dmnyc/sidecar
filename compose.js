@@ -447,8 +447,32 @@
     const box = document.getElementById('compose-reply-target');
     if (!box) return;
     box.innerHTML = '';
+
+    // IT SAYS SO WHEN IT CANNOT FIND WHAT IT WAS SENT TO ANSWER.
+    //
+    // This tab is only ever given a ?reply= by the panel pressing Expand on a reply, so
+    // an id with no draft behind it means the handoff did not arrive. Silence there is
+    // what made this so hard to place: the tab looked like an ordinary new note, which
+    // is also exactly what it looks like when nothing is wrong, so there was no way to
+    // tell a broken handoff from a tab somebody opened themselves.
+    //
+    // Not dev-only. A user who presses Expand and gets a blank note needs to know their
+    // reply is not attached to anything, before they write it and post it as a note.
+    if (!replyTo && replyId) {
+      box.classList.remove('hidden');
+      box.classList.add('reply-target-lost');
+      box.append(
+        h('div', { className: 'reply-target-name', textContent: 'The note you were answering could not be loaded' }),
+        h('div', { className: 'reply-target-body', textContent:
+          'This will post as a new note, not a reply. Close this tab and reply from the panel instead.' }),
+        h('div', { className: 'reply-target-body reply-target-dbg', textContent: 'slot ' + dkey }),
+      );
+      return;
+    }
+
     if (!replyTo) { box.classList.add('hidden'); return; }
     box.classList.remove('hidden');
+    box.classList.remove('reply-target-lost');
 
     const av = h('span', { className: 'avatar reply-target-av' });
     applyAvatar(av, null);
