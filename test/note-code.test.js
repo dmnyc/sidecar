@@ -131,3 +131,53 @@ test('a fence counts against the cap, and is refused whole', () => {
   const branch = preview.slice(preview.indexOf('} else if (m[3]) {'), preview.indexOf('} else if (m[4]) {'));
   assert.ok(!/maxLen/.test(branch), 'the preview truncates a fence');
 });
+
+test('A CODE BLOCK IS COPYABLE, AND THE BUTTON DOES NOT SCROLL AWAY', () => {
+  // The reason somebody pastes code into a note is for you to run it, and a box that
+  // scrolls sideways is the worst thing there is to select by hand in a 360px panel.
+  const fn = core.slice(core.indexOf('function codeBlockEl(raw)'));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+  assert.match(body, /navigator\.clipboard\.writeText\(body\)/);
+  // The FENCE BODY, not the raw match: copying ``` with the code is copying punctuation
+  // that was never part of it.
+  assert.ok(!/writeText\(raw\)/.test(body), 'the backticks are copied along with the code');
+
+  // Outside the scroller, in a wrapper, or it slides off with the content on a long line.
+  assert.match(body, /className: 'note-code-wrap'/);
+  assert.match(body, /wrap\.append\(pre, copy\)/);
+  assert.match(css, /\.note-code-wrap \{ position: relative; \}/);
+  assert.match(css, /\.note-code-copy \{[\s\S]*?position: absolute;/);
+  // Room made for it, or the first line of code starts underneath the button.
+  assert.match(css, /pre\.note-code \{ padding-right: \d+px; \}/);
+
+  // The block can sit inside a row that is itself a link to the note.
+  assert.match(body, /e\.preventDefault\(\);\s*\n\s*e\.stopPropagation\(\);/);
+  // The tick reverts: a permanent one on a page with several blocks says the wrong
+  // thing about which was copied.
+  assert.match(body, /copy\.classList\.remove\('ok'\)/);
+});
+
+test('THE NOTIFICATION PANEL DRAWS THE SAME BOXES, BUT ONLY WHEN OPEN', () => {
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  // Expanded renders, collapsed does not: a collapsed row is a 140-character snippet
+  // under a three-line clamp among two dozen others, and a monospace box in one would be
+  // taller than the row it is summarizing.
+  assert.match(panel, /if \(open\) renderTextWithCode\(contentEl, text\);/);
+  assert.match(panel, /else contentEl\.textContent = text\.length > 140/);
+
+  // The mention-name pass rewrites the same element seconds later and has to redraw the
+  // same way, or an expanded row loses its code boxes when a profile resolves.
+  assert.match(panel, /if \(open\) renderTextWithCode\(contentEl, cleaned\);/);
+
+  // Code ONLY. renderNoteText would add images, videos and quote cards, and the row
+  // already carries its own media chips.
+  const shared = core.slice(core.indexOf('function renderTextWithCode('));
+  const fnBody = shared.slice(0, shared.indexOf('\n  }\n'));
+  assert.ok(!/note-media|link-card|quote-inline/.test(fnBody),
+    'the snippet renderer draws embeds, which makes a row a second copy of the note');
+
+  // And it trims the newlines around a block, since these containers are pre-wrap and
+  // each one would otherwise be an empty line stacked on the block's own margin.
+  assert.match(fnBody, /replace\(\/\\s\+\$\/, ''\)/);
+  assert.match(fnBody, /skipLead = true;/);
+});

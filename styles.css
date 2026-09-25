@@ -1808,6 +1808,21 @@ a.notif-clickable:hover { background: var(--hover-soft); }
    are not in it, and in a shell command or a path that is the difference between correct
    and wrong. The panel is 360px, so something has to give, and it should be the viewport
    rather than the content. */
+/* The copy button lives OUTSIDE the scroller, in this wrapper, or it would slide away
+   with the content the moment a long line was read. */
+.note-code-wrap { position: relative; }
+.note-code-copy {
+  position: absolute; top: 6px; right: 6px;
+  width: 24px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--velvet-2); color: var(--muted); cursor: pointer;
+}
+.note-code-copy svg { width: 13px; height: 13px; }
+.note-code-copy:hover { color: var(--text); border-color: var(--border-strong); }
+.note-code-copy.ok { color: var(--success); border-color: var(--success); }
+/* Room for it, so the first line of code does not start underneath the button. */
+pre.note-code { padding-right: 36px; }
 pre.note-code {
   margin: 8px 0;
   padding: 9px 10px;

@@ -4430,7 +4430,7 @@
   // The identifier is the URL itself, so normalization decides whether two people
   // commenting on the same page land in the same thread. Getting it wrong doesn't
   // error — it silently splits the conversation.
-  const { replyTags: SC_replyTags, WEB_COMMENT_KIND } = window.SidecarCore;
+  const { replyTags: SC_replyTags, WEB_COMMENT_KIND, renderTextWithCode } = window.SidecarCore;
 
   // ---- Polls (NIP-88) ----
   //
@@ -7044,9 +7044,19 @@
           // which is how a note full of resolved mentions still read as npubs. Reported.
           if (contentEl) {
             const text = cleanSnippet(ev.content || '');
-            contentEl.textContent = open
-              ? text
-              : (text.length > 140 ? text.slice(0, 140) + '…' : text);
+            // EXPANDED RENDERS CODE, COLLAPSED DOES NOT.
+            //
+            // The collapsed row is a 140-character snippet under a three-line clamp,
+            // sitting among two dozen others; a monospace box in it would be taller than
+            // the row it is summarizing and would make the list unreadable. Expanding is
+            // the request to see the note properly, and that is where the box belongs.
+            //
+            // Code only, not renderNoteText: this row already carries its own media
+            // chips, and drawing images and quote cards here would make a snippet into a
+            // second copy of the note.
+            contentEl.innerHTML = '';
+            if (open) renderTextWithCode(contentEl, text);
+            else contentEl.textContent = text.length > 140 ? text.slice(0, 140) + '…' : text;
             contentEl.classList.toggle('notif-content-full', open);
           }
 
@@ -7074,8 +7084,13 @@
       }
       if (isNoteLike && contentEl) {
         resolveNotifMentions(ev.content || '', (cleaned) => {
-          contentEl.textContent = contentEl.classList.contains('notif-content-full')
-            ? cleaned : cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+          // Names resolve seconds later and rewrite this element, so it has to redraw
+          // the same way the toggle does or an expanded row loses its code boxes the
+          // moment a mentioned profile lands.
+          const open = contentEl.classList.contains('notif-content-full');
+          contentEl.innerHTML = '';
+          if (open) renderTextWithCode(contentEl, cleaned);
+          else contentEl.textContent = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
         });
       }
       return item;

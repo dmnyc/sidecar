@@ -109,8 +109,12 @@ test('EXPANDING LIFTS BOTH TRUNCATIONS, AND COLLAPSING PUTS THEM BACK', () => {
   const item = stripComments(lift('function buildItem('));
   assert.match(item, /const text = cleanSnippet\(ev\.content \|\| ''\)/,
     'the expanded text is a build-time snapshot, so resolved mention names are lost');
-  assert.match(item, /contentEl\.textContent = open\s*\?\s*text/, 'the text is not swapped both ways');
-  assert.match(item, /: \(text\.length > 140 \? text\.slice\(0, 140\) \+ '…' : text\)/,
+  // Both ways still, but the expanded branch BUILDS rather than assigns now: it renders
+  // code blocks, which a textContent assignment cannot carry.
+  assert.match(item, /if \(open\) renderTextWithCode\(contentEl, text\);/, 'expanding no longer redraws');
+  assert.match(item, /else contentEl\.textContent = text\.length > 140/, 'collapsing no longer re-truncates');
+  assert.match(item, /contentEl\.innerHTML = '';/, 'the old content is left behind on a redraw');
+  assert.match(item, /text\.length > 140 \? text\.slice\(0, 140\) \+ '…' : text/,
     'collapsing does not put the 140-char cut back');
   assert.match(item, /contentEl\.classList\.toggle\('notif-content-full', open\)/,
     'the CSS clamp is lifted but never restored');

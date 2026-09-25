@@ -1556,10 +1556,76 @@ window.SidecarCore = (function () {
     return t.replace(/^\n+/, '').replace(/\s+$/, '');
   }
 
+  // THE BLOCK IS COPYABLE, because the reason somebody pastes code into a note is for
+  // you to run it, and a box that scrolls sideways is the worst possible thing to select
+  // by hand on a phone or in a 360px panel.
+  //
+  // The button sits OUTSIDE the scrolling element, in a wrapper, or it would scroll away
+  // with the content the moment a long line was read.
   function codeBlockEl(raw) {
+    const body = fenceBody(raw);
+    const wrap = h('div', { className: 'note-code-wrap' });
     const pre = h('pre', { className: 'note-code' });
-    pre.append(h('code', { textContent: fenceBody(raw) }));
-    return pre;
+    pre.append(h('code', { textContent: body }));
+
+    const copy = h('button', { className: 'note-code-copy', type: 'button', title: 'Copy code' });
+    copy.append(icon('copy'));
+    copy.addEventListener('click', (e) => {
+      // The block can sit inside a row that is itself a link to the note.
+      e.preventDefault();
+      e.stopPropagation();
+      navigator.clipboard.writeText(body).then(() => {
+        copy.innerHTML = '';
+        copy.append(icon('check'));
+        copy.classList.add('ok');
+        // Reverted rather than left as a tick: the next block down is a different block,
+        // and a permanent tick on one of several says the wrong thing about which.
+        setTimeout(() => {
+          if (!copy.isConnected) return;
+          copy.innerHTML = '';
+          copy.append(icon('copy'));
+          copy.classList.remove('ok');
+        }, 1200);
+      }, () => {});
+    });
+
+    wrap.append(pre, copy);
+    return wrap;
+  }
+
+  // Text with code in it, and nothing else rendered. The notification list wants the
+  // code boxes without the images, videos and quote cards renderNoteText also draws: a
+  // row there is a snippet beside two dozen others, not a note.
+  function renderTextWithCode(container, text) {
+    const RE = /(```[\s\S]*?```)|(`[^`\n]+`)/g;
+    let last = 0;
+    let m;
+    RE.lastIndex = 0;
+    // The newlines an author puts around a fence are padding on top of the block's own
+    // margin, and the containers this draws into are pre-wrap, so each one renders as a
+    // full empty line. Trimmed either side of a BLOCK only; inline code stays in its
+    // sentence and must not lose the spaces around it. Same rule as pushBlock.
+    let skipLead = false;
+    const pushText = (str) => {
+      let t = str;
+      if (skipLead) { t = t.replace(/^\s+/, ''); skipLead = false; }
+      if (t) container.append(document.createTextNode(t));
+    };
+    while ((m = RE.exec(text)) !== null) {
+      if (m.index > last) pushText(text.slice(last, m.index));
+      if (m[1]) {
+        const tail = container.lastChild;
+        if (tail && tail.nodeType === Node.TEXT_NODE) {
+          tail.textContent = tail.textContent.replace(/\s+$/, '');
+        }
+        container.append(codeBlockEl(m[1]));
+        skipLead = true;
+      } else {
+        container.append(codeInlineEl(m[2]));
+      }
+      last = RE.lastIndex;
+    }
+    if (last < text.length) pushText(text.slice(last));
   }
 
   function codeInlineEl(raw) {
@@ -2125,7 +2191,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, WEB_COMMENT_KIND,
+    replyTags, WEB_COMMENT_KIND, renderTextWithCode,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();
