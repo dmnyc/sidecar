@@ -12403,7 +12403,18 @@
       if (!chrome.runtime.getContexts) return null;
       const url = chrome.runtime.getURL('compose.html');
       const ctxs = await chrome.runtime.getContexts({ contextTypes: ['TAB'] });
-      return (ctxs || []).find((c) => c.documentUrl && c.documentUrl.split('#')[0] === url) || null;
+      // MATCHED ON THE PATH, QUERY STRIPPED AS WELL AS THE FRAGMENT. The tab carries
+      // ?reply=<id> when it was opened to answer something, so an exact compare stopped
+      // finding it at all: pressing Expand on a reply would open a second tab, and
+      // pressing Compose would open a third.
+      const found = (ctxs || []).find((c) => c.documentUrl && c.documentUrl.split(/[?#]/)[0] === url);
+      if (!found) return null;
+      // WHICH draft it is holding, so a caller can tell "already open" from "open on
+      // something else". Without this, expanding a reply while a plain note sat in the
+      // tab focused that tab and showed the wrong draft, silently.
+      let replyId = null;
+      try { replyId = new URL(found.documentUrl).searchParams.get('reply') || null; } catch (_) {}
+      return { ...found, replyId };
     } catch (_) {
       // An older Chrome without getContexts, or a call that threw. Falling through to
       // opening the panel composer is the safe direction: the draft store is the same
@@ -12432,11 +12443,14 @@
     // fresh draft. Start fresh in this chooser would delete what the tab is editing, and
     // the tab would put it straight back.
     //
-    // A reply is a different slot (draftKey appends the id it answers), so only the main
-    // composer collides and only the main composer is held back.
-    if (!(opts && opts.replyTo)) {
+    // Held back only when the tab is on THIS draft. A reply is its own slot (draftKey
+    // appends the id it answers), so a tab writing a plain note does not collide with a
+    // reply and vice versa; since the tab can hold either now, the comparison is by slot
+    // rather than by whether this is a reply at all.
+    {
+      const wantId = (opts && opts.replyTo && opts.replyTo.id) || null;
       const open = await liveComposeTab();
-      if (open) {
+      if (open && open.replyId === wantId) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
         try {
@@ -13517,9 +13531,14 @@
       // outward arrow that reads as "expand" in most apps reads here as leaving the
       // browser entirely. Write / Preview / Expand is a row of three things you can do
       // with what you are writing, and the third one says what it is.
-      const expand = replyTo ? null : h('button', {
+      // REPLIES EXPAND NOW TOO. This was null for a reply because the tab could not
+      // build threading tags and would have published a top-level note detached from the
+      // thread. compose.js takes replyTags from composer-core and reads the target off
+      // the draft, so the two produce identical tags from identical input.
+      const expand = h('button', {
         className: 'compose-expand', type: 'button', textContent: t('Expand'),
-        title: t('Write in a tab, with room to read it back'),
+        title: replyTo ? t('Reply in a tab, with room to read the thread')
+                       : t('Write in a tab, with room to read it back'),
       });
       if (expand) {
         expand.addEventListener('click', async () => {
@@ -13541,14 +13560,28 @@
               }
             }
             // And never a second tab: same reason the panel composer stands down for one.
+            // A tab already on another draft is NAVIGATED rather than left showing it,
+            // which is safe because that tab flushes its draft on visibilitychange and
+            // hiding fires before the load.
             const open = await liveComposeTab();
+            const wantId = (replyTo && replyTo.id) || null;
             if (open) {
               try {
-                await chrome.tabs.update(open.tabId, { active: true });
+                if (open.replyId !== wantId) {
+                  const page = wantId ? 'compose.html?reply=' + encodeURIComponent(wantId) : 'compose.html';
+                  await chrome.tabs.update(open.tabId, { url: chrome.runtime.getURL(page), active: true });
+                } else {
+                  await chrome.tabs.update(open.tabId, { active: true });
+                }
                 await chrome.windows.update(open.windowId, { focused: true });
               } catch (_) {}
             } else {
-              chrome.tabs.create({ url: chrome.runtime.getURL('compose.html') });
+              // The id names the draft slot, the same key draftKey() built. Without it
+              // the tab opens the plain slot and the reply appears to have vanished.
+              const page = replyTo && replyTo.id
+                ? 'compose.html?reply=' + encodeURIComponent(replyTo.id)
+                : 'compose.html';
+              chrome.tabs.create({ url: chrome.runtime.getURL(page) });
             }
             closeModal();
           } catch (e) {

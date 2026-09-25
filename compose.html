@@ -59,6 +59,11 @@
         </div>
       </header>
 
+      <!-- What is being answered, when this tab was opened from a reply. Above the tabs,
+           not inside a pane: it is the subject, so switching to Preview must not hide it.
+           Same reasoning and same classes as the panel's own reply block. -->
+      <div class="reply-target hidden" id="compose-reply-target"></div>
+
       <div class="compose-tabs" id="compose-tabs">
         <button type="button" class="compose-tab active" id="tab-write" data-i18n="Write">Write</button>
         <button type="button" class="compose-tab" id="tab-preview" data-i18n="Preview">Preview</button>

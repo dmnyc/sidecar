@@ -219,7 +219,9 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   // one publishing without the helper is a note whose images ship undescribed, and
   // nothing else would catch it.
   assert.match(panelBare, /tags\.push\(\.\.\.imetaTagsForMedia\(draft\.media\)\);/);
-  assert.match(pageBare, /tags: \[\['client', 'Sidecar'\], \.\.\.SC\.imetaTagsForMedia\(draft\.media\)\]/);
+  // Threading leads the list now that the tab can publish a reply; the client tag and
+  // the imeta rows follow it, in that order, exactly as the panel assembles them.
+  assert.match(pageBare, /tags: \[\.\.\.\(reply \? reply\.tags : \[\]\), \['client', 'Sidecar'\], \.\.\.SC\.imetaTagsForMedia\(draft\.media\)\]/);
 });
 
 test('THE STRIP REORDERS BY MORE THAN DRAG', () => {
@@ -438,6 +440,10 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
     closeAltEditor: () => {},
     renderThumbs: () => {},
     dkey: 'pk1',
+    // The tab's persistDraft writes the reply target back into the slot as well, now
+    // that a tab can hold a reply. Null here: this vector is a plain note, and what it
+    // is checking is that the media entries survive the round trip untouched.
+    replyTo: null,
     call: async (m) => {
       if (m.type === 'SIDECAR_SECRET_GET') return JSON.parse(JSON.stringify(store));
       if (m.type === 'SIDECAR_SECRET_SET') { store.pk1 = JSON.parse(JSON.stringify(m.value)).pk1; return true; }

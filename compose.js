@@ -80,6 +80,11 @@
   let posting = false;
   let followCache = null;
   let handoverRelays = null;
+  // WHAT THIS TAB IS ANSWERING, or null for a plain note. Read from the draft rather
+  // than from the URL: the id in the query says WHICH draft to open, and the draft is
+  // what actually carries the target. A tab told to open a reply whose draft has since
+  // been posted or dropped falls back to a plain note rather than inventing a thread.
+  let replyTo = null;
   let reduceMotion = false;
   let countdown = null;
 
@@ -364,6 +369,10 @@
     const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
     if (hasContent) {
       all[dkey] = { ...(all[dkey] || {}), text: draft.text, media: draft.media, savedAt: Date.now() };
+      // Written back on every save. The spread above preserves it when it is already
+      // there, but a slot this tab created from scratch would otherwise hold a reply
+      // with no target, and the panel would reopen it as a plain note.
+      if (replyTo) all[dkey].replyTo = replyTo;
       // The difficulty travels with the note, the same as the text does, so cancelling out
       // of this tab and reopening the panel's composer finds the rung still chosen.
       if (draft.pow) all[dkey].pow = draft.pow;
@@ -403,6 +412,60 @@
     status.textContent = (state && state.locked) ? t('Sidecar is locked.') : '';
   }
 
+  // THE DRAFT SLOT THIS TAB OWNS. A reply lives in its own slot, keyed by the note it
+  // answers, exactly as the panel keys it: one account can hold a plain draft and a
+  // reply to each of several notes at once, and they must not overwrite each other.
+  // Mirrors draftKey() in sidepanel.js; pinned to it by test.
+  function slotFor(pubkey) {
+    return replyId ? pubkey + '|r:' + replyId : pubkey;
+  }
+
+  // Which note this tab was opened to answer, from its own URL. The panel puts it there
+  // when Expand is pressed on a reply.
+  const replyId = (() => {
+    try {
+      const v = new URLSearchParams(location.search).get('reply') || '';
+      // A draft key is built from this, so it has to be a note id and nothing else.
+      return /^[0-9a-f]{64}$/i.test(v) ? v.toLowerCase() : null;
+    } catch (_) { return null; }
+  })();
+
+  // The note being answered, drawn above the tabs. Deliberately NOT the panel's
+  // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
+  // is a face, a name and the text, all of which this file already knows how to get.
+  function paintReplyTarget() {
+    const box = document.getElementById('compose-reply-target');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!replyTo) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+
+    const av = h('span', { className: 'avatar reply-target-av' });
+    applyAvatar(av, null);
+    const name = h('span', { className: 'reply-target-name', textContent: 'Loading…' });
+    box.append(h('div', { className: 'reply-target-who' }, [av, name]));
+
+    const body = h('div', { className: 'reply-target-body' });
+    // NO CAP HERE. The panel truncates at 240 because it has 360px to work with; this
+    // tab is the room the panel does not have, so the note it is answering is shown
+    // whole and the CSS lets it scroll if it is very long.
+    SC.renderNoteText(body, replyTo.content || '', Infinity);
+    box.append(body);
+    box.classList.add('is-open');
+
+    fetchPreviewProfile(replyTo.pubkey).then((p) => {
+      if (!box.isConnected) return;
+      if (p && p.name) name.textContent = p.name;
+      // Same fallback the mention resolver two hundred lines down already uses, rather
+      // than SC.shortNpub, which the core passes in as a dep and does not export.
+      else {
+        try { name.textContent = shortNpub(NT.nip19.npubEncode(replyTo.pubkey)); }
+        catch (_) { name.textContent = replyTo.pubkey.slice(0, 10) + '\u2026'; }
+      }
+      if (p && p.picture) applyAvatar(av, p);
+    }).catch(() => {});
+  }
+
   function paintWho() {
     const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
     $('compose-name').textContent = acct.name || shortNpub(acct.npub) || t('Your account');
@@ -438,7 +501,7 @@
     // belongs to the account that was active when it was typed, so it is written back
     // there before the key moves rather than being carried across into someone else's.
     await flushDraft();
-    dkey = state.activePubkey;
+    dkey = slotFor(state.activePubkey);
     handoverRelays = null; // a different account can publish somewhere else entirely
     followCache = null;
     const saved = await loadDraft();
@@ -446,6 +509,10 @@
     // media slot alone now, or publishing would append them a second time.
     draft.text = SC.stripDraftMediaUrls(saved && saved.text, saved && saved.media);
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
+    // The slot moved with the account, so what it is answering moves too. Replying to
+    // one note from two accounts is two drafts, and the new account may not have one.
+    replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    paintReplyTarget();
     // The row edits a slot of the PREVIOUS account's draft, which was just swapped
     // under it — the same reason the editor itself is rewritten below.
     closeAltEditor();
@@ -548,14 +615,18 @@
     paintCount();
     const status = $('compose-status');
     try {
+      // THREADING FIRST, from the same builder the panel uses. NIP-10 readers take the
+      // first e marked root as the thread and NIP-22 scope is read positionally, so
+      // these lead; the client tag and imeta follow.
+      const reply = replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
       let template = {
-        kind: 1,
+        kind: reply ? reply.kind : 1,
         created_at: Math.floor(Date.now() / 1000),
         // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it),
         // describing the same URLs composeNoteContent appends to the content, in
         // the same order. Undescribed media emits nothing, so a note of bare URLs
         // is byte-identical to what it published before alt text existed.
-        tags: [['client', 'Sidecar'], ...SC.imetaTagsForMedia(draft.media)],
+        tags: [...(reply ? reply.tags : []), ['client', 'Sidecar'], ...SC.imetaTagsForMedia(draft.media)],
         content: SC.composeNoteContent(text, draft.media),
       };
       // MINE FIRST, THEN SIGN. The event id commits to the pubkey, so the nonce has to be
@@ -1119,7 +1190,7 @@
     paintWho();
     paintLocked();
 
-    dkey = state.activePubkey;
+    dkey = slotFor(state.activePubkey);
     const saved = await loadDraft();
     // Same strip as the account switch: a draft saved before the URLs left the editor
     // carries them in its text, and publishing must not append them twice.
@@ -1127,6 +1198,13 @@
     if (saved && Array.isArray(saved.media)) draft.media = saved.media;
     // The relay set the panel worked out, left beside the draft when you pressed expand.
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
+    // THE TARGET COMES OFF THE DRAFT, not off the URL. The query said which slot to
+    // open; the slot is what carries what is being answered. A tab pointed at a reply
+    // whose draft was posted or dropped in the meantime finds nothing here and stays a
+    // plain note, which is the safe direction to fail: a note that should have been a
+    // reply is visible, a reply silently published as a note is not.
+    replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    paintReplyTarget();
 
     editorApi = composer.createMentionEditor({
       placeholder: t('What’s on your mind?'),
