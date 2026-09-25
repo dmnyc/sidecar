@@ -1865,7 +1865,34 @@ pre.note-code code {
    the window. */
 .note-media-wrap { position: relative; display: block; margin: 6px 0; }
 .note-media-wrap .note-media { max-height: 120px; width: 100%; object-fit: cover; display: block; }
-.note-media-wrap.is-full .note-media { max-height: none; object-fit: contain; }
+/* ---- full size, which means the viewport ----
+   Growing the image inside the quote only trades a 108px window for a 320px one, and in
+   a 360px column that is still not the picture. z-index above the panel's own overlays
+   (150 is the highest of those) because this opens FROM inside one of them. */
+.media-lightbox {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background: rgba(3, 0, 8, 0.92);
+  cursor: zoom-out;
+}
+/* contain, and bounded by the viewport in both directions: the whole frame, nothing
+   cropped, nothing off screen. */
+.media-lightbox-item {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: auto;
+}
+.media-lightbox-x {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 50%;
+  background: rgba(5, 0, 12, 0.7); color: #fff; cursor: pointer;
+}
+.media-lightbox-x svg { width: 15px; height: 15px; }
+.media-lightbox-x:hover { border-color: var(--gold-soft); }
 .note-media-zoom {
   position: absolute; top: 6px; right: 6px;
   width: 24px; height: 24px; padding: 0;

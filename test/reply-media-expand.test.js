@@ -30,28 +30,41 @@ test('IT IS A BUTTON, NOT A CLICK ON THE MEDIA', () => {
   assert.match(body, /e\.preventDefault\(\);\s*\n\s*e\.stopPropagation\(\);/);
 });
 
-test('OPENING THE MEDIA OPENS THE BLOCK THAT CLIPS IT', () => {
-  // Without this the block's own 108px clip is still there, and the full image is a
-  // taller thing behind the same small window: the button reads as doing nothing.
-  assert.match(body, /if \(full && block\) block\.classList\.add\('is-open'\)/);
-  assert.match(css, /\.reply-target\.is-open \.reply-target-body \{[^}]*overflow-y: auto/);
+test('FULL SIZE MEANS THE VIEWPORT, NOT A BIGGER WINDOW', () => {
+  // Growing the image inside the quote only trades a 108px window for a 320px one, and
+  // in a 360px column that is still not the picture.
+  assert.match(body, /openMediaLightbox\(el\.getAttribute\('src'\) \|\| el\.src, el\.tagName === 'VIDEO'\)/);
+  assert.ok(!/classList\.toggle\('is-full'/.test(body), 'it grows in place again');
+  assert.match(css, /\.media-lightbox \{[\s\S]*?position: fixed; inset: 0;/);
+  // contain and bounded both ways: whole frame, nothing cropped, nothing off screen.
+  assert.match(css, /\.media-lightbox-item \{[\s\S]*?max-width: 100%; max-height: 100%;[\s\S]*?object-fit: contain;/);
+
+  // Above the panel's own overlays, because it opens from inside one of them.
+  const z = Number((css.match(/\.media-lightbox \{[\s\S]*?z-index: (\d+);/) || [])[1]);
+  const others = [...css.matchAll(/z-index: (\d+);/g)].map((m) => Number(m[1])).filter((n) => n !== z);
+  assert.ok(z > Math.max(...others), 'the lightbox opens behind the sheet it was opened from');
 });
 
-test('IT TOGGLES BOTH WAYS, AND SAYS WHICH WAY IT WILL GO', () => {
-  assert.match(body, /full = !full;/);
-  assert.match(body, /wrap\.classList\.toggle\('is-full', full\)/);
-  // The icon and the title both turn round, or an open image offers "Show the full
-  // image" and there is no way to read that it will shrink.
-  assert.match(body, /btn\.title = full \? 'Shrink it again' : 'Show the full image'/);
-  assert.match(body, /icon\(full \? 'arrow-down-left' : 'arrow-up-right'\)/);
+test('THE LIGHTBOX CLOSES EVERY WAY SOMEBODY WILL TRY', () => {
+  const lb = core.slice(core.indexOf('function openMediaLightbox(src, isVideo)'));
+  const lbBody = lb.slice(0, lb.indexOf('\n  }\n'));
+  assert.match(lbBody, /if \(e\.key === 'Escape'\)/);
+  assert.match(lbBody, /back\.addEventListener\('click', \(e\) => \{ if \(e\.target === back\) shut\(\); \}\)/,
+    'clicking the image closes it, so a video cannot be scrubbed');
+  assert.match(lbBody, /close\.addEventListener\('click'/);
+
+  // Escape is CAPTURED, or the panel's own handler closes the sheet behind it instead
+  // and the lightbox is left floating over nothing.
+  assert.match(lbBody, /addEventListener\('keydown', onKey, true\)/);
+  // And the handler is taken off again, or every image ever opened keeps listening.
+  assert.match(lbBody, /removeEventListener\('keydown', onKey, true\)/);
+  assert.match(lbBody, /if \(gone\) return;/, 'shut can run twice and remove a live listener');
 });
 
-test('COVER AT REST, CONTAIN WHEN OPEN', () => {
-  // Cover, because a letterboxed sliver in a short box shows less of the picture than a
-  // crop of its middle. Contain when open, because the whole frame is the point.
+test('the resting thumbnail is still capped and cropped', () => {
+  // Cover, because a letterboxed sliver in a short box shows less of a picture than a
+  // crop of its middle does. The lightbox is where nothing is cropped.
   assert.match(css, /\.note-media-wrap \.note-media \{[^}]*max-height: 120px[^}]*object-fit: cover/);
-  assert.match(css, /\.note-media-wrap\.is-full \.note-media \{ max-height: none; object-fit: contain; \}/);
-  // The page has room, so its resting cap is bigger. Same reasoning as the type scale.
   assert.match(css, /\.compose-page \.note-media-wrap \.note-media \{ max-height: 260px; \}/);
 });
 

@@ -1593,17 +1593,54 @@ window.SidecarCore = (function () {
     return wrap;
   }
 
-  // MEDIA IN A QUOTED NOTE OPENS AND SHUTS.
+  // A PHOTO IN A QUOTED NOTE OPENS AT FULL SIZE.
   //
-  // The block a reply is written under is capped, so a photo in the note being answered
-  // arrived as a 108px-tall slice of itself. Sometimes the image IS the note, which is
-  // why it was clipped rather than stripped in the first place, and a slice of it
-  // answers nothing.
+  // Not inline. The quote block is capped so the editor stays on screen, and growing the
+  // image inside it only trades a 108px window for a 320px one: still a window, still
+  // not the picture. In a 360px column "full size" can only mean taking the viewport,
+  // so it takes the viewport.
+  //
+  // Self-contained rather than routed through the panel's openModal, because this runs
+  // in two documents and the expanded page has no such thing. It owns its overlay, its
+  // key handler and its teardown.
+  function openMediaLightbox(src, isVideo) {
+    const back = h('div', { className: 'media-lightbox' });
+    const el = isVideo
+      ? h('video', { className: 'media-lightbox-item', controls: true, autoplay: false })
+      : h('img', { className: 'media-lightbox-item', alt: '' });
+    el.referrerPolicy = 'no-referrer';
+    el.src = src;
+
+    const close = h('button', { className: 'media-lightbox-x', type: 'button', title: 'Close' });
+    close.append(icon('x'));
+
+    let gone = false;
+    const shut = () => {
+      if (gone) return;
+      gone = true;
+      document.removeEventListener('keydown', onKey, true);
+      back.remove();
+    };
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); shut(); } }
+    // Capture, so Escape closes THIS and not whatever sheet is open behind it: the panel
+    // has its own Escape handler and the quote is usually inside one of its modals.
+    document.addEventListener('keydown', onKey, true);
+
+    close.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); shut(); });
+    // The backdrop closes, the media does not. Clicking a video means using its controls.
+    back.addEventListener('click', (e) => { if (e.target === back) shut(); });
+
+    back.append(el, close);
+    document.body.append(back);
+    return shut;
+  }
+
+  // The corner control on each piece of media in a quoted note.
   //
   // A BUTTON, NOT A CLICK ON THE MEDIA. A <video> carries its own controls and a click
-  // on it means play; overloading that would make the same gesture mean two things
-  // depending on where in the frame it landed. The button is the same corner control the
-  // code block already uses, so the quote has one idiom rather than two.
+  // there means play; overloading that would make one gesture mean two things depending
+  // on where in the frame it landed. Same corner control the code block uses, so the
+  // quote has one idiom rather than two.
   function makeMediaExpandable(block, body) {
     body.querySelectorAll('.note-media').forEach((el) => {
       if (el.parentNode && el.parentNode.classList.contains('note-media-wrap')) return;
@@ -1613,22 +1650,12 @@ window.SidecarCore = (function () {
 
       const btn = h('button', { className: 'note-media-zoom', type: 'button', title: 'Show the full image' });
       btn.append(icon('arrow-up-right'));
-      let full = false;
       btn.addEventListener('click', (e) => {
-        // The quote can sit inside something clickable, and on the panel it sits inside
-        // a sheet that closes on an outside click.
+        // The quote sits inside a sheet that closes on an outside click, and can sit
+        // inside a link to the note.
         e.preventDefault();
         e.stopPropagation();
-        full = !full;
-        wrap.classList.toggle('is-full', full);
-        btn.title = full ? 'Shrink it again' : 'Show the full image';
-        btn.innerHTML = '';
-        btn.append(icon(full ? 'arrow-down-left' : 'arrow-up-right'));
-        // OPENING THE MEDIA OPENS THE BLOCK. Without this the block's own clip is still
-        // 108px and the full image is a taller thing behind the same small window, which
-        // reads as the button doing nothing.
-        if (full && block) block.classList.add('is-open');
-        if (full) wrap.scrollIntoView({ block: 'nearest' });
+        openMediaLightbox(el.getAttribute('src') || el.src, el.tagName === 'VIDEO');
       });
       wrap.append(btn);
     });
@@ -2232,7 +2259,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, WEB_COMMENT_KIND, renderTextWithCode, makeMediaExpandable,
+    replyTags, WEB_COMMENT_KIND, renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
   };
 })();
