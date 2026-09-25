@@ -44,7 +44,7 @@ const bar = (n, total) => {
   return '█'.repeat(filled) + '·'.repeat(20 - filled);
 };
 
-console.log('\nON THIS DAY — coverage\n');
+console.log('\nON THIS DAY: coverage\n');
 for (const [name, dm, dim, em] of rows) {
   const flag = dm / dim < TARGET ? '  <- thin' : '';
   console.log('  %s %s %s/%s days, %s entries%s',
@@ -54,9 +54,11 @@ for (const [name, dm, dim, em] of rows) {
 const pct = (days / 366 * 100).toFixed(0);
 console.log('\n  %s/366 days (%s%%), %s entries, %s dates with rotation',
   days, pct, entries, multi);
-console.log('  target for 1.14: %s days (50%%) — %s',
-  Math.ceil(366 * TARGET),
-  days >= 366 * TARGET ? 'met' : (Math.ceil(366 * TARGET) - days) + ' to go');
+// COVERAGE IS MET; DEPTH IS THE GAP NOW. The panel indexes by year, so a date with one
+// entry shows the same line every year: a second line on a covered date buys a year, and
+// a new date buys nothing that is not already there.
+console.log('  %s dates rotate, %s repeat every year',
+  multi, days - multi);
 
 // Subjects written twice. Crude on purpose: capitalised runs are the proper nouns,
 // and a name appearing on two dates is nearly always the duplicate you did not mean.
@@ -73,7 +75,7 @@ for (const [k, list] of Object.entries(DATA)) {
 const dupes = [...seen.entries()].filter(([, where]) => where.length > 1);
 if (dupes.length) {
   console.log('\n  repeated subjects:');
-  for (const [name, where] of dupes) console.log('    %s — %s', name, where.join(', '));
+  for (const [name, where] of dupes) console.log('    %s: %s', name, where.join(', '));
 }
 
 const want = process.argv.indexOf('--gaps');
