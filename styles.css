@@ -5142,6 +5142,9 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   background: var(--hover-soft); border: 1px solid var(--border);
   border-radius: 999px; font-size: 13px; line-height: 1;
 }
+/* The picture form of a chip: a custom emoji (NIP-30) drawn where a text glyph would
+   sit, so a chip that has one lines up with the chips around it. */
+.notif-reacted-chip-img { width: 15px; height: 15px; object-fit: contain; display: block; border-radius: 3px; }
 
 /* The reaction picker, layered INSIDE the bell sheet rather than replacing it. There is
    one #modal element, so anything that went through openModal tore the notification list

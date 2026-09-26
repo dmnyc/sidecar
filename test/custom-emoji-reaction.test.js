@@ -20,13 +20,15 @@ const ROOT = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
-// notifLabel's kind:7 branch, lifted so the decision can be exercised directly.
+// reactionDisplay, lifted so the decision can be exercised directly. It is shared by
+// notifLabel's row glyph and the your-reactions chip, so one test covers both surfaces —
+// that sharing is the point: the same event must read as the same reaction on both.
 function labeller() {
-  const m = panel.match(/    if \(ev\.kind === 7\) \{[\s\S]*?\n    \}/);
-  assert.ok(m, 'kind:7 branch not found');
+  const m = panel.match(/function reactionDisplay\(ev\) \{[\s\S]*?\n  \}/);
+  assert.ok(m, 'reactionDisplay not found');
   const ctx = { RegExp, Error };
   vm.createContext(ctx);
-  vm.runInContext('this.label = function (ev) {\n' + m[0] + '\nreturn null; };', ctx);
+  vm.runInContext('this.label = ' + m[0] + ';', ctx);
   return ctx.label;
 }
 const label = labeller();
@@ -87,4 +89,23 @@ test('the image is treated like every other remote picture here', () => {
   assert.match(block, /referrerPolicy = 'no-referrer'/);
   assert.match(block, /img\.onerror = \(\) => \{ glyphEl\.textContent = glyph; \}/, 'a broken image falls back to the shortcode');
   assert.match(css, /\.notif-glyph-img \{/);
+});
+
+test('THE YOUR-REACTIONS CHIP DRAWS THE PICTURE TOO', () => {
+  // The other surface a reaction of yours appears on. It used to take only the reaction
+  // content, so one sent from another client came back as literal chip text — the event
+  // went in, its emoji tag was never read.
+  const i = panel.indexOf("img.className = 'notif-reacted-chip-img'");
+  assert.notEqual(i, -1, 'the chip has no picture form');
+  const block = panel.slice(i, i + 400);
+  assert.match(block, /referrerPolicy = 'no-referrer'/);
+  assert.match(block, /onerror/, 'a broken image leaves an empty chip');
+  assert.match(css, /\.notif-reacted-chip-img \{/);
+  // The restore path passes the event, not just the content.
+  const code = panel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.match(code, /addMyReaction\(notifTargetId\(r\), r\)/,
+    'the relay-restored reactions lost their emoji tag');
+  // The picker path is unicode-only today, so an empty tag set is honest there.
+  assert.match(code, /addMyReaction\(ev\.id, \{ content: ch, tags: \[\] \}\)/,
+    'the local reaction path changed shape without the picker changing with it');
 });

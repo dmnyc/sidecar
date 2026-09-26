@@ -52,6 +52,9 @@ vm.runInContext(
     lift('function msatsFromBolt11('),
     lift('function zapAmountText('),
     lift('function zapMsats('),
+    // notifLabel's kind:7 branch delegates here, so the resolver goes into the context
+    // beside it.
+    lift('function reactionDisplay('),
     lift('function notifLabel('),
     'globalThis.notifLabel = notifLabel;',
   ].join('\n'),
