@@ -2426,6 +2426,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 9px;
   box-shadow: var(--sheen), 0 24px 60px rgba(0, 0, 0, 0.6);
 }
+/* The card scrolls itself, and Chrome paints the custom scrollbar down its full inside
+   edge without clipping it to the rounded corners, so a long modal's thumb poked out
+   past the curve. The track is inset by the corner radius at each end; keep the two
+   numbers equal. Clipping the card instead (clip-path) would cut off its shadow. */
+.modal::-webkit-scrollbar-track { margin: 18px 0; }
 
 /* The card scales up from the middle of the overlay and dips back on the way out. The
    overlay itself keeps doing the showing and hiding; these classes only describe how the
