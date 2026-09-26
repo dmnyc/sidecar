@@ -2426,6 +2426,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 9px;
   box-shadow: var(--sheen), 0 24px 60px rgba(0, 0, 0, 0.6);
 }
+/* The card scrolls itself, and Chrome paints the custom scrollbar down its full inside
+   edge without clipping it to the rounded corners, so a long modal's thumb poked out
+   past the curve. The track is inset by the corner radius at each end; keep the two
+   numbers equal. Clipping the card instead (clip-path) would cut off its shadow. */
+.modal::-webkit-scrollbar-track { margin: 18px 0; }
 
 /* The card scales up from the middle of the overlay and dips back on the way out. The
    overlay itself keeps doing the showing and hiding; these classes only describe how the
@@ -3651,6 +3656,13 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .tx-amt { font-family: var(--font-mono); font-size: 13px; font-weight: 600; flex-shrink: 0; }
 .tx-amt.in { color: var(--success); }
 .tx-amt.out { color: var(--lav); }
+/* A zap that came with a note: the name truncates, the mark after it keeps its width.
+   The note itself is the mark's tooltip. */
+.item-label.has-note { display: flex; align-items: center; gap: 5px; }
+.item-label.has-note .tx-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tx-note { display: inline-flex; flex-shrink: 0; color: var(--muted); }
+.tx-note:hover { color: var(--text-2); }
+.tx-note svg { width: 13px; height: 13px; }
 .tx-caret { display: flex; flex-shrink: 0; color: var(--muted); transition: transform 0.15s; }
 .tx-caret svg { width: 16px; height: 16px; }
 .tx-row.open .tx-caret { transform: rotate(180deg); }
