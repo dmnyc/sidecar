@@ -20,7 +20,7 @@
 (function (root) {
   'use strict';
 
-  const SPEC_VERSION = '0.5.0-draft';
+  const SPEC_VERSION = '0.6.0-draft';
 
   // Reference thresholds from the spec. Implementations SHOULD use them so that
   // recommendations agree across clients; changing these here is a spec-version
@@ -231,13 +231,22 @@
   //   - nothing is recommended while the current version's size is unknown, and
   //     "no recoverable improvement found" is a normal result.
   //
+  // `opts.currentConfirmed === false` withholds the recommendation outright:
+  // drops are measured against current, and a scan that never reached the user's
+  // write relays may be measuring against a version the user already replaced.
+  //
   // `meaningful-empty` kinds forbid ranking outright. `recency` kinds never
   // recommend. A tombstone is never recommended in any profile (invariant 3).
-  function rank(candidates, kind) {
+  function rank(candidates, kind, opts) {
     const rec = REGISTRY[kind] || {};
     const ordered = candidates.slice().sort((a, b) => b.createdAt - a.createdAt);
+    const confirmed = !opts || opts.currentConfirmed !== false;
     const result = { ordered, recommended: null, requiresIntent: !!rec.meaningfulEmpty };
 
+    if (!confirmed) {
+      result.currentUnconfirmed = true;
+      return result;
+    }
     if (rec.meaningfulEmpty || rec.profile !== 'count' || ordered.length < 2) {
       return result;
     }
@@ -324,7 +333,7 @@
   // so rather than presenting a public-only count as the whole list.
   function delta(chosen, current, kind, uncountedPrivate) {
     const rec = REGISTRY[kind] || {};
-    const out = { added: 0, removed: 0, shrink: false, notes: [], fields: null };
+    const out = { added: 0, removed: 0, shrink: false, notes: [], fields: null, tagsAdded: 0, tagsRemoved: 0 };
 
     if (kind === 0) {
       const a = contentFields(chosen.event);
@@ -338,6 +347,14 @@
         if (!(k in a)) fields.removed.push(k);
       }
       out.fields = fields;
+      // TAGS THAT WOULD CHANGE count too: NIP-30 custom emoji live in a
+      // profile's tags, and a restore replaces all of them — a fixed
+      // content-field diff alone could report "no change" while the restore
+      // reverted fields and tags it never compared.
+      const aTags = new Set((chosen.event.tags || []).map((t) => t.join(':')));
+      const bTags = new Set((current.event.tags || []).map((t) => t.join(':')));
+      for (const k of aTags) if (!bTags.has(k)) out.tagsAdded++;
+      for (const k of bTags) if (!aTags.has(k)) out.tagsRemoved++;
       return out;
     }
 
@@ -355,6 +372,28 @@
       out.notes.push(out.removed + ' of the items in your current list are not in this version and would be removed.');
     }
     return out;
+  }
+
+  // THE PRE-SIGN RE-READ, decided. `reviewed` is the candidate the delta was
+  // computed against; `newest` is the newest verified version the re-read found
+  // on the write relays (or null); `writeAnswered` is whether at least one of
+  // the user's write relays answered the re-read. Three outcomes:
+  //
+  //   proceed     — current stands as reviewed: nothing newer is known.
+  //   changed     — the re-read found a version NEWER than the reviewed one; it
+  //                 becomes current, the delta is recomputed and asked again.
+  //                 An OLDER copy is not a change: the re-read asks fewer
+  //                 relays than the scan did, and a stale copy on one of them
+  //                 is not evidence the list moved.
+  //   unconfirmed — no write relay answered. An absent answer is not an
+  //                 unchanged one: nothing gets signed except through the
+  //                 explicit override the UI may offer after a failed retry.
+  function checkCurrent(reviewed, newest, writeAnswered) {
+    if (!writeAnswered) return { status: 'unconfirmed' };
+    if (newest && reviewed && newest.createdAt > reviewed.createdAt) {
+      return { status: 'changed', version: newest };
+    }
+    return { status: 'proceed' };
   }
 
   // The event a restore publishes: the chosen candidate's item set verbatim —
@@ -403,6 +442,7 @@
     itemRange,
     rank,
     delta,
+    checkCurrent,
     recoveryEvent,
     isRestorable,
   };

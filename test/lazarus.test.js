@@ -1,6 +1,7 @@
 'use strict';
 
-// Lazarus — recovery of user data from relay history (github.com/dmnyc/lazarus).
+// Lazarus — recovery of user data from relay history (github.com/dmnyc/lazarus),
+// spec 0.6.0-draft.
 //
 // The fixtures below are the spec's conformance cases, at least the ones a pure
 // core can carry: sudden drops vs gradual curation, clobber episodes, settled
@@ -234,6 +235,58 @@ test('KIND 0 DELTAS ITS FIELDS', () => {
   assert.deepEqual([...d.fields.removed], ['website']);
 });
 
+test('KIND 0 DELTAS ITS TAGS TOO — A RESTORE REPLACES ALL OF THEM', () => {
+  // NIP-30 custom emoji live in a profile's tags; a fixed content-field diff
+  // could report "no change" while the restore reverted a tag it never compared.
+  const chosen = cand(10, [['emoji', 'wow', 'https://a/wow.png']], '{}');
+  const current = cand(20, [['emoji', 'wow', 'https://b/wow.png']], '{}');
+  const d = L.delta(chosen, current, 0);
+  assert.equal(d.tagsAdded, 1);
+  assert.equal(d.tagsRemoved, 1);
+  assert.deepEqual([...d.fields.added], []);
+});
+
+// ---- the pre-sign re-read, decided ----------------------------------------------------
+
+test('THE RE-READ: ONLY A NEWER VERSION IS A CHANGE', () => {
+  const reviewed = cand(5000, ptags(3));
+  const older = cand(4000, ptags(5));
+  // An older copy on a re-read relay is not a change: the re-read asks fewer
+  // relays than the scan did, and a stale copy is not evidence the list moved.
+  assert.equal(L.checkCurrent(reviewed, older, true).status, 'proceed');
+  // A NEWER version means the list moved since the review: recompute and re-ask.
+  const newer = cand(6000, ptags(1));
+  const changed = L.checkCurrent(reviewed, newer, true);
+  assert.equal(changed.status, 'changed');
+  assert.equal(changed.version.id, newer.id);
+  // Identical event: proceed.
+  assert.equal(L.checkCurrent(reviewed, reviewed, true).status, 'proceed');
+  // Nothing found anywhere: proceed — current stands as reviewed.
+  assert.equal(L.checkCurrent(reviewed, null, true).status, 'proceed');
+});
+
+test('THE RE-READ: NO WRITE RELAY ANSWERED, NOTHING GETS SIGNED', () => {
+  const reviewed = cand(5000, ptags(3));
+  // An absent answer is not an unchanged one — even with an empty re-read.
+  assert.equal(L.checkCurrent(reviewed, null, false).status, 'unconfirmed');
+  // And a newer version found by a relay that then failed does not turn silence
+  // into confirmation: the outcome still gates.
+  assert.equal(L.checkCurrent(reviewed, cand(6000, ptags(1)), false).status, 'unconfirmed');
+});
+
+test('NOTHING IS RECOMMENDED WHILE CURRENT IS UNCONFIRMED', () => {
+  // A scan that never reached the user's write relays may be measuring drops
+  // against a version the user already replaced.
+  const pre = cand(BASE - DAY, ptags(100));
+  const clobbered = cand(BASE, ptags(50, 100));
+  const r = L.rank([clobbered, pre], 3, { currentConfirmed: false });
+  assert.equal(r.recommended, null);
+  assert.equal(r.currentUnconfirmed, true);
+  // The same story, write relays having answered: the recommendation stands.
+  const ok = L.rank([clobbered, pre], 3, { currentConfirmed: true });
+  assert.equal(ok.recommended.id, pre.id);
+});
+
 // ---- the recovery event ----------------------------------------------------------------
 
 test('THE RECOVERED EVENT BEATS WHAT IT REPLACES AND CARRIES THE ITEMS VERBATIM', () => {
@@ -277,6 +330,17 @@ test('THE PANEL LOADS THE CORE AND THE SCREEN REPLACED THE BACKUP SECTION', () =
   assert.match(panel, /Lz\.rank\(/, 'the panel does not rank through the core');
   assert.match(panel, /Lz\.delta\(/, 'the panel does not delta through the core');
   assert.match(panel, /Lz\.recoveryEvent\(/, 'the panel does not build recoveries through the core');
+  assert.match(panel, /Lz\.checkCurrent\(/, 'the re-read decision is not the core\'s');
+  // 0.6.0: relays are untrusted and their outcomes are recorded. Every event is
+  // verified before it can become a candidate; a scan no relay answered is a
+  // failure with a retry, never "no versions found"; the override exists and is
+  // a deliberate second gate.
+  assert.match(panel, /function lazarusValidEvent\(/);
+  assert.match(panel, /NT\.verifyEvent\(ev\) && ev\.kind === kind && ev\.pubkey === pubkey/);
+  assert.match(panel, /No relay answered/);
+  assert.match(panel, /Retry the relays that failed/);
+  assert.match(panel, /Restore without confirming/);
+  assert.match(panel, /currentConfirmed: scan\.writeAnswered/);
   // The replaced section is gone, the replacement is here.
   assert.doesNotMatch(panel, /'Data backup'/, 'the NIP-78 data backup section is still present');
   assert.match(panel, /'Data recovery'/);
