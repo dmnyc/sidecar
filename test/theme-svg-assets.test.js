@@ -126,3 +126,26 @@ test('the Werkstatte lattice leaves its body inks above AA', () => {
     );
   }
 });
+
+// Same constraint for Ukiyo-e's waves, and more so: that tile is OPAQUE (it is the paper),
+// so every hint in Settings sits directly on its rings. The ring ink is one indigo at one
+// stroke-opacity, which is the ceiling this pins.
+test('the Ukiyo-e waves leave its body inks above AA', () => {
+  const svg = fs.readFileSync(path.join(THEMES, 'ukiyo-e-seigaiha.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(THEMES, 'ukiyo-e.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from ukiyo-e.css');
+    return m[1];
+  };
+  const paper = svg.match(/<rect[^>]*fill="(#[0-9A-Fa-f]{6})"/);
+  const ring = svg.match(/stroke="(#[0-9A-Fa-f]{6})" stroke-opacity="([\d.]+)"/);
+  assert.ok(paper && ring, 'could not read the paper and ring inks from the tile');
+  assert.equal(paper[1].toLowerCase(), token('bg').toLowerCase(),
+    'the tile is the paper, so its fill has to be the theme\'s --bg');
+  const darkest = over(ring[1], paper[1], parseFloat(ring[2]));
+  for (const name of ['muted', 'faint']) {
+    const r = ratio(token(name), darkest);
+    assert.ok(r >= 4.5, `--${name} is ${r.toFixed(2)} against a wave ring (${darkest}), under AA.`);
+  }
+});

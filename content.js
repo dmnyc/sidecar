@@ -597,7 +597,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -946,6 +946,57 @@
         CARD_WARN: 'color:#8C1D22',
         CARD_SUCCESS: 'color:#2F6B3A',
         CARD_PAY_SHADOW: 'rgba(21,23,28,0.28)'
+      },
+      /* Wabi-sabi — slate stoneware, ash glaze, and the kintsugi gold. Mirrors
+         themes/wabi-sabi.css. The pay button is the gold leaf, as the panel's primary
+         is, with the near-black ink the other dark themes use on a metallic fill.
+         CARD_LAV is the ash glaze the theme puts in the purple slot. */
+      'wabi-sabi': {
+        CARD_COLOR: 'color:#ECE6DA',
+        CARD_BORDER: 'rgba(167,182,194,0.26)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(217,174,85,0.10),transparent 58%),linear-gradient(165deg,#22252A,#131518)',
+        CARD_MUTED: 'color:#A8A194',
+        CARD_GOLD: 'color:#D9AE55',
+        CARD_TEXT_2: 'color:#D3CCBF',
+        CARD_LAV: '#BAC7D1',
+        CARD_PAY_TEXT: 'color:#1A1408',
+        CARD_PAY_BG: 'linear-gradient(180deg,#E8C170,#D9AE55 52%,#A9802F)',
+        CARD_CANCEL_BG: 'rgba(167,182,194,0.10)',
+        CARD_TEXT: '#ECE6DA',
+        CARD_BORDER_FAINT: 'rgba(167,182,194,0.14)',
+        CARD_TOGGLE_OFF: 'rgba(167,182,194,0.22)',
+        CARD_TRACK: '#D9AE55',
+        CARD_THUMB_OFF: '#A8A194',
+        CARD_WARN: 'color:#D08A5C',
+        CARD_SUCCESS: 'color:#8FAA7A',
+        CARD_PAY_SHADOW: 'rgba(217,174,85,0.28)'
+      },
+      /* Ukiyo-e — washi, Prussian blue, and the seal. Mirrors themes/ukiyo-e.css.
+         CARD_GOLD is the amount slot and takes --balance-ink, the seal vermilion, like
+         the bauhaus and par-avion entries; 42px/800 puts it under the 3.0 large-text
+         floor and it measures 5.22 on the card's lower stop. The pay button is the
+         indigo block, not the red, for the reason Par Avion gives: a button you spend
+         money with is not the place to wear the color of a warning. CARD_TRACK is the
+         lighter indigo so the shared near-black toggle thumb still shows on it. */
+      'ukiyo-e': {
+        CARD_COLOR: 'color:#1C1D24',
+        CARD_BORDER: 'rgba(31,78,121,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(45,107,168,0.10),transparent 58%),linear-gradient(165deg,#FFFCF6,#F8F1E4)',
+        CARD_MUTED: 'color:#55504A',
+        CARD_GOLD: 'color:#B8352A',
+        CARD_TEXT_2: 'color:#233A5C',
+        CARD_LAV: '#2D5F8E',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#2D5F8E,#1F4E79 52%,#173B5C)',
+        CARD_CANCEL_BG: 'rgba(31,78,121,0.10)',
+        CARD_TEXT: '#1C1D24',
+        CARD_BORDER_FAINT: 'rgba(31,78,121,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(31,78,121,0.25)',
+        CARD_TRACK: '#4E86BC',
+        CARD_THUMB_OFF: '#55504A',
+        CARD_WARN: 'color:#A5451E',
+        CARD_SUCCESS: 'color:#3E6A3A',
+        CARD_PAY_SHADOW: 'rgba(31,78,121,0.28)'
       }
     };
 
@@ -1229,7 +1280,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

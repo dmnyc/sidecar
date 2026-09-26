@@ -314,7 +314,7 @@ window.SidecarCore = (function () {
   // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
   // prompt.js (the approval window's wordmark). Three documents, no module system between
   // them; a new light theme has to be registered in all three.
-  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte']);
+  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e']);
   function logoSrcFor(themeName) {
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.

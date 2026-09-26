@@ -1,0 +1,192 @@
+/* ============================================================
+   Sidecar — Ukiyo-e Theme
+   The woodblock print: washi paper, Prussian blue, sumi ink, and the
+   vermilion of the artist's seal. Seigaiha waves run as the field.
+   Groups with the light themes.
+   ============================================================ */
+
+[data-theme="ukiyo-e"] {
+  color-scheme: light;
+
+  /* Shippori Mincho B1 — a mincho whose B1 cut adds ink traps at the joins, so the
+     letters carry the swell of ink pressed from a block into paper. A printed face for
+     a printed art, and the counterpart to Wabi-sabi's brush face: see fonts.css. */
+  --font-display: 'Shippori Mincho B1', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif;
+
+  /* How far this theme's display face has to move to sit optically centered, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.05em;
+
+  /* surfaces — washi. The warm, slightly fibrous paper is the FIELD, and the cards the
+     text sits on are near-white, the same structure that lets Populuxe and Par Avion
+     clear AA on every ink: the warm stock carries the character, the white carries
+     the reading. */
+  --bg: #F4ECDC;
+  --bg-2: #EDE3CF;
+  --velvet-1: #FFFCF6;
+  --velvet-2: #F8F1E4;
+  --velvet-1-rgb: 255, 252, 246;
+  --av-from: #FFFCF6;
+  --av-to: #EDE3CF;
+  --banner-accent: #EDE3CF;
+  --border: rgba(31, 78, 121, 0.16);
+  --border-strong: rgba(31, 78, 121, 0.30);
+  --border-rgb: 31, 78, 121;
+  --well-rgb: 237, 227, 207;
+  /* Bengara, the red-iron pigment of the early prints: a warning that is earthier than
+     the seal vermilion, so the two are never mistaken for each other. */
+  --warn: #A5451E;
+  --warn-rgb: 165, 69, 30;
+  /* Pine green, from the Tōkaidō roadside in every Hiroshige station. */
+  --success: #3E6A3A;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
+  --success-rgb: 62, 106, 58;
+
+  /* Prussian blue — bero-ai, the imported pigment that made Hokusai's wave possible
+     and turned the whole genre blue in the 1830s. It is the accent INK here (the active
+     check, row borders, tips), so --gold takes it, as Aegean and Par Avion do with their
+     blues: a real gold cannot clear 4.5 on white without going brown. 7.71:1 on the
+     lower card. --orange follows, because it drives every checkbox and a vermilion
+     checkbox reads as an error. */
+  --orange: #1F4E79;
+  --amber: #B8912F;
+  --gold: #1F4E79;
+  --gold-soft: rgba(31, 78, 121, 0.28);
+  --accent-rgb: 31, 78, 121;
+  /* The balance is the seal: shu vermilion, the red of the artist's chop in the corner
+     of the print. 5.22:1 on the lower card, over the 3.0 its display size needs. */
+  --balance-ink: #B8352A;
+  --fiat-sym-opacity: 1;
+  --purple: #1F4E79;
+  --lav: #2D5F8E;
+  --add-badge-ink: var(--velvet-1);
+  /* The unread count in seal red with white: 5.86:1. A count is a thing waiting, and
+     the seal is the one mark on a print you are meant to look for. */
+  --badge-bg: #B8352A;
+  --badge-ink: #FFFFFF;
+  --relax-dot-ok: #2E7D3A;
+  --relax-dot-low: var(--balance-ink);
+
+  --hover-soft: rgba(31, 78, 121, 0.05);
+  --hover-medium: rgba(31, 78, 121, 0.09);
+  --hover-faint: rgba(31, 78, 121, 0.035);
+  --mention-bg: rgba(31, 78, 121, 0.13);
+  --scroll-thumb: linear-gradient(180deg, #7C9BB8, #4E7598);
+  --scroll-thumb-hover: #2D5F8E;
+
+  /* primary button — the indigo block, printed solid */
+  --btn-primary-top: #2D5F8E;
+  --btn-primary-mid: #1F4E79;
+  --btn-primary-bot: #173B5C;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: rgba(31, 78, 121, 0.28);
+
+  /* "Trust this site" — pale aizome, indigo dye after one dip rather than twenty, so it
+     cannot be mistaken for the solid block above it. Dark label: 11.59:1 on the mid stop. */
+  --btn-lav-top: #E1E8EE;
+  --btn-lav-mid: #CCD8E3;
+  --btn-lav-bot: #B5C6D6;
+  --btn-lav-text: #1C1D24;
+  --btn-lav-ring: rgba(31, 78, 121, 0.26);
+  --btn-lav-shadow: rgba(31, 78, 121, 0.16);
+
+  --btn-secondary-top: #FFFCF6;
+  --btn-secondary-bot: #F0E7D5;
+
+  --pending-text: #173B5C;
+
+  --btn-accent-top: #2D5F8E;
+  --btn-accent-mid: #1F4E79;
+  --btn-accent-bot: #173B5C;
+  --btn-accent-text: #FFFFFF;
+
+  /* ink — sumi, the carbon ink of the key block, with indigo for the second tier */
+  --text: #1C1D24;
+  --text-2: #233A5C;
+  --muted: #55504A;
+  --faint: #655E53;
+  --red: #9E2A1F;
+
+  --shadow: 0 10px 30px rgba(50, 40, 25, 0.11);
+  --shadow-sm: 0 6px 18px rgba(50, 40, 25, 0.08);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+
+  --pattern-opacity: 1;
+
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(31, 78, 121, 0.20);
+  --card-wash: rgba(31, 78, 121, 0.06);
+  --accent-fill: var(--lav);
+  --chip-ink: #FFFFFF;
+  --glow: var(--lav);
+  --balloon-bg: #1F4E79;
+  --balloon-bg-hover: #2D5F8E;
+  --balloon-text: #FFFCF6;
+  /* The compose button is the seal itself: a vermilion chop with a paper-white quill. */
+  --fab-bg: #B8352A;
+  --fab-icon: #FFF8EC;
+  --float-shadow: rgba(50, 40, 25, 0.18);
+  --float-shadow-strong: rgba(50, 40, 25, 0.26);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="ukiyo-e"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+/* Outgoing transactions in bengara, off the same palette as --warn. */
+[data-theme="ukiyo-e"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+[data-theme="ukiyo-e"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+/* End, in seal red rather than the indigo --accent-fill it would otherwise take: the
+   control that stops something should not wear the color of the primary action. */
+[data-theme="ukiyo-e"] .relax-status-x {
+  background: var(--balance-ink);
+  color: #FFFFFF;
+}
+
+/* ---- balance animation: kentō -----------------------------------------------
+   A print is built one block at a time, and each block is laid against the kentō,
+   the registration notches cut into the key block, so that every color lands exactly
+   where the last one did. An impression pulled slightly off register shows a ghost of
+   the block beside the line.
+
+   So the figure arrives off register and is brought in: each glyph lands a hair out
+   of place with an indigo impression beside it, and both slide into alignment until
+   the ghost sits exactly under the vermilion and disappears. A movement of a few
+   hundredths of an em, readable throughout. */
+@keyframes ukiyo-e-kento {
+  0% {
+    opacity: 0;
+    transform: translate(0.06em, -0.05em);
+    text-shadow: -0.09em 0.07em 0 rgba(31, 78, 121, 0.55);
+  }
+  45% {
+    opacity: 1;
+    text-shadow: -0.035em 0.03em 0 rgba(31, 78, 121, 0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0);
+    text-shadow: 0 0 0 rgba(31, 78, 121, 0);
+  }
+}
+[data-theme="ukiyo-e"] .bal-glyph { display: inline-block; }
+[data-theme="ukiyo-e"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 195ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: ukiyo-e-kento 640ms cubic-bezier(0.22, 0.7, 0.2, 1)
+             calc(var(--i) * min(65ms, 195ms / max(var(--n) - 1, 1))) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="ukiyo-e"] .bal-glyph.bal-in { animation: none; }
+}
