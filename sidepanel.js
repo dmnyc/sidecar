@@ -18158,24 +18158,43 @@
     // another client and paid by the same wallet still reads as a plain payment — there
     // is nothing on it that says otherwise.
     const isZap = !!zap || !!zapParty;
+    // What the payer wrote: the zap request's own text on a zap you received, the comment
+    // Sidecar recorded on one you sent, the memo on anything else. Worked out once, for the
+    // mark beside a zap's name and the Note row in the details pane, so the two can never
+    // disagree about whether there is one.
+    const normDesc = normalizeDescription(tx.description);
+    const note = meta.comment || (normDesc && normDesc !== counterparty ? normDesc : '');
     const labelEl = h('div', { className: 'item-label' });
     if (isZap) {
       // The name may not be cached yet, and a wallet list must not wait on a relay to
       // render. Show the short key immediately and let the fetch upgrade it in place,
-      // which is the same two-step the note mentions use.
-      labelEl.textContent = zapLabel(incoming, zapParty, cachedProfile(zapParty));
+      // which is the same two-step the note mentions use. The name has its own span:
+      // rewriting the whole label on that upgrade would take the note mark with it.
+      const nameEl = h('span', { className: 'tx-name', textContent: zapLabel(incoming, zapParty, cachedProfile(zapParty)) });
+      labelEl.append(nameEl);
+      // A ZAP THAT CAME WITH A NOTE SAYS SO, beside the name. The label reads "Zap from
+      // cecilia" whatever was written, and the note itself lives in the details pane,
+      // which starts closed: the mark shows there is one, and hovering it reads it.
+      if (String(note).trim()) {
+        const mark = h('span', { className: 'tx-note', title: note });
+        mark.setAttribute('role', 'img');
+        mark.setAttribute('aria-label', 'Note: ' + note);
+        mark.append(icon('message-filled'));
+        labelEl.classList.add('has-note');
+        labelEl.append(mark);
+      }
       showZapFace(ic, incoming, cachedProfile(zapParty));
       if (zapParty) {
         getProfile(zapParty)
           .then((rec) => {
             if (!rec) return;
-            if (rec.name) labelEl.textContent = zapLabel(incoming, zapParty, rec);
+            if (rec.name) nameEl.textContent = zapLabel(incoming, zapParty, rec);
             showZapFace(ic, incoming, rec);
           })
           .catch(() => {});
       }
     } else {
-      labelEl.textContent = counterparty || normalizeDescription(tx.description) || (incoming ? 'Received' : 'Sent');
+      labelEl.textContent = counterparty || normDesc || (incoming ? 'Received' : 'Sent');
     }
     const main = h('div', { className: 'item-main' }, [
       labelEl,
@@ -18192,8 +18211,6 @@
     function buildDetails() {
       const fee = tx.fees_paid != null ? tx.fees_paid : meta.feeMsat;
       const when = tx.settled_at || tx.created_at;
-      const normDesc = normalizeDescription(tx.description);
-      const note = meta.comment || (normDesc && normDesc !== counterparty ? normDesc : '');
       // For a zap the counterparty is in the event rather than in the invoice, so the
       // From/To row above would otherwise be blank on every one of them.
       const zapWho = isZap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
