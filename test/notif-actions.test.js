@@ -212,13 +212,14 @@ test('A REACTION OF YOURS SHOWS ON THE ROW', () => {
   assert.match(item, /className: 'notif-reacted hidden'/, 'the row has nowhere to show a reaction');
   assert.match(item, /paintMyReactions\(reactedEl, ev\.id\)/, 'an existing reaction is not drawn on build');
   const actions = stripComments(lift('function buildActions('));
-  assert.match(actions, /addMyReaction\(ev\.id, ch\)/, 'a reaction is published but never shown');
+  assert.match(actions, /addMyReaction\(ev\.id, \{ content: ch, tags: \[\] \}\)/, 'a reaction is published but never shown');
 });
 
 test('the same emoji twice is one chip', () => {
   const f = stripComments(lift('function addMyReaction('));
-  assert.match(f, /new Set\(\)/, 'reactions are not deduped per note');
-  assert.match(f, /set\.add\(reactionGlyph\(content\)\)/, 'the glyph is stored raw');
+  assert.match(f, /new Map\(\)/, 'reactions are not deduped per note');
+  assert.match(f, /map\.set\(\(ev\.content \|\| ''\)\.trim\(\), reactionDisplay\(ev\)\)/,
+    'the reaction is not stored by its content');
 });
 
 test('EVERY ROW FOR THAT NOTE GETS THE CHIP', () => {
@@ -230,13 +231,14 @@ test('EVERY ROW FOR THAT NOTE GETS THE CHIP', () => {
 });
 
 test('the legacy + and - reactions draw as the sender ones do', () => {
-  // notifLabel already shows a SENDER's '+' as ❤️. A chip of ours that showed a literal
-  // plus sign would make one event read as two different things on one screen.
-  const glyph = fn('function reactionGlyph(', 'reactionGlyph');
-  assert.equal(glyph('+'), '❤️');
-  assert.equal(glyph('-'), '👎');
-  assert.equal(glyph(''), '❤️', 'an empty reaction is a like');
-  assert.equal(glyph('🔥'), '🔥', 'a real emoji must survive exactly as sent');
+  // notifLabel shows a SENDER's '+' as ❤️ through the same reactionDisplay, and a chip
+  // of ours that showed a literal plus sign would make one event read as two different
+  // things on one screen.
+  const d = fn('function reactionDisplay(', 'reactionDisplay');
+  assert.equal(d({ content: '+', tags: [] }).glyph, '❤️');
+  assert.equal(d({ content: '-', tags: [] }).glyph, '👎');
+  assert.equal(d({ content: '', tags: [] }).glyph, '❤️', 'an empty reaction is a like');
+  assert.equal(d({ content: '🔥', tags: [] }).glyph, '🔥', 'a real emoji must survive exactly as sent');
 });
 
 test('REACTIONS ARE ASKED OF THE RELAYS, NOT JUST REMEMBERED', () => {
@@ -245,7 +247,9 @@ test('REACTIONS ARE ASKED OF THE RELAYS, NOT JUST REMEMBERED', () => {
   // query for the whole list, after the sheet is interactive, capped like the rest.
   const fnSrc = stripComments(lift('async function showNotifModal('));
   assert.match(fnSrc, /kinds: \[7\], authors: \[a\.pubkey\], '#e': ids/, 'own reactions are never fetched');
-  assert.match(fnSrc, /addMyReaction\(notifTargetId\(r\), r\.content\)/, 'the results are not painted');
+  // The event goes in whole: a custom emoji's picture lives in its emoji tag, and a
+  // restore that passed only r.content printed the shortcode as literal chip text.
+  assert.match(fnSrc, /addMyReaction\(notifTargetId\(r\), r\)/, 'the results are not painted');
   assert.match(fnSrc, /setTimeout\(\(\) => res\(\[\]\), \d+\)/, 'the query is uncapped');
 });
 
