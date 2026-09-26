@@ -3869,7 +3869,10 @@ async function handleControl(message, sender, sendResponse) {
     }
     sendResponse({ ok: true, result });
   } catch (e) {
-    sendResponse({ ok: false, error: e.message });
+    // `destructive` rides along when the wipe check refused SIDECAR_OWNER_SIGN, as it
+    // does from the site path: without it the panel's call() has nothing to read, and
+    // a caller can only relay a bare sentence instead of offering the confirmation.
+    sendResponse({ ok: false, error: e.message, destructive: e.destructive || undefined });
   }
 }
 

@@ -2283,7 +2283,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .lazarus-chip.on { border-color: var(--gold); color: var(--gold); }
 .recovery-list { margin-top: 4px; }
-.recovery-row { align-items: center; }
+/* A version row is a column, like a wallet tx row: a head that toggles, and below it,
+   when opened, the relays holding that version at full width. */
+.list.flat .item.recovery-row { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+.recovery-head { display: flex; align-items: center; gap: 8px; padding: 13px 14px; cursor: pointer; }
 .recovery-row.rec { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft); }
 .recovery-meta { flex: 1; min-width: 0; }
 .recovery-count { font-size: 14px; color: var(--text); }
@@ -2291,11 +2294,31 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .recovery-count-lg { font-size: 20px; color: var(--text); margin-bottom: 2px; }
 .recovery-count-lg strong { font-weight: 700; color: var(--gold); }
 .recovery-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+/* The relay count in the sub line is the row's toggle: text, not a chip, since the
+   whole head is the target. It never breaks between the number and the word. */
+.recovery-relays-btn { background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+.recovery-relays-btn svg { width: 12px; height: 12px; transition: transform 0.15s; }
+.recovery-row.open .recovery-relays-btn svg { transform: rotate(180deg); }
+.recovery-head:hover .recovery-relays-btn { color: var(--text-2); }
+.recovery-relays { padding: 6px 14px 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .recovery-relays-btn svg { transition: none; }
+}
 .recovery-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .recovery-badge { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; }
 .recovery-badge.cur { background: rgba(96, 165, 250, 0.16); color: #7cb0ff; }
 .recovery-badge.rec { background: rgba(var(--accent-rgb), 0.16); color: var(--gold); }
 .recovery-confirm { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 4px; }
+/* Each relay's outcome, folded away until asked for. */
+.lazarus-outcomes { margin-top: 12px; font-size: 12px; color: var(--muted); }
+.lazarus-outcomes summary { cursor: pointer; color: var(--text-2); margin-bottom: 4px; }
+/* One relay per line, in the outcomes and in an opened version row: the relay name
+   ellipsizes, the role and the outcome keep their width. */
+.lazarus-relay { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
+.lazarus-relay .relay { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lazarus-relay .role, .lazarus-relay .state { flex-shrink: 0; }
+.lazarus-relay .role { color: var(--faint); }
+.lazarus-relay.bad .state { color: var(--warn); }
 .restore-list { margin: 4px 0 10px; padding-left: 20px; color: var(--text); }
 .restore-list li { margin: 3px 0 12px; }
 
