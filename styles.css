@@ -2263,17 +2263,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-item.bm-missing .bm-snippet { font-family: var(--font-mono); font-size: 11.5px; }
 .bm-missing-head { font-size: 11px; color: var(--faint); letter-spacing: 0.03em; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border); }
 
-/* follow-list recovery modal */
+/* data recovery modal (Lazarus) */
 .modal .recovery-modal .actions { margin-top: 22px; }
-.mutable-credit { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; }
-.mutable-credit:hover { color: var(--text-2); }
-.mutable-credit:hover span { text-decoration: underline; }
-.mutable-logo { width: 20px; height: 20px; border-radius: 5px; display: block; }
-/* pair the credit tightly under the Restore follow list button so it reads as
-   "this feature is powered by Mutable" rather than a section footer */
+.lazarus-credit { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; }
+.lazarus-credit:hover { color: var(--text-2); }
+.lazarus-credit:hover span { text-decoration: underline; }
+/* pair the credit tightly under the scan button so it reads as
+   "this feature is powered by Lazarus" rather than a section footer */
 .recovery-block .secondary { margin-bottom: 0; }
-.recovery-block .mutable-credit { display: flex; justify-content: center; margin-top: 8px; }
-.recovery-modal .mutable-credit { display: flex; justify-content: center; margin-top: 10px; }
+.recovery-block .lazarus-credit { display: flex; justify-content: center; margin-top: 8px; }
+.recovery-modal .lazarus-credit { display: flex; justify-content: center; margin-top: 10px; }
+/* the kind picker: chips wrap two-to-a-row in the 300px sheet, grouped under a
+   quiet tier label — the tiers carry the spec's own "how much does this matter" */
+.lazarus-tier { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin: 12px 0 6px; }
+.lazarus-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.lazarus-chip {
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--hover-soft); color: var(--text-2); font-size: 13px;
+}
+.lazarus-chip.on { border-color: var(--gold); color: var(--gold); }
 .recovery-list { margin-top: 4px; }
 .recovery-row { align-items: center; }
 .recovery-row.rec { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft); }
@@ -2290,24 +2298,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .recovery-confirm { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 4px; }
 .restore-list { margin: 4px 0 10px; padding-left: 20px; color: var(--text); }
 .restore-list li { margin: 3px 0 12px; }
-/* second line of a file-restore row: counts in the file vs counts live now.
-   Warn color only when the restore would actually change the list. */
-.restore-list-sub { font-size: 12px; color: var(--muted); margin-top: 1px; padding-left: 2px; }
-.restore-list-sub.warn { color: var(--warn); }
-.restore-list-sub .recv-spinner { width: 10px; height: 10px; border-width: 2px; margin-right: 4px; }
 
-/* what a restore will publish, shown before the PIN is asked for. The counts
-   block reuses .recovery-confirm (the follow-recovery modal's card); the profile
-   preview is its own pane because a bio answers "is this mine?" by looking. */
-.restore-compare { margin: 10px 0 4px; }
-.restore-preview { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
-.restore-preview-head { display: flex; align-items: center; gap: 10px; }
-.restore-preview-av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); }
-.restore-preview-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.restore-preview-id { min-width: 0; }
-.restore-preview-name { font-size: 16px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.restore-preview-nip05 { font-size: 12px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.restore-preview-about { font-size: 13px; margin: 10px 0 0; max-height: 140px; overflow: hidden; }
 .show-more-btn { display: block; width: 100%; margin: 4px 0 10px; color: var(--lav); font-weight: 600; }
 #activity-clear { display: block; margin: 8px auto 0; }
 
