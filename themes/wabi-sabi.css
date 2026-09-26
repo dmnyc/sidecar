@@ -1,0 +1,131 @@
+/* ============================================================
+   Sidecar — Wabi-sabi Theme
+   A tea bowl that broke and was mended with gold: slate stoneware,
+   ash glaze, iron speckle, and kintsugi seams where it was repaired.
+   Groups with the dark themes.
+   ============================================================ */
+
+[data-theme="wabi-sabi"] {
+  color-scheme: dark;
+
+  /* Yuji Syuku — a brush-drawn mincho. Every stroke keeps the brush's entry and lift and
+     no two letters are quite the same width, which is the theme's argument made in type:
+     the maker's hand left in the work rather than sanded out of it. See fonts.css for how
+     it is kept apart from Ukiyo-e's printed face. */
+  --font-display: 'Yuji Syuku', 'Hiragino Mincho ProN', Georgia, serif;
+
+  /* How far this theme's display face has to move to sit optically centered, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.03em;
+
+  /* surfaces — slate stoneware, the blue-gray of a reduction-fired glaze. Cool rather
+     than brown on purpose: Brownstone already owns the warm dark, and the one warm
+     thing in this bowl is supposed to be the gold in its seams. */
+  --bg: #131518;
+  --bg-2: #181A1E;
+  --velvet-1: #22252A;
+  --velvet-2: #1A1C20;
+  --velvet-1-rgb: 34, 37, 42;
+  --av-from: #2A2E34;
+  --av-to: #1A1C20;
+  --banner-accent: #2A2E34;
+  --border: rgba(167, 182, 194, 0.14);
+  --border-strong: rgba(167, 182, 194, 0.26);
+  --border-rgb: 167, 182, 194;
+  --well-rgb: 12, 13, 15;
+  /* Iron oxide — the rust-colored speckle that comes up through the glaze. */
+  --warn: #D08A5C;
+  --warn-rgb: 208, 138, 92;
+  /* Moss, the green on the stones of a tea garden path. */
+  --success: #8FAA7A;
+  --success-rgb: 143, 170, 122;
+
+  /* brand — persimmon for the UI accent (checkboxes, mentions), the kaki glaze that is
+     the one bright color a Japanese kiln traditionally allows itself. Near-black on it
+     for the badge: 6.29:1. */
+  --orange: #C98A4B;
+  --badge-ink: #16110A;
+  /* The gold is the kintsugi. It is an ink here as well as a fill — 7.42:1 on the
+     lightest card — so it can carry the accents the way Speakeasy's gold does. */
+  --amber: #E8C170;
+  --gold: #D9AE55;
+  --gold-soft: rgba(217, 174, 85, 0.5);
+  --accent-rgb: 217, 174, 85;
+  /* Ash glaze takes the slot the other dark themes fill with purple: the pale runs
+     where the glaze pooled thin over the clay. 7.40:1 and 8.91:1 on the card. */
+  --purple: #A7B6C2;
+  --lav: #BAC7D1;
+  --hover-soft: rgba(167, 182, 194, 0.07);
+  --hover-medium: rgba(167, 182, 194, 0.11);
+  --hover-faint: rgba(167, 182, 194, 0.05);
+  --mention-bg: rgba(201, 138, 75, 0.18);
+  --scroll-thumb: linear-gradient(180deg, #353A41, #2A2E34);
+  --scroll-thumb-hover: #454B53;
+
+  /* primary button — gold leaf, laid over lacquer */
+  --btn-primary-top: #E8C170;
+  --btn-primary-mid: #D9AE55;
+  --btn-primary-bot: #A9802F;
+  --btn-primary-text: #1A1408;
+  --btn-shadow: rgba(217, 174, 85, 0.28);
+
+  /* ink — rice paper, never white */
+  --text: #ECE6DA;
+  --text-2: #D3CCBF;
+  --muted: #A8A194;
+  --faint: #857F74;
+  --red: #DA6F62;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.4);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  --pattern-opacity: 1;
+
+  /* Tokens the base sheet reads instead of hardcoding. A dark theme could inherit the
+     fallbacks, but they are Speakeasy's violet and would sit wrong on stoneware. */
+  --input-bg: linear-gradient(180deg, rgba(10, 11, 13, 0.6), rgba(19, 21, 24, 0.6));
+  --focus-ring: rgba(217, 174, 85, 0.18);
+  --card-wash: rgba(217, 174, 85, 0.10);
+}
+
+/* Outgoing transactions in iron red, off the same glaze as --warn. */
+[data-theme="wabi-sabi"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.13);
+}
+[data-theme="wabi-sabi"] ::selection {
+  background: rgba(217, 174, 85, 0.24);
+  color: var(--text);
+}
+
+/* ---- balance animation: the mend ------------------------------------------
+   Kintsugi is slow work: the lacquer is laid in, left to cure, and only then is the
+   gold dusted onto it, and the seam goes from dull to lit as the powder catches. So
+   each figure surfaces out of the glaze — unfocused, as if under a film of lacquer —
+   and a warm glow comes up through it and then settles back, leaving plain gold.
+
+   Unhurried on purpose, the slowest of the dark themes: nothing about the tea
+   ceremony rushes, and a balance that snapped into place would be the wrong gesture
+   in this room. The glyphs keep their place the whole time; only focus and light
+   change, so the figure is readable from the first frame it is visible. */
+@keyframes wabi-sabi-mend {
+  0% { opacity: 0; filter: blur(3px); text-shadow: none; }
+  35% { opacity: 0.8; filter: blur(0.8px); text-shadow: 0 0 0.35em rgba(232, 193, 112, 0.35); }
+  60% { opacity: 1; filter: blur(0); text-shadow: 0 0 0.6em rgba(232, 193, 112, 0.55), 0 0 0.12em rgba(255, 226, 160, 0.6); }
+  100% { opacity: 1; filter: blur(0); text-shadow: none; }
+}
+[data-theme="wabi-sabi"] .bal-glyph { display: inline-block; }
+[data-theme="wabi-sabi"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 240ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: wabi-sabi-mend 1150ms cubic-bezier(0.3, 0.1, 0.25, 1)
+             calc(var(--i) * min(80ms, 240ms / max(var(--n) - 1, 1))) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="wabi-sabi"] .bal-glyph.bal-in { animation: none; }
+}

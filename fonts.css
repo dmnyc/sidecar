@@ -24,6 +24,8 @@
      Par Avion   Special Elite      distressed typewriter        the typed letter
      Metropolis  Limelight          deco poster capitals         the 1927 one-sheet
      Werkstätte  Syncopate          wide monoline poster caps    Hoffmann's Gitterwerk
+     Wabi-sabi   Yuji Syuku         brush-drawn mincho           the potter's own hand
+     Ukiyo-e     Shippori Mincho B1 printed mincho, ink traps    the woodblock impression
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -319,4 +321,44 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/syncopate-700.ttf') format('truetype');
+}
+
+/* The two Japanese faces. Both are Japanese families whose Latin was drawn to sit beside
+   kana and kanji, which is why they read as Japanese without a single Japanese glyph on
+   screen — and only their Latin subsets ship (the U+0000-00FF cut Google Fonts serves),
+   not the tens of thousands of CJK glyphs, which is what keeps each file near 40KB.
+   Both SIL OFL 1.1; license text in fonts/OFL-YujiSyuku.txt and
+   fonts/OFL-ShipporiMinchoB1.txt.
+
+   They are kept apart the way the table at the top asks, by category rather than by
+   color. Yuji Syuku is a BRUSH face: every stroke keeps the entry and lift of the
+   brush, the widths wander, and the letters stand apart with room between them — the
+   hand of the maker left in the work, which is the whole of Wabi-sabi. Shippori Mincho
+   B1 is a PRINTED face: the B1 cut adds ink traps that swell the joins, the way ink
+   pools where a block meets paper, and that impression is the whole of Ukiyo-e. One is
+   the brush, the other the block the brush was carved into.
+
+   Yuji Syuku is single-weight and declares `400 700` for the reason given above for the
+   other single-weight faces. Shippori ships two statics, 500 and 700, so a 600 heading
+   takes the nearer real outline rather than a synthesized one. */
+@font-face {
+  font-family: 'Yuji Syuku';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/yuji-syuku.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Shippori Mincho B1';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('fonts/shippori-mincho-b1-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Shippori Mincho B1';
+  font-style: normal;
+  font-weight: 600 800;
+  font-display: swap;
+  src: url('fonts/shippori-mincho-b1-700.woff2') format('woff2');
 }
