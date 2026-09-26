@@ -142,6 +142,69 @@
   // or earlier, an attribution ending in a year, under 140 characters — plus one thing
   // they cannot check: that the wording is actually right. Verify against a real edition
   // rather than a quote site, and prefer a writer not already on the list.
+  // ON THIS DAY. One line about something that happened on today's date, at least 75
+  // years ago, sitting at the foot of the Accounts tab.
+  //
+  // HAND-WRITTEN, and the reason is worth recording so nobody re-runs the experiment.
+  // Two CC0 sources could in principle have supplied this and neither survived contact.
+  // Wikidata's event classes are overwhelmingly military: eleven of twelve results for
+  // one sample date were battles and captures. The Library of Congress's Today in
+  // History is warm and well chosen, but it gives SUBJECT TITLES rather than facts
+  // ("Chicago Dunks Iowa!"), pairs its year list with the wrong subject (Alexander
+  // Hamilton filed under 1885, which is Alice Paul's birth), rate-limits a bulk read to
+  // a stop at 429, and is about America. Both are things to LOOK SOMETHING UP IN while
+  // writing a line. Neither is something to import.
+  //
+  // The 75 years is editorial, not legal. Facts carry no copyright, so unlike
+  // PERIOD_QUOTES there is no public-domain line to clear; the distance is what keeps
+  // this out of anything anyone is still arguing about. It is computed from the current
+  // year rather than written down, so it moves on its own.
+  //
+  // Keyed MM-DD with an array per day. A day with no entry shows NO CARD, which is the
+  // whole reason this can ship at fifteen days and grow one release at a time: absence
+  // reads as silence rather than as a gap. Saying "nothing happened today" would be a
+  // lie about every date in the calendar.
+  // The list lives in on-this-day.js, loaded before this file, so it can be edited
+  // without opening a one-megabyte script and so batch additions do not collide with
+  // unrelated work in here. Defaulted rather than assumed: a missing script tag should
+  // cost the card, not the panel.
+  const ON_THIS_DAY = window.SIDECAR_ON_THIS_DAY || {};
+
+  // How old something has to be to appear. Editorial, and it slides: an entry is hidden
+  // until the calendar catches up with it rather than being wrong for a year.
+  const HISTORY_MIN_AGE = 75;
+
+  // SPREAD ACROSS PEOPLE, not across years, and stable for one person for one day.
+  //
+  // Indexing by year was the obvious first answer and it is wrong for the half of this
+  // feature that matters. It is shareable, so everyone who opened Sidecar on the same
+  // date got the same line, and every post of it said the same thing. A date carrying
+  // four entries still produced one post.
+  //
+  // Seeding on the account instead gives four different posts, while keeping the two
+  // properties that made year-indexing attractive: it is a pure function of things that
+  // do not change during a day, so opening the panel five times deals the same card
+  // rather than shuffling, and a date with more entries spreads further. FNV-1a because
+  // it needs to be stable and well mixed, not unguessable.
+  //
+  // No account, no seed, and everyone signed out shares the same line. That is fine: it
+  // is the one state where nobody is posting.
+  function pickOnThisDay(now, seed) {
+    now = now || new Date();
+    const key = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const year = now.getFullYear();
+    const entries = (ON_THIS_DAY[key] || []).filter((e) => year - e.year >= HISTORY_MIN_AGE);
+    if (!entries.length) return null;
+    if (entries.length === 1) return entries[0];
+    const s = String(seed || '') + '|' + key + '|' + year;
+    let hash = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      hash ^= s.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return entries[(hash >>> 0) % entries.length];
+  }
+
   const PERIOD_QUOTES = [
     { text: 'A book must be the axe for the frozen sea within us.', who: 'Franz Kafka, 1904' },
     { text: 'We are all in the gutter, but some of us are looking at the stars.', who: 'Oscar Wilde, 1892' },
@@ -7207,6 +7270,45 @@
     renderMain();
   }
 
+  // Sidecar's own account, for the mention on a shared card. Only ever put into a
+  // composer the user then reads and edits: an extension that quietly attaches its own
+  // marketing to a note signed with your key is the thing this product exists to
+  // prevent, so the mention is visible in the text and nothing is added behind it.
+  const SIDECAR_NPUB = 'npub1car07c9zhkf7nkjh062v860gje8rf6v7m3sh0dttf5xypwvf4w7swjf0dd';
+
+  function renderOnThisDay() {
+    const host = $('otd');
+    if (!host) return;
+    const entry = pickOnThisDay(null, state.activePubkey);
+    if (!entry) { host.textContent = ''; hide(host); return; }
+
+    const share = h('button', { className: 'otd-share', type: 'button', title: 'Post this' }, [icon('share')]);
+    share.setAttribute('aria-label', 'Post this');
+    share.addEventListener('click', () => {
+      // The composer, prefilled and editable, never a silent publish. The mention
+      // rides in the text as a NIP-27 nostr: reference so a reader can tap through
+      // and the author can delete it before posting if they would rather not.
+      // A COLON, not a comma with the sentence recased. Deriving grammar from prose
+      // breaks on the first proper noun, and it did: "On this day in 1859, joshua
+      // Norton declared himself Emperor". This mirrors the card, which already reads
+      // as a kicker above a sentence, and needs nothing from the text.
+      openComposer(
+        'On this day in ' + entry.year + ': ' + entry.text +
+        '\n\nvia nostr:' + SIDECAR_NPUB
+      );
+    });
+
+    host.textContent = '';
+    host.append(
+      h('div', { className: 'otd-main' }, [
+        h('p', { className: 'otd-kicker', textContent: 'On this day in ' + entry.year }),
+        h('p', { className: 'otd-text', textContent: entry.text }),
+      ]),
+      share
+    );
+    show(host);
+  }
+
   function renderMain() {
     // renderMain clears and rebuilds the header and the account list, and re-runs the
     // pinned balance bar. Behind an open modal that tear-down is visible as a flicker
@@ -7260,7 +7362,9 @@
       tip.remove();
     }
 
-    // No accounts → gate the rest of the app: the Activity/Profile/Wallet tabs and
+      renderOnThisDay();
+
+  // No accounts → gate the rest of the app: the Activity/Profile/Wallet tabs and
     // the compose FAB are dimmed and inert until an account exists. Snap back to
     // the Accounts tab if a gated tab was active (e.g. after removing the last one).
     ['activity', 'profile', 'wallet'].forEach((name) => {
