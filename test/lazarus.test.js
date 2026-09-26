@@ -1,7 +1,7 @@
 'use strict';
 
 // Lazarus — recovery of user data from relay history (github.com/dmnyc/lazarus),
-// spec 0.6.0-draft.
+// spec 0.6.1-draft.
 //
 // The fixtures below are the spec's conformance cases, at least the ones a pure
 // core can carry: sudden drops vs gradual curation, clobber episodes, settled
@@ -378,8 +378,17 @@ test('AN UNREADABLE CURRENT LIST IS UNCOUNTED, AND TAKES THE SHRINK PATH', () =>
   assert.equal(s.shrink, false);
 });
 
+test('ENCRYPTION KEYS ARE THE n TAGS NIP-4e LISTS THEM IN (0.6.1)', () => {
+  // Counting p tags, as the registry once said, read every real key list as empty:
+  // no version offered keys to restore, and the intent question asked the wrong way.
+  const keys = cand(10, [['n', 'a'.repeat(64)], ['n', 'b'.repeat(64)]], '', 10044);
+  assert.deepEqual([L.itemRange(keys).min, L.itemRange(keys).max], [2, 2]);
+  assert.equal(L.itemRange(cand(10, [['p', 'c'.repeat(64)]], '', 10044)).max, 0, 'a p tag is a key share, not a key');
+  assert.equal(L.SPEC_VERSION, '0.6.1-draft');
+});
+
 test('MEANINGFUL-EMPTY DELTAS STATE BOTH ENDPOINTS, IN THE RIGHT DIRECTION', () => {
-  const keys = cand(10, [['p', 'a'.repeat(64)]], '', 10044);
+  const keys = cand(10, [['n', 'a'.repeat(64)]], '', 10044);
   const empty = cand(20, [], '', 10044);
   const restoring = L.delta(keys, empty, 10044).notes;
   assert.ok(restoring.includes(L.REGISTRY[10044].restoreNote));

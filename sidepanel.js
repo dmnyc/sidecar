@@ -15314,7 +15314,7 @@
   }
 
   // ---- Lazarus: recovery of user data from relay history ----
-  // github.com/dmnyc/lazarus, spec 0.6.0-draft; the concept first shipped in
+  // github.com/dmnyc/lazarus, spec 0.6.1-draft; the concept first shipped in
   // Mutable and was hardened in the Jumble fork. kind:3, 10000 and friends are
   // replaceable, so a buggy client publishing its own version destroys every
   // prior version on relays that honor replacement, but the history usually

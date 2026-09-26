@@ -1,5 +1,5 @@
 // Lazarus — recovery of user data from relay history on Nostr.
-// Spec: https://github.com/dmnyc/lazarus (0.6.0-draft).
+// Spec: https://github.com/dmnyc/lazarus (0.6.1-draft).
 //
 // A buggy client publishing its own version of a replaceable event destroys every
 // prior version on any relay that honors replacement. Until relays expire it, the
@@ -20,7 +20,7 @@
 (function (root) {
   'use strict';
 
-  const SPEC_VERSION = '0.6.0-draft';
+  const SPEC_VERSION = '0.6.1-draft';
 
   // Reference thresholds from the spec. Implementations SHOULD use them so that
   // recommendations agree across clients; changing these here is a spec-version
@@ -71,7 +71,9 @@
       restoreNote: 'Restoring an old bookmark list affects nobody but you.',
     },
     10044: {
-      name: 'Encryption keys', tier: 2, profile: 'none', itemTags: ['p'],
+      // NIP-4e lists encryption pubkeys in `n` tags; `p` tags belong to its kind
+      // 4455 key shares. Counting `p` read every key list as empty (0.6.1).
+      name: 'Encryption keys', tier: 2, profile: 'none', itemTags: ['n'],
       meaningfulEmpty: true,
       noun: 'keys',
       // Empty means "I no longer use NIP-4e": a defined state, not damage. The

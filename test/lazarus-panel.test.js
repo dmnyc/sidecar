@@ -737,7 +737,7 @@ test('SCREENS: ONE KIND IS CHOSEN ACROSS EVERY TIER, AND KEYS ASK THE INTENT QUE
     ['Most worth recovering', 'Also yours', 'Check before restoring']);
 
   const keys = modalHarness({ configured: [C] });
-  keys.set(C, { mode: 'eose', events: [listEvent([['r', W]]), signed(10044, []), signed(10044, [['p', 'a'.repeat(64)]], { at: 1_600_000_000 })] });
+  keys.set(C, { mode: 'eose', events: [listEvent([['r', W]]), signed(10044, []), signed(10044, [['n', 'a'.repeat(64)]], { at: 1_600_000_000 })] });
   keys.set(W, { mode: 'eose', events: [] });
   await scanTo(keys, 'Encryption keys');
   const past = keys.modal.querySelectorAll('recovery-row').find((r) => !/Current/.test(r.textContent));
