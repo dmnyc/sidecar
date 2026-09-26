@@ -134,7 +134,12 @@ function harness(deps = {}) {
   const ctx = {
     console, Promise, Set, Map, Array, Object, JSON, Math, String, Error, setTimeout, clearTimeout,
     NT,
-    self: { SidecarLazarus: Object.assign({}, L, { RELAY_TIMEOUT: deps.timeout || 250 }) },
+    // A generous timeout by default: a scripted relay answers in milliseconds, but the
+    // full suite runs files in parallel, and a loaded machine once let a 250ms budget
+    // expire first, recording an answered relay as timed out. Only the silence test
+    // wants a short one, and sets it. Unscripted relays refuse at once, so no test
+    // waits on this.
+    self: { SidecarLazarus: Object.assign({}, L, { RELAY_TIMEOUT: deps.timeout || 3000 }) },
     getPool: () => relays.pool,
     authRelays: new Set((deps.auth || []).map((u) => NT.utils.normalizeURL(u))),
     normalizeRelay: (u) => { try { return NT.utils.normalizeURL(u); } catch (_) { return String(u); } },
@@ -551,7 +556,7 @@ class FakeEl {
 const all = (root) => { const out = []; const walk = (n) => (n.children || []).forEach((c) => { out.push(c); walk(c); }); walk(root); return out; };
 const button = (root, text) => all(root).find((e) => e.tagName === 'BUTTON' && (e.textContent === text || e.title === text));
 const waitFor = async (pred, what) => {
-  for (let i = 0; i < 300; i++) { if (pred()) return; await new Promise((r) => setTimeout(r, 10)); }
+  for (let i = 0; i < 1000; i++) { if (pred()) return; await new Promise((r) => setTimeout(r, 10)); }
   throw new Error('timed out waiting for ' + what);
 };
 
