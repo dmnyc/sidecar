@@ -132,7 +132,7 @@ window.SidecarI18n = {
 Each page loads it before `composer-core.js`.
 
 - **Keys are natural-language English**, as in Jumble. The code stays readable,
-  English needs no locale file, and the 93 test files that assert on English text
+  English needs no locale file, and the 133 test files that assert on English text
   keep passing because `t()` returns the key when there is no translation.
 - **Plural forms** are chosen with `Intl.PluralRules(lang).select(count)`, so a
   key can have `_zero`, `_one`, `_two`, `_few`, `_many` and `_other` variants.
