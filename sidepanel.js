@@ -4929,29 +4929,10 @@
     // moved for the same reason (boltIcon, because ⚡ washed out on light themes).
     if (ev.kind === 6) return { icon: 'repeat', text: 'reposted your note' };
     if (ev.kind === 7) {
-      const r = (ev.content || '').trim();
-      // A CUSTOM EMOJI REACTION (NIP-30) carries a :shortcode: in the content and the
-      // picture in an ["emoji", shortcode, url] tag. Nothing read that tag, so the glyph
-      // was picked by length and got it wrong two different ways: `:EZ:` is exactly four
-      // characters, passed the test, and printed as literal text, while `:shakingeyes:`
-      // failed it and was reported as a heart. The second is the worse one, because it
-      // does not look broken, it looks like something that did not happen.
-      const short = /^:([a-zA-Z0-9_+-]+):$/.exec(r);
-      if (short) {
-        const tag = (ev.tags || []).find((t) => t[0] === 'emoji' && t[1] === short[1] && t[2]);
-        // NO TAG, NO GUESS. An unresolved shortcode is honest; a heart in its place is a
-        // false statement about what somebody did. A tag naming a different shortcode is
-        // not borrowed either, which is what the t[1] check is for.
-        return { glyph: r, text: 'reacted to your note', emojiUrl: tag ? tag[2] : '' };
-      }
-      // `r.length <= 4` stood in for "is this a single emoji" and was wrong in both
-      // directions: it rejected multi-codepoint emoji like 👨‍👩‍👧, which run to eight or more
-      // code units, and accepted short words like `lol`. Ask what the string actually
-      // contains instead. No length fallback behind a try/catch, which would only carry
-      // the old bug forward.
-      const pictographic = /\p{Extended_Pictographic}/u.test(r);
-      const glyph = r === '+' ? '❤️' : r === '-' ? '👎' : (r && pictographic ? r : '❤️');
-      return { glyph, text: 'reacted to your note' };
+      // What a reaction draws is decided in reactionDisplay, shared with the
+      // your-reactions chip so the two surfaces cannot drift apart.
+      const d = reactionDisplay(ev);
+      return { glyph: d.glyph, text: 'reacted to your note', emojiUrl: d.emojiUrl || '' };
     }
     // Direct replies belong to the parent author, even when someone else owns
     // the root thread. Extra p tags can be mentions, so prefer the parent event
@@ -5480,28 +5461,52 @@
   // Filled from two places: optimistically when a reaction of ours publishes, and from a
   // relay query for our own kind:7s on sheet open, so a reaction sent from another client
   // — or from this panel before a reload — still shows.
-  const _myReactions = new Map(); // note id → Set(emoji)
+  const _myReactions = new Map(); // note id → Map(reaction content → what it draws)
 
   // Where the open bell sheet is, set by the sheet itself while it is on screen. Reading
   // it from an action inside the sheet is what lets that action hand the panel to the
   // composer and get the list back afterwards, pages and scroll offset included.
   let notifPlace = () => null;
 
-  // '+' is the legacy like and '-' the legacy dislike (NIP-25). notifLabel already draws
-  // them as ❤️ and 👎 where a SENDER's reaction is shown, and a chip of ours has to agree
-  // with that or the same event reads as two different things on one screen.
-  function reactionGlyph(content) {
-    const r = (content || '').trim();
-    if (r === '+' || !r) return '❤️';
-    if (r === '-') return '👎';
-    return r;
+  // WHAT A REACTION DRAWS. The content is the emoji (NIP-25): '+' is the legacy like and
+  // '-' the legacy dislike, a pictographic renders as itself, and a :shortcode: (NIP-30)
+  // is a picture carried in an ["emoji", shortcode, url] tag on the reaction event.
+  // Shared by the two surfaces that draw one — notifLabel's row glyph and the
+  // your-reactions chip — because a chip of ours has to agree with a sender's row or the
+  // same event reads as two different things on one screen.
+  function reactionDisplay(ev) {
+    const r = (ev.content || '').trim();
+    if (r === '+' || !r) return { glyph: '❤️' };
+    if (r === '-') return { glyph: '👎' };
+    // Nothing read the emoji tag until #273, and the glyph was picked by length, which
+    // got it wrong two different ways: `:EZ:` is exactly four characters, passed the
+    // test, and printed as literal text, while `:shakingeyes:` failed it and was
+    // reported as a heart. The second is the worse one, because it does not look
+    // broken, it looks like something that did not happen.
+    const short = /^:([a-zA-Z0-9_+-]+):$/.exec(r);
+    if (short) {
+      const tag = (ev.tags || []).find((t) => t[0] === 'emoji' && t[1] === short[1] && t[2]);
+      // NO TAG, NO GUESS. An unresolved shortcode is honest; a heart in its place is a
+      // false statement about what somebody did. A tag naming a different shortcode is
+      // not borrowed either, which is what the t[1] check is for.
+      return { glyph: r, emojiUrl: tag ? tag[2] : '' };
+    }
+    // `r.length <= 4` once stood in for "is this a single emoji" and was wrong in both
+    // directions: it rejected multi-codepoint emoji like 👨‍👩‍👧, which run to eight or more
+    // code units, and accepted short words like `lol`. Ask what the string actually
+    // contains instead. No length fallback behind a try/catch, which would only carry
+    // the old bug forward.
+    const pictographic = /\p{Extended_Pictographic}/u.test(r);
+    return { glyph: r && pictographic ? r : '❤️' };
   }
 
-  function addMyReaction(noteId, content) {
-    if (!noteId) return;
-    const set = _myReactions.get(noteId) || new Set();
-    set.add(reactionGlyph(content));
-    _myReactions.set(noteId, set);
+  // THE REACTION EVENT goes in, not just its content: a custom emoji's picture lives in
+  // the event's emoji tag, so a bare shortcode cannot be drawn.
+  function addMyReaction(noteId, ev) {
+    if (!noteId || !ev) return;
+    const map = _myReactions.get(noteId) || new Map();
+    map.set((ev.content || '').trim(), reactionDisplay(ev));
+    _myReactions.set(noteId, map);
     // Every row on screen for that note, not just the one that was tapped: the same note
     // can be the target of several notifications (a reply and a reaction to it).
     document.querySelectorAll('.notif-item[data-notif-id="' + cssEscape(noteId) + '"] .notif-reacted')
@@ -5509,11 +5514,28 @@
   }
 
   function paintMyReactions(el, noteId) {
-    const set = _myReactions.get(noteId);
+    const map = _myReactions.get(noteId);
     el.innerHTML = '';
-    if (!set || !set.size) { el.classList.add('hidden'); return; }
+    if (!map || !map.size) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
-    set.forEach((ch) => el.append(h('span', { className: 'notif-reacted-chip', textContent: ch })));
+    map.forEach((d) => {
+      const chip = h('span', { className: 'notif-reacted-chip' });
+      if (d.emojiUrl) {
+        // Third-party URL, so the same treatment every other remote image here gets: no
+        // referrer, and a load failure falls back to the shortcode rather than to an
+        // empty space.
+        const img = document.createElement('img');
+        img.className = 'notif-reacted-chip-img';
+        img.alt = d.glyph;
+        img.referrerPolicy = 'no-referrer';
+        img.onerror = () => { img.remove(); chip.textContent = d.glyph; };
+        img.src = d.emojiUrl;
+        chip.append(img);
+      } else {
+        chip.textContent = d.glyph;
+      }
+      el.append(chip);
+    });
   }
 
   // An event id is 64 hex characters, so this never has anything to escape today. It is
@@ -6502,8 +6524,9 @@
             await publishReaction(ev, ch);
             // The chip is what makes this durable feedback. The toast says it happened;
             // the chip is still there tomorrow, which is when you want to know whether
-            // you already answered something.
-            addMyReaction(ev.id, ch);
+            // you already answered something. A minimal event shape: the picker is
+            // unicode-only, so there is no emoji tag to carry.
+            addMyReaction(ev.id, { content: ch, tags: [] });
             toast('Reacted ' + ch, 'success');
           } catch (e2) {
             toast(e2.message, 'error');
@@ -7087,7 +7110,9 @@
             poolQuerySync(relays, { kinds: [7], authors: [a.pubkey], '#e': ids.slice(0, 100) }),
             new Promise((res) => setTimeout(() => res([]), 6000)),
           ]);
-          (mine || []).forEach((r) => addMyReaction(notifTargetId(r), r.content));
+          // The event goes in whole, or the emoji tag a custom reaction carries is
+          // unreachable and its shortcode prints as literal chip text.
+          (mine || []).forEach((r) => addMyReaction(notifTargetId(r), r));
         } catch (_) {
           // No reaction chips is the same as none sent, which is the safe way to be wrong.
         }
