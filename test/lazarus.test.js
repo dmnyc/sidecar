@@ -82,29 +82,61 @@ test('ON RELAY LISTS THE MARKER IS PART OF THE ITEM', () => {
 
 // ---- the three certainties for private items -----------------------------------------
 
-test('ESTIMATED: THE CIPHERTEXT SIZE YIELDS AN ITEM-COUNT BAND', () => {
-  // NIP-44 v2: 67 bytes of overhead, padded to a power of two. 260 base64 chars
-  // decode to 195 bytes → padded 128 → plaintext in (64, 128] → in 72-byte items:
-  // between 1 and 1.
-  const b = L.privateBand('A'.repeat(260), 'nip44');
-  assert.deepEqual([b.min, b.max], [1, 1]);
-  // A bigger payload: 772 chars → 579 bytes → padded 512 → plaintext (256, 512]
-  // → items in [4, 7].
-  const big = L.privateBand('A'.repeat(772), 'nip44');
-  assert.deepEqual([big.min, big.max], [4, 7]);
-  // Not a power of two → not a v2 payload → cannot be sized at all.
-  assert.equal(L.privateBand('A'.repeat(259), 'nip44'), null);
-  // NIP-04: base64 iv (16 bytes) + blocks; plaintext wastes 1-16 bytes per block.
-  // 44 chars → 33 bytes → two blocks → plaintext in [17, 32].
-  const nip04 = L.privateBand('A'.repeat(44) + '?iv=' + 'B'.repeat(24), 'nip04');
-  assert.deepEqual([nip04.min, nip04.max], [17, 32]);
+// Real ciphertexts, from the vendored nostr-tools: the band is checked against
+// the true item count of an actual encrypted list, not against its own formula.
+vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8'), { filename: 'nostr-tools.js' });
+const NT = globalThis.NostrTools;
+const SK = NT.generateSecretKey();
+const PK = NT.getPublicKey(SK);
+const CONV = NT.nip44.v2.utils.getConversationKey(SK, PK);
+const nip44Of = (tags) => NT.nip44.v2.encrypt(JSON.stringify(tags), CONV);
+const nip04Of = (tags) => NT.nip04.encrypt(SK, PK, JSON.stringify(tags));
+
+test('ESTIMATED: A REAL ENCRYPTED LIST SITS INSIDE ITS BAND, AT EVERY SIZE', async () => {
+  // Sizes chosen to cross NIP-44's padding regimes: 32 bytes, 32-byte steps up
+  // to 256, then eighths of the next power of two (a 5-item list pads to 384,
+  // which is not a power of two and used to read as "cannot be sized").
+  for (const n of [1, 2, 3, 5, 9, 40, 100, 400]) {
+    for (const [scheme, content] of [['nip44', nip44Of(ptags(n))], ['nip04', await nip04Of(ptags(n))]]) {
+      const b = L.privateBand(content, scheme);
+      assert.ok(b, scheme + ' ' + n + ' items: a valid payload came back unsized');
+      assert.ok(b.min <= n && n <= b.max, scheme + ' ' + n + ' items outside [' + b.min + ', ' + b.max + ']');
+      assert.ok(b.min >= 1 && b.min <= b.max, 'the band inverted or read as zero');
+    }
+  }
+});
+
+test('ESTIMATED: A NIP-04 BAND COUNTS ITEMS, NOT BYTES', async () => {
+  // The old band returned the plaintext's BYTE range as its item range: a
+  // 50-account NIP-04 mute list read as about 3,650 items, so a client moving
+  // the list to NIP-44 looked like a sudden drop of thousands.
+  const b = L.privateBand(await nip04Of(ptags(50)), 'nip04');
+  assert.ok(b.max < 60, 'a 50-item NIP-04 list sized as ' + b.min + ' to ' + b.max);
+  const old = cand(BASE - DAY, [], await nip04Of(ptags(50)), 10000);
+  const migrated = cand(BASE, [], nip44Of(ptags(50)), 10000);
+  assert.equal(L.rank([migrated, old], 10000).recommended, null, 'a re-encryption is not a clobber');
+});
+
+test('ESTIMATED: MALFORMED PAYLOADS ARE FLAGGED, NOT GUESSED', () => {
+  // 300 + 67 bytes: 300 is no length calc_padded_len produces, so not NIP-44 v2.
+  assert.equal(L.privateBand(Buffer.alloc(367).toString('base64'), 'nip44'), null);
+  // NIP-04 ciphertext is whole AES blocks; 33 bytes is not.
+  assert.equal(L.privateBand(Buffer.alloc(33).toString('base64') + '?iv=' + Buffer.alloc(16).toString('base64'), 'nip04'), null);
+  // calc_padded_len itself, against NIP-44's reference values.
+  assert.deepEqual([1, 32, 33, 64, 65, 100, 256, 257, 300, 512, 513, 1000, 65535].map(L.calcPaddedLen),
+    [32, 32, 64, 64, 96, 128, 256, 320, 320, 512, 640, 1024, 65536]);
 });
 
 test('THE BAND NEVER INVERTS, SO AN EMPTIED PRIVATE LIST NEVER READS AS A ZERO', () => {
-  // 132 chars → 99 bytes → padded 32 → plaintext [1, 32] → less than one assumed
-  // item: min 1, max floored to 0 must clamp to 1.
-  const tiny = L.privateBand('A'.repeat(132), 'nip44');
+  // An encrypted "[]" pads to 32 bytes: less than one assumed item, but a
+  // ciphertext is there, so the band says at least one rather than zero.
+  const tiny = L.privateBand(nip44Of([]), 'nip44');
   assert.deepEqual([tiny.min, tiny.max], [1, 1]);
+  // And an emptied private list is still told apart from a full one: a clobber
+  // that re-encrypts "[]" over 40 private mutes is a sudden drop.
+  const full = cand(BASE - DAY, [], nip44Of(ptags(40)), 10000);
+  const emptied = cand(BASE, [], nip44Of([]), 10000);
+  assert.equal(L.rank([emptied, full], 10000).recommended.id, full.id);
 });
 
 test('ITEMRANGE: EXACT, ESTIMATED, FLAGGED', () => {
@@ -112,11 +144,10 @@ test('ITEMRANGE: EXACT, ESTIMATED, FLAGGED', () => {
   assert.deepEqual([L.itemRange(pub).min, L.itemRange(pub).max], [2, 2]);
   // Estimated: private content that sizes but does not decrypt. Kind 10000 is
   // where private items apply; a kind-3 candidate has none to size.
-  const est = cand(10, ptags(2), 'A'.repeat(772), 10000);
+  const est = cand(10, ptags(2), nip44Of(ptags(6)), 10000);
   const r = L.itemRange(est);
   assert.equal(r.certainty, 'estimated');
-  assert.equal(r.min, 6); // 2 public + 4
-  assert.equal(r.max, 9); // 2 public + 7
+  assert.ok(r.min <= 8 && 8 <= r.max, '2 public + 6 private must sit inside [' + r.min + ', ' + r.max + ']');
   // Exact: decryption in hand, the full count is known.
   est.decrypted = [{ key: 'p:x', tag: ['p', 'x'.repeat(64)] }];
   assert.deepEqual([L.itemRange(est).min, L.itemRange(est).max, L.itemRange(est).certainty], [3, 3, 'exact']);
@@ -198,6 +229,109 @@ test('MEANINGFUL-EMPTY KINDS FORBID RANKING; RECENCY KINDS NEVER RECOMMEND', () 
   assert.equal(L.rank([a, b], 10002).recommended, null);
 });
 
+test('DROPS MORE THAN A DAY APART ARE SEPARATE EPISODES', () => {
+  // The episode gap was measured older-minus-newer, always negative, so every
+  // drop in the history joined one episode and the recommendation reached back
+  // past two months of the user's own curation to the fullest version ever.
+  const v1 = cand(BASE - 60 * DAY, ptags(300));
+  const v2 = cand(BASE - 59 * DAY, ptags(100));       // drop 1, two months ago
+  const v3 = cand(BASE - 10 * DAY, ptags(110));       // lived with, and grown
+  const v4 = cand(BASE - DAY, ptags(20, 500));        // drop 2, yesterday
+  const r = L.rank([v4, v3, v2, v1], 3);
+  assert.equal(r.recommended.id, v3.id, 'the recommendation must come from the episode being recovered from');
+});
+
+test('BACK-TO-BACK DROPS ARE ONE EPISODE, HOWEVER FAR APART', () => {
+  // The spec: "Drops back to back, or within 24 hours of each other".
+  const v1 = cand(BASE - 10 * DAY, ptags(100));
+  const v2 = cand(BASE - 5 * DAY, ptags(60));         // drop: 40 of 100
+  const v3 = cand(BASE - DAY, ptags(30));             // drop again, the very next version
+  const r = L.rank([v3, v2, v1], 3);
+  assert.equal(r.recommended.id, v1.id, 'the fullest state before the damage, not the half-clobbered one');
+});
+
+test('SETTLED COUNTS EDITS AFTER THE DROP, NOT THE DROP ITSELF', () => {
+  // Four edits over two weeks is not five: the dropped version is the clobber,
+  // not an edit on it, and counting it settled a clobber one edit early.
+  const pre = cand(BASE - 20 * DAY, ptags(100));
+  const dropped = cand(BASE - 19 * DAY, ptags(50, 100));
+  const edits = [18, 13, 8, 0].map((d, i) => cand(BASE - d * DAY, ptags(52 + i, 100)));
+  const r = L.rank([...edits, dropped, pre], 3);
+  assert.equal(r.settled, undefined);
+  assert.equal(r.recommended.id, pre.id);
+});
+
+test('A SAME-SECOND TIE GOES TO THE LOWEST ID, AS RELAYS KEEP IT', () => {
+  // NIP-01: with equal created_at, the lowest id is retained. That version is
+  // current, whatever order the relays returned them in.
+  const hi = L.candidate({ id: 'b'.repeat(64), created_at: BASE, tags: ptags(3), content: '' }, 3);
+  const lo = L.candidate({ id: 'a'.repeat(64), created_at: BASE, tags: ptags(4), content: '' }, 3);
+  assert.equal(L.rank([hi, lo], 3).ordered[0].id, lo.id);
+  assert.equal(L.rank([lo, hi], 3).ordered[0].id, lo.id);
+  // And a re-read that finds the lower id at the reviewed second is a change.
+  assert.equal(L.checkCurrent(hi, lo, true).status, 'changed');
+  assert.equal(L.checkCurrent(lo, hi, true).status, 'proceed');
+});
+
+test('AN UNSIZABLE VERSION NEVER OUTRANKS A KNOWN ONE AS "FULLEST"', () => {
+  // Fullest was judged by maximum first, and a flagged version's maximum is
+  // Infinity: it won every episode it was in, over a version known to be full.
+  const known = cand(BASE, ptags(100), '', 10000);
+  const x = cand(BASE + 3600, ptags(10), '', 10000);                    // drop from 100
+  const flagged = cand(BASE + 7200, ptags(100), 'not a payload', 10000); // [100, Infinity]
+  const y = cand(BASE + 10800, [], '', 10000);                           // emptied
+  assert.equal(L.itemRange(flagged).certainty, 'flagged');
+  const r = L.rank([y, flagged, x, known], 10000);
+  assert.equal(r.recommended.id, known.id);
+});
+
+test('MUTED WORDS, HASHTAGS AND THREADS ARE MUTE-LIST ITEMS', () => {
+  // NIP-51 mutes are p, t, word and e. Counting only accounts missed a clobber
+  // that wiped fifty muted words, and the delta hid the words a restore removes.
+  const muteTags = (n) => [...ptags(3), ...Array.from({ length: n }, (_, i) => ['word', 'spam' + i]),
+    ['t', 'nsfw'], ['e', 'e'.repeat(64)]];
+  const pre = cand(BASE - DAY, muteTags(50), '', 10000);
+  const clobbered = cand(BASE, ptags(3), '', 10000);
+  assert.equal(L.rank([clobbered, pre], 10000).recommended.id, pre.id);
+  const d = L.delta(clobbered, cand(BASE + 60, muteTags(20), '', 10000), 10000);
+  assert.equal(d.removed, 22, '20 words, a hashtag and a thread would be unmuted');
+  assert.equal(d.shrink, true);
+  // Bookmarks stay e and a, as NIP-51 has them.
+  assert.equal(cand(10, [['e', 'e'.repeat(64)], ['a', '30023:' + 'a'.repeat(64) + ':x'], ['p', 'p'.repeat(64)]], '', 10003).publicItems.length, 2);
+});
+
+test('AN ITEM COUNTS ONCE, HOWEVER MANY TIMES IT IS LISTED', () => {
+  const [one, two] = ptags(2);
+  const c = cand(10, [one, one, ['p', one[1], 'wss://hint'], two], '', 10000);
+  assert.equal(L.itemRange(c).max, 2, 'a duplicated tag is one follow, not two');
+  // Listed publicly and privately: still one item.
+  c.decrypted = L.privateItems([one, ['p', 'c'.repeat(64)]], 10000);
+  assert.equal(L.itemRange(c).max, 3);
+});
+
+test('DECRYPTED PRIVATE ITEMS PASS THE SAME TYPE FILTER AS PUBLIC TAGS', () => {
+  const decrypted = [['p', 'a'.repeat(64)], ['t', 'nostr'], ['relay', 'wss://x'], 'not a tag', ['p'], ['e', 'e'.repeat(64)]];
+  assert.equal(L.privateItems(decrypted, 10000).length, 3, 'p, t and e are mutes; relay, a string and a valueless tag are not');
+  assert.equal(L.privateItems(decrypted, 10003).length, 1, 'only the e tag is a bookmark');
+});
+
+test('A PAST PROFILE IS OFFERED; AN EMPTY ONE IS NOT', () => {
+  // Kind 0 keeps its data in content, and counting only tags made every profile
+  // version read as empty: none could ever be restored.
+  const old = cand(10, [], JSON.stringify({ name: 'Me', about: 'hi' }), 0);
+  assert.deepEqual([L.itemRange(old).min, L.itemRange(old).max], [2, 2]);
+  assert.equal(L.isRestorable(old, { kind: 0, isCurrent: false }), true);
+  assert.equal(L.isRestorable(cand(20, [], '{}', 0), { kind: 0, isCurrent: false }), false);
+});
+
+test('A REWRITTEN RELAY URL IS NOT A CHANGE', () => {
+  const a = L.candidate({ id: nextId(), created_at: 10, tags: [['r', 'wss://Relay.Example/'], ['r', 'wss://b.example:443', 'write']] }, 10002);
+  const b = L.candidate({ id: nextId(), created_at: 20, tags: [['r', 'wss://relay.example'], ['r', 'wss://b.example', 'write']] }, 10002);
+  const d = L.delta(a, b, 10002);
+  assert.equal(d.added + d.removed, 0);
+  assert.equal(L.relayKey('wss://relay.example//inbox/'), 'wss://relay.example/inbox');
+});
+
 test('NO RECOVERABLE IMPROVEMENT IS A NORMAL ANSWER', () => {
   const r = L.rank([cand(10, ptags(5)), cand(9, ptags(4)), cand(8, ptags(6))], 3);
   assert.equal(r.recommended, null);
@@ -224,6 +358,40 @@ test('AN UNCOUNTED PRIVATE LIST SAYS SO IN THE DELTA', () => {
   assert.ok(d.notes.some((n) => /private items out/.test(n)));
 });
 
+test('AN UNREADABLE CURRENT LIST IS UNCOUNTED, AND TAKES THE SHRINK PATH', () => {
+  // The flag used to come from the chosen version alone. A restore replaces the
+  // current version's encrypted items wholesale, so when those could not be
+  // read the counts are incomplete and the restore may remove items unseen.
+  const chosen = cand(10, ptags(3), nip44Of(ptags(2, 50)), 10000);
+  chosen.decrypted = L.privateItems(ptags(2, 50), 10000);
+  const current = cand(20, ptags(3), nip44Of(ptags(9, 70)), 10000); // not decrypted
+  const d = L.delta(chosen, current, 10000);
+  assert.equal(d.removed, 0, 'the visible counts show nothing removed');
+  assert.equal(d.uncounted, true);
+  assert.equal(d.currentUncounted, true);
+  assert.equal(d.shrink, true, 'removing unseen items is still a shrink');
+  assert.ok(d.notes.some((n) => /current encrypted items/.test(n)));
+  // The same ciphertext on both sides: nothing private changes, nothing is uncounted.
+  const same = cand(30, ptags(4), current.content, 10000);
+  const s = L.delta(same, current, 10000);
+  assert.equal(s.uncounted, false);
+  assert.equal(s.shrink, false);
+});
+
+test('MEANINGFUL-EMPTY DELTAS STATE BOTH ENDPOINTS, IN THE RIGHT DIRECTION', () => {
+  const keys = cand(10, [['p', 'a'.repeat(64)]], '', 10044);
+  const empty = cand(20, [], '', 10044);
+  const restoring = L.delta(keys, empty, 10044).notes;
+  assert.ok(restoring.includes(L.REGISTRY[10044].restoreNote));
+  assert.ok(restoring.includes(L.REGISTRY[10044].emptyMeaning));
+  // Choosing the EMPTY version used to say "clients will encrypt direct messages
+  // to them again": the opposite of what that restore does.
+  const emptying = L.delta(empty, keys, 10044).notes;
+  assert.ok(!emptying.includes(L.REGISTRY[10044].restoreNote));
+  assert.ok(emptying.includes(L.REGISTRY[10044].emptyRestoreNote));
+  assert.ok(emptying.includes(L.REGISTRY[10044].currentMeaning));
+});
+
 test('KIND 0 DELTAS ITS FIELDS', () => {
   const chosen = cand(10, [], JSON.stringify({ name: 'New', about: 'same', lud16: 'a@b' }));
   const current = cand(20, [], JSON.stringify({ name: 'Old', about: 'same', website: 'x' }));
@@ -233,6 +401,7 @@ test('KIND 0 DELTAS ITS FIELDS', () => {
   assert.deepEqual([...d.fields.added], ['lud16']);
   assert.deepEqual([...d.fields.changed], ['name']);
   assert.deepEqual([...d.fields.removed], ['website']);
+  assert.ok(d.notes.includes(L.REGISTRY[0].restoreNote), 'the profile\'s own warning is shown too');
 });
 
 test('KIND 0 DELTAS ITS TAGS TOO — A RESTORE REPLACES ALL OF THEM', () => {
@@ -347,6 +516,4 @@ test('THE PANEL LOADS THE CORE AND THE SCREEN REPLACED THE BACKUP SECTION', () =
   // The wallet's own NIP-78 backup is a different concern and stays.
   assert.match(panel, /fetchBackupEvent\(/);
   assert.match(panel, /NWC_BACKUP_DTAG/);
-  // The mute-list decryption helper is shared with the notifications, not deleted.
-  assert.match(panel, /function muteTags\(/);
 });

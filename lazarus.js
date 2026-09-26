@@ -1,5 +1,5 @@
 // Lazarus — recovery of user data from relay history on Nostr.
-// Spec: https://github.com/dmnyc/lazarus (0.5.0-draft).
+// Spec: https://github.com/dmnyc/lazarus (0.6.0-draft).
 //
 // A buggy client publishing its own version of a replaceable event destroys every
 // prior version on any relay that honors replacement. Until relays expire it, the
@@ -40,9 +40,12 @@
   //                 `recency` lists newest first, the user picks; `none` forbids
   //                 ranking outright.
   //   itemTags      the tag types whose entries are the list's items.
+  //   contentItems  the data lives in content, not tags (kind 0): its items
+  //                 are the profile fields.
   //   marker        the read/write marker is part of the item (kind 10002: it
   //                 changes what the relay is for, so a rewritten marker is a
   //                 change even when the URL is not).
+  //   relayItems    the item values are relay URLs, compared normalized.
   //   privateItems  NIP-51 encrypted content alongside public tags.
   //   restoreNote   the direction-of-harm warning the delta must show.
   const REGISTRY = {
@@ -52,13 +55,15 @@
       restoreNote: 'Restoring an old follow list re-follows the accounts it holds. That is mostly benign.',
     },
     10000: {
-      name: 'Mute list', tier: 1, profile: 'count', itemTags: ['p'], privateItems: true,
+      // NIP-51 mutes are accounts, hashtags, words and threads. A clobber that
+      // wipes the muted words is as much a clobber as one that wipes accounts.
+      name: 'Mute list', tier: 1, profile: 'count', itemTags: ['p', 't', 'word', 'e'], privateItems: true,
       noun: 'muted',
-      restoreNote: 'Restoring an old mute list re-silences accounts you may have deliberately unmuted since. That is a moderation action taken on your behalf.',
+      restoreNote: 'This re-silences accounts you may have unmuted since: a moderation action taken on your behalf.',
     },
     0: {
-      name: 'Profile', tier: 2, profile: 'recency',
-      restoreNote: 'This replaces your current profile fields with this version\'s.',
+      name: 'Profile', tier: 2, profile: 'recency', contentItems: true,
+      restoreNote: 'This replaces your current profile fields with this version’s.',
     },
     10003: {
       name: 'Bookmarks', tier: 2, profile: 'count', itemTags: ['e', 'a'], privateItems: true,
@@ -69,23 +74,26 @@
       name: 'Encryption keys', tier: 2, profile: 'none', itemTags: ['p'],
       meaningfulEmpty: true,
       noun: 'keys',
-      // Empty means "I no longer use NIP-4e" — a defined state, not damage. The
-      // intent question in the UI states both endpoints before anything publishes.
-      emptyMeaning: 'The current empty state announces that you do not use NIP-4e; clients will not encrypt direct messages to these keys.',
+      // Empty means "I no longer use NIP-4e": a defined state, not damage. The
+      // delta states the meaning of both endpoints, and the UI asks the intent
+      // question before anything publishes.
       restoreNote: 'Restoring these keys means clients will encrypt direct messages to them again.',
+      emptyRestoreNote: 'This announces you no longer use NIP-4e, so clients stop encrypting direct messages to your keys.',
+      currentMeaning: 'Your current version lists keys that clients encrypt direct messages to.',
+      emptyMeaning: 'Your current empty version announces that you do not use NIP-4e.',
     },
     10002: {
-      name: 'Relay list', tier: 3, profile: 'recency', itemTags: ['r'], marker: true,
+      name: 'Relay list', tier: 3, profile: 'recency', itemTags: ['r'], marker: true, relayItems: true,
       noun: 'relays',
-      restoreNote: 'An old relay list can strand you on dead relays and silently break event delivery. Check the relays in it are alive before restoring.',
+      restoreNote: 'An old relay list can strand you on dead relays and silently break delivery. Check them first.',
     },
     10050: {
-      name: 'DM relays', tier: 3, profile: 'recency', itemTags: ['relay'],
+      name: 'DM relays', tier: 3, profile: 'recency', itemTags: ['relay'], relayItems: true,
       noun: 'inboxes',
-      restoreNote: 'A wrong DM inbox list silently breaks direct-message delivery. Check the relays in it are alive before restoring.',
+      restoreNote: 'A wrong DM inbox list silently breaks direct-message delivery. Check the relays first.',
     },
     10006: {
-      name: 'Blocked relays', tier: 3, profile: 'count', itemTags: ['relay'],
+      name: 'Blocked relays', tier: 3, profile: 'count', itemTags: ['relay'], relayItems: true,
       noun: 'blocked',
       restoreNote: 'Low stakes: this only re-blocks relays you had blocked.',
     },
@@ -94,15 +102,19 @@
   // Display order for the picker: tier 1 first, then 2, then 3.
   const KIND_LIST = [3, 10000, 0, 10003, 10044, 10002, 10050, 10006];
 
-  // One private item is assumed to serialize as ["p","<64 hex>"] — 72 characters.
-  // NIP-51 private content holds exactly this shape for the kinds that carry it,
-  // so the byte-to-item conversion below is an assumption the spec allows making
-  // explicit, not a guess about unknown data.
-  const ITEM_BYTES = 72;
+  // One private item is assumed to serialize as ["p","<64 hex>"]: 72 characters,
+  // 73 with the comma before the next one, so an n-item list is 73n + 1 bytes
+  // (its two brackets, less the comma the last item lacks). The spec lets an
+  // implementation state its per-item shape, and this is the common one, but a
+  // muted word is shorter and a relay hint makes an item longer. So the
+  // conversion below rounds outward (the minimum down, the maximum up), which
+  // also keeps the band from inverting on small payloads.
+  const ITEM_BYTES = 73;
 
-  // NIP-44 v2 wraps the plaintext in ver(1) + nonce(32) + length(2) + mac(32) and
-  // pads it to a power of two — 67 bytes of overhead, a band of half the padding.
+  // NIP-44 v2 wraps the padded plaintext in ver(1) + nonce(32) + length(2) +
+  // mac(32): 67 bytes of overhead.
   const NIP44_OVERHEAD = 67;
+  const NIP44_MAX_PADDED = 65536;
 
   function b64Bytes(s) {
     const clean = String(s || '').replace(/[^A-Za-z0-9+/=]/g, '');
@@ -111,48 +123,104 @@
     return Math.max(0, Math.floor(clean.length * 3 / 4) - pad);
   }
 
-  // The item-count band an encrypted content implies, without decrypting it — the
-  // spec's `estimated` certainty. NIP-04 (AES-CBC) plaintexts waste 1-16 bytes per
-  // 16-byte block; NIP-44 v2 pads to a power of two. Returns null when the payload
-  // cannot be sized at all (the `flagged` certainty).
+  // NIP-44 v2's calc_padded_len: 32 bytes at least, then 32-byte steps up to
+  // 256, then steps of an eighth of the next power of two. The padded length is
+  // not a power of two in general: a 300-byte plaintext pads to 320.
+  function calcPaddedLen(len) {
+    if (len <= 32) return 32;
+    const nextPower = 2 ** (32 - Math.clz32(len - 1));
+    const chunk = nextPower <= 256 ? 32 : nextPower / 8;
+    return chunk * (Math.floor((len - 1) / chunk) + 1);
+  }
+
+  // Bytes of plaintext to items, rounded outward. A non-empty ciphertext never
+  // reads as zero items: a private-only list must not look like a tombstone.
+  function bytesToItems(lo, hi) {
+    const min = Math.max(1, Math.floor((lo - 1) / ITEM_BYTES));
+    return { min, max: Math.max(min, Math.ceil((hi - 1) / ITEM_BYTES)) };
+  }
+
+  // The item-count band an encrypted content implies, without decrypting it: the
+  // spec's `estimated` certainty. Returns null when the payload cannot be sized
+  // at all (the `flagged` certainty).
+  //
+  //   NIP-04 (AES-256-CBC): the ciphertext is whole 16-byte blocks and PKCS#7
+  //   always adds 1 to 16 bytes, so b blocks hold 16b-16 to 16b-1 bytes.
+  //   NIP-44 v2: a padded length calc_padded_len cannot produce is not a v2
+  //   payload. A valid one holds every plaintext length that pads to it: from
+  //   one past the previous padded length, up to the padded length itself.
   function privateBand(content, scheme) {
     if (scheme === 'nip04') {
-      const ciphertext = String(content || '').split('?iv=')[0] || '';
-      const blocks = Math.floor(b64Bytes(ciphertext) / 16);
-      if (blocks < 1) return null;
-      return { min: 16 * blocks - 15, max: 16 * blocks };
+      const bytes = b64Bytes(String(content || '').split('?iv=')[0] || '');
+      if (bytes < 16 || bytes % 16 !== 0) return null;
+      const blocks = bytes / 16;
+      return bytesToItems(16 * blocks - 16, 16 * blocks - 1);
     }
     const padded = b64Bytes(content) - NIP44_OVERHEAD;
-    if (padded < 32 || (padded & (padded - 1)) !== 0) return null; // not a v2 payload
-    const lo = padded === 32 ? 1 : padded / 2 + 1;
-    // A tiny payload holds fewer items than one ITEM_BYTES assumes; the band never
-    // inverts, or an emptied private list could read as a zero after all.
-    const min = Math.ceil(lo / ITEM_BYTES);
-    return { min, max: Math.max(min, Math.floor(padded / ITEM_BYTES)) };
+    if (padded < 32 || padded > NIP44_MAX_PADDED || calcPaddedLen(padded) !== padded) return null;
+    // The smallest plaintext length that pads to `padded`. calcPaddedLen never
+    // decreases, so a binary search finds it.
+    let lo = 1, hi = padded;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (calcPaddedLen(mid) >= padded) hi = mid;
+      else lo = mid + 1;
+    }
+    return bytesToItems(lo, padded);
+  }
+
+  // Relay URLs compare the way nostr-tools normalizes them for the connection:
+  // scheme and host lowercased; a default port, doubled slashes and a trailing
+  // slash dropped. A client that rewrote wss://Relay.Example/ is not a change.
+  function relayKey(url) {
+    const s = url.trim();
+    const m = /^(wss?):\/\/([^/?#]+)([^?#]*)(\?[^#]*)?/i.exec(s);
+    if (!m) return s;
+    const scheme = m[1].toLowerCase();
+    let host = m[2].toLowerCase();
+    if ((scheme === 'wss' && /:443$/.test(host)) || (scheme === 'ws' && /:80$/.test(host))) {
+      host = host.replace(/:\d+$/, '');
+    }
+    return scheme + '://' + host + m[3].replace(/\/+/g, '/').replace(/\/$/, '') + (m[4] || '');
   }
 
   // The list's items, as comparable keys: type and value, with the read/write
   // marker where it is part of the item. A relay hint or petname a client rewrote
-  // produces the same key — an identical follow list must not read as hundreds of
+  // produces the same key, or an identical follow list would read as hundreds of
   // follows added and removed. Malformed tags (no value) are not items.
   function itemKey(tag, kind) {
-    if (!tag || typeof tag[1] !== 'string' || !tag[1]) return null;
+    if (!Array.isArray(tag) || typeof tag[1] !== 'string' || !tag[1]) return null;
     const rec = REGISTRY[kind] || {};
-    if (rec.marker) return tag[0] + ':' + tag[1] + '|' + (tag[2] || '');
-    return tag[0] + ':' + tag[1];
+    const value = rec.relayItems ? relayKey(tag[1]) : tag[1];
+    if (rec.marker) return tag[0] + ':' + value + '|' + (tag[2] || '');
+    return tag[0] + ':' + value;
+  }
+
+  // Tags to items: only the kind's item types, malformed tags dropped, and each
+  // item once. A duplicated tag is one follow, not two.
+  function toItems(tags, kind) {
+    const rec = REGISTRY[kind] || {};
+    if (!rec.itemTags || !Array.isArray(tags)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const t of tags) {
+      if (!Array.isArray(t) || !rec.itemTags.includes(t[0])) continue;
+      const key = itemKey(t, kind);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ key, tag: t });
+    }
+    return out;
   }
 
   function publicItems(ev, kind) {
-    const rec = REGISTRY[kind] || {};
-    const tags = rec.itemTags
-      ? (ev.tags || []).filter((t) => rec.itemTags.includes(t[0]))
-      : [];
-    const out = [];
-    for (const t of tags) {
-      const key = itemKey(t, kind);
-      if (key) out.push({ key, tag: t });
-    }
-    return out;
+    return toItems(ev.tags || [], kind);
+  }
+
+  // The items a decrypted private content holds, by the same rules as the
+  // public tags: a decrypted array can carry tags that are not items.
+  function privateItems(tags, kind) {
+    return toItems(tags, kind);
   }
 
   // Kind 0 keeps its data in content, so its items are the fields themselves.
@@ -193,17 +261,26 @@
     return cand;
   }
 
+  // Public and decrypted private items together, each once: an item listed in
+  // both places is one item.
   function allItems(cand) {
-    return cand.decrypted ? cand.publicItems.concat(cand.decrypted) : cand.publicItems;
+    if (!cand.decrypted) return cand.publicItems;
+    const seen = new Set(cand.publicItems.map((i) => i.key));
+    return cand.publicItems.concat(cand.decrypted.filter((i) => !seen.has(i.key)));
   }
 
   // The three certainties, as one range. Public items always count exactly; a
-  // private-only list that was emptied must never read as a zero, which is what
-  // public counts alone would say.
+  // private-only list has no public tags at all, so public counts alone would
+  // read it as a zero whether it is full or emptied. A profile's items are its
+  // fields.
   function itemRange(cand) {
+    if ((REGISTRY[cand.kind] || {}).contentItems) {
+      const n = Object.keys(contentFields(cand.event)).length;
+      return { min: n, max: n, certainty: 'exact' };
+    }
     const pub = cand.publicItems.length;
     if (cand.decrypted) {
-      const n = pub + cand.decrypted.length;
+      const n = allItems(cand).length;
       return { min: n, max: n, certainty: 'exact' };
     }
     if (cand.hasPrivate) {
@@ -222,12 +299,12 @@
   //     items, or is empty while the earlier one was not;
   //   - sizes compare conservatively: the later version's maximum against the
   //     earlier version's minimum, so an estimate can never fake a drop;
-  //   - drops within a day of each other form one clobber episode, and the
-  //     fullest version from before any drop in that episode is the target, so a
-  //     list clobbered, partly restored, and clobbered again points at its
-  //     fullest state before the damage;
+  //   - drops back to back, or within a day of each other, form one clobber
+  //     episode, and the fullest version from before any drop in that episode
+  //     is the target, so a list clobbered, partly restored, and clobbered
+  //     again points at its fullest state before the damage;
   //   - a clobber the list has since been edited on five times over at least a
-  //     week is settled — the current version is the user's choice;
+  //     week is settled: the current version is the user's choice;
   //   - nothing is recommended while the current version's size is unknown, and
   //     "no recoverable improvement found" is a normal result.
   //
@@ -239,7 +316,7 @@
   // recommend. A tombstone is never recommended in any profile (invariant 3).
   function rank(candidates, kind, opts) {
     const rec = REGISTRY[kind] || {};
-    const ordered = candidates.slice().sort((a, b) => b.createdAt - a.createdAt);
+    const ordered = candidates.slice().sort(newestFirst);
     const confirmed = !opts || opts.currentConfirmed !== false;
     const result = { ordered, recommended: null, requiresIntent: !!rec.meaningfulEmpty };
 
@@ -270,33 +347,35 @@
     }
     if (!drops.length) return result;
 
-    // Drops within a day of each other are one episode.
+    // Drops back to back, or within a day of each other, are one episode. The
+    // drops run newest first, so the earlier entry is the later drop.
     const episodeOf = new Map();
     let ep = 0;
     episodeOf.set(0, 0);
     for (let d = 1; d < drops.length; d++) {
-      const gap = ordered[drops[d].idx].createdAt - ordered[drops[d - 1].idx].createdAt;
-      if (gap > EPISODE_WINDOW) ep++;
+      const backToBack = drops[d].idx === drops[d - 1].idx + 1;
+      const gap = ordered[drops[d - 1].idx].createdAt - ordered[drops[d].idx].createdAt;
+      if (!backToBack && gap > EPISODE_WINDOW) ep++;
       episodeOf.set(d, ep);
     }
 
     for (let d = 0; d < drops.length; d++) {
       const drop = drops[d];
       const preSize = sizes[drop.preIdx];
-      // The current version has recovered from this drop — keep walking back.
+      // The current version has recovered from this drop, so keep walking back.
       const stillMissing = preSize.min - sizes[0].max;
       if (!(stillMissing >= DROP_MIN_ITEMS && stillMissing >= preSize.min * DROP_SHARE)) continue;
 
       // Settled: the list has been edited SETTLED_EDITS times since the drop,
-      // spread over at least a week. The current version is the user's choice.
-      const after = ordered.slice(0, drop.idx + 1); // the dropped version and everything since
-      if (after.length >= SETTLED_EDITS
-        && after[0].createdAt - after[after.length - 1].createdAt >= SETTLED_SECONDS) {
+      // over at least a week. The dropped version is the clobber itself, not an
+      // edit on it, so only the versions newer than it count.
+      if (drop.idx >= SETTLED_EDITS
+        && ordered[0].createdAt - ordered[drop.idx].createdAt >= SETTLED_SECONDS) {
         return { ordered, recommended: null, requiresIntent: false, settled: true };
       }
 
-      // The fullest version from just before any drop in this episode — fullest
-      // by maximum, then minimum, then newest.
+      // The fullest version from just before any drop in this episode (see
+      // betterSize), newest on a tie.
       const myEp = episodeOf.get(d);
       let best = null;
       for (let e = 0; e < drops.length; e++) {
@@ -319,23 +398,46 @@
     return result;
   }
 
+  // Fullest, conservatively: the larger guaranteed count first, then a known size
+  // over an unknown one, then the larger maximum. A flagged version's unbounded
+  // maximum is not evidence that it held more.
   function betterSize(a, b) {
-    return a.max > b.max || (a.max === b.max && a.min > b.min);
+    if (a.min !== b.min) return a.min > b.min;
+    const aKnown = a.max !== Infinity;
+    const bKnown = b.max !== Infinity;
+    if (aKnown !== bKnown) return aKnown;
+    return a.max > b.max;
   }
   function sameSize(a, b) {
     return a.max === b.max && a.min === b.min;
   }
 
+  // Newest first. NIP-01: of two versions with the same created_at, relays keep
+  // the one with the lowest id, so that one is the newer here.
+  function newestFirst(a, b) {
+    if (a.createdAt !== b.createdAt) return b.createdAt - a.createdAt;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  }
+
   // THE DELTA RULE. What restoring `chosen` would do to `current`, as plain
   // numbers and the warnings the click needs. Items compare by type and value;
-  // for kind 0, the fields that would change. `uncountedPrivate` must be set by
-  // the caller when a private list could not be decrypted — the delta then says
-  // so rather than presenting a public-only count as the whole list.
+  // for kind 0, the fields that would change.
+  //
+  // Private items count on both sides. A restore publishes the chosen version's
+  // encrypted content in place of the current one, so an undecrypted side on
+  // either end leaves the counts incomplete (`uncounted`), unless both carry the
+  // same ciphertext and nothing private changes. An undecrypted CURRENT is the
+  // dangerous one: whatever it holds is replaced, so the restore may remove
+  // items no count can show, and it takes the shrink path. `uncountedPrivate`
+  // lets a caller force the flag.
   function delta(chosen, current, kind, uncountedPrivate) {
     const rec = REGISTRY[kind] || {};
-    const out = { added: 0, removed: 0, shrink: false, notes: [], fields: null, tagsAdded: 0, tagsRemoved: 0 };
+    const out = {
+      added: 0, removed: 0, shrink: false, uncounted: false, currentUncounted: false,
+      notes: [], fields: null, tagsAdded: 0, tagsRemoved: 0,
+    };
 
-    if (kind === 0) {
+    if (rec.contentItems) {
       const a = contentFields(chosen.event);
       const b = contentFields(current.event);
       const fields = { added: [], removed: [], changed: [] };
@@ -355,6 +457,7 @@
       const bTags = new Set((current.event.tags || []).map((t) => t.join(':')));
       for (const k of aTags) if (!bTags.has(k)) out.tagsAdded++;
       for (const k of bTags) if (!aTags.has(k)) out.tagsRemoved++;
+      if (rec.restoreNote) out.notes.push(rec.restoreNote);
       return out;
     }
 
@@ -362,14 +465,29 @@
     const theirs = new Set(allItems(current).map((i) => i.key));
     for (const k of mine) if (!theirs.has(k)) out.added++;
     for (const k of theirs) if (!mine.has(k)) out.removed++;
-    out.shrink = out.removed > 0;
 
-    if (rec.restoreNote) out.notes.push(rec.restoreNote);
-    if (uncountedPrivate) {
-      out.notes.push('This version\'s encrypted items could not be read here, so the counts leave private items out.');
+    const samePrivate = (chosen.content || '') === (current.content || '');
+    const chosenUncounted = !samePrivate && !!chosen.hasPrivate && !chosen.decrypted;
+    out.currentUncounted = !samePrivate && !!current.hasPrivate && !current.decrypted;
+    out.uncounted = !!uncountedPrivate || chosenUncounted || out.currentUncounted;
+    out.shrink = out.removed > 0 || out.currentUncounted;
+
+    if (rec.meaningfulEmpty) {
+      // Both endpoints, stated: what the chosen version announces, and what the
+      // current one does. Neither is damage.
+      out.notes.push(mine.size ? rec.restoreNote : rec.emptyRestoreNote);
+      out.notes.push(theirs.size ? rec.currentMeaning : rec.emptyMeaning);
+    } else if (rec.restoreNote) {
+      out.notes.push(rec.restoreNote);
     }
-    if (out.shrink) {
-      out.notes.push(out.removed + ' of the items in your current list are not in this version and would be removed.');
+    if (chosenUncounted || (uncountedPrivate && !out.currentUncounted)) {
+      out.notes.push('This version’s encrypted items couldn’t be read, so the counts leave private items out.');
+    }
+    if (out.currentUncounted) {
+      out.notes.push('Your current encrypted items couldn’t be read. Restoring replaces them, so some may be lost.');
+    }
+    if (out.removed > 0) {
+      out.notes.push(out.removed + ' of the items in your current list aren’t in this version and would be removed.');
     }
     return out;
   }
@@ -390,7 +508,7 @@
   //                 explicit override the UI may offer after a failed retry.
   function checkCurrent(reviewed, newest, writeAnswered) {
     if (!writeAnswered) return { status: 'unconfirmed' };
-    if (newest && reviewed && newest.createdAt > reviewed.createdAt) {
+    if (newest && reviewed && newestFirst(newest, reviewed) < 0) {
       return { status: 'changed', version: newest };
     }
     return { status: 'proceed' };
@@ -436,10 +554,14 @@
     RELAY_TIMEOUT: 6000, // per-relay scan timeout, the spec's reference value
     candidate,
     publicItems,
+    privateItems,
     contentFields,
     itemKey,
+    relayKey,
     privateBand,
+    calcPaddedLen,
     itemRange,
+    newestFirst,
     rank,
     delta,
     checkCurrent,
