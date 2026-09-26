@@ -190,7 +190,7 @@ test('EVERY pool call carries onauth, because none of them may forget', () => {
   // Passing it per call site is what failed: publish and get had it, thirteen reads did
   // not, and the difference was which one someone remembered. So the guard is that the
   // pool is unreachable except through the wrappers.
-  const WRAPPER = /^\s*const (?:poolGet|poolQuerySync|poolPublish|poolSubscribeMany|poolSubscribeManyEose) =/;
+  const WRAPPER = /^\s*const (?:poolGet|poolQuerySync|poolPublish|poolSubscribe|poolSubscribeMany|poolSubscribeManyEose) =/;
   const direct = body
     .split('\n')
     .map((text, i) => ({ text, n: i + 1 }))

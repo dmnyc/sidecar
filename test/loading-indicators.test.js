@@ -53,8 +53,10 @@ test('a region that waits uses the shared row, wherever it is', () => {
   assert.match(body, /className: 'recv-spinner'/);
 
   // Surfaces that had diverged, now on the same row. Bookmarks is the one they match.
+  // ("Checking your relays…" was the NIP-78 restore's spinner; that surface is now
+  // the Lazarus screen, whose scanning row composes its label per kind.)
   for (const label of ['Looking for your polls…', 'Counting votes…', 'Fetching the poll…',
-                       'Checking your relays…', 'Waiting for payment…', 'Loading price history…']) {
+                       'Waiting for payment…', 'Loading price history…']) {
     assert.ok(bare.includes("waitingRow('" + label + "')"), label + ' is not on the shared row');
   }
   assert.match(bare, /waitingRow\(label\)/, 'and the bookmarks/notifications block builds it too');

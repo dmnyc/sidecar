@@ -3496,6 +3496,12 @@
   const poolPublish = (relays, event, params) => getPool().publish(relays, event, withAuth(params));
   const poolSubscribeMany = (relays, filters, params) => getPool().subscribeMany(relays, filters, withAuth(params));
   const poolSubscribeManyEose = (relays, filters, params) => getPool().subscribeManyEose(relays, filters, withAuth(params));
+  // One relay, open-ended: the Lazarus scan needs each relay's EOSE separately,
+  // which the aggregated subscribeMany folds away. The scan reaches archival
+  // relays outside the account's own list, so the auth-required retry is offered
+  // only to allowlisted relays: the rule automaticallyAuth applies to a challenge.
+  // onauth goes last, so a caller cannot widen it.
+  const poolSubscribe = (relays, filters, params) => getPool().subscribe(relays, filters, Object.assign({}, params, { onauth: relays.every((u) => authRelays.has(normalizeRelay(u))) ? signRelayAuth : undefined }));
 
   // A kind:0 for ONE pubkey, VERIFIED TO ACTUALLY BE THEIRS.
   //
@@ -10563,7 +10569,7 @@
     maybeSuggestLud16(lud16Notice, active, content);
 
     renderNip65Section(view, active);
-    renderBackupSection(view, active);
+    renderRecoverySection(view, active);
   }
 
   // If the connected wallet advertises a lightning address (NWC lud16) that
@@ -14430,124 +14436,12 @@
     if (!list.children.length) return empty();
   }
 
-  const BACKUP_TYPES = [
-    { key: 'profile', label: 'Profile', kind: 0, dtag: 'sidecar:profile-backup' },
-    { key: 'follows', label: 'Follows', kind: 3, dtag: 'sidecar:follows-backup' },
-    { key: 'mute', label: 'Mute list', kind: 10000, dtag: 'sidecar:mute-backup' },
-  ];
 
-  // The newest copy of a replaceable identity event (kind 0/3/10002/10000) —
-  // what backups snapshot, exports write to file, and the restore confirm
-  // compares against. Read from the account's declared NIP-65 relays plus
-  // purplepag.es plus Settings, never Settings alone: replaceable events go
-  // stale independently per relay, and one configured relay holding an old copy
-  // (here: an empty kind 3 from two months back) can be the only answer within
-  // the window while the relays actually carrying the current 1000+ list sit
-  // outside the configured set — a backup exported from that read captures the
-  // wipe it exists to undo. readRelayUrls is resolved before the race so its
-  // own (cached) NIP-65 fetch doesn't eat the 6s query budget.
-  async function fetchLatestEvent(kind) {
-    const relays = await readRelayUrls(state.activePubkey);
-    return Promise.race([
-      poolGet(relays, { kinds: [kind], authors: [state.activePubkey] }),
-      new Promise((res) => setTimeout(() => res(null), 6000)),
-    ]).catch(() => null);
-  }
   async function fetchBackupEvent(dtag) {
     return Promise.race([
       poolGet(await relayUrls(false), { kinds: [30078], authors: [state.activePubkey], '#d': [dtag] }),
       new Promise((res) => setTimeout(() => res(null), 6000)),
     ]).catch(() => null);
-  }
-
-  // Snapshot the active account's latest kind:0/3/10000, encrypt to self, store as NIP-78.
-  async function createBackup(t) {
-    const src = await fetchLatestEvent(t.kind);
-    if (!src) throw new Error('Nothing to back up yet for ' + t.label.toLowerCase());
-    const blob = {
-      v: 1,
-      ts: Math.floor(Date.now() / 1000),
-      source: { kind: src.kind, created_at: src.created_at, tags: src.tags, content: src.content },
-    };
-    // Prefer NIP-44, but it caps plaintext at 65535 bytes — large follow lists
-    // exceed that, so fall back to NIP-04 (no hard cap). The `encrypted` tag
-    // records which scheme was used so restore decrypts correctly.
-    const plaintext = JSON.stringify(blob);
-    let ciphertext, algo;
-    try {
-      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext, nip: 44 });
-      algo = 'nip44';
-    } catch (_) {
-      ciphertext = await call({ type: 'SIDECAR_OWNER_ENCRYPT', plaintext, nip: 4 });
-      algo = 'nip04';
-    }
-    const event = {
-      kind: 30078,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [['d', t.dtag], ['encrypted', algo]],
-      content: ciphertext,
-    };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
-    await publishSigned(signed);
-  }
-
-  // What a list restore would change, as plain numbers. Counts are p-tags;
-  // DROPPED and ADDED are set differences, because counts alone can hide the
-  // danger both ways: 289 vs 312 can be a reshuffle rather than a loss, and a
-  // same-count swap can be a total loss. "23 you follow today are not in the
-  // backup" is the number that stops a bad restore.
-  function listDiff(currentTags, backupTags) {
-    // x[1] required: a valueless ['p'] tag is malformed, and counting it as an
-    // undefined member inflates both sides and can fake a difference between
-    // identical lists.
-    const cur = new Set((currentTags || []).filter((x) => x && x[0] === 'p' && x[1]).map((x) => x[1]));
-    const bak = new Set((backupTags || []).filter((x) => x && x[0] === 'p' && x[1]).map((x) => x[1]));
-    const dropped = [...cur].filter((p) => !bak.has(p)).length;
-    const added = [...bak].filter((p) => !cur.has(p)).length;
-    return { current: cur.size, backup: bak.size, dropped, added };
-  }
-
-  // A mute list's p-tags from both places they can live: public event tags, and
-  // the private list encrypted to self in content (NIP-44, or legacy NIP-04
-  // whose ciphertext carries "?iv="). loadMuteList merges the same two sources
-  // when it applies mutes; any count of a mute list has to merge them too, or
-  // every private list reads as empty — and against the hundreds the user
-  // actually mutes, "0 muted" is not a smaller number, it's the wrong number.
-  // ok=false means content exists but wouldn't decrypt (keystore locked, bad
-  // ciphertext), so callers say that instead of printing the public-only count
-  // as if it were the whole list.
-  async function muteTags(ev) {
-    const tags = (ev && ev.tags) || [];
-    if (!ev || !ev.content) return { tags, private: false, ok: true };
-    const order = ev.content.includes('?iv=') ? [4, 44] : [44, 4];
-    for (const nip of order) {
-      try {
-        const privateTags = JSON.parse(await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip }));
-        if (Array.isArray(privateTags)) return { tags: tags.concat(privateTags), private: true, ok: true };
-      } catch (_) {}
-    }
-    return { tags, private: true, ok: false };
-  }
-
-  // Decrypt a backup event's source payload. Restore only PIN-gates the SIGN;
-  // the panel may read its own backups freely (the panel is unlocked to be here).
-  async function decryptBackupSource(ev) {
-    const scheme = (ev.tags.find((x) => x[0] === 'encrypted') || [])[1];
-    const nip = scheme === 'nip44' ? 44 : 4; // older backups are NIP-04
-    const plaintext = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
-    const blob = JSON.parse(plaintext);
-    if (!blob || !blob.source) throw new Error('Backup could not be read');
-    return blob.source;
-  }
-
-  // Decrypt the latest backup and re-publish it as the current event (PIN-gated).
-  async function restoreBackup(t, pin) {
-    const ev = await fetchBackupEvent(t.dtag);
-    if (!ev) throw new Error('No backup found for ' + t.label.toLowerCase());
-    const s = await decryptBackupSource(ev);
-    const event = { kind: s.kind, created_at: Math.floor(Date.now() / 1000), tags: s.tags || [], content: s.content || '' };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin });
-    await publishSigned(signed);
   }
 
   // ---- wallet (NWC) backup to relays — NIP-78, encrypted to self ----
@@ -14649,173 +14543,6 @@
     // has already painted from cache — clearing here means the restored wallet never
     // shows the previous one's balance, not even for a frame.
     balanceCache = { pubkey: null, sats: null };
-  }
-
-  // Plain signed-JSON export of the account's identity events (download, no relays).
-  async function exportBundle(active) {
-    const events = [];
-    for (const k of [0, 3, 10002, 10000]) {
-      const ev = await fetchLatestEvent(k);
-      if (ev) events.push(ev);
-    }
-    if (!events.length) throw new Error('Nothing found to export');
-    const bundle = { version: 1, exportedAt: new Date().toISOString(), pubkey: active.pubkey, npub: active.npub, events };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sidecar-backup-' + active.npub.slice(0, 12) + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  const KIND_LABELS = { 0: 'Profile', 3: 'Follows', 10000: 'Mute list', 10002: 'Relay list' };
-  const kindLabel = (k) => KIND_LABELS[k] || ('kind ' + k);
-
-  // Import a downloaded backup file: verify signatures + ownership, then rebroadcast.
-  function importBundleModal(bundle, active) {
-    const events = Array.isArray(bundle && bundle.events) ? bundle.events : null;
-    if (!events || !events.length) {
-      toast('That file has no events to restore', 'error');
-      return;
-    }
-    // Keep only well-formed, validly-signed events authored by the active account.
-    const valid = events.filter((ev) => {
-      try {
-        return ev && ev.pubkey === active.pubkey && NT.verifyEvent(ev);
-      } catch (_) {
-        return false;
-      }
-    });
-    const foreign = events.filter((ev) => ev && ev.pubkey && ev.pubkey !== active.pubkey).length;
-
-    openModal((modal) => {
-      const go = h('button', { className: 'primary', textContent: 'Restore to relays' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-      cancel.addEventListener('click', closeModal);
-
-      const children = [
-        h('h3', { textContent: 'Restore from file' }),
-      ];
-      if (!valid.length) {
-        go.disabled = true;
-        children.push(
-          h('p', {
-            className: 'hint',
-            textContent: foreign
-              ? 'This backup belongs to a different account, so nothing here can be restored to ' + displayName(active) + '.'
-              : 'No valid, signed events were found in this file.',
-          })
-        );
-        modal.append(...children, h('div', { className: 'actions' }, [cancel]));
-        return;
-      }
-
-      const summary = h('ul', { className: 'restore-list' });
-      // Each row's second line — what the file holds vs what's live — fills in
-      // async below; Restore stays disabled until it has, because the counts ARE
-      // the confirmation (a backup file older than a live list is how lists get
-      // shrunk, and the row is where that has to be visible).
-      const subs = new Map();
-      valid.forEach((ev) => {
-        const sub = h('div', { className: 'restore-list-sub' }, [
-          h('span', { className: 'recv-spinner' }),
-          document.createTextNode(' checking relays…'),
-        ]);
-        subs.set(ev, sub);
-        summary.append(h('li', {}, [h('div', { className: 'item-label', textContent: kindLabel(ev.kind) }), sub]));
-      });
-      go.disabled = true;
-      children.push(
-        h('p', {
-          className: 'hint',
-          textContent: 'Re-publishes these already-signed events to your relays as your current data:',
-        }),
-        summary
-      );
-      (async () => {
-        const kinds = [...new Set(valid.map((ev) => ev.kind))];
-        const live = new Map(await Promise.all(kinds.map(async (k) => [k, await fetchLatestEvent(k)])));
-        for (const ev of valid) {
-          const sub = subs.get(ev);
-          if (!sub || !sub.isConnected) continue;
-          sub.innerHTML = '';
-          const cur = live.get(ev.kind);
-          if (ev.kind === 0) {
-            let incoming = {};
-            try { incoming = JSON.parse(ev.content || '{}'); } catch (_) {}
-            sub.append(profilePreviewPane(incoming));
-          } else if (ev.kind === 3 || ev.kind === 10000) {
-            const noun = ev.kind === 10000 ? 'muted' : 'followed';
-            // Mute lists carry their members encrypted in content as often as in
-            // tags — count both sources on both sides, or a private list reads
-            // as empty on every line.
-            const bak = ev.kind === 10000
-              ? await muteTags(ev)
-              : { tags: ev.tags, private: false, ok: true };
-            const now = ev.kind === 10000 && cur ? await muteTags(cur) : null;
-            const liveTags = ev.kind === 10000 ? (now && now.ok ? now.tags : null) : (cur && cur.tags);
-            if (!bak.ok) {
-              sub.classList.add('warn');
-              sub.textContent = 'Private mute list in this file — Sidecar could not decrypt it to count';
-            } else {
-              const d = listDiff(liveTags, bak.tags);
-              if (!d.backup) {
-                // An empty list in the file is a state to name, not a count to
-                // print: "0 followed" reads like a measured zero, and restoring
-                // publishes that emptiness over whatever is live.
-                sub.classList.add('warn');
-                sub.textContent = 'Empty ' + (ev.kind === 10000 ? 'mute' : 'follow') + ' list in this file';
-                if (cur && liveTags && d.current) {
-                  sub.textContent += ' · ' + d.current.toLocaleString('en-US') + ' live now would be ' + (ev.kind === 10000 ? 'unmuted' : 'lost');
-                }
-              } else {
-                sub.textContent = d.backup.toLocaleString('en-US') + ' ' + noun +
-                  (bak.private ? ' (private list)' : '') +
-                  (cur ? (liveTags ? ' · ' + d.current.toLocaleString('en-US') + ' now' : ' · live list unreadable') : ' · nothing live now');
-                if (liveTags && (d.dropped || d.added)) {
-                  sub.classList.add('warn');
-                  sub.textContent += ' · ' + (d.dropped ? d.dropped.toLocaleString('en-US') + ' will be ' + (ev.kind === 10000 ? 'unmuted' : 'removed') : '') +
-                    (d.dropped && d.added ? ', ' : '') + (d.added ? d.added.toLocaleString('en-US') + ' added' : '');
-                }
-              }
-            }
-          } else if (ev.kind === 10002) {
-            const n = (ev.tags || []).filter((x) => x && x[0] === 'r').length;
-            sub.textContent = n.toLocaleString('en-US') + ' relay' + (n === 1 ? '' : 's');
-          } else {
-            sub.textContent = '';
-          }
-        }
-        if (summary.isConnected) go.disabled = false;
-      })();
-      if (foreign) {
-        children.push(h('p', { className: 'hint warn', textContent: foreign + ' event(s) from another account were skipped.' }));
-      }
-
-      const err = h('div', { className: 'error' });
-      go.addEventListener('click', async () => {
-        err.textContent = '';
-        go.disabled = true;
-        go.textContent = 'Restoring…';
-        let ok = 0;
-        for (const ev of valid) {
-          try {
-            await publishSigned(ev);
-            ok++;
-          } catch (_) {}
-        }
-        closeModal();
-        if (ok) {
-          toast('Restored ' + ok + ' item(s) to your relays', 'success');
-          renderProfile();
-          renderMain();
-        } else {
-          toast('Could not publish to any relay', 'error');
-        }
-      });
-
-      modal.append(...children, err, h('div', { className: 'actions' }, [go, cancel]));
-    });
   }
 
   // ---- vault export/import: every account's key + wallet connection, in one
@@ -14988,200 +14715,6 @@
     });
   }
 
-  // The restore confirm. This used to be a PIN box and a promise: it re-published
-  // whatever the latest backup held, sight unseen, and a backup older than a live
-  // list that had moved on would silently shrink it. Restoring over newer data is
-  // the destructive-event case the panel warns about everywhere else, so both
-  // sides are fetched first — the backup (readable without the PIN; only the
-  // signing step is gated) and the current live event — and the modal shows what
-  // will change before it ever asks for the PIN.
-  //
-  // For the lists the headline is the SET difference, not the counts: "289 vs
-  // 312" can be a reshuffle, "23 you follow today are not in the backup" cannot
-  // be anything but a loss. For the profile the same job is done by a preview
-  // pane — the bio rendered as the bio, not as a JSON diff.
-  function restoreModal(t) {
-    openModal((modal) => {
-      const pin = h('input', { type: 'password', maxLength: 32 });
-      const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Restore' });
-      go.disabled = true; // until the comparison has rendered
-      go.addEventListener('click', async () => {
-        err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
-        go.disabled = true;
-        go.textContent = 'Restoring…';
-        try {
-          await restoreBackup(t, pin.value);
-          closeModal();
-          toast(t.label + ' restored', 'success');
-        } catch (e) {
-          err.textContent = e.message;
-          go.disabled = false;
-          go.textContent = 'Restore';
-          toast(e.message, 'error');
-        }
-      });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
-      cancel.addEventListener('click', closeModal);
-
-      const compare = h('div', { className: 'restore-compare' }, [
-        waitingRow('Checking your relays…'),
-      ]);
-
-      modal.append(
-        h('h3', { textContent: 'Restore ' + t.label }),
-        h('p', {
-          className: 'hint',
-          textContent:
-            'Re-publishes your latest ' + t.label.toLowerCase() + ' backup as your current ' + t.label.toLowerCase() + '. Requires your PIN.',
-        }),
-        compare,
-        h('label', { textContent: 'PIN' }),
-        pin,
-        err,
-        h('div', { className: 'actions' }, [go, cancel])
-      );
-
-      (async () => {
-        const [ev, cur] = await Promise.all([fetchBackupEvent(t.dtag), fetchLatestEvent(t.kind)]);
-        if (!compare.isConnected) return; // the modal was closed mid-fetch
-        compare.innerHTML = '';
-        if (!ev) {
-          compare.append(h('p', { className: 'hint warn', textContent: 'No backup found for ' + t.label.toLowerCase() + '. Try backing up first.' }));
-          pin.disabled = true;
-          return;
-        }
-        let s;
-        try {
-          s = await decryptBackupSource(ev);
-        } catch (e) {
-          compare.append(h('p', { className: 'hint warn', textContent: (e && e.message) || 'Backup could not be read.' }));
-          pin.disabled = true;
-          return;
-        }
-        compare.append(await buildRestoreCompare(t, s, ev.created_at, cur));
-        if (compare.isConnected) go.disabled = false;
-      })();
-    });
-  }
-
-  // The comparison block itself, shared shape for every backup type. `cur` is the
-  // live event (or null when the relays hold none — then the restore is a first
-  // publish, not an overwrite, and saying so is the honest framing). Async
-  // because mute lists count through muteTags, which decrypts the private half
-  // of the list out of content.
-  async function buildRestoreCompare(t, source, backupAt, cur) {
-    const wrap = h('div');
-    const when = relativeTime(backupAt);
-
-    if (t.kind === 0) {
-      let incoming = {};
-      try { incoming = JSON.parse(source.content || '{}'); } catch (_) {}
-      let live = null;
-      if (cur) { try { live = JSON.parse(cur.content || '{}'); } catch (_) {} }
-      const changed = live === null || JSON.stringify(live) !== JSON.stringify(incoming);
-      wrap.append(profilePreviewPane(incoming));
-      wrap.append(
-        h('p', {
-          className: 'hint' + (changed ? ' warn' : ''),
-          textContent: live === null
-            ? 'No profile on your relays yet — this will publish the backup above.'
-            : changed
-              ? 'This replaces the profile you have live now.'
-              : 'Same profile as what you have live now.',
-        })
-      );
-      return wrap;
-    }
-
-    const noun = t.key === 'mute' ? 'muted' : 'followed';
-    const bak = t.key === 'mute' ? await muteTags(source) : { tags: source.tags, private: false, ok: true };
-    const now = t.key === 'mute' && cur ? await muteTags(cur) : null;
-    // null liveTags = no live event at all, or a private live list that wouldn't
-    // decrypt — both mean the diff numbers can't be trusted, so none are shown.
-    const liveTags = t.key === 'mute' ? (now && now.ok ? now.tags : null) : (cur && cur.tags);
-
-    if (!bak.ok) {
-      wrap.append(h('div', { className: 'recovery-confirm' }, [
-        h('div', { className: 'recovery-count-lg' }, [
-          h('strong', { textContent: 'Private mute list' }),
-        ]),
-        h('div', { className: 'recovery-sub', textContent: 'Sidecar could not decrypt it to count · backup from ' + when }),
-      ]));
-      return wrap;
-    }
-
-    const d = listDiff(liveTags, bak.tags);
-    if (!d.backup) {
-      // Name the state, don't print its count: "0 accounts followed in the
-      // backup" reads like a measured zero, and the restore publishes that
-      // emptiness over whatever is live.
-      wrap.append(h('div', { className: 'recovery-confirm' }, [
-        h('div', { className: 'recovery-count-lg' }, [
-          h('strong', { textContent: 'Empty ' + (t.key === 'mute' ? 'mute' : 'follow') + ' list' }),
-        ]),
-        h('div', {
-          className: 'recovery-sub',
-          textContent: (liveTags ? d.current.toLocaleString('en-US') + ' ' + noun + ' live now' : cur ? 'Live list unreadable' : 'Nothing live on your relays now') + ' · backup from ' + when,
-        }),
-      ]));
-      if (liveTags && d.current) {
-        wrap.append(h('p', {
-          className: 'hint warn',
-          textContent: 'The backup holds no ' + noun + ' accounts — restoring publishes the empty list over the ' + d.current.toLocaleString('en-US') + ' you have now.',
-        }));
-      }
-      return wrap;
-    }
-
-    const rows = h('div', { className: 'recovery-confirm' }, [
-      h('div', { className: 'recovery-count-lg' }, [
-        h('strong', { textContent: d.backup.toLocaleString('en-US') }),
-        document.createTextNode(' accounts ' + noun + ' in the backup'),
-      ]),
-      h('div', {
-        className: 'recovery-sub',
-        textContent:
-          (liveTags ? d.current.toLocaleString('en-US') + ' ' + noun + ' now' : cur ? 'Live list unreadable' : 'Nothing live on your relays now') +
-          ' · backup from ' + when + (bak.private ? ' · private list' : ''),
-      }),
-    ]);
-    wrap.append(rows);
-    if (!liveTags) return wrap;
-    if (d.dropped || d.added) {
-      const parts = [];
-      if (d.dropped) parts.push(d.dropped.toLocaleString('en-US') + (t.key === 'mute' ? ' currently muted will be unmuted' : ' you follow today are not in the backup and will be removed'));
-      if (d.added) parts.push(d.added.toLocaleString('en-US') + (t.key === 'mute' ? ' currently audible will be muted' : ' in the backup are new'));
-      wrap.append(h('p', { className: 'hint warn', textContent: parts.join('; ') + '.' }));
-    } else {
-      wrap.append(h('p', { className: 'hint', textContent: 'Same accounts as what you have live now.' }));
-    }
-    return wrap;
-  }
-
-  // The bio as the bio: a profile-shaped preview of what the restore will
-  // publish, so "is this MY bio?" is answered by looking rather than by diffing
-  // field names. Plain text only — the profile view linkifies the live copy, but
-  // a preview of an about-to-be-written event has no business pretending to be
-  // interactive.
-  function profilePreviewPane(p) {
-    const pane = h('div', { className: 'restore-preview' });
-    const head = h('div', { className: 'restore-preview-head' }, [
-      avatarEl({ picture: p.picture || '', npub: state.activePubkey }, 'restore-preview-av'),
-      h('div', { className: 'restore-preview-id' }, [
-        h('div', { className: 'profile-name restore-preview-name', textContent: p.display_name || p.name || '(no name)' }),
-        p.nip05 ? h('div', { className: 'hint restore-preview-nip05', textContent: p.nip05 }) : null,
-      ]),
-    ]);
-    pane.append(head);
-    pane.append(
-      p.about
-        ? h('div', { className: 'profile-about restore-preview-about', textContent: p.about })
-        : h('p', { className: 'hint', textContent: '(no bio in this backup)' })
-    );
-    return pane;
-  }
 
   // ---- NIP-65 relay list editor (Profile tab) ----
   // Loads the account's published read/write relays; if none exist yet, seeds
@@ -15780,263 +15313,997 @@
     });
   }
 
-  // ---- Follow-list recovery (Powered by Mutable — ported from github.com/dmnyc/mutable) ----
-  // kind:3 is replaceable, so a buggy client publishing an empty/short list
-  // overwrites your follows everywhere. Relays don't delete old versions though —
-  // they just stop serving them as "current". Scanning a broad relay set with a
-  // limit>1 turns them up, so the user can republish a healthy earlier version.
-  // Cast a WIDE net when scanning for old versions — coverage beats reliability
-  // here (dead relays just time out). Includes the big general relays where a
-  // user likely published over the years, plus archival/cache relays that keep
-  // historical events. Queried on top of the user's own configured + NIP-65 relays.
-  const FOLLOW_SCAN_RELAYS = [
-    'wss://purplepag.es',        // aggregates kind:0/3/10002
+  // ---- Lazarus: recovery of user data from relay history ----
+  // github.com/dmnyc/lazarus, spec 0.6.1-draft; the concept first shipped in
+  // Mutable and was hardened in the Jumble fork. kind:3, 10000 and friends are
+  // replaceable, so a buggy client publishing its own version destroys every
+  // prior version on relays that honor replacement, but the history usually
+  // survives on relays that keep old versions. This screen scans for it and
+  // restores it. The spec's four invariants shape every screen here: nothing
+  // scans or publishes except on a click; every version found is shown; an
+  // empty version is never recommended and a past one is never offered; and a
+  // restore is one event, signed by the user's own signer, on an explicit click
+  // that names what will be published.
+  //
+  // Relays are untrusted (0.6.0): every request ends as answered, failed or
+  // timed out, and only an answered relay counts as having nothing. An
+  // unreachable relay must never read as an empty list. An event becomes a
+  // candidate only after its signature verifies and its author and kind match
+  // the scan; the pool already refuses unverified events, and the same check is
+  // made explicit where the spec requires it.
+  const LAZARUS_SCAN_RELAYS = [
+    // The spec's archival starting set, observed holding history in 2026-09.
+    // Relay sets are configuration, not protocol: which relays keep history
+    // changes over time, so this list is a starting point, not an authority.
+    'wss://relay.ditto.pub',        // every version: hundreds, back 14 months
+    'wss://hist.nostr.land',        // recent history
+    'wss://nos.lol',
+    'wss://nostr.mom',
+    'wss://purplepag.es',           // aggregates kind 0/3/10002
+    'wss://nostr.bitcoiner.social',
+    // Broad general relays a user may have published to over the years: they
+    // often hold versions the user's own relays already replaced.
     'wss://relay.primal.net',
-    'wss://cache0.primal.net',   // Primal caches keep historical events
+    'wss://cache0.primal.net',
     'wss://cache1.primal.net',
     'wss://cache2.primal.net',
-    'wss://nos.lol',
     'wss://relay.snort.social',
-    'wss://relay.damus.io',      // dying, but historically the biggest default → old copies live here
+    'wss://relay.damus.io',         // dying, but historically the biggest default
     'wss://nostr.wine',
     'wss://offchain.pub',
-    'wss://nostr.mom',
     'wss://relay.noswhere.com',
   ];
-  // Where a RESTORED list is republished (in addition to the account's own write
-  // relays) — writable, broad-reach relays only, so the restore actually lands.
-  const FOLLOW_PUBLISH_RELAYS = ['wss://purplepag.es', 'wss://nos.lol', 'wss://offchain.pub', 'wss://nostr.mom'];
 
-  async function scanFollowListHistory(pubkey) {
-    const configured = await relayUrls(false);
-    const n = await getNip65(pubkey);
-    const nip65 = n ? [...n.read, ...n.write] : [];
-    const relays = [...new Set([...configured, ...nip65, ...FOLLOW_SCAN_RELAYS])];
+  // Relays asked at once. A scan opens many connections on top of the ones the
+  // panel already holds, and a browser refuses sockets over its cap with the
+  // same error a dead relay gives, so an unbounded fan-out manufactures failures.
+  const LAZARUS_CONCURRENCY = 8;
 
-    const byId = new Map();
-    const responding = new Set();
-    await Promise.all(
-      relays.map(async (relay) => {
-        try {
-          const evs = await Promise.race([
-            poolQuerySync([relay], { kinds: [3], authors: [pubkey], limit: 20 }),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
-          ]);
-          if (evs && evs.length) responding.add(relay);
-          (evs || []).forEach((ev) => {
-            if (ev.kind !== 3 || ev.pubkey !== pubkey) return;
-            let c = byId.get(ev.id);
-            if (!c) {
-              const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
-              c = { event: ev, eventId: ev.id, createdAt: ev.created_at, followCount: set.size, foundOnRelays: [] };
-              byId.set(ev.id, c);
-            }
-            if (!c.foundOnRelays.includes(relay)) c.foundOnRelays.push(relay);
-          });
-        } catch (_) {}
-      })
-    );
+  const lazarusRelayLabel = (u) => String(u).replace(/^wss?:\/\//, '').replace(/\/$/, '');
 
-    const candidates = [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
-    const current = candidates[0] || null;
-    const recommended = pickRecommendedRecovery(candidates, current);
-    return { current, candidates, recommended, respondingRelays: [...responding] };
+  // One relay, one request, one OUTCOME. `answered` means the relay sent EOSE,
+  // with or without events. A connection that never opened, or a relay that
+  // closed the request or the connection before EOSE, is `failed`. No EOSE
+  // inside the timeout is `timed out`. Events that arrived before a failure or
+  // timeout are kept: they are real signed versions (invariant 2), and the
+  // outcome only records that this relay's history is incomplete.
+  //
+  // Two things in the pool would make every relay read as answered. On a close
+  // or a failed connection, subscribeMap calls oneose and then onclose in the
+  // same tick, so `answered` waits a microtask for a close to overrule it. And a
+  // relay that stays silent gets a synthetic EOSE after eoseTimeout, so maxWait
+  // is set past this timer, which then reports the silence as `timed out`.
+  //
+  // `session` belongs to one open recovery screen: once it closes, nothing new
+  // is dialed, and every relay asked is recorded so the scan's own connections
+  // can be released.
+  function lazarusQueryRelay(relay, filter, session) {
+    const Lz = self.SidecarLazarus;
+    return new Promise((resolve) => {
+      const events = [];
+      if (session && session.closed) { resolve({ relay, outcome: 'failed', events }); return; }
+      if (session) session.touched.add(relay);
+      let done = false;
+      let sub = null;
+      let timer = null;
+      const finish = (outcome) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (sub) { try { Promise.resolve(sub.close()).catch(() => {}); } catch (_) {} }
+        resolve({ relay, outcome, events });
+      };
+      timer = setTimeout(() => finish('timed out'), Lz.RELAY_TIMEOUT);
+      try {
+        sub = poolSubscribe([relay], filter, {
+          maxWait: Lz.RELAY_TIMEOUT + 2000,
+          onevent: (ev) => { if (!done) events.push(ev); },
+          oneose: () => { Promise.resolve().then(() => finish('answered')); },
+          onclose: () => finish('failed'),
+        });
+      } catch (_) {
+        finish('failed'); // a URL the pool cannot parse never opens
+      }
+    });
   }
 
-  function pickRecommendedRecovery(candidates, current) {
-    const ranked = [...candidates]
-      .sort((a, b) => b.followCount - a.followCount || b.createdAt - a.createdAt)
-      .filter((c) => c.followCount > 0);
-    const currentCount = current ? current.followCount : 0;
-    const currentId = current ? current.eventId : null;
-    for (const c of ranked) {
-      if (c.eventId === currentId) continue;
-      if (c.followCount > currentCount) return c;
-    }
-    return null;
-  }
-
-  async function recoverFollowList(candidate) {
-    const preserved = candidate.event.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64);
-    const event = {
-      kind: 3,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: preserved,
-      content: candidate.event.content || '',
+  // Every relay asked, LAZARUS_CONCURRENCY at a time, results in request order.
+  // `filterFor` is a filter, or a function of the relay (for paging cursors).
+  async function lazarusQueryAll(relays, filterFor, session) {
+    const results = new Array(relays.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < relays.length) {
+        const i = next++;
+        const filter = typeof filterFor === 'function' ? filterFor(relays[i]) : filterFor;
+        results[i] = await lazarusQueryRelay(relays[i], filter, session);
+      }
     };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
-    const targets = [...new Set([...(await postRelays()), ...FOLLOW_PUBLISH_RELAYS])];
-    return publishToRelays(targets, signed);
+    await Promise.all(Array.from({ length: Math.min(LAZARUS_CONCURRENCY, relays.length) }, worker));
+    return results;
   }
 
-  function mutableAttribution() {
+  // Relay URLs from lists and settings are untrusted text. One the pool cannot
+  // parse used to throw inside the scan and abort it for every relay, so each
+  // URL is normalized first and the unusable ones dropped. Normalizing also
+  // keeps one relay from being asked twice under two spellings, and gives the
+  // outcomes one key per relay.
+  function lazarusRelaySet(urls) {
+    const out = new Set();
+    for (const u of urls || []) {
+      if (typeof u !== 'string') continue;
+      try {
+        const n = NT.utils.normalizeURL(u.trim());
+        if (/^wss?:\/\/[^/]/.test(n)) out.add(n);
+      } catch (_) {}
+    }
+    return [...out];
+  }
+
+  // NIP-65: an unmarked relay is both read and write.
+  function lazarusRelayTags(tags) {
+    const read = [], write = [];
+    (tags || []).forEach((t) => {
+      if (!Array.isArray(t) || t[0] !== 'r' || !t[1]) return;
+      if (!t[2] || t[2] === 'read') read.push(t[1]);
+      if (!t[2] || t[2] === 'write') write.push(t[1]);
+    });
+    return { read, write };
+  }
+
+  // The event checks the spec makes mandatory before anything else can happen:
+  // a valid signature, the scanned author, the requested kind. The pool drops
+  // unverified events already; repeating the check here is where the spec
+  // points, so a future pool change cannot silently un-verify the scan.
+  function lazarusValidEvent(ev, kind, pubkey) {
+    return ev && NT.verifyEvent(ev) && ev.kind === kind && ev.pubkey === pubkey;
+  }
+
+  // THE RELAY LIST LOOKUP, with the spec's answers told apart. The newest valid
+  // kind:10002 any relay returns is the list; the copy Sidecar saved counts as a
+  // source when no relay returns one.
+  //
+  //   known    a list, from the relays or the saved copy (`saved` says which)
+  //   none     relays answered, none holds a list, and nothing is saved
+  //   unknown  no relay answered and nothing is saved
+  //
+  // getNip65Info cannot make this call: its pool read resolves null when every
+  // relay refuses at once, which reads the same as "answered, nothing there".
+  async function lazarusRelayList(pubkey, session) {
+    let configured = [];
+    try { configured = await relayUrls(false); } catch (_) {}
+    let saved = nip65Cache.get(pubkey) || null;
+    if (!saved) { try { saved = await recallNip65(pubkey); } catch (_) {} }
+    const savedUrls = saved ? [...saved.read, ...saved.write] : [];
+    const ask = lazarusRelaySet([...configured, ...savedUrls, 'wss://purplepag.es']);
+    const results = await lazarusQueryAll(ask, { kinds: [10002], authors: [pubkey], limit: 1 }, session);
+    let newest = null;
+    results.forEach((res) => res.events.forEach((ev) => {
+      if (!lazarusValidEvent(ev, 10002, pubkey)) return;
+      if (!newest || ev.created_at > newest.created_at
+        || (ev.created_at === newest.created_at && ev.id < newest.id)) newest = ev;
+    }));
+    if (newest) return { state: 'known', saved: false, ...lazarusRelayTags(newest.tags) };
+    if (saved) return { state: 'known', saved: true, read: saved.read, write: saved.write };
+    const answered = results.some((res) => res.outcome === 'answered');
+    return { state: answered ? 'none' : 'unknown', saved: false, read: [], write: [] };
+  }
+
+  // The write set follows the relay list's answer. Known: its write relays.
+  // None, or a list naming no write relays: the configured write relays stand
+  // in, labeled as such wherever write relays are shown. Unknown: nothing stands
+  // in, and current cannot be confirmed. With NIP-65 only on, the configured
+  // relays never stand in: they are the ones this account opted out of.
+  async function lazarusApplyList(scan, list) {
+    scan.list = list;
+    scan.writeRelays = [];
+    scan.writeDefaults = false;
+    scan.listNote = '';
+    if (list.state === 'unknown') {
+      scan.listNote = 'Your relay list couldn’t be read, so your current version can’t be confirmed.';
+    } else if (list.state === 'none' || !list.write.length) {
+      const why = list.state === 'none' ? 'You have no relay list' : 'Your relay list names no write relays';
+      if (scan.nip65Only) {
+        scan.listNote = why + ', and NIP-65 only is on, so no relay can confirm your current version.';
+      } else {
+        let fallback = [];
+        try { fallback = await relayUrls(true); } catch (_) {}
+        scan.writeRelays = lazarusRelaySet(fallback);
+        scan.writeDefaults = true;
+        scan.listNote = why + ', so your configured relays stand in as write relays.';
+      }
+    } else {
+      scan.writeRelays = lazarusRelaySet(list.write);
+      if (list.saved) scan.listNote = 'No relay returned your relay list, so the copy Sidecar saved stands in.';
+    }
+  }
+
+  // What the screens read, recomputed from the merged state after every round
+  // so a retry or a page can never leave a verdict from an earlier one behind.
+  function lazarusDerive(scan) {
+    scan.candidates = [...scan.byId.values()];
+    scan.answeredRelays = scan.asked.filter((r) => scan.outcomes.get(r) === 'answered');
+    scan.failedRelays = scan.asked.filter((r) => scan.outcomes.get(r) !== 'answered');
+    scan.writeAnswered = scan.writeRelays.some((r) => scan.outcomes.get(r) === 'answered');
+    scan.failedScan = scan.answeredRelays.length === 0;
+  }
+
+  // One round of requests: a first page from each relay, or a page further back
+  // from a relay whose last page was full (`until` set). Outcomes accumulate: an
+  // answer on any round counts, so a relay that failed and then answered a
+  // retry is answered, and a later page that fails cannot un-answer the first.
+  // Returns the candidates this round added, for decryption.
+  async function lazarusRound(scan, requests) {
+    const Lz = self.SidecarLazarus;
+    const results = await lazarusQueryAll(requests.map((q) => q.relay), (relay) => {
+      const q = requests.find((x) => x.relay === relay);
+      const filter = { kinds: [scan.kind], authors: [scan.pubkey], limit: Lz.SCAN_PAGE };
+      if (q.until != null) filter.until = q.until; // inclusive: the next page repeats that event
+      return filter;
+    }, scan.session);
+    const oldest = (evs) => Math.min(...evs.map((e) => e.created_at));
+    const fresh = [];
+    results.forEach((res, i) => {
+      const q = requests[i];
+      const events = res.events.filter((ev) => lazarusValidEvent(ev, scan.kind, scan.pubkey));
+      events.forEach((ev) => {
+        let c = scan.byId.get(ev.id);
+        if (!c) {
+          c = Lz.candidate(ev, scan.kind);
+          c.foundOn = [];
+          scan.byId.set(ev.id, c);
+          fresh.push(c);
+        }
+        if (!c.foundOn.includes(res.relay)) c.foundOn.push(res.relay);
+      });
+      if (q.until == null) {
+        if (!scan.asked.includes(res.relay)) scan.asked.push(res.relay);
+        if (scan.outcomes.get(res.relay) !== 'answered') scan.outcomes.set(res.relay, res.outcome);
+        if (res.outcome === 'answered' && events.length >= Lz.SCAN_PAGE) scan.pages.set(res.relay, oldest(events));
+        return;
+      }
+      // A page further back. A failure keeps the cursor for another try. A page
+      // with nothing older than the cursor means the relay is exhausted, even
+      // one that came back full of versions from the cursor's own second.
+      if (res.outcome !== 'answered') { scan.pageFailed.add(res.relay); return; }
+      scan.pageFailed.delete(res.relay);
+      const older = events.filter((ev) => ev.created_at < q.until);
+      if (events.length >= Lz.SCAN_PAGE && older.length) scan.pages.set(res.relay, oldest(older));
+      else scan.pages.delete(res.relay);
+    });
+    lazarusDerive(scan);
+    return fresh;
+  }
+
+  // One scan of one kind. Relay set: the user's relay list, read and write; the
+  // configured relays; and the archival set. With NIP-65 only on, the
+  // configured relays are left out, as readRelayUrls leaves them out; the
+  // archival set is read regardless, the way purplepag.es is read there, since
+  // finding the history is what the user clicked for.
+  async function lazarusScan(pubkey, kind, session) {
+    const scan = {
+      pubkey, kind, session,
+      nip65Only: await nip65OnlyFor(pubkey),
+      asked: [], outcomes: new Map(), byId: new Map(), pages: new Map(), pageFailed: new Set(),
+    };
+    await lazarusApplyList(scan, await lazarusRelayList(pubkey, session));
+    let configured = [];
+    if (!scan.nip65Only) { try { configured = await relayUrls(false); } catch (_) {} }
+    const relays = lazarusRelaySet([
+      ...scan.writeRelays, ...scan.list.read, ...scan.list.write, ...configured, ...LAZARUS_SCAN_RELAYS,
+    ]);
+    const fresh = await lazarusRound(scan, relays.map((relay) => ({ relay })));
+    return { scan, fresh };
+  }
+
+  // Retry: the relays that failed or timed out, without repeating the whole
+  // scan. A relay list that couldn't be read is asked for again first; if it
+  // answers now, its write set takes over and its relays join the retry.
+  async function lazarusRetry(scan) {
+    let extra = [];
+    if (scan.list.state === 'unknown') {
+      const list = await lazarusRelayList(scan.pubkey, scan.session);
+      if (list.state !== 'unknown') {
+        await lazarusApplyList(scan, list);
+        extra = lazarusRelaySet([...scan.writeRelays, ...list.read, ...list.write]).filter((r) => !scan.asked.includes(r));
+      }
+    }
+    const relays = [...new Set([...scan.failedRelays, ...extra])];
+    return lazarusRound(scan, relays.map((relay) => ({ relay })));
+  }
+
+  // The exact tier for private items. Sidecar holds the account's own key, so a
+  // private list's content decrypts locally, NIP-04 first when the ciphertext
+  // carries "?iv=" and NIP-44 first otherwise, the order loadMuteList uses.
+  // Decryption is what tells an emptied private list from a full one; the size
+  // estimate only bounds it. The decrypted tags pass the same item filter as the
+  // public ones. No signer prompts: the panel is unlocked to be here.
+  async function lazarusDecryptPrivate(cand) {
+    if (!cand || !cand.hasPrivate || cand.decrypted) return;
+    const Lz = self.SidecarLazarus;
+    const order = cand.scheme === 'nip04' ? [4, 44] : [44, 4];
+    for (const nip of order) {
+      try {
+        const items = JSON.parse(await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: cand.content, nip }));
+        if (Array.isArray(items)) {
+          cand.decrypted = Lz.privateItems(items, cand.kind);
+          return;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // Small batches: hundreds of versions on one archival relay should not fire
+  // hundreds of keystore calls at once.
+  async function lazarusDecryptAll(cands) {
+    for (let i = 0; i < cands.length; i += 8) {
+      await Promise.all(cands.slice(i, i + 8).map(lazarusDecryptPrivate));
+    }
+  }
+
+  // After a restore lands, the panel's own copies of the list take the restored
+  // version, or the next edit rebuilds from the clobbered copy and clobbers it
+  // again. Updated, not dropped: a dropped copy is refetched from whichever
+  // relay answers first, and that can be one still serving the clobbered
+  // version. Caches derived from the list (the trust set built on follows, the
+  // @-mention list, the bookmarks screen) are dropped and rebuild from it.
+  async function lazarusAdopt(c, signed, pubkey) {
+    seedBaseline(pubkey, signed); // the wipe check now measures against the restore
+    if (signed.kind === 3) {
+      const follows = new Set(signed.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
+      followCountCache.set(pubkey, follows.size);
+      followListCache = null;
+      followListPubkey = null;
+      forgetWot();
+    } else if (signed.kind === 10000) {
+      if (c.hasPrivate && !c.decrypted) {
+        // Private mutes this panel couldn't read: the loader decrypts again.
+        _muteLists.delete(pubkey);
+        _muteListPromises.delete(pubkey);
+      } else {
+        const muted = collectMuteTags(signed.tags, emptyMuteSet());
+        if (c.decrypted) collectMuteTags(c.decrypted.map((i) => i.tag), muted);
+        _muteLists.set(pubkey, muted);
+        _muteListPromises.set(pubkey, Promise.resolve(muted));
+        pruneNameMuted(pubkey);
+      }
+    } else if (signed.kind === 0) {
+      let content = {};
+      try { content = JSON.parse(signed.content || '{}') || {}; } catch (_) {}
+      cacheProfile(pubkey, content);
+      try {
+        await call({
+          type: 'SIDECAR_SET_PROFILE',
+          pubkey,
+          name: content.display_name || content.name || '',
+          picture: content.picture || '',
+        });
+        state = await call({ type: 'SIDECAR_GET_STATE' });
+      } catch (_) {}
+    } else if (signed.kind === 10002) {
+      const lists = lazarusRelayTags(signed.tags);
+      const parsed = lists.read.length || lists.write.length ? lists : null;
+      nip65Cache.set(pubkey, parsed);
+      rememberNip65(pubkey, parsed);
+      // No argument: the allowlist belongs to whoever is active NOW, which is
+      // not necessarily the account this restore was for.
+      refreshAuthRelays().catch(() => {});
+    } else if (signed.kind === 10003) {
+      _bmCache.pubkey = null; // the bookmarks screen refetches, as after addBookmark
+    }
+  }
+
+  function lazarusAttribution() {
     const a = h('a', {
-      className: 'mutable-credit',
-      href: 'https://mutable.top',
+      className: 'lazarus-credit',
+      href: 'https://github.com/dmnyc/lazarus',
       target: '_blank',
       rel: 'noopener noreferrer',
     });
-    const logo = document.createElement('img');
-    logo.className = 'mutable-logo';
-    logo.src = 'icons/apps/mutable.svg';
-    logo.alt = '';
-    a.append(logo, h('span', { textContent: 'Powered by Mutable' }));
+    a.append(h('span', { textContent: 'Powered by Lazarus' }));
     return a;
   }
 
-  function followRecoveryModal(active) {
+  function lazarusModal(active) {
+    const Lz = self.SidecarLazarus;
+    // One session per open screen. Closing it stops new dials and releases the
+    // connections the scan opened for itself, once any publish still in flight
+    // has settled: the pool never closes an idle relay on its own, and with
+    // reconnect on it would keep redialing them. The account's own relays are
+    // never released here; the rest of the panel uses them.
+    const session = { closed: false, touched: new Set() };
+    const before = new Set(_pool ? [..._pool.relays.keys()] : []);
+    let busy = null; // the publish in flight, if any
+    const release = () => {
+      const opened = (_pool ? [..._pool.relays.keys()] : [])
+        .filter((u) => !before.has(u) && session.touched.has(u) && !authRelays.has(normalizeRelay(u)));
+      if (opened.length) resetPoolRelays(opened);
+    };
+    const settle = () => { if (session.closed) Promise.resolve(busy).catch(() => {}).finally(release); };
     openModal((modal) => {
       const xBtn = h('button', { className: 'modal-x', title: 'Close' });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       const body = h('div', { className: 'recovery-modal' });
       modal.append(xBtn, body);
-
-      let lastRes = null;
       const clear = () => { body.innerHTML = ''; };
-      const spinner = (text) =>
-        waitingRow(text);
 
-      function showIntro() {
+      let kind = null;
+      let scan = null;      // see lazarusScan
+      let currentId = null; // the version the results were reviewed against
+      const openRows = new Set(); // versions whose relays are showing, kept across redraws
+      // Tier 3 is the relay lists: an old version can name relays that are dead or
+      // moved, which the confirm screen spells out per kind.
+      const TIER_LABELS = { 1: 'Most worth recovering', 2: 'Also yours', 3: 'Check before restoring' };
+
+      const rec = () => Lz.REGISTRY[kind];
+
+      // -- intro: pick what to look for, then scan ------------------------------
+      function intro() {
         clear();
-        const scan = h('button', { className: 'primary', textContent: 'Scan relays' });
-        scan.addEventListener('click', runScan);
         body.append(
-          h('h3', { textContent: 'Restore follow list' }),
+          h('h3', { textContent: 'Data recovery' }),
           h('p', {
             className: 'hint',
-            textContent:
-              'If another app wiped or shrank your follows, scan your relays for older versions of your follow list and republish a healthy one.',
-          }),
-          h('div', { className: 'actions' }, [scan]),
-          mutableAttribution()
+            textContent: 'Pick what to look for. Relays often keep older versions, and nothing is restored until you click.',
+          })
         );
+        let scanBtn = null;
+        [1, 2, 3].forEach((tier) => {
+          const kinds = Lz.KIND_LIST.filter((k) => Lz.REGISTRY[k].tier === tier);
+          if (!kinds.length) return;
+          body.append(h('div', { className: 'lazarus-tier', textContent: TIER_LABELS[tier] }));
+          const row = h('div', { className: 'lazarus-kinds' });
+          kinds.forEach((k) => {
+            const chip = h('button', {
+              className: 'lazarus-chip' + (kind === k ? ' on' : ''),
+              type: 'button',
+              textContent: Lz.REGISTRY[k].name,
+            });
+            chip.addEventListener('click', () => {
+              kind = k;
+              // One choice across every tier's row, not one per row.
+              body.querySelectorAll('.lazarus-chip').forEach((el) => el.classList.remove('on'));
+              chip.classList.add('on');
+              scanBtn.disabled = false;
+            });
+            row.append(chip);
+          });
+          body.append(row);
+        });
+        scanBtn = h('button', { className: 'primary', textContent: 'Scan relays' });
+        scanBtn.disabled = !kind;
+        scanBtn.addEventListener('click', () => runScan());
+        body.append(h('div', { className: 'actions' }, [scanBtn]), lazarusAttribution());
       }
 
       async function runScan() {
         clear();
-        body.append(h('h3', { textContent: 'Scanning…' }), spinner('Checking your relays for older versions…'));
+        body.append(
+          h('h3', { textContent: 'Scanning…' }),
+          waitingRow('Checking relays for older versions of your ' + rec().name.toLowerCase() + '…')
+        );
         try {
-          lastRes = await scanFollowListHistory(active.pubkey);
+          const res = await lazarusScan(active.pubkey, kind, session);
+          scan = res.scan;
+          // Decrypt up front what the list will show: every candidate here is on
+          // its own row.
+          await lazarusDecryptAll(res.fresh);
+          settle();
           showResults();
         } catch (e) {
           showError(e.message);
         }
       }
 
-      function showResults() {
+      // Paging and retries fold into what is already shown (see lazarusRound).
+      async function runMore(what) {
         clear();
-        const res = lastRes;
-        // Empty (0-follow) versions are the damage, not something worth restoring — hide them.
-        const shown = res.candidates.filter((c) => c.followCount > 0);
-        if (!shown.length) {
-          const retry = h('button', { className: 'secondary', textContent: 'Scan again' });
-          retry.addEventListener('click', runScan);
-          body.append(
-            h('h3', { textContent: 'No versions found' }),
-            h('p', { className: 'hint', textContent: 'No follow-list versions with follows turned up on your relays.' }),
-            h('div', { className: 'actions' }, [retry])
-          );
-          return;
-        }
         body.append(
-          h('h3', { textContent: 'Choose a version to restore' }),
-          h('p', {
-            className: 'hint',
-            textContent:
-              'Found ' + shown.length + ' version' + (shown.length === 1 ? '' : 's') +
-              ' across ' + res.respondingRelays.length + ' relay' + (res.respondingRelays.length === 1 ? '' : 's') + '.',
-          })
+          h('h3', { textContent: 'Scanning…' }),
+          waitingRow(what === 'page' ? 'Loading older versions…' : 'Asking the relays that failed again…')
         );
-        const list = h('div', { className: 'list flat recovery-list' });
-        shown.forEach((c) => {
-          const isCurrent = res.current && c.eventId === res.current.eventId;
-          const isRec = res.recommended && c.eventId === res.recommended.eventId;
-          const badges = [];
-          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: 'Current' }));
-          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: 'Recommended' }));
-          const meta = h('div', { className: 'recovery-meta' }, [
-            h('div', { className: 'recovery-count' }, [
-              h('strong', { textContent: c.followCount.toLocaleString('en-US') }),
-              document.createTextNode(' following'),
-            ]),
-            h('div', {
-              className: 'recovery-sub',
-              textContent: relativeTime(c.createdAt) + ' · ' + c.foundOnRelays.length + ' relay' + (c.foundOnRelays.length === 1 ? '' : 's'),
-            }),
-            badges.length ? h('div', { className: 'recovery-badges' }, badges) : document.createTextNode(''),
-          ]);
-          const row = h('div', { className: 'item recovery-row' + (isRec ? ' rec' : '') }, [meta]);
-          if (!isCurrent && c.followCount > 0) {
-            const pick = h('button', { className: 'mini', textContent: 'Restore' });
-            pick.addEventListener('click', () => showConfirm(c));
-            row.append(h('div', { className: 'item-actions' }, [pick]));
-          }
-          list.append(row);
-        });
-        body.append(list, mutableAttribution());
-      }
-
-      function showConfirm(c) {
-        clear();
-        const restore = h('button', { className: 'primary', textContent: 'Restore' });
-        restore.addEventListener('click', () => runRestore(c));
-        const back = h('button', { className: 'ghost', textContent: 'Back' });
-        back.addEventListener('click', showResults);
-        body.append(
-          h('h3', { textContent: 'Restore this version?' }),
-          h('p', { className: 'hint warn', textContent: 'This replaces your current follow list everywhere and cannot be automatically undone.' }),
-          h('div', { className: 'recovery-confirm' }, [
-            h('div', { className: 'recovery-count-lg' }, [
-              h('strong', { textContent: c.followCount.toLocaleString('en-US') }),
-              document.createTextNode(' accounts followed'),
-            ]),
-            h('div', {
-              className: 'recovery-sub',
-              textContent: new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt),
-            }),
-          ]),
-          h('div', { className: 'actions' }, [restore, back])
-        );
-      }
-
-      async function runRestore(c) {
-        clear();
-        body.append(h('h3', { textContent: 'Restoring…' }), spinner('Publishing your follow list…'));
         try {
-          const ok = await recoverFollowList(c);
-          // Invalidate cached follow data so the profile count + @mention list
-          // reflect the restore.
-          followCountCache.delete(active.pubkey);
-          followListCache = null;
-    forgetWot(); // a set belongs to one account
-          followListPubkey = null;
-          showDone(ok, c);
-          toast('Follow list restored', 'success');
+          const fresh = what === 'page'
+            ? await lazarusRound(scan, [...scan.pages].map(([relay, until]) => ({ relay, until })))
+            : await lazarusRetry(scan);
+          await lazarusDecryptAll(fresh);
+          settle();
+          showResults();
         } catch (e) {
           showError(e.message);
         }
       }
 
-      function showDone(ok, c) {
+      // One line saying how many items a version holds, honest about certainty:
+      // exact after decryption, a band from the encrypted size, or "uncounted"
+      // when neither applies. A private-only list must not read as a zero.
+      function countLine(c) {
+        const range = Lz.itemRange(c);
+        const num = (n) => h('strong', { textContent: n.toLocaleString('en-US') });
+        if (kind === 0) return [num(range.min), ' profile field' + (range.min === 1 ? '' : 's')];
+        const noun = rec().noun || 'items';
+        if (range.certainty === 'exact') return [num(range.min), ' ' + noun];
+        if (range.certainty === 'estimated') {
+          const band = '≈' + range.min.toLocaleString('en-US') + '–' + range.max.toLocaleString('en-US');
+          return [h('strong', { textContent: band }), ' ' + noun + ' (encrypted)'];
+        }
+        return range.min
+          ? [num(range.min), '+ ' + noun + ' (encrypted, uncounted)']
+          : [noun + ' (encrypted, uncounted)'];
+      }
+
+      // Each relay's outcome, on request: a count alone can't say which relays a
+      // "nothing found" rests on. Write relays are marked, and marked as
+      // configured stand-ins when the account has no usable relay list.
+      function outcomesBlock() {
+        const rows = scan.asked.map((r) => {
+          const outcome = scan.outcomes.get(r) || 'timed out';
+          const role = scan.writeRelays.includes(r) ? (scan.writeDefaults ? 'write (configured)' : 'write') : '';
+          const state = outcome === 'answered' && scan.pageFailed.has(r) ? 'older page failed' : outcome;
+          return h('div', { className: 'lazarus-relay' + (state === 'answered' ? '' : ' bad') }, [
+            h('span', { className: 'relay', textContent: lazarusRelayLabel(r), title: r }),
+            role ? h('span', { className: 'role', textContent: role }) : null,
+            h('span', { className: 'state', textContent: state }),
+          ].filter(Boolean));
+        });
+        return h('details', { className: 'lazarus-outcomes' }, [
+          h('summary', { textContent: 'Relay outcomes' }),
+          ...rows,
+        ]);
+      }
+
+      // The relays that returned one version, the write relays first: they are the
+      // ones that decide what "current" is. Marked as configured stand-ins when the
+      // account has no usable relay list, as in the outcomes block.
+      function foundOnRows(c) {
+        const write = new Set(scan.writeRelays);
+        const role = scan.writeDefaults ? 'write (configured)' : 'write';
+        const byLabel = (a, b) => lazarusRelayLabel(a).localeCompare(lazarusRelayLabel(b));
+        return [...c.foundOn]
+          .sort((a, b) => (write.has(b) - write.has(a)) || byLabel(a, b))
+          .map((u) => h('div', { className: 'lazarus-relay' }, [
+            h('span', { className: 'relay', textContent: lazarusRelayLabel(u), title: u }),
+            write.has(u) ? h('span', { className: 'role', textContent: role }) : null,
+          ].filter(Boolean)));
+      }
+
+      // The results. A scan no relay answered is a failure, not a result:
+      // silence is not evidence, so it says so and leads with the retry. The
+      // versions that arrived before the relays went quiet are still listed
+      // (invariant 2), and any of them can still be picked.
+      function showResults() {
+        clear();
+        const r = Lz.rank(scan.candidates, kind, { currentConfirmed: scan.writeAnswered });
+        const current = r.ordered[0] || null;
+        currentId = current ? current.id : null;
+
+        const n = r.ordered.length;
+        const versions = n + ' version' + (n === 1 ? '' : 's');
+        const quiet = scan.failedRelays.length;
+        const retry = h('button', { className: scan.failedScan ? 'primary' : 'secondary', textContent: 'Retry the relays that failed' });
+        retry.addEventListener('click', () => runMore('retry'));
+
+        if (scan.failedScan) {
+          body.append(
+            h('h3', { textContent: 'No relay answered' }),
+            h('p', {
+              className: 'hint warn',
+              textContent: n
+                ? 'This history is incomplete. The ' + versions + ' below arrived before the relays went quiet.'
+                : 'None of the ' + scan.asked.length + ' relays asked answered. They may still hold versions.',
+            }),
+            h('div', { className: 'actions' }, [retry])
+          );
+        } else {
+          body.append(
+            h('h3', { textContent: 'Choose a version to restore' }),
+            h('p', {
+              className: 'hint',
+              textContent: versions + ' found. ' + scan.answeredRelays.length + ' of ' + scan.asked.length + ' relays answered'
+                + (quiet ? ', ' + quiet + ' failed or timed out.' : '.'),
+            })
+          );
+        }
+        if (scan.listNote) body.append(h('p', { className: 'hint', textContent: scan.listNote }));
+        if (!scan.failedScan) {
+          if (r.currentUnconfirmed) {
+            body.append(h('p', { className: 'hint warn', textContent: 'No write relay answered, so the newest version may not be current. Nothing is recommended.' }));
+          } else if (rec().meaningfulEmpty) {
+            body.append(h('p', { className: 'hint warn', textContent: 'An empty version here is a choice, not damage: it says you no longer use NIP-4e. Nothing is recommended.' }));
+          } else if (r.recommended) {
+            body.append(h('p', { className: 'hint', textContent: 'Highlighted: the fullest version from before a sudden drop your list hasn’t recovered from.' }));
+            if (Lz.itemRange(r.recommended).certainty === 'flagged') {
+              body.append(h('p', { className: 'hint warn', textContent: 'That version couldn’t be fully counted, so the recommendation may be wrong.' }));
+            }
+          } else if (r.settled) {
+            body.append(h('p', { className: 'hint', textContent: 'After a sudden drop, you edited this list 5+ times over a week. Nothing is recommended.' }));
+          } else if (rec().profile === 'count') {
+            body.append(h('p', { className: 'hint', textContent: 'No recoverable improvement found. You can still restore any version below.' }));
+          }
+        }
+
+        const list = h('div', { className: 'list flat recovery-list' });
+        r.ordered.forEach((c) => {
+          const isCurrent = current && c.id === current.id;
+          const isRec = r.recommended && c.id === r.recommended.id;
+          const empty = Lz.itemRange(c).max === 0;
+          const badges = [];
+          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: 'Current' }));
+          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: 'Recommended' }));
+          if (empty && !rec().meaningfulEmpty) {
+            badges.push(h('span', { className: 'recovery-badge', textContent: isCurrent ? 'Empty, usually the clobber' : 'Empty, not offered' }));
+          }
+          // WHERE THIS VERSION LIVES, one tap away: the row opens to the relays that
+          // returned it. The whole head toggles, like a wallet tx row, and the relay
+          // count is the button inside it, so the control has a name and a keyboard
+          // path. The caret rides on the count, which says what opening reveals.
+          const n = c.foundOn.length;
+          const where = h('button', { className: 'recovery-relays-btn', type: 'button', textContent: n + ' relay' + (n === 1 ? '' : 's') });
+          where.append(icon('chevron-down'));
+          const meta = h('div', { className: 'recovery-meta' }, [
+            h('div', { className: 'recovery-count' }, countLine(c)),
+            h('div', { className: 'recovery-sub' }, [
+              new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt) + ' · ',
+              where,
+            ]),
+            badges.length ? h('div', { className: 'recovery-badges' }, badges) : null,
+          ].filter(Boolean));
+          const head = h('div', { className: 'recovery-head' }, [meta]);
+          if (Lz.isRestorable(c, { kind, isCurrent })) {
+            // An icon, not a word: the inline action slot holds icon buttons only
+            // (CLAUDE.md, row controls), and the count beside it does the truncating.
+            // It stops the click here, so choosing a version never also opens its row.
+            head.append(h('div', { className: 'item-actions' }, [iconButton('Restore this version', 'rotate-ccw', (e) => {
+              e.stopPropagation();
+              showConfirm(c);
+            })]));
+          }
+          const relays = h('div', { className: 'recovery-relays hidden' });
+          const row = h('div', { className: 'item recovery-row' + (isRec ? ' rec' : '') }, [head, relays]);
+          // Built on first open: a long history is hundreds of rows nobody opens.
+          const paint = (open) => {
+            if (open && !relays.children.length) relays.append(...foundOnRows(c));
+            relays.classList.toggle('hidden', !open);
+            row.classList.toggle('open', open);
+            where.setAttribute('aria-expanded', String(open));
+          };
+          head.addEventListener('click', () => {
+            if (openRows.has(c.id)) openRows.delete(c.id);
+            else openRows.add(c.id);
+            paint(openRows.has(c.id));
+          });
+          paint(openRows.has(c.id));
+          list.append(row);
+        });
+        body.append(list);
+
+        // A relay that returned a full page may hold older versions; `until` is
+        // inclusive, so the next page repeats that event and the dedupe eats it.
+        const more = [];
+        if (scan.pages.size) {
+          const older = h('button', { className: 'secondary', textContent: 'Load older versions' });
+          older.addEventListener('click', () => runMore('page'));
+          more.push(older);
+        }
+        if (quiet && !scan.failedScan) more.push(retry);
+        if (more.length) body.append(h('div', { className: 'actions' }, more));
+        if (scan.asked.length) body.append(outcomesBlock());
+        body.append(lazarusAttribution());
+      }
+
+      function showConfirm(c, recheck) {
+        const current = scan.byId.get(currentId);
+        if (!current) { showResults(); return; }
+        clear();
+        const d = Lz.delta(c, current, kind);
+        const name = rec().name.toLowerCase();
+        // Nothing would change only when every item is counted on both sides: an
+        // unreadable encrypted list on either side can hide a difference.
+        const unchanged = kind !== 0 && !d.added && !d.removed && !d.uncounted;
+
+        body.append(
+          h('h3', { textContent: 'Restore this version?' }),
+          h('p', { className: 'hint warn', textContent: 'This republishes your ' + name + ' everywhere and can’t be automatically undone.' })
+        );
+        if (recheck) {
+          body.append(h('p', { className: 'hint warn', textContent: 'Your current version changed while you reviewed. The counts below are against the new one.' }));
+        }
+        body.append(
+          h('div', { className: 'recovery-confirm' }, [
+            h('div', { className: 'recovery-count-lg' }, countLine(c)),
+            h('div', {
+              className: 'recovery-sub',
+              textContent: new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt),
+            }),
+          ])
+        );
+
+        // THE DELTA RULE: what this restore would do, before any publish click.
+        // Private items are part of the delta where they can be read, and the
+        // delta says so where they can't.
+        const deltaBox = h('div', { className: 'recovery-confirm' });
+        if (kind === 0) {
+          const bits = [];
+          if (d.fields.changed.length) bits.push('changes ' + d.fields.changed.join(', '));
+          if (d.fields.added.length) bits.push('adds ' + d.fields.added.join(', '));
+          if (d.fields.removed.length) bits.push('removes ' + d.fields.removed.join(', '));
+          if (d.tagsAdded) bits.push('adds ' + d.tagsAdded + ' tag' + (d.tagsAdded === 1 ? '' : 's'));
+          if (d.tagsRemoved) bits.push('removes ' + d.tagsRemoved + ' tag' + (d.tagsRemoved === 1 ? '' : 's'));
+          deltaBox.append(h('p', { className: 'hint', textContent: bits.length ? 'This version ' + bits.join('; ') + '.' : 'This version matches your current profile fields and tags.' }));
+        } else if (unchanged) {
+          deltaBox.append(h('p', { className: 'hint', textContent: 'This version has the same items as your current list. Nothing would change.' }));
+        } else {
+          deltaBox.append(h('p', { className: 'hint', textContent: 'Adds ' + d.added + ', removes ' + d.removed + ' against your current list.' }));
+        }
+        d.notes.forEach((note) => deltaBox.append(h('p', { className: 'hint warn', textContent: note })));
+        body.append(deltaBox);
+
+        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        back.addEventListener('click', () => showResults());
+
+        // A restore that shrinks the list, or may (the current version's encrypted
+        // items unread), takes a separate confirmation from one that only grows
+        // it. That confirmation also answers the wipe check: the user has just
+        // been shown what is lost.
+        const shrinkStep = () => {
+          clear();
+          const publish = h('button', {
+            className: 'primary danger',
+            textContent: d.removed ? 'Publish restore (removes ' + d.removed + ')' : 'Publish restore',
+          });
+          publish.addEventListener('click', () => runRestore(c, { destructiveOk: true }));
+          body.append(
+            h('h3', { textContent: 'This restore removes items' }),
+            h('p', {
+              className: 'hint warn',
+              textContent: d.removed
+                ? d.removed + ' of the items in your current ' + name + ' aren’t in this version. Restoring removes them everywhere.'
+                : 'Your current ' + name + ' has encrypted items Sidecar couldn’t read. Restoring replaces them everywhere.',
+            }),
+            h('div', { className: 'actions' }, [publish, back])
+          );
+        };
+
+        // MEANINGFUL-EMPTY kinds ask the intent question before anything
+        // publishes: which endpoint the user means. The answer is the button
+        // itself, so nothing is pre-selected.
+        let label = d.shrink ? 'Continue' : 'Publish restore';
+        if (rec().meaningfulEmpty) {
+          const toEmpty = !Lz.itemRange(c).max;
+          body.append(h('p', {
+            className: 'hint',
+            textContent: toEmpty ? 'Do you mean to stop using NIP-4e encryption keys?' : 'Do you want direct messages encrypted to these keys again?',
+          }));
+          label = toEmpty ? 'Yes, stop using NIP-4e' : 'Yes, restore these keys';
+        }
+        const go = h('button', { className: 'primary', textContent: label, disabled: unchanged });
+        go.addEventListener('click', () => (d.shrink ? shrinkStep() : runRestore(c, {})));
+        body.append(h('div', { className: 'actions' }, [go, back]));
+      }
+
+      // The pre-sign re-read: the user's write relays, each asked for its newest
+      // version and waited for up to the timeout rather than stopping at the
+      // first answer. Each event is verified before it can count. The local copy
+      // can't confirm current on its own: edits from other devices and clients
+      // may never reach it.
+      async function lazarusReread() {
+        let newest = null;
+        let answered = false;
+        const foundOn = new Map();
+        const results = await lazarusQueryAll(scan.writeRelays, { kinds: [kind], authors: [active.pubkey], limit: 1 }, session);
+        results.forEach((res) => {
+          if (res.outcome === 'answered') answered = true;
+          res.events.forEach((ev) => {
+            if (!lazarusValidEvent(ev, kind, active.pubkey)) return;
+            foundOn.set(ev.id, [...(foundOn.get(ev.id) || []), res.relay]);
+            const c = Lz.candidate(ev, kind);
+            if (!newest || Lz.newestFirst(c, newest) < 0) newest = c;
+          });
+        });
+        if (newest) newest.foundOn = foundOn.get(newest.id);
+        return { newest, writeAnswered: answered };
+      }
+
+      // Sign and publish. `currentCreatedAt` is the newest version known at
+      // signing: the one the delta was computed against, never an older copy a
+      // re-read turned up. Success is judged on the write relays: at least one
+      // of them must accept the event, and the result names which did.
+      async function signAndPublish(c, currentCreatedAt, destructiveOk) {
+        const event = Lz.recoveryEvent(c, kind, Math.floor(Date.now() / 1000), currentCreatedAt);
+        const signed = await call({
+          type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: active.pubkey, confirmedDestructive: !!destructiveOk,
+        });
+        if (!signed || signed.pubkey !== active.pubkey) {
+          throw new Error('Signing came back for a different account, so nothing was published.');
+        }
+        // Kind 10002 replaces the write relays themselves, so the restored list's
+        // own write relays judge it: marked write, or unmarked, which NIP-65
+        // treats as both.
+        let judges = scan.writeRelays;
+        if (kind === 10002) {
+          const writes = lazarusRelaySet(lazarusRelayTags(c.event.tags).write);
+          if (writes.length) judges = writes;
+        }
+        // The other relays that answered the scan get it too, best effort: they
+        // hold older copies and keep serving the clobbered one otherwise. With
+        // NIP-65 only on, the write set is the only place this account publishes.
+        const targets = scan.nip65Only ? judges : lazarusRelaySet([...judges, ...scan.answeredRelays]);
+        if (!targets.length) {
+          throw new Error('No relay to publish to: NIP-65 only is on and no write relay is known.');
+        }
+        busy = lazarusPublish(targets, signed, judges);
+        let pub;
+        try { pub = await busy; } finally { busy = null; }
+        if (pub.writeOk) await lazarusAdopt(c, signed, active.pubkey);
+        return pub;
+      }
+
+      // `opts.retried`: a re-read has already failed once, so the override may
+      // be offered. `opts.destructiveOk`: the user has confirmed what this
+      // restore removes, which is what clears the wipe check.
+      async function runRestore(c, opts) {
+        opts = opts || {};
+        clear();
+        body.append(h('h3', { textContent: 'Restoring…' }), waitingRow('Confirming your current version, then signing…'));
+        try {
+          // THE RE-READ, decided by the core: proceed, changed, or unconfirmed.
+          // Only a version NEWER than the reviewed one is a change: the re-read
+          // asks fewer relays than the scan did, so an older copy is not one.
+          const reread = await lazarusReread();
+          const reviewed = scan.byId.get(currentId) || null;
+          const verdict = Lz.checkCurrent(reviewed, reread.newest, reread.writeAnswered);
+          if (verdict.status === 'changed') {
+            // The newer version becomes current, decrypted like every other
+            // version, and the delta is recomputed against it before asking again.
+            let nc = scan.byId.get(verdict.version.id);
+            if (!nc) {
+              nc = verdict.version;
+              nc.foundOn = nc.foundOn || [];
+              scan.byId.set(nc.id, nc);
+              lazarusDerive(scan);
+            }
+            await lazarusDecryptPrivate(nc);
+            currentId = nc.id;
+            showConfirm(c, true);
+            return;
+          }
+          if (verdict.status === 'unconfirmed') {
+            showUnconfirmed(c, opts);
+            return;
+          }
+          await publishAndReport(c, reviewed ? reviewed.createdAt : 0, opts);
+        } catch (e) {
+          showError(e.message);
+        }
+      }
+
+      async function publishAndReport(c, reviewedAt, opts) {
+        showPublishing();
+        try {
+          const pub = await signAndPublish(c, reviewedAt, opts.destructiveOk);
+          if (pub.writeOk) showDone(pub);
+          else showPublishFailed(pub, c, opts);
+        } catch (e) {
+          if (e.destructive) showDestructive(c, e.destructive, opts);
+          else showError(e.message);
+        }
+      }
+
+      function showPublishing() {
+        clear();
+        body.append(h('h3', { textContent: 'Restoring…' }), waitingRow('Signing and publishing your ' + rec().name.toLowerCase() + '…'));
+      }
+
+      // The wipe check (replaceable-baseline.js) refused the signature: it
+      // measures against the last version Sidecar itself saw, and that version
+      // holds items this restore drops. Its finding is shown as it is, and going
+      // ahead is its own explicit click, which re-runs the re-read first.
+      function showDestructive(c, finding, opts) {
+        clear();
+        const anyway = h('button', { className: 'primary danger', textContent: 'Restore anyway' });
+        anyway.addEventListener('click', () => runRestore(c, { ...opts, destructiveOk: true }));
+        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        back.addEventListener('click', () => showResults());
+        body.append(
+          h('h3', { textContent: 'This restore removes data' }),
+          h('p', { className: 'hint warn', textContent: finding.message || 'Sidecar’s wipe check flagged this restore.' }),
+          h('div', { className: 'actions' }, [anyway, back])
+        );
+      }
+
+      // THE OVERRIDE. After a retry has failed, the user may restore with
+      // current unconfirmed: relay lists naming only dead relays are common,
+      // and restoring an older relay list is often the fix for exactly that.
+      // It is its own explicit click, not offered until a retry has failed,
+      // never pre-selected, and nothing remembers it between restores.
+      function showUnconfirmed(c, opts) {
+        clear();
+        const retry = h('button', { className: 'secondary', textContent: 'Retry' });
+        retry.addEventListener('click', () => runRestore(c, { ...opts, retried: true }));
+        body.append(
+          h('h3', { textContent: 'Current version couldn’t be confirmed' }),
+          h('p', {
+            className: 'hint warn',
+            textContent: 'No write relay answered, so Sidecar can’t confirm your current version. Nothing was signed.',
+          }),
+          h('div', { className: 'actions' }, [retry])
+        );
+        if (opts.retried) {
+          const anyway = h('button', { className: 'primary danger', textContent: 'Restore without confirming' });
+          anyway.addEventListener('click', () => {
+            const reviewed = scan.byId.get(currentId) || null;
+            publishAndReport(c, reviewed ? reviewed.createdAt : 0, opts);
+          });
+          body.append(h('p', { className: 'hint warn', textContent: 'Restoring now may overwrite edits made since your review. Sidecar won’t remember this choice.' }));
+          body.append(h('div', { className: 'actions' }, [anyway]));
+        }
+      }
+
+      // Per-relay publish results, judged on the write relays. Relays outside
+      // the write set are best effort and never flip the verdict: those relays
+      // hold older copies and keep serving the clobbered one otherwise.
+      async function lazarusPublish(targets, signed, writeRelays) {
+        const norm = (u) => { try { return NT.utils.normalizeURL(u); } catch (_) { return u; } };
+        const judge = new Set(writeRelays.map(norm));
+        let results = await Promise.allSettled(poolPublish(targets, signed));
+        // NOTHING LANDED: one more round on fresh sockets before believing it,
+        // the same trade publishToRelays makes for every other publish here.
+        if (results.every((r) => r.status === 'rejected' || publishFailed(r))) {
+          resetPoolRelays(targets);
+          results = await Promise.allSettled(poolPublish(targets, signed));
+        }
+        const acceptedWrite = [], rejectedWrite = [];
+        let otherOk = 0;
+        targets.forEach((raw, i) => {
+          const r = results[i];
+          const ok = r.status === 'fulfilled' && !publishFailed(r);
+          if (judge.has(norm(raw))) (ok ? acceptedWrite : rejectedWrite).push(raw);
+          else if (ok) otherOk++;
+        });
+        // An unknown write set (no relay list anywhere) can't be judged against
+        // itself; acceptance anywhere is then the only signal there is.
+        const writeOk = acceptedWrite.length > 0 || (judge.size === 0 && otherOk > 0);
+        return { writeOk, acceptedWrite, rejectedWrite, otherOk };
+      }
+
+      function showDone(pub) {
         clear();
         const done = h('button', { className: 'primary', textContent: 'Done' });
-        done.addEventListener('click', () => { closeModal(); renderProfile(); });
+        done.addEventListener('click', () => { closeModal(); if (kind === 0) renderProfile(); });
+        const accepted = pub.acceptedWrite.length
+          ? 'Accepted by ' + pub.acceptedWrite.map(lazarusRelayLabel).join(', ') + '.'
+          : 'Accepted by ' + pub.otherOk + ' relay' + (pub.otherOk === 1 ? '' : 's') + ' outside your write set.';
         body.append(
-          h('h3', { textContent: 'Follow list restored' }),
-          h('p', {
-            className: 'hint',
-            textContent:
-              'Republished ' + c.followCount.toLocaleString('en-US') + ' follows to ' + ok + ' relay' + (ok === 1 ? '' : 's') + '.',
-          }),
+          h('h3', { textContent: 'Version restored' }),
+          h('p', { className: 'hint', textContent: accepted }),
+          h('p', { className: 'hint', textContent: 'Your other clients will pick it up as the current version.' }),
           h('div', { className: 'actions' }, [done])
+        );
+      }
+
+      // Retrying a failed publish restores the version the user chose, not the
+      // current one: the retry goes back through the re-read with the same
+      // choices the user already made.
+      function showPublishFailed(pub, c, opts) {
+        clear();
+        const retry = h('button', { className: 'secondary', textContent: 'Try publishing again' });
+        retry.addEventListener('click', () => runRestore(c, opts));
+        body.append(
+          h('h3', { textContent: 'No write relay accepted the restore' }),
+          h('p', {
+            className: 'hint warn',
+            textContent: (pub.rejectedWrite.length ? 'Refused by ' + pub.rejectedWrite.map(lazarusRelayLabel).join(', ') + '. ' : '')
+              + (pub.otherOk ? pub.otherOk + ' other relay' + (pub.otherOk === 1 ? '' : 's') + ' took it, but only your write relays count.' : 'Nothing was restored.'),
+          }),
+          h('div', { className: 'actions' }, [retry])
         );
       }
 
       function showError(msg) {
         clear();
         const retry = h('button', { className: 'secondary', textContent: 'Try again' });
-        retry.addEventListener('click', lastRes ? showResults : runScan);
+        retry.addEventListener('click', () => (scan ? showResults() : runScan()));
         body.append(
           h('h3', { textContent: 'Something went wrong' }),
           h('p', { className: 'error', textContent: msg || 'Please try again.' }),
@@ -16044,90 +16311,30 @@
         );
       }
 
-      showIntro();
+      intro();
+    }, () => {
+      session.closed = true;
+      settle();
     });
   }
 
-  function renderBackupSection(view, active) {
+  function renderRecoverySection(view, active) {
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
-      h('h3', { textContent: 'Data backup' }),
-      h('p', { className: 'hint', textContent: 'Your profile, follows, and mute list — data only, never your secret key — stored on your relays as an encrypted record you can restore here (NIP-78, NIP-44; NIP-04 for very large lists), or saved to a file below.' })
-    );
-    const list = h('div', { className: 'list flat' });
-    const statuses = new Map();
-    // "Backed up" and when, on two lines: the status column is narrow, and a
-    // gold "Backed up · 2 days ago" ran into the buttons on exactly the rows
-    // that had both. The when is furniture, not the signal — gray, below. The
-    // check mirrors the wallet badge, so "Backed up" reads the same everywhere.
-    const setBackedUp = (status, when) => {
-      status.textContent = '';
-      status.classList.add('done');
-      const tick = icon('check');
-      tick.classList.add('backup-check');
-      status.append(tick, 'Backed up', h('div', { className: 'backup-status-time', textContent: when }));
-    };
-    BACKUP_TYPES.forEach((t) => {
-      const status = h('div', { className: 'backup-status', textContent: 'Not backed up' });
-      statuses.set(t.key, status);
-      const backup = h('button', { className: 'mini', textContent: 'Back up' });
-      backup.addEventListener('click', async () => {
-        backup.disabled = true;
-        backup.textContent = 'Backing up…';
-        try {
-          await createBackup(t);
-          setBackedUp(status, 'just now');
-          toast(t.label + ' backed up', 'success');
-        } catch (e) {
-          // Keep the row tidy — surface the detail in a toast, not inline.
-          toast(e.message, 'error');
-        }
-        backup.disabled = false;
-        backup.textContent = 'Back up';
-      });
-      const restore = h('button', { className: 'mini ghost', textContent: 'Restore' });
-      restore.addEventListener('click', () => restoreModal(t));
-      const row = h('div', { className: 'item' }, [
-        h('div', { className: 'item-main' }, [h('div', { className: 'item-label', textContent: t.label }), status]),
-        h('div', { className: 'item-actions' }, [backup, restore]),
-      ]);
-      list.append(row);
-    });
-    // The last-backup time comes from the relays, not from memory: the row used
-    // to say "Not backed up" on every open until you backed up again in that
-    // session, which read as the backup having been lost. The kind:30078 event's
-    // created_at IS when the backup was taken. isConnected guards a rerender
-    // that replaced the section while the fetch was out.
-    BACKUP_TYPES.forEach(async (t) => {
-      const status = statuses.get(t.key);
-      const ev = await fetchBackupEvent(t.dtag);
-      if (!ev || !status.isConnected) return;
-      setBackedUp(status, relativeTime(ev.created_at));
-    });
-    setting.append(list);
-
-    const exportWrap = h('div', { className: 'export-block' });
-    exportWrap.append(
+      h('h3', { textContent: 'Data recovery' }),
       h('p', {
         className: 'hint',
-        textContent:
-          'Or save a signed copy of your profile, follows, and lists as a file — an offline safety copy you can restore here later. This file holds no secret key.',
+        textContent: 'If an app wiped your follows, mutes, bookmarks or profile, relays may still hold older versions.',
       })
     );
-    const exportBtn = h('button', { className: 'secondary', textContent: 'Download data backup' });
-    exportBtn.addEventListener('click', async () => {
-      exportBtn.disabled = true;
-      try {
-        await exportBundle(active);
-        toast('Data backup downloaded (no secret key)', 'success');
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-      exportBtn.disabled = false;
-    });
+    const wrap = h('div', { className: 'export-block recovery-block' });
+    const open = h('button', { className: 'secondary', textContent: 'Scan for older versions' });
+    open.addEventListener('click', () => lazarusModal(active));
+    wrap.append(open, lazarusAttribution());
+    setting.append(wrap);
 
-    // The key itself. Deliberately in its own block below the JSON export with
-    // its own heading and warning: that file contains no secret and is safe to
+    // The key itself. Deliberately in its own block below the recovery screen with
+    // its own heading and warning: that screen carries no secret and is safe to
     // click, this one IS the key. Two lookalike buttons side by side would invite
     // exactly the mistake that matters most here.
     const keyBackupWrap = h('div', { className: 'export-block' });
@@ -16149,40 +16356,7 @@
     const keyBtn = h('button', { className: 'secondary', textContent: 'Back up private key' });
     keyBtn.addEventListener('click', () => backupKeyModal(active));
     keyBackupWrap.append(keyBtn);
-
-    const importBtn = h('button', { className: 'secondary', textContent: 'Restore from file' });
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'application/json,.json';
-    fileInput.style.display = 'none';
-    importBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files && fileInput.files[0];
-      if (!file) return;
-      try {
-        const text = await file.text();
-        importBundleModal(JSON.parse(text), active);
-      } catch (_) {
-        toast('That file is not a valid Sidecar backup', 'error');
-      }
-      fileInput.value = '';
-    });
-
-    exportWrap.append(exportBtn, importBtn, fileInput);
-    setting.append(exportWrap, keyBackupWrap);
-
-    // Follow-list recovery — scan relays for an older kind:3 and republish it.
-    const recoveryWrap = h('div', { className: 'export-block recovery-block' });
-    recoveryWrap.append(
-      h('p', {
-        className: 'hint',
-        textContent: 'Lost follows to a buggy client? Scan your relays for an older version of your follow list and restore it.',
-      })
-    );
-    const recoveryBtn = h('button', { className: 'secondary', textContent: 'Follow List Recovery' });
-    recoveryBtn.addEventListener('click', () => followRecoveryModal(active));
-    recoveryWrap.append(recoveryBtn, mutableAttribution());
-    setting.append(recoveryWrap);
+    setting.append(keyBackupWrap);
 
     view.append(setting);
   }

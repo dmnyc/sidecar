@@ -265,8 +265,8 @@ same wallet, and must behave identically. The matrix lives as a checklist
 | 10 | Per-site permissions & Connected Sites (approve, reject, move account, revoke); port-aware `localhost:3000` vs `:5173` | identical persistence |
 | 11 | Profile: edit/publish kind 0, following count, NIP-05 check, lightning-address sync offer | identical |
 | 12 | NIP-65 outbox editor (kind 10002 read/write markers) | publish + re-read |
-| 13 | Backups: NIP-78 encrypted to relays, signed JSON export, vault export/restore **cross-browser** (Chrome vault → Firefox restore and vice versa) | byte-compatible restore |
-| 14 | Follow-list recovery (kind 3 scan/republish) | identical candidate list |
+| 13 | Vault export/restore **cross-browser** (Chrome vault → Firefox restore and vice versa) | byte-compatible restore |
+| 14 | Data recovery (Lazarus: scan relay history, restore a version) | identical candidate list |
 | 15 | Composer: draft autosave, send countdown/cancel, @-mention pills (follows + global), note/nevent/naddr embeds, link previews, media upload (Blossom + nostr.build fallback), client tag toggle | post from Firefox verifiable in a client |
 | 16 | Notifications page: replies/mentions/reposts/reactions/zaps, mute filtering, open-in-client | identical |
 | 17 | System notification toasts (`notifications.create`) | renders (Firefox styling differs — allowed) |

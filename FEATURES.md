@@ -49,11 +49,12 @@ clients without ever pasting your nsec into a website.
   a limit you set (default 100 sats). Verified real zaps only; bigger zaps, non-zaps,
   and a locked wallet still ask.
 
-## Profile & backups
+## Profile & data recovery
 
 - View and edit your profile; publish kind 0.
-- **Backups** — encrypt your profile, follows, and mute list to your own key on your
-  relays (NIP-78), or export a signed JSON bundle.
+- **Data recovery** — if a buggy client wipes or shrinks your follows, mutes,
+  bookmarks, or profile, scan your relay history for the older versions and
+  restore the one you pick, on your click, with your signer (Lazarus).
 
 ## Settings & safety
 

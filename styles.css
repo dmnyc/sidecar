@@ -2263,19 +2263,30 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-item.bm-missing .bm-snippet { font-family: var(--font-mono); font-size: 11.5px; }
 .bm-missing-head { font-size: 11px; color: var(--faint); letter-spacing: 0.03em; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border); }
 
-/* follow-list recovery modal */
+/* data recovery modal (Lazarus) */
 .modal .recovery-modal .actions { margin-top: 22px; }
-.mutable-credit { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; }
-.mutable-credit:hover { color: var(--text-2); }
-.mutable-credit:hover span { text-decoration: underline; }
-.mutable-logo { width: 20px; height: 20px; border-radius: 5px; display: block; }
-/* pair the credit tightly under the Restore follow list button so it reads as
-   "this feature is powered by Mutable" rather than a section footer */
+.lazarus-credit { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; }
+.lazarus-credit:hover { color: var(--text-2); }
+.lazarus-credit:hover span { text-decoration: underline; }
+/* pair the credit tightly under the scan button so it reads as
+   "this feature is powered by Lazarus" rather than a section footer */
 .recovery-block .secondary { margin-bottom: 0; }
-.recovery-block .mutable-credit { display: flex; justify-content: center; margin-top: 8px; }
-.recovery-modal .mutable-credit { display: flex; justify-content: center; margin-top: 10px; }
+.recovery-block .lazarus-credit { display: flex; justify-content: center; margin-top: 8px; }
+.recovery-modal .lazarus-credit { display: flex; justify-content: center; margin-top: 10px; }
+/* the kind picker: chips wrap two-to-a-row in the 300px sheet, grouped under a
+   quiet tier label — the tiers carry the spec's own "how much does this matter" */
+.lazarus-tier { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin: 12px 0 6px; }
+.lazarus-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.lazarus-chip {
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--hover-soft); color: var(--text-2); font-size: 13px;
+}
+.lazarus-chip.on { border-color: var(--gold); color: var(--gold); }
 .recovery-list { margin-top: 4px; }
-.recovery-row { align-items: center; }
+/* A version row is a column, like a wallet tx row: a head that toggles, and below it,
+   when opened, the relays holding that version at full width. */
+.list.flat .item.recovery-row { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+.recovery-head { display: flex; align-items: center; gap: 8px; padding: 13px 14px; cursor: pointer; }
 .recovery-row.rec { border-color: var(--gold-soft); box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft); }
 .recovery-meta { flex: 1; min-width: 0; }
 .recovery-count { font-size: 14px; color: var(--text); }
@@ -2283,31 +2294,34 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .recovery-count-lg { font-size: 20px; color: var(--text); margin-bottom: 2px; }
 .recovery-count-lg strong { font-weight: 700; color: var(--gold); }
 .recovery-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+/* The relay count in the sub line is the row's toggle: text, not a chip, since the
+   whole head is the target. It never breaks between the number and the word. */
+.recovery-relays-btn { background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+.recovery-relays-btn svg { width: 12px; height: 12px; transition: transform 0.15s; }
+.recovery-row.open .recovery-relays-btn svg { transform: rotate(180deg); }
+.recovery-head:hover .recovery-relays-btn { color: var(--text-2); }
+.recovery-relays { padding: 6px 14px 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .recovery-relays-btn svg { transition: none; }
+}
 .recovery-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .recovery-badge { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; }
 .recovery-badge.cur { background: rgba(96, 165, 250, 0.16); color: #7cb0ff; }
 .recovery-badge.rec { background: rgba(var(--accent-rgb), 0.16); color: var(--gold); }
 .recovery-confirm { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 4px; }
+/* Each relay's outcome, folded away until asked for. */
+.lazarus-outcomes { margin-top: 12px; font-size: 12px; color: var(--muted); }
+.lazarus-outcomes summary { cursor: pointer; color: var(--text-2); margin-bottom: 4px; }
+/* One relay per line, in the outcomes and in an opened version row: the relay name
+   ellipsizes, the role and the outcome keep their width. */
+.lazarus-relay { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
+.lazarus-relay .relay { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lazarus-relay .role, .lazarus-relay .state { flex-shrink: 0; }
+.lazarus-relay .role { color: var(--faint); }
+.lazarus-relay.bad .state { color: var(--warn); }
 .restore-list { margin: 4px 0 10px; padding-left: 20px; color: var(--text); }
 .restore-list li { margin: 3px 0 12px; }
-/* second line of a file-restore row: counts in the file vs counts live now.
-   Warn color only when the restore would actually change the list. */
-.restore-list-sub { font-size: 12px; color: var(--muted); margin-top: 1px; padding-left: 2px; }
-.restore-list-sub.warn { color: var(--warn); }
-.restore-list-sub .recv-spinner { width: 10px; height: 10px; border-width: 2px; margin-right: 4px; }
 
-/* what a restore will publish, shown before the PIN is asked for. The counts
-   block reuses .recovery-confirm (the follow-recovery modal's card); the profile
-   preview is its own pane because a bio answers "is this mine?" by looking. */
-.restore-compare { margin: 10px 0 4px; }
-.restore-preview { background: var(--velvet-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
-.restore-preview-head { display: flex; align-items: center; gap: 10px; }
-.restore-preview-av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); }
-.restore-preview-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.restore-preview-id { min-width: 0; }
-.restore-preview-name { font-size: 16px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.restore-preview-nip05 { font-size: 12px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.restore-preview-about { font-size: 13px; margin: 10px 0 0; max-height: 140px; overflow: hidden; }
 .show-more-btn { display: block; width: 100%; margin: 4px 0 10px; color: var(--lav); font-weight: 600; }
 #activity-clear { display: block; margin: 8px auto 0; }
 

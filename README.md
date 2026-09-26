@@ -45,9 +45,9 @@ Connect) and a composer for posting notes directly from the panel.
 - **Per-site account binding & wrong-account guard** — each site stays pinned to the account it logged in with (no NIP-07 desync), and you can move a site to another account from **Connected Sites**. When a site is signed in with more than one of your accounts — as multi-login clients like Jumble, YakiHonne, and Primal allow — every content sign confirms who's posting, so a client's own account switcher can't silently sign as the wrong key. After you switch the active account, Sidecar offers to reload the open client so the change takes effect there.
 - **Identity from your profile** — account names and avatars are imported from your kind 0 metadata; view and edit your profile, see your following count, and publish kind 0. If your profile's lightning address doesn't match your connected wallet, Sidecar offers a one-tap sync.
 - **Outbox relays (NIP-65)** — view, edit, and publish your relay list (kind:10002) with per-relay read/write markers, right from your profile. Each relay carries its own icon (from its NIP-11 document), and an on-demand health check reports whether it answers, gates on payment or login, or holds none of your notes.
-- **Backups** — encrypt your profile, follows, and mute list to your own key and store them on your relays (NIP-78), or export a signed JSON bundle. Back up a single account's key as an `nsec` or a password-encrypted NIP-49 `ncryptsec`, each revealed behind your PIN with an auto-hiding QR.
+- **Key backup** — back up a single account's key as an `nsec` or a password-encrypted NIP-49 `ncryptsec`, each revealed behind your PIN with an auto-hiding QR.
 - **Vault backup** — export every account *and* its wallet connection into one password-encrypted file, and restore it on another device (separate from a single account's key backup).
-- **Follow-list recovery** — if a buggy client overwrites your follows with an empty or shorter list, scan your relays for an earlier kind:3 and republish a healthy version. Powered by [Mutable](https://mutable.top).
+- **Data recovery** — if a buggy client wipes or shrinks your follows, mutes, bookmarks, or profile, scan your relay history for the older versions and restore the one you pick, on your click, with your signer. Powered by [Lazarus](https://github.com/dmnyc/lazarus).
 - **Note composer** — post kind:1 notes directly from the panel with a send countdown you can review (the full note renders) and cancel. Drafts autosave per account, so you can close the composer and resume — or start fresh — later. Features include:
   - **@mention autocomplete** — type `@` to search your follows *and* all of Nostr (global search via [Nostr Archives](https://github.com/barrydeen/nostrarchives-api)), so you can tag anyone; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
   - **Nostr event embeds** — paste a `note1`, `nevent1`, or `naddr1` entity and the preview renders a fetched embed card (author, timestamp, content excerpt).
@@ -183,7 +183,7 @@ dedicated, named support for:
 |-----|-------|----------|
 | [01](https://nips.nostr.com/1) | Basic protocol flow | Core event/profile handling (kind:0, kind:1) |
 | [02](https://nips.nostr.com/2) | Follow List | Follow count, follow-list recovery |
-| [04](https://nips.nostr.com/4) | Encrypted Direct Messages (legacy) | `nip04.encrypt`/`.decrypt` NIP-07 methods; fallback encoding for large backups and private mute lists |
+| [04](https://nips.nostr.com/4) | Encrypted Direct Messages (legacy) | `nip04.encrypt`/`.decrypt` NIP-07 methods; reading legacy private lists and wallet backups |
 | [05](https://nips.nostr.com/5) | Mapping Nostr keys to DNS identifiers | Verifying a profile's NIP-05 against its `/.well-known/nostr.json` |
 | [07](https://nips.nostr.com/7) | `window.nostr` capability | The signer interface itself |
 | [09](https://nips.nostr.com/9) | Event Deletion Request | Recognized and flagged in the signing prompt |
@@ -198,14 +198,14 @@ dedicated, named support for:
 | [27](https://nips.nostr.com/27) | Text Note References | Inline `nostr:` mention rendering |
 | [38](https://nips.nostr.com/38) | User Statuses | Setting, showing and clearing your own kind:30315 status |
 | [42](https://nips.nostr.com/42) | Authentication of clients to relays | Relay AUTH challenges answered for the account's own relays, for reads as well as writes |
-| [44](https://nips.nostr.com/44) | Encrypted Payloads (Versioned) | `nip44.encrypt`/`.decrypt` NIP-07 methods; preferred encryption for backups and mute lists |
+| [44](https://nips.nostr.com/44) | Encrypted Payloads (Versioned) | `nip44.encrypt`/`.decrypt` NIP-07 methods; preferred encryption for the wallet backup and private lists |
 | [47](https://nips.nostr.com/47) | Nostr Wallet Connect | The built-in Lightning wallet |
 | [49](https://nips.nostr.com/49) | Private Key Encryption (`ncryptsec`) | Password-encrypted key import/export |
-| [51](https://nips.nostr.com/51) | Lists | Mute list handling; bookmarking a note to your kind:10003 list |
+| [51](https://nips.nostr.com/51) | Lists | Mute list handling; bookmarking a note to your kind:10003 list; recovering wiped lists |
 | [57](https://nips.nostr.com/57) | Lightning Zaps | Zap notifications, automatic zaps |
 | [65](https://nips.nostr.com/65) | Relay List Metadata | Outbox relay list editor |
 | [73](https://nips.nostr.com/73) | External Content IDs | The `web` target a page comment is scoped to |
-| [78](https://nips.nostr.com/78) | Application-specific Data | Encrypted profile/follows/mutes/wallet backups |
+| [78](https://nips.nostr.com/78) | Application-specific Data | Encrypted wallet connection backup |
 | [88](https://nips.nostr.com/88) | Polls | Posting a poll (kind:1068), and counting the votes (kind:1018) on your own |
 | [89](https://nips.nostr.com/89) | Recommended Application Handlers | `client` tag on posts |
 | [98](https://nips.nostr.com/98) | HTTP Auth | Upload auth for Blossom and nostr.build |

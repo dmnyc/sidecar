@@ -82,7 +82,13 @@ test('the refusal can only be overridden explicitly', () => {
 test('the finding reaches the panel, not just its sentence', () => {
   // So a caller can say "Removes all 1,071 accounts you follow" instead of
   // relaying a bare failure and asking the user to take it on faith.
-  assert.match(bg, /destructive: e\.destructive/, 'background drops the finding');
+  // Scoped to the CONTROL handler, where SIDECAR_OWNER_SIGN runs. A file-wide match
+  // passed for months on the site-path handler's catch while this one dropped the
+  // finding, so the panel's read below never had anything to read.
+  const control = bg.slice(bg.indexOf("throw new Error('Unknown control message: '"));
+  const catchAt = control.indexOf('} catch (e) {');
+  const handlerCatch = control.slice(catchAt, control.indexOf('\n}\n', catchAt));
+  assert.match(stripComments(handlerCatch), /destructive: e\.destructive/, 'the owner-sign handler drops the finding');
   assert.match(panel, /if \(resp && resp\.destructive\) err\.destructive = resp\.destructive/,
     'the panel discards the finding');
 });
