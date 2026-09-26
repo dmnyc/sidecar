@@ -917,6 +917,10 @@
   <script src="clink.js"></script>
   <script src="relay-health.js"></script>
   <script src="wot.js"></script>
+  <!-- Lazarus, recovery of user data from relay history (self.SidecarLazarus). Own
+       code, pure core only: the registry, ranking and delta math live here; the
+       scanning and signing stay in the panel, where the clicks are. -->
+  <script src="lazarus.js"></script>
   <!-- The reaction picker's emoji table (self.SidecarEmoji). Vendored and generated;
        see VENDOR.md. Static data, so it is parsed once here rather than fetched when
        the picker opens: 52KB of JSON over a message port, on a surface that has to
