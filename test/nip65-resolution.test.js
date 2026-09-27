@@ -281,6 +281,41 @@ test('retrying drops the remembered list so the next load is a real lookup', asy
   assert.equal(await ctx.recallNip65(PK), null);
 });
 
+// ---- the lookup sweep: where a fresh session is allowed to ask ------------------
+
+test('a fresh session sweeps the relays it remembered, read AND write', async () => {
+  // A cold cache plus an account whose kind:10002 lives only outside the configured
+  // set was unreachable: the lookup never asked anywhere it had not been told to.
+  // The remembered list bootstraps the sweep. Both halves matter — lists get
+  // PUBLISHED to write relays, so a read-only seed misses them.
+  const seen = [];
+  const ctx = harness({ timeout: true, stored: { [PK]: REMEMBERED } });
+  ctx.poolGet = async (relays) => { seen.push(relays); return new Promise(() => {}); };
+  await ctx.getNip65Info(PK);
+  assert.equal(seen.length, 1, 'one lookup per call');
+  assert.ok(seen[0].includes('wss://old-read'), 'remembered read relays are swept');
+  assert.ok(seen[0].includes('wss://old-write'), 'remembered write relays are swept');
+  assert.ok(seen[0].includes('wss://configured'), 'the configured set stays in');
+});
+
+test('with nothing remembered the sweep is the configured set alone', async () => {
+  const seen = [];
+  const ctx = harness({ timeout: true });
+  ctx.poolGet = async (relays) => { seen.push(relays); return new Promise(() => {}); };
+  await ctx.getNip65Info(PK);
+  assert.deepEqual([...seen[0]], ['wss://configured'], 'no memory, no sweep beyond configured');
+});
+
+test('a resolved lookup does not grow the sweep with another account\'s relays', async () => {
+  // The sweep is keyed per pubkey through the same store the fallback uses; one
+  // account's remembered list must never widen another's lookup.
+  const seen = [];
+  const ctx = harness({ timeout: true, stored: { ['b'.repeat(64)]: REMEMBERED } });
+  ctx.poolGet = async (relays) => { seen.push(relays); return new Promise(() => {}); };
+  await ctx.getNip65Info(PK);
+  assert.deepEqual([...seen[0]], ['wss://configured'], 'a stranger\'s remembered list stays out of this lookup');
+});
+
 // ---- the source guards ---------------------------------------------------------
 
 // Comment stripping, line-based ON PURPOSE.

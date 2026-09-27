@@ -3781,8 +3781,18 @@
       // every relay refuses outright, and that arrives fast enough to beat the timeout.
       // It is a narrower gap than the one being closed, and the remembered list below
       // still covers it for any account that has ever resolved once.
+      //
+      // The lookup asks the configured set PLUS the relays remembered from an earlier
+      // session (read AND write: lists get published to write relays, and a list only
+      // findable on those is invisible to a read-only sweep). On a fresh panel session
+      // the cache is cold, and an account whose kind:10002 lives only outside the
+      // configured set was unreachable here — every declared-relay read downstream,
+      // profiles included, then silently ran configured-only. Once anything resolves,
+      // the cache carries it for the session and this seed never fires again.
+      const seed = await recallNip65(pubkey);
+      const lookupRelays = [...new Set([...(await relayUrls(false)), ...((seed && seed.read) || []), ...((seed && seed.write) || [])])];
       const ev = await Promise.race([
-        poolGet(await relayUrls(false), { kinds: [10002], authors: [pubkey] }),
+        poolGet(lookupRelays, { kinds: [10002], authors: [pubkey] }),
         new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
       ]);
       if (ev !== NIP65_TIMED_OUT) gotEvent = true;
