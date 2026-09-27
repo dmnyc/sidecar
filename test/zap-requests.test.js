@@ -323,3 +323,79 @@ test('the label names the same record the claim would take', async () => {
   await Z.claim(SITE, ALICE, 5); // consumes the same one
   assert.equal(await Z.recipientFor(SITE, ALICE, 5), 'e'.repeat(64), 'then the next');
 });
+
+// ---- one record, one payment ----
+//
+// The label used to hand the oldest matching record to every payment for its whole
+// window, and nothing removes a record unless the auto-zap gate claims it, which it does
+// not when auto-zap is off or the site's budget covers the payment. Two 21-sat zaps from
+// one site 24 seconds apart, to Oshi and then to Fishcake, were both recorded as "Zap to
+// Oshi". Given the invoice, a record now names exactly one payment.
+
+const OSHI = 'd'.repeat(64);
+const FISHCAKE = 'e'.repeat(64);
+const INV_A = 'lnbc210n1invoicea';
+const INV_B = 'lnbc210n1invoiceb';
+const zapTo = (who, msat) => ({ kind: 9734, content: '', tags: [['p', who], ['amount', String(msat)]] });
+
+test('two same-amount zaps in the window each keep their own recipient', async () => {
+  // No claim between them: the payment that was budget-covered, or made with auto-zap
+  // off, leaves its record in place. That is exactly the case that mislabeled.
+  await Z.record(SITE, ALICE, zapTo(OSHI, 21000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_A), OSHI);
+  await Z.record(SITE, ALICE, zapTo(FISHCAKE, 21000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_B), FISHCAKE, 'not the older zap');
+});
+
+test('a retry of the same invoice keeps its label', async () => {
+  await Z.record(SITE, ALICE, zapTo(OSHI, 21000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_A), OSHI);
+  await Z.record(SITE, ALICE, zapTo(FISHCAKE, 21000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_A), OSHI, 'same invoice, same name');
+});
+
+test('the claim takes the record its invoice was labeled with', async () => {
+  // So the approval spent and the name in the history are the same zap.
+  await Z.record(SITE, ALICE, zapTo(OSHI, 21000));
+  await Z.record(SITE, ALICE, zapTo(FISHCAKE, 21000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_A), OSHI);
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_B), FISHCAKE);
+  assert.equal(await Z.claim(SITE, ALICE, 21, INV_B), true);
+  const left = await Z.pending();
+  assert.equal(left.length, 1);
+  assert.equal(left[0].recipient, OSHI, 'the claim took Fishcake’s record, not the older one');
+});
+
+test('a label never changes what a payment is allowed to do', async () => {
+  // Marking is not consuming: the gate still finds the record, whichever invoice it names,
+  // and it is still single-use.
+  await Z.record(SITE, ALICE, zapTo(OSHI, 21000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_A), OSHI);
+  assert.equal(await Z.claim(SITE, ALICE, 21, INV_B), true, 'a marked record still authorizes');
+  assert.equal(await Z.claim(SITE, ALICE, 21, INV_A), false, 'and only once');
+});
+
+test('once every record has named a payment, the next one is not labeled', async () => {
+  await Z.record(SITE, ALICE, zapTo(OSHI, 21000));
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_A), OSHI);
+  assert.equal(await Z.recipientFor(SITE, ALICE, 21, INV_B), '', 'no one, rather than the wrong one');
+});
+
+test('a label and a record landing at once lose neither', async () => {
+  // Both read the list, change it and write it back. Unqueued, whichever wrote second
+  // erased the other's change.
+  await Z.record(SITE, ALICE, zapTo(OSHI, 21000));
+  const [, name] = await Promise.all([
+    Z.record(SITE, ALICE, zapTo(FISHCAKE, 21000)),
+    Z.recipientFor(SITE, ALICE, 21, INV_A),
+  ]);
+  assert.equal(name, OSHI);
+  const list = await Z.pending();
+  assert.equal(list.length, 2, 'the second record survived');
+  assert.equal(list.find((z) => z.recipient === OSHI).labeled, INV_A, 'and so did the mark');
+});
+
+test('a lock clears an approval that was being recorded as it locked', async () => {
+  await Promise.all([Z.record(SITE, ALICE, zapTo(OSHI, 21000)), Z.clear()]);
+  assert.equal((await Z.pending()).length, 0, 'nothing spendable survives the lock');
+});
