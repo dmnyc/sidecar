@@ -3754,6 +3754,11 @@
 
   // ---- NIP-65 (kind 10002) relay list, cached per account ----
   const nip65Cache = new Map(); // pubkey -> { read:[], write:[] } | null
+  // pubkey -> the lookup already running for it. Opening the overview asks for the same
+  // account's list from three places at once (relay count, profile read, follow count),
+  // and before the first answer landed each of them ran its own lookup: three identical
+  // kind:10002 REQs per relay. They now share one.
+  const nip65Inflight = new Map();
 
   // LAST KNOWN GOOD, on disk, per account.
   //
@@ -3813,6 +3818,7 @@
 
   function forgetNip65(pubkey) {
     nip65Cache.delete(pubkey);
+    nip65Inflight.delete(pubkey); // a retry must not join the lookup it is retrying
     return rememberNip65(pubkey, null);
   }
 
@@ -3828,6 +3834,16 @@
   async function getNip65Info(pubkey) {
     if (!pubkey) return { list: null, resolved: true, stale: false };
     if (nip65Cache.has(pubkey)) return { list: nip65Cache.get(pubkey), resolved: true, stale: false };
+    if (nip65Inflight.has(pubkey)) return nip65Inflight.get(pubkey);
+    const p = lookupNip65Info(pubkey).finally(() => {
+      // Only its own entry: forgetNip65 may already have made room for a newer lookup.
+      if (nip65Inflight.get(pubkey) === p) nip65Inflight.delete(pubkey);
+    });
+    nip65Inflight.set(pubkey, p);
+    return p;
+  }
+
+  async function lookupNip65Info(pubkey) {
     let parsed = null;
     let gotEvent = false;
     try {
@@ -3874,8 +3890,11 @@
       const lookup = (relays) => relays.length
         ? Promise.race([
           poolQueryAnswered(relays, { kinds: [10002], authors: [pubkey], limit: 1 })
+            // Only this account's own events: a relay is not obliged to honor the
+            // filter, and a crossed kind:10002 would otherwise stand in for the list.
             .then(({ events, answered }) => (answered
-              ? events.sort((a, b) => b.created_at - a.created_at)[0] || null
+              ? events.filter((e) => e && e.pubkey === pubkey)
+                .sort((a, b) => b.created_at - a.created_at)[0] || null
               : NIP65_TIMED_OUT))
             .catch(() => NIP65_TIMED_OUT),
           new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
