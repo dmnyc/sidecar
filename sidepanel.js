@@ -3518,9 +3518,21 @@
   // The batch paths (prefetchNotifProfiles, the follow list, resolveMentions) were never
   // exposed to this, because they index the results by ev.pubkey and then look up the key
   // they wanted. This gives the single-author reads the same property for one comparison.
+  //
+  // The author check runs BEFORE the newest copy is picked, not after. get() already
+  // collects every relay's answer and returns the newest — but newest across ALL of them,
+  // so one crossed event with a later timestamp made the real profile read as a miss.
+  // Filtering first means a foreign event is ignored rather than winning and then being
+  // thrown away. Same-second ties break on the greater id, so the answer is stable.
   async function poolGetProfile(relays, pubkey, params) {
-    const ev = await poolGet(relays, { kinds: [0], authors: [pubkey] }, params);
-    return ev && ev.pubkey === pubkey ? ev : null;
+    const evs = await poolQuerySync(relays, { kinds: [0], authors: [pubkey] }, params);
+    let best = null;
+    for (const ev of evs || []) {
+      if (!ev || ev.pubkey !== pubkey) continue;
+      if (!best || ev.created_at > best.created_at ||
+          (ev.created_at === best.created_at && ev.id > best.id)) best = ev;
+    }
+    return best;
   }
 
   async function relayUrls(writableOnly) {
@@ -3606,6 +3618,13 @@
   // Whether the collapsible stats drawer under the active account row is open.
   // Defaults open so a single-account panel isn't sparse; the user can collapse it.
   let accountStatsExpanded = true;
+  // A miss is held for much less time than a hit. The read below can't tell "this
+  // pubkey has no kind:0" from "every relay was too slow to say", and holding the
+  // second for five minutes pinned "Not set" on an identity that was fine.
+  const PROFILE_MISS_TTL = 30 * 1000;
+  // How long each relay gets. Short enough that the read comes back with whatever the
+  // responsive relays said, instead of waiting on the slowest one past the backstop.
+  const PROFILE_MAX_WAIT = 4000;
   function cacheProfile(pubkey, content) {
     const c = content || {};
     const rec = {
@@ -3617,6 +3636,7 @@
     _profileCache.set(pubkey, rec);
     return rec;
   }
+  const PROFILE_TIMED_OUT = Symbol('profile-timeout');
   function cachedProfile(pubkey) {
     const hit = _profileCache.get(pubkey);
     return hit && hit.expiresAt > Date.now() ? hit : null;
@@ -3628,15 +3648,31 @@
     if (_profileInflight.has(pubkey)) return _profileInflight.get(pubkey);
     const p = (async () => {
       try {
-        const relays = await relayUrls(false);
+        // The user's OWN accounts read from the relays they declared (NIP-65 read list,
+        // plus purplepag.es and the configured set). A profile edited in another client
+        // often lives only there, and the account overview showed "Not set" for a
+        // NIP-05 and lightning address that were intact. Everyone else keeps the
+        // configured set: this is also the path for bookmark authors, reply targets and
+        // zap recipients, and widening those would mean a kind:10002 lookup (and a disk
+        // write) per stranger, and connecting to relays other people chose.
+        const own = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
+        const relays = own ? await readRelayUrls(pubkey) : await relayUrls(false);
         if (!relays.length) return null;
         const ev = await Promise.race([
-          poolGetProfile(relays, pubkey),
-          new Promise((r) => setTimeout(() => r(null), 6000)),
+          poolGetProfile(relays, pubkey, { maxWait: PROFILE_MAX_WAIT }),
+          new Promise((r) => setTimeout(() => r(PROFILE_TIMED_OUT), PROFILE_MAX_WAIT * 2)),
         ]);
+        // The backstop fired: nobody answered at all. Not evidence of anything, so
+        // nothing is cached and the caller renders "couldn't load", not "Not set".
+        if (ev === PROFILE_TIMED_OUT) return null;
+        if (!ev) {
+          const miss = cacheProfile(pubkey, {});
+          miss.expiresAt = Date.now() + PROFILE_MISS_TTL;
+          return miss;
+        }
         let content = {};
-        if (ev) { try { content = JSON.parse(ev.content) || {}; } catch (_) {} }
-        return cacheProfile(pubkey, content); // cache even an absent profile briefly
+        try { content = JSON.parse(ev.content) || {}; } catch (_) {}
+        return cacheProfile(pubkey, content);
       } catch (_) {
         return null;
       } finally {
@@ -7723,6 +7759,16 @@
       return btn;
     }
 
+    // Same shape as notSetLink, for a read that failed rather than came back empty.
+    function retryLink() {
+      const btn = h('button', { className: 'account-stat-notset', title: 'The relays didn’t answer. Try again.' });
+      const ic = icon('refresh');
+      ic.classList.add('account-stat-help');
+      btn.append(ic, document.createTextNode('Couldn’t load'));
+      btn.addEventListener('click', () => loadIdentity());
+      return btn;
+    }
+
     const nip05Val = h('div', { className: 'account-stat-id-val' });
     const lud16Val = h('div', { className: 'account-stat-id-val' });
     // Wallet row holds two mini status badges (connected / backed up).
@@ -7746,6 +7792,53 @@
 
     body.append(topRow, idSection, profileLink);
     drawer.append(header, body);
+
+    // Identity rows — need the profile. A null record is a read that got no answer
+    // at all, which says nothing about whether these are set: saying "Not set" there
+    // told a user their NIP-05 and lightning address were missing when the relays had
+    // simply not replied. It gets a retry instead.
+    async function loadIdentity() {
+      nip05Val.textContent = '';
+      lud16Val.textContent = '';
+      nip05Val.appendChild(placeholder());
+      lud16Val.appendChild(placeholder());
+      const rec = await getProfile(pubkey);
+      nip05Val.textContent = '';
+      lud16Val.textContent = '';
+      if (!rec) {
+        nip05Val.appendChild(retryLink());
+        lud16Val.appendChild(retryLink());
+        return;
+      }
+      const content = rec.content || {};
+
+      if (content.nip05) {
+        // Per NIP-05, a local part of "_" means the user is verified at the
+        // domain without exposing a handle. Display the bare domain.
+        const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
+        const badge = h('span', { className: 'nip05-badge' });
+        nip05Val.append(badge, document.createTextNode(nip05));
+        const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
+          badge.innerHTML = '';
+          paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
+        });
+        verifyNip05(content.nip05, pubkey).then((res) => {
+          paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
+        });
+      } else {
+        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
+      }
+
+      if (content.lud16) {
+        const ok = icon('check');
+        ok.classList.add('stat-mini-ok');
+        lud16Val.append(ok, document.createTextNode(content.lud16));
+      } else {
+        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
+      }
+    }
 
     async function loadStats() {
       drawer.dataset.loaded = '1';
@@ -7799,36 +7892,7 @@
         relayLabel.textContent = label;
       });
 
-      // Identity stats — need the profile.
-      const rec = await getProfile(pubkey);
-      const content = rec && rec.content ? rec.content : {};
-
-      if (content.nip05) {
-        // Per NIP-05, a local part of "_" means the user is verified at the
-        // domain without exposing a handle. Display the bare domain.
-        const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
-        const badge = h('span', { className: 'nip05-badge' });
-        nip05Val.append(badge, document.createTextNode(nip05));
-        const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
-          badge.innerHTML = '';
-          paintNip05Badge(badge, res, paint);
-          paintNip05Favicon(nip05Val, content.nip05, res);
-        });
-        verifyNip05(content.nip05, pubkey).then((res) => {
-          paintNip05Badge(badge, res, paint);
-          paintNip05Favicon(nip05Val, content.nip05, res);
-        });
-      } else {
-        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
-      }
-
-      if (content.lud16) {
-        const ok = icon('check');
-        ok.classList.add('stat-mini-ok');
-        lud16Val.append(ok, document.createTextNode(content.lud16));
-      } else {
-        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
-      }
+      loadIdentity();
 
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.

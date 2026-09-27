@@ -16,6 +16,9 @@
 // Found while working out why a zap to one person rendered under another's name in the
 // transaction list. It was not proven to be the cause of that, and is a real defect on a
 // money path either way.
+//
+// The author check now runs before the newest copy is picked, so a later crossed event
+// is skipped rather than winning and turning the real profile into a miss.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -42,28 +45,28 @@ function lift(src, decl) {
 }
 
 // The real function, run against a stubbed pool rather than asserted about as text.
-function build(poolGet) {
+function build(poolQuerySync) {
   const src = lift(bare, 'async function poolGetProfile(');
   // eslint-disable-next-line no-new-func
-  return new Function('poolGet', src + '; return poolGetProfile;')(poolGet);
+  return new Function('poolQuerySync', src + '; return poolGetProfile;')(poolQuerySync);
 }
 
 const ALICE = 'a'.repeat(64);
 const MALLORY = 'm'.repeat(64);
 
 test('AN EVENT BY SOMEONE ELSE IS NOT THIS PERSON\'S PROFILE', async () => {
-  const fn = build(async () => ({ pubkey: MALLORY, content: '{"name":"Mallory","lud16":"m@example.com"}' }));
+  const fn = build(async () => [{ pubkey: MALLORY, created_at: 1, id: 'm', content: '{"name":"Mallory","lud16":"m@example.com"}' }]);
   assert.equal(await fn([], ALICE), null, 'a mismatched author must read as a miss, not as Alice');
 });
 
 test('their own event still comes back', async () => {
-  const ev = { pubkey: ALICE, content: '{"name":"Alice"}' };
-  const fn = build(async () => ev);
+  const ev = { pubkey: ALICE, created_at: 1, id: 'a', content: '{"name":"Alice"}' };
+  const fn = build(async () => [ev]);
   assert.equal(await fn([], ALICE), ev);
 });
 
 test('nothing found is still nothing found', async () => {
-  for (const empty of [null, undefined, '']) {
+  for (const empty of [null, undefined, [], [null]]) {
     const fn = build(async () => empty);
     assert.equal(await fn([], ALICE), null);
   }
@@ -71,9 +74,25 @@ test('nothing found is still nothing found', async () => {
 
 test('the filter it sends is still the one that was asked for', async () => {
   let got = null;
-  const fn = build(async (relays, filter) => { got = filter; return null; });
+  const fn = build(async (relays, filter) => { got = filter; return []; });
   await fn(['wss://r'], ALICE);
   assert.deepEqual(got, { kinds: [0], authors: [ALICE] });
+});
+
+test('A LATER EVENT BY SOMEONE ELSE CANNOT HIDE THE REAL ONE', async () => {
+  const alice = { pubkey: ALICE, created_at: 100, id: 'a', content: '{"name":"Alice"}' };
+  const mallory = { pubkey: MALLORY, created_at: 900, id: 'm', content: '{"name":"Mallory"}' };
+  const fn = build(async () => [mallory, alice]);
+  assert.equal(await fn([], ALICE), alice);
+});
+
+test('the newest of their own copies wins, whatever order they arrive in', async () => {
+  const oldEv = { pubkey: ALICE, created_at: 100, id: 'b', content: '{"name":"Old"}' };
+  const newEv = { pubkey: ALICE, created_at: 200, id: 'a', content: '{"name":"New"}' };
+  const tieLo = { pubkey: ALICE, created_at: 200, id: '0', content: '{"name":"TieLo"}' };
+  for (const answers of [[oldEv, newEv, tieLo], [tieLo, newEv, oldEv]]) {
+    assert.equal(await build(async () => answers)([], ALICE), newEv);
+  }
 });
 
 test('EVERY SINGLE-AUTHOR PROFILE READ GOES THROUGH IT', () => {
@@ -81,7 +100,7 @@ test('EVERY SINGLE-AUTHOR PROFILE READ GOES THROUGH IT', () => {
   // is the only place that filter shape may appear.
   const direct = bare.split('\n').filter((l) => /kinds: \[0\], authors: \[/.test(l));
   assert.equal(direct.length, 1, 'a single-author kind:0 read is bypassing poolGetProfile:\n' + direct.join('\n'));
-  assert.match(direct[0], /const ev = await poolGet\(relays, \{ kinds: \[0\], authors: \[pubkey\] \}, params\);/);
+  assert.match(direct[0], /const evs = await poolQuerySync\(relays, \{ kinds: \[0\], authors: \[pubkey\] \}, params\);/);
 
   // And the six callers are all still routed through it.
   assert.ok((bare.match(/poolGetProfile\(/g) || []).length >= 7, 'callers were dropped rather than converted');
