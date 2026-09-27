@@ -3782,20 +3782,36 @@
       // It is a narrower gap than the one being closed, and the remembered list below
       // still covers it for any account that has ever resolved once.
       //
-      // The lookup asks the configured set PLUS the relays remembered from an earlier
-      // session (read AND write: lists get published to write relays, and a list only
-      // findable on those is invisible to a read-only sweep). On a fresh panel session
-      // the cache is cold, and an account whose kind:10002 lives only outside the
-      // configured set was unreachable here — every declared-relay read downstream,
-      // profiles included, then silently ran configured-only. Once anything resolves,
-      // the cache carries it for the session and this seed never fires again.
+      // Two lookups run side by side, each with its own timeout: the configured set,
+      // exactly as before, and the relays remembered from an earlier session (read AND
+      // write: lists get published to write relays). On a fresh panel session the cache
+      // is cold, and an account whose kind:10002 lives only outside the configured set
+      // was unreachable here, so every declared-relay read downstream, profiles
+      // included, silently ran configured-only.
+      //
+      // They are SEPARATE queries, not one merged relay set, because get() waits for
+      // every relay it asked. One remembered relay that hangs would push a merged query
+      // past the timeout, and a timeout is never cached, so every later call would sit
+      // out the full six seconds for the rest of the session. Split, a hanging
+      // remembered relay can only fail its own half.
+      //
+      // Only the configured half can say "no list": that is the answer this function
+      // always acted on. The remembered half can only ADD an event. Whichever event is
+      // newer wins.
+      const configured = await relayUrls(false);
       const seed = await recallNip65(pubkey);
-      const lookupRelays = [...new Set([...(await relayUrls(false)), ...((seed && seed.read) || []), ...((seed && seed.write) || [])])];
-      const ev = await Promise.race([
-        poolGet(lookupRelays, { kinds: [10002], authors: [pubkey] }),
-        new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
-      ]);
-      if (ev !== NIP65_TIMED_OUT) gotEvent = true;
+      const extra = [...new Set([...((seed && seed.read) || []), ...((seed && seed.write) || [])])]
+        .filter((u) => !configured.includes(u));
+      const lookup = (relays) => relays.length
+        ? Promise.race([
+          poolGet(relays, { kinds: [10002], authors: [pubkey] }).catch(() => NIP65_TIMED_OUT),
+          new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
+        ])
+        : Promise.resolve(NIP65_TIMED_OUT);
+      const [fromConfigured, fromRemembered] = await Promise.all([lookup(configured), lookup(extra)]);
+      const events = [fromConfigured, fromRemembered].filter((e) => e && e !== NIP65_TIMED_OUT);
+      const ev = events.sort((a, b) => b.created_at - a.created_at)[0] || null;
+      if (fromConfigured !== NIP65_TIMED_OUT || ev) gotEvent = true;
       if (gotEvent && ev) {
         const read = [], write = [];
         ev.tags.forEach((t) => {

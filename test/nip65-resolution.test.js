@@ -282,38 +282,99 @@ test('retrying drops the remembered list so the next load is a real lookup', asy
 });
 
 // ---- the lookup sweep: where a fresh session is allowed to ask ------------------
+//
+// A cold cache plus an account whose kind:10002 lives only outside the configured set
+// was unreachable: the lookup never asked anywhere it had not been told to. The relays
+// remembered from an earlier session (read AND write: lists get PUBLISHED to write
+// relays) now get a lookup of their own.
+//
+// Its OWN lookup, not a merged relay set. get() waits for every relay it asked, so one
+// remembered relay that hangs would push a merged query past the 6s race; a timeout is
+// never cached, so every later call would sit out the full six seconds all session.
 
-test('a fresh session sweeps the relays it remembered, read AND write', async () => {
-  // A cold cache plus an account whose kind:10002 lives only outside the configured
-  // set was unreachable: the lookup never asked anywhere it had not been told to.
-  // The remembered list bootstraps the sweep. Both halves matter — lists get
-  // PUBLISHED to write relays, so a read-only seed misses them.
+// A pool that answers per relay set: `byFirst` maps the first relay of a query to what
+// that query returns ('hang' for a promise that never settles).
+function sweep(ctx, byFirst) {
   const seen = [];
-  const ctx = harness({ timeout: true, stored: { [PK]: REMEMBERED } });
-  ctx.poolGet = async (relays) => { seen.push(relays); return new Promise(() => {}); };
+  ctx.poolGet = async (relays) => {
+    seen.push([...relays]);
+    const r = byFirst[relays[0]];
+    return r === 'hang' ? new Promise(() => {}) : (r || null);
+  };
+  return seen;
+}
+
+const newer = { ...listEvent, created_at: 2, tags: [['r', 'wss://newer']] };
+
+test('a fresh session sweeps the relays it remembered, read AND write, as a SEPARATE lookup', async () => {
+  const ctx = harness({ stored: { [PK]: REMEMBERED } });
+  const seen = sweep(ctx, {});
   await ctx.getNip65Info(PK);
-  assert.equal(seen.length, 1, 'one lookup per call');
-  assert.ok(seen[0].includes('wss://old-read'), 'remembered read relays are swept');
-  assert.ok(seen[0].includes('wss://old-write'), 'remembered write relays are swept');
-  assert.ok(seen[0].includes('wss://configured'), 'the configured set stays in');
+  assert.deepEqual(seen, [['wss://configured'], ['wss://old-read', 'wss://old-write']]);
 });
 
 test('with nothing remembered the sweep is the configured set alone', async () => {
-  const seen = [];
-  const ctx = harness({ timeout: true });
-  ctx.poolGet = async (relays) => { seen.push(relays); return new Promise(() => {}); };
+  const ctx = harness();
+  const seen = sweep(ctx, {});
   await ctx.getNip65Info(PK);
-  assert.deepEqual([...seen[0]], ['wss://configured'], 'no memory, no sweep beyond configured');
+  assert.deepEqual(seen, [['wss://configured']]);
 });
 
-test('a resolved lookup does not grow the sweep with another account\'s relays', async () => {
-  // The sweep is keyed per pubkey through the same store the fallback uses; one
-  // account's remembered list must never widen another's lookup.
-  const seen = [];
-  const ctx = harness({ timeout: true, stored: { ['b'.repeat(64)]: REMEMBERED } });
-  ctx.poolGet = async (relays) => { seen.push(relays); return new Promise(() => {}); };
+test('another account\'s remembered list stays out of this lookup', async () => {
+  const ctx = harness({ stored: { ['b'.repeat(64)]: REMEMBERED } });
+  const seen = sweep(ctx, {});
   await ctx.getNip65Info(PK);
-  assert.deepEqual([...seen[0]], ['wss://configured'], 'a stranger\'s remembered list stays out of this lookup');
+  assert.deepEqual(seen, [['wss://configured']]);
+});
+
+test('a remembered relay that is also configured is asked once, in the configured half', async () => {
+  const ctx = harness({ stored: { [PK]: { read: ['wss://configured'], write: ['wss://old-write'], at: 1 } } });
+  const seen = sweep(ctx, {});
+  await ctx.getNip65Info(PK);
+  assert.deepEqual(seen, [['wss://configured'], ['wss://old-write']]);
+});
+
+test('A HANGING REMEMBERED RELAY CANNOT SINK A LOOKUP THE CONFIGURED SET ANSWERED', async () => {
+  // The regression a merged relay set would cause: configured answers, a remembered
+  // relay hangs, and the whole lookup times out. Split, the configured answer stands
+  // (after the remembered half's own timeout) and is cached for the session.
+  const ctx = harness({ stored: { [PK]: REMEMBERED } });
+  sweep(ctx, { 'wss://configured': listEvent, 'wss://old-read': 'hang' });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.resolved, true);
+  assert.equal(info.stale, false);
+  assert.deepEqual([...info.list.read], ['wss://declared-both', 'wss://declared-read']);
+  const again = await ctx.getNip65Info(PK);
+  assert.equal(again.resolved, true, 'cached: the next call does not wait again');
+});
+
+test('a list findable ONLY on the remembered relays is found', async () => {
+  const ctx = harness({ stored: { [PK]: REMEMBERED } });
+  sweep(ctx, { 'wss://configured': 'hang', 'wss://old-read': listEvent });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.resolved, true);
+  assert.deepEqual([...info.list.write], ['wss://declared-both', 'wss://declared-write']);
+});
+
+test('when both halves answer, the newer list wins', async () => {
+  for (const [c, r] of [[listEvent, newer], [newer, listEvent]]) {
+    const ctx = harness({ stored: { [PK]: REMEMBERED } });
+    sweep(ctx, { 'wss://configured': c, 'wss://old-read': r });
+    const info = await ctx.getNip65Info(PK);
+    assert.deepEqual([...info.list.read], ['wss://newer']);
+  }
+});
+
+test('the remembered half can add a list but never declare "no list"', async () => {
+  // Configured hangs, remembered answers empty: that is not evidence the account has no
+  // list (its old relays may simply have dropped it), so the answer stays unresolved and
+  // falls back to the remembered list.
+  const ctx = harness({ stored: { [PK]: REMEMBERED } });
+  sweep(ctx, { 'wss://configured': 'hang', 'wss://old-read': null });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.resolved, false);
+  assert.equal(info.stale, true);
+  assert.deepEqual([...info.list.read], ['wss://old-read']);
 });
 
 // ---- the source guards ---------------------------------------------------------
