@@ -2558,14 +2558,16 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // it, there is nothing left to read. This is only a label (see #253): a zap's recipient
   // is committed to by description_hash and never travels with the invoice, so the
   // wallet's own history can never name who was paid. Sidecar signed the request and can.
-  // Non-consuming, so it cannot affect whether the payment is auto-approved.
-  const zapRecipient = sats == null ? '' : await ZAPREQ.recipientFor(host, pubkey, sats).catch(() => '');
+  // Non-consuming, so it cannot affect whether the payment is auto-approved. The invoice
+  // binds the record to this payment, so the next same-amount zap is not given this
+  // one's recipient, and the claim takes the same record the label named.
+  const zapRecipient = sats == null ? '' : await ZAPREQ.recipientFor(host, pubkey, sats, invoice).catch(() => '');
   let zapOk = false;
   // Claim only if the payment actually needs it: the site's budget already covering
   // this one makes autoOk true either way, and a zap approval is single-use, so
   // spending one here would be for nothing. The amount is likewise checked first so
   // an over-cap payment doesn't burn a record it can't use.
-  if (!budgetOk && unlocked && zapMax > 0 && sats <= zapMax && (await ZAPREQ.claim(host, pubkey, sats))) {
+  if (!budgetOk && unlocked && zapMax > 0 && sats <= zapMax && (await ZAPREQ.claim(host, pubkey, sats, invoice))) {
     const { spent } = await autoZapWindow();
     zapOk = zapDailyMax > 0 && spent + sats <= zapDailyMax;
   }
