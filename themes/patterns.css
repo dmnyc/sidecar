@@ -455,17 +455,19 @@ body {
 
 /* Constellation — a plate from an engraved star atlas: the winter sky around Orion,
    in gold on black (themes/constellation-sky.svg, drawn from real star positions and
-   the IAU constellation boundaries by scripts/gen-constellation-mycelium.py). Laid once
-   across the top of the panel at the panel's own width. NOT tiled: constellations are
-   shapes people know, and Orion twice in one screen would give the repeat away. Below
-   the sheet the black continues, with the faintest lift toward the top where the plate
-   is, as paper under a lamp. */
+   the traditional figure lines by scripts/gen-constellation-mycelium.py). Laid once and
+   sized to COVER the panel: a tall sheet, so at the usual panel shape it fits the width
+   exactly, and in a taller panel it scales up a little and crops at the sides rather
+   than stopping short of the bottom. It was fitted to the width and left black under
+   the chart in any panel more than twice as tall as it is wide. NOT tiled:
+   constellations are shapes people know, and Orion twice in one screen would give the
+   repeat away. Behind it, the faintest lift toward the top, as paper under a lamp. */
 [data-theme="constellation"] body {
   background-image:
     url(constellation-sky.svg),
     radial-gradient(900px 600px at 50% 20%, rgba(201, 170, 108, 0.05), transparent 65%),
     linear-gradient(180deg, #13110D 0%, var(--bg) 60%);
-  background-size: 100% auto, auto, auto;
+  background-size: cover, auto, auto;
   background-position: top center, 0% 0%, 0% 0%;
   background-repeat: no-repeat, no-repeat, no-repeat;
 }
@@ -473,13 +475,18 @@ body {
 /* Mycelium — a mycelial network in sepia over oat-colored loam, after a pen drawing:
    knots joined by uneven strands that fuse into cells, with hairline hyphae fraying off
    everything (themes/mycelium-hyphae.svg, from scripts/gen-constellation-mycelium.py).
-   Tiled at 520px, the size it was drawn at. Its inks are a measured ceiling, because
-   prose sits straight on this field; test/theme-svg-assets.test.js pins them. */
+   Tiled at 520px, the size it was drawn at.
+   Under it the loam is graded, so the field is not flat: light pooling in from the top
+   right, the way it comes down through leaves, and the ground deepening toward the foot
+   of the panel. The deepest point and the web's opacity share one contrast budget,
+   because prose sits straight on this field: #E7DCC9 at the foot with the web at 11% is
+   where --faint still clears 4.5, and test/theme-svg-assets.test.js measures exactly
+   that pixel. */
 [data-theme="mycelium"] body {
   background-image:
     url(mycelium-hyphae.svg),
-    radial-gradient(700px 420px at 85% -5%, rgba(255, 250, 235, 0.7), transparent 60%),
-    linear-gradient(168deg, #F6F0E6 0%, var(--bg) 55%);
+    radial-gradient(820px 520px at 85% -8%, rgba(255, 251, 240, 0.85), transparent 62%),
+    linear-gradient(180deg, #F8F2E8 0%, var(--bg) 40%, #E7DCC9 100%);
   background-size: 520px, auto, auto;
   background-position: center, 0% 0%, 0% 0%;
   background-repeat: repeat, no-repeat, no-repeat;

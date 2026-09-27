@@ -230,31 +230,80 @@ test('the Wabi-sabi seams leave its body inks readable', () => {
     'overlaps read as patches brighter than the seams around them');
 });
 
-// Mycelium's threads run under every hint in Settings, the Werkstätte case again. The
-// darkest pixel is where a thread crosses the field, so the thread's ink and alpha are
-// the ceiling this pins.
-test('the Mycelium threads leave its body inks above AA', () => {
+// Mycelium's threads run under every hint in Settings, the Werkstätte case again, over a
+// graded loam. The web is solid ink under ONE group opacity, so a crossing is never darker
+// than a single strand: the first cut gave each layer its own alpha, and wherever a braid
+// ran beside its trunk or a hair crossed a strand, the two stacked into a darker patch.
+// This checks that structure holds, then measures a strand over the darkest point of the
+// gradient under it, sampled between stops as well as at them.
+test('the Mycelium web leaves its body inks above AA', () => {
   const svg = fs.readFileSync(path.join(THEMES, 'mycelium-hyphae.svg'), 'utf8');
   const css = fs.readFileSync(path.join(THEMES, 'mycelium.css'), 'utf8');
+  const patterns = fs.readFileSync(path.join(THEMES, 'patterns.css'), 'utf8');
   const token = (name) => {
     const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
     assert.ok(m, 'could not read --' + name + ' from mycelium.css');
     return m[1];
   };
-  const bg = token('bg');
-  const inks = [
-    ...svg.matchAll(/stroke="(#[0-9A-Fa-f]{6})" stroke-opacity="([\d.]+)"/g),
-    ...svg.matchAll(/fill="(#[0-9A-Fa-f]{6})" fill-opacity="([\d.]+)"/g),
-  ].map((m) => ({ hex: m[1], alpha: parseFloat(m[2]) }));
-  assert.ok(inks.length >= 2, 'could not read the thread and spore inks from the tile');
-  // Threads cross, so two layers of the strongest ink is the honest worst case.
-  let darkest = bg;
-  for (const ink of inks) {
-    const px = over(ink.hex, over(ink.hex, bg, ink.alpha), ink.alpha);
-    if (lum(px) < lum(darkest)) darkest = px;
+
+  const web = svg.match(/<g id="web">([\s\S]*?)<\/g>\s*<\/defs>/);
+  assert.ok(web, 'could not find the web in the tile');
+  assert.ok(!/opacity=/.test(web[1]),
+    'the web has to be solid inside: an alpha on any one layer stacks wherever it crosses another');
+  const group = svg.match(/<g opacity="([\d.]+)">\s*<use/);
+  assert.ok(group, 'the nine copies of the web have to share one group opacity');
+  const inks = [...new Set([...web[1].matchAll(/(?:fill|stroke)="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]))];
+  assert.ok(inks.length, 'could not read the web ink');
+  const ink = inks.reduce((a, b) => (lum(b) < lum(a) ? b : a));
+
+  const rule = patterns.match(/\[data-theme="mycelium"\] body \{([\s\S]*?)\n\}/);
+  assert.ok(rule, 'could not find the Mycelium body rule in patterns.css');
+  const linear = rule[1].slice(rule[1].indexOf('linear-gradient('));
+  const stops = [...linear.matchAll(/(#[0-9A-Fa-f]{6}|var\(--bg\))\s+\d+%/g)]
+    .map((m) => (m[1] === 'var(--bg)' ? token('bg') : m[1]));
+  assert.ok(stops.length >= 2, 'could not read the loam gradient');
+  let field = stops[0];
+  for (let i = 0; i + 1 < stops.length; i++) {
+    for (let t = 0; t <= 1.0001; t += 0.05) {
+      const px = over(stops[i + 1], stops[i], t);
+      if (lum(px) < lum(field)) field = px;
+    }
   }
+  // Any translucent wash laid over the loam, at full strength on its darkest point. The
+  // light from the top right only lightens, so it never wins; a shadow would.
+  for (const m of rule[1].matchAll(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/g)) {
+    const hex = '#' + [1, 2, 3].map((i) => Number(m[i]).toString(16).padStart(2, '0')).join('');
+    const px = over(hex, field, parseFloat(m[4]));
+    if (lum(px) < lum(field)) field = px;
+  }
+
+  const darkest = over(ink, field, parseFloat(group[1]));
   for (const name of ['muted', 'faint']) {
     const r = ratio(token(name), darkest);
-    assert.ok(r >= 4.5, `--${name} is ${r.toFixed(2)} where two threads cross (${darkest}), under AA.`);
+    assert.ok(r >= 4.5, `--${name} is ${r.toFixed(2)} on a strand over the deepest loam (${darkest}), under AA.`);
+  }
+});
+
+// Constellation cannot protect its prose the way the fields above do, by capping them.
+// Its stars are the point of the plate, gold symbols up to 85% and white points of light,
+// and a ceiling that kept --muted at AA over them would put every star under 17%. So the
+// theme letters its prose the way a map is lettered, with a halo of the ground round every
+// glyph. This checks the halo is there, covers the prose that sits on the chart, and is
+// made of --bg, the color the contrast floors are measured against, in every layer.
+test('Constellation haloes the prose that sits on its chart', () => {
+  const css = fs.readFileSync(path.join(THEMES, 'constellation.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .find((m) => /text-shadow:/.test(m[2]) && /\.hint\b/.test(m[1]));
+  assert.ok(rule, 'no text-shadow rule for .hint in constellation.css: prose on the chart has no halo');
+  const selectors = rule[1].split(',').map((s) => s.trim().replace(/^\[data-theme="constellation"\]\s*/, ''));
+  for (const sel of ['.hint', '.tabview h2', '.tabview h3']) {
+    assert.ok(selectors.includes(sel), `${sel} sits on the chart and is missing from the halo rule`);
+  }
+  const shadow = rule[2].match(/text-shadow:\s*([^;]+);/)[1];
+  const layers = shadow.split(/,(?![^(]*\))/).map((s) => s.trim());
+  assert.ok(layers.length >= 2, 'one blurred layer is too thin to hide a star behind a glyph');
+  for (const layer of layers) {
+    assert.ok(/var\(--bg\)/.test(layer), `halo layer "${layer}" is not made of --bg`);
   }
 });
