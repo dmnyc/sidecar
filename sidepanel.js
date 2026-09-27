@@ -3519,20 +3519,42 @@
   // refusal with the relay's CLOSED reason. So `answered` means at least one relay got as
   // far as EOSE.
   //
-  // Known gap: a relay that connects and then says nothing gets a synthetic EOSE from its
-  // own eoseTimeout (maxWait), which is indistinguishable here from a real empty answer.
-  // Catching that means going below the pool, past the auth wrappers.
+  // A relay that connects and then says nothing is the hard case. Its subscription's own
+  // eoseTimeout fires a SYNTHETIC EOSE, and the close reason is the same EOSE_CLOSE. What
+  // tells them apart is timing: the synthetic one cannot fire until a full eoseTimeout
+  // after the REQ went out (maxWait, or the relay's 4400ms default without it), so an EOSE
+  // that lands sooner than that from the start of the query is real. One subscription per
+  // relay, so each close can be timed on its own; the pool groups REQs per relay anyway,
+  // so the wire traffic is the same.
+  //
+  // It errs one way only. A relay that took most of the window to connect and then really
+  // answered can land past the line and count as silent, which costs a "couldn't load"
+  // when it was the only relay that answered. The other direction, a silent relay counted
+  // as an answer, is what put "Not set" on intact profiles.
   const EOSE_CLOSE = 'closed automatically on eose'; // nostr-tools subscribeEose's reason
+  const BASE_EOSE_TIMEOUT = 4400; // nostr-tools AbstractRelay.baseEoseTimeout
   function poolQueryAnswered(relays, filter, params) {
+    const urls = [...new Set(relays || [])];
+    if (!urls.length) return Promise.resolve({ events: [], answered: false });
+    const realBefore = (params && params.maxWait) || BASE_EOSE_TIMEOUT;
     return new Promise((resolve) => {
       const events = [];
-      poolSubscribeManyEose(relays, filter, Object.assign({}, params, {
-        onevent: (ev) => events.push(ev),
-        onclose: (reasons) => resolve({
-          events,
-          answered: events.length > 0 || (reasons || []).some((r) => r === EOSE_CLOSE),
-        }),
-      }));
+      const seen = new Set();
+      const t0 = Date.now();
+      let answered = false;
+      let left = urls.length;
+      for (const url of urls) {
+        poolSubscribeManyEose([url], filter, Object.assign({}, params, {
+          onevent: (ev) => {
+            answered = true; // an event is an answer, whenever it lands
+            if (ev && !seen.has(ev.id)) { seen.add(ev.id); events.push(ev); }
+          },
+          onclose: (reasons) => {
+            if ((reasons || [])[0] === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
+            if (--left === 0) resolve({ events, answered });
+          },
+        }));
+      }
     });
   }
 

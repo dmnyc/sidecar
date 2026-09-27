@@ -35,13 +35,15 @@ function lift(decl) {
   throw new Error('Unbalanced braces after ' + decl);
 }
 const EOSE_LINE = source.match(/const EOSE_CLOSE = '[^']*';/)[0];
+const BASE_LINE = source.match(/const BASE_EOSE_TIMEOUT = \d+;/)[0];
 
 const SK = NT.generateSecretKey();
 const PK = NT.getPublicKey(SK);
 const profile = NT.finalizeEvent({ kind: 0, created_at: 100, tags: [], content: '{"nip05":"d@x.com"}' }, SK);
 
 // Per relay URL: 'fail' (connection error), 'refuse' (CLOSED on the REQ), 'empty'
-// (EOSE, nothing), or an array of events to send before EOSE.
+// (EOSE, nothing), 'silent' (connects, then never answers the REQ), or an array of
+// events to send before EOSE.
 function fakeSocket(plan) {
   return class FakeWS {
     constructor(url) {
@@ -59,6 +61,7 @@ function fakeSocket(plan) {
       if (msg[0] !== 'REQ') return;
       const id = msg[1];
       const say = (frame) => setTimeout(() => this.onmessage && this.onmessage({ data: JSON.stringify(frame) }), 0);
+      if (this.mode === 'silent') return;
       if (this.mode === 'refuse') return say(['CLOSED', id, 'blocked: not today']);
       for (const ev of Array.isArray(this.mode) ? this.mode : []) say(['EVENT', id, ev]);
       say(['EOSE', id]);
@@ -73,7 +76,7 @@ function run(plan, filter = { kinds: [0], authors: [PK] }) {
   const poolSubscribeManyEose = (relays, f, params) => pool.subscribeManyEose(relays, f, params);
   // eslint-disable-next-line no-new-func
   const poolQueryAnswered = new Function('poolSubscribeManyEose',
-    `${EOSE_LINE}\n${lift('function poolQueryAnswered(')}\nreturn poolQueryAnswered;`)(poolSubscribeManyEose);
+    `${EOSE_LINE}\n${BASE_LINE}\n${lift('function poolQueryAnswered(')}\nreturn poolQueryAnswered;`)(poolSubscribeManyEose);
   return poolQueryAnswered(Object.keys(plan), filter, { maxWait: 500 })
     .finally(() => pool.destroy());
 }
@@ -111,4 +114,43 @@ test('the EOSE reason it matches is the one the vendored pool actually sends', (
   const literal = EOSE_LINE.match(/'([^']*)'/)[1];
   const vendored = fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8');
   assert.ok(vendored.includes(`const reason = "${literal}";`), 'subscribeEose no longer closes with "' + literal + '"');
+});
+
+// ---- the silent relay: connects, then never answers --------------------------------
+//
+// The pool's own eoseTimeout fires a synthetic EOSE for it, with the same close reason as
+// a real one. It can only fire a full maxWait after the REQ, so anything sooner is real.
+
+test('A RELAY THAT CONNECTS AND SAYS NOTHING IS NOT AN ANSWER', async () => {
+  const res = await run({ 'wss://a.example': 'silent', 'wss://b.example': 'fail' });
+  assert.equal(res.answered, false, 'its synthetic EOSE must not read as "nothing there"');
+});
+
+test('a silent relay beside one that really answered empty is still an answer', async () => {
+  const res = await run({ 'wss://a.example': 'silent', 'wss://b.example': 'empty' });
+  assert.equal(res.answered, true);
+});
+
+test('an event from a slow relay is an answer however late it lands', async () => {
+  const res = await run({ 'wss://a.example': 'silent', 'wss://b.example': [profile] });
+  assert.equal(res.answered, true);
+  assert.equal(res.events.length, 1);
+});
+
+test('the same event from two relays comes back once', async () => {
+  const res = await run({ 'wss://a.example': [profile], 'wss://b.example': [profile] });
+  assert.equal(res.events.length, 1);
+});
+
+test('no relays at all is not an answer, and does not hang', async () => {
+  const res = await run({});
+  assert.deepEqual(res, { events: [], answered: false });
+});
+
+test('the default timing line is the vendored relay\'s own EOSE timeout', () => {
+  // Without maxWait the synthetic EOSE comes from baseEoseTimeout. If nostr-tools moves
+  // it, the line that tells real from synthetic has to move with it.
+  const n = BASE_LINE.match(/\d+/)[0];
+  const vendored = fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8');
+  assert.ok(vendored.includes(`baseEoseTimeout = ${n};`), 'AbstractRelay.baseEoseTimeout is no longer ' + n);
 });
