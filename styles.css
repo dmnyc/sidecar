@@ -4117,6 +4117,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .menu-item.danger svg { color: var(--red); }
 
 /* ===== dev build indicator ===== */
+/* The debug badge, in dev builds only. HARD-CODED, not themed: it is a tool, not part of
+   any theme's picture, and it read the theme's --orange and --border-strong, so it went
+   gray in Film Noir and Prussian blue in Ukiyo-e. It is the same orange in every theme,
+   and the same circle: Werkstätte excepts it from its square-everything rule. */
 .dev-badge {
   position: fixed;
   bottom: 12px;
@@ -4124,9 +4128,9 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgba(167, 139, 250, 0.28);
   background: rgba(234, 119, 47, 0.16);
-  color: var(--orange);
+  color: #ea772f;
   display: flex;
   align-items: center;
   justify-content: center;
