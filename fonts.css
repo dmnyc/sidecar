@@ -24,6 +24,8 @@
      Par Avion   Special Elite      distressed typewriter        the typed letter
      Metropolis  Limelight          deco poster capitals         the 1927 one-sheet
      Werkstätte  Syncopate          wide monoline poster caps    Hoffmann's Gitterwerk
+     Wabi-sabi   Yuji Syuku         brush-drawn mincho           the potter's own hand
+     Ukiyo-e     Kaisei Decol       display mincho, dot ends     the print's title cartouche
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -319,4 +321,42 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/syncopate-700.ttf') format('truetype');
+}
+
+/* The two Japanese faces. Both are Japanese families whose Latin was drawn to sit beside
+   kana and kanji, which is why they read as Japanese without a single Japanese glyph on
+   screen — and only their Latin subsets ship (the U+0000-00FF cut Google Fonts serves),
+   not the tens of thousands of CJK glyphs, which is what keeps each file near 40KB.
+   Both SIL OFL 1.1; license text in fonts/OFL-YujiSyuku.txt and
+   fonts/OFL-KaiseiDecol.txt.
+
+   They are kept apart the way the table at the top asks, by category rather than by
+   color. Yuji Syuku is a BRUSH face: every stroke keeps the entry and lift of the
+   brush, the widths wander, and the letters stand apart with room between them — the
+   hand of the maker left in the work, which is the whole of Wabi-sabi. Kaisei Decol is
+   a TYPE face: a constructed mincho, even where the brush is not, whose strokes end in
+   a small round dot, the element kanji carry at the end of a stroke. Font-Kai, its
+   designers, recommend it for short lines and titles, and that is the job it has in
+   Ukiyo-e: the lettering in a print's title cartouche, set rather than written. One is
+   the brush, the other the type.
+
+   Yuji Syuku is single-weight and declares `400 700` for the reason given above for the
+   other single-weight faces. Kaisei Decol ships one cut, the Medium, declared across
+   `400 800` so the panel's bold display rules draw it as it is. It is the middle of the
+   three because both ends were tried: the Bold made every heading and balance too heavy
+   for a title face whose charm is its fine line, and the Regular was too faint to read
+   at heading size. */
+@font-face {
+  font-family: 'Yuji Syuku';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/yuji-syuku.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Kaisei Decol';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('fonts/kaisei-decol-500.woff2') format('woff2');
 }

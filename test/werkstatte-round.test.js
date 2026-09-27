@@ -19,12 +19,11 @@ const promptInline = (fs.readFileSync(path.join(ROOT, 'prompt.html'), 'utf8')
   .match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n');
 const wk = fs.readFileSync(path.join(ROOT, 'themes', 'werkstatte.css'), 'utf8');
 
-// Not themed, dev-only, or matched from a compound selector whose real target is covered.
+// Not themed, or matched from a compound selector whose real target is covered.
 const IGNORE = new Set([
   'has-av',       // .tx-icon.has-av img — .tx-icon is excepted
   'tx-icon',
   'welcome-mark', // welcome.html is not themed
-  'dev-badge',    // dev builds only, never ships
   'css', 'json', 'low', 'profile-body', // captured from compound selectors
 ]);
 

@@ -7,6 +7,11 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [Unreleased]
+
+### Added
+- **Two new themes, both from Japanese art.** *Wabi-sabi* (dark) is a tea bowl that broke and was mended with gold: slate stoneware, ash glaze and iron speckle, with kintsugi seams running through the field. It is set in Yuji Syuku, a brush-drawn face, and the balance surfaces out of the glaze and catches the light the way gold dust does on fresh lacquer. *Ukiyo-e* (light) is the woodblock sky: seigaiha waves over a sky that grades from pale blue to a yellow horizon under a band of Prussian blue, with the yellow-green of Hokusai's cliffs as its accent. It is set in Kaisei Decol, a title mincho like the lettering in a print's cartouche, and the balance rises out of the water on a slow swell that travels across the figure and settles.
+
 ## [1.14.1] — 2026-09-23
 
 ### Fixed

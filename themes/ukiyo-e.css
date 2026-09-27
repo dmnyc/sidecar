@@ -1,0 +1,198 @@
+/* ============================================================
+   Sidecar — Ukiyo-e Theme
+   The woodblock sky: pale blue grading to a yellow horizon, Prussian
+   blue ink, the near-white of the clouds, and the yellow-green of
+   Hokusai's cliffs. Seigaiha waves run as the field.
+   Groups with the light themes.
+   ============================================================ */
+
+[data-theme="ukiyo-e"] {
+  color-scheme: light;
+
+  /* Kaisei Decol — a title mincho whose strokes end in the small round dot kanji carry
+     at the end of a stroke. Type rather than handwriting, like the lettering in a print's
+     title cartouche, and the counterpart to Wabi-sabi's brush face: see fonts.css. */
+  --font-display: 'Kaisei Decol', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif;
+
+  /* How far this theme's display face has to move to sit optically centered, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: -0.06em;
+
+  /* Kaisei Decol is drawn large in its em (x-height 0.54, against the set's median of
+     about 0.50). At full size it read as oversized, and at 0.9 its headings were too
+     small to read comfortably; 0.95 sits between, its x-height just over the median. */
+  --display-scale: 0.95;
+
+  /* surfaces — the sky. The FIELD grades from the pale blue at the top of a print's sky
+     to the warm yellow at its horizon (the gradient is in themes/patterns.css), and the
+     cards the text sits on are the near-white of its clouds: the same structure that
+     lets Populuxe and Par Avion clear AA on every ink. --bg is the gradient's top stop,
+     for the surfaces that paint flat. */
+  --bg: #D8E6EE;
+  --bg-2: #CADBE6;
+  --velvet-1: #FBFAF5;
+  --velvet-2: #F1F1EA;
+  --velvet-1-rgb: 251, 250, 245;
+  --av-from: #FBFAF5;
+  --av-to: #CADBE6;
+  --banner-accent: #CADBE6;
+  --border: rgba(29, 70, 116, 0.18);
+  --border-strong: rgba(29, 70, 116, 0.32);
+  --border-rgb: 29, 70, 116;
+  --well-rgb: 202, 219, 230;
+  /* Bengara, the red-iron pigment of the early prints, kept for warnings: there is no
+     red anywhere else in this palette, so a warning has it to itself. */
+  --warn: #963D19;
+  --warn-rgb: 150, 61, 25;
+  /* Pine green, from the Tōkaidō roadside in every Hiroshige station. */
+  --success: #37603A;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
+  --success-rgb: 55, 96, 58;
+
+  /* Prussian blue — bero-ai, the imported pigment that made Hokusai's wave possible
+     and turned the whole genre blue in the 1830s: the deep of the sea and the band
+     across the top of the sky. It is the accent INK here (the active check, row
+     borders, tips), so --gold takes it, as Aegean and Par Avion do with their blues: a
+     real gold cannot clear 4.5 on white without going brown. 8.49:1 on the lower card.
+     --orange follows, because it drives every checkbox. */
+  --orange: #1D4674;
+  --amber: #B8912F;
+  --gold: #1D4674;
+  --gold-soft: rgba(29, 70, 116, 0.28);
+  --accent-rgb: 29, 70, 116;
+  /* The balance in the same deep blue: 8.49:1 on the lower card, far over the 3.0 its
+     display size needs. */
+  --balance-ink: #1D4674;
+  --fiat-sym-opacity: 1;
+  --purple: #1D4674;
+  --lav: #2F5E8A;
+  --add-badge-ink: var(--velvet-1);
+  /* The yellow-green of the cliffs in Hokusai's bridge print, the accent this palette
+     is built around. A light fill, so the count is dark on it: 8.61:1. */
+  --badge-bg: #C9C471;
+  --badge-ink: #1B2624;
+  --relax-dot-ok: #2E7D3A;
+  --relax-dot-low: var(--warn);
+
+  --hover-soft: rgba(29, 70, 116, 0.05);
+  --hover-medium: rgba(29, 70, 116, 0.09);
+  --hover-faint: rgba(29, 70, 116, 0.035);
+  --mention-bg: rgba(29, 70, 116, 0.13);
+  --scroll-thumb: linear-gradient(180deg, #8FB0CC, #4F7CA6);
+  --scroll-thumb-hover: #2F5E8A;
+
+  /* primary button — the Prussian block, printed solid */
+  --btn-primary-top: #2F5E8A;
+  --btn-primary-mid: #1D4674;
+  --btn-primary-bot: #12345A;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: rgba(29, 70, 116, 0.28);
+
+  /* "Trust this site" — the cliffs' yellow-green, washed pale, so it cannot be mistaken
+     for the solid blue block above it. Dark label: 11.74:1 on the mid stop. */
+  --btn-lav-top: #F1F0D6;
+  --btn-lav-mid: #E4E2B4;
+  --btn-lav-bot: #D2CF91;
+  --btn-lav-text: #1B2624;
+  --btn-lav-ring: rgba(110, 106, 30, 0.34);
+  --btn-lav-shadow: rgba(29, 70, 116, 0.14);
+
+  --btn-secondary-top: #FBFAF5;
+  --btn-secondary-bot: #ECEEE7;
+
+  --pending-text: #12345A;
+
+  --btn-accent-top: #2F5E8A;
+  --btn-accent-mid: #1D4674;
+  --btn-accent-bot: #12345A;
+  --btn-accent-text: #FFFFFF;
+
+  /* ink — sumi, the carbon ink of the key block, faintly green-black as it prints, with
+     deep blue for the second tier and cool grays for the quiet ones */
+  --text: #1B2624;
+  --text-2: #1B3A5C;
+  --muted: #454C52;
+  --faint: #50575D;
+  --red: #9E2A1F;
+
+  --shadow: 0 10px 30px rgba(20, 45, 70, 0.13);
+  --shadow-sm: 0 6px 18px rgba(20, 45, 70, 0.09);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+
+  --pattern-opacity: 1;
+
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(29, 70, 116, 0.22);
+  --card-wash: rgba(29, 70, 116, 0.06);
+  --accent-fill: var(--lav);
+  --chip-ink: #FFFFFF;
+  --glow: var(--lav);
+  --balloon-bg: #1D4674;
+  --balloon-bg-hover: #2F5E8A;
+  --balloon-text: #FBFAF5;
+  /* The compose button is the Prussian block with a quill in the cliffs' yellow-green:
+     6.49:1. */
+  --fab-bg: #1D4674;
+  --fab-icon: #DCD78C;
+  --float-shadow: rgba(20, 45, 70, 0.2);
+  --float-shadow-strong: rgba(20, 45, 70, 0.28);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="ukiyo-e"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+/* Outgoing transactions in bengara, off the same palette as --warn. */
+[data-theme="ukiyo-e"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+[data-theme="ukiyo-e"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+/* End, in the cliffs' yellow-green rather than the blue --accent-fill it would
+   otherwise take: the control that stops something should not wear the color of the
+   primary action. Dark on it, 8.61:1. */
+[data-theme="ukiyo-e"] .relax-status-x {
+  background: var(--badge-bg);
+  color: var(--badge-ink);
+}
+
+/* ---- balance animation: the swell -------------------------------------------
+   The figure rises out of the water. Each glyph surfaces soft and a little low, lifts
+   to one slow crest and settles back to the line, and the glyphs go one after another
+   so the swell travels across the figure. Sine easing on both halves and no second
+   swing: the first cut rebounded three times with a lean on each, and a spring that
+   overshoots and wobbles reads as rubber, not water. */
+@keyframes ukiyo-e-swell {
+  0% {
+    opacity: 0;
+    transform: translate(-0.03em, 0.26em);
+    filter: blur(3px);
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  }
+  48% {
+    opacity: 1;
+    transform: translate(0, -0.045em);
+    filter: blur(0.3px);
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+[data-theme="ukiyo-e"] .bal-glyph { display: inline-block; }
+[data-theme="ukiyo-e"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 270ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide.
+     Linear here because each keyframe carries its own easing, above. */
+  animation: ukiyo-e-swell 1400ms linear
+             calc(var(--i) * min(90ms, 270ms / max(var(--n) - 1, 1))) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="ukiyo-e"] .bal-glyph.bal-in { animation: none; }
+}

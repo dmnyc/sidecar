@@ -369,6 +369,16 @@ const FLOORS = {
   // --amber is. The one exception is --balance-ink at 3.20, which is 34px and up and
   // therefore answers to the large-text floor; it is a `color:` nowhere else.
   werkstatte: { '--muted': 5.19, '--faint': 4.68, '--gold': 8.79 },
+  // Wabi-sabi's worst surface is the lighter card (#22252A), and every ink is measured
+  // there. --faint at 3.87 is the best of the dark themes after Nixie, bought by keeping
+  // the stoneware cool and dark rather than lifting it toward a mid gray. --gold is the
+  // kintsugi at 7.42: it is an ink as well as a fill here, like Speakeasy's.
+  'wabi-sabi': { '--muted': 6.00, '--faint': 3.87, '--gold': 7.42 },
+  // Ukiyo-e clears AA on all five inks, --faint included, for the Populuxe / Par Avion
+  // reason: the graded sky is the field and the cards are near-white. The worst surface
+  // is --bg-2, the deeper blue. --gold is the Prussian blue (6.78), and --balance-ink is
+  // the same blue.
+  'ukiyo-e': { '--muted': 6.14, '--faint': 5.17, '--gold': 6.78 },
 };
 
 for (const theme of THEMES) {
