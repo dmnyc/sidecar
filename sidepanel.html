@@ -20,7 +20,12 @@
   <link rel="stylesheet" href="themes/werkstatte.css" />
   <link rel="stylesheet" href="themes/wabi-sabi.css" />
   <link rel="stylesheet" href="themes/ukiyo-e.css" />
+  <link rel="stylesheet" href="themes/constellation.css" />
+  <link rel="stylesheet" href="themes/mycelium.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
+  <!-- Marks which Constellation plate this session shows; see sky-plate.js. In the head
+       and synchronous, so the mark is set before the first paint. -->
+  <script src="sky-plate.js"></script>
 </head>
 <body>
   <!-- ===== Onboarding: create a PIN (no keystore yet) ===== -->
@@ -281,7 +286,7 @@
     </div>
 
     <!-- Persistent bottom status bar, shown only while a relax (auto-sign) window
-         is active — Apogee-style. Status dot + signing account + live mm:ss
+         is active. Status dot + signing account + live mm:ss
          countdown + Restart / End. See renderRelaxStatus in sidepanel.js. -->
     <div id="relax-status" class="relax-status hidden">
       <div class="relax-status-top">
@@ -366,6 +371,9 @@
               <button type="button" class="theme-card" data-theme="speakeasy" data-mode="dark">
                   <span class="theme-preview"></span><span class="theme-name">Speakeasy</span>
               </button>
+              <button type="button" class="theme-card" data-theme="metropolis" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Metropolis</span>
+              </button>
               <button type="button" class="theme-card" data-theme="film-noir" data-mode="dark">
                   <span class="theme-preview"></span><span class="theme-name">Film Noir</span>
               </button>
@@ -378,11 +386,11 @@
               <button type="button" class="theme-card" data-theme="cast-iron" data-mode="dark">
                   <span class="theme-preview"></span><span class="theme-name">Cast Iron</span>
               </button>
-              <button type="button" class="theme-card" data-theme="metropolis" data-mode="dark">
-                  <span class="theme-preview"></span><span class="theme-name">Metropolis</span>
-              </button>
               <button type="button" class="theme-card" data-theme="wabi-sabi" data-mode="dark">
                   <span class="theme-preview"></span><span class="theme-name">Wabi-sabi</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="constellation" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Constellation</span>
               </button>
               <button type="button" class="theme-card" data-theme="industria" data-mode="light">
                   <span class="theme-preview"></span><span class="theme-name">Industria</span>
@@ -413,6 +421,9 @@
               </button>
               <button type="button" class="theme-card" data-theme="ukiyo-e" data-mode="light">
                   <span class="theme-preview"></span><span class="theme-name">Ukiyo-e</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="mycelium" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name">Mycelium</span>
               </button>
             </div>
           </div>

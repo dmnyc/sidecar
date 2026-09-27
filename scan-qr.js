@@ -2,8 +2,7 @@
 //
 // Opened as its own popup by the side panel, because MV3 side panels can't surface
 // the camera permission prompt (no address bar to anchor it to) and getUserMedia
-// rejects there immediately. Pattern ported from Resolvr's apogee, which solved
-// the same problem the same way.
+// rejects there immediately.
 //
 // The decoded key is handed to the SERVICE WORKER (SIDECAR_QR_SECRET), which parks
 // it for exactly one claim. It is deliberately NOT broadcast: runtime.sendMessage

@@ -13,12 +13,12 @@
    same idea however they are colored:
 
      Speakeasy   Playfair Display   high-contrast Didone serif   cocktail menu
-     Film Noir   Oswald             condensed grotesque          1940s poster
+     Film Noir   Noto Serif Display condensed Didone, two cuts   the studio title card
      Brownstone  Bitter             slab serif                   19th-c. New York
      Art Deco    Josefin Sans       1920s geometric sans         deco lettering
      Aegean      Cinzel             Roman inscriptional caps     classical stone
      Bauhaus     Jost               Futura-lineage geometric     the school's own
-     Nixie       Apogee Telemetry   monospaced engineer's hand   instrument panel
+     Nixie       Nixie Gothic       monospaced engineer's hand   instrument panel
      Populuxe    Rowdies            chunky rounded geometric     motel signage
      Cast Iron   Impressed Metal    groove-outline letterforms   the stamp impression
      Par Avion   Special Elite      distressed typewriter        the typed letter
@@ -26,6 +26,8 @@
      Werkstätte  Syncopate          wide monoline poster caps    Hoffmann's Gitterwerk
      Wabi-sabi   Yuji Syuku         brush-drawn mincho           the potter's own hand
      Ukiyo-e     Kaisei Decol       display mincho, dot ends     the print's title cartouche
+     Constellation Cormorant Garamond humanist old-style display    the engraved atlas plate
+     Mycelium    Fraunces (soft)    soft "wonky" old-style        something grown, not cut
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -35,8 +37,8 @@
    that was struck.
 
    Special Elite is the second face here drawn from a machine rather than a pen, after
-   Nixie's Apogee Telemetry, and the two do not collide for the reason the table cares
-   about: Apogee is MONOSPACED draftsman's lettering, uniform hairlines set on a fixed
+   Nixie's, and the two do not collide for the reason the table cares about: Nixie
+   Gothic is MONOSPACED draftsman's lettering, uniform hairlines set on a fixed
    pitch, and Special Elite is PROPORTIONAL (54 distinct advance widths in its first 60
    glyphs, and its isFixedPitch flag is 0) with slabbed serifs and ink spread unevenly
    across every stroke. One is a machine that draws; the other is a machine that hits
@@ -53,10 +55,17 @@
    outright. That was chosen with the cost known — the full comparison, and the two
    alternatives that turned out worse, are recorded above its @font-face block below.
 
+   Film Noir's Noto Serif Display is the THIRD, and it is Playfair's category too: a
+   Didone. It stays apart on two axes Playfair does not move on, width and slant (the
+   cut is ExtraCondensed and italic, where Playfair is wide and upright), and the theme
+   is black and white, so the two are never seen in the same palette.
+
    TWO THEMES USE A SECOND FACE for their settings section heads, and both for the same
    reason: a display face that earns its keep on a 23px title is doing the wrong job on
    16px navigation, eight rows deep. Cast Iron takes Varela Round (see its block below).
-   METROPOLIS BORROWS ART DECO'S JOSEFIN SANS.
+   METROPOLIS BORROWS ART DECO'S JOSEFIN SANS. Film Noir answers the same problem inside
+   one family instead: its italic sets only the titles and the balance, and the upright
+   cut of the same face sets everything else (see its @font-face blocks below).
 
    That reuse is deliberate, and it is the cheap answer to a real problem. Limelight at
    16px is a wall of dense type; what it needs beside it is the same deco geometry drawn
@@ -74,7 +83,7 @@
 
    Five faces ship as variable fonts — one file spanning the weight range rather than a
    static per weight. The remaining statics are Playfair Display (two woff2 weights),
-   Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Apogee Telemetry,
+   Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Nixie Gothic,
    Rowdies, Impressed Metal, Special Elite, Limelight, and Syncopate. The single-weight faces declare `400 700`, which tells
    the browser the one outline covers that whole range, so a 700-weight heading renders
    the real face rather than a synthetic bold or a drop back to Manrope halfway down a
@@ -142,6 +151,28 @@
   font-display: swap;
   src: url('fonts/oswald-var.woff2') format('woff2-variations');
 }
+/* Film Noir: Noto Serif Display in two cuts, each the Latin subset Google Fonts serves
+   (U+0000-00FF). SIL OFL 1.1; license text in fonts/OFL-NotoSerifDisplay.txt.
+     ExtraCondensed ExtraBold Italic  the titles and the balance (--font-title)
+     Condensed ExtraBold              everything else the display face sets
+   Each is declared as a family of its own and as font-style NORMAL: the rules that set
+   them ask for no style, and declaring the italic file as italic would have meant
+   restating font-style in each of those rules, or getting a synthesized upright. `400 900`
+   for the reason given above for the single-weight faces. */
+@font-face {
+  font-family: 'Noto Serif Display Condensed Italic';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/noto-serif-display-cond-italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Serif Display Condensed';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/noto-serif-display-cond.woff2') format('woff2');
+}
 @font-face {
   font-family: 'Bitter';
   font-style: normal;
@@ -164,24 +195,24 @@
   src: url('fonts/cinzel-var.woff2') format('woff2-variations');
 }
 
-/* Apogee Telemetry (patched Routed Gothic, SIL OFL 1.1 — see
-   fonts/OFL-ApogeeTelemetry.md). The numeral face of mid-century instrument
+/* Nixie Gothic (patched Routed Gothic, SIL OFL 1.1 — see
+   fonts/OFL-NixieGothic.md). The numeral face of mid-century instrument
    panels, lettered like the readouts in 2001: A Space Odyssey. Nixie's
    display face, drawn from a category none of the other themes occupy:
    monospaced engineer's lettering. Shipped as TTF — a single static face at
    one weight, 57KB, rather than the variable woff2s above. */
 @font-face {
-  font-family: 'Apogee Telemetry';
+  font-family: 'Nixie Gothic';
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/apogee-telemetry.ttf') format('truetype');
+  src: url('fonts/nixie-gothic.ttf') format('truetype');
 }
 
 /* Rowdies (Jaikishan Patel, SIL OFL 1.1 — see fonts/OFL-Rowdies.txt). Populuxe's
    display face: heavy rounded geometric letterforms, the shape of the signage
    the theme is named for. Shipped as an unmodified TTF, 75KB, the same way
-   Apogee Telemetry is — the OFL's Reserved Font Name clause means a subset
+   Nixie Gothic is — the OFL's Reserved Font Name clause means a subset
    would have to be renamed, and a whole original anyone can re-derive is worth
    more than the 40KB saved.
 
@@ -223,7 +254,7 @@
 
    SINGLE WEIGHT, 130KB, unmodified. The heads are set at 600 and this outline is a 400,
    so `400 700` below points the whole range at it and nothing synthesizes — the same
-   arrangement Rowdies, Apogee Telemetry, Impressed Metal and Special Elite already use.
+   arrangement Rowdies, Nixie Gothic, Impressed Metal and Special Elite already use.
    The heads therefore render at the regular weight, which on this face is sturdy enough
    to carry a section title; if they ever need more, the answer is a heavier face, not a
    synthetic bold. */
@@ -359,4 +390,30 @@
   font-weight: 400 800;
   font-display: swap;
   src: url('fonts/kaisei-decol-500.woff2') format('woff2');
+}
+
+/* Constellation and Mycelium. Both are old-style serifs, which is the one place the table
+   at the top lets two faces share a root, and it holds for the reason it holds for
+   Populuxe: they sit at opposite ends of the axis that matters. Cormorant Garamond is all
+   hairline — a Garamond redrawn for display, contrast pushed until the thin strokes read
+   as engraving, with old-style figures like the numerals on an atlas plate. Fraunces is
+   the reverse: low contrast, heavy, and the soft cut (its SOFT axis pinned at 100 in the
+   file that ships) rounds every terminal until the letters look swollen, grown rather
+   than cut. Side by side they are a copperplate and a toadstool.
+
+   Both are variable in weight and ship as their Latin subsets. SIL OFL 1.1; license text
+   in fonts/OFL-CormorantGaramond.txt and fonts/OFL-Fraunces.txt. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/cormorant-garamond-var.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/fraunces-soft-var.woff2') format('woff2-variations');
 }

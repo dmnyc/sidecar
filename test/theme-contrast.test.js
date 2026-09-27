@@ -304,7 +304,7 @@ const SURFACES = ['--bg', '--bg-2', '--velvet-1', '--velvet-2'];
 //
 // KNOWN BELOW AA (pre-existing, not introduced by any change here):
 //   industria --muted 3.68:1  — secondary body text under the 4.5 floor
-//   --faint  in every theme  — 2.28 (film-noir) to 3.53 (brownstone), except bauhaus and
+//   --faint  in every theme  — 2.30 (industria) to 3.53 (brownstone), except bauhaus and
 //                              nixie (4.52, from its cool grays)
 // --faint is used for the lowest-emphasis labels; if it ever carries something a user has
 // to read, it needs darkening first, per theme.
@@ -324,7 +324,11 @@ const FLOORS = {
   aegean: { '--muted': 4.55, '--faint': 2.85, '--gold': 6.00 },
   'industria': { '--muted': 3.65, '--faint': 2.30, '--gold': 5.20 },
   brownstone: { '--muted': 6.20, '--faint': 3.50, '--gold': 8.60 },
-  'film-noir': { '--muted': 4.45, '--faint': 2.25, '--gold': 7.85 },
+  // Film Noir went black and white on darker cards (#1e1e1e the lighter one, was #2a2a2a),
+  // and --muted and --faint came up (#a0a0a0, #7c7c7c) so the dust on its film could not
+  // take them under 4.5 and 3:1. It had the lowest --faint in the set at 2.25; it is now
+  // among the best of the dark themes.
+  'film-noir': { '--muted': 6.38, '--faint': 3.99, '--gold': 9.16 },
   speakeasy: { '--muted': 5.20, '--faint': 3.00, '--gold': 6.95 },
   bauhaus: { '--muted': 6.00, '--faint': 4.65, '--gold': 4.80 },
   nixie: { '--muted': 7.60, '--faint': 4.50, '--gold': 12.35 },
@@ -379,6 +383,15 @@ const FLOORS = {
   // is --bg-2, the deeper blue. --gold is the Prussian blue (6.78), and --balance-ink is
   // the same blue.
   'ukiyo-e': { '--muted': 6.14, '--faint': 5.17, '--gold': 6.78 },
+  // Constellation's worst surface is the lighter card (#1E1B15). --gold is the engraving
+  // gold at 7.73, and it is both the accent ink and the accent fill: the plates it is
+  // drawn from have one hue, so the theme does not split the role.
+  constellation: { '--muted': 6.40, '--faint': 3.82, '--gold': 7.73 },
+  // Mycelium clears AA on all five inks, for the reason the paper themes above do: the
+  // loam is the field and the cards are near-white. --gold is the moss (4.64 on the
+  // darker paper), the first green accent in the set; the chanterelle is --balance-ink
+  // and is a `color:` only at display size.
+  mycelium: { '--muted': 6.78, '--faint': 5.50, '--gold': 4.64 },
 };
 
 for (const theme of THEMES) {

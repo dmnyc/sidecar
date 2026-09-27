@@ -1,0 +1,175 @@
+/* ============================================================
+   Sidecar — Mycelium Theme
+   The forest floor from underneath: oat-colored loam, moss, the
+   fly agaric's red, and the white threads of a fungus running
+   through all of it. Groups with the light themes.
+   ============================================================ */
+
+[data-theme="mycelium"] {
+  color-scheme: light;
+
+  /* Fraunces, soft cut — an old-style serif drawn with rounded, almost swollen
+     terminals, so the letters look grown rather than cut. The SOFT axis is pinned at
+     its maximum in the file that ships; see fonts.css. */
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+
+  /* How far this theme's display face has to move to sit optically centered, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. */
+  --display-ink-nudge: 0.04em;
+
+  /* surfaces — oat and loam. The field is the warm ground and the cards are near-white,
+     the Populuxe / Par Avion / Ukiyo-e structure that lets every ink clear AA. */
+  --bg: #F1EADF;
+  --bg-2: #E9E0D1;
+  --velvet-1: #FFFDF8;
+  --velvet-2: #F7F1E6;
+  --velvet-1-rgb: 255, 253, 248;
+  --av-from: #FFFDF8;
+  --av-to: #E9E0D1;
+  --banner-accent: #E9E0D1;
+  --border: rgba(74, 58, 42, 0.15);
+  --border-strong: rgba(74, 58, 42, 0.28);
+  --border-rgb: 74, 58, 42;
+  --well-rgb: 233, 224, 209;
+  /* Fly agaric, the one mushroom everybody knows not to eat. */
+  --warn: #A33A2A;
+  --warn-rgb: 163, 58, 42;
+  /* Lichen: a blue-leaning green, so success is never confused with the moss accent. */
+  --success: #2E6B4F;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
+  --success-rgb: 46, 107, 79;
+
+  /* Moss is the accent INK — the active check, row borders, tips — and the first theme
+     in the set to give that job to green, the one hue no other theme had claimed. 4.64:1
+     on the darker paper. --orange follows it because it drives every checkbox. */
+  --orange: #4A6B3A;
+  --amber: #C98A3A;
+  --gold: #4A6B3A;
+  --gold-soft: rgba(74, 107, 58, 0.30);
+  --accent-rgb: 74, 107, 58;
+  /* The balance is the fly agaric's cap, the red that says "mushroom" before any other
+     color does. 5.10:1 on the darker paper and 5.94 on the card it actually sits on,
+     both over the 3.0 its display size needs. A `color:` nowhere else. */
+  --balance-ink: #A5352B;
+  --fiat-sym-opacity: 1;
+  --purple: #38532B;
+  /* Eucalyptus, the blue-green of the plants a forest floor grows under, so the second
+     accent is not a second moss. 4.89:1 on the darker paper. */
+  --lav: #46655E;
+  --add-badge-ink: var(--velvet-1);
+  /* The unread count in the fly agaric's red, with white: 5.94:1. The balance's red a
+     shade brighter, as a cap is in sun. */
+  --badge-bg: #B23A2E;
+  --badge-ink: #FFFFFF;
+  --relax-dot-ok: #2E7D4F;
+  --relax-dot-low: var(--balance-ink);
+
+  --hover-soft: rgba(74, 58, 42, 0.05);
+  --hover-medium: rgba(74, 58, 42, 0.09);
+  --hover-faint: rgba(74, 58, 42, 0.035);
+  --mention-bg: rgba(74, 107, 58, 0.14);
+  --scroll-thumb: linear-gradient(180deg, #B9AA90, #9C8B6E);
+  --scroll-thumb-hover: #85745A;
+
+  /* primary button — deep moss with white: 6.08:1 on the mid stop */
+  --btn-primary-top: #5E8049;
+  --btn-primary-mid: #4A6B3A;
+  --btn-primary-bot: #38532B;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: rgba(56, 83, 43, 0.26);
+
+  /* "Trust this site" — pale lichen, clearly the lesser of the two green buttons */
+  --btn-lav-top: #E6EBDC;
+  --btn-lav-mid: #D5DEC6;
+  --btn-lav-bot: #C1CEAE;
+  --btn-lav-text: #2A2118;
+  --btn-lav-ring: rgba(56, 83, 43, 0.26);
+  --btn-lav-shadow: rgba(56, 83, 43, 0.14);
+
+  --btn-secondary-top: #FFFDF8;
+  --btn-secondary-bot: #EFE7DA;
+
+  --pending-text: #2B4221;
+
+  --btn-accent-top: #5E8049;
+  --btn-accent-mid: #4A6B3A;
+  --btn-accent-bot: #38532B;
+  --btn-accent-text: #FFFFFF;
+
+  /* ink — humus, the dark brown of the soil the threads run through */
+  --text: #2A2118;
+  --text-2: #4A3A2A;
+  --muted: #54483B;
+  --faint: #62554A;
+  --red: #9A2E22;
+
+  --shadow: 0 10px 30px rgba(60, 45, 25, 0.11);
+  --shadow-sm: 0 6px 18px rgba(60, 45, 25, 0.08);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+
+  --pattern-opacity: 1;
+
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(74, 107, 58, 0.20);
+  --card-wash: rgba(74, 107, 58, 0.06);
+  --accent-fill: var(--lav);
+  --chip-ink: #FFFFFF;
+  --glow: var(--lav);
+  --balloon-bg: #38532B;
+  --balloon-bg-hover: #4A6B3A;
+  --balloon-text: #FFFDF8;
+  /* The compose button is a chanterelle cap, humus-dark quill on apricot: 5.76:1. */
+  --fab-bg: #D98A3D;
+  --fab-icon: #2A2118;
+  --float-shadow: rgba(60, 45, 25, 0.18);
+  --float-shadow-strong: rgba(60, 45, 25, 0.26);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="mycelium"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+/* Outgoing transactions in fly-agaric red, off the same palette as --warn. */
+[data-theme="mycelium"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+[data-theme="mycelium"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+/* End in fly-agaric red rather than the moss --accent-fill: the control that stops
+   something should not wear the color of the primary action. */
+[data-theme="mycelium"] .relax-status-x {
+  background: var(--warn);
+  color: #FFFFFF;
+}
+
+/* ---- balance animation: fruiting -------------------------------------------
+   A mushroom is the part of the fungus you see, pushed up out of the ground overnight
+   after the network underneath has been growing for months. So each figure comes up
+   out of the line it stands on: pressed flat against its baseline, it rises and
+   swells a little past its height, the way a cap pushes through leaf litter, and then
+   settles. The origin is the glyph's foot, so nothing moves sideways; the figure
+   only grows, which keeps it readable as soon as it is tall enough to read. */
+@keyframes mycelium-fruit {
+  0% { opacity: 0; transform: scaleY(0.15) scaleX(0.8); }
+  45% { opacity: 1; transform: scaleY(1.08) scaleX(0.97); }
+  70% { transform: scaleY(0.98) scaleX(1.01); }
+  100% { opacity: 1; transform: scale(1); }
+}
+[data-theme="mycelium"] .bal-glyph { display: inline-block; transform-origin: 50% 85%; }
+[data-theme="mycelium"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 270ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: mycelium-fruit 900ms cubic-bezier(0.25, 0.8, 0.3, 1)
+             calc(var(--i) * min(90ms, 270ms / max(var(--n) - 1, 1))) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="mycelium"] .bal-glyph.bal-in { animation: none; }
+}

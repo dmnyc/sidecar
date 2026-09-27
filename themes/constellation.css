@@ -1,0 +1,183 @@
+/* ============================================================
+   Sidecar — Constellation Theme
+   A plate from an engraved star atlas: gold printed from copper onto
+   black paper, the sky drawn as the engravers drew it, with only the
+   brightest stars picked out in white.
+   Groups with the dark themes.
+   ============================================================ */
+
+[data-theme="constellation"] {
+  color-scheme: dark;
+
+  /* Cormorant Garamond — a Garamond cut for display sizes, with hairlines fine enough to
+     pass for copperplate engraving. The first humanist old-style serif among the display
+     faces; see fonts.css. */
+  --font-display: 'Cormorant Garamond', 'Cormorant', Garamond, Georgia, serif;
+
+  /* LINING FIGURES, everywhere this face sets a number. Its default figures are
+     old-style, and in Cormorant those are drawn at lowercase height: a 0 is 0.41em tall
+     against 0.65em for the lining one, so a 40px balance read as a 26px one in any other
+     theme, and 21,000 as a row of small letters. They also sit in the x-height band with
+     tails below the line, so the figure looked low in its box however it was nudged.
+     Set here on the root so it inherits; the rules that set tabular figures of their
+     own restate it below, because naming one numeric value resets the others. */
+  font-variant-numeric: lining-nums;
+
+  /* How far this theme's display face has to move to sit optically centered, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. Measured on lining figures, which is
+     what every surface now sets (above): 84231 wants 0.006em at 40px and none at 24. */
+  --display-ink-nudge: -0.01em;
+
+  /* surfaces — the black of the plate: not neutral, a black with brown in it, the way
+     ink-black paper ages. Metropolis is the nearest neighbour (soot and brass), and the
+     two are kept apart by what is ON the ground more than by the ground itself: an
+     engraved chart of real stars against deco rays, and a pale, slightly greened
+     antique gold here against Metropolis's hot amber brass. */
+  --bg: #0E0C09;
+  --bg-2: #13110D;
+  --velvet-1: #1E1B15;
+  --velvet-2: #16140F;
+  --velvet-1-rgb: 30, 27, 21;
+  --av-from: #252119;
+  --av-to: #16140F;
+  --banner-accent: #252119;
+  --border: rgba(201, 170, 108, 0.16);
+  --border-strong: rgba(201, 170, 108, 0.30);
+  --border-rgb: 201, 170, 108;
+  --well-rgb: 9, 8, 6;
+  /* Betelgeuse, the red supergiant on Orion's shoulder: the one warm star named here. */
+  --warn: #D89A6A;
+  --warn-rgb: 216, 154, 106;
+  --success: #8FB894;
+  --success-rgb: 143, 184, 148;
+
+  /* brand — the engraving gold, which is the whole palette: the plates have gold, black
+     and a few white stars and nothing else, so the theme does not invent a second hue
+     for the accents. --gold is an ink as well as a fill (7.73:1 on the lighter card). */
+  --orange: #C9AA6C;
+  --badge-ink: #16110A;
+  --amber: #E3C98C;
+  --gold: #C9AA6C;
+  --gold-soft: rgba(201, 170, 108, 0.5);
+  --accent-rgb: 201, 170, 108;
+  /* The slot the other dark themes fill with purple takes the gold at its palest, where
+     the engraving is thinnest. 9.70:1 and 11.94:1 on the card. */
+  --purple: #D9C08A;
+  --lav: #E6D6AE;
+  --hover-soft: rgba(201, 170, 108, 0.07);
+  --hover-medium: rgba(201, 170, 108, 0.11);
+  --hover-faint: rgba(201, 170, 108, 0.05);
+  --mention-bg: rgba(201, 170, 108, 0.16);
+  --scroll-thumb: linear-gradient(180deg, #3A3223, #2A251B);
+  --scroll-thumb-hover: #4A402C;
+
+  /* primary button — gold leaf; near-black ink, 8.45:1 on the mid stop */
+  --btn-primary-top: #E3C98C;
+  --btn-primary-mid: #C9AA6C;
+  --btn-primary-bot: #9C8048;
+  --btn-primary-text: #16110A;
+  --btn-shadow: rgba(201, 170, 108, 0.24);
+
+  /* "Trust this site" — the gold at its palest, the way the thinnest engraving prints,
+     so it cannot be mistaken for the gold leaf above it. Near-black label: 13.0:1 on
+     the mid stop. Every stop is set because the defaults are the lavender that the
+     themes without a button of their own fall back to. */
+  --btn-lav-top: #F3E9CF;
+  --btn-lav-mid: #E6D6AE;
+  --btn-lav-bot: #CDB98C;
+  --btn-lav-text: #16110A;
+  --btn-lav-ring: rgba(201, 170, 108, 0.34);
+  --btn-lav-shadow: rgba(201, 170, 108, 0.20);
+
+  /* ink — the white of the brightest stars, warmed to parchment so it never reads as a
+     screen's cold white */
+  --text: #EAE1CC;
+  --text-2: #D2C7AE;
+  --muted: #A89D86;
+  --faint: #7F7663;
+  --red: #DC7B6E;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  --pattern-opacity: 1;
+
+  --input-bg: linear-gradient(180deg, rgba(6, 5, 4, 0.6), rgba(14, 12, 9, 0.6));
+  --focus-ring: rgba(201, 170, 108, 0.18);
+  --card-wash: rgba(201, 170, 108, 0.08);
+}
+
+/* The two display-face rules that set tabular figures of their own. Naming tabular-nums
+   resets the figure style to the face's default, which here is old-style, so each
+   restates lining alongside it. */
+[data-theme="constellation"] .pinned-balance-amt,
+[data-theme="constellation"] .relax-status-time {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* PROSE ON THE CHART IS LETTERED THE WAY A MAP IS: with a halo of the ground round every
+   glyph. Hints, headings and section titles sit straight on the plate, and the plate has
+   stars on it everywhere: gold symbols up to 85% and white points of light. A ceiling on
+   them, which is how Werkstätte and Wabi-sabi protect their text, would have to put
+   every star under 17% to keep --muted at AA where one sits, and the chart would be
+   gone. So the stars stay and the text carries its own ground, the black of the plate,
+   a few pixels deep: nothing behind a glyph's strokes can be brighter than --bg, which
+   is what the contrast floors are measured against.
+   test/theme-svg-assets.test.js checks this rule is here. */
+[data-theme="constellation"] .hint,
+[data-theme="constellation"] .tabview h2,
+[data-theme="constellation"] .tabview h3,
+[data-theme="constellation"] #view-settings > .content > h2,
+[data-theme="constellation"] .settings-section-title {
+  text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 6px var(--bg);
+}
+
+/* Outgoing transactions in Betelgeuse orange, off the same sky as --warn. */
+[data-theme="constellation"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.13);
+}
+[data-theme="constellation"] ::selection {
+  background: rgba(201, 170, 108, 0.26);
+  color: var(--text);
+}
+
+/* ---- balance animation: the stars come out -----------------------------------
+   At dusk the stars do not appear in a row. One shows, then another somewhere else, and
+   each one twinkles as it steadies: the air between it and you bends its light, so it
+   flickers bright and dim a few times before it holds. That scintillation is what makes
+   a point of light read as a star rather than a lamp.
+
+   So the figure comes out of the dark one digit at a time, in a scattered order rather
+   than left to right, and each digit arrives as white starlight, flickers, and settles
+   into the plate's engraving gold. Nothing is drawn round the digits: glints and a
+   stardust scatter were both tried, and the flicker alone reads as stars without them.
+
+   The scatter is a modular scramble of the digit's position (5i + 2, mod 7: a
+   permutation of the first seven slots), so the order is fixed and reproducible, never
+   random between repaints. mod() arrived in Chrome 125, after this extension's floor;
+   the plain sweep declared before it is what an older browser keeps. */
+@keyframes constellation-twinkle {
+  0%   { opacity: 0; color: #F4EEDC; text-shadow: 0 0 0.35em rgba(244, 238, 220, 0.7); }
+  8%   { opacity: 1; }
+  15%  { opacity: 0.3; }
+  23%  { opacity: 1; }
+  31%  { opacity: 0.55; }
+  41%  { opacity: 1; text-shadow: 0 0 0.3em rgba(244, 238, 220, 0.45); }
+  53%  { opacity: 0.78; }
+  65%  { opacity: 1; color: #F4EEDC; }
+  100% { opacity: 1; color: var(--balance-ink); text-shadow: none; }
+}
+[data-theme="constellation"] .bal-glyph { display: inline-block; }
+[data-theme="constellation"] .bal-glyph.bal-in {
+  animation: constellation-twinkle 1300ms linear both;
+  animation-delay: calc(var(--i) * 45ms);
+  animation-delay: calc(mod(var(--i) * 5 + 2, 7) * 55ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="constellation"] .bal-glyph.bal-in { animation: none; }
+}

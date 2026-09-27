@@ -229,3 +229,135 @@ test('the Wabi-sabi seams leave its body inks readable', () => {
     'the seams have to stay solid: translucent seams stack wherever two overlap, and the ' +
     'overlaps read as patches brighter than the seams around them');
 });
+
+// Mycelium's threads run under every hint in Settings, the Werkstätte case again, over a
+// graded loam. The web is solid ink under ONE group opacity, so a crossing is never darker
+// than a single strand: the first cut gave each layer its own alpha, and wherever a braid
+// ran beside its trunk or a hair crossed a strand, the two stacked into a darker patch.
+// This checks that structure holds, then measures a strand over the darkest point of the
+// gradient under it, sampled between stops as well as at them.
+test('the Mycelium web leaves its body inks above AA', () => {
+  const svg = fs.readFileSync(path.join(THEMES, 'mycelium-hyphae.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(THEMES, 'mycelium.css'), 'utf8');
+  const patterns = fs.readFileSync(path.join(THEMES, 'patterns.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from mycelium.css');
+    return m[1];
+  };
+
+  const web = svg.match(/<g id="web">([\s\S]*?)<\/g>\s*<\/defs>/);
+  assert.ok(web, 'could not find the web in the tile');
+  assert.ok(!/opacity=/.test(web[1]),
+    'the web has to be solid inside: an alpha on any one layer stacks wherever it crosses another');
+  const group = svg.match(/<g opacity="([\d.]+)">\s*<use/);
+  assert.ok(group, 'the nine copies of the web have to share one group opacity');
+  const inks = [...new Set([...web[1].matchAll(/(?:fill|stroke)="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]))];
+  assert.ok(inks.length, 'could not read the web ink');
+  const ink = inks.reduce((a, b) => (lum(b) < lum(a) ? b : a));
+
+  const rule = patterns.match(/\[data-theme="mycelium"\] body \{([\s\S]*?)\n\}/);
+  assert.ok(rule, 'could not find the Mycelium body rule in patterns.css');
+  const linear = rule[1].slice(rule[1].indexOf('linear-gradient('));
+  const stops = [...linear.matchAll(/(#[0-9A-Fa-f]{6}|var\(--bg\))\s+\d+%/g)]
+    .map((m) => (m[1] === 'var(--bg)' ? token('bg') : m[1]));
+  assert.ok(stops.length >= 2, 'could not read the loam gradient');
+  let field = stops[0];
+  for (let i = 0; i + 1 < stops.length; i++) {
+    for (let t = 0; t <= 1.0001; t += 0.05) {
+      const px = over(stops[i + 1], stops[i], t);
+      if (lum(px) < lum(field)) field = px;
+    }
+  }
+  // Any translucent wash laid over the loam, at full strength on its darkest point. The
+  // light from the top right only lightens, so it never wins; a shadow would.
+  for (const m of rule[1].matchAll(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/g)) {
+    const hex = '#' + [1, 2, 3].map((i) => Number(m[i]).toString(16).padStart(2, '0')).join('');
+    const px = over(hex, field, parseFloat(m[4]));
+    if (lum(px) < lum(field)) field = px;
+  }
+
+  const darkest = over(ink, field, parseFloat(group[1]));
+  for (const name of ['muted', 'faint']) {
+    const r = ratio(token(name), darkest);
+    assert.ok(r >= 4.5, `--${name} is ${r.toFixed(2)} on a strand over the deepest loam (${darkest}), under AA.`);
+  }
+});
+
+// Constellation cannot protect its prose the way the fields above do, by capping them.
+// Its stars are the point of the plate, gold symbols up to 85% and white points of light,
+// and a ceiling that kept --muted at AA over them would put every star under 17%. So the
+// theme letters its prose the way a map is lettered, with a halo of the ground round every
+// glyph. This checks the halo is there, covers the prose that sits on the chart, and is
+// made of --bg, the color the contrast floors are measured against, in every layer.
+test('Constellation haloes the prose that sits on its chart', () => {
+  const css = fs.readFileSync(path.join(THEMES, 'constellation.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .find((m) => /text-shadow:/.test(m[2]) && /\.hint\b/.test(m[1]));
+  assert.ok(rule, 'no text-shadow rule for .hint in constellation.css: prose on the chart has no halo');
+  const selectors = rule[1].split(',').map((s) => s.trim().replace(/^\[data-theme="constellation"\]\s*/, ''));
+  for (const sel of ['.hint', '.tabview h2', '.tabview h3']) {
+    assert.ok(selectors.includes(sel), `${sel} sits on the chart and is missing from the halo rule`);
+  }
+  const shadow = rule[2].match(/text-shadow:\s*([^;]+);/)[1];
+  const layers = shadow.split(/,(?![^(]*\))/).map((s) => s.trim());
+  assert.ok(layers.length >= 2, 'one blurred layer is too thin to hide a star behind a glyph');
+  for (const layer of layers) {
+    assert.ok(/var\(--bg\)/.test(layer), `halo layer "${layer}" is not made of --bg`);
+  }
+});
+
+// Film Noir's field is a close-up of a 35mm print (scripts/gen-film-noir-film.py), and
+// every hint in Settings sits straight on it. The print is aged by darkening, so the
+// only light marks are the lip under each perforation, the dust and scratches, and the
+// grain; this stacks the strongest of each on the brightest film fill, which is a pixel
+// the panel rarely contains but the one that bounds all the rest. It also holds the two
+// structural promises the generator makes: the perforations are punched darker than the
+// film, and everything in the emulsion except the grain is black.
+test('the Film Noir film leaves its hints readable', () => {
+  const read = (f) => fs.readFileSync(path.join(THEMES, f), 'utf8');
+  const frames = read('film-noir-frames.svg');
+  const emulsion = read('film-noir-emulsion.svg');
+  const damage = read('film-noir-damage.svg');
+  const css = read('film-noir.css');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from film-noir.css');
+    return m[1];
+  };
+
+  const fills = [...frames.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
+  assert.ok(fills.length >= 3, 'could not read the film, window and perforation fills');
+  const film = fills.reduce((a, b) => (lum(b) > lum(a) ? b : a));
+  const hole = frames.match(/<g fill="(#[0-9A-Fa-f]{6})">\s*<rect/);
+  assert.ok(hole && lum(hole[1]) < lum(film),
+    'the perforations have to be darker than the film: a hint over a lit one loses contrast');
+
+  const alphas = (src) => [...src.matchAll(/(?:stroke|fill)-opacity="([\d.]+)"/g)].map((m) => parseFloat(m[1]));
+  const lip = Math.max(...alphas(frames));
+  const dust = Math.max(...alphas(damage));
+
+  // The grain's strength is its group opacity times the most its color matrix can put in
+  // the alpha channel: the sum of the row's positive weights plus its offset.
+  const grainGroup = emulsion.match(/<g id="grain" opacity="([\d.]+)">/);
+  const grainFilter = emulsion.match(/<filter id="grain"[\s\S]*?values="([^"]*)"/);
+  assert.ok(grainGroup && grainFilter, 'could not read the grain layer from the emulsion');
+  const row = grainFilter[1].trim().split(/\s+/).map(Number).slice(15, 20);
+  const grainMax = Math.min(1, Math.max(0, row.slice(0, 4).reduce((s, v) => s + Math.max(0, v), 0) + row[4]));
+  const grain = parseFloat(grainGroup[1]) * grainMax;
+
+  const outside = emulsion.replace(/<defs>[\s\S]*?<\/defs>/, '').replace(/<g id="grain"[\s\S]*?<\/g>/, '');
+  for (const m of outside.matchAll(/(?:fill|stroke)="(#[0-9A-Fa-f]{6})"/g)) {
+    assert.equal(m[1].toLowerCase(), '#000000',
+      `the emulsion lightens with ${m[1]}: everything that ages the print has to darken it`);
+  }
+
+  const brightest = over('#ffffff', over('#ffffff', over('#ffffff', film, lip), dust), grain);
+  for (const [name, floor] of [['muted', 4.5], ['faint', 3]]) {
+    const r = ratio(token(name), brightest);
+    assert.ok(r >= floor,
+      `--${name} is ${r.toFixed(2)} on the brightest pixel the film can make (${brightest}), ` +
+      `under ${floor}. The damage and grain alphas are a measured ceiling.`);
+  }
+});

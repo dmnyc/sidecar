@@ -45,7 +45,9 @@
     bal.textContent = '';
     for (var i = 0; i < FIG.length; i++) {
       var s = document.createElement('span');
-      s.className = 'bal-glyph' + (animate ? ' bal-in' : '');
+      // .bal-alt as splitGlyphs publishes it: every second glyph, which Bauhaus's
+      // alternating drop and rise keys on.
+      s.className = 'bal-glyph' + (i % 2 ? ' bal-alt' : '') + (animate ? ' bal-in' : '');
       s.style.display = 'inline-block';
       s.style.setProperty('--i', i);
       s.style.setProperty('--n', FIG.length);

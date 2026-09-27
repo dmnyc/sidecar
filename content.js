@@ -597,7 +597,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -662,25 +662,29 @@
         CARD_SUCCESS: 'color:#6ee7a8',
         CARD_PAY_SHADOW: 'rgba(221,111,35,0.36)'
       },
+      /* Film Noir — black and white: the page-side card follows the panel's grayscale,
+         white pay button and all, and the logo keeps its colors, as it does in the panel.
+         CARD_GOLD is the amount slot and takes the balance's near-white. Mirrors
+         themes/film-noir.css. */
       'film-noir': {
         CARD_COLOR: 'color:#e0e0e0',
         CARD_BORDER: 'rgba(192,192,192,0.30)',
-        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(192,192,192,0.12),transparent 58%),linear-gradient(165deg,#1a1a1a,#0a0a0a)',
-        CARD_MUTED: 'color:#909090',
-        CARD_GOLD: 'color:#c0c0c0',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(255,255,255,0.06),transparent 58%),linear-gradient(165deg,#1e1e1e,#0a0a0a)',
+        CARD_MUTED: 'color:#a0a0a0',
+        CARD_GOLD: 'color:#f5f5f5',
         CARD_TEXT_2: 'color:#c0c0c0',
         CARD_LAV: '#e0e0e0',
-        CARD_PAY_TEXT: 'color:#1a1a1a',
-        CARD_PAY_BG: 'linear-gradient(180deg,#b8b8b8,#a0a0a0 52%,#808080)',
+        CARD_PAY_TEXT: 'color:#0a0a0a',
+        CARD_PAY_BG: 'linear-gradient(180deg,#ffffff,#e4e4e4 52%,#b8b8b8)',
         CARD_CANCEL_BG: 'rgba(192,192,192,0.10)',
         CARD_TEXT: '#e0e0e0',
         CARD_BORDER_FAINT: 'rgba(192,192,192,0.12)',
         CARD_TOGGLE_OFF: 'rgba(192,192,192,0.20)',
         CARD_TRACK: '#c0c0c0',
-        CARD_THUMB_OFF: '#909090',
-        CARD_WARN: 'color:#ffb38a',
-        CARD_SUCCESS: 'color:#6ee7a8',
-        CARD_PAY_SHADOW: 'rgba(160,160,160,0.36)'
+        CARD_THUMB_OFF: '#a0a0a0',
+        CARD_WARN: 'color:#d0d0d0',
+        CARD_SUCCESS: 'color:#b0b0b0',
+        CARD_PAY_SHADOW: 'rgba(255,255,255,0.14)'
       },
       'industria': {
         CARD_COLOR: 'color:#2a2a2a',
@@ -997,6 +1001,56 @@
         CARD_WARN: 'color:#963D19',
         CARD_SUCCESS: 'color:#37603A',
         CARD_PAY_SHADOW: 'rgba(29,70,116,0.28)'
+      },
+      /* Constellation — gold engraved on black, the brightest stars in white. Mirrors
+         themes/constellation.css. The pay button is the gold leaf of the panel's primary
+         with near-black ink, as the other dark themes do on a metallic fill. The plates
+         have one hue, so CARD_LAV is that gold at its palest rather than a second color. */
+      constellation: {
+        CARD_COLOR: 'color:#EAE1CC',
+        CARD_BORDER: 'rgba(201,170,108,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(201,170,108,0.10),transparent 58%),linear-gradient(165deg,#1E1B15,#0E0C09)',
+        CARD_MUTED: 'color:#A89D86',
+        CARD_GOLD: 'color:#C9AA6C',
+        CARD_TEXT_2: 'color:#D2C7AE',
+        CARD_LAV: '#E6D6AE',
+        CARD_PAY_TEXT: 'color:#16110A',
+        CARD_PAY_BG: 'linear-gradient(180deg,#E3C98C,#C9AA6C 52%,#9C8048)',
+        CARD_CANCEL_BG: 'rgba(201,170,108,0.10)',
+        CARD_TEXT: '#EAE1CC',
+        CARD_BORDER_FAINT: 'rgba(201,170,108,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(201,170,108,0.22)',
+        CARD_TRACK: '#C9AA6C',
+        CARD_THUMB_OFF: '#A89D86',
+        CARD_WARN: 'color:#D89A6A',
+        CARD_SUCCESS: 'color:#8FB894',
+        CARD_PAY_SHADOW: 'rgba(201,170,108,0.24)'
+      },
+      /* Mycelium — oat, moss, and the fly agaric. Mirrors themes/mycelium.css.
+         CARD_GOLD is the amount slot and takes --balance-ink, the fly agaric's red,
+         like the bauhaus, par-avion and ukiyo-e entries; 42px/800 is large text and it
+         measures 5.94 on the card's lower stop against a floor of 3.0. The pay button is
+         the moss primary with white. CARD_TRACK is the lighter moss so the shared
+         near-black toggle thumb still shows on it. */
+      mycelium: {
+        CARD_COLOR: 'color:#2A2118',
+        CARD_BORDER: 'rgba(74,58,42,0.28)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(74,107,58,0.08),transparent 58%),linear-gradient(165deg,#FFFDF8,#F7F1E6)',
+        CARD_MUTED: 'color:#54483B',
+        CARD_GOLD: 'color:#A5352B',
+        CARD_TEXT_2: 'color:#4A3A2A',
+        CARD_LAV: '#46655E',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#5E8049,#4A6B3A 52%,#38532B)',
+        CARD_CANCEL_BG: 'rgba(74,107,58,0.10)',
+        CARD_TEXT: '#2A2118',
+        CARD_BORDER_FAINT: 'rgba(74,58,42,0.15)',
+        CARD_TOGGLE_OFF: 'rgba(74,58,42,0.25)',
+        CARD_TRACK: '#7E9E68',
+        CARD_THUMB_OFF: '#54483B',
+        CARD_WARN: 'color:#A33A2A',
+        CARD_SUCCESS: 'color:#2E6B4F',
+        CARD_PAY_SHADOW: 'rgba(56,83,43,0.26)'
       }
     };
 
@@ -1058,7 +1112,10 @@
       // fallback if showPopover throws.
       host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;border:0;background:transparent;';
       const root = host.attachShadow({ mode: 'open' });
-      const stroke = Math.random() > 0.5 ? '#ffd479' : '#ffb457'; // bright gold / amber
+      // Bright gold or amber, or in Film Noir, whose card is black and white, the white
+      // of the flash itself.
+      const monoBolt = cardTheme === 'film-noir';
+      const stroke = monoBolt ? '#ffffff' : Math.random() > 0.5 ? '#ffd479' : '#ffb457';
       const style = document.createElement('style');
       style.textContent =
         ':host{position:fixed;inset:0;pointer-events:none}' +
@@ -1082,7 +1139,8 @@
       // bolt reads as luminous on a light page too, where a single thin gold stroke
       // was getting lost.
       svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;' +
-        'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px rgba(255,180,87,.85))');
+        'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px ' +
+        (monoBolt ? 'rgba(255,255,255,.7)' : 'rgba(255,180,87,.85)') + ')');
       const width = (2.4 + Math.random() * 2.4).toFixed(1);
       // An under-stroke in near-white, slightly wider, gives the bolt a hot center
       // instead of a flat line — the thing that made it look dim before.
@@ -1280,7 +1338,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

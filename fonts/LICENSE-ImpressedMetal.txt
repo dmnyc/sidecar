@@ -15,4 +15,4 @@ Notes kept on the record:
   dafont's 100% Free classification has stood since 2005. Recorded rather than
   silently ignored so a reviewer can see the question was asked.
 - The face is redistributed unmodified and unrenamed (whole original, per the
-  same practice as Rowdies/Apogee Telemetry).
+  same practice as Rowdies/Nixie Gothic).

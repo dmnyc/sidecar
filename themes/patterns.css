@@ -15,26 +15,31 @@ body {
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
-/* Film Noir — vertical stripes of alternating opacity: light through a venetian blind,
-   which is the genre's own signature and reads as nothing else in the set.
-   This replaces a Victorian filigree tile (victorian-noir.png), which was ornament
-   borrowed from the same century as Brownstone rather than from noir itself.
-   No image at all now — it is one repeating-linear-gradient, so the stripes are
-   resolution-independent and cost nothing to ship. The png is left in the repo but is
-   no longer referenced by anything; see the note in the session if it should go.
-   36px pitch: at panel width that is about a dozen bands, wide enough to read as slats
-   rather than as corduroy. The light band is 3.2% white — enough to see against #0a0a0a,
-   low enough that body text over it never changes contrast measurably. The top light
-   and base gradient are unchanged; they are what make the field read as one hard light
-   source, which is the other half of the reference. */
+/* Film Noir — a close-up of a 35mm print: the frame at the panel's width, four
+   perforations down each side of it, the frame line under it, and the print aged over
+   all of it (themes/film-noir-*.svg, from scripts/gen-film-noir-film.py). Four layers,
+   top down:
+     damage    rain, scratches, dust and hairs, faint white, on a tall tile so no
+               scratch lines up with the frame it crosses
+     emulsion  uneven density, burns and grain, on a square tile; darkens, apart from
+               the grain
+     vignette  the edge of the projector's light
+     frames    the film itself, scaled to the panel's width so one frame always spans it
+   Everything that ages the print darkens it, because on a black field lightening is
+   what spends the hints' contrast; the dust, scratches and grain are the only light
+   marks, and test/theme-svg-assets.test.js measures the brightest pixel they can make.
+   The venetian-blind stripes this replaces were one repeating gradient, and the
+   Victorian filigree before them (victorian-noir.png) is still in the repo unreferenced. */
 [data-theme="film-noir"] body {
+  background-color: #0b0b0b;
   background-image:
-    repeating-linear-gradient(90deg,
-      rgba(255, 255, 255, 0.032) 0 18px,
-      transparent 18px 36px),
-    radial-gradient(900px 380px at 50% -10%, rgba(140, 140, 140, 0.045), transparent 60%),
-    linear-gradient(180deg, #0c0c0c 0%, var(--bg) 45%);
-  background-position: center, 0% 0%, 0% 0%;
+    url(film-noir-damage.svg),
+    url(film-noir-emulsion.svg),
+    radial-gradient(130% 95% at 50% 45%, transparent 60%, rgba(0, 0, 0, 0.4) 100%),
+    url(film-noir-frames.svg);
+  background-size: 420px 1100px, 480px 480px, auto, 100% auto;
+  background-position: center top, 0 0, 0 0, center top;
+  background-repeat: repeat, repeat, no-repeat, repeat-y;
 }
 
 /* Art Deco — Geometric sunburst/fan */
@@ -451,4 +456,51 @@ body {
   background-size: auto, 112px 56px, auto;
   background-position: 0% 0%, top left, 0% 0%;
   background-repeat: no-repeat, repeat, no-repeat;
+}
+
+/* Constellation — a plate from an engraved star atlas in gold on black, one of four: the
+   evening sky of the season, drawn from real star positions and the traditional figure
+   lines by scripts/gen-constellation-mycelium.py (themes/constellation-sky-*.svg).
+   sky-plate.js marks the document with the season's plate as a page loads, and the
+   custom property below picks the file; a page without the mark gets winter's Orion.
+   The property and the url() it holds are both in this sheet, so the file name resolves
+   against themes/ in every browser, whichever stylesheet a browser resolves it from. Laid once and
+   sized to COVER the panel: a tall sheet, so at the usual panel shape it fits the width
+   exactly, and in a taller panel it scales up a little and crops at the sides rather
+   than stopping short of the bottom. It was fitted to the width and left black under
+   the chart in any panel more than twice as tall as it is wide. NOT tiled:
+   constellations are shapes people know, and Orion twice in one screen would give the
+   repeat away. Behind it, the faintest lift toward the top, as paper under a lamp. */
+[data-theme="constellation"] { --sky-plate: url(constellation-sky-orion.svg); }
+[data-theme="constellation"][data-sky="leo"] { --sky-plate: url(constellation-sky-leo.svg); }
+[data-theme="constellation"][data-sky="cygnus"] { --sky-plate: url(constellation-sky-cygnus.svg); }
+[data-theme="constellation"][data-sky="andromeda"] { --sky-plate: url(constellation-sky-andromeda.svg); }
+[data-theme="constellation"] body {
+  background-image:
+    var(--sky-plate),
+    radial-gradient(900px 600px at 50% 20%, rgba(201, 170, 108, 0.05), transparent 65%),
+    linear-gradient(180deg, #13110D 0%, var(--bg) 60%);
+  background-size: cover, auto, auto;
+  background-position: top center, 0% 0%, 0% 0%;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+}
+
+/* Mycelium — a mycelial network in sepia over oat-colored loam, after a pen drawing:
+   knots joined by uneven strands that fuse into cells, with hairline hyphae fraying off
+   everything (themes/mycelium-hyphae.svg, from scripts/gen-constellation-mycelium.py).
+   Tiled at 520px, the size it was drawn at.
+   Under it the loam is graded, so the field is not flat: light pooling in from the top
+   right, the way it comes down through leaves, and the ground deepening toward the foot
+   of the panel. The deepest point and the web's opacity share one contrast budget,
+   because prose sits straight on this field: #E7DCC9 at the foot with the web at 11% is
+   where --faint still clears 4.5, and test/theme-svg-assets.test.js measures exactly
+   that pixel. */
+[data-theme="mycelium"] body {
+  background-image:
+    url(mycelium-hyphae.svg),
+    radial-gradient(820px 520px at 85% -8%, rgba(255, 251, 240, 0.85), transparent 62%),
+    linear-gradient(180deg, #F8F2E8 0%, var(--bg) 40%, #E7DCC9 100%);
+  background-size: 520px, auto, auto;
+  background-position: center, 0% 0%, 0% 0%;
+  background-repeat: repeat, no-repeat, no-repeat;
 }

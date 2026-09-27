@@ -98,7 +98,7 @@ test('pulls the identifier out of a pasted client URL', () => {
 });
 
 test('returns null for things that are not identifiers', () => {
-  for (const junk of ['', '   ', 'hello world', 'jack', 'daniel@resolvr.io', 'nostr:', null, undefined]) {
+  for (const junk of ['', '   ', 'hello world', 'jack', 'someone@example.org', 'nostr:', null, undefined]) {
     assert.equal(extractEntity(junk), null, JSON.stringify(junk) + ' should not parse');
   }
 });
@@ -114,7 +114,7 @@ test('stops at characters outside the bech32 alphabet', () => {
 });
 
 test('NIP05_RE accepts addresses and bare domains, rejects the rest', () => {
-  for (const ok of ['daniel@resolvr.io', 'resolvr.io', '_@example.com', 'a.b@sub.domain.co.uk']) {
+  for (const ok of ['someone@example.org', 'example.org', '_@example.com', 'a.b@sub.domain.co.uk']) {
     assert.ok(NIP05_RE.test(ok), ok + ' should be treated as NIP-05');
   }
   for (const bad of ['hello world', 'not@a', '@x.io', 'plainword', 'a@b@c.io']) {
