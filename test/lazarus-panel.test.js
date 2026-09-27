@@ -829,3 +829,23 @@ test('SCREENS: THE RESTORE ICON NEVER OPENS ITS ROW', async () => {
   assert.ok(recRow().querySelectorAll('recovery-relays')[0].classList.contains('hidden'),
     'a click that bubbled to the head would have opened the row behind the confirm screen');
 });
+
+test('SCREENS: UNCOUNTABLE VERSIONS ARE CALLED OUT, AND AN UNCOUNTABLE CURRENT IS NOT "NO IMPROVEMENT"', async () => {
+  // Spec 0.6.2 leaves a version of unknown size out of the ranking, so the answer
+  // rests on the others; the partially-counted marker exists to warn of that.
+  const mute = (tags, content, at) => signed(10000, tags, { content, at });
+  const skipped = modalHarness({ configured: [C] });
+  skipped.set(C, { mode: 'eose', events: [listEvent([['r', W]])] });
+  skipped.set(W, { mode: 'eose', events: [mute(follows(5), '', 1_700_100_300), mute(follows(5, 50), 'garbage', 1_700_100_200), mute(follows(6), '', 1_700_100_100)] });
+  await scanTo(skipped, 'Mute list');
+  assert.match(skipped.modal.textContent, /Versions that couldn’t be counted were left out, so this may be wrong\./);
+  assert.match(skipped.modal.textContent, /No recoverable improvement found/);
+
+  const unknown = modalHarness({ configured: [C] });
+  unknown.set(C, { mode: 'eose', events: [listEvent([['r', W]])] });
+  unknown.set(W, { mode: 'eose', events: [mute(follows(2), 'garbage', 1_700_100_300), mute(follows(60), '', 1_700_100_100)] });
+  await scanTo(unknown, 'Mute list');
+  assert.match(unknown.modal.textContent, /Your current version couldn’t be counted, so nothing is recommended\./);
+  assert.doesNotMatch(unknown.modal.textContent, /No recoverable improvement found/, 'unknown is not the same answer as none');
+  assert.doesNotMatch(unknown.modal.textContent, /were left out/, 'one warning, not two');
+});
