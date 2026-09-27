@@ -261,7 +261,12 @@
   // a notification landed a moment later, and the quote was swapped for a different one
   // at the bottom of the list before it had been read. A quote you cannot finish reading
   // is worse than no quote.
+  //
+  // With literary quotes turned off (Settings → Appearance), each of the three keeps what
+  // it is FOR and drops the furniture: the empty state keeps its hint, the waiting state
+  // its spinner row, and the end of a list says nothing further.
   function emptyQuote(hint, q) {
+    if (!showQuotes) return h('div', { className: 'bm-empty' }, [h('p', { className: 'hint', textContent: hint || '' })]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
       h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
@@ -275,6 +280,8 @@
   // Takes the same optional quote, so a list that began empty ends on the line it started
   // with rather than on a new one.
   function endQuote(q) {
+    // An element, never null: callers append the result, and append(null) writes "null".
+    if (!showQuotes) return h('span');
     q = q || pickQuote();
     return h('div', { className: 'bm-empty bm-end' }, [
       h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
@@ -304,6 +311,7 @@
   }
 
   function loadingQuote(label, q) {
+    if (!showQuotes) return h('div', { className: 'bm-empty' }, [waitingRow(label)]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
       h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
@@ -727,6 +735,11 @@
   // turning motion down system-wide (which the theme files already honor on their
   // own, via prefers-reduced-motion).
   let reduceBalanceMotion = false;
+  // Settings → Appearance → On this day. On unless turned off, stored as an explicit
+  // false so the default stays on.
+  let showOnThisDay = true;
+  // Settings → Appearance → Literary quotes. Same shape: on unless turned off.
+  let showQuotes = true;
   let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
@@ -1031,6 +1044,8 @@
     autoHideBalances = !!(settings && settings.autoHideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
     reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
+    showOnThisDay = !(settings && settings.onThisDay === false);
+    showQuotes = !(settings && settings.literaryQuotes === false);
     // Default ON. It sorts rather than hides, so the failure mode of being wrong is a
     // collapsed group you expand, not a reply you never see.
     notifWotFilter = !(settings && settings.notifWotFilter === false);
@@ -7476,7 +7491,7 @@
   function renderOnThisDay() {
     const host = $('otd');
     if (!host) return;
-    const entry = pickOnThisDay(null, state.activePubkey);
+    const entry = showOnThisDay ? pickOnThisDay(null, state.activePubkey) : null;
     if (!entry) { host.textContent = ''; hide(host); return; }
 
     const share = h('button', { className: 'otd-share', type: 'button', title: 'Post this' }, [icon('share')]);
@@ -8021,9 +8036,9 @@
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
             relayBlock.title =
-              'NIP-65 only is on for this account, but it has no published relay list — ' +
-              'it can’t publish. Publish a relay list from the Profile tab, or turn the ' +
-              'setting off in Settings.';
+              'Bootstrap relays are off for this account, but it has no published relay list, ' +
+              'so it can’t publish. Publish a relay list from the Profile tab, or turn ' +
+              'bootstrap relays back on in Settings.';
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
             // keeps the number honest instead of silently reporting a different set.
@@ -9733,6 +9748,8 @@
     const rebuildRow = document.querySelector('.wot-actions');
     if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
     $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
+    $('otd-toggle').checked = settings.onThisDay !== false; // default on
+    $('quotes-toggle').checked = settings.literaryQuotes !== false; // default on
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
     if (fiatSel && !fiatSel.options.length) {
@@ -9746,7 +9763,8 @@
     // Per account: reflects the ACTIVE account, and the label below names it so the
     // scope is unmistakable when more than one account exists.
     const nip65Only = await nip65OnlyFor(state.activePubkey);
-    $('nip65-only-toggle').checked = nip65Only;
+    $('bootstrap-toggle').checked = !nip65Only;
+    $('edit-nip65-btn').disabled = !state.activePubkey;
     const relayBody = $('relay-section-body');
     if (relayBody) relayBody.classList.toggle('dimmed', nip65Only);
     const nip65Scope = $('nip65-only-scope');
@@ -10597,7 +10615,15 @@
     if (fav) row.insertBefore(fav, row.firstChild);
   }
 
+  // Set by Settings → Relays → Edit relay list; consumed by the next renderProfile.
+  let scrollToNip65OnRender = false;
+
   async function renderProfile() {
+    // Taken at the start, not the end: a render that fails before reaching the relay
+    // block would otherwise leave the flag set, and the next ordinary visit to Profile
+    // would jump to Relays for no reason the user could see.
+    const scrollNip65 = scrollToNip65OnRender;
+    scrollToNip65OnRender = false;
     const view = $('profile-view');
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
     view.innerHTML = '';
@@ -10785,6 +10811,10 @@
 
     renderNip65Section(view, active);
     renderRecoverySection(view, active);
+    if (scrollNip65) {
+      const block = view.querySelector('.nip65-setting');
+      if (block) block.scrollIntoView({ block: 'start' });
+    }
   }
 
   // If the connected wallet advertises a lightning address (NWC lud16) that
@@ -15729,7 +15759,7 @@
     } else if (list.state === 'none' || !list.write.length) {
       const why = list.state === 'none' ? 'You have no relay list' : 'Your relay list names no write relays';
       if (scan.nip65Only) {
-        scan.listNote = why + ', and NIP-65 only is on, so no relay can confirm your current version.';
+        scan.listNote = why + ', and bootstrap relays are off, so no relay can confirm your current version.';
       } else {
         let fallback = [];
         try { fallback = await relayUrls(true); } catch (_) {}
@@ -16364,7 +16394,7 @@
         // NIP-65 only on, the write set is the only place this account publishes.
         const targets = scan.nip65Only ? judges : lazarusRelaySet([...judges, ...scan.answeredRelays]);
         if (!targets.length) {
-          throw new Error('No relay to publish to: NIP-65 only is on and no write relay is known.');
+          throw new Error('No relay to publish to: bootstrap relays are off and no write relay is known.');
         }
         busy = lazarusPublish(targets, signed, judges);
         let pub;
@@ -20051,6 +20081,19 @@
     restrikeBalances();
   });
 
+  $('otd-toggle').addEventListener('change', async (e) => {
+    showOnThisDay = e.target.checked;
+    renderOnThisDay();
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { onThisDay: e.target.checked } });
+  });
+
+  // Takes effect the next time a list draws; nothing on screen behind Settings has one
+  // worth redrawing for.
+  $('quotes-toggle').addEventListener('change', async (e) => {
+    showQuotes = e.target.checked;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { literaryQuotes: e.target.checked } });
+  });
+
   $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));
 
   // One switch covers both bolts: the in-panel one (payments started here) and the
@@ -20063,12 +20106,27 @@
     if (zapFlash) lightningStrike();
   });
 
-  // NIP-65 only — exclude Sidecar's configured relays from reads and publishes
-  // once the account has a declared relay list. The configured set still seeds
-  // the initial NIP-65 fetch; this toggle governs everything after that.
-  $('nip65-only-toggle').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: e.target.checked });
-    $('relay-section-body')?.classList.toggle('dimmed', e.target.checked);
+  // Use bootstrap relays — OFF is NIP-65 only: exclude Sidecar's configured relays
+  // from reads and publishes once the account has a declared relay list. The
+  // configured set still seeds the initial NIP-65 fetch; this toggle governs
+  // everything after that. The switch reads the inverse of what is stored.
+  $('bootstrap-toggle').addEventListener('change', async (e) => {
+    const nip65Only = !e.target.checked;
+    await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: nip65Only });
+    $('relay-section-body')?.classList.toggle('dimmed', nip65Only);
+  });
+
+  // Settings → Relays → Edit relay list. The editor is the Relays block on the
+  // Profile tab; land on it rather than at the top of the profile, where it is a
+  // long scroll below the fold. renderProfile is async (it waits on the kind:0),
+  // so the scroll is left as a flag for it to act on once the block exists.
+  $('edit-nip65-btn').addEventListener('click', () => {
+    const tab = document.querySelector('.tab[data-tab="profile"]');
+    if (!tab || tab.disabled) return;
+    scrollToNip65OnRender = true;
+    hide($('view-settings'));
+    show($('view-main'));
+    tab.click();
   });
 
   // Pinned balance bar — left: Send/Receive (wallet modals); right: hide balances

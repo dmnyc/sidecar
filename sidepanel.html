@@ -434,6 +434,18 @@
             <label class="toggle-row"><input type="checkbox" id="reducemotion-toggle" /> <span>Turn off Sidecar's animations</span></label>
           </div>
 
+          <div class="setting">
+            <h3>On this day</h3>
+            <p class="hint">A line of history at the foot of the Accounts tab.</p>
+            <label class="toggle-row"><input type="checkbox" id="otd-toggle" /> <span>Show On this day</span></label>
+          </div>
+
+          <div class="setting">
+            <h3>Literary quotes</h3>
+            <p class="hint">A line from a book in empty lists and while they load.</p>
+            <label class="toggle-row"><input type="checkbox" id="quotes-toggle" /> <span>Show literary quotes</span></label>
+          </div>
+
         </div>
       </section>
 
@@ -662,19 +674,32 @@
         </h3>
         <div class="settings-section-body" id="section-body-relays">
 
+          <!-- The relay list people actually publish lives on the Profile tab, not here.
+               Someone who opens Relays looking for it would otherwise find only the
+               bootstrap set and assume that is their list. -->
+          <div class="setting">
+            <h3>Your relay list</h3>
+            <p class="hint">Your public relay list (NIP-65) is edited on your Profile.</p>
+            <button class="secondary" id="edit-nip65-btn">Edit relay list</button>
+          </div>
+
           <div class="setting">
             <h3>Bootstrap relays</h3>
             <p class="hint">Used to find your relay list, and as a fallback if it cannot be reached.</p>
             <!-- The exceptions, true but not what a reader of this screen needs: the discovery
                  fetch still queries these once a session to find the account's own relay
                  list, and getRelays() still reports the bootstrap set to sites regardless. -->
-            <p class="hint">Per account. When on, these relays are only used to find that account's relay list.</p>
+            <p class="hint">Per account. When off, these relays are only used to find that account's relay list.</p>
+            <!-- ON = bootstrap relays in use, the way every other switch here reads: on means
+                 the thing it names is active, and the list below dims when it is off. Stored
+                 inverted, as nip65OnlyBy, which is what the relay code reads; only this
+                 control flips it. -->
             <label class="switch-label">
               <!-- Per account: the scope span names the active account, so with more than
                    one it's clear this isn't a global switch. -->
-              <span>NIP-65 only <span class="switch-scope" id="nip65-only-scope"></span></span>
+              <span>Use bootstrap relays <span class="switch-scope" id="nip65-only-scope"></span></span>
               <span class="switch">
-                <input type="checkbox" id="nip65-only-toggle" />
+                <input type="checkbox" id="bootstrap-toggle" />
                 <span class="switch-track"></span>
               </span>
             </label>
@@ -737,26 +762,6 @@
         </div>
       </section>
 
-      <section class="settings-section" data-section="developer">
-        <h3 class="settings-section-title">
-          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-developer">Developer</button>
-        </h3>
-        <div class="settings-section-body" id="section-body-developer">
-
-          <!-- Kept as its own section because its visibility toggles whole-block on store
-               builds (initDevBadge); folded into Sharing & updates instead, non-dev users
-               would see a section that never opens onto anything. Synced away entirely
-               by syncSettingsSectionVisibility. The data-section key stays "about" — it
-               is also the storage map's key, and the label is the only thing that moved. -->
-          <div class="setting hidden" id="dev-settings-section">
-            <h3>Developer</h3>
-            <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
-            <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
-          </div>
-
-        </div>
-      </section>
-
       <section class="settings-section" data-section="about">
         <h3 class="settings-section-title">
           <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-about">Sharing &amp; updates</button>
@@ -775,6 +780,26 @@
             <a href="#" id="whats-new-link" class="whats-new-link">What&#8217;s new in this version &rarr;</a>
             <button class="secondary" id="check-update-btn">Check for updates</button>
             <p class="hint" id="check-update-status"></p>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="settings-section" data-section="developer">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-developer">Developer</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-developer">
+
+          <!-- Kept as its own section because its visibility toggles whole-block on store
+               builds (initDevBadge); folded into Sharing & updates instead, non-dev users
+               would see a section that never opens onto anything. Synced away entirely
+               by syncSettingsSectionVisibility. The data-section key stays "about" — it
+               is also the storage map's key, and the label is the only thing that moved. -->
+          <div class="setting hidden" id="dev-settings-section">
+            <h3>Developer</h3>
+            <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
+            <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
           </div>
 
         </div>
