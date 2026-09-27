@@ -3505,6 +3505,37 @@
   // onauth goes last, so a caller cannot widen it.
   const poolSubscribe = (relays, filters, params) => getPool().subscribe(relays, filters, Object.assign({}, params, { onauth: relays.every((u) => authRelays.has(normalizeRelay(u))) ? signRelayAuth : undefined }));
 
+  // querySync, plus whether ANY relay actually answered.
+  //
+  // querySync resolves with an empty list in three very different situations: the relays
+  // answered and have nothing, every connection failed (offline, DNS, refused), or every
+  // relay turned the REQ away. Callers that turn an empty answer into a claim ("Not set",
+  // "no relay list") need to tell the first apart from the other two, and the backstop
+  // timers they raced against never fired: offline, every connection fails in
+  // milliseconds and querySync resolves [] long before any backstop.
+  //
+  // The pool reports why each relay closed. A relay that connected and reached EOSE is
+  // closed by subscribeEose with EOSE_CLOSE; a failed connection closes with its error, a
+  // refusal with the relay's CLOSED reason. So `answered` means at least one relay got as
+  // far as EOSE.
+  //
+  // Known gap: a relay that connects and then says nothing gets a synthetic EOSE from its
+  // own eoseTimeout (maxWait), which is indistinguishable here from a real empty answer.
+  // Catching that means going below the pool, past the auth wrappers.
+  const EOSE_CLOSE = 'closed automatically on eose'; // nostr-tools subscribeEose's reason
+  function poolQueryAnswered(relays, filter, params) {
+    return new Promise((resolve) => {
+      const events = [];
+      poolSubscribeManyEose(relays, filter, Object.assign({}, params, {
+        onevent: (ev) => events.push(ev),
+        onclose: (reasons) => resolve({
+          events,
+          answered: events.length > 0 || (reasons || []).some((r) => r === EOSE_CLOSE),
+        }),
+      }));
+    });
+  }
+
   // A kind:0 for ONE pubkey, VERIFIED TO ACTUALLY BE THEIRS.
   //
   // get() resolves with whatever the first relay hands back, and a relay is not obliged to
@@ -3518,9 +3549,28 @@
   // The batch paths (prefetchNotifProfiles, the follow list, resolveMentions) were never
   // exposed to this, because they index the results by ev.pubkey and then look up the key
   // they wanted. This gives the single-author reads the same property for one comparison.
+  //
+  // The author check runs BEFORE the newest copy is picked, not after. get() already
+  // collects every relay's answer and returns the newest — but newest across ALL of them,
+  // so one crossed event with a later timestamp made the real profile read as a miss.
+  // Filtering first means a foreign event is ignored rather than winning and then being
+  // thrown away. Same-second ties break on the greater id, so the answer is stable.
+  //
+  // `answered` rides along for the one caller that must not read "nobody answered" as
+  // "no profile" (getProfile); everyone else takes the event alone via poolGetProfile.
+  async function poolGetProfileInfo(relays, pubkey, params) {
+    const { events: evs, answered } = await poolQueryAnswered(relays, { kinds: [0], authors: [pubkey] }, params);
+    let best = null;
+    for (const ev of evs || []) {
+      if (!ev || ev.pubkey !== pubkey) continue;
+      if (!best || ev.created_at > best.created_at ||
+          (ev.created_at === best.created_at && ev.id > best.id)) best = ev;
+    }
+    return { ev: best, answered };
+  }
+
   async function poolGetProfile(relays, pubkey, params) {
-    const ev = await poolGet(relays, { kinds: [0], authors: [pubkey] }, params);
-    return ev && ev.pubkey === pubkey ? ev : null;
+    return (await poolGetProfileInfo(relays, pubkey, params)).ev;
   }
 
   async function relayUrls(writableOnly) {
@@ -3606,6 +3656,13 @@
   // Whether the collapsible stats drawer under the active account row is open.
   // Defaults open so a single-account panel isn't sparse; the user can collapse it.
   let accountStatsExpanded = true;
+  // A miss is held for much less time than a hit. The read below can't tell "this
+  // pubkey has no kind:0" from "every relay was too slow to say", and holding the
+  // second for five minutes pinned "Not set" on an identity that was fine.
+  const PROFILE_MISS_TTL = 30 * 1000;
+  // How long each relay gets. Short enough that the read comes back with whatever the
+  // responsive relays said, instead of waiting on the slowest one past the backstop.
+  const PROFILE_MAX_WAIT = 4000;
   function cacheProfile(pubkey, content) {
     const c = content || {};
     const rec = {
@@ -3617,6 +3674,7 @@
     _profileCache.set(pubkey, rec);
     return rec;
   }
+  const PROFILE_TIMED_OUT = Symbol('profile-timeout');
   function cachedProfile(pubkey) {
     const hit = _profileCache.get(pubkey);
     return hit && hit.expiresAt > Date.now() ? hit : null;
@@ -3628,15 +3686,34 @@
     if (_profileInflight.has(pubkey)) return _profileInflight.get(pubkey);
     const p = (async () => {
       try {
-        const relays = await relayUrls(false);
+        // The user's OWN accounts read from the relays they declared (NIP-65 read list,
+        // plus purplepag.es and the configured set). A profile edited in another client
+        // often lives only there, and the account overview showed "Not set" for a
+        // NIP-05 and lightning address that were intact. Everyone else keeps the
+        // configured set: this is also the path for bookmark authors, reply targets and
+        // zap recipients, and widening those would mean a kind:10002 lookup (and a disk
+        // write) per stranger, and connecting to relays other people chose.
+        const own = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
+        const relays = own ? await readRelayUrls(pubkey) : await relayUrls(false);
         if (!relays.length) return null;
-        const ev = await Promise.race([
-          poolGetProfile(relays, pubkey),
-          new Promise((r) => setTimeout(() => r(null), 6000)),
+        const res = await Promise.race([
+          poolGetProfileInfo(relays, pubkey, { maxWait: PROFILE_MAX_WAIT }),
+          new Promise((r) => setTimeout(() => r(PROFILE_TIMED_OUT), PROFILE_MAX_WAIT * 2)),
         ]);
+        // Nobody answered: the backstop fired, or (the common case, and the one the
+        // backstop alone missed) every relay failed to connect or refused. Offline, that
+        // takes milliseconds. Not evidence of anything, so nothing is cached and the
+        // caller renders "couldn't load", not "Not set".
+        if (res === PROFILE_TIMED_OUT || !res.answered) return null;
+        const ev = res.ev;
+        if (!ev) {
+          const miss = cacheProfile(pubkey, {});
+          miss.expiresAt = Date.now() + PROFILE_MISS_TTL;
+          return miss;
+        }
         let content = {};
-        if (ev) { try { content = JSON.parse(ev.content) || {}; } catch (_) {} }
-        return cacheProfile(pubkey, content); // cache even an absent profile briefly
+        try { content = JSON.parse(ev.content) || {}; } catch (_) {}
+        return cacheProfile(pubkey, content);
       } catch (_) {
         return null;
       } finally {
@@ -3745,11 +3822,47 @@
       // every relay refuses outright, and that arrives fast enough to beat the timeout.
       // It is a narrower gap than the one being closed, and the remembered list below
       // still covers it for any account that has ever resolved once.
-      const ev = await Promise.race([
-        poolGet(await relayUrls(false), { kinds: [10002], authors: [pubkey] }),
-        new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
-      ]);
-      if (ev !== NIP65_TIMED_OUT) gotEvent = true;
+      //
+      // Two lookups run side by side, each with its own timeout: the configured set,
+      // exactly as before, and the relays remembered from an earlier session (read AND
+      // write: lists get published to write relays). On a fresh panel session the cache
+      // is cold, and an account whose kind:10002 lives only outside the configured set
+      // was unreachable here, so every declared-relay read downstream, profiles
+      // included, silently ran configured-only.
+      //
+      // They are SEPARATE queries, not one merged relay set, because get() waits for
+      // every relay it asked. One remembered relay that hangs would push a merged query
+      // past the timeout, and a timeout is never cached, so every later call would sit
+      // out the full six seconds for the rest of the session. Split, a hanging
+      // remembered relay can only fail its own half.
+      //
+      // Only the configured half can say "no list": that is the answer this function
+      // always acted on. The remembered half can only ADD an event. Whichever event is
+      // newer wins.
+      const configured = await relayUrls(false);
+      const seed = await recallNip65(pubkey);
+      const extra = [...new Set([...((seed && seed.read) || []), ...((seed && seed.write) || [])])]
+        .filter((u) => !configured.includes(u));
+      //
+      // A half where no relay answered counts as timed out, not as "no list". Offline,
+      // every connection fails in milliseconds and the pool resolves empty well inside
+      // the 6s race; read as "no list", that got cached for the session AND deleted the
+      // remembered list from disk, the one thing that would have carried the account
+      // through the outage.
+      const lookup = (relays) => relays.length
+        ? Promise.race([
+          poolQueryAnswered(relays, { kinds: [10002], authors: [pubkey], limit: 1 })
+            .then(({ events, answered }) => (answered
+              ? events.sort((a, b) => b.created_at - a.created_at)[0] || null
+              : NIP65_TIMED_OUT))
+            .catch(() => NIP65_TIMED_OUT),
+          new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
+        ])
+        : Promise.resolve(NIP65_TIMED_OUT);
+      const [fromConfigured, fromRemembered] = await Promise.all([lookup(configured), lookup(extra)]);
+      const events = [fromConfigured, fromRemembered].filter((e) => e && e !== NIP65_TIMED_OUT);
+      const ev = events.sort((a, b) => b.created_at - a.created_at)[0] || null;
+      if (fromConfigured !== NIP65_TIMED_OUT || ev) gotEvent = true;
       if (gotEvent && ev) {
         const read = [], write = [];
         ev.tags.forEach((t) => {
@@ -7723,6 +7836,16 @@
       return btn;
     }
 
+    // Same shape as notSetLink, for a read that failed rather than came back empty.
+    function retryLink() {
+      const btn = h('button', { className: 'account-stat-notset', title: 'The relays didn’t answer. Try again.' });
+      const ic = icon('reload');
+      ic.classList.add('account-stat-help');
+      btn.append(ic, document.createTextNode('Couldn’t load'));
+      btn.addEventListener('click', () => loadIdentity());
+      return btn;
+    }
+
     const nip05Val = h('div', { className: 'account-stat-id-val' });
     const lud16Val = h('div', { className: 'account-stat-id-val' });
     // Wallet row holds two mini status badges (connected / backed up).
@@ -7746,6 +7869,55 @@
 
     body.append(topRow, idSection, profileLink);
     drawer.append(header, body);
+
+    // Identity rows — need the profile. A null record is a read that got no answer
+    // at all, which says nothing about whether these are set: saying "Not set" there
+    // told a user their NIP-05 and lightning address were missing when the relays had
+    // simply not replied. It gets a retry instead.
+    async function loadIdentity() {
+      // A word, not the stats' "…": the shimmer needs something to sweep across, and a
+      // row can take up to the 8s backstop, long enough that a static mark looks stuck.
+      nip05Val.textContent = '';
+      lud16Val.textContent = '';
+      const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), 'Loading…', true)));
+      const rec = await getProfile(pubkey);
+      idWait.forEach((w) => setWaiting(w, '', false));
+      nip05Val.textContent = '';
+      lud16Val.textContent = '';
+      if (!rec) {
+        nip05Val.appendChild(retryLink());
+        lud16Val.appendChild(retryLink());
+        return;
+      }
+      const content = rec.content || {};
+
+      if (content.nip05) {
+        // Per NIP-05, a local part of "_" means the user is verified at the
+        // domain without exposing a handle. Display the bare domain.
+        const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
+        const badge = h('span', { className: 'nip05-badge' });
+        nip05Val.append(badge, document.createTextNode(nip05));
+        const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
+          badge.innerHTML = '';
+          paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
+        });
+        verifyNip05(content.nip05, pubkey).then((res) => {
+          paintNip05Badge(badge, res, paint);
+          paintNip05Favicon(nip05Val, content.nip05, res);
+        });
+      } else {
+        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
+      }
+
+      if (content.lud16) {
+        const ok = icon('check');
+        ok.classList.add('stat-mini-ok');
+        lud16Val.append(ok, document.createTextNode(content.lud16));
+      } else {
+        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
+      }
+    }
 
     async function loadStats() {
       drawer.dataset.loaded = '1';
@@ -7799,36 +7971,7 @@
         relayLabel.textContent = label;
       });
 
-      // Identity stats — need the profile.
-      const rec = await getProfile(pubkey);
-      const content = rec && rec.content ? rec.content : {};
-
-      if (content.nip05) {
-        // Per NIP-05, a local part of "_" means the user is verified at the
-        // domain without exposing a handle. Display the bare domain.
-        const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
-        const badge = h('span', { className: 'nip05-badge' });
-        nip05Val.append(badge, document.createTextNode(nip05));
-        const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
-          badge.innerHTML = '';
-          paintNip05Badge(badge, res, paint);
-          paintNip05Favicon(nip05Val, content.nip05, res);
-        });
-        verifyNip05(content.nip05, pubkey).then((res) => {
-          paintNip05Badge(badge, res, paint);
-          paintNip05Favicon(nip05Val, content.nip05, res);
-        });
-      } else {
-        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
-      }
-
-      if (content.lud16) {
-        const ok = icon('check');
-        ok.classList.add('stat-mini-ok');
-        lud16Val.append(ok, document.createTextNode(content.lud16));
-      } else {
-        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
-      }
+      loadIdentity();
 
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.
