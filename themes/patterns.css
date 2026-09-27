@@ -15,26 +15,31 @@ body {
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
-/* Film Noir — vertical stripes of alternating opacity: light through a venetian blind,
-   which is the genre's own signature and reads as nothing else in the set.
-   This replaces a Victorian filigree tile (victorian-noir.png), which was ornament
-   borrowed from the same century as Brownstone rather than from noir itself.
-   No image at all now — it is one repeating-linear-gradient, so the stripes are
-   resolution-independent and cost nothing to ship. The png is left in the repo but is
-   no longer referenced by anything; see the note in the session if it should go.
-   36px pitch: at panel width that is about a dozen bands, wide enough to read as slats
-   rather than as corduroy. The light band is 3.2% white — enough to see against #0a0a0a,
-   low enough that body text over it never changes contrast measurably. The top light
-   and base gradient are unchanged; they are what make the field read as one hard light
-   source, which is the other half of the reference. */
+/* Film Noir — a close-up of a 35mm print: the frame at the panel's width, four
+   perforations down each side of it, the frame line under it, and the print aged over
+   all of it (themes/film-noir-*.svg, from scripts/gen-film-noir-film.py). Four layers,
+   top down:
+     damage    rain, scratches, dust and hairs, faint white, on a tall tile so no
+               scratch lines up with the frame it crosses
+     emulsion  uneven density, burns and grain, on a square tile; darkens, apart from
+               the grain
+     vignette  the edge of the projector's light
+     frames    the film itself, scaled to the panel's width so one frame always spans it
+   Everything that ages the print darkens it, because on a black field lightening is
+   what spends the hints' contrast; the dust, scratches and grain are the only light
+   marks, and test/theme-svg-assets.test.js measures the brightest pixel they can make.
+   The venetian-blind stripes this replaces were one repeating gradient, and the
+   Victorian filigree before them (victorian-noir.png) is still in the repo unreferenced. */
 [data-theme="film-noir"] body {
+  background-color: #0b0b0b;
   background-image:
-    repeating-linear-gradient(90deg,
-      rgba(255, 255, 255, 0.032) 0 18px,
-      transparent 18px 36px),
-    radial-gradient(900px 380px at 50% -10%, rgba(140, 140, 140, 0.045), transparent 60%),
-    linear-gradient(180deg, #0c0c0c 0%, var(--bg) 45%);
-  background-position: center, 0% 0%, 0% 0%;
+    url(film-noir-damage.svg),
+    url(film-noir-emulsion.svg),
+    radial-gradient(130% 95% at 50% 45%, transparent 60%, rgba(0, 0, 0, 0.4) 100%),
+    url(film-noir-frames.svg);
+  background-size: 420px 1100px, 480px 480px, auto, 100% auto;
+  background-position: center top, 0 0, 0 0, center top;
+  background-repeat: repeat, repeat, no-repeat, repeat-y;
 }
 
 /* Art Deco — Geometric sunburst/fan */

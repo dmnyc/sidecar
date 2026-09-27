@@ -1637,17 +1637,6 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   pointer-events: none;
   border: 1.5px solid var(--velvet-2);
 }
-/* Film Noir: the unread pill defaults to --orange (flat gray here), so give it
-   a purple accent — Sidecar's signature color and noir's one splash of color.
-
-   SEATED DEEPER THAN IT WAS. The gradient ran #a78bfa to #7c3aed, and no single ink
-   clears the 4.5 that 9px/700 needs across a span that wide: white measures 2.72 at the
-   light end, near-black 3.23 at the dark end. The splash of color is the point, so the
-   fix is to move the whole ramp down rather than to change the ink — white now reads
-   5.70 at the worst stop. */
-[data-theme="film-noir"] .notif-badge {
-  background: linear-gradient(180deg, #7c3aed, #5b21b6);
-}
 
 /* notification modal */
 .notif-modal-head {
@@ -1714,8 +1703,9 @@ a.notif-clickable:hover { background: var(--hover-soft); }
    rule — the thing emoji cannot do. */
 .notif-glyph svg { width: 14px; height: 14px; display: block; }
 .notif-glyph .bolt-ico { color: var(--gold); height: 15px; }
-/* Dark themes: a golden/yellow bolt so the zap indicator pops (noir's --gold is silver). */
-[data-theme="film-noir"] .notif-glyph .bolt-ico { color: #f1c84a; }
+/* Film Noir: the bolt in pure white, so a zap still stands out from the gray glyphs
+   around it, and matches the white strike the theme throws for one. */
+[data-theme="film-noir"] .notif-glyph .bolt-ico { color: #ffffff; }
 .notif-author { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 .notif-time { font-size: 11px; color: var(--faint); flex-shrink: 0; white-space: nowrap; }
 .notif-action {

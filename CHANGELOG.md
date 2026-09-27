@@ -12,6 +12,9 @@ Update that section alongside this file as part of every release.
 ### Added
 - **Two new themes, both from Japanese art.** *Wabi-sabi* (dark) is a tea bowl that broke and was mended with gold: slate stoneware, ash glaze and iron speckle, with kintsugi seams running through the field. It is set in Yuji Syuku, a brush-drawn face, and the balance surfaces out of the glaze and catches the light the way gold dust does on fresh lacquer. *Ukiyo-e* (light) is the woodblock sky: seigaiha waves over a sky that grades from pale blue to a yellow horizon under a band of Prussian blue, with the yellow-green of Hokusai's cliffs as its accent. It is set in Kaisei Decol, a title mincho like the lettering in a print's cartouche, and the balance rises out of the water on a slow swell that travels across the figure and settles.
 
+### Changed
+- **Film Noir is recut in black and white.** The panel is a close-up of a 35mm print: four perforations down each side of every frame, the frame line under it, and the print aged over all of it, with burns, uneven density, rain, scratches, dust and grain. The theme is grayscale now, status colors included: an error is the brightest ink in the panel, a warning a step down, success another, and each still carries its wording or icon. The only colors left are the Sidecar mark and red for anything that destroys data: the warning before signing an event that erases a list or a profile, the reset, and the delete confirmations. A zap strikes in white. It is set in Noto Serif Display: its titles and the wallet balance in the ExtraCondensed ExtraBold Italic, the lettering of a studio title card, standing off the screen on a title card's deep extrusion, and everything else in the same face upright. In the theme gallery, Metropolis moves up to second and Film Noir follows it.
+
 ## [1.14.1] — 2026-09-23
 
 ### Fixed

@@ -597,7 +597,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -662,25 +662,29 @@
         CARD_SUCCESS: 'color:#6ee7a8',
         CARD_PAY_SHADOW: 'rgba(221,111,35,0.36)'
       },
+      /* Film Noir — black and white: the page-side card follows the panel's grayscale,
+         white pay button and all, and the logo keeps its colors, as it does in the panel.
+         CARD_GOLD is the amount slot and takes the balance's near-white. Mirrors
+         themes/film-noir.css. */
       'film-noir': {
         CARD_COLOR: 'color:#e0e0e0',
         CARD_BORDER: 'rgba(192,192,192,0.30)',
-        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(192,192,192,0.12),transparent 58%),linear-gradient(165deg,#1a1a1a,#0a0a0a)',
-        CARD_MUTED: 'color:#909090',
-        CARD_GOLD: 'color:#c0c0c0',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(255,255,255,0.06),transparent 58%),linear-gradient(165deg,#1e1e1e,#0a0a0a)',
+        CARD_MUTED: 'color:#a0a0a0',
+        CARD_GOLD: 'color:#f5f5f5',
         CARD_TEXT_2: 'color:#c0c0c0',
         CARD_LAV: '#e0e0e0',
-        CARD_PAY_TEXT: 'color:#1a1a1a',
-        CARD_PAY_BG: 'linear-gradient(180deg,#b8b8b8,#a0a0a0 52%,#808080)',
+        CARD_PAY_TEXT: 'color:#0a0a0a',
+        CARD_PAY_BG: 'linear-gradient(180deg,#ffffff,#e4e4e4 52%,#b8b8b8)',
         CARD_CANCEL_BG: 'rgba(192,192,192,0.10)',
         CARD_TEXT: '#e0e0e0',
         CARD_BORDER_FAINT: 'rgba(192,192,192,0.12)',
         CARD_TOGGLE_OFF: 'rgba(192,192,192,0.20)',
         CARD_TRACK: '#c0c0c0',
-        CARD_THUMB_OFF: '#909090',
-        CARD_WARN: 'color:#ffb38a',
-        CARD_SUCCESS: 'color:#6ee7a8',
-        CARD_PAY_SHADOW: 'rgba(160,160,160,0.36)'
+        CARD_THUMB_OFF: '#a0a0a0',
+        CARD_WARN: 'color:#d0d0d0',
+        CARD_SUCCESS: 'color:#b0b0b0',
+        CARD_PAY_SHADOW: 'rgba(255,255,255,0.14)'
       },
       'industria': {
         CARD_COLOR: 'color:#2a2a2a',
@@ -1108,7 +1112,10 @@
       // fallback if showPopover throws.
       host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;border:0;background:transparent;';
       const root = host.attachShadow({ mode: 'open' });
-      const stroke = Math.random() > 0.5 ? '#ffd479' : '#ffb457'; // bright gold / amber
+      // Bright gold or amber, or in Film Noir, whose card is black and white, the white
+      // of the flash itself.
+      const monoBolt = cardTheme === 'film-noir';
+      const stroke = monoBolt ? '#ffffff' : Math.random() > 0.5 ? '#ffd479' : '#ffb457';
       const style = document.createElement('style');
       style.textContent =
         ':host{position:fixed;inset:0;pointer-events:none}' +
@@ -1132,7 +1139,8 @@
       // bolt reads as luminous on a light page too, where a single thin gold stroke
       // was getting lost.
       svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;' +
-        'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px rgba(255,180,87,.85))');
+        'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px ' +
+        (monoBolt ? 'rgba(255,255,255,.7)' : 'rgba(255,180,87,.85)') + ')');
       const width = (2.4 + Math.random() * 2.4).toFixed(1);
       // An under-stroke in near-white, slightly wider, gives the bolt a hot center
       // instead of a flat line — the thing that made it look dim before.

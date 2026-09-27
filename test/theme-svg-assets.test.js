@@ -307,3 +307,57 @@ test('Constellation haloes the prose that sits on its chart', () => {
     assert.ok(/var\(--bg\)/.test(layer), `halo layer "${layer}" is not made of --bg`);
   }
 });
+
+// Film Noir's field is a close-up of a 35mm print (scripts/gen-film-noir-film.py), and
+// every hint in Settings sits straight on it. The print is aged by darkening, so the
+// only light marks are the lip under each perforation, the dust and scratches, and the
+// grain; this stacks the strongest of each on the brightest film fill, which is a pixel
+// the panel rarely contains but the one that bounds all the rest. It also holds the two
+// structural promises the generator makes: the perforations are punched darker than the
+// film, and everything in the emulsion except the grain is black.
+test('the Film Noir film leaves its hints readable', () => {
+  const read = (f) => fs.readFileSync(path.join(THEMES, f), 'utf8');
+  const frames = read('film-noir-frames.svg');
+  const emulsion = read('film-noir-emulsion.svg');
+  const damage = read('film-noir-damage.svg');
+  const css = read('film-noir.css');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from film-noir.css');
+    return m[1];
+  };
+
+  const fills = [...frames.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
+  assert.ok(fills.length >= 3, 'could not read the film, window and perforation fills');
+  const film = fills.reduce((a, b) => (lum(b) > lum(a) ? b : a));
+  const hole = frames.match(/<g fill="(#[0-9A-Fa-f]{6})">\s*<rect/);
+  assert.ok(hole && lum(hole[1]) < lum(film),
+    'the perforations have to be darker than the film: a hint over a lit one loses contrast');
+
+  const alphas = (src) => [...src.matchAll(/(?:stroke|fill)-opacity="([\d.]+)"/g)].map((m) => parseFloat(m[1]));
+  const lip = Math.max(...alphas(frames));
+  const dust = Math.max(...alphas(damage));
+
+  // The grain's strength is its group opacity times the most its color matrix can put in
+  // the alpha channel: the sum of the row's positive weights plus its offset.
+  const grainGroup = emulsion.match(/<g id="grain" opacity="([\d.]+)">/);
+  const grainFilter = emulsion.match(/<filter id="grain"[\s\S]*?values="([^"]*)"/);
+  assert.ok(grainGroup && grainFilter, 'could not read the grain layer from the emulsion');
+  const row = grainFilter[1].trim().split(/\s+/).map(Number).slice(15, 20);
+  const grainMax = Math.min(1, Math.max(0, row.slice(0, 4).reduce((s, v) => s + Math.max(0, v), 0) + row[4]));
+  const grain = parseFloat(grainGroup[1]) * grainMax;
+
+  const outside = emulsion.replace(/<defs>[\s\S]*?<\/defs>/, '').replace(/<g id="grain"[\s\S]*?<\/g>/, '');
+  for (const m of outside.matchAll(/(?:fill|stroke)="(#[0-9A-Fa-f]{6})"/g)) {
+    assert.equal(m[1].toLowerCase(), '#000000',
+      `the emulsion lightens with ${m[1]}: everything that ages the print has to darken it`);
+  }
+
+  const brightest = over('#ffffff', over('#ffffff', over('#ffffff', film, lip), dust), grain);
+  for (const [name, floor] of [['muted', 4.5], ['faint', 3]]) {
+    const r = ratio(token(name), brightest);
+    assert.ok(r >= floor,
+      `--${name} is ${r.toFixed(2)} on the brightest pixel the film can make (${brightest}), ` +
+      `under ${floor}. The damage and grain alphas are a measured ceiling.`);
+  }
+});

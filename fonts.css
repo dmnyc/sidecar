@@ -13,7 +13,7 @@
    same idea however they are colored:
 
      Speakeasy   Playfair Display   high-contrast Didone serif   cocktail menu
-     Film Noir   Oswald             condensed grotesque          1940s poster
+     Film Noir   Noto Serif Display condensed Didone, two cuts   the studio title card
      Brownstone  Bitter             slab serif                   19th-c. New York
      Art Deco    Josefin Sans       1920s geometric sans         deco lettering
      Aegean      Cinzel             Roman inscriptional caps     classical stone
@@ -55,10 +55,17 @@
    outright. That was chosen with the cost known — the full comparison, and the two
    alternatives that turned out worse, are recorded above its @font-face block below.
 
+   Film Noir's Noto Serif Display is the THIRD, and it is Playfair's category too: a
+   Didone. It stays apart on two axes Playfair does not move on, width and slant (the
+   cut is ExtraCondensed and italic, where Playfair is wide and upright), and the theme
+   is black and white, so the two are never seen in the same palette.
+
    TWO THEMES USE A SECOND FACE for their settings section heads, and both for the same
    reason: a display face that earns its keep on a 23px title is doing the wrong job on
    16px navigation, eight rows deep. Cast Iron takes Varela Round (see its block below).
-   METROPOLIS BORROWS ART DECO'S JOSEFIN SANS.
+   METROPOLIS BORROWS ART DECO'S JOSEFIN SANS. Film Noir answers the same problem inside
+   one family instead: its italic sets only the titles and the balance, and the upright
+   cut of the same face sets everything else (see its @font-face blocks below).
 
    That reuse is deliberate, and it is the cheap answer to a real problem. Limelight at
    16px is a wall of dense type; what it needs beside it is the same deco geometry drawn
@@ -143,6 +150,28 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/oswald-var.woff2') format('woff2-variations');
+}
+/* Film Noir: Noto Serif Display in two cuts, each the Latin subset Google Fonts serves
+   (U+0000-00FF). SIL OFL 1.1; license text in fonts/OFL-NotoSerifDisplay.txt.
+     ExtraCondensed ExtraBold Italic  the titles and the balance (--font-title)
+     Condensed ExtraBold              everything else the display face sets
+   Each is declared as a family of its own and as font-style NORMAL: the rules that set
+   them ask for no style, and declaring the italic file as italic would have meant
+   restating font-style in each of those rules, or getting a synthesized upright. `400 900`
+   for the reason given above for the single-weight faces. */
+@font-face {
+  font-family: 'Noto Serif Display Condensed Italic';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/noto-serif-display-cond-italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Serif Display Condensed';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/noto-serif-display-cond.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Bitter';

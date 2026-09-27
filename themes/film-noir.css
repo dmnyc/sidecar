@@ -1,41 +1,59 @@
 /* ============================================================
    Sidecar — Film Noir Theme
-   Grainy, satin, matte black with silver accents.
-   Inspired by classic 1940s cinema. High contrast drama.
+   A close-up of a 35mm print from the 1940s: strictly black and white,
+   aged, with title-card lettering that stands off the screen.
+   Groups with the dark themes.
    ============================================================ */
 
 [data-theme="film-noir"] {
   color-scheme: dark;
 
-  /* Oswald — the condensed grotesque of a 1940s one-sheet. Every other theme's display
-     face has generous width; this one is narrow and vertical, which is the whole point
-     of a noir title card and reads as nothing else in the picker. */
-  --font-display: 'Oswald', 'Haettenschweiler', 'Arial Narrow', var(--font-ui);
+  /* ONE FAMILY IN TWO CUTS: Noto Serif Display, a Didone squeezed tall.
+     --font-title is its ExtraCondensed ExtraBold Italic, the lettering of a studio title
+     card (the "Film Noir" of the Paramount cards). It sets the view titles, the lock
+     screen's title and the wallet balance, and nothing else: set on every heading, its
+     slanted hairlines were too delicate for navigation, and on this theme's gallery card,
+     at 20px, they were hard to read.
+     --font-display, which every other display rule reads (the profile name, the section
+     heads, the signing warnings, the modal titles, the gallery card's name), is the same
+     face upright, Condensed ExtraBold: sturdier at 15 to 20px, and plainly the same hand
+     as the titles. It replaced Oswald, this theme's face before, which read as a leftover
+     beside them. The two cuts share their vertical metrics, so one --display-ink-nudge
+     centers both. */
+  --font-title: 'Noto Serif Display Condensed Italic', 'Didot', 'Bodoni 72', Georgia, serif;
+  --font-display: 'Noto Serif Display Condensed', 'Didot', 'Bodoni 72', Georgia, serif;
 
   /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
      and by the pinned balance bar, both of which center a figure set at line-height 1
      and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
-  --display-ink-nudge: -0.04em;
+  --display-ink-nudge: -0.03em;
 
-  /* surfaces */
+  /* surfaces — darker than they were, so the title cards' extrusions read: the shadow
+     under a letter is a set of grays that have to be lighter than whatever they fall on,
+     and on the old #2a2a2a card the deeper steps disappeared into it. */
   --bg: #0a0a0a;
   --bg-2: #111111;
-  --velvet-1: #1a1a1a;
-  --velvet-2: #2a2a2a;
-  --velvet-1-rgb: 26, 26, 26;
-  --av-from: #1a1a1a;
-  --av-to: #2a2a2a;
-  --banner-accent: #2a2a2a;
+  --velvet-1: #141414;
+  --velvet-2: #1e1e1e;
+  --velvet-1-rgb: 20, 20, 20;
+  --av-from: #141414;
+  --av-to: #1e1e1e;
+  --banner-accent: #1e1e1e;
   --border: rgba(192, 192, 192, 0.12);
   --border-strong: rgba(192, 192, 192, 0.24);
   --border-rgb: 192, 192, 192;
   --well-rgb: 17, 17, 17;
-  --warn: #ffb38a;
-  --warn-rgb: 255, 179, 138;
-  --success: #6ee7a8;
-  --success-rgb: 110, 231, 168;
+  /* STRICTLY GRAYSCALE, status included: this is a black-and-white picture, and one warm
+     warning in it would be the only color on screen. The three states keep apart by
+     value (an error is the brightest thing in the panel, a warning a step down, success
+     another), and by the icons and wording each state carries, which is what they have
+     to rely on here. */
+  --warn: #d0d0d0;
+  --warn-rgb: 208, 208, 208;
+  --success: #b0b0b0;
+  --success-rgb: 176, 176, 176;
 
   /* brand - silver/steel */
   --orange: #a0a0a0;
@@ -45,6 +63,49 @@
      where 16.8px/600 answers to 4.5. Unmuted it is 5.98. */
   --fiat-sym-opacity: 1;
   --gold-soft: rgba(192, 192, 192, 0.4);
+  /* Every translucent accent wash (row highlights, hover fills, tip cards) is drawn from
+     this triple. The theme never set it, so it inherited Speakeasy's gold and every wash
+     in a monochrome theme came out warm. */
+  --accent-rgb: 192, 192, 192;
+  /* The wallet card's top wash; the shared default is gold for the same reason. */
+  --card-wash: rgba(255, 255, 255, 0.05);
+  /* The unread count, near-white with black type: the one bright spot on a row. */
+  --badge-bg: #ededed;
+  --badge-ink: #0a0a0a;
+  /* Relax mode's dot: bright while there is time, dim when it is running out. The time
+     itself is printed beside it, so the dot is a second cue, not the only one. */
+  --relax-dot-ok: #f0f0f0;
+  --relax-dot-low: #787878;
+
+  /* The rest of the shared defaults that carry a color. None of these was set, so each
+     fell back to Speakeasy's gold or violet: the focus ring round every input came out
+     gold, the compose button amber, the inputs faintly violet. */
+  --focus-ring: rgba(255, 255, 255, 0.16);
+  --input-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(20, 20, 20, 0.6));
+  --fab-bg: linear-gradient(160deg, #ffffff, #cfcfcf);
+  --fab-icon: #0a0a0a;
+  --chip-ink: #0a0a0a;
+  --add-badge-ink: #0a0a0a;
+  --btn-accent-top: #ffffff;
+  --btn-accent-mid: #e4e4e4;
+  --btn-accent-bot: #b8b8b8;
+  --btn-accent-text: #0a0a0a;
+  --btn-lav-top: #b8b8b8;
+  --btn-lav-mid: #a8a8a8;
+  --btn-lav-bot: #8e8e8e;
+  --btn-lav-text: #111111;
+  --btn-lav-ring: rgba(255, 255, 255, 0.20);
+  --btn-lav-shadow: rgba(0, 0, 0, 0.4);
+
+  /* THE ONE COLOR: red, for anything that destroys data. The warning before signing an
+     event that erases a list or a profile, the danger zone's reset, and the delete
+     confirmations take it; everything else, errors included, stays gray. A monochrome
+     picture with one red in it is a device the genre knows, and here the red means one
+     thing only. Applied by re-pointing --red inside those elements (below), so every
+     rule that already reads --red there follows. #ef5b60 for type and rules, 5.0:1 on
+     the lighter card; #c62f3a under white type, 5.4:1. */
+  --noir-danger: #ef5b60;
+  --noir-danger-fill: #c62f3a;
 
   /* Pending confirm sub-label — --muted sits at exactly 4.50:1 on the pending wash, which
      is no margin at all. See speakeasy for the reasoning. */
@@ -70,20 +131,25 @@
   --scroll-thumb: linear-gradient(180deg, #2a2a2a, #1a1a1a);
   --scroll-thumb-hover: #3a3a3a;
 
-  /* primary button — warm champagne → gold → bronze. All three stops are
-     overridden because the mid defaults to --orange (gray here), which would
-     muddy the gold toward gray/green. Gold-tinted shadow keeps it clean. */
-  --btn-primary-top: #f1d488;
-  --btn-primary-mid: #cda14a;
-  --btn-primary-bot: #9c7826;
-  --btn-shadow: rgba(205, 161, 74, 0.28);
+  /* primary button — white light on the screen, the brightest control in the panel.
+     "Trust this site" is the silver a step below it and secondary buttons the charcoal
+     below that, so the three read in order of weight with no color to tell them apart. */
+  --btn-primary-top: #ffffff;
+  --btn-primary-mid: #e4e4e4;
+  --btn-primary-bot: #b8b8b8;
+  --btn-primary-text: #0a0a0a;
+  --btn-shadow: rgba(255, 255, 255, 0.10);
 
   /* ink */
   --text: #e0e0e0;
   --text-2: #c0c0c0;
-  --muted: #909090;
-  --faint: #606060;
-  --red: #d07070;
+  /* A step brighter than the old #909090: the film is lighter between the frames now, and
+     on its brightest pixel (dust over grain on the film base) #909090 fell to 4.0:1. */
+  --muted: #a0a0a0;
+  /* Two steps brighter than it was (#606060), for the same reason: on the film's
+     brightest pixel #606060 fell to 2.0:1, and this holds 3:1 there. */
+  --faint: #7c7c7c;
+  --red: #f2f2f2;
 
   /* shadows */
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
@@ -97,9 +163,9 @@
 /* styles.css hardcodes speakeasy's lavender/purple for these (so speakeasy stays
    pixel-identical to the original); re-theme them for noir. */
 [data-theme="film-noir"] .lav-btn {
-  background: linear-gradient(180deg, var(--amber), var(--gold) 58%, var(--orange));
-  color: #1a0f2e;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 22px var(--gold-soft);
+  background: linear-gradient(180deg, #b8b8b8, #a8a8a8 58%, #8e8e8e);
+  color: #111111;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px rgba(0, 0, 0, 0.4);
 }
 /* longhand background-image keeps the shimmer's background-size intact */
 [data-theme="film-noir"] .sk {
@@ -114,12 +180,152 @@
 [data-theme="film-noir"] select {
   background: var(--select-caret) var(--select-caret-geo), var(--bg-2);
 }
-/* Balance numbers get a warm gold instead of the theme's silver — Lightning
-   sats should feel warm even in monochrome. */
+/* The balance is the brightest figure on the screen, a shade under pure white so the
+   lamp's flare in the animation below still has somewhere to go. It was gold, the one
+   warm thing in the theme; the theme is black and white now. */
 [data-theme="film-noir"] .wallet-balance,
 [data-theme="film-noir"] .pinned-balance-amt {
-  color: #cba14e;
+  color: #f5f5f5;
 }
+
+/* ---- the title card ---------------------------------------------------------
+   A 1940s title card stands its lettering off the screen with a deep extrusion: the
+   letter in white, and under it a solid shadow a few pixels long, falling down and to
+   the left and darkening as it goes. The view titles and the wallet's balance take it,
+   the two places this panel sets type the way a title card does, and both are in the
+   title face (above). Section heads and the pinned bar do not: at 16px an extrusion is
+   noise, and the bar has no depth to give it.
+   One pixel a layer, so the extrusion is solid rather than a stack of offset copies.
+   text-shadow inherits, so the balance's glyph spans carry it through the projector
+   animation below, which touches only their opacity, brightness and position: the
+   lamp flickers the shadow with the letter, as it would. */
+[data-theme="film-noir"] .tabview h2,
+[data-theme="film-noir"] #view-settings > .content > h2,
+[data-theme="film-noir"] .welcome-title,
+[data-theme="film-noir"] .wallet-balance,
+[data-theme="film-noir"] .pinned-balance-amt {
+  font-family: var(--font-title);
+}
+[data-theme="film-noir"] .tabview h2,
+[data-theme="film-noir"] #view-settings > .content > h2 {
+  text-shadow: -1px 1px 0 #5a5a5a, -2px 2px 0 #4d4d4d, -3px 3px 0 #414141,
+               -4px 4px 0 #363636, -5px 5px 0 #2c2c2c, -6px 8px 12px rgba(0, 0, 0, 0.7);
+}
+[data-theme="film-noir"] .wallet-balance {
+  text-shadow: -1px 1px 0 #5e5e5e, -2px 2px 0 #525252, -3px 3px 0 #474747,
+               -4px 4px 0 #3c3c3c, -5px 5px 0 #323232, -6px 6px 0 #292929,
+               -7px 9px 14px rgba(0, 0, 0, 0.75);
+}
+
+/* ---- grayscale, where the shared rules hard-code a hue ------------------------
+   The tokens above reach most of the panel. These are the rules that name a color of
+   their own, each restated in gray, apart from the red kept for data loss. None of the
+   gray ones loses its meaning: every one of these states is also carried by its wording
+   or an icon, which is what a monochrome theme has to lean on. */
+
+/* Red, where data is about to be destroyed. The approval window loads this file too, so
+   the signing warning is red there as well as in the panel. The warning's "Don't allow"
+   is white type on --red, so it takes the deeper fill. */
+[data-theme="film-noir"] .destructive-warn,
+[data-theme="film-noir"] .setting.danger-zone,
+[data-theme="film-noir"] .del-confirm,
+[data-theme="film-noir"] .menu-item.danger {
+  --red: var(--noir-danger);
+}
+[data-theme="film-noir"] .destructive-warn-reject {
+  background: var(--noir-danger-fill);
+  border-color: var(--noir-danger-fill);
+}
+
+/* NIP-05: "this address points to a different key" and "this domain doesn't list this
+   name" wear the same alert glyph, and until now only their hue told them apart. The
+   first is the impersonation case, so it gets a SHAPE as well: the glyph knocked out of
+   a solid disc, where the milder verdict stays a bare outline. */
+[data-theme="film-noir"] .nip05-badge.nip05-alarm {
+  color: var(--bg);
+  background: var(--red);
+  border-radius: 50%;
+  padding: 1px;
+}
+/* An account that cannot publish ("0 Relays") was marked by color alone. A wavy rule
+   under it is the proofreader's mark for "something is wrong here", and reads without
+   any hue. */
+[data-theme="film-noir"] .account-stat-warn {
+  text-decoration: underline wavy;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+[data-theme="film-noir"] .tx-icon.out { color: var(--warn); background: rgba(var(--warn-rgb), 0.10); }
+[data-theme="film-noir"] .tx-icon.out .tx-dir { color: #0a0a0a; background: var(--warn); }
+[data-theme="film-noir"] .recv-check {
+  color: #0a0a0a;
+  background: #f0f0f0;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.14);
+}
+/* Success settles into the charcoal of the panel; an error comes up bright, the way
+   --red does everywhere else in this theme. */
+[data-theme="film-noir"] .toast-success {
+  background: linear-gradient(180deg, #2e2e2e, #1f1f1f);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #f0f0f0;
+}
+[data-theme="film-noir"] .toast-error {
+  background: linear-gradient(180deg, #f2f2f2, #cfcfcf);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #0a0a0a;
+}
+[data-theme="film-noir"] .recovery-badge.cur { background: rgba(255, 255, 255, 0.12); color: #e0e0e0; }
+/* The sealed row's padlock is an emoji, which a browser paints in its own colors
+   whatever `color` says. */
+[data-theme="film-noir"] .card .row.sealed span:last-child::before { filter: grayscale(1); }
+
+/* Kept in color on purpose: the Sidecar mark (the orange glass and the lavender
+   wordmark), which is the brand rather than the theme. With the danger red, it is the
+   only color in Film Noir. */
+
+/* Overlays and washes that were tinted: the scrims behind modals and approvals were a
+   violet-black, and the modal card, the active-account card and several notices carried
+   an orange, lavender or rose wash in one corner. */
+[data-theme="film-noir"] .modal-overlay { background: rgba(0, 0, 0, 0.66); }
+[data-theme="film-noir"] .approval-overlay { background: rgba(0, 0, 0, 0.72); }
+[data-theme="film-noir"] .upload-overlay { background: rgba(0, 0, 0, 0.45); }
+[data-theme="film-noir"] .compose-thumb.has-frame .compose-thumb-vid,
+[data-theme="film-noir"] .compose-thumb-x,
+[data-theme="film-noir"] .compose-thumb-move { background: rgba(0, 0, 0, 0.7); }
+[data-theme="film-noir"] .compose-thumb-alt { background: rgba(0, 0, 0, 0.85); }
+[data-theme="film-noir"] .modal {
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(255, 255, 255, 0.035), transparent 55%),
+    linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+}
+[data-theme="film-noir"] .active-account {
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255, 255, 255, 0.05), transparent 50%),
+    linear-gradient(150deg, var(--velvet-1), var(--velvet-2));
+}
+[data-theme="film-noir"] .version-card { border-color: rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.05); }
+[data-theme="film-noir"] .about-update-btn { text-decoration-color: rgba(255, 255, 255, 0.3); }
+[data-theme="film-noir"] .interrupted-banner,
+[data-theme="film-noir"] .host-perm-banner {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+[data-theme="film-noir"] .toast-progress {
+  background: linear-gradient(180deg, #2e2e2e, #1f1f1f);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #f0f0f0;
+}
+/* A zap strikes in white here: the bolt draws in the theme's silver, and its glow, amber
+   everywhere else, is the white of a flashbulb. The notification bolt and the strike a
+   zap throws across the page (content.js) are white to match. */
+[data-theme="film-noir"] .lightning-svg { filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.7)); }
+/* The approval window carries a few gold washes of its own (prompt.html). */
+[data-theme="film-noir"] .shared-note,
+[data-theme="film-noir"] .shared-headsup { background: rgba(255, 255, 255, 0.05); }
+[data-theme="film-noir"] .shared-headsup-btn { background: rgba(255, 255, 255, 0.08); }
+[data-theme="film-noir"] .switch-row.active { background: rgba(255, 255, 255, 0.06); }
+[data-theme="film-noir"] input[type=password]:focus { box-shadow: 0 0 0 3px var(--focus-ring); }
 
 /* ---- balance animation: the projector catches -----------------------------
    Not a per-glyph reveal: a projector flickers the whole frame at once, so the

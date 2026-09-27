@@ -397,8 +397,8 @@
   // — and a guard test keeps the keys in step, since a theme present in one and
   // missing from the other would be unpickable rather than visibly broken.
   const THEME_LABELS = [
-    ['speakeasy', 'Speakeasy'], ['film-noir', 'Film Noir'], ['brownstone', 'Brownstone'],
-    ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'], ['metropolis', 'Metropolis'],
+    ['speakeasy', 'Speakeasy'], ['metropolis', 'Metropolis'], ['film-noir', 'Film Noir'],
+    ['brownstone', 'Brownstone'], ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'],
     ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'],
     ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
     ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
@@ -409,7 +409,7 @@
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium'];
+    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
