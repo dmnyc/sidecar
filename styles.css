@@ -1990,8 +1990,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .switch-label { margin-bottom: 10px; }
 /* Names the account the per-account toggle applies to; quieter than the label. */
 .switch-scope { font-weight: 400; color: var(--muted); }
-.relay-section-body { transition: opacity 0.2s ease; }
-.relay-section-body.dimmed { opacity: 0.35; pointer-events: none; }
 #autozap-max-row { margin-top: 10px; }
 .autozap-max-input { width: 90px; text-align: right; padding: 6px 9px; }
 

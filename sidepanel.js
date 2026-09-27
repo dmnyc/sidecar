@@ -9757,8 +9757,11 @@
     const nip65Only = await nip65OnlyFor(state.activePubkey);
     $('bootstrap-toggle').checked = !nip65Only;
     $('edit-nip65-btn').disabled = !state.activePubkey;
+    // Hidden, not dimmed, when this account has them off: a dimmed list it cannot use
+    // took the whole height of the section to say so. The list itself is global, so it
+    // is edited from an account that uses it.
     const relayBody = $('relay-section-body');
-    if (relayBody) relayBody.classList.toggle('dimmed', nip65Only);
+    if (relayBody) relayBody.classList.toggle('hidden', nip65Only);
     const nip65Scope = $('nip65-only-scope');
     if (nip65Scope) {
       const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey);
@@ -20105,7 +20108,7 @@
   $('bootstrap-toggle').addEventListener('change', async (e) => {
     const nip65Only = !e.target.checked;
     await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: nip65Only });
-    $('relay-section-body')?.classList.toggle('dimmed', nip65Only);
+    $('relay-section-body')?.classList.toggle('hidden', nip65Only);
   });
 
   // Settings → Relays → Edit relay list. The editor is the Relays block on the
