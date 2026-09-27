@@ -80,6 +80,14 @@
       font-size: calc(68px * var(--display-scale, 1));
       margin: 0;
     }
+    /* Ukiyo-e's waves, doubled for the same reason. At the panel's 112 x 56 a wave comes
+       out about 16px across once the gallery scales the card, and the rings run together
+       into a hatch; at twice the size they read as waves again. The panel keeps its own
+       size (themes/patterns.css): this is legibility at thumbnail scale, not a new field.
+       Three values because that field is three layers and the waves are the second: one
+       value would size the sky band and the gradient too, and the band would come out a
+       224px block with a hard right edge. */
+    [data-theme="ukiyo-e"] body { background-size: auto, 224px 112px, auto; }
   </style>
 </head>
 <body>

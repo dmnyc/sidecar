@@ -19,7 +19,7 @@
      and by the pinned balance bar, both of which center a figure set at line-height 1
      and so center the box rather than the ink. See the note above the rule in
      styles.css for how the value is measured. */
-  --display-ink-nudge: 0.03em;
+  --display-ink-nudge: -0.10em;
 
   /* surfaces — slate stoneware, the blue-gray of a reduction-fired glaze. Cool rather
      than brown on purpose: Brownstone already owns the warm dark, and the one warm

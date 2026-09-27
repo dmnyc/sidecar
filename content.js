@@ -971,32 +971,32 @@
         CARD_SUCCESS: 'color:#8FAA7A',
         CARD_PAY_SHADOW: 'rgba(217,174,85,0.28)'
       },
-      /* Ukiyo-e — washi, Prussian blue, and the seal. Mirrors themes/ukiyo-e.css.
-         CARD_GOLD is the amount slot and takes --balance-ink, the seal vermilion, like
-         the bauhaus and par-avion entries; 42px/800 puts it under the 3.0 large-text
-         floor and it measures 5.22 on the card's lower stop. The pay button is the
-         indigo block, not the red, for the reason Par Avion gives: a button you spend
-         money with is not the place to wear the color of a warning. CARD_TRACK is the
-         lighter indigo so the shared near-black toggle thumb still shows on it. */
+      /* Ukiyo-e — the woodblock sky: Prussian blue on the near-white of the clouds.
+         Mirrors themes/ukiyo-e.css. CARD_GOLD is the amount slot and takes
+         --balance-ink, the same Prussian blue, like the bauhaus and par-avion entries;
+         42px/800 puts it under the 3.0 large-text floor and it measures 8.49 on the
+         card's lower stop. The pay button is the same blue block as the panel's
+         primary. CARD_TRACK is a lighter blue so the shared near-black toggle thumb
+         still shows on it (5.34:1). */
       'ukiyo-e': {
-        CARD_COLOR: 'color:#1C1D24',
-        CARD_BORDER: 'rgba(31,78,121,0.30)',
-        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(45,107,168,0.10),transparent 58%),linear-gradient(165deg,#FFFCF6,#F8F1E4)',
-        CARD_MUTED: 'color:#55504A',
-        CARD_GOLD: 'color:#B8352A',
-        CARD_TEXT_2: 'color:#233A5C',
-        CARD_LAV: '#2D5F8E',
+        CARD_COLOR: 'color:#1B2624',
+        CARD_BORDER: 'rgba(29,70,116,0.32)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(47,94,138,0.10),transparent 58%),linear-gradient(165deg,#FBFAF5,#F1F1EA)',
+        CARD_MUTED: 'color:#454C52',
+        CARD_GOLD: 'color:#1D4674',
+        CARD_TEXT_2: 'color:#1B3A5C',
+        CARD_LAV: '#2F5E8A',
         CARD_PAY_TEXT: 'color:#FFFFFF',
-        CARD_PAY_BG: 'linear-gradient(180deg,#2D5F8E,#1F4E79 52%,#173B5C)',
-        CARD_CANCEL_BG: 'rgba(31,78,121,0.10)',
-        CARD_TEXT: '#1C1D24',
-        CARD_BORDER_FAINT: 'rgba(31,78,121,0.16)',
-        CARD_TOGGLE_OFF: 'rgba(31,78,121,0.25)',
-        CARD_TRACK: '#4E86BC',
-        CARD_THUMB_OFF: '#55504A',
-        CARD_WARN: 'color:#A5451E',
-        CARD_SUCCESS: 'color:#3E6A3A',
-        CARD_PAY_SHADOW: 'rgba(31,78,121,0.28)'
+        CARD_PAY_BG: 'linear-gradient(180deg,#2F5E8A,#1D4674 52%,#12345A)',
+        CARD_CANCEL_BG: 'rgba(29,70,116,0.10)',
+        CARD_TEXT: '#1B2624',
+        CARD_BORDER_FAINT: 'rgba(29,70,116,0.18)',
+        CARD_TOGGLE_OFF: 'rgba(29,70,116,0.25)',
+        CARD_TRACK: '#6F9CC2',
+        CARD_THUMB_OFF: '#454C52',
+        CARD_WARN: 'color:#963D19',
+        CARD_SUCCESS: 'color:#37603A',
+        CARD_PAY_SHADOW: 'rgba(29,70,116,0.28)'
       }
     };
 

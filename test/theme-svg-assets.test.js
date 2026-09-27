@@ -127,25 +127,105 @@ test('the Werkstatte lattice leaves its body inks above AA', () => {
   }
 });
 
-// Same constraint for Ukiyo-e's waves, and more so: that tile is OPAQUE (it is the paper),
-// so every hint in Settings sits directly on its rings. The ring ink is one indigo at one
-// stroke-opacity, which is the ceiling this pins.
-test('the Ukiyo-e waves leave its body inks above AA', () => {
+// Same constraint for Ukiyo-e's field, and more so, because every hint in Settings sits
+// directly on it. It is three layers (themes/patterns.css): a sky graded from blue to
+// yellow, the waves over it, and a band of Prussian blue across the top. The waves are a
+// transparent tile, so the rings land on whatever the gradient is at that height, and
+// the band darkens the top of the panel on top of both. So this measures the ring over
+// the gradient at every point along it, not just at its stops (luminance can dip between
+// two stops), and the band over the darkest of those, which is a pixel the panel may not
+// actually contain but is the one that bounds all the rest.
+test('the Ukiyo-e field leaves its body inks above AA', () => {
   const svg = fs.readFileSync(path.join(THEMES, 'ukiyo-e-seigaiha.svg'), 'utf8');
   const css = fs.readFileSync(path.join(THEMES, 'ukiyo-e.css'), 'utf8');
+  const patterns = fs.readFileSync(path.join(THEMES, 'patterns.css'), 'utf8');
   const token = (name) => {
     const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
     assert.ok(m, 'could not read --' + name + ' from ukiyo-e.css');
     return m[1];
   };
-  const paper = svg.match(/<rect[^>]*fill="(#[0-9A-Fa-f]{6})"/);
+  const rule = patterns.match(/\[data-theme="ukiyo-e"\] body \{([\s\S]*?)\n\}/);
+  assert.ok(rule, 'could not find the Ukiyo-e body rule in patterns.css');
+  const band = rule[1].match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\) 0/);
+  const sky = rule[1].match(/linear-gradient\(180deg, (#[0-9A-Fa-f]{6}) 0%[^)]*\)/);
   const ring = svg.match(/stroke="(#[0-9A-Fa-f]{6})" stroke-opacity="([\d.]+)"/);
-  assert.ok(paper && ring, 'could not read the paper and ring inks from the tile');
-  assert.equal(paper[1].toLowerCase(), token('bg').toLowerCase(),
-    'the tile is the paper, so its fill has to be the theme\'s --bg');
-  const darkest = over(ring[1], paper[1], parseFloat(ring[2]));
+  assert.ok(band && sky && ring, 'could not read the band, the sky and the ring ink');
+  const stops = [...sky[0].matchAll(/(#[0-9A-Fa-f]{6}) \d+%/g)].map((m) => m[1]);
+  assert.ok(stops.length >= 2, 'the sky gradient has fewer than two stops');
+  assert.equal(stops[0].toLowerCase(), token('bg').toLowerCase(),
+    'the sky starts at the theme\'s --bg, which the flat surfaces paint with');
+
+  // The waves are painted over the sky, so the tile must not paint a ground of its own:
+  // anything filled outside the masks would hide the gradient behind a flat color.
+  const body = svg.replace(/<defs>[\s\S]*?<\/defs>/, '');
+  assert.ok(!/fill="#/.test(body), 'the wave tile has to stay transparent outside its masks');
+
+  let darkest = stops[0];
+  for (let i = 0; i + 1 < stops.length; i++) {
+    for (let t = 0; t <= 1.0001; t += 0.05) {
+      const px = over(stops[i + 1], stops[i], t);
+      const onRing = over(ring[1], px, parseFloat(ring[2]));
+      if (lum(onRing) < lum(darkest)) darkest = onRing;
+    }
+  }
+  const bandHex = '#' + [1, 2, 3].map((i) => Number(band[i]).toString(16).padStart(2, '0')).join('');
+  darkest = over(bandHex, darkest, parseFloat(band[4]));
   for (const name of ['muted', 'faint']) {
     const r = ratio(token(name), darkest);
-    assert.ok(r >= 4.5, `--${name} is ${r.toFixed(2)} against a wave ring (${darkest}), under AA.`);
+    assert.ok(r >= 4.5, `--${name} is ${r.toFixed(2)} against the darkest pixel the field can make (${darkest}), under AA.`);
   }
+});
+
+// Wabi-sabi is the dark-theme version of the same problem, where the field gets BRIGHTER
+// than --bg instead of darker. Its seams are solid, so there is no alpha to pin: the gold
+// in the gradient stops is the pixel, and every hint in Settings can land on it. The
+// specks under them are translucent, but under one group opacity, so they cannot stack.
+//
+// The first version drew the seams at 20% gold with pools at 20% on top, and where the
+// two overlapped they stacked to 36% or more: patches twice as bright as the seams,
+// putting --muted at 3.3 wherever one sat. That is why the seams are solid now, and the
+// last assertion keeps them that way.
+test('the Wabi-sabi seams leave its body inks readable', () => {
+  const svg = fs.readFileSync(path.join(THEMES, 'wabi-sabi-seams.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(THEMES, 'wabi-sabi.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from wabi-sabi.css');
+    return m[1];
+  };
+  const bg = token('bg');
+
+  // Every stop, since a gradient between two stops is never brighter than the brighter one.
+  const golds = [...svg.matchAll(/stop-color="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
+  const speckAlpha = svg.match(/<g opacity="([\d.]+)">/);
+  const specks = [...new Set([...svg.matchAll(/<circle[^>]*fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]))];
+  assert.ok(golds.length >= 2 && speckAlpha && specks.length,
+    'could not read the seam golds and the speck layer from the tile');
+
+  const pixels = [
+    ...golds.map((hex) => ({ hex, what: 'a seam gold' })),
+    ...specks.map((hex) => ({ hex: over(hex, bg, parseFloat(speckAlpha[1])), what: 'a speck' })),
+  ];
+  const brightest = pixels.reduce((a, b) => (lum(b.hex) > lum(a.hex) ? b : a));
+
+  // --muted carries the hints, so it keeps AA. --faint is the lowest-emphasis ink, and
+  // holding it to AA here would leave the seams barely brighter than --bg itself: it is
+  // 4.60 on flat --bg, and 4.5 is the whole of that margin. So it keeps 3:1, the
+  // threshold for large text and UI components.
+  for (const [name, floor] of [['muted', 4.5], ['faint', 3]]) {
+    const r = ratio(token(name), brightest.hex);
+    assert.ok(
+      r >= floor,
+      `--${name} is ${r.toFixed(2)} against ${brightest.what} (${brightest.hex}), the ` +
+      `brightest pixel in the tile, under ${floor}. The tile's brightness is a measured ` +
+      `ceiling: raising it spends contrast every hint in Settings is using. Flat --bg ` +
+      `would give ${ratio(token(name), bg).toFixed(2)}.`
+    );
+  }
+
+  const seamGroup = svg.match(/<g[^>]*url\(#gold\)[^>]*>/);
+  assert.ok(seamGroup, 'could not find the seam group in the tile');
+  assert.ok(!/opacity/.test(seamGroup[0]),
+    'the seams have to stay solid: translucent seams stack wherever two overlap, and the ' +
+    'overlaps read as patches brighter than the seams around them');
 });

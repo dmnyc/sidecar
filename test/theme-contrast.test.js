@@ -375,10 +375,10 @@ const FLOORS = {
   // kintsugi at 7.42: it is an ink as well as a fill here, like Speakeasy's.
   'wabi-sabi': { '--muted': 6.00, '--faint': 3.87, '--gold': 7.42 },
   // Ukiyo-e clears AA on all five inks, --faint included, for the Populuxe / Par Avion
-  // reason: the washi is the field and the cards are near-white. The worst surface is
-  // --bg-2, the darker paper. --gold is the Prussian blue (6.80); the vermilion is
-  // --balance-ink and is a `color:` only at display size.
-  'ukiyo-e': { '--muted': 6.26, '--faint': 5.00, '--gold': 6.80 },
+  // reason: the graded sky is the field and the cards are near-white. The worst surface
+  // is --bg-2, the deeper blue. --gold is the Prussian blue (6.78), and --balance-ink is
+  // the same blue.
+  'ukiyo-e': { '--muted': 6.14, '--faint': 5.17, '--gold': 6.78 },
 };
 
 for (const theme of THEMES) {
