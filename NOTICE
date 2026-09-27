@@ -27,11 +27,11 @@ Impressed Metal (fonts/impressed-metal.ttf), ©GemFonts98 (Graham Meade), is
 freeware rather than open-source licensed; the terms and the provenance
 questions asked of them are recorded in fonts/LICENSE-ImpressedMetal.txt.
 
-The Constellation theme's star chart (themes/constellation-sky.svg) is drawn from
+The Constellation theme's star charts (themes/constellation-sky-*.svg) are drawn from
 star positions, magnitudes and constellation figure lines published by
 d3-celestial (https://github.com/ofrohn/d3-celestial), Copyright (c) 2015,
 Olaf Frohn, licensed under the BSD 3-Clause License. The naked-eye subset used is
-kept in scripts/data/sky-naked-eye.json and the chart is generated from it by
+kept in scripts/data/sky-naked-eye.json and the charts are generated from it by
 scripts/gen-constellation-mycelium.py. The underlying stellar data derive from
 the Hipparcos catalogue (ESA, 1997).
 

@@ -458,18 +458,26 @@ body {
   background-repeat: no-repeat, repeat, no-repeat;
 }
 
-/* Constellation — a plate from an engraved star atlas: the winter sky around Orion,
-   in gold on black (themes/constellation-sky.svg, drawn from real star positions and
-   the traditional figure lines by scripts/gen-constellation-mycelium.py). Laid once and
+/* Constellation — a plate from an engraved star atlas in gold on black, one of four: the
+   evening sky of the season, drawn from real star positions and the traditional figure
+   lines by scripts/gen-constellation-mycelium.py (themes/constellation-sky-*.svg).
+   sky-plate.js marks the document with the season's plate as a page loads, and the
+   custom property below picks the file; a page without the mark gets winter's Orion.
+   The property and the url() it holds are both in this sheet, so the file name resolves
+   against themes/ in every browser, whichever stylesheet a browser resolves it from. Laid once and
    sized to COVER the panel: a tall sheet, so at the usual panel shape it fits the width
    exactly, and in a taller panel it scales up a little and crops at the sides rather
    than stopping short of the bottom. It was fitted to the width and left black under
    the chart in any panel more than twice as tall as it is wide. NOT tiled:
    constellations are shapes people know, and Orion twice in one screen would give the
    repeat away. Behind it, the faintest lift toward the top, as paper under a lamp. */
+[data-theme="constellation"] { --sky-plate: url(constellation-sky-orion.svg); }
+[data-theme="constellation"][data-sky="leo"] { --sky-plate: url(constellation-sky-leo.svg); }
+[data-theme="constellation"][data-sky="cygnus"] { --sky-plate: url(constellation-sky-cygnus.svg); }
+[data-theme="constellation"][data-sky="andromeda"] { --sky-plate: url(constellation-sky-andromeda.svg); }
 [data-theme="constellation"] body {
   background-image:
-    url(constellation-sky.svg),
+    var(--sky-plate),
     radial-gradient(900px 600px at 50% 20%, rgba(201, 170, 108, 0.05), transparent 65%),
     linear-gradient(180deg, #13110D 0%, var(--bg) 60%);
   background-size: cover, auto, auto;
