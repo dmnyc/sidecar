@@ -7955,8 +7955,8 @@
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
             relayBlock.title =
-              'Bootstrap relays are off for this account, but it has no published relay list — ' +
-              'it can’t publish. Publish a relay list from the Profile tab, or turn ' +
+              'Bootstrap relays are off for this account, but it has no published relay list, ' +
+              'so it can’t publish. Publish a relay list from the Profile tab, or turn ' +
               'bootstrap relays back on in Settings.';
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
@@ -10537,6 +10537,11 @@
   let scrollToNip65OnRender = false;
 
   async function renderProfile() {
+    // Taken at the start, not the end: a render that fails before reaching the relay
+    // block would otherwise leave the flag set, and the next ordinary visit to Profile
+    // would jump to Relays for no reason the user could see.
+    const scrollNip65 = scrollToNip65OnRender;
+    scrollToNip65OnRender = false;
     const view = $('profile-view');
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
     view.innerHTML = '';
@@ -10724,8 +10729,7 @@
 
     renderNip65Section(view, active);
     renderRecoverySection(view, active);
-    if (scrollToNip65OnRender) {
-      scrollToNip65OnRender = false;
+    if (scrollNip65) {
       const block = view.querySelector('.nip65-setting');
       if (block) block.scrollIntoView({ block: 'start' });
     }
