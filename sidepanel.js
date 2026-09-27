@@ -7839,7 +7839,7 @@
     // Same shape as notSetLink, for a read that failed rather than came back empty.
     function retryLink() {
       const btn = h('button', { className: 'account-stat-notset', title: 'The relays didn’t answer. Try again.' });
-      const ic = icon('refresh');
+      const ic = icon('reload');
       ic.classList.add('account-stat-help');
       btn.append(ic, document.createTextNode('Couldn’t load'));
       btn.addEventListener('click', () => loadIdentity());
@@ -7875,11 +7875,13 @@
     // told a user their NIP-05 and lightning address were missing when the relays had
     // simply not replied. It gets a retry instead.
     async function loadIdentity() {
+      // A word, not the stats' "…": the shimmer needs something to sweep across, and a
+      // row can take up to the 8s backstop, long enough that a static mark looks stuck.
       nip05Val.textContent = '';
       lud16Val.textContent = '';
-      nip05Val.appendChild(placeholder());
-      lud16Val.appendChild(placeholder());
+      const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), 'Loading…', true)));
       const rec = await getProfile(pubkey);
+      idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
       lud16Val.textContent = '';
       if (!rec) {

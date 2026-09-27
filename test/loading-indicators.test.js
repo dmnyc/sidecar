@@ -86,8 +86,13 @@ test('shimmer is for values waiting in place, and nothing else', () => {
   // room for a spinner either. It shimmers the label it already has instead of swapping
   // in "Uploading…", which was 21px wider and took 10px each off Poll and PoW, since
   // .compose-add sizes from its own label.
+  //
+  // `idWait` is the account Overview's NIP-05 and lightning values, added 2026-09-27 under
+  // the same rule: each is a value in a row's right-hand slot, beside its label, with no
+  // room for a spinner. It shimmers "Loading…" because a read can take up to its 8s
+  // backstop, and a lone "…" gives the sweep nothing to travel across.
   for (const c of calls) {
-    assert.match(c, /poll-row-count|cell|followNum|muteNum|numEl|h\('strong'\)|setWaiting\(lbl, prev/,
+    assert.match(c, /poll-row-count|cell|followNum|muteNum|numEl|h\('strong'\)|setWaiting\(lbl, prev|idWait/,
       'setWaiting outside an in-place value: ' + c.slice(0, 60));
   }
 
