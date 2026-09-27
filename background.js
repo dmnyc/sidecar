@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js');
+  importScripts('nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -62,6 +62,47 @@ function sset(obj) {
 
 async function getConfiguredRelays() {
   return (await sget('sidecar_relays')).sidecar_relays || DEFAULT_RELAYS;
+}
+
+// ---- getRelays(): the account's relays, not Sidecar's (#274) ----
+//
+// A client asks getRelays() where to publish, and was told the bootstrap set whatever
+// the account declared or chose. The answer now comes from relay-policy.js, the rule
+// the panel posts by, for the account the site is bound to.
+//
+// From the panel's LAST KNOWN relay list, not a live lookup. Clients ask as they log
+// in and wait on the answer, and the worker has no relay pool to ask with. That list
+// is kept current from both sides: the panel saves every list it resolves, and the
+// background saves every kind:10002 it signs (rememberSignedRelayList below), so an
+// edit made in any client lands here the moment it is signed.
+const RELAY_POLICY = self.SidecarRelayPolicy;
+const NIP65_STORE = 'sidecar_nip65'; // { [pubkey]: { read, write, at } }, shared with the panel
+
+async function relaysForAccount(pubkey) {
+  const got = await sget(['sidecar_relays', 'sidecar_settings', NIP65_STORE]);
+  const configured = got.sidecar_relays || DEFAULT_RELAYS;
+  const settings = got.sidecar_settings || {};
+  const nip65Only = !!(pubkey && settings.nip65OnlyBy && settings.nip65OnlyBy[pubkey]);
+  const rec = pubkey && got[NIP65_STORE] && got[NIP65_STORE][pubkey];
+  const list = rec && Array.isArray(rec.read) && Array.isArray(rec.write) && (rec.read.length || rec.write.length)
+    ? { read: rec.read, write: rec.write }
+    : null;
+  return RELAY_POLICY.relayMap({ list, configured, bootstrap: !nip65Only });
+}
+
+// Serialized for the same reason the panel's writes are: every write is a
+// read-modify-write of one object shared by every account.
+let nip65StoreWrites = Promise.resolve();
+function rememberSignedRelayList(ev) {
+  if (!ev || ev.kind !== 10002 || !/^[0-9a-f]{64}$/.test(ev.pubkey || '')) return nip65StoreWrites;
+  const list = RELAY_POLICY.listFromTags(ev.tags);
+  nip65StoreWrites = nip65StoreWrites.then(async () => {
+    const all = { ...((await sget(NIP65_STORE))[NIP65_STORE] || {}) };
+    if (list) all[ev.pubkey] = { read: list.read, write: list.write, at: Date.now() };
+    else delete all[ev.pubkey]; // a published empty list is a real "no list"
+    await sset({ [NIP65_STORE]: all });
+  }).catch(() => {});
+  return nip65StoreWrites;
 }
 
 // ---- SSRF guard for server-side fetches (link previews) ----
@@ -1690,7 +1731,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 
     let result;
     if (method === 'getRelays') {
-      result = await getConfiguredRelays();
+      result = await relaysForAccount(activePubkey);
     } else {
       const privBytes = needsKey ? await KS.getPrivkey(activePubkey) : null;
       result = await SIGNER.perform(method, params, privBytes, activePubkey);
@@ -1711,6 +1752,12 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     if (method === 'signEvent' && !isRelayAuth && result && BASELINE.isTracked(result.kind)) {
       try { await BASELINE.record(activePubkey, result, result.created_at || 0); } catch (_) {}
     }
+
+    // A relay list signed in a client is the account's list from now on, so the next
+    // getRelays() reports it. Recorded on signing, like the baseline above: the client
+    // publishes it, and a list signed and then never sent is rare and self-correcting,
+    // since the panel's next lookup overwrites this with what the relays hold.
+    if (method === 'signEvent' && result && result.kind === 10002) await rememberSignedRelayList(result);
 
     // A zap request the user just authorized. Remember it so the payment that follows
     // can be recognized as that zap (see zap-requests.js). Best-effort, same as above.
@@ -3444,6 +3491,9 @@ async function handleControl(message, sender, sendResponse) {
         // expectedPubkey (when the caller supplies it) makes this fail closed if
         // the active account changed out from under the caller — see KS.ownerSign.
         result = await KS.ownerSign(message.event, message.expectedPubkey);
+        // The panel's relay editor signs here. Saving it now keeps a client's next
+        // getRelays() current without waiting for the panel's next lookup.
+        if (result && result.kind === 10002) await rememberSignedRelayList(result);
         break;
       }
       case 'SIDECAR_OWNER_ENCRYPT': {

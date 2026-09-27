@@ -20,6 +20,9 @@ Update that section alongside this file as part of every release.
 - **Developer moves to the end of Settings,** below Sharing & updates.
 - **Film Noir is recut in black and white.** The panel is a close-up of a 35mm print: four perforations down each side of every frame, the frame line under it, and the print aged over all of it, with burns, uneven density, rain, scratches, dust and grain. The theme is grayscale now, status colors included: an error is the brightest ink in the panel, a warning a step down, success another, and each still carries its wording or icon. The only colors left are the Sidecar mark and red for anything that destroys data: the warning before signing an event that erases a list or a profile, the reset, and the delete confirmations. A zap strikes in white. It is set in Noto Serif Display: its titles and the wallet balance in the ExtraCondensed ExtraBold Italic, the lettering of a studio title card, standing off the screen on a title card's deep extrusion, and everything else in the same face upright. In the theme gallery, Metropolis moves up to second and Film Noir follows it.
 
+### Fixed
+- **Connected clients are told your relays, not Sidecar's.** A client asks `getRelays()` where to publish, and Sidecar answered with its bootstrap set whatever the account had declared or chosen, so the relay setting worked for posts made in the panel and did nothing for the client you actually post from. In Jumble, with the account set to its own relays only, posts failed on a relay it had excluded. `getRelays()` now answers by the same rule the panel posts by, for the account the site is bound to: your declared relays, plus the bootstrap set while **Use bootstrap relays** is on. A relay list you publish from any client counts from the moment Sidecar signs it. (#274)
+
 ## [1.14.1] — 2026-09-23
 
 ### Fixed
