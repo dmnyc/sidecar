@@ -146,40 +146,37 @@
   color: var(--text);
 }
 
-/* ---- balance animation: first light ------------------------------------------
-   A star is found before it is drawn: a point of white light first, and only then the
-   engraver's gold symbol that stands for it on the plate. The plates keep that order
-   themselves: their brightest stars are white points laid over the gold.
+/* ---- balance animation: the stars come out -----------------------------------
+   At dusk the stars do not appear in a row. One shows, then another somewhere else, and
+   each one twinkles as it steadies: the air between it and you bends its light, so it
+   flickers bright and dim a few times before it holds. That scintillation is what makes
+   a point of light read as a star rather than a lamp.
 
-   So each figure starts as a hot white point, small and blurred, swells a little past
-   its size with a halo round it, and settles as gold ink. */
-@keyframes constellation-first-light {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-    filter: blur(2.5px);
-    text-shadow: 0 0 0.5em rgba(240, 236, 224, 0.9);
-  }
-  40% {
-    opacity: 1;
-    transform: scale(1.06);
-    filter: blur(0.4px);
-    text-shadow: 0 0 0.45em rgba(244, 238, 220, 0.6), 0 0 1.2em rgba(201, 170, 108, 0.35);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-    text-shadow: none;
-  }
+   So the figure comes out of the dark one digit at a time, in a scattered order rather
+   than left to right, and each digit arrives as white starlight, flickers, and settles
+   into the plate's engraving gold. Nothing is drawn round the digits: glints and a
+   stardust scatter were both tried, and the flicker alone reads as stars without them.
+
+   The scatter is a modular scramble of the digit's position (5i + 2, mod 7: a
+   permutation of the first seven slots), so the order is fixed and reproducible, never
+   random between repaints. mod() arrived in Chrome 125, after this extension's floor;
+   the plain sweep declared before it is what an older browser keeps. */
+@keyframes constellation-twinkle {
+  0%   { opacity: 0; color: #F4EEDC; text-shadow: 0 0 0.35em rgba(244, 238, 220, 0.7); }
+  8%   { opacity: 1; }
+  15%  { opacity: 0.3; }
+  23%  { opacity: 1; }
+  31%  { opacity: 0.55; }
+  41%  { opacity: 1; text-shadow: 0 0 0.3em rgba(244, 238, 220, 0.45); }
+  53%  { opacity: 0.78; }
+  65%  { opacity: 1; color: #F4EEDC; }
+  100% { opacity: 1; color: var(--balance-ink); text-shadow: none; }
 }
 [data-theme="constellation"] .bal-glyph { display: inline-block; }
 [data-theme="constellation"] .bal-glyph.bal-in {
-  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
-     never more than 210ms behind the first, however many there are. See splitGlyphs
-     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
-  animation: constellation-first-light 780ms cubic-bezier(0.2, 0.7, 0.2, 1)
-             calc(var(--i) * min(70ms, 210ms / max(var(--n) - 1, 1))) both;
+  animation: constellation-twinkle 1300ms linear both;
+  animation-delay: calc(var(--i) * 45ms);
+  animation-delay: calc(mod(var(--i) * 5 + 2, 7) * 55ms);
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="constellation"] .bal-glyph.bal-in { animation: none; }
