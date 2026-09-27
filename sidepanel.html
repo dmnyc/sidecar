@@ -434,6 +434,12 @@
             <label class="toggle-row"><input type="checkbox" id="reducemotion-toggle" /> <span>Turn off Sidecar's animations</span></label>
           </div>
 
+          <div class="setting">
+            <h3>On this day</h3>
+            <p class="hint">A line of history at the foot of the Accounts tab.</p>
+            <label class="toggle-row"><input type="checkbox" id="otd-toggle" /> <span>Show On this day</span></label>
+          </div>
+
         </div>
       </section>
 
@@ -737,26 +743,6 @@
         </div>
       </section>
 
-      <section class="settings-section" data-section="developer">
-        <h3 class="settings-section-title">
-          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-developer">Developer</button>
-        </h3>
-        <div class="settings-section-body" id="section-body-developer">
-
-          <!-- Kept as its own section because its visibility toggles whole-block on store
-               builds (initDevBadge); folded into Sharing & updates instead, non-dev users
-               would see a section that never opens onto anything. Synced away entirely
-               by syncSettingsSectionVisibility. The data-section key stays "about" — it
-               is also the storage map's key, and the label is the only thing that moved. -->
-          <div class="setting hidden" id="dev-settings-section">
-            <h3>Developer</h3>
-            <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
-            <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
-          </div>
-
-        </div>
-      </section>
-
       <section class="settings-section" data-section="about">
         <h3 class="settings-section-title">
           <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-about">Sharing &amp; updates</button>
@@ -775,6 +761,26 @@
             <a href="#" id="whats-new-link" class="whats-new-link">What&#8217;s new in this version &rarr;</a>
             <button class="secondary" id="check-update-btn">Check for updates</button>
             <p class="hint" id="check-update-status"></p>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="settings-section" data-section="developer">
+        <h3 class="settings-section-title">
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-developer">Developer</button>
+        </h3>
+        <div class="settings-section-body" id="section-body-developer">
+
+          <!-- Kept as its own section because its visibility toggles whole-block on store
+               builds (initDevBadge); folded into Sharing & updates instead, non-dev users
+               would see a section that never opens onto anything. Synced away entirely
+               by syncSettingsSectionVisibility. The data-section key stays "about" — it
+               is also the storage map's key, and the label is the only thing that moved. -->
+          <div class="setting hidden" id="dev-settings-section">
+            <h3>Developer</h3>
+            <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
+            <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
           </div>
 
         </div>

@@ -727,6 +727,9 @@
   // turning motion down system-wide (which the theme files already honor on their
   // own, via prefers-reduced-motion).
   let reduceBalanceMotion = false;
+  // Settings → Appearance → On this day. On unless turned off, stored as an explicit
+  // false so the default stays on.
+  let showOnThisDay = true;
   let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
@@ -1031,6 +1034,7 @@
     autoHideBalances = !!(settings && settings.autoHideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
     reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
+    showOnThisDay = !(settings && settings.onThisDay === false);
     // Default ON. It sorts rather than hides, so the failure mode of being wrong is a
     // collapsed group you expand, not a reply you never see.
     notifWotFilter = !(settings && settings.notifWotFilter === false);
@@ -7425,7 +7429,7 @@
   function renderOnThisDay() {
     const host = $('otd');
     if (!host) return;
-    const entry = pickOnThisDay(null, state.activePubkey);
+    const entry = showOnThisDay ? pickOnThisDay(null, state.activePubkey) : null;
     if (!entry) { host.textContent = ''; hide(host); return; }
 
     const share = h('button', { className: 'otd-share', type: 'button', title: 'Post this' }, [icon('share')]);
@@ -9663,6 +9667,7 @@
     const rebuildRow = document.querySelector('.wot-actions');
     if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
     $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
+    $('otd-toggle').checked = settings.onThisDay !== false; // default on
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
     if (fiatSel && !fiatSel.options.length) {
@@ -19969,6 +19974,12 @@
     // next arrival its animation. restrikeBalances clears the paint record, which is
     // what lets an unchanged number be re-rendered at all.
     restrikeBalances();
+  });
+
+  $('otd-toggle').addEventListener('change', async (e) => {
+    showOnThisDay = e.target.checked;
+    renderOnThisDay();
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { onThisDay: e.target.checked } });
   });
 
   $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));
