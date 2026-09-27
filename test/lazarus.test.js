@@ -1,7 +1,7 @@
 'use strict';
 
 // Lazarus — recovery of user data from relay history (github.com/dmnyc/lazarus),
-// spec 0.6.1-draft.
+// spec 0.6.2-draft.
 //
 // The fixtures below are the spec's conformance cases, at least the ones a pure
 // core can carry: sudden drops vs gradual curation, clobber episodes, settled
@@ -101,7 +101,8 @@ test('ESTIMATED: A REAL ENCRYPTED LIST SITS INSIDE ITS BAND, AT EVERY SIZE', asy
       const b = L.privateBand(content, scheme);
       assert.ok(b, scheme + ' ' + n + ' items: a valid payload came back unsized');
       assert.ok(b.min <= n && n <= b.max, scheme + ' ' + n + ' items outside [' + b.min + ', ' + b.max + ']');
-      assert.ok(b.min >= 1 && b.min <= b.max, 'the band inverted or read as zero');
+      assert.ok(b.min >= 0 && b.min <= b.max, 'the band inverted');
+      assert.ok(b.max >= 1, 'a payload that holds a list never reads as empty');
     }
   }
 });
@@ -127,11 +128,15 @@ test('ESTIMATED: MALFORMED PAYLOADS ARE FLAGGED, NOT GUESSED', () => {
     [32, 32, 64, 64, 96, 128, 256, 320, 320, 512, 640, 1024, 65536]);
 });
 
-test('THE BAND NEVER INVERTS, SO AN EMPTIED PRIVATE LIST NEVER READS AS A ZERO', () => {
-  // An encrypted "[]" pads to 32 bytes: less than one assumed item, but a
-  // ciphertext is there, so the band says at least one rather than zero.
-  const tiny = L.privateBand(nip44Of([]), 'nip44');
-  assert.deepEqual([tiny.min, tiny.max], [1, 1]);
+test('AN ENCRYPTED EMPTY LIST READS AS ZERO TO ONE, AND STILL TELLS EMPTIED FROM FULL', async () => {
+  // Spec 0.6.2: the minimum can be zero. An encrypted "[]" is too small for one
+  // item of the reference shape, so it may be an emptied list; its maximum stays
+  // at one, so it is never a tombstone either. NIP-04's one-block payload is the
+  // case where the minimum's formula would otherwise go below zero.
+  for (const [scheme, content] of [['nip44', nip44Of([])], ['nip04', await nip04Of([])]]) {
+    const tiny = L.privateBand(content, scheme);
+    assert.deepEqual([tiny.min, tiny.max], [0, 1], scheme);
+  }
   // And an emptied private list is still told apart from a full one: a clobber
   // that re-encrypts "[]" over 40 private mutes is a sudden drop.
   const full = cand(BASE - DAY, [], nip44Of(ptags(40)), 10000);
@@ -218,6 +223,7 @@ test('NOTHING IS RECOMMENDED WHILE THE CURRENT SIZE IS UNKNOWN', () => {
   const current = cand(BASE, ptags(2), 'garbage content', 10000); // unsizable private → flagged
   const r = L.rank([current, pre], 10000);
   assert.equal(r.recommended, null);
+  assert.equal(r.currentUnknown, true, 'unknown, not "no recoverable improvement"');
 });
 
 test('MEANINGFUL-EMPTY KINDS FORBID RANKING; RECENCY KINDS NEVER RECOMMEND', () => {
@@ -273,9 +279,10 @@ test('A SAME-SECOND TIE GOES TO THE LOWEST ID, AS RELAYS KEEP IT', () => {
   assert.equal(L.checkCurrent(lo, hi, true).status, 'proceed');
 });
 
-test('AN UNSIZABLE VERSION NEVER OUTRANKS A KNOWN ONE AS "FULLEST"', () => {
-  // Fullest was judged by maximum first, and a flagged version's maximum is
-  // Infinity: it won every episode it was in, over a version known to be full.
+test('AN UNSIZABLE VERSION TAKES NO PART IN RANKING', () => {
+  // Spec 0.6.2: a flagged version is shown and never recommended, and is left out
+  // of drops, episodes, the settled count and the fullest version. Before, its
+  // unbounded maximum won "fullest" over a version known to be full.
   const known = cand(BASE, ptags(100), '', 10000);
   const x = cand(BASE + 3600, ptags(10), '', 10000);                    // drop from 100
   const flagged = cand(BASE + 7200, ptags(100), 'not a payload', 10000); // [100, Infinity]
@@ -283,6 +290,13 @@ test('AN UNSIZABLE VERSION NEVER OUTRANKS A KNOWN ONE AS "FULLEST"', () => {
   assert.equal(L.itemRange(flagged).certainty, 'flagged');
   const r = L.rank([y, flagged, x, known], 10000);
   assert.equal(r.recommended.id, known.id);
+  assert.equal(r.skipped, 1, 'the result says a version was left out');
+  // And a drop hidden behind one is still a drop: the timeline steps over it, so
+  // 40 accounts to 5 reads as the clobber it is.
+  const full = cand(BASE, ptags(40), '', 10000);
+  const hidden = cand(BASE + 3600, ptags(5), 'not a payload', 10000);
+  const after = cand(BASE + 7200, ptags(5, 300), '', 10000);
+  assert.equal(L.rank([after, hidden, full], 10000).recommended.id, full.id);
 });
 
 test('MUTED WORDS, HASHTAGS AND THREADS ARE MUTE-LIST ITEMS', () => {
@@ -330,6 +344,70 @@ test('A REWRITTEN RELAY URL IS NOT A CHANGE', () => {
   const d = L.delta(a, b, 10002);
   assert.equal(d.added + d.removed, 0);
   assert.equal(L.relayKey('wss://relay.example//inbox/'), 'wss://relay.example/inbox');
+});
+
+test('A LIST WIPED FROM FEWER THAN FIVE ITEMS HAS NOT RECOVERED', () => {
+  // Spec 0.6.2: "or is empty while that version was not". Missing 3 items is
+  // below the 5-item bar, and read literally the emptied list had "recovered".
+  const small = cand(BASE - DAY, ptags(3));
+  const wiped = cand(BASE, []);
+  assert.equal(L.rank([wiped, small], 3).recommended.id, small.id);
+  // Conservatively: a version that may itself be empty (an encrypted "[]", zero
+  // to one items) is not one that was not, so emptying it is no drop.
+  const maybe = cand(BASE - DAY, [], nip44Of([]), 10000);
+  const empty = cand(BASE, [], '', 10000);
+  assert.equal(L.rank([empty, maybe], 10000).recommended, null);
+});
+
+test('SETTLED COUNTS FROM THE EPISODE\'S LAST DROP', () => {
+  // Five versions after the episode's first drop, but three after its last: the
+  // list was clobbered twice in an afternoon and only edited three times since,
+  // so it is not settled, and the fullest version from before it is the target.
+  const v = [
+    cand(BASE, ptags(100)),
+    cand(BASE + 3600, ptags(50, 100)),       // drop 1
+    cand(BASE + 7200, ptags(55, 100)),
+    cand(BASE + 3 * 3600, ptags(20, 200)),   // drop 2: the episode's last
+    cand(BASE + 4 * 3600, ptags(52, 100)),
+    cand(BASE + 5 * DAY, ptags(53, 100)),
+    cand(BASE + 10 * DAY, ptags(54, 100)),
+  ];
+  const r = L.rank(v.slice().reverse(), 3);
+  assert.equal(r.settled, undefined);
+  assert.equal(r.recommended.id, v[0].id);
+  // Two more edits make five after the last drop, over a week: settled.
+  const more = [...v, cand(BASE + 11 * DAY, ptags(55, 100)), cand(BASE + 12 * DAY, ptags(56, 100))];
+  assert.equal(L.rank(more.slice().reverse(), 3).settled, true);
+});
+
+test('EMPTYING A VERSION THAT MAY ALREADY BE EMPTY IS NO DROP', () => {
+  // Sizes compare conservatively, and an encrypted "[]" (zero to one items) may
+  // already be empty, so the fully empty version after it is not a drop. Counted
+  // as one, it would become the episode's last drop and push "settled" back a
+  // version: four edits after it read as unsettled, and the recommendation
+  // reached for a list the user has edited on for nine days.
+  const v = [
+    cand(BASE, ptags(100), '', 10000),
+    cand(BASE + 3600, ptags(10, 500), '', 10000),        // drop from 100
+    cand(BASE + 7200, [], nip44Of([]), 10000),           // drop from 10: zero to one
+    cand(BASE + 3 * 3600, [], '', 10000),                // empty: not a drop from "maybe empty"
+    ...[1, 3, 6, 9].map((d, i) => cand(BASE + d * DAY, ptags(12, 700 + i), '', 10000)),
+  ];
+  const r = L.rank(v.slice().reverse(), 10000);
+  assert.equal(r.recommended, null);
+  assert.equal(r.settled, true);
+});
+
+test('FULLEST BREAKS A TIE ON MINIMUM BY RECENCY, NOT BY MAXIMUM', () => {
+  // Two versions from before drops in one episode, with the same minimum: the
+  // older has a higher estimated maximum. Spec 0.6.2 takes the newer.
+  const older = cand(BASE, ptags(20), nip44Of(ptags(6)), 10000);
+  const min = L.itemRange(older).min;
+  assert.ok(L.itemRange(older).max > min, 'the fixture needs a band, not an exact count');
+  const d1 = cand(BASE + 3600, ptags(2, 400), '', 10000);
+  const newer = cand(BASE + 7200, ptags(min, 800), '', 10000);
+  const d2 = cand(BASE + 3 * 3600, ptags(2, 600), '', 10000);
+  assert.equal(L.rank([d2, newer, d1, older], 10000).recommended.id, newer.id);
 });
 
 test('NO RECOVERABLE IMPROVEMENT IS A NORMAL ANSWER', () => {
@@ -384,7 +462,7 @@ test('ENCRYPTION KEYS ARE THE n TAGS NIP-4e LISTS THEM IN (0.6.1)', () => {
   const keys = cand(10, [['n', 'a'.repeat(64)], ['n', 'b'.repeat(64)]], '', 10044);
   assert.deepEqual([L.itemRange(keys).min, L.itemRange(keys).max], [2, 2]);
   assert.equal(L.itemRange(cand(10, [['p', 'c'.repeat(64)]], '', 10044)).max, 0, 'a p tag is a key share, not a key');
-  assert.equal(L.SPEC_VERSION, '0.6.1-draft');
+  assert.equal(L.SPEC_VERSION, '0.6.2-draft');
 });
 
 test('MEANINGFUL-EMPTY DELTAS STATE BOTH ENDPOINTS, IN THE RIGHT DIRECTION', () => {

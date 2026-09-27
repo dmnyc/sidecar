@@ -15314,7 +15314,7 @@
   }
 
   // ---- Lazarus: recovery of user data from relay history ----
-  // github.com/dmnyc/lazarus, spec 0.6.1-draft; the concept first shipped in
+  // github.com/dmnyc/lazarus, spec 0.6.2-draft; the concept first shipped in
   // Mutable and was hardened in the Jumble fork. kind:3, 10000 and friends are
   // replaceable, so a buggy client publishing its own version destroys every
   // prior version on relays that honor replacement, but the history usually
@@ -15693,6 +15693,9 @@
     }
   }
 
+  // The credit names the spec version this screen follows, in the wording the
+  // other Lazarus clients use, read from the core so the label cannot drift from
+  // the rules actually running. Lazarus is a spec, not a service behind the screen.
   function lazarusAttribution() {
     const a = h('a', {
       className: 'lazarus-credit',
@@ -15700,7 +15703,7 @@
       target: '_blank',
       rel: 'noopener noreferrer',
     });
-    a.append(h('span', { textContent: 'Powered by Lazarus' }));
+    a.append(h('span', { textContent: 'Follows the Lazarus recovery spec (' + self.SidecarLazarus.SPEC_VERSION + ').' }));
     return a;
   }
 
@@ -15911,15 +15914,21 @@
             body.append(h('p', { className: 'hint warn', textContent: 'No write relay answered, so the newest version may not be current. Nothing is recommended.' }));
           } else if (rec().meaningfulEmpty) {
             body.append(h('p', { className: 'hint warn', textContent: 'An empty version here is a choice, not damage: it says you no longer use NIP-4e. Nothing is recommended.' }));
+          } else if (r.currentUnknown) {
+            // Not "no recoverable improvement": nothing could be measured against it.
+            body.append(h('p', { className: 'hint warn', textContent: 'Your current version couldn’t be counted, so nothing is recommended.' }));
           } else if (r.recommended) {
             body.append(h('p', { className: 'hint', textContent: 'Highlighted: the fullest version from before a sudden drop your list hasn’t recovered from.' }));
-            if (Lz.itemRange(r.recommended).certainty === 'flagged') {
-              body.append(h('p', { className: 'hint warn', textContent: 'That version couldn’t be fully counted, so the recommendation may be wrong.' }));
-            }
           } else if (r.settled) {
             body.append(h('p', { className: 'hint', textContent: 'After a sudden drop, you edited this list 5+ times over a week. Nothing is recommended.' }));
           } else if (rec().profile === 'count') {
             body.append(h('p', { className: 'hint', textContent: 'No recoverable improvement found. You can still restore any version below.' }));
+          }
+          // A version that couldn't be counted is never recommended and takes no
+          // part in finding a clobber (spec 0.6.2), so the answer above rests on the
+          // others. The spec's partially-counted marker exists to warn of exactly this.
+          if (r.skipped && !r.currentUnknown) {
+            body.append(h('p', { className: 'hint warn', textContent: 'Versions that couldn’t be counted were left out, so this may be wrong.' }));
           }
         }
 

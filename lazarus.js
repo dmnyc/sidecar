@@ -1,5 +1,5 @@
 // Lazarus — recovery of user data from relay history on Nostr.
-// Spec: https://github.com/dmnyc/lazarus (0.6.1-draft).
+// Spec: https://github.com/dmnyc/lazarus (0.6.2-draft).
 //
 // A buggy client publishing its own version of a replaceable event destroys every
 // prior version on any relay that honors replacement. Until relays expire it, the
@@ -20,7 +20,7 @@
 (function (root) {
   'use strict';
 
-  const SPEC_VERSION = '0.6.1-draft';
+  const SPEC_VERSION = '0.6.2-draft';
 
   // Reference thresholds from the spec. Implementations SHOULD use them so that
   // recommendations agree across clients; changing these here is a spec-version
@@ -135,10 +135,12 @@
     return chunk * (Math.floor((len - 1) / chunk) + 1);
   }
 
-  // Bytes of plaintext to items, rounded outward. A non-empty ciphertext never
-  // reads as zero items: a private-only list must not look like a tombstone.
+  // Bytes of plaintext to items, rounded outward (the minimum down, the maximum
+  // up), so the band never inverts. The minimum can be zero: a payload too small
+  // for one item may be an emptied list. A candidate is empty, a tombstone, only
+  // when its maximum is zero, which a valid payload never has.
   function bytesToItems(lo, hi) {
-    const min = Math.max(1, Math.floor((lo - 1) / ITEM_BYTES));
+    const min = Math.max(0, Math.floor((lo - 1) / ITEM_BYTES));
     return { min, max: Math.max(min, Math.ceil((hi - 1) / ITEM_BYTES)) };
   }
 
@@ -293,26 +295,39 @@
   }
 
   // RANK. Newest first, always. The `count` profile recommends a version only
-  // when the current one looks clobbered — lists shrink through normal curation,
-  // so bigger-never-means-better:
+  // when the current one looks clobbered: lists shrink through normal curation,
+  // so bigger never means better. Spec 0.6.2:
   //
+  //   - the timeline is the versions of known size, newest first. A version whose
+  //     size is unknown (flagged) is shown, never recommended, and takes no part
+  //     in drops, episodes, the settled count or the fullest version; consecutive
+  //     means consecutive in the timeline;
   //   - a step between consecutive versions is a sudden drop when the later
   //     version is missing at least 20% and at least 5 of the earlier version's
   //     items, or is empty while the earlier one was not;
   //   - sizes compare conservatively: the later version's maximum against the
-  //     earlier version's minimum, so an estimate can never fake a drop;
+  //     earlier version's minimum, so an estimate can never fake a drop, and a
+  //     version that may be empty never counts as one that is not;
+  //   - walking back from the newest, the drop to recover from is the most recent
+  //     one current hasn't recovered from: still missing 20% and 5 items of the
+  //     version before it, or emptied when that version was not, however few
+  //     items it held;
   //   - drops back to back, or within a day of each other, form one clobber
-  //     episode, and the fullest version from before any drop in that episode
-  //     is the target, so a list clobbered, partly restored, and clobbered
-  //     again points at its fullest state before the damage;
-  //   - a clobber the list has since been edited on five times over at least a
-  //     week is settled: the current version is the user's choice;
+  //     episode, and the target is the fullest version from before any drop in
+  //     it: the largest minimum, the newer on a tie;
+  //   - an episode with at least five versions newer than its last drop, the
+  //     newest a week or more after that drop, is settled: the current version
+  //     is the user's choice;
   //   - nothing is recommended while the current version's size is unknown, and
   //     "no recoverable improvement found" is a normal result.
   //
   // `opts.currentConfirmed === false` withholds the recommendation outright:
   // drops are measured against current, and a scan that never reached the user's
   // write relays may be measuring against a version the user already replaced.
+  //
+  // The result says when an answer rests on less than every version:
+  // `currentUnknown` when current itself couldn't be counted, `skipped` for the
+  // number of versions left out of the timeline.
   //
   // `meaningful-empty` kinds forbid ranking outright. `recency` kinds never
   // recommend. A tombstone is never recommended in any profile (invariant 3).
@@ -330,22 +345,26 @@
       return result;
     }
 
-    const sizes = ordered.map(itemRange);
-    if (sizes[0].certainty === 'flagged') {
+    const known = (c) => itemRange(c).certainty !== 'flagged';
+    result.skipped = ordered.filter((c) => !known(c)).length;
+    if (!known(ordered[0])) {
       // The current size is unknown, so no comparison against it can be made.
+      result.currentUnknown = true;
       return result;
     }
 
+    const timeline = ordered.filter(known);
+    const sizes = timeline.map(itemRange);
     const drops = [];
-    for (let i = 0; i + 1 < ordered.length; i++) {
+    for (let i = 0; i + 1 < timeline.length; i++) {
       const later = sizes[i];
       const earlier = sizes[i + 1];
-      const emptyDrop = earlier.max > 0 && later.max === 0;
+      const emptyDrop = earlier.min > 0 && later.max === 0;
       const missing = earlier.min - later.max;
       const sudden = earlier.min > 0
         && missing >= DROP_MIN_ITEMS
         && missing >= earlier.min * DROP_SHARE;
-      if (emptyDrop || sudden) drops.push({ idx: i, preIdx: i + 1, missing });
+      if (emptyDrop || sudden) drops.push({ idx: i, preIdx: i + 1 });
     }
     if (!drops.length) return result;
 
@@ -356,62 +375,47 @@
     episodeOf.set(0, 0);
     for (let d = 1; d < drops.length; d++) {
       const backToBack = drops[d].idx === drops[d - 1].idx + 1;
-      const gap = ordered[drops[d - 1].idx].createdAt - ordered[drops[d].idx].createdAt;
+      const gap = timeline[drops[d - 1].idx].createdAt - timeline[drops[d].idx].createdAt;
       if (!backToBack && gap > EPISODE_WINDOW) ep++;
       episodeOf.set(d, ep);
     }
 
+    const current = sizes[0];
     for (let d = 0; d < drops.length; d++) {
-      const drop = drops[d];
-      const preSize = sizes[drop.preIdx];
+      const pre = sizes[drops[d].preIdx];
       // The current version has recovered from this drop, so keep walking back.
-      const stillMissing = preSize.min - sizes[0].max;
-      if (!(stillMissing >= DROP_MIN_ITEMS && stillMissing >= preSize.min * DROP_SHARE)) continue;
+      // An emptied list has not, however few items it held.
+      const stillMissing = pre.min - current.max;
+      const unrecovered = (stillMissing >= DROP_MIN_ITEMS && stillMissing >= pre.min * DROP_SHARE)
+        || (current.max === 0 && pre.min > 0);
+      if (!unrecovered) continue;
 
-      // Settled: the list has been edited SETTLED_EDITS times since the drop,
-      // over at least a week. The dropped version is the clobber itself, not an
-      // edit on it, so only the versions newer than it count.
-      if (drop.idx >= SETTLED_EDITS
-        && ordered[0].createdAt - ordered[drop.idx].createdAt >= SETTLED_SECONDS) {
-        return { ordered, recommended: null, requiresIntent: false, settled: true };
+      const episode = drops.filter((_, e) => episodeOf.get(e) === episodeOf.get(d));
+      // Settled: at least SETTLED_EDITS versions newer than the episode's last
+      // drop, the newest SETTLED_SECONDS or more after it. The dropped version is
+      // the clobber itself, not an edit on it, and the drops run newest first, so
+      // the episode's last drop is its first entry.
+      const last = episode[0];
+      if (last.idx >= SETTLED_EDITS
+        && timeline[0].createdAt - timeline[last.idx].createdAt >= SETTLED_SECONDS) {
+        return { ...result, settled: true };
       }
 
-      // The fullest version from just before any drop in this episode (see
-      // betterSize), newest on a tie.
-      const myEp = episodeOf.get(d);
-      let best = null;
-      for (let e = 0; e < drops.length; e++) {
-        if (episodeOf.get(e) !== myEp) continue;
-        if (best === null || betterSize(sizes[drops[e].preIdx], sizes[best.preIdx])
-          || (sameSize(sizes[drops[e].preIdx], sizes[best.preIdx])
-            && ordered[drops[e].preIdx].createdAt > ordered[best.preIdx].createdAt)) {
-          best = drops[e];
-        }
+      // The fullest version from just before any drop in the episode: the largest
+      // minimum, the newer on a tie, which is the first found, newest first.
+      let best = episode[0];
+      for (const e of episode) {
+        if (sizes[e.preIdx].min > sizes[best.preIdx].min) best = e;
       }
-      const chosen = ordered[best.preIdx];
-      if (chosen.id === ordered[0].id) return result;
-      // A tombstone is never the recommendation; the fullest pre-episode version
-      // of an episode whose every pre-version is empty cannot exist (an empty
-      // pre-version cannot have produced an emptyDrop against an empty later), so
-      // this is belt-and-suspenders for the invariant.
+      const chosen = timeline[best.preIdx];
+      if (chosen.id === timeline[0].id) return result;
+      // A tombstone is never the recommendation. A pre-drop version is non-empty by
+      // construction (both drop rules need the earlier minimum above zero), so this
+      // is belt-and-suspenders for the invariant.
       if (itemRange(chosen).max === 0) return result;
-      return { ordered, recommended: chosen, requiresIntent: false, clobber: true };
+      return { ...result, recommended: chosen, clobber: true };
     }
     return result;
-  }
-
-  // Fullest, conservatively: the larger guaranteed count first, then a known size
-  // over an unknown one, then the larger maximum. A flagged version's unbounded
-  // maximum is not evidence that it held more.
-  function betterSize(a, b) {
-    if (a.min !== b.min) return a.min > b.min;
-    const aKnown = a.max !== Infinity;
-    const bKnown = b.max !== Infinity;
-    if (aKnown !== bKnown) return aKnown;
-    return a.max > b.max;
-  }
-  function sameSize(a, b) {
-    return a.max === b.max && a.min === b.min;
   }
 
   // Newest first. NIP-01: of two versions with the same created_at, relays keep
