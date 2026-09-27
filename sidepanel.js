@@ -261,7 +261,12 @@
   // a notification landed a moment later, and the quote was swapped for a different one
   // at the bottom of the list before it had been read. A quote you cannot finish reading
   // is worse than no quote.
+  //
+  // With literary quotes turned off (Settings → Appearance), each of the three keeps what
+  // it is FOR and drops the furniture: the empty state keeps its hint, the waiting state
+  // its spinner row, and the end of a list says nothing further.
   function emptyQuote(hint, q) {
+    if (!showQuotes) return h('div', { className: 'bm-empty' }, [h('p', { className: 'hint', textContent: hint || '' })]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
       h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
@@ -275,6 +280,8 @@
   // Takes the same optional quote, so a list that began empty ends on the line it started
   // with rather than on a new one.
   function endQuote(q) {
+    // An element, never null: callers append the result, and append(null) writes "null".
+    if (!showQuotes) return h('span');
     q = q || pickQuote();
     return h('div', { className: 'bm-empty bm-end' }, [
       h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
@@ -304,6 +311,7 @@
   }
 
   function loadingQuote(label, q) {
+    if (!showQuotes) return h('div', { className: 'bm-empty' }, [waitingRow(label)]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
       h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
@@ -730,6 +738,8 @@
   // Settings → Appearance → On this day. On unless turned off, stored as an explicit
   // false so the default stays on.
   let showOnThisDay = true;
+  // Settings → Appearance → Literary quotes. Same shape: on unless turned off.
+  let showQuotes = true;
   let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
   let zapFlash = true; // lightning bolt on payment — on unless turned off
@@ -1035,6 +1045,7 @@
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
     reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
     showOnThisDay = !(settings && settings.onThisDay === false);
+    showQuotes = !(settings && settings.literaryQuotes === false);
     // Default ON. It sorts rather than hides, so the failure mode of being wrong is a
     // collapsed group you expand, not a reply you never see.
     notifWotFilter = !(settings && settings.notifWotFilter === false);
@@ -9668,6 +9679,7 @@
     if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
     $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
     $('otd-toggle').checked = settings.onThisDay !== false; // default on
+    $('quotes-toggle').checked = settings.literaryQuotes !== false; // default on
     // Populate from the shared list on first open, then select the saved currency.
     const fiatSel = $('fiat-select');
     if (fiatSel && !fiatSel.options.length) {
@@ -19993,6 +20005,13 @@
     showOnThisDay = e.target.checked;
     renderOnThisDay();
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { onThisDay: e.target.checked } });
+  });
+
+  // Takes effect the next time a list draws; nothing on screen behind Settings has one
+  // worth redrawing for.
+  $('quotes-toggle').addEventListener('change', async (e) => {
+    showQuotes = e.target.checked;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { literaryQuotes: e.target.checked } });
   });
 
   $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));
