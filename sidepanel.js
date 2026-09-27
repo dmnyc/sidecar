@@ -3519,20 +3519,42 @@
   // refusal with the relay's CLOSED reason. So `answered` means at least one relay got as
   // far as EOSE.
   //
-  // Known gap: a relay that connects and then says nothing gets a synthetic EOSE from its
-  // own eoseTimeout (maxWait), which is indistinguishable here from a real empty answer.
-  // Catching that means going below the pool, past the auth wrappers.
+  // A relay that connects and then says nothing is the hard case. Its subscription's own
+  // eoseTimeout fires a SYNTHETIC EOSE, and the close reason is the same EOSE_CLOSE. What
+  // tells them apart is timing: the synthetic one cannot fire until a full eoseTimeout
+  // after the REQ went out (maxWait, or the relay's 4400ms default without it), so an EOSE
+  // that lands sooner than that from the start of the query is real. One subscription per
+  // relay, so each close can be timed on its own; the pool groups REQs per relay anyway,
+  // so the wire traffic is the same.
+  //
+  // It errs one way only. A relay that took most of the window to connect and then really
+  // answered can land past the line and count as silent, which costs a "couldn't load"
+  // when it was the only relay that answered. The other direction, a silent relay counted
+  // as an answer, is what put "Not set" on intact profiles.
   const EOSE_CLOSE = 'closed automatically on eose'; // nostr-tools subscribeEose's reason
+  const BASE_EOSE_TIMEOUT = 4400; // nostr-tools AbstractRelay.baseEoseTimeout
   function poolQueryAnswered(relays, filter, params) {
+    const urls = [...new Set(relays || [])];
+    if (!urls.length) return Promise.resolve({ events: [], answered: false });
+    const realBefore = (params && params.maxWait) || BASE_EOSE_TIMEOUT;
     return new Promise((resolve) => {
       const events = [];
-      poolSubscribeManyEose(relays, filter, Object.assign({}, params, {
-        onevent: (ev) => events.push(ev),
-        onclose: (reasons) => resolve({
-          events,
-          answered: events.length > 0 || (reasons || []).some((r) => r === EOSE_CLOSE),
-        }),
-      }));
+      const seen = new Set();
+      const t0 = Date.now();
+      let answered = false;
+      let left = urls.length;
+      for (const url of urls) {
+        poolSubscribeManyEose([url], filter, Object.assign({}, params, {
+          onevent: (ev) => {
+            answered = true; // an event is an answer, whenever it lands
+            if (ev && !seen.has(ev.id)) { seen.add(ev.id); events.push(ev); }
+          },
+          onclose: (reasons) => {
+            if ((reasons || [])[0] === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
+            if (--left === 0) resolve({ events, answered });
+          },
+        }));
+      }
     });
   }
 
@@ -3656,6 +3678,12 @@
   // Whether the collapsible stats drawer under the active account row is open.
   // Defaults open so a single-account panel isn't sparse; the user can collapse it.
   let accountStatsExpanded = true;
+  // The overview's "the network is back, retry what failed", for the one overview on
+  // screen. A single listener and a slot rather than a listener per render: the drawer is
+  // rebuilt on every renderMain, and each rebuild adding its own would pile up closures
+  // over detached drawers for as long as the panel stayed online.
+  let overviewOnline = null;
+  window.addEventListener('online', () => { if (overviewOnline) overviewOnline(); });
   // A miss is held for much less time than a hit. The read below can't tell "this
   // pubkey has no kind:0" from "every relay was too slow to say", and holding the
   // second for five minutes pinned "Not set" on an identity that was fine.
@@ -3732,6 +3760,11 @@
 
   // ---- NIP-65 (kind 10002) relay list, cached per account ----
   const nip65Cache = new Map(); // pubkey -> { read:[], write:[] } | null
+  // pubkey -> the lookup already running for it. Opening the overview asks for the same
+  // account's list from three places at once (relay count, profile read, follow count),
+  // and before the first answer landed each of them ran its own lookup: three identical
+  // kind:10002 REQs per relay. They now share one.
+  const nip65Inflight = new Map();
 
   // LAST KNOWN GOOD, on disk, per account.
   //
@@ -3791,6 +3824,7 @@
 
   function forgetNip65(pubkey) {
     nip65Cache.delete(pubkey);
+    nip65Inflight.delete(pubkey); // a retry must not join the lookup it is retrying
     return rememberNip65(pubkey, null);
   }
 
@@ -3806,6 +3840,16 @@
   async function getNip65Info(pubkey) {
     if (!pubkey) return { list: null, resolved: true, stale: false };
     if (nip65Cache.has(pubkey)) return { list: nip65Cache.get(pubkey), resolved: true, stale: false };
+    if (nip65Inflight.has(pubkey)) return nip65Inflight.get(pubkey);
+    const p = lookupNip65Info(pubkey).finally(() => {
+      // Only its own entry: forgetNip65 may already have made room for a newer lookup.
+      if (nip65Inflight.get(pubkey) === p) nip65Inflight.delete(pubkey);
+    });
+    nip65Inflight.set(pubkey, p);
+    return p;
+  }
+
+  async function lookupNip65Info(pubkey) {
     let parsed = null;
     let gotEvent = false;
     try {
@@ -3852,8 +3896,11 @@
       const lookup = (relays) => relays.length
         ? Promise.race([
           poolQueryAnswered(relays, { kinds: [10002], authors: [pubkey], limit: 1 })
+            // Only this account's own events: a relay is not obliged to honor the
+            // filter, and a crossed kind:10002 would otherwise stand in for the list.
             .then(({ events, answered }) => (answered
-              ? events.sort((a, b) => b.created_at - a.created_at)[0] || null
+              ? events.filter((e) => e && e.pubkey === pubkey)
+                .sort((a, b) => b.created_at - a.created_at)[0] || null
               : NIP65_TIMED_OUT))
             .catch(() => NIP65_TIMED_OUT),
           new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
@@ -4782,9 +4829,13 @@
   // empty kind:0 is not.
   async function fetchAndStoreProfile(pubkey) {
     try {
-      const relayMap = await call({ type: 'SIDECAR_GET_RELAYS' });
-      const relays = Object.keys(relayMap || {});
-      if (!relays.length) return false; // nothing configured yet — try again later
+      // The same set the overview's profile read uses, because this is one of your own
+      // accounts: its declared relays, purplepag.es and the configured set, or without
+      // the configured set when NIP-65 only is on. Reading the configured set alone
+      // ignored that setting, and missed a name and picture that lived only on the
+      // relays the account declared.
+      const relays = await readRelayUrls(pubkey);
+      if (!relays.length) return false; // nothing to ask yet — try again later
       const ev = await Promise.race([
         poolGetProfile(relays, pubkey),
         new Promise((res) => setTimeout(() => res(null), 6000)),
@@ -7836,13 +7887,33 @@
       return btn;
     }
 
+    // What failed on the last load, so a retry (the tap, or the network coming back)
+    // asks again for exactly those and leaves what already landed alone.
+    let identityFailed = false;
+    let followsFailed = false;
+    function retryFailed() {
+      if (identityFailed) loadIdentity();
+      if (followsFailed) loadFollows();
+    }
+
+    // Following: a dash when no relay answered (getFollowCount returns null and caches
+    // nothing), which the retry above turns back into a number once the relays reply.
+    function loadFollows() {
+      setWaiting(followNum, '…', true);
+      getFollowCount(pubkey).then((n) => {
+        followsFailed = n == null;
+        setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
+        followNum.classList.add('account-stat-num');
+      });
+    }
+
     // Same shape as notSetLink, for a read that failed rather than came back empty.
     function retryLink() {
       const btn = h('button', { className: 'account-stat-notset', title: 'The relays didn’t answer. Try again.' });
       const ic = icon('reload');
       ic.classList.add('account-stat-help');
       btn.append(ic, document.createTextNode('Couldn’t load'));
-      btn.addEventListener('click', () => loadIdentity());
+      btn.addEventListener('click', retryFailed);
       return btn;
     }
 
@@ -7884,6 +7955,7 @@
       idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
       lud16Val.textContent = '';
+      identityFailed = !rec;
       if (!rec) {
         nip05Val.appendChild(retryLink());
         lud16Val.appendChild(retryLink());
@@ -7921,12 +7993,10 @@
 
     async function loadStats() {
       drawer.dataset.loaded = '1';
+      overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
       // Numeric stats.
-      getFollowCount(pubkey).then((n) => {
-        setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
-        followNum.classList.add('account-stat-num');
-      });
+      loadFollows();
 
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
@@ -10795,9 +10865,19 @@
     if (!pubkey) return null;
     if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
     let count = null;
+    let answered = false;
     try {
-      const ev = await poolGet(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
-      if (ev) {
+      // "Nobody answered" is not "follows nobody". poolGet resolved null for both, and the
+      // overview showed 0 for an account following hundreds whenever its relays were slow
+      // or the panel was offline. Same rule as the profile read: no relay answered means
+      // null (drawn as a dash) and nothing cached, so the next open asks again.
+      const res = await poolQueryAnswered(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey], limit: 1 }, { maxWait: 8000 });
+      answered = res.answered;
+      const ev = res.events.filter((e) => e && e.pubkey === pubkey)
+        .sort((a, b) => b.created_at - a.created_at)[0] || null;
+      if (!answered) {
+        count = null;
+      } else if (ev) {
         const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
         count = set.size;
         // Free ride: we already have this account's real follow list, so seed the
@@ -10811,7 +10891,7 @@
         count = 0;
       }
     } catch (_) {}
-    followCountCache.set(pubkey, count);
+    if (answered) followCountCache.set(pubkey, count);
     return count;
   }
 

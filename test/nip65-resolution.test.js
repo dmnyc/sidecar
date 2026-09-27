@@ -107,12 +107,14 @@ function harness(deps = {}) {
       liftLine(/const NIP65_STORE = '[^']*';/, 'NIP65_STORE'),
       liftLine(/const NIP65_TIMED_OUT = Symbol\([^)]*\);/, 'NIP65_TIMED_OUT'),
       liftLine(/const nip65Cache = new Map\(\);[^\n]*/, 'nip65Cache'),
+      liftLine(/const nip65Inflight = new Map\(\);/, 'nip65Inflight'),
       lift('async function loadNip65Store('),
       liftLine(/let nip65Writes = Promise\.resolve\(\);/, 'nip65Writes'),
       lift('function rememberNip65('),
       lift('async function recallNip65('),
       lift('function forgetNip65('),
       lift('async function getNip65Info('),
+      lift('async function lookupNip65Info('),
       lift('async function getNip65('),
       lift('class RelayListUnavailable'),
       lift('async function postRelays('),
@@ -414,6 +416,57 @@ test('the remembered half can add a list but never declare "no list"', async () 
   assert.deepEqual([...info.list.read], ['wss://old-read']);
 });
 
+// ---- one account's list, and only one lookup for it at a time --------------------
+
+test('A RELAY LIST SIGNED BY SOMEONE ELSE IS NOT THIS ACCOUNT\'S LIST', async () => {
+  const ctx = harness();
+  ctx.poolQueryAnswered = async () => ({ events: [{ ...listEvent, pubkey: 'm'.repeat(64), created_at: 9 }], answered: true });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.list, null, 'a crossed event must not stand in for the list');
+});
+
+test('a crossed event cannot outrank the real one by being newer', async () => {
+  const ctx = harness();
+  const crossed = { ...listEvent, pubkey: 'm'.repeat(64), created_at: 9, tags: [['r', 'wss://not-yours']] };
+  ctx.poolQueryAnswered = async () => ({ events: [crossed, listEvent], answered: true });
+  const info = await ctx.getNip65Info(PK);
+  assert.deepEqual([...info.list.write], ['wss://declared-both', 'wss://declared-write']);
+});
+
+test('CONCURRENT CALLERS SHARE ONE LOOKUP', async () => {
+  // The overview asks for the same list from three places as it opens. Before the first
+  // answer was cached, each ran its own: three identical REQs per relay.
+  const ctx = harness();
+  let queries = 0;
+  ctx.poolQueryAnswered = async () => { queries++; return { events: [listEvent], answered: true }; };
+  const all = await Promise.all([ctx.getNip65Info(PK), ctx.getNip65Info(PK), ctx.getNip65Info(PK)]);
+  assert.equal(queries, 1, 'one lookup (configured half only, nothing remembered), not three');
+  for (const info of all) assert.equal(info.resolved, true);
+});
+
+test('a finished lookup is not reused: the next miss asks again', async () => {
+  const ctx = harness();
+  let queries = 0;
+  ctx.poolQueryAnswered = async () => { queries++; return { events: [], answered: false }; };
+  await ctx.getNip65Info(PK);
+  await ctx.getNip65Info(PK);
+  assert.equal(queries, 2, 'an unresolved lookup is never cached, in flight or otherwise');
+});
+
+test('a retry after forgetNip65 starts its own lookup instead of joining the old one', async () => {
+  const ctx = harness();
+  let queries = 0;
+  let release;
+  ctx.poolQueryAnswered = () => { queries++; return queries === 1 ? new Promise((r) => { release = r; }) : Promise.resolve({ events: [listEvent], answered: true }); };
+  const first = ctx.getNip65Info(PK);
+  await ctx.forgetNip65(PK);
+  const second = await ctx.getNip65Info(PK);
+  assert.equal(queries, 2);
+  assert.equal(second.resolved, true);
+  release({ events: [], answered: false });
+  await first;
+});
+
 // ---- the source guards ---------------------------------------------------------
 
 // Comment stripping, line-based ON PURPOSE.
@@ -461,7 +514,10 @@ test('two accounts resolving at once do not clobber each other in the store', as
   // Switching accounts while the first lookup is still in flight lands both writes on
   // the same shared object. Unserialized, both read the same snapshot and the second
   // set() silently drops the first account's entry.
-  const ctx = harness({ event: listEvent });
+  const ctx = harness();
+  // Each account's own list: the lookup now ignores an event by anyone else, so one
+  // shared fixture authored by A would leave B with no list to store.
+  ctx.poolQueryAnswered = async (relays, filter) => ({ events: [{ ...listEvent, pubkey: filter.authors[0] }], answered: true });
   const A = 'a'.repeat(64);
   const B = 'b'.repeat(64);
   await Promise.all([ctx.getNip65Info(A), ctx.getNip65Info(B)]);
