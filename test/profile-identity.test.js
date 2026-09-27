@@ -45,10 +45,13 @@ function lift(src, decl) {
 }
 
 // The real function, run against a stubbed pool rather than asserted about as text.
-function build(poolQuerySync) {
-  const src = lift(bare, 'async function poolGetProfile(');
+// `query` stands in for the relays' combined answer; poolQueryAnswered wraps it the way
+// the real one reports a relay that reached EOSE.
+function build(query) {
+  const src = lift(bare, 'async function poolGetProfileInfo(') + '\n' + lift(bare, 'async function poolGetProfile(');
+  const poolQueryAnswered = async (...a) => ({ events: await query(...a), answered: true });
   // eslint-disable-next-line no-new-func
-  return new Function('poolQuerySync', src + '; return poolGetProfile;')(poolQuerySync);
+  return new Function('poolQueryAnswered', src + '; return poolGetProfile;')(poolQueryAnswered);
 }
 
 const ALICE = 'a'.repeat(64);
@@ -100,10 +103,12 @@ test('EVERY SINGLE-AUTHOR PROFILE READ GOES THROUGH IT', () => {
   // is the only place that filter shape may appear.
   const direct = bare.split('\n').filter((l) => /kinds: \[0\], authors: \[/.test(l));
   assert.equal(direct.length, 1, 'a single-author kind:0 read is bypassing poolGetProfile:\n' + direct.join('\n'));
-  assert.match(direct[0], /const evs = await poolQuerySync\(relays, \{ kinds: \[0\], authors: \[pubkey\] \}, params\);/);
+  assert.match(direct[0], /const \{ events: evs, answered \} = await poolQueryAnswered\(relays, \{ kinds: \[0\], authors: \[pubkey\] \}, params\);/);
 
-  // And the six callers are all still routed through it.
-  assert.ok((bare.match(/poolGetProfile\(/g) || []).length >= 7, 'callers were dropped rather than converted');
+  // And the callers are all still routed through it: getProfile by way of
+  // poolGetProfileInfo (it needs `answered`), the rest through poolGetProfile.
+  assert.ok((bare.match(/poolGetProfile(?:Info)?\(/g) || []).length >= 7, 'callers were dropped rather than converted');
+  assert.match(lift(bare, 'async function getProfile('), /poolGetProfileInfo\(/);
 });
 
 test('the batch paths keep indexing by the author they got, not the one they wanted', () => {

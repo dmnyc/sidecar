@@ -54,6 +54,7 @@ function liftLine(pattern, label) {
 
 // deps.event      the kind:10002 the pool returns, or null for "answered, nothing there"
 // deps.timeout    true = the pool never resolves, so the 6s race wins
+// deps.unreachable true = the pool resolves at once with no relay having answered
 // deps.stored     what is already in chrome.storage.local under sidecar_nip65
 // deps.only       nip65-only mode for the active account
 // deps.configured the global relay map behind SIDECAR_GET_RELAYS
@@ -85,7 +86,11 @@ function harness(deps = {}) {
     // The 6s race is real time in the source, so a "timeout" here is a promise that
     // simply never settles; setTimeout is left as the host's.
     setTimeout,
-    poolGet: () => (deps.timeout ? new Promise(() => {}) : Promise.resolve(deps.event || null)),
+    // deps.unreachable: every relay failed to connect, which the real pool reports fast
+    // and empty. It must not read as "answered, nothing there".
+    poolQueryAnswered: () => (deps.timeout ? new Promise(() => {})
+      : Promise.resolve(deps.unreachable ? { events: [], answered: false }
+        : { events: deps.event ? [deps.event] : [], answered: true })),
     relayUrls: async (writableOnly) => (writableOnly ? ['wss://configured-write'] : ['wss://configured']),
     nip65OnlyFor: async () => !!deps.only,
     call: async (msg) => {
@@ -181,6 +186,36 @@ test('a remembered list belonging to another account is never served for this on
   const info = await ctx.getNip65Info(PK);
   assert.equal(info.list, null, 'the store is keyed per pubkey');
   assert.equal(info.stale, false);
+});
+
+// ---- offline: the pool answers fast, and nobody actually answered ---------------
+//
+// The browser test that found this: offline, the configured half resolved empty in
+// milliseconds, read as "this account has no list", was cached for the session, and
+// deleted the remembered list from disk.
+
+test('OFFLINE IS NOT "NO RELAY LIST"', async () => {
+  const ctx = harness({ unreachable: true });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.resolved, false, 'no relay answered, so nothing is known');
+});
+
+test('OFFLINE NEVER DELETES THE REMEMBERED LIST', async () => {
+  const ctx = harness({ unreachable: true, stored: { [PK]: REMEMBERED } });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.stale, true, 'it serves the remembered list instead');
+  assert.deepEqual([...info.list.read], ['wss://old-read']);
+  await ctx.getNip65Info(PK); // and again, in case a write was queued
+  assert.notEqual(await ctx.recallNip65(PK), null, 'the list that carries the account through the outage is still on disk');
+});
+
+test('offline is not cached: the next call asks again', async () => {
+  const ctx = harness({ stored: { [PK]: REMEMBERED } });
+  sweep(ctx, { 'wss://configured': 'unreachable', 'wss://old-read': 'unreachable' });
+  assert.equal((await ctx.getNip65Info(PK)).resolved, false);
+  sweep(ctx, { 'wss://configured': listEvent });
+  const back = await ctx.getNip65Info(PK);
+  assert.equal(back.resolved, true, 'once the network is back, the real answer comes through');
 });
 
 // ---- postRelays: the failure that lost notes -----------------------------------
@@ -296,10 +331,12 @@ test('retrying drops the remembered list so the next load is a real lookup', asy
 // that query returns ('hang' for a promise that never settles).
 function sweep(ctx, byFirst) {
   const seen = [];
-  ctx.poolGet = async (relays) => {
+  ctx.poolQueryAnswered = async (relays) => {
     seen.push([...relays]);
     const r = byFirst[relays[0]];
-    return r === 'hang' ? new Promise(() => {}) : (r || null);
+    if (r === 'hang') return new Promise(() => {});
+    if (r === 'unreachable') return { events: [], answered: false };
+    return { events: r ? [r] : [], answered: true };
   };
   return seen;
 }

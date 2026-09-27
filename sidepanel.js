@@ -3505,6 +3505,37 @@
   // onauth goes last, so a caller cannot widen it.
   const poolSubscribe = (relays, filters, params) => getPool().subscribe(relays, filters, Object.assign({}, params, { onauth: relays.every((u) => authRelays.has(normalizeRelay(u))) ? signRelayAuth : undefined }));
 
+  // querySync, plus whether ANY relay actually answered.
+  //
+  // querySync resolves with an empty list in three very different situations: the relays
+  // answered and have nothing, every connection failed (offline, DNS, refused), or every
+  // relay turned the REQ away. Callers that turn an empty answer into a claim ("Not set",
+  // "no relay list") need to tell the first apart from the other two, and the backstop
+  // timers they raced against never fired: offline, every connection fails in
+  // milliseconds and querySync resolves [] long before any backstop.
+  //
+  // The pool reports why each relay closed. A relay that connected and reached EOSE is
+  // closed by subscribeEose with EOSE_CLOSE; a failed connection closes with its error, a
+  // refusal with the relay's CLOSED reason. So `answered` means at least one relay got as
+  // far as EOSE.
+  //
+  // Known gap: a relay that connects and then says nothing gets a synthetic EOSE from its
+  // own eoseTimeout (maxWait), which is indistinguishable here from a real empty answer.
+  // Catching that means going below the pool, past the auth wrappers.
+  const EOSE_CLOSE = 'closed automatically on eose'; // nostr-tools subscribeEose's reason
+  function poolQueryAnswered(relays, filter, params) {
+    return new Promise((resolve) => {
+      const events = [];
+      poolSubscribeManyEose(relays, filter, Object.assign({}, params, {
+        onevent: (ev) => events.push(ev),
+        onclose: (reasons) => resolve({
+          events,
+          answered: events.length > 0 || (reasons || []).some((r) => r === EOSE_CLOSE),
+        }),
+      }));
+    });
+  }
+
   // A kind:0 for ONE pubkey, VERIFIED TO ACTUALLY BE THEIRS.
   //
   // get() resolves with whatever the first relay hands back, and a relay is not obliged to
@@ -3524,15 +3555,22 @@
   // so one crossed event with a later timestamp made the real profile read as a miss.
   // Filtering first means a foreign event is ignored rather than winning and then being
   // thrown away. Same-second ties break on the greater id, so the answer is stable.
-  async function poolGetProfile(relays, pubkey, params) {
-    const evs = await poolQuerySync(relays, { kinds: [0], authors: [pubkey] }, params);
+  //
+  // `answered` rides along for the one caller that must not read "nobody answered" as
+  // "no profile" (getProfile); everyone else takes the event alone via poolGetProfile.
+  async function poolGetProfileInfo(relays, pubkey, params) {
+    const { events: evs, answered } = await poolQueryAnswered(relays, { kinds: [0], authors: [pubkey] }, params);
     let best = null;
     for (const ev of evs || []) {
       if (!ev || ev.pubkey !== pubkey) continue;
       if (!best || ev.created_at > best.created_at ||
           (ev.created_at === best.created_at && ev.id > best.id)) best = ev;
     }
-    return best;
+    return { ev: best, answered };
+  }
+
+  async function poolGetProfile(relays, pubkey, params) {
+    return (await poolGetProfileInfo(relays, pubkey, params)).ev;
   }
 
   async function relayUrls(writableOnly) {
@@ -3658,13 +3696,16 @@
         const own = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
         const relays = own ? await readRelayUrls(pubkey) : await relayUrls(false);
         if (!relays.length) return null;
-        const ev = await Promise.race([
-          poolGetProfile(relays, pubkey, { maxWait: PROFILE_MAX_WAIT }),
+        const res = await Promise.race([
+          poolGetProfileInfo(relays, pubkey, { maxWait: PROFILE_MAX_WAIT }),
           new Promise((r) => setTimeout(() => r(PROFILE_TIMED_OUT), PROFILE_MAX_WAIT * 2)),
         ]);
-        // The backstop fired: nobody answered at all. Not evidence of anything, so
-        // nothing is cached and the caller renders "couldn't load", not "Not set".
-        if (ev === PROFILE_TIMED_OUT) return null;
+        // Nobody answered: the backstop fired, or (the common case, and the one the
+        // backstop alone missed) every relay failed to connect or refused. Offline, that
+        // takes milliseconds. Not evidence of anything, so nothing is cached and the
+        // caller renders "couldn't load", not "Not set".
+        if (res === PROFILE_TIMED_OUT || !res.answered) return null;
+        const ev = res.ev;
         if (!ev) {
           const miss = cacheProfile(pubkey, {});
           miss.expiresAt = Date.now() + PROFILE_MISS_TTL;
@@ -3802,9 +3843,19 @@
       const seed = await recallNip65(pubkey);
       const extra = [...new Set([...((seed && seed.read) || []), ...((seed && seed.write) || [])])]
         .filter((u) => !configured.includes(u));
+      //
+      // A half where no relay answered counts as timed out, not as "no list". Offline,
+      // every connection fails in milliseconds and the pool resolves empty well inside
+      // the 6s race; read as "no list", that got cached for the session AND deleted the
+      // remembered list from disk, the one thing that would have carried the account
+      // through the outage.
       const lookup = (relays) => relays.length
         ? Promise.race([
-          poolGet(relays, { kinds: [10002], authors: [pubkey] }).catch(() => NIP65_TIMED_OUT),
+          poolQueryAnswered(relays, { kinds: [10002], authors: [pubkey], limit: 1 })
+            .then(({ events, answered }) => (answered
+              ? events.sort((a, b) => b.created_at - a.created_at)[0] || null
+              : NIP65_TIMED_OUT))
+            .catch(() => NIP65_TIMED_OUT),
           new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
         ])
         : Promise.resolve(NIP65_TIMED_OUT);

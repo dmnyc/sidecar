@@ -36,6 +36,7 @@ function lift(decl) {
 }
 
 const OWN = 'a'.repeat(64);
+const UNREACHABLE = Symbol('unreachable');
 const STRANGER = 'b'.repeat(64);
 
 // The real cacheProfile / cachedProfile / getProfile, with the pool and relay lookups
@@ -46,7 +47,12 @@ function build({ answer, own = [OWN] }) {
     state: { accounts: own.map((pubkey) => ({ pubkey })) },
     relayUrls: async () => { calls.configured++; return ['wss://configured']; },
     readRelayUrls: async () => { calls.declared++; return ['wss://declared', 'wss://configured']; },
-    poolGetProfile: (relays, pubkey, params) => { calls.queries.push({ relays, pubkey, params }); return answer(pubkey); },
+    // answer() returns the event (or null), or UNREACHABLE for "no relay answered".
+    poolGetProfileInfo: async (relays, pubkey, params) => {
+      calls.queries.push({ relays, pubkey, params });
+      const ev = await answer(pubkey);
+      return ev === UNREACHABLE ? { ev: null, answered: false } : { ev, answered: true };
+    },
   };
   const body = `
     const PROFILE_TTL = 5 * 60 * 1000;
@@ -72,6 +78,16 @@ test('NOBODY ANSWERING IS NOT AN EMPTY PROFILE', async () => {
   assert.equal(m._profileCache.has(OWN), false, 'and must not be cached as an absent profile');
   await m.getProfile(OWN);
   assert.equal(m.calls.queries.length, 2, 'the next open asks again');
+});
+
+test('OFFLINE: EVERY RELAY FAILING FAST IS NOT AN EMPTY PROFILE EITHER', async () => {
+  // What the browser actually does offline: the pool resolves in milliseconds, empty,
+  // long before the backstop. Before, this read as a miss and the overview said "Not set".
+  const m = build({ answer: async () => UNREACHABLE });
+  assert.equal(await m.getProfile(OWN), null, 'no relay answered, so "couldn\'t load"');
+  assert.equal(m._profileCache.has(OWN), false, 'and nothing is cached');
+  await m.getProfile(OWN);
+  assert.equal(m.calls.queries.length, 2, 'the retry asks again');
 });
 
 test('an empty answer is held briefly, not for the full TTL', async () => {
