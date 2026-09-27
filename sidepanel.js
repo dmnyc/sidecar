@@ -7955,9 +7955,9 @@
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
             relayBlock.title =
-              'NIP-65 only is on for this account, but it has no published relay list — ' +
-              'it can’t publish. Publish a relay list from the Profile tab, or turn the ' +
-              'setting off in Settings.';
+              'Bootstrap relays are off for this account, but it has no published relay list — ' +
+              'it can’t publish. Publish a relay list from the Profile tab, or turn ' +
+              'bootstrap relays back on in Settings.';
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
             // keeps the number honest instead of silently reporting a different set.
@@ -9681,7 +9681,8 @@
     // Per account: reflects the ACTIVE account, and the label below names it so the
     // scope is unmistakable when more than one account exists.
     const nip65Only = await nip65OnlyFor(state.activePubkey);
-    $('nip65-only-toggle').checked = nip65Only;
+    $('bootstrap-toggle').checked = !nip65Only;
+    $('edit-nip65-btn').disabled = !state.activePubkey;
     const relayBody = $('relay-section-body');
     if (relayBody) relayBody.classList.toggle('dimmed', nip65Only);
     const nip65Scope = $('nip65-only-scope');
@@ -10532,6 +10533,9 @@
     if (fav) row.insertBefore(fav, row.firstChild);
   }
 
+  // Set by Settings → Relays → Edit relay list; consumed by the next renderProfile.
+  let scrollToNip65OnRender = false;
+
   async function renderProfile() {
     const view = $('profile-view');
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
@@ -10720,6 +10724,11 @@
 
     renderNip65Section(view, active);
     renderRecoverySection(view, active);
+    if (scrollToNip65OnRender) {
+      scrollToNip65OnRender = false;
+      const block = view.querySelector('.nip65-setting');
+      if (block) block.scrollIntoView({ block: 'start' });
+    }
   }
 
   // If the connected wallet advertises a lightning address (NWC lud16) that
@@ -15654,7 +15663,7 @@
     } else if (list.state === 'none' || !list.write.length) {
       const why = list.state === 'none' ? 'You have no relay list' : 'Your relay list names no write relays';
       if (scan.nip65Only) {
-        scan.listNote = why + ', and NIP-65 only is on, so no relay can confirm your current version.';
+        scan.listNote = why + ', and bootstrap relays are off, so no relay can confirm your current version.';
       } else {
         let fallback = [];
         try { fallback = await relayUrls(true); } catch (_) {}
@@ -16289,7 +16298,7 @@
         // NIP-65 only on, the write set is the only place this account publishes.
         const targets = scan.nip65Only ? judges : lazarusRelaySet([...judges, ...scan.answeredRelays]);
         if (!targets.length) {
-          throw new Error('No relay to publish to: NIP-65 only is on and no write relay is known.');
+          throw new Error('No relay to publish to: bootstrap relays are off and no write relay is known.');
         }
         busy = lazarusPublish(targets, signed, judges);
         let pub;
@@ -19994,12 +20003,27 @@
     if (zapFlash) lightningStrike();
   });
 
-  // NIP-65 only — exclude Sidecar's configured relays from reads and publishes
-  // once the account has a declared relay list. The configured set still seeds
-  // the initial NIP-65 fetch; this toggle governs everything after that.
-  $('nip65-only-toggle').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: e.target.checked });
-    $('relay-section-body')?.classList.toggle('dimmed', e.target.checked);
+  // Use bootstrap relays — OFF is NIP-65 only: exclude Sidecar's configured relays
+  // from reads and publishes once the account has a declared relay list. The
+  // configured set still seeds the initial NIP-65 fetch; this toggle governs
+  // everything after that. The switch reads the inverse of what is stored.
+  $('bootstrap-toggle').addEventListener('change', async (e) => {
+    const nip65Only = !e.target.checked;
+    await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: nip65Only });
+    $('relay-section-body')?.classList.toggle('dimmed', nip65Only);
+  });
+
+  // Settings → Relays → Edit relay list. The editor is the Relays block on the
+  // Profile tab; land on it rather than at the top of the profile, where it is a
+  // long scroll below the fold. renderProfile is async (it waits on the kind:0),
+  // so the scroll is left as a flag for it to act on once the block exists.
+  $('edit-nip65-btn').addEventListener('click', () => {
+    const tab = document.querySelector('.tab[data-tab="profile"]');
+    if (!tab || tab.disabled) return;
+    scrollToNip65OnRender = true;
+    hide($('view-settings'));
+    show($('view-main'));
+    tab.click();
   });
 
   // Pinned balance bar — left: Send/Receive (wallet modals); right: hide balances

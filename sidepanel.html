@@ -668,19 +668,32 @@
         </h3>
         <div class="settings-section-body" id="section-body-relays">
 
+          <!-- The relay list people actually publish lives on the Profile tab, not here.
+               Someone who opens Relays looking for it would otherwise find only the
+               bootstrap set and assume that is their list. -->
+          <div class="setting">
+            <h3>Your relay list</h3>
+            <p class="hint">Your public relay list (NIP-65) is edited on your Profile.</p>
+            <button class="secondary" id="edit-nip65-btn">Edit relay list</button>
+          </div>
+
           <div class="setting">
             <h3>Bootstrap relays</h3>
             <p class="hint">Used to find your relay list, and as a fallback if it cannot be reached.</p>
             <!-- The exceptions, true but not what a reader of this screen needs: the discovery
                  fetch still queries these once a session to find the account's own relay
                  list, and getRelays() still reports the bootstrap set to sites regardless. -->
-            <p class="hint">Per account. When on, these relays are only used to find that account's relay list.</p>
+            <p class="hint">Per account. When off, these relays are only used to find that account's relay list.</p>
+            <!-- ON = bootstrap relays in use, the way every other switch here reads: on means
+                 the thing it names is active, and the list below dims when it is off. Stored
+                 inverted, as nip65OnlyBy, which is what the relay code reads; only this
+                 control flips it. -->
             <label class="switch-label">
               <!-- Per account: the scope span names the active account, so with more than
                    one it's clear this isn't a global switch. -->
-              <span>NIP-65 only <span class="switch-scope" id="nip65-only-scope"></span></span>
+              <span>Use bootstrap relays <span class="switch-scope" id="nip65-only-scope"></span></span>
               <span class="switch">
-                <input type="checkbox" id="nip65-only-toggle" />
+                <input type="checkbox" id="bootstrap-toggle" />
                 <span class="switch-track"></span>
               </span>
             </label>
