@@ -3678,6 +3678,12 @@
   // Whether the collapsible stats drawer under the active account row is open.
   // Defaults open so a single-account panel isn't sparse; the user can collapse it.
   let accountStatsExpanded = true;
+  // The overview's "the network is back, retry what failed", for the one overview on
+  // screen. A single listener and a slot rather than a listener per render: the drawer is
+  // rebuilt on every renderMain, and each rebuild adding its own would pile up closures
+  // over detached drawers for as long as the panel stayed online.
+  let overviewOnline = null;
+  window.addEventListener('online', () => { if (overviewOnline) overviewOnline(); });
   // A miss is held for much less time than a hit. The read below can't tell "this
   // pubkey has no kind:0" from "every relay was too slow to say", and holding the
   // second for five minutes pinned "Not set" on an identity that was fine.
@@ -4823,9 +4829,13 @@
   // empty kind:0 is not.
   async function fetchAndStoreProfile(pubkey) {
     try {
-      const relayMap = await call({ type: 'SIDECAR_GET_RELAYS' });
-      const relays = Object.keys(relayMap || {});
-      if (!relays.length) return false; // nothing configured yet — try again later
+      // The same set the overview's profile read uses, because this is one of your own
+      // accounts: its declared relays, purplepag.es and the configured set, or without
+      // the configured set when NIP-65 only is on. Reading the configured set alone
+      // ignored that setting, and missed a name and picture that lived only on the
+      // relays the account declared.
+      const relays = await readRelayUrls(pubkey);
+      if (!relays.length) return false; // nothing to ask yet — try again later
       const ev = await Promise.race([
         poolGetProfile(relays, pubkey),
         new Promise((res) => setTimeout(() => res(null), 6000)),
@@ -7877,13 +7887,33 @@
       return btn;
     }
 
+    // What failed on the last load, so a retry (the tap, or the network coming back)
+    // asks again for exactly those and leaves what already landed alone.
+    let identityFailed = false;
+    let followsFailed = false;
+    function retryFailed() {
+      if (identityFailed) loadIdentity();
+      if (followsFailed) loadFollows();
+    }
+
+    // Following: a dash when no relay answered (getFollowCount returns null and caches
+    // nothing), which the retry above turns back into a number once the relays reply.
+    function loadFollows() {
+      setWaiting(followNum, '…', true);
+      getFollowCount(pubkey).then((n) => {
+        followsFailed = n == null;
+        setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
+        followNum.classList.add('account-stat-num');
+      });
+    }
+
     // Same shape as notSetLink, for a read that failed rather than came back empty.
     function retryLink() {
       const btn = h('button', { className: 'account-stat-notset', title: 'The relays didn’t answer. Try again.' });
       const ic = icon('reload');
       ic.classList.add('account-stat-help');
       btn.append(ic, document.createTextNode('Couldn’t load'));
-      btn.addEventListener('click', () => loadIdentity());
+      btn.addEventListener('click', retryFailed);
       return btn;
     }
 
@@ -7925,6 +7955,7 @@
       idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
       lud16Val.textContent = '';
+      identityFailed = !rec;
       if (!rec) {
         nip05Val.appendChild(retryLink());
         lud16Val.appendChild(retryLink());
@@ -7962,12 +7993,10 @@
 
     async function loadStats() {
       drawer.dataset.loaded = '1';
+      overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
       // Numeric stats.
-      getFollowCount(pubkey).then((n) => {
-        setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
-        followNum.classList.add('account-stat-num');
-      });
+      loadFollows();
 
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
@@ -10836,9 +10865,19 @@
     if (!pubkey) return null;
     if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
     let count = null;
+    let answered = false;
     try {
-      const ev = await poolGet(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
-      if (ev) {
+      // "Nobody answered" is not "follows nobody". poolGet resolved null for both, and the
+      // overview showed 0 for an account following hundreds whenever its relays were slow
+      // or the panel was offline. Same rule as the profile read: no relay answered means
+      // null (drawn as a dash) and nothing cached, so the next open asks again.
+      const res = await poolQueryAnswered(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey], limit: 1 }, { maxWait: 8000 });
+      answered = res.answered;
+      const ev = res.events.filter((e) => e && e.pubkey === pubkey)
+        .sort((a, b) => b.created_at - a.created_at)[0] || null;
+      if (!answered) {
+        count = null;
+      } else if (ev) {
         const set = new Set(ev.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
         count = set.size;
         // Free ride: we already have this account's real follow list, so seed the
@@ -10852,7 +10891,7 @@
         count = 0;
       }
     } catch (_) {}
-    followCountCache.set(pubkey, count);
+    if (answered) followCountCache.set(pubkey, count);
     return count;
   }
 
