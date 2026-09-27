@@ -95,13 +95,20 @@ function harness(deps = {}) {
     nip65OnlyFor: async () => !!deps.only,
     call: async (msg) => {
       if (msg.type === 'SIDECAR_GET_RELAYS') {
-        return deps.configured || { 'wss://configured': { read: true, write: true } };
+        // One read-only relay and one writable, so postRelays is seen to honor write:false.
+        return deps.configured || {
+          'wss://configured': { read: true, write: false },
+          'wss://configured-write': { read: true, write: true },
+        };
       }
       throw new Error('unexpected ' + msg.type);
     },
     state: { activePubkey: 'a'.repeat(64) },
   };
   vm.createContext(ctx);
+  // The shared relay rule, loaded the way the panel loads it (self.SidecarRelayPolicy).
+  ctx.self = ctx;
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'relay-policy.js'), 'utf8'), ctx);
   vm.runInContext(
     [
       liftLine(/const NIP65_STORE = '[^']*';/, 'NIP65_STORE'),

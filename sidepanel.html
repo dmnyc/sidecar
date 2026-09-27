@@ -686,9 +686,10 @@
           <div class="setting">
             <h3>Bootstrap relays</h3>
             <p class="hint">Used to find your relay list, and as a fallback if it cannot be reached.</p>
-            <!-- The exceptions, true but not what a reader of this screen needs: the discovery
+            <!-- The exception, true but not what a reader of this screen needs: the discovery
                  fetch still queries these once a session to find the account's own relay
-                 list, and getRelays() still reports the bootstrap set to sites regardless. -->
+                 list. getRelays() follows this switch too, so a connected client is told the
+                 same relays the panel posts to (relay-policy.js, #274). -->
             <p class="hint">Per account. When off, these relays are only used to find that account's relay list.</p>
             <!-- ON = bootstrap relays in use, the way every other switch here reads: on means
                  the thing it names is active, and the list below dims when it is off. Stored
@@ -963,6 +964,9 @@
        with this panel's signer and pool on the way up. -->
   <script src="clink.js"></script>
   <script src="relay-health.js"></script>
+  <!-- Which relays an account uses (self.SidecarRelayPolicy). Shared with the background,
+       which answers a client's getRelays() from the same rule the panel posts by. -->
+  <script src="relay-policy.js"></script>
   <script src="wot.js"></script>
   <!-- Lazarus, recovery of user data from relay history (self.SidecarLazarus). Own
        code, pure core only: the registry, ranking and delta math live here; the

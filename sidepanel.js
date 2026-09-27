@@ -3925,17 +3925,9 @@
       const events = [fromConfigured, fromRemembered].filter((e) => e && e !== NIP65_TIMED_OUT);
       const ev = events.sort((a, b) => b.created_at - a.created_at)[0] || null;
       if (fromConfigured !== NIP65_TIMED_OUT || ev) gotEvent = true;
-      if (gotEvent && ev) {
-        const read = [], write = [];
-        ev.tags.forEach((t) => {
-          if (t[0] !== 'r' || !t[1]) return;
-          const marker = t[2];
-          if (!marker) { read.push(t[1]); write.push(t[1]); }
-          else if (marker === 'read') read.push(t[1]);
-          else if (marker === 'write') write.push(t[1]);
-        });
-        if (read.length || write.length) parsed = { read, write };
-      }
+      // Parsed by the same function the background uses on a list it signs, so the two
+      // stores of one account's list cannot disagree about what it says.
+      if (gotEvent && ev) parsed = self.SidecarRelayPolicy.listFromTags(ev.tags);
     } catch (_) {}
     // Only cache when we received a real event (including an event with no
     // relay tags — that's a genuine "no NIP-65 list"). A timeout or network
@@ -3982,21 +3974,21 @@
     }
   }
 
+  // Where this account's posts go. The rule itself is relay-policy.js's relayMap, the same one the background answers a
+  // client's getRelays() with (#274): declared plus bootstrap, declared alone with
+  // "Use bootstrap relays" off, and the bootstrap set for an account with no list.
   async function postRelays() {
     const info = await getNip65Info(state.activePubkey);
-    const declared = info.list ? info.list.write : [];
-    if (await nip65OnlyFor(state.activePubkey)) {
-      // NIP-65-only means the declared write set IS the answer, so an unresolved lookup
-      // has no safe substitute: the configured relays are exactly the ones this account
-      // asked to stop using. Publishing there anyway would break the setting; publishing
-      // nowhere would lose the note. So we use the last list we genuinely saw, and when
-      // there is none, we refuse loudly instead of failing silently.
-      if (!info.resolved && !info.stale) throw new RelayListUnavailable();
-      return [...new Set(declared)];
-    }
-    // No NIP-65 list → fall back to configured so a fresh account can still publish.
-    if (!declared.length) return relayUrls(true);
-    return [...new Set([...declared, ...(await relayUrls(true))])];
+    const nip65Only = await nip65OnlyFor(state.activePubkey);
+    // NIP-65-only means the declared write set IS the answer, so an unresolved lookup
+    // has no safe substitute: the configured relays are exactly the ones this account
+    // asked to stop using. Publishing there anyway would break the setting; publishing
+    // nowhere would lose the note. So we use the last list we genuinely saw, and when
+    // there is none, we refuse loudly instead of failing silently.
+    if (nip65Only && !info.resolved && !info.stale) throw new RelayListUnavailable();
+    const configured = await call({ type: 'SIDECAR_GET_RELAYS' });
+    const P = self.SidecarRelayPolicy;
+    return P.writeRelays(P.relayMap({ list: info.list, configured, bootstrap: !nip65Only }));
   }
 
   // A relay that could not be reached is NOT a successful publish. SimplePool.publish()
@@ -9765,8 +9757,11 @@
     const nip65Only = await nip65OnlyFor(state.activePubkey);
     $('bootstrap-toggle').checked = !nip65Only;
     $('edit-nip65-btn').disabled = !state.activePubkey;
+    // Hidden, not dimmed, when this account has them off: a dimmed list it cannot use
+    // took the whole height of the section to say so. The list itself is global, so it
+    // is edited from an account that uses it.
     const relayBody = $('relay-section-body');
-    if (relayBody) relayBody.classList.toggle('dimmed', nip65Only);
+    if (relayBody) relayBody.classList.toggle('hidden', nip65Only);
     const nip65Scope = $('nip65-only-scope');
     if (nip65Scope) {
       const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey);
@@ -20113,7 +20108,7 @@
   $('bootstrap-toggle').addEventListener('change', async (e) => {
     const nip65Only = !e.target.checked;
     await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: nip65Only });
-    $('relay-section-body')?.classList.toggle('dimmed', nip65Only);
+    $('relay-section-body')?.classList.toggle('hidden', nip65Only);
   });
 
   // Settings → Relays → Edit relay list. The editor is the Relays block on the

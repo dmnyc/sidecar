@@ -33,7 +33,7 @@ function run(checked) {
   const sent = [];
   const dim = { on: null };
   const $ = (id) => (id === 'relay-section-body'
-    ? { classList: { toggle: (cls, v) => { if (cls === 'dimmed') dim.on = v; } } }
+    ? { classList: { toggle: (cls, v) => { if (cls === 'hidden') dim.on = v; } } }
     : null);
   const call = async (msg) => { sent.push(msg); };
   const state = { activePubkey: 'a'.repeat(64) };
@@ -45,7 +45,7 @@ function run(checked) {
 test('SWITCHING BOOTSTRAP RELAYS OFF TURNS NIP-65 ONLY ON', async () => {
   const { sent, dim } = await run(false);
   assert.deepEqual(sent, [{ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: 'a'.repeat(64), on: true }]);
-  assert.equal(dim, true, 'and the bootstrap list it no longer uses dims');
+  assert.equal(dim, true, 'and the bootstrap list it no longer uses is hidden');
 });
 
 test('switching them back on turns NIP-65 only off', async () => {
@@ -56,7 +56,8 @@ test('switching them back on turns NIP-65 only off', async () => {
 
 test('the switch is drawn from the stored value, inverted the same way', () => {
   assert.match(src, /\$\('bootstrap-toggle'\)\.checked = !nip65Only;/);
-  assert.match(src, /relayBody\.classList\.toggle\('dimmed', nip65Only\)/, 'dimmed when NIP-65 only is on');
+  assert.match(src, /relayBody\.classList\.toggle\('hidden', nip65Only\)/, 'hidden when NIP-65 only is on');
+  assert.doesNotMatch(src, /toggle\('dimmed', nip65Only\)/, 'no longer dimmed in place');
 });
 
 test('the old control is gone, so nothing can still write it the old way round', () => {

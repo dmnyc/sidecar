@@ -28,6 +28,7 @@
       "relax-grants.js",
       "replaceable-baseline.js",
       "zap-requests.js",
+      "relay-policy.js",
       "jsqr.js",
       "background.js"
     ]
