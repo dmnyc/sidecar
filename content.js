@@ -597,7 +597,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e']);
+  const CARD_THEMES = new Set(['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -997,6 +997,56 @@
         CARD_WARN: 'color:#963D19',
         CARD_SUCCESS: 'color:#37603A',
         CARD_PAY_SHADOW: 'rgba(29,70,116,0.28)'
+      },
+      /* Constellation — gold engraved on black, the brightest stars in white. Mirrors
+         themes/constellation.css. The pay button is the gold leaf of the panel's primary
+         with near-black ink, as the other dark themes do on a metallic fill. The plates
+         have one hue, so CARD_LAV is that gold at its palest rather than a second color. */
+      constellation: {
+        CARD_COLOR: 'color:#EAE1CC',
+        CARD_BORDER: 'rgba(201,170,108,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(201,170,108,0.10),transparent 58%),linear-gradient(165deg,#1E1B15,#0E0C09)',
+        CARD_MUTED: 'color:#A89D86',
+        CARD_GOLD: 'color:#C9AA6C',
+        CARD_TEXT_2: 'color:#D2C7AE',
+        CARD_LAV: '#E6D6AE',
+        CARD_PAY_TEXT: 'color:#16110A',
+        CARD_PAY_BG: 'linear-gradient(180deg,#E3C98C,#C9AA6C 52%,#9C8048)',
+        CARD_CANCEL_BG: 'rgba(201,170,108,0.10)',
+        CARD_TEXT: '#EAE1CC',
+        CARD_BORDER_FAINT: 'rgba(201,170,108,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(201,170,108,0.22)',
+        CARD_TRACK: '#C9AA6C',
+        CARD_THUMB_OFF: '#A89D86',
+        CARD_WARN: 'color:#D89A6A',
+        CARD_SUCCESS: 'color:#8FB894',
+        CARD_PAY_SHADOW: 'rgba(201,170,108,0.24)'
+      },
+      /* Mycelium — oat, moss, and the chanterelle. Mirrors themes/mycelium.css.
+         CARD_GOLD is the amount slot and takes --balance-ink, the chanterelle apricot,
+         like the bauhaus, par-avion and ukiyo-e entries; 42px/800 is large text and it
+         measures 3.93 on the card's lower stop against a floor of 3.0. The pay button is
+         the moss primary with white. CARD_TRACK is the lighter moss so the shared
+         near-black toggle thumb still shows on it. */
+      mycelium: {
+        CARD_COLOR: 'color:#2A2118',
+        CARD_BORDER: 'rgba(74,58,42,0.28)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(74,107,58,0.08),transparent 58%),linear-gradient(165deg,#FFFDF8,#F7F1E6)',
+        CARD_MUTED: 'color:#54483B',
+        CARD_GOLD: 'color:#B35E1A',
+        CARD_TEXT_2: 'color:#4A3A2A',
+        CARD_LAV: '#4A6B3A',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: 'linear-gradient(180deg,#5E8049,#4A6B3A 52%,#38532B)',
+        CARD_CANCEL_BG: 'rgba(74,107,58,0.10)',
+        CARD_TEXT: '#2A2118',
+        CARD_BORDER_FAINT: 'rgba(74,58,42,0.15)',
+        CARD_TOGGLE_OFF: 'rgba(74,58,42,0.25)',
+        CARD_TRACK: '#7E9E68',
+        CARD_THUMB_OFF: '#54483B',
+        CARD_WARN: 'color:#A33A2A',
+        CARD_SUCCESS: 'color:#2E6B4F',
+        CARD_PAY_SHADOW: 'rgba(56,83,43,0.26)'
       }
     };
 
@@ -1280,7 +1330,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

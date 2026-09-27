@@ -399,17 +399,17 @@
   const THEME_LABELS = [
     ['speakeasy', 'Speakeasy'], ['film-noir', 'Film Noir'], ['brownstone', 'Brownstone'],
     ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'], ['metropolis', 'Metropolis'],
-    ['wabi-sabi', 'Wabi-sabi'],
+    ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'],
     ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
     ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
-    ['ukiyo-e', 'Ukiyo-e'],
+    ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'],
   ];
 
   function applyTheme(themeName) {
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e'];
+    const validThemes = ['speakeasy', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'metropolis', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

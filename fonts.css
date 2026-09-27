@@ -26,6 +26,8 @@
      Werkstätte  Syncopate          wide monoline poster caps    Hoffmann's Gitterwerk
      Wabi-sabi   Yuji Syuku         brush-drawn mincho           the potter's own hand
      Ukiyo-e     Kaisei Decol       display mincho, dot ends     the print's title cartouche
+     Constellation Cormorant Garamond humanist old-style display    the engraved atlas plate
+     Mycelium    Fraunces (soft)    soft "wonky" old-style        something grown, not cut
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -359,4 +361,30 @@
   font-weight: 400 800;
   font-display: swap;
   src: url('fonts/kaisei-decol-500.woff2') format('woff2');
+}
+
+/* Constellation and Mycelium. Both are old-style serifs, which is the one place the table
+   at the top lets two faces share a root, and it holds for the reason it holds for
+   Populuxe: they sit at opposite ends of the axis that matters. Cormorant Garamond is all
+   hairline — a Garamond redrawn for display, contrast pushed until the thin strokes read
+   as engraving, with old-style figures like the numerals on an atlas plate. Fraunces is
+   the reverse: low contrast, heavy, and the soft cut (its SOFT axis pinned at 100 in the
+   file that ships) rounds every terminal until the letters look swollen, grown rather
+   than cut. Side by side they are a copperplate and a toadstool.
+
+   Both are variable in weight and ship as their Latin subsets. SIL OFL 1.1; license text
+   in fonts/OFL-CormorantGaramond.txt and fonts/OFL-Fraunces.txt. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/cormorant-garamond-var.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/fraunces-soft-var.woff2') format('woff2-variations');
 }

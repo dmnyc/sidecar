@@ -379,6 +379,15 @@ const FLOORS = {
   // is --bg-2, the deeper blue. --gold is the Prussian blue (6.78), and --balance-ink is
   // the same blue.
   'ukiyo-e': { '--muted': 6.14, '--faint': 5.17, '--gold': 6.78 },
+  // Constellation's worst surface is the lighter card (#1E1B15). --gold is the engraving
+  // gold at 7.73, and it is both the accent ink and the accent fill: the plates it is
+  // drawn from have one hue, so the theme does not split the role.
+  constellation: { '--muted': 6.40, '--faint': 3.82, '--gold': 7.73 },
+  // Mycelium clears AA on all five inks, for the reason the paper themes above do: the
+  // loam is the field and the cards are near-white. --gold is the moss (4.64 on the
+  // darker paper), the first green accent in the set; the chanterelle is --balance-ink
+  // and is a `color:` only at display size.
+  mycelium: { '--muted': 6.78, '--faint': 5.50, '--gold': 4.64 },
 };
 
 for (const theme of THEMES) {

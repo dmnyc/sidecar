@@ -1,0 +1,141 @@
+/* ============================================================
+   Sidecar — Constellation Theme
+   A plate from an engraved star atlas: gold printed from copper onto
+   black paper, the sky drawn as the engravers drew it, with only the
+   brightest stars picked out in white.
+   Groups with the dark themes.
+   ============================================================ */
+
+[data-theme="constellation"] {
+  color-scheme: dark;
+
+  /* Cormorant Garamond — a Garamond cut for display sizes, with hairlines fine enough to
+     pass for copperplate engraving and old-style figures that sit in the line like the
+     numerals on an atlas plate. The first humanist old-style serif among the display
+     faces; see fonts.css. */
+  --font-display: 'Cormorant Garamond', 'Cormorant', Garamond, Georgia, serif;
+
+  /* How far this theme's display face has to move to sit optically centered, in em.
+     A property of the FACE, not of any one widget: read by the relax countdown ring
+     and by the pinned balance bar, both of which center a figure set at line-height 1
+     and so center the box rather than the ink. See the note above the rule in
+     styles.css for how the value is measured. Old-style figures sit low. */
+  --display-ink-nudge: -0.02em;
+
+  /* surfaces — the black of the plate: not neutral, a black with brown in it, the way
+     ink-black paper ages. Metropolis is the nearest neighbour (soot and brass), and the
+     two are kept apart by what is ON the ground more than by the ground itself: an
+     engraved chart of real stars against deco rays, and a pale, slightly greened
+     antique gold here against Metropolis's hot amber brass. */
+  --bg: #0E0C09;
+  --bg-2: #13110D;
+  --velvet-1: #1E1B15;
+  --velvet-2: #16140F;
+  --velvet-1-rgb: 30, 27, 21;
+  --av-from: #252119;
+  --av-to: #16140F;
+  --banner-accent: #252119;
+  --border: rgba(201, 170, 108, 0.16);
+  --border-strong: rgba(201, 170, 108, 0.30);
+  --border-rgb: 201, 170, 108;
+  --well-rgb: 9, 8, 6;
+  /* Betelgeuse, the red supergiant on Orion's shoulder: the one warm star named here. */
+  --warn: #D89A6A;
+  --warn-rgb: 216, 154, 106;
+  --success: #8FB894;
+  --success-rgb: 143, 184, 148;
+
+  /* brand — the engraving gold, which is the whole palette: the plates have gold, black
+     and a few white stars and nothing else, so the theme does not invent a second hue
+     for the accents. --gold is an ink as well as a fill (7.73:1 on the lighter card). */
+  --orange: #C9AA6C;
+  --badge-ink: #16110A;
+  --amber: #E3C98C;
+  --gold: #C9AA6C;
+  --gold-soft: rgba(201, 170, 108, 0.5);
+  --accent-rgb: 201, 170, 108;
+  /* The slot the other dark themes fill with purple takes the gold at its palest, where
+     the engraving is thinnest. 9.70:1 and 11.94:1 on the card. */
+  --purple: #D9C08A;
+  --lav: #E6D6AE;
+  --hover-soft: rgba(201, 170, 108, 0.07);
+  --hover-medium: rgba(201, 170, 108, 0.11);
+  --hover-faint: rgba(201, 170, 108, 0.05);
+  --mention-bg: rgba(201, 170, 108, 0.16);
+  --scroll-thumb: linear-gradient(180deg, #3A3223, #2A251B);
+  --scroll-thumb-hover: #4A402C;
+
+  /* primary button — gold leaf; near-black ink, 8.45:1 on the mid stop */
+  --btn-primary-top: #E3C98C;
+  --btn-primary-mid: #C9AA6C;
+  --btn-primary-bot: #9C8048;
+  --btn-primary-text: #16110A;
+  --btn-shadow: rgba(201, 170, 108, 0.24);
+
+  /* ink — the white of the brightest stars, warmed to parchment so it never reads as a
+     screen's cold white */
+  --text: #EAE1CC;
+  --text-2: #D2C7AE;
+  --muted: #A89D86;
+  --faint: #7F7663;
+  --red: #DC7B6E;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  --pattern-opacity: 1;
+
+  --input-bg: linear-gradient(180deg, rgba(6, 5, 4, 0.6), rgba(14, 12, 9, 0.6));
+  --focus-ring: rgba(201, 170, 108, 0.18);
+  --card-wash: rgba(201, 170, 108, 0.08);
+}
+
+/* Outgoing transactions in Betelgeuse orange, off the same sky as --warn. */
+[data-theme="constellation"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.13);
+}
+[data-theme="constellation"] ::selection {
+  background: rgba(201, 170, 108, 0.26);
+  color: var(--text);
+}
+
+/* ---- balance animation: first light ------------------------------------------
+   A star is found before it is drawn: a point of white light first, and only then the
+   engraver's gold symbol that stands for it on the plate. The plates keep that order
+   themselves: their brightest stars are white points laid over the gold.
+
+   So each figure starts as a hot white point, small and blurred, swells a little past
+   its size with a halo round it, and settles as gold ink. */
+@keyframes constellation-first-light {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+    filter: blur(2.5px);
+    text-shadow: 0 0 0.5em rgba(240, 236, 224, 0.9);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.06);
+    filter: blur(0.4px);
+    text-shadow: 0 0 0.45em rgba(244, 238, 220, 0.6), 0 0 1.2em rgba(201, 170, 108, 0.35);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+    text-shadow: none;
+  }
+}
+[data-theme="constellation"] .bal-glyph { display: inline-block; }
+[data-theme="constellation"] .bal-glyph.bal-in {
+  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
+     never more than 210ms behind the first, however many there are. See splitGlyphs
+     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
+  animation: constellation-first-light 780ms cubic-bezier(0.2, 0.7, 0.2, 1)
+             calc(var(--i) * min(70ms, 210ms / max(var(--n) - 1, 1))) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="constellation"] .bal-glyph.bal-in { animation: none; }
+}

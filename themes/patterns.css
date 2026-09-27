@@ -452,3 +452,35 @@ body {
   background-position: 0% 0%, top left, 0% 0%;
   background-repeat: no-repeat, repeat, no-repeat;
 }
+
+/* Constellation — a plate from an engraved star atlas: the winter sky around Orion,
+   in gold on black (themes/constellation-sky.svg, drawn from real star positions and
+   the IAU constellation boundaries by scripts/gen-constellation-mycelium.py). Laid once
+   across the top of the panel at the panel's own width. NOT tiled: constellations are
+   shapes people know, and Orion twice in one screen would give the repeat away. Below
+   the sheet the black continues, with the faintest lift toward the top where the plate
+   is, as paper under a lamp. */
+[data-theme="constellation"] body {
+  background-image:
+    url(constellation-sky.svg),
+    radial-gradient(900px 600px at 50% 20%, rgba(201, 170, 108, 0.05), transparent 65%),
+    linear-gradient(180deg, #13110D 0%, var(--bg) 60%);
+  background-size: 100% auto, auto, auto;
+  background-position: top center, 0% 0%, 0% 0%;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+}
+
+/* Mycelium — a mycelial network in sepia over oat-colored loam, after a pen drawing:
+   knots joined by uneven strands that fuse into cells, with hairline hyphae fraying off
+   everything (themes/mycelium-hyphae.svg, from scripts/gen-constellation-mycelium.py).
+   Tiled at 520px, the size it was drawn at. Its inks are a measured ceiling, because
+   prose sits straight on this field; test/theme-svg-assets.test.js pins them. */
+[data-theme="mycelium"] body {
+  background-image:
+    url(mycelium-hyphae.svg),
+    radial-gradient(700px 420px at 85% -5%, rgba(255, 250, 235, 0.7), transparent 60%),
+    linear-gradient(168deg, #F6F0E6 0%, var(--bg) 55%);
+  background-size: 520px, auto, auto;
+  background-position: center, 0% 0%, 0% 0%;
+  background-repeat: repeat, no-repeat, no-repeat;
+}

@@ -229,3 +229,32 @@ test('the Wabi-sabi seams leave its body inks readable', () => {
     'the seams have to stay solid: translucent seams stack wherever two overlap, and the ' +
     'overlaps read as patches brighter than the seams around them');
 });
+
+// Mycelium's threads run under every hint in Settings, the Werkstätte case again. The
+// darkest pixel is where a thread crosses the field, so the thread's ink and alpha are
+// the ceiling this pins.
+test('the Mycelium threads leave its body inks above AA', () => {
+  const svg = fs.readFileSync(path.join(THEMES, 'mycelium-hyphae.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(THEMES, 'mycelium.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from mycelium.css');
+    return m[1];
+  };
+  const bg = token('bg');
+  const inks = [
+    ...svg.matchAll(/stroke="(#[0-9A-Fa-f]{6})" stroke-opacity="([\d.]+)"/g),
+    ...svg.matchAll(/fill="(#[0-9A-Fa-f]{6})" fill-opacity="([\d.]+)"/g),
+  ].map((m) => ({ hex: m[1], alpha: parseFloat(m[2]) }));
+  assert.ok(inks.length >= 2, 'could not read the thread and spore inks from the tile');
+  // Threads cross, so two layers of the strongest ink is the honest worst case.
+  let darkest = bg;
+  for (const ink of inks) {
+    const px = over(ink.hex, over(ink.hex, bg, ink.alpha), ink.alpha);
+    if (lum(px) < lum(darkest)) darkest = px;
+  }
+  for (const name of ['muted', 'faint']) {
+    const r = ratio(token(name), darkest);
+    assert.ok(r >= 4.5, `--${name} is ${r.toFixed(2)} where two threads cross (${darkest}), under AA.`);
+  }
+});
