@@ -849,3 +849,13 @@ test('SCREENS: UNCOUNTABLE VERSIONS ARE CALLED OUT, AND AN UNCOUNTABLE CURRENT I
   assert.doesNotMatch(unknown.modal.textContent, /No recoverable improvement found/, 'unknown is not the same answer as none');
   assert.doesNotMatch(unknown.modal.textContent, /were left out/, 'one warning, not two');
 });
+
+test('SCREENS: THE CREDIT NAMES THE SPEC VERSION THE CORE IMPLEMENTS', () => {
+  // Read from the core, not written into the label, so a version bump in
+  // lazarus.js can't leave the screen claiming the old one.
+  const h = modalHarness({ configured: [C] });
+  h.ctx.lazarusModal({ pubkey: PK });
+  const credit = h.modal.querySelectorAll('lazarus-credit')[0];
+  assert.equal(credit.textContent, 'Follows the Lazarus recovery spec (' + L.SPEC_VERSION + ').');
+  assert.equal(L.SPEC_VERSION, '0.6.2-draft');
+});

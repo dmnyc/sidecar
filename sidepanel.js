@@ -15693,6 +15693,9 @@
     }
   }
 
+  // The credit names the spec version this screen follows, in the wording the
+  // other Lazarus clients use, read from the core so the label cannot drift from
+  // the rules actually running. Lazarus is a spec, not a service behind the screen.
   function lazarusAttribution() {
     const a = h('a', {
       className: 'lazarus-credit',
@@ -15700,7 +15703,7 @@
       target: '_blank',
       rel: 'noopener noreferrer',
     });
-    a.append(h('span', { textContent: 'Powered by Lazarus' }));
+    a.append(h('span', { textContent: 'Follows the Lazarus recovery spec (' + self.SidecarLazarus.SPEC_VERSION + ').' }));
     return a;
   }
 
