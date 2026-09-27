@@ -1022,10 +1022,10 @@
         CARD_SUCCESS: 'color:#8FB894',
         CARD_PAY_SHADOW: 'rgba(201,170,108,0.24)'
       },
-      /* Mycelium — oat, moss, and the chanterelle. Mirrors themes/mycelium.css.
-         CARD_GOLD is the amount slot and takes --balance-ink, the chanterelle apricot,
+      /* Mycelium — oat, moss, and the fly agaric. Mirrors themes/mycelium.css.
+         CARD_GOLD is the amount slot and takes --balance-ink, the fly agaric's red,
          like the bauhaus, par-avion and ukiyo-e entries; 42px/800 is large text and it
-         measures 3.93 on the card's lower stop against a floor of 3.0. The pay button is
+         measures 5.94 on the card's lower stop against a floor of 3.0. The pay button is
          the moss primary with white. CARD_TRACK is the lighter moss so the shared
          near-black toggle thumb still shows on it. */
       mycelium: {
@@ -1033,9 +1033,9 @@
         CARD_BORDER: 'rgba(74,58,42,0.28)',
         CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(74,107,58,0.08),transparent 58%),linear-gradient(165deg,#FFFDF8,#F7F1E6)',
         CARD_MUTED: 'color:#54483B',
-        CARD_GOLD: 'color:#B35E1A',
+        CARD_GOLD: 'color:#A5352B',
         CARD_TEXT_2: 'color:#4A3A2A',
-        CARD_LAV: '#4A6B3A',
+        CARD_LAV: '#46655E',
         CARD_PAY_TEXT: 'color:#FFFFFF',
         CARD_PAY_BG: 'linear-gradient(180deg,#5E8049,#4A6B3A 52%,#38532B)',
         CARD_CANCEL_BG: 'rgba(74,107,58,0.10)',

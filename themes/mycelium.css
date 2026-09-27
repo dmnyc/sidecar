@@ -1,7 +1,7 @@
 /* ============================================================
    Sidecar — Mycelium Theme
    The forest floor from underneath: oat-colored loam, moss, the
-   chanterelle's apricot, and the white threads of a fungus running
+   fly agaric's red, and the white threads of a fungus running
    through all of it. Groups with the light themes.
    ============================================================ */
 
@@ -51,17 +51,20 @@
   --gold: #4A6B3A;
   --gold-soft: rgba(74, 107, 58, 0.30);
   --accent-rgb: 74, 107, 58;
-  /* The balance is the chanterelle: apricot, the warmest thing on the forest floor.
-     3.37:1 on the darker paper and 3.93 on the card it actually sits on, both over the
-     3.0 its display size needs. A `color:` nowhere else. */
-  --balance-ink: #B35E1A;
+  /* The balance is the fly agaric's cap, the red that says "mushroom" before any other
+     color does. 5.10:1 on the darker paper and 5.94 on the card it actually sits on,
+     both over the 3.0 its display size needs. A `color:` nowhere else. */
+  --balance-ink: #A5352B;
   --fiat-sym-opacity: 1;
   --purple: #38532B;
-  --lav: #4A6B3A;
+  /* Eucalyptus, the blue-green of the plants a forest floor grows under, so the second
+     accent is not a second moss. 4.89:1 on the darker paper. */
+  --lav: #46655E;
   --add-badge-ink: var(--velvet-1);
-  /* The unread count as a chanterelle cap with humus ink: 5.76:1. */
-  --badge-bg: #D98A3D;
-  --badge-ink: #2A2118;
+  /* The unread count in the fly agaric's red, with white: 5.94:1. The balance's red a
+     shade brighter, as a cap is in sun. */
+  --badge-bg: #B23A2E;
+  --badge-ink: #FFFFFF;
   --relax-dot-ok: #2E7D4F;
   --relax-dot-low: var(--balance-ink);
 
