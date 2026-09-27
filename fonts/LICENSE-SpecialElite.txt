@@ -11,7 +11,7 @@ Notes kept on the record:
 
 - The face is redistributed unmodified and unrenamed — the whole original from
   google/fonts rather than the smaller latin subset fonts.gstatic.com serves,
-  per the same practice as Rowdies and Apogee Telemetry.
+  per the same practice as Rowdies and Nixie Gothic.
 - Apache-2.0 is the second non-OFL license in fonts/ (Impressed Metal, freeware,
   is the other). Section 4 of the license requires the notice below travel with
   the work, which is what this file is; NOTICE in the repository root carries the

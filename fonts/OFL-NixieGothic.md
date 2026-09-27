@@ -1,16 +1,16 @@
-# Apogee Telemetry
+# Nixie Gothic
 
-Apogee Telemetry (regular and Wide) is a modified version of **Routed Gothic**
-by Darren Embry (<https://webonastick.com/fonts/routed-gothic/>), licensed
-under the SIL Open Font License 1.1 with Reserved Font Name "Routed Gothic" —
-hence the rename, as the OFL requires for modified versions.
+Nixie Gothic is a modified version of **Routed Gothic** by Darren Embry
+(<https://webonastick.com/fonts/routed-gothic/>), licensed under the SIL Open
+Font License 1.1 with Reserved Font Name "Routed Gothic" — hence the rename, as
+the OFL requires for modified versions.
 
-Modifications (see `tools/patch-telemetry-font.py`):
+Modifications:
 - yen (U+00A5): decomposed the Y + equals composite, whose stale stored
   bounding box caused macOS Chrome to clip the glyph.
 - euro (U+20AC): added, composed from the font's own C plus two round-capped
   bars in the face's stroke.
-- name table: family renamed to "Apogee Telemetry" / "Apogee Telemetry Wide".
+- name table: family renamed to "Nixie Gothic".
 
 The original license follows, unmodified.
 

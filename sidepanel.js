@@ -902,7 +902,7 @@
   });
 
   // ---- timed "auto-sign" (relax) bottom status bar ----
-  // Apogee-style persistent footer: while a relax window is active, pin a status
+  // A persistent footer: while a relax window is active, pin a status
   // bar to the bottom of the panel with the signing account and a live mm:ss
   // countdown, plus an "End" button. Hidden when nothing is active so the panel
   // bottom stays clear. The background is the source of truth — we re-sync on
@@ -16820,7 +16820,7 @@
   // has actually changed. Keying that on the rendered text instead would count a
   // sats → BTC → fiat toggle as a new balance.
   function denomParts(sats) {
-    // Three middots, not an ellipsis: U+2026 is absent from Apogee Telemetry, so in
+    // Three middots, not an ellipsis: U+2026 is absent from Nixie Gothic, so in
     // Nixie the '…' silently fell back to another face — small baseline dots in the
     // wrong typeface where the figure should be. periodcentered is in the font, sits
     // at mid height, and reads as three unlit tubes waiting for a number.
@@ -16837,7 +16837,7 @@
     return { text: fmtSats(sats), unit: 'sats', sym: '', sats };
   }
 
-  // Ragged per-glyph timing, from apogee's digit-cycle.ts. Deterministic and keyed
+  // Ragged per-glyph timing. Deterministic and keyed
   // on the glyph's position rather than random: a repaint mid-animation can't
   // re-roll a glyph's beat and restart it, and the pattern is reproducible when
   // tuning it. The two primes give a long-period sequence — no two adjacent glyphs
@@ -16845,8 +16845,8 @@
   // (which is what the first pass's flat 60ms-per-glyph stagger did).
   //
   // Only Nixie reads these two; a theme whose animation wants an even stagger uses
-  // --i and --n instead (see splitGlyphs). Longer than apogee's 620-980ms
-  // because Nixie's keyframes carry a longer settle at the end.
+  // --i and --n instead (see splitGlyphs). The durations run 900-1260ms, long
+  // because Nixie's keyframes carry a long settle at the end.
   //
   // The delays are then squeezed into a fixed WINDOW, the same clamp the CSS themes
   // apply to their own staggers: without it a figure's arrival got longer the more
@@ -16860,7 +16860,7 @@
   //
   //   1. deciding when a strike is earned. Three of the four repaint paths fire on
   //      a timer or a tab switch, so without this the tubes would re-ignite every
-  //      poll — the mistake apogee's balance-warmup.ts exists to avoid.
+  //      poll, re-lighting a balance that had not moved.
   //   2. deciding whether to touch the DOM at all (see paintBalanceEl).
   //
   // KEYED BY SLOT, NOT BY ELEMENT, and that is the fix for a real bug rather than a

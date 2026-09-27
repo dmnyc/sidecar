@@ -18,7 +18,7 @@
      Art Deco    Josefin Sans       1920s geometric sans         deco lettering
      Aegean      Cinzel             Roman inscriptional caps     classical stone
      Bauhaus     Jost               Futura-lineage geometric     the school's own
-     Nixie       Apogee Telemetry   monospaced engineer's hand   instrument panel
+     Nixie       Nixie Gothic       monospaced engineer's hand   instrument panel
      Populuxe    Rowdies            chunky rounded geometric     motel signage
      Cast Iron   Impressed Metal    groove-outline letterforms   the stamp impression
      Par Avion   Special Elite      distressed typewriter        the typed letter
@@ -37,8 +37,8 @@
    that was struck.
 
    Special Elite is the second face here drawn from a machine rather than a pen, after
-   Nixie's Apogee Telemetry, and the two do not collide for the reason the table cares
-   about: Apogee is MONOSPACED draftsman's lettering, uniform hairlines set on a fixed
+   Nixie's, and the two do not collide for the reason the table cares about: Nixie
+   Gothic is MONOSPACED draftsman's lettering, uniform hairlines set on a fixed
    pitch, and Special Elite is PROPORTIONAL (54 distinct advance widths in its first 60
    glyphs, and its isFixedPitch flag is 0) with slabbed serifs and ink spread unevenly
    across every stroke. One is a machine that draws; the other is a machine that hits
@@ -83,7 +83,7 @@
 
    Five faces ship as variable fonts — one file spanning the weight range rather than a
    static per weight. The remaining statics are Playfair Display (two woff2 weights),
-   Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Apogee Telemetry,
+   Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Nixie Gothic,
    Rowdies, Impressed Metal, Special Elite, Limelight, and Syncopate. The single-weight faces declare `400 700`, which tells
    the browser the one outline covers that whole range, so a 700-weight heading renders
    the real face rather than a synthetic bold or a drop back to Manrope halfway down a
@@ -195,24 +195,24 @@
   src: url('fonts/cinzel-var.woff2') format('woff2-variations');
 }
 
-/* Apogee Telemetry (patched Routed Gothic, SIL OFL 1.1 — see
-   fonts/OFL-ApogeeTelemetry.md). The numeral face of mid-century instrument
+/* Nixie Gothic (patched Routed Gothic, SIL OFL 1.1 — see
+   fonts/OFL-NixieGothic.md). The numeral face of mid-century instrument
    panels, lettered like the readouts in 2001: A Space Odyssey. Nixie's
    display face, drawn from a category none of the other themes occupy:
    monospaced engineer's lettering. Shipped as TTF — a single static face at
    one weight, 57KB, rather than the variable woff2s above. */
 @font-face {
-  font-family: 'Apogee Telemetry';
+  font-family: 'Nixie Gothic';
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/apogee-telemetry.ttf') format('truetype');
+  src: url('fonts/nixie-gothic.ttf') format('truetype');
 }
 
 /* Rowdies (Jaikishan Patel, SIL OFL 1.1 — see fonts/OFL-Rowdies.txt). Populuxe's
    display face: heavy rounded geometric letterforms, the shape of the signage
    the theme is named for. Shipped as an unmodified TTF, 75KB, the same way
-   Apogee Telemetry is — the OFL's Reserved Font Name clause means a subset
+   Nixie Gothic is — the OFL's Reserved Font Name clause means a subset
    would have to be renamed, and a whole original anyone can re-derive is worth
    more than the 40KB saved.
 
@@ -254,7 +254,7 @@
 
    SINGLE WEIGHT, 130KB, unmodified. The heads are set at 600 and this outline is a 400,
    so `400 700` below points the whole range at it and nothing synthesizes — the same
-   arrangement Rowdies, Apogee Telemetry, Impressed Metal and Special Elite already use.
+   arrangement Rowdies, Nixie Gothic, Impressed Metal and Special Elite already use.
    The heads therefore render at the regular weight, which on this face is sturdy enough
    to carry a section title; if they ever need more, the answer is a heavier face, not a
    synthetic bold. */

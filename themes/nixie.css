@@ -9,11 +9,11 @@
 [data-theme="nixie"] {
   color-scheme: dark;
 
-  /* Routed Gothic (patched as Apogee Telemetry, SIL OFL — see fonts/) is the
+  /* Routed Gothic (patched as Nixie Gothic, SIL OFL — see fonts/) is the
      numeral face of instrument panels; here it becomes the display face, so
      headings read like stencilled equipment labels. Drawn from a category none
      of the other six occupy: monospaced engineer's lettering. */
-  --font-display: 'Apogee Telemetry', 'Oswald', var(--font-ui);
+  --font-display: 'Nixie Gothic', 'Oswald', var(--font-ui);
 
   /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
@@ -322,7 +322,7 @@
 [data-theme="nixie"] .wallet-balance,
 [data-theme="nixie"] .pinned-balance-amt {
   color: var(--balance-ink);
-  font-family: 'Apogee Telemetry', ui-monospace, monospace;
+  font-family: 'Nixie Gothic', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
@@ -599,12 +599,10 @@
    then settle. Abruptness lives in the keyframe positions rather than
    steps(1), so the overshoot still falls off smoothly. Only opacity and
    text-shadow animate, so a stuttering figure can't reflow the one beside it.
-   Ported from apogee's strike keyframes.
 
-   The LANDING is this file's own, and deliberately longer than apogee's: there,
-   the last event is a 0.9 -> 1 step over the final 12% and the animation simply
-   stops, which reads as a cut. Here the tail keeps rippling past the catch and
-   the ripples get shallower every time (0.72, 1, 0.88, 0.97, 0.995, 1), so the
+   The LANDING is deliberately long. Ending on a 0.9 -> 1 step over the final 12%
+   and simply stopping reads as a cut, so the tail keeps rippling past the catch,
+   each ripple shallower than the last (0.72, 1, 0.88, 0.97, 0.995, 1), and the
    figure arrives at rest instead of being switched to it. The glyph durations in
    sidepanel.js were widened to give this tail room.
 
@@ -649,8 +647,8 @@
 /* The figure strikes like a tube igniting, once, when it first appears.
    `both` holds the dark pre-strike state until the delay passes, so the glyphs
    light raggedly rather than all starting from full. Timing function left at the
-   default `ease` — apogee's — because the stutter's rhythm is the part that
-   works, and any explicit curve rewrites it. Duration and delay come per-glyph
+   default `ease`, because the stutter's rhythm is the part that works, and any
+   explicit curve rewrites it. Duration and delay come per-glyph
    from paintBalanceEl (sidepanel.js), which also decides WHEN a figure has
    earned a strike. */
 [data-theme="nixie"] .bal-glyph.bal-in {

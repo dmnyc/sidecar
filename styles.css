@@ -3273,7 +3273,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* Optical centering, per display face. Flex centers the LINE BOX; the eye
    centers the INK, and every face puts its lining figures at a different height
-   inside the em (Josefin Sans's caps sit high, Apogee's sit low, Playfair's
+   inside the em (Josefin Sans's caps sit high, Nixie Gothic's sit low, Playfair's
    oldstyle-metric em hangs below the baseline). The offsets were measured by
    rendering each theme's "8" in its ring and finding the ink's bounding box in
    the rasterized pixels, then nudging in em so the 28px ring and the 19px unlock
@@ -4901,7 +4901,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      and the point of this picker is that you read each theme's name in the face
      you would get by choosing it.
      line-height is pinned because the seven faces carry very different content
-     areas — Apogee Telemetry's is 39px at 24px against Playfair's 32 — so at the
+     areas — Nixie Gothic's is 39px at 24px against Playfair's 32 — so at the
      default the cards came out anywhere from 43px to 62px tall and the list read
      as ragged. Pinned, every card is the same height it was before the type grew,
      which also keeps the whole picker on one screen. Descenders overflow the line
