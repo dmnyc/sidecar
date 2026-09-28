@@ -3933,10 +3933,19 @@
           poolQueryAnswered(relays, { kinds: [10002], authors: [pubkey], limit: 1 })
             // Only this account's own events: a relay is not obliged to honor the
             // filter, and a crossed kind:10002 would otherwise stand in for the list.
-            .then(({ events, answered }) => (answered
-              ? events.filter((e) => e && e.pubkey === pubkey)
-                .sort((a, b) => b.created_at - a.created_at)[0] || null
-              : NIP65_TIMED_OUT))
+            //
+            // And a reply made ONLY of other people's lists is no answer about this
+            // account, not an answer of "no list". Read as the latter, it was cached for
+            // the session and deleted the remembered list (#388), the loss the offline
+            // fix exists to prevent. The pool merges every relay's reply, so an honest
+            // empty answer beside a crossed one reads as unknown too: that errs toward
+            // keeping the remembered list, and the next lookup settles it.
+            .then(({ events, answered }) => {
+              if (!answered) return NIP65_TIMED_OUT;
+              const own = events.filter((e) => e && e.pubkey === pubkey);
+              if (!own.length && events.length) return NIP65_TIMED_OUT;
+              return own.sort((a, b) => b.created_at - a.created_at)[0] || null;
+            })
             .catch(() => NIP65_TIMED_OUT),
           new Promise((res) => setTimeout(() => res(NIP65_TIMED_OUT), 6000)),
         ])
