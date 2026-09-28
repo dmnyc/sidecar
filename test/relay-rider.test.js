@@ -299,13 +299,61 @@ test('ARROWS AND WASD STAY PAIRED, AND SOUND IS NOT ONE OF THEM', () => {
   assert.deepEqual(transpose(arrow('←')), arrow('↑'), 'the up arrow is not the left arrow turned');
   assert.deepEqual(transpose(arrow('→')), arrow('↓'), 'the down arrow is not the right arrow turned');
 
-  // Sound cannot sit on a letter the movement keys need, which is exactly why it is not on
-  // S. Whatever it is, the title has to name the same one the handler listens for.
-  const sound = src.match(/if \(e\.code === '(\w+)'\) \{ toggleSound\(\)/)[1];
-  assert.ok(!keys[sound], sound + ' is a movement key as well as the sound key');
-  assert.ok(!['KeyP', 'Space', 'Enter'].includes(sound), sound + ' collides with pause or start');
-  assert.match(src, new RegExp('\\b' + sound.replace('Key', '') + ' SOUND\\b'),
-    'the title names a different sound key than the handler listens for');
+  // Sound is a button now, not a key: Q was the one nobody remembered. No key may toggle
+  // it, and the title must not go on naming one.
+  assert.doesNotMatch(src, /e\.code === '\w+'\) \{ toggleSound\(\)/, 'a key toggles sound again');
+  assert.doesNotMatch(src, /textMid\('[^']*\bSOUND\b/, 'the title still names a sound key');
+});
+
+test('SOUND IS A BUTTON IN THE CORNER, AND THE CLOSE BUTTON SITS IN ITS BAND', () => {
+  const body = stripComments(html);
+  const src = stripComments(js);
+  // Inside the stage that wraps the canvas, so it is placed against the playfield and
+  // not against a letterboxed window.
+  assert.match(body, /<div id="stage">\s*<canvas id="screen"[^>]*><\/canvas>\s*<button type="button" id="sound" aria-pressed="false"/,
+    'the sound button is not beside the canvas in the stage');
+  assert.match(body, /data-i18n-aria-label="Sound"/, 'the sound button has no translatable label');
+  assert.match(src, /setAttribute\('aria-pressed', soundOn \? 'true' : 'false'\)/, 'the button never shows its state');
+  // A focused button is where Space goes, and Space is the throttle.
+  assert.match(src, /soundBtn\.addEventListener\('pointerdown', \(e\) => e\.preventDefault\(\)\)/,
+    'tapping the sound button takes focus, and the next Space presses it instead of the gas');
+
+  // Both corner buttons use the same inset, the one that centers a button in the HUD.
+  assert.match(src, /const corner = \(s\) => Math\.max\(4, Math\.round\(\(HUD_H \* s - BUTTON\) \/ 2\)\)/);
+  assert.match(src, /cv\.dataset\.hud = String\(HUD_H\)/, 'the panel cannot find the HUD band to center its button in');
+  const p = stripComments(panel);
+  const place = p.slice(p.indexOf('function placeRiderClose('), p.indexOf('function closeRider('));
+  assert.match(place, /cv\.dataset\.hud/, 'the close button is not placed from the HUD band');
+  const open = p.slice(p.indexOf('function openRider('), p.indexOf('function placeRiderClose('));
+  assert.match(open, /addEventListener\('resize', placeRiderClose\)/, 'a resized panel leaves the close button where it was');
+});
+
+test('THE SOUNDTRACK IS A REAL SCORE, AND IT FITS ITS OWN LOOP', () => {
+  // Generated from a public-domain engraving by scripts/midi-to-rider-score.mjs. A hand
+  // edit that puts a note past the loop would index an empty bucket and throw inside the
+  // render loop, which stops the game, not just the music.
+  const scoreSrc = fs.readFileSync(path.join(ROOT, 'relay-rider-score.js'), 'utf8');
+  assert.match(scoreSrc, /Public domain/, 'the score has lost its provenance');
+  const box = { window: {} };
+  vm.runInNewContext(scoreSrc, box);
+  const score = box.window.RelayRiderScore;
+  assert.ok(score.bpm > 40 && score.bpm < 200, 'bpm ' + score.bpm);
+  assert.equal(score.length % 8, 0, 'the loop is not a whole number of 2/4 bars');
+  for (const voice of ['lead', 'bass']) {
+    const v = score[voice];
+    assert.equal(v.length % 3, 0, voice + ' is not a run of triples');
+    assert.ok(v.length / 3 > 200, voice + ' is too short to be the piece');
+    for (let i = 0; i < v.length; i += 3) {
+      const [at, midi, len] = [v[i], v[i + 1], v[i + 2]];
+      assert.ok(Number.isInteger(at) && at >= 0 && at < score.length, voice + ' note ' + i / 3 + ' starts outside the loop');
+      assert.ok(midi >= 21 && midi <= 108, voice + ' note ' + i / 3 + ' is off the piano');
+      assert.ok(len >= 1, voice + ' note ' + i / 3 + ' has no length');
+    }
+  }
+  // Loaded before the game, which reads it once at startup.
+  const scripts = [...stripComments(html).matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(scripts.indexOf('relay-rider-score.js') !== -1 &&
+    scripts.indexOf('relay-rider-score.js') < scripts.indexOf('relay-rider.js'), 'the score loads after the game that reads it');
 });
 
 test('EVERY POP IS LEGIBLE WHEREVER IT LANDS', () => {
@@ -534,7 +582,8 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
 test('it reads nothing and connects to nothing', () => {
   // The page says so in its own header comment, and a claim in a comment is worth what
   // the test under it is worth. localStorage for a high score is the whole of its state.
-  const src = stripComments(js) + stripComments(html);
+  const src = stripComments(js) + stripComments(html) +
+    stripComments(fs.readFileSync(path.join(ROOT, 'relay-rider-score.js'), 'utf8'));
   for (const forbidden of [/chrome\.storage/, /chrome\.runtime/, /\bfetch\s*\(/, /WebSocket/, /XMLHttpRequest/, /sidecar_settings/]) {
     assert.doesNotMatch(src, forbidden, 'the game touches ' + forbidden + ', which its header says it does not');
   }

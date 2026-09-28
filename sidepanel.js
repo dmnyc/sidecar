@@ -20248,6 +20248,8 @@
     // frame is already up. The overlay is opaque and the page behind it is the same
     // color, so there is nothing to see during the wait either way.
     const reveal = () => {
+      placeRiderClose();
+      try { frame.contentWindow.addEventListener('resize', placeRiderClose); } catch (_) { /* gone */ }
       requestAnimationFrame(() => requestAnimationFrame(() => view.classList.add('is-open')));
       // Keys have to reach the frame, not the panel behind it, or the arrows scroll
       // settings while the rig sits still. Same origin, so reaching in is allowed.
@@ -20260,6 +20262,26 @@
     frame.onload = once;
     setTimeout(once, 600);
     frame.src = 'relay-rider.html';
+  }
+
+  // The close button floats over the game's HUD band, centered in it: pinned at a fixed
+  // offset it sat on the band's bottom edge at 2x and fell off it at 3x. The game marks
+  // the canvas with its band height in playfield rows, and places its own sound button
+  // in the opposite corner with the same inset, so the two read as a pair. The frame's
+  // resize listener runs after the game's own, so the canvas is already refitted here.
+  function placeRiderClose() {
+    const btn = $('rider-close');
+    try {
+      const frame = $('rider-frame');
+      const cv = frame.contentDocument.getElementById('screen');
+      const r = cv.getBoundingClientRect();
+      const band = Number(cv.dataset.hud) * r.height / cv.height;
+      const inset = Math.max(4, Math.round((band - btn.offsetHeight) / 2));
+      btn.style.top = Math.round(r.top + inset) + 'px';
+      btn.style.right = Math.round(frame.clientWidth - r.right + inset) + 'px';
+    } catch (_) {
+      btn.style.top = btn.style.right = '';
+    }
   }
 
   function closeRider() {

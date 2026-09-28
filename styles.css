@@ -1153,8 +1153,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   .rider-overlay { transition: none !important; }
 }
 #rider-frame { flex: 1; width: 100%; height: 100%; border: 0; display: block; }
+/* Centered in the game's 40px HUD band at 2x, the panel's usual scale. placeRiderClose()
+   in sidepanel.js re-centers it for whatever scale the frame actually got. */
 .rider-close {
-  position: absolute; top: 10px; right: 10px; z-index: 2;
+  position: absolute; top: 5px; right: 5px; z-index: 2;
   width: 30px; height: 30px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(14, 14, 20, 0.72); border: 1px solid #2a2a36; border-radius: 8px;
