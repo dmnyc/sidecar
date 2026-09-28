@@ -1124,10 +1124,11 @@
       // cleared on browser close. Without saying so, "Never" reads as broken.
       call({ type: 'SIDECAR_GET_SETTINGS' })
         .then((s) => {
-          if (s && s.autoLockMinutes === 0) {
-            $('view-lock').querySelector('.lede').textContent =
-              'Locked since your browser closed. Enter your PIN to unlock your accounts.';
-          }
+          // Both branches set it: the node outlives the setting, so a Never lede left
+          // behind would still be there after a switch to a timed lock.
+          $('view-lock').querySelector('.lede').textContent = s && s.autoLockMinutes === 0
+            ? t('Locked since your browser closed. Enter your PIN to unlock.')
+            : t('Enter your PIN to unlock.');
         })
         .catch(() => {});
       setTimeout(() => $('unlock-pin').focus(), 50);
