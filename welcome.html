@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Welcome to Sidecar</title>
+  <title data-i18n="Welcome to Sidecar">Welcome to Sidecar</title>
   <link rel="stylesheet" href="fonts.css">
   <link rel="stylesheet" href="welcome.css">
   <link rel="stylesheet" href="themes/speakeasy.css">
@@ -26,19 +26,19 @@
 </head>
 <body>
   <nav class="helpnav">
-    <a class="helpnav-brand" href="help.html" title="Back to the guide">
+    <a class="helpnav-brand" href="help.html" title="Back to the guide" data-i18n-title="Back to the guide">
       <img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
     </a>
     <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
-    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu">
-      <span class="helpnav-burger-text">Menu</span>
+    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu" data-i18n-aria-label="Open menu">
+      <span class="helpnav-burger-text" data-i18n="Menu">Menu</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
     </label>
     <div class="helpnav-menu">
-      <a class="helpnav-guide" href="help.html"><span class="helpnav-back" aria-hidden="true">&lsaquo;</span> Guide</a>
+      <a class="helpnav-guide" href="help.html"><span class="helpnav-back" aria-hidden="true">&lsaquo;</span> <span data-i18n="Guide">Guide</span></a>
       <div class="helpnav-pages">
-        <a href="welcome.html" class="active" aria-current="page">Nostr apps</a>
-        <a href="wallets.html">Wallets</a>
+        <a href="welcome.html" class="active" aria-current="page" data-i18n="Nostr apps">Nostr apps</a>
+        <a href="wallets.html" data-i18n="Wallets">Wallets</a>
       </div>
     </div>
   </nav>
@@ -48,8 +48,8 @@
     <!-- Firefox can decline site access in the install prompt — without it none of
          these apps can see the signer. Chrome grants at install; never shows there. -->
     <div id="perm-gate" class="perm-gate" hidden>
-      <p><strong>One more step:</strong> Sidecar needs permission to work on websites — without it, these apps can't see your signer.</p>
-      <button id="perm-grant-btn" class="perm-grant-btn">Grant site access</button>
+      <p><strong data-i18n="One more step:">One more step:</strong> <span data-i18n="Sidecar needs permission to work on websites. Without it, these apps can't see your signer.">Sidecar needs permission to work on websites. Without it, these apps can't see your signer.</span></p>
+      <button id="perm-grant-btn" class="perm-grant-btn" data-i18n="Grant site access">Grant site access</button>
     </div>
 
     <!-- First run, panel not open yet. Floats over the nav strip (CSS puts it
@@ -60,34 +60,34 @@
     <div id="open-pin-gate" class="open-pin-gate" hidden>
       <img class="open-pin-icon" src="icons/icon128.png" alt="">
       <div class="open-pin-text">
-        <strong>Open &amp; pin Sidecar</strong>
-        <span>Open the Extensions menu (the puzzle-piece icon) in your browser toolbar, pin Sidecar, then click it to open the <span id="open-pin-surface">side panel</span>.</span>
+        <strong data-i18n="Open &amp; pin Sidecar">Open &amp; pin Sidecar</strong>
+        <span id="open-pin-body">Open the Extensions menu (the puzzle-piece icon) in your browser toolbar, pin Sidecar, then click it to open the side panel.</span>
       </div>
-      <button id="open-pin-x" class="open-pin-x" aria-label="Dismiss">&times;</button>
+      <button id="open-pin-x" class="open-pin-x" aria-label="Dismiss" data-i18n-aria-label="Dismiss">&times;</button>
     </div>
 
     <header class="header">
-      <h1>Your Nostr signer is ready.</h1>
-      <p>Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.</p>
+      <h1 data-i18n="Your Nostr signer is ready.">Your Nostr signer is ready.</h1>
+      <p data-i18n="Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.">Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.</p>
     </header>
 
     <div class="filters" id="filters">
-      <button class="filter-btn active" data-cat="all">All</button>
-      <button class="filter-btn" data-cat="social">Social</button>
-      <button class="filter-btn" data-cat="media">Media</button>
-      <button class="filter-btn" data-cat="gaming">Gaming</button>
-      <button class="filter-btn" data-cat="commerce">Commerce</button>
-      <button class="filter-btn" data-cat="tools">Tools</button>
-      <button class="filter-btn" data-cat="other">Other Stuff</button>
+      <button class="filter-btn active" data-cat="all" data-i18n="All">All</button>
+      <button class="filter-btn" data-cat="social" data-i18n="Social">Social</button>
+      <button class="filter-btn" data-cat="media" data-i18n="Media">Media</button>
+      <button class="filter-btn" data-cat="gaming" data-i18n="Gaming">Gaming</button>
+      <button class="filter-btn" data-cat="commerce" data-i18n="Commerce">Commerce</button>
+      <button class="filter-btn" data-cat="tools" data-i18n="Tools">Tools</button>
+      <button class="filter-btn" data-cat="other" data-i18n="Other Stuff">Other Stuff</button>
     </div>
 
     <div class="grid" id="grid"></div>
 
     <footer class="footer">
       <div class="footer-divider"></div>
-      <p class="footer-tip">New to Nostr? <a href="https://nostr.how" target="_blank" rel="noopener">nostr.how</a> is a good place to start.</p>
-      <p class="footer-tip">Find more apps at <a href="https://nostrapps.com" target="_blank" rel="noopener">nostrapps.com</a> and <a href="https://nostr.net/" target="_blank" rel="noopener">nostr.net</a>.</p>
-      <p class="footer-tip"><a href="https://github.com/dmnyc/sidecar/issues/new?template=app-suggestion.yml" target="_blank" rel="noopener">Suggest an app to add →</a></p>
+      <p class="footer-tip" id="tip-start">New to Nostr? <a href="https://nostr.how" target="_blank" rel="noopener">nostr.how</a> is a good place to start.</p>
+      <p class="footer-tip" id="tip-more">Find more apps at <a href="https://nostrapps.com" target="_blank" rel="noopener">nostrapps.com</a> and <a href="https://nostr.net/" target="_blank" rel="noopener">nostr.net</a>.</p>
+      <p class="footer-tip"><a href="https://github.com/dmnyc/sidecar/issues/new?template=app-suggestion.yml" target="_blank" rel="noopener" data-i18n="Suggest an app to add →">Suggest an app to add →</a></p>
     </footer>
 
   </div>

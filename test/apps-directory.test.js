@@ -20,9 +20,9 @@ const ENTRIES = [...src.matchAll(/\{\n\s+name: '([^']+)',\n\s+url: '([^']+)',\n\
   .map((m) => ({ name: m[1], url: m[2], domain: m[3], cat: m[4] }));
 
 // name -> desc, read separately because desc does not always follow cat directly: some
-// entries carry an icon, a flush flag or a comment in between.
+// entries carry an icon, a flush flag or a comment in between. Each desc is a t() key.
 const DESCS = Object.fromEntries(
-  [...src.matchAll(/name: '([^']+)',[\s\S]*?desc: '((?:[^'\\]|\\.)*)',/g)].map((m) => [m[1], m[2]])
+  [...src.matchAll(/name: '([^']+)',[\s\S]*?desc: t\('((?:[^'\\]|\\.)*)'\),/g)].map((m) => [m[1], m[2]])
 );
 
 test('every catalog entry carries the fields a card renders', () => {

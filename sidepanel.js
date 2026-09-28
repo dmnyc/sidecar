@@ -1202,15 +1202,15 @@
     err.textContent = '';
     const pin = $('ob-pin').value;
     const pin2 = $('ob-pin2').value;
-    if (pin.length < MIN_PIN_LEN) return (err.textContent = `Use at least ${MIN_PIN_LEN} characters.`);
-    if (pin.length > MAX_PIN_LEN) return (err.textContent = `Use at most ${MAX_PIN_LEN} characters.`);
-    if (pin !== pin2) return (err.textContent = 'PINs do not match.');
+    if (pin.length < MIN_PIN_LEN) return (err.textContent = t('Use at least {{count}} characters.', { count: MIN_PIN_LEN }));
+    if (pin.length > MAX_PIN_LEN) return (err.textContent = t('Use at most {{count}} characters.', { count: MAX_PIN_LEN }));
+    if (pin !== pin2) return (err.textContent = t('PINs do not match.'));
     try {
       await call({ type: 'SIDECAR_INIT', pin });
       // Hold the welcome/empty-state view behind this reminder until it's dismissed.
       pinReminderModal(async () => {
         await refresh();
-        toast('Keystore created', 'success');
+        toast(t('Keystore created'), 'success');
       });
     } catch (e) {
       err.textContent = e.message;
@@ -1228,12 +1228,14 @@
   function unlockNotice(remaining) {
     const low = remaining != null && remaining <= 5;
     const note = h('div', { className: 'unlock-note' + (low ? ' unlock-danger' : '') });
-    note.append(h('div', { className: 'unlock-note-title', textContent: 'Incorrect PIN' }));
+    note.append(h('div', { className: 'unlock-note-title', textContent: tSec('Incorrect PIN') }));
     if (remaining != null) {
-      note.append(h('div', { className: 'unlock-note-sub' }, [
-        h('span', { className: 'unlock-note-count', textContent: String(remaining) }),
-        document.createTextNode((remaining === 1 ? ' attempt' : ' attempts') + ' left before this device erases'),
-      ]));
+      // The count keeps its own styled node wherever the language puts it: the plural
+      // form is chosen from the number, and {{count}} is left in place for fill().
+      const count = h('span', { className: 'unlock-note-count', textContent: I18N.fmtNum(remaining) });
+      const line = tn('{{count}} attempt left before this device erases', '{{count}} attempts left before this device erases',
+        remaining, { count: '{{count}}' });
+      note.append(h('div', { className: 'unlock-note-sub' }, I18N.fill(line, { count })));
     }
     return note;
   }
@@ -1276,7 +1278,7 @@
     const wrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
     const cap = remaining != null
       ? unlockNotice(remaining)
-      : h('div', { className: 'unlock-note' }, [h('div', { className: 'unlock-note-title', textContent: 'Too many attempts' })]);
+      : h('div', { className: 'unlock-note' }, [h('div', { className: 'unlock-note-title', textContent: tSec('Too many attempts') })]);
     box.innerHTML = '';
     box.append(wrap, cap);
     box.classList.remove('hidden');
@@ -1312,15 +1314,15 @@
       return;
     }
     pin.value = '';
-    if (r.status === 'ok') { clearUnlockCooldown(); await refresh(); toast('Unlocked', 'success'); return; }
-    if (r.status === 'wiped') { clearUnlockCooldown(); await refresh(); toast('Too many attempts — all data erased', 'error'); return; }
+    if (r.status === 'ok') { clearUnlockCooldown(); await refresh(); toast(t('Unlocked'), 'success'); return; }
+    if (r.status === 'wiped') { clearUnlockCooldown(); await refresh(); toast(tSec('Too many attempts. All data on this device was erased.'), 'error'); return; }
     if (r.status === 'throttled') { startUnlockCooldown(r.waitMs, r.remaining, false); return; }
     if (r.status === 'bad') {
       showUnlockRemaining(r.remaining);
       if (r.nextWaitMs > 0) startUnlockCooldown(r.nextWaitMs, r.remaining, true);
       return;
     }
-    err.textContent = r.error || 'Could not unlock';
+    err.textContent = r.error || t('Could not unlock');
   });
 
   // Locked out (forgot PIN): let the user erase everything and start over, with a
@@ -1331,11 +1333,13 @@
       const err = h('div', { className: 'error' });
       const warn = h('p', {
         className: 'hint',
-        textContent:
-          "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh — all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered.",
+        textContent: tSec(
+          "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh: all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered."),
       });
-      const confirmInput = h('input', { type: 'text', placeholder: 'Type ERASE to confirm' });
-      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      // ERASE stays ERASE in every language: it is what the check below compares, and a
+      // word to type is not prose. The sentence around it is translated.
+      const confirmInput = h('input', { type: 'text', placeholder: tSec('Type {{word}} to confirm', { word: 'ERASE' }) });
+      const del = h('button', { className: 'danger', textContent: tSec('Erase everything') });
       del.disabled = true;
       const matches = () => confirmInput.value.trim().toUpperCase() === 'ERASE';
       confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
@@ -1345,18 +1349,18 @@
           await call({ type: 'SIDECAR_RESET_ALL' });
           closeModal();
           await refresh(); // no keystore now → onboarding
-          toast('Sidecar erased', 'success');
+          toast(t('Sidecar erased'), 'success');
         } catch (ex) {
           err.textContent = ex.message;
           toast(ex.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Forgot your PIN?' }),
+        h('h3', { textContent: t('Forgot your PIN?') }),
         warn,
-        h('label', { textContent: 'Confirm' }),
+        h('label', { textContent: t('Confirm') }),
         confirmInput,
         err,
         h('div', { className: 'actions' }, [del, cancel])
@@ -1369,7 +1373,7 @@
   $('lock-btn').addEventListener('click', async () => {
     await call({ type: 'SIDECAR_LOCK' });
     await refresh();
-    toast('Locked', 'success');
+    toast(t('Locked'), 'success');
   });
 
   $('compose-fab').addEventListener('click', () => {
@@ -9341,17 +9345,14 @@
           '<line x1="24" y1="12" x2="24" y2="17" stroke-width="2.25"></line>' +
           '<line x1="29" y1="12" x2="29" y2="16" stroke-width="2.25"></line>' +
           '</svg>';
-        const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+        const ok = h('button', { className: 'primary', textContent: t('OK, got it') });
         ok.addEventListener('click', closeModal);
         const body = h('p', { className: 'hint pin-reminder-body' });
-        body.append(
-          document.createTextNode('Write it down, or save it in a password manager, before you go any further. '),
-          h('strong', { className: 'pin-reminder-warn', textContent: "This PIN can't be recovered" }),
-          document.createTextNode(' — only a separate backup of your keys can get your accounts back.')
-        );
+        const warn = h('strong', { className: 'pin-reminder-warn', textContent: tSec("This PIN can't be recovered") });
+        body.append(...I18N.fill(tSec('Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.'), { warning: warn }));
         modal.append(
           keyWrap,
-          h('h3', { className: 'pin-reminder-title', textContent: 'Save your PIN somewhere safe' }),
+          h('h3', { className: 'pin-reminder-title', textContent: tSec('Save your PIN somewhere safe') }),
           body,
           h('div', { className: 'actions' }, [ok])
         );

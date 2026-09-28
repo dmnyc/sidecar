@@ -168,3 +168,30 @@ test('a broken or missing locale file falls back to English, never to blank', as
   await i.ready;
   assert.equal(i.t('Copy'), 'Copy');
 });
+
+// ---- fill(): a sentence that holds an element ----------------------------------------
+
+test('FILL PUTS EACH NODE WHERE THE LANGUAGE PUT ITS SLOT, AND LEAVES THE REST AS TEXT', () => {
+  const i = load();
+  const link = { node: 'a' };
+  // English order, and a language that moves the slot to the end.
+  assert.deepEqual([...i.fill('New to Nostr? {{link}} is a good place to start.', { link })],
+    ['New to Nostr? ', link, ' is a good place to start.']);
+  i.setLocale('de', [{ 'New to Nostr? {{link}} is a good place to start.': 'Neu bei Nostr? Fang an bei {{link}}' }]);
+  assert.deepEqual([...i.fill(i.t('New to Nostr? {{link}} is a good place to start.'), { link })],
+    ['Neu bei Nostr? Fang an bei ', link]);
+});
+
+test('a slot with no node stays as written, and a translation cannot add markup', () => {
+  const i = load();
+  assert.deepEqual([...i.fill('{{a}} and {{b}}', { a: 1 })], [1, ' and ', '{{b}}']);
+  // Strings come back as strings; append() makes them text nodes, never HTML.
+  assert.deepEqual([...i.fill('<b>bold</b> {{x}}', {})], ['<b>bold</b> ', '{{x}}']);
+});
+
+test('THE PSEUDO-LOCALE KEEPS THE SLOT, SO THE NODE STILL LANDS', () => {
+  const i = load();
+  i.setLocale('en-XA', []);
+  const out = i.fill(i.t('Find more apps at {{first}} and {{second}}.'), { first: 'F', second: 'S' });
+  assert.ok(out.includes('F') && out.includes('S'), JSON.stringify(out));
+});
