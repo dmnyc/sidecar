@@ -237,8 +237,19 @@
   // language ships only once a native speaker has reviewed every one of them.
   const tSec = t;
 
+  // A translated sentence that holds an element: a link, a bold phrase, a styled count.
+  // el.append(...fill(t('New to Nostr? {{link}} is a good place to start.'), { link: a }))
+  // Splits on the slots and puts each node where the language put its slot; the rest
+  // stays text, never markup. A slot with no node is left as written.
+  function fill(text, nodes) {
+    return String(text).split(/(\{\{\w+\}\})/).filter((part) => part !== '').map((part) => {
+      const m = /^\{\{(\w+)\}\}$/.exec(part);
+      return m && nodes && nodes[m[1]] ? nodes[m[1]] : part;
+    });
+  }
+
   const api = {
-    t, tn, tSec, fmtNum, fmtDate, fmtRelative, applyDom, ready, setLocale,
+    t, tn, tSec, fill, fmtNum, fmtDate, fmtRelative, applyDom, ready, setLocale,
     get lang() { return lang; },
     get dir() { return RTL.has(lang.split('-')[0]) ? 'rtl' : 'ltr'; },
     languages: () => LANGUAGES.slice(),

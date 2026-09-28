@@ -33,18 +33,18 @@
     <div class="brand-lg">
       <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
     </div>
-    <p class="headline">Your keys, your identity.</p>
-    <p class="lede">Set a PIN to protect the Nostr accounts stored on this device.</p>
+    <p class="headline" data-i18n="Your keys, your identity.">Your keys, your identity.</p>
+    <p class="lede" data-i18n="Set a PIN to protect the Nostr accounts stored on this device.">Set a PIN to protect the Nostr accounts stored on this device.</p>
     <form id="onboarding-form" class="stack">
-      <label for="ob-pin">Create a PIN or passphrase</label>
+      <label for="ob-pin" data-i18n="Create a PIN or passphrase">Create a PIN or passphrase</label>
       <input type="password" id="ob-pin" autocomplete="new-password" maxlength="32" />
-      <label for="ob-pin2">Confirm</label>
+      <label for="ob-pin2" data-i18n="Confirm">Confirm</label>
       <input type="password" id="ob-pin2" autocomplete="new-password" maxlength="32" />
       <!-- A long alphanumeric passphrase beats a short numeric PIN, which is advice rather
            than a fact about the field. The no-recovery line is not advice. -->
-      <p class="hint">At least 8 characters. There is no recovery if you forget it.</p>
+      <p class="hint" data-i18n="At least 8 characters. There is no recovery if you forget it." data-i18n-review>At least 8 characters. There is no recovery if you forget it.</p>
       <div class="error" id="ob-error"></div>
-      <button type="submit" class="primary" id="ob-submit">Create keystore</button>
+      <button type="submit" class="primary" id="ob-submit" data-i18n="Create keystore">Create keystore</button>
     </form>
     <div id="onboarding-version" class="pre-version-row"></div>
   </section>
@@ -56,13 +56,13 @@
     </div>
     <p class="lede" data-i18n="Enter your PIN to unlock.">Enter your PIN to unlock.</p>
     <form id="unlock-form" class="stack">
-      <label for="unlock-pin">PIN or passphrase</label>
+      <label for="unlock-pin" data-i18n="PIN or passphrase">PIN or passphrase</label>
       <input type="password" id="unlock-pin" autocomplete="current-password" maxlength="32" autofocus />
       <div class="error" id="unlock-error"></div>
-      <button type="submit" class="primary">Unlock</button>
+      <button type="submit" class="primary" data-i18n="Unlock">Unlock</button>
     </form>
     <div id="unlock-cooldown" class="unlock-cooldown hidden"></div>
-    <a href="#" id="unlock-forgot" class="unlock-forgot">Forgot your PIN?</a>
+    <a href="#" id="unlock-forgot" class="unlock-forgot" data-i18n="Forgot your PIN?">Forgot your PIN?</a>
     <!-- Filled by versionChip in sidepanel.js. Copyable, because this is the screen you
          are looking at when something will not open and you need to say which build. -->
     <div id="lock-version" class="pre-version-row"></div>
