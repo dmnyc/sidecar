@@ -145,7 +145,7 @@ const BROWSER = new Set(('window document console Math JSON Object Array String 
   'Range Selection navigator location structuredClone crypto TextEncoder TextDecoder Intl Symbol Worker ' +
   'FormData Blob File btoa atob Uint8Array chrome self globalThis performance matchMedia Image Event ' +
   'CustomEvent DOMParser AbortController CSS Response DecompressionStream createImageBitmap ' +
-  'IntersectionObserver MutationObserver ResizeObserver addEventListener isFinite').split(' '));
+  'IntersectionObserver MutationObserver ResizeObserver addEventListener isFinite localStorage').split(' '));
 const KEYWORDS = new Set(('if else for while do return typeof instanceof new delete void in of let const ' +
   'var function class extends super static get set async await yield try catch finally throw switch case ' +
   'default break continue null true false').split(' '));

@@ -9,6 +9,11 @@
   // straight back into this scope: every existing h() and icon() call site is unchanged,
   // and the only thing that moved is where they are written down.
   const { show, hide, ICONS, FILLED_ICONS, icon, h } = window.SidecarCore;
+  // Translation and locale formatting (i18n.js; see docs/i18n-design.md). Loaded before
+  // this file. Keys are the English text, so t('Copy') is "Copy" until a locale says
+  // otherwise; tn() carries a plural's English "other" form inline.
+  const I18N = window.SidecarI18n;
+  const { t, tn } = I18N;
   const { TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls } = window.SidecarCore;
   // Which cut of the logo and the avatar garnish a theme wants. There too because the
@@ -2051,7 +2056,7 @@
       modal.append(body);
 
       getFollowCount(pubkey).then((n) => {
-        if (modal.isConnected) setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
+        if (modal.isConnected) setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
       });
 
       // Two independent facts, each rendered only once known. A relay that never
@@ -4960,14 +4965,16 @@
 
   function relativeTime(ts) {
     const diff = Math.floor(Date.now() / 1000) - ts;
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-    if (diff < 7 * 86400) return Math.floor(diff / 86400) + 'd ago';
+    if (diff < 60) return t('just now');
+    // Intl's narrow style is word for word what this wrote by hand in English ("5m ago",
+    // "3h ago", "2d ago"), and every other language gets its own with no translation.
+    if (diff < 3600) return I18N.fmtRelative(-Math.floor(diff / 60), 'minute');
+    if (diff < 86400) return I18N.fmtRelative(-Math.floor(diff / 3600), 'hour');
+    if (diff < 7 * 86400) return I18N.fmtRelative(-Math.floor(diff / 86400), 'day');
     // Beyond a week it's a date, and a date without a year reads as this year —
     // "Mar 4" on something from 2024 is a quiet lie. Year only when it differs.
     const d = new Date(ts * 1000);
-    return d.toLocaleDateString(undefined, {
+    return I18N.fmtDate(d, {
       month: 'short', day: 'numeric',
       year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
     });
@@ -7929,7 +7936,7 @@
       setWaiting(followNum, '…', true);
       getFollowCount(pubkey).then((n) => {
         followsFailed = n == null;
-        setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
+        setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
         followNum.classList.add('account-stat-num');
       });
     }
@@ -10760,7 +10767,7 @@
     ]);
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
-      setWaiting(followNum, n == null ? '—' : n.toLocaleString('en-US'), false);
+      setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
     });
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
@@ -10959,7 +10966,7 @@
     if (labelEl) labelEl.removeAttribute('title');
     try {
       const m = await loadMuteList(pubkey, await readRelayUrls(pubkey));
-      setWaiting(numEl, m.pubkeys.size.toLocaleString('en-US'), false);
+      setWaiting(numEl, I18N.fmtNum(m.pubkeys.size), false);
       const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
       const extras = [];
       if (m.hashtags.size) extras.push(plural(m.hashtags.size, 'hashtag'));
@@ -13941,7 +13948,7 @@
     const freshWins = new Map();
     polls.forEach((ev) => {
       const { voters } = tallyPollVotes(ev, votes);
-      fresh.set(ev.id, voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes');
+      fresh.set(ev.id, tn('{{count}} vote', '{{count}} votes', voters));
       // Only for the ones that will show it. A running poll has no result to report yet,
       // and naming a leader mid-vote invites reading it as one.
       if (pollIsPast(ev)) {
@@ -14121,7 +14128,7 @@
     const meta = [
       multiple ? 'Multiple choice' : 'Single choice',
       pollEndsText(endsAt),
-      voters === 1 ? '1 vote' : voters.toLocaleString('en-US') + ' votes',
+      tn('{{count}} vote', '{{count}} votes', voters),
     ];
     container.append(h('div', { className: 'poll-result-meta', textContent: meta.join(' · ') }));
 
@@ -16093,12 +16100,12 @@
       // when neither applies. A private-only list must not read as a zero.
       function countLine(c) {
         const range = Lz.itemRange(c);
-        const num = (n) => h('strong', { textContent: n.toLocaleString('en-US') });
+        const num = (n) => h('strong', { textContent: I18N.fmtNum(n) });
         if (kind === 0) return [num(range.min), ' profile field' + (range.min === 1 ? '' : 's')];
         const noun = rec().noun || 'items';
         if (range.certainty === 'exact') return [num(range.min), ' ' + noun];
         if (range.certainty === 'estimated') {
-          const band = '≈' + range.min.toLocaleString('en-US') + '–' + range.max.toLocaleString('en-US');
+          const band = '≈' + I18N.fmtNum(range.min) + '–' + I18N.fmtNum(range.max);
           return [h('strong', { textContent: band }), ' ' + noun + ' (encrypted)'];
         }
         return range.min
@@ -16646,7 +16653,7 @@
   let nwcConn = null; // the connection string it was built from — see ensureNwc
   let nwcNotifSub = null; // NIP-47 notification subscription handle
   let nwcPollTimer = null; // fallback balance polling interval
-  const fmtSats = (n) => Math.round(n).toLocaleString('en-US');
+  const fmtSats = (n) => I18N.fmtNum(Math.round(n));
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
   // ---- balance denomination (sats → BTC → fiat, cycled by tapping the balance) ----
@@ -16667,7 +16674,7 @@
   // smaller size (see .wallet-fiat-sym / .pinned-fiat-sym).
   function fmtFiatParts(value, currency) {
     try {
-      const parts = new Intl.NumberFormat('en-US', { style: 'currency', currency }).formatToParts(value);
+      const parts = new Intl.NumberFormat(I18N.numberLocale(), { style: 'currency', currency }).formatToParts(value);
       const sym = parts.filter((p) => p.type === 'currency').map((p) => p.value).join('');
       // Trim the space Intl inserts after code-style symbols — the CSS gap spaces them.
       const num = parts.filter((p) => p.type !== 'currency').map((p) => p.value).join('').trim();
@@ -16906,7 +16913,7 @@
   function fmtChartPrice(v, currency) {
     if (v > 0 && v < 1) {
       try {
-        const parts = new Intl.NumberFormat('en-US', {
+        const parts = new Intl.NumberFormat(I18N.numberLocale(), {
           style: 'currency', currency, minimumSignificantDigits: 1, maximumSignificantDigits: 2,
         }).formatToParts(v);
         const sym = parts.filter((p) => p.type === 'currency').map((p) => p.value).join('');
@@ -21859,6 +21866,33 @@
       await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devIndicator: e.target.checked } });
       applyDevBadge(e.target.checked);
     });
+    $('pseudo-locale-toggle').checked = settings.language === I18N.PSEUDO;
+    $('pseudo-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.PSEUDO : 'auto'));
+  }
+
+  // ---- language ----
+  // A change reloads the panel rather than redrawing it: a page picks its language as it
+  // starts (i18n.js reads the cache synchronously, so the first paint is already right),
+  // and re-rendering every view in place is not something this panel can do. The cache
+  // is written with the RESOLVED code first, or the reload would open in the old one.
+  async function setLanguage(setting) {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { language: setting } });
+    try { localStorage.setItem(I18N.CACHE_KEY, I18N.resolveSetting(setting)); } catch (_) {}
+    location.reload();
+  }
+
+  // Shown only once i18n.js lists a second language; until then there is nothing to pick.
+  async function initLanguagePicker() {
+    const langs = I18N.languages();
+    if (langs.length < 2) return;
+    const select = $('language-select');
+    const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    const current = (settings && settings.language) || 'auto';
+    select.append(h('option', { value: 'auto', textContent: t('Automatic (browser language)') }));
+    for (const l of langs) select.append(h('option', { value: l.code, textContent: l.name }));
+    select.value = langs.some((l) => l.code === current) ? current : 'auto';
+    select.addEventListener('change', () => setLanguage(select.value));
+    show($('language-setting'));
   }
   function applyDevBadge(on) {
     if (!isDevBuild()) return; // belt-and-suspenders: never show on a store build
@@ -22162,9 +22196,13 @@
   }
 
   // ---- boot ----
+  // Static markup first (data-i18n attributes, and <html lang dir>), so nothing below
+  // draws over untranslated text. The language itself was settled as i18n.js loaded.
+  I18N.applyDom();
   document.addEventListener('DOMContentLoaded', refresh);
   if (document.readyState !== 'loading') refresh();
   initDevBadge();
+  initLanguagePicker();
   initHostPermGuard();
   initSettingsSections();
   initStampedType();
