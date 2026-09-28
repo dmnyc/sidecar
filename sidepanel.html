@@ -347,6 +347,13 @@
         </h3>
         <div class="settings-section-body" id="section-body-appearance">
 
+          <!-- Hidden until i18n.js lists a second language: a picker with one choice in it
+               is a question with no answer. Each language is named in itself. -->
+          <div class="setting hidden" id="language-setting">
+            <h3>Language</h3>
+            <select id="language-select" aria-label="Language"></select>
+          </div>
+
           <div class="setting">
             <h3>Theme</h3>
             <p class="hint">Choose your preferred color scheme and aesthetic. Sets the theme for the account you are in.</p>
@@ -801,6 +808,10 @@
             <h3>Developer</h3>
             <p class="hint">Local build only — this section is hidden on the Chrome Web Store version.</p>
             <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span>Show dev build indicator</span></label>
+            <!-- en-XA: every string that goes through t() accented and padded 40%. Overflow
+                 shows where a longer language breaks, and a plain label is one nothing
+                 wrapped. See docs/i18n-design.md. -->
+            <label class="toggle-row"><input type="checkbox" id="pseudo-locale-toggle" /> <span>Pseudo-locale (en-XA)</span></label>
           </div>
 
         </div>
@@ -951,6 +962,7 @@
   <!-- ===== Dev build indicator (local/unpacked builds only, opt-in via Settings) ===== -->
   <button id="dev-badge" class="dev-badge hidden" title="Sidecar dev build"></button>
 
+  <script src="i18n.js"></script>
   <script src="nostr-tools.js"></script>
   <script src="ws-guard.js"></script>
   <script src="nip49.js"></script>

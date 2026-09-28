@@ -17,6 +17,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -166,6 +167,7 @@ function harness(deps = {}) {
     state: null,
   };
   ctx.globalThis = ctx;
+  withI18n(ctx); // the panel code formats counts through I18N
   vm.createContext(ctx);
   vm.runInContext(lift('function collectMuteTags('), ctx);
   vm.runInContext(LIFTED, ctx);

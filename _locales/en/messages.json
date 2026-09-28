@@ -1,0 +1,18 @@
+{
+  "extName": {
+    "message": "Sidecar | A Classy Nostr Signer",
+    "description": "The extension's name, as the browser and the add-on stores show it. Keep \"Sidecar\" untranslated; the part after the bar may be translated."
+  },
+  "extDescription": {
+    "message": "A multi-account NIP-07 Nostr signer with a built-in Lightning wallet, in your browser sidebar.",
+    "description": "One line under the name in the browser's extension list and the store listings. Keep \"NIP-07\", \"Nostr\" and \"Lightning\" as written."
+  },
+  "actionTitle": {
+    "message": "Open Sidecar",
+    "description": "Tooltip on the toolbar button."
+  },
+  "sidebarTitle": {
+    "message": "Sidecar",
+    "description": "Title of the sidebar in Firefox. The product name, not translated."
+  }
+}

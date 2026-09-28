@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -51,10 +52,10 @@ function el() {
 }
 
 function painter(muteSet) {
-  const ctx = {
+  const ctx = withI18n({
     loadMuteList: async () => muteSet,
     readRelayUrls: async () => ['wss://one'],
-  };
+  });
   vm.createContext(ctx);
   // The real setWaiting, lifted rather than stubbed: whether the number stops shimmering
   // when it lands is part of what this painter is responsible for.
@@ -104,7 +105,8 @@ test('an empty mute list is zero, not a dash', async () => {
 
 test('relays that say nothing leave a dash rather than a wrong zero', async () => {
   const num = el(), label = el();
-  const ctx = { loadMuteList: async () => { throw new Error('no relays'); }, readRelayUrls: async () => [] };
+  // With I18N present, so the dash comes from the failed load and not from a missing name.
+  const ctx = withI18n({ loadMuteList: async () => { throw new Error('no relays'); }, readRelayUrls: async () => [] });
   vm.createContext(ctx);
   vm.runInContext(
     lift('function setWaiting(') + '\n' +

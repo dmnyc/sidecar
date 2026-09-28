@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Sidecar | A Classy Nostr Signer",
+  "name": "__MSG_extName__",
+  "default_locale": "en",
   "version": "1.15.0",
   "minimum_chrome_version": "114",
-  "description": "A multi-account NIP-07 Nostr signer with a built-in Lightning wallet, in your browser sidebar.",
+  "description": "__MSG_extDescription__",
   "permissions": [
     "storage",
     "sidePanel",
@@ -17,6 +18,7 @@
   "background": {
     "service_worker": "background.js",
     "scripts": [
+      "i18n.js",
       "nostr-tools.js",
       "ws-guard.js",
       "crypto.js",
@@ -38,7 +40,7 @@
   },
   "sidebar_action": {
     "default_panel": "sidepanel.html",
-    "default_title": "Sidecar",
+    "default_title": "__MSG_sidebarTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
@@ -46,7 +48,7 @@
     "open_at_install": false
   },
   "action": {
-    "default_title": "Open Sidecar"
+    "default_title": "__MSG_actionTitle__"
   },
   "content_scripts": [
     {
