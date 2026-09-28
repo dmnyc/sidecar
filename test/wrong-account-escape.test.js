@@ -419,8 +419,9 @@ test('both surfaces use the same title and toggle copy, word for word', () => {
   // Two files, one explanation. Drift means the same situation reads differently depending
   // on whether the panel happened to be open.
   for (const [label, src] of [['sidepanel.html', sidepanelHtml], ['prompt.html', promptHtml]]) {
-    assert.ok(src.includes('<strong>' + COPY_TITLE + '</strong>'), label + ' title');
-    assert.ok(src.includes('>' + COPY_TOGGLE + '</button>'), label + ' toggle');
+    // The data-i18n key is the same English, so the two files also share one translation.
+    assert.ok(src.includes('<strong data-i18n="' + COPY_TITLE + '" data-i18n-review>' + COPY_TITLE + '</strong>'), label + ' title');
+    assert.ok(src.includes('data-i18n="' + COPY_TOGGLE + '" data-i18n-review>' + COPY_TOGGLE + '</button>'), label + ' toggle');
   }
 });
 
@@ -429,8 +430,8 @@ test('both surfaces use the same lede copy, word for word', () => {
   // one surface's lede grew an extra sentence, which is precisely the drift it was meant to
   // catch — parity claims have to be pinned at both ends of the string.
   const LEDE_RE = [
-    ['sidepanel.js', sidepanelJs, /className: 'wrong-acct-lede', textContent: '([^']*)'/],
-    ['prompt.js', promptJs, /lede\.textContent = '([^']*)';/],
+    ['sidepanel.js', sidepanelJs, /className: 'wrong-acct-lede', textContent: tSec\('([^']*)'\)/],
+    ['prompt.js', promptJs, /lede\.textContent = tSec\('([^']*)'\);/],
   ];
   for (const [label, src, re] of LEDE_RE) {
     const m = src.match(re);
@@ -473,9 +474,9 @@ test('a settled detach toasts the reconnect instruction in Sidecar', () => {
 test('the detach toast reads the same as the Settings route', () => {
   // switchSiteModal already toasts this. Two wordings for one outcome is how the same fix
   // starts looking like two different features.
-  const settings = sidepanelJs.match(/toast\('Detached\. Sign out of ' \+ host[^;]*;/);
-  assert.ok(settings, 'could not find switchSiteModal toast');
-  assert.match(sidepanelJs, /'Detached\. Sign out of ' \+ data\.host \+ ' and back in as ' \+/);
+  // One key, so the two also stay one translation.
+  const uses = sidepanelJs.match(/t\('Detached\. Sign out of \{\{host\}\} and back in as \{\{name\}\}\.'/g) || [];
+  assert.equal(uses.length, 2, 'switchSiteModal and decideApproval both toast the same key');
 });
 
 test('the copy never promises to sign as the other account', () => {

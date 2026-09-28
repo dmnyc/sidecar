@@ -54,7 +54,7 @@
     <div class="brand-lg">
       <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
     </div>
-    <p class="lede">Locked. Enter your PIN to unlock your accounts.</p>
+    <p class="lede" data-i18n="Enter your PIN to unlock.">Enter your PIN to unlock.</p>
     <form id="unlock-form" class="stack">
       <label for="unlock-pin">PIN or passphrase</label>
       <input type="password" id="unlock-pin" autocomplete="current-password" maxlength="32" autofocus />
@@ -859,12 +859,12 @@
       <div class="approval-scroll">
       <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
       <div class="approval-host" id="approval-host">…</div>
-      <div class="approval-ask" id="approval-ask">wants to…</div>
+      <div class="approval-ask" id="approval-ask" data-i18n="wants to…">wants to…</div>
 
       <!-- Account capsule ABOVE the event preview — mirrors the popup (prompt.html).
            Below the preview it was pushed off-screen by a long event. -->
       <div class="approval-account" id="approval-account"></div>
-      <button class="approval-switch-toggle hidden" id="approval-switch-toggle">Sign in with a different account</button>
+      <button class="approval-switch-toggle hidden" id="approval-switch-toggle" data-i18n="Sign in with a different account" data-i18n-review>Sign in with a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
 
       <!-- "Wrong account?" escape. Shown on a content sign whenever there is an account
@@ -878,8 +878,8 @@
            identical state. See the 'detach' branch in background.js for why signing this
            request as a different account would be worse than failing it. -->
       <div class="approval-wrong-acct hidden" id="approval-wrong-acct">
-        <strong>Not the right account?</strong>
-        <button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle" aria-expanded="false">Detach and use another identity.</button>
+        <strong data-i18n="Not the right account?" data-i18n-review>Not the right account?</strong>
+        <button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle" aria-expanded="false" data-i18n="Detach and use another identity." data-i18n-review>Detach and use another identity.</button>
         <div class="approval-wrong-acct-list hidden" id="approval-wrong-acct-list"></div>
       </div>
 
@@ -902,7 +902,7 @@
 
       <div class="approval-footer">
         <div id="approval-unlock" class="hidden stack">
-          <label for="approval-pin">Enter your PIN to unlock</label>
+          <label for="approval-pin" data-i18n="Enter your PIN to unlock">Enter your PIN to unlock</label>
           <input type="password" id="approval-pin" autocomplete="off" maxlength="32" />
           <!-- PIN failures belong against the PIN, not below the budget/relax rows —
                this is where "N attempts left before all data is erased" lands.
@@ -913,23 +913,23 @@
         <!-- Offered by the payment card, confirmed here — see prompt.html. -->
         <div id="approval-autozap-offer" class="remember hidden">
           <label class="check"><input type="checkbox" id="approval-autozap-offer-box" checked />
-          <span id="approval-autozap-offer-label">Turn on Auto Zaps</span></label>
+          <span id="approval-autozap-offer-label" data-i18n="Turn on Auto Zaps" data-i18n-review>Turn on Auto Zaps</span></label>
         </div>
 
         <div id="approval-remember" class="remember hidden">
-          <label class="check"><input type="checkbox" id="approval-remember-budget" /> Allow this site to spend up to</label>
+          <label class="check"><input type="checkbox" id="approval-remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
           <div class="budget-row">
-            <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" />
-            <span class="budget-unit">sats / day without asking</span>
+            <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" data-i18n-placeholder="sats" />
+            <span class="budget-unit" data-i18n="sats / day without asking" data-i18n-review>sats / day without asking</span>
           </div>
         </div>
 
         <div id="approval-relax-row" class="relax-row hidden">
-          <div class="relax-label">Auto-sign for the next</div>
+          <div class="relax-label" data-i18n="Auto-sign for the next" data-i18n-review>Auto-sign for the next</div>
           <div class="relax-chips">
-            <button type="button" class="relax-chip" data-mins="5">5 min</button>
-            <button type="button" class="relax-chip" data-mins="15">15 min</button>
-            <button type="button" class="relax-chip" data-mins="30">30 min</button>
+            <button type="button" class="relax-chip" data-mins="5" data-i18n="5 min" data-i18n-review>5 min</button>
+            <button type="button" class="relax-chip" data-mins="15" data-i18n="15 min" data-i18n-review>15 min</button>
+            <button type="button" class="relax-chip" data-mins="30" data-i18n="30 min" data-i18n-review>30 min</button>
           </div>
         </div>
 
@@ -941,15 +941,15 @@
         <div id="approval-trust-nudge" class="trust-nudge hidden"></div>
 
         <div class="approval-actions">
-          <button class="primary" id="approval-allow">Allow once</button>
-          <button class="lav-btn" id="approval-trust">Trust this site</button>
-          <button class="ghost" id="approval-reject">Reject</button>
+          <button class="primary" id="approval-allow" data-i18n="Allow once" data-i18n-review>Allow once</button>
+          <button class="lav-btn" id="approval-trust" data-i18n="Trust this site" data-i18n-review>Trust this site</button>
+          <button class="ghost" id="approval-reject" data-i18n="Reject" data-i18n-review>Reject</button>
         </div>
 
         <!-- Stacked-request backlog: always-visible count + one-tap escape hatch. -->
         <div id="approval-backlog" class="approval-backlog hidden">
           <span id="approval-backlog-count"></span>
-          <button class="approval-reject-all" id="approval-reject-all">Reject all</button>
+          <button class="approval-reject-all" id="approval-reject-all" data-i18n="Reject all" data-i18n-review>Reject all</button>
         </div>
       </div>
     </div>

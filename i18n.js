@@ -231,8 +231,14 @@
     dicts = (dictionaries || []).filter(Boolean);
   }
 
+  // tSec() is t(), marked. It wraps text on the approval screens, the unlock and the
+  // backups, where a mistranslated "sign", "encrypt" or "pay" is a security bug, not a
+  // cosmetic one (docs/i18n-design.md §3.7). The extractor lists these keys apart, so a
+  // language ships only once a native speaker has reviewed every one of them.
+  const tSec = t;
+
   const api = {
-    t, tn, fmtNum, fmtDate, fmtRelative, applyDom, ready, setLocale,
+    t, tn, tSec, fmtNum, fmtDate, fmtRelative, applyDom, ready, setLocale,
     get lang() { return lang; },
     get dir() { return RTL.has(lang.split('-')[0]) ? 'rtl' : 'ltr'; },
     languages: () => LANGUAGES.slice(),

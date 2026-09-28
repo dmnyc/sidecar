@@ -6,8 +6,8 @@
 // Reported as: posting a kind:1 note whose body carried an `nevent` showed an
 // unrecognized event kind on the approval screen. The first version of this test used
 // the reference from the report — which decodes to kind 1 itself — and asserted that a
-// kind:1 event labels as "1 — Note". That can't fail: if Sidecar DID substitute the
-// referenced kind, the label would read "1 — Note" either way. The fixtures below carry
+// kind:1 event labels as "1 · Note". That can't fail: if Sidecar DID substitute the
+// referenced kind, the label would read "1 · Note" either way. The fixtures below carry
 // a referenced kind that is deliberately NOT the outer kind, so a leak would show up as
 // a wrong label instead of hiding behind a matching one.
 //
@@ -21,6 +21,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -32,21 +33,21 @@ const REPORTED_NEVENT =
 const SURFACES = [
   {
     file: 'sidepanel.js',
-    labels: 'APPROVAL_KIND_LABELS',
-    warnings: 'APPROVAL_KIND_WARNINGS',
+    labels: 'approvalKindLabels',
+    warnings: 'approvalKindWarnings',
     labelFn: 'approvalKindLabel',
     warningFn: 'approvalKindWarning',
     unreadableFn: 'approvalKindUnreadable',
-    unreadableWarning: 'APPROVAL_UNREADABLE_WARNING',
+    unreadableWarning: 'approvalUnreadableWarning',
   },
   {
     file: 'prompt.js',
-    labels: 'KIND_LABELS',
-    warnings: 'KIND_WARNINGS',
+    labels: 'kindLabels',
+    warnings: 'kindWarnings',
     labelFn: 'kindLabel',
     warningFn: 'kindWarning',
     unreadableFn: 'kindUnreadable',
-    unreadableWarning: 'UNREADABLE_WARNING',
+    unreadableWarning: 'unreadableWarning',
   },
 ];
 
@@ -57,22 +58,24 @@ function approvalKindFns(s) {
     if (!m) throw new Error('Could not lift ' + what + ' from ' + s.file);
     return m[0];
   };
-  const context = {};
+  // The tables are built when drawn (they go through tSec), so they are lifted as the
+  // functions they are and run against the real English i18n.
+  const context = withI18n({});
   vm.createContext(context);
   vm.runInContext(
     [
-      grab(new RegExp('const ' + s.labels + ' = \\{[\\s\\S]*?\\n  \\};'), s.labels),
-      grab(new RegExp('const ' + s.warnings + ' = \\{[\\s\\S]*?\\n  \\};'), s.warnings),
+      grab(new RegExp('function ' + s.labels + '\\(\\) \\{[\\s\\S]*?\\n  \\}'), s.labels),
+      grab(new RegExp('function ' + s.warnings + '\\(\\) \\{[\\s\\S]*?\\n  \\}'), s.warnings),
       grab(new RegExp('function ' + s.labelFn + '\\(kind\\) \\{[\\s\\S]*?\\n  \\}'), s.labelFn),
       grab(new RegExp('function ' + s.warningFn + '\\(kind\\) \\{[\\s\\S]*?\\n  \\}'), s.warningFn),
       grab(new RegExp('function ' + s.unreadableFn + '\\(ev\\) \\{[\\s\\S]*?\\n  \\}'), s.unreadableFn),
-      grab(new RegExp('const ' + s.unreadableWarning + ' =\\n?[\\s\\S]*?;'), s.unreadableWarning),
+      grab(new RegExp('const ' + s.unreadableWarning + ' = \\(\\) =>\\n?[\\s\\S]*?;'), s.unreadableWarning),
       'globalThis.label = ' + s.labelFn + ';',
       'globalThis.warning = ' + s.warningFn + ';',
       'globalThis.unreadable = ' + s.unreadableFn + ';',
-      'globalThis.unreadableWarning = ' + s.unreadableWarning + ';',
-      'globalThis.labels = ' + s.labels + ';',
-      'globalThis.warnings = ' + s.warnings + ';',
+      'globalThis.unreadableWarning = ' + s.unreadableWarning + '();',
+      'globalThis.labels = ' + s.labels + '();',
+      'globalThis.warnings = ' + s.warnings + '();',
     ].join('\n'),
     context
   );
@@ -106,12 +109,12 @@ test('a body reference cannot change the kind of the event being signed', () => 
     // The reported case, kept verbatim.
     { kind: 1, tags: [], content: 'Replying to nostr:' + REPORTED_NEVENT },
     // The case that can actually catch a leak: if the referenced kind ever reached the
-    // label, this would read "30023 — Long-form article".
+    // label, this would read "30023 · Long-form article".
     { kind: 1, tags: [], content: 'Worth reading: nostr:' + ARTICLE_NEVENT },
     // And the inverse — an article whose body quotes a note must stay an article.
     { kind: 30023, tags: [['d', 'my-post']], content: 'As I said in nostr:' + REPORTED_NEVENT },
   ];
-  const expected = { 1: '1 — Note', 30023: '30023 — Long-form article' };
+  const expected = { 1: '1 · Note', 30023: '30023 · Long-form article' };
   for (const s of SURFACES) {
     const { label, warning } = approvalKindFns(s);
     for (const ev of events) {
