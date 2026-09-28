@@ -29,6 +29,7 @@
       "nwc-client.js",
       "relax-grants.js",
       "replaceable-baseline.js",
+      "list-change.js",
       "zap-requests.js",
       "relay-policy.js",
       "jsqr.js",

@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js');
+  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'list-change.js', 'zap-requests.js', 'relay-policy.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -25,6 +25,7 @@ const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 const RELAX = self.SidecarRelax;
 const BASELINE = self.SidecarBaseline;
+const LISTCHANGE = self.SidecarListChange;
 const ZAPREQ = self.SidecarZapRequests;
 
 const DEFAULT_RELAYS = {
@@ -1275,6 +1276,30 @@ function recallSealed(host, pubkey, ciphertext) {
   return hit.text;
 }
 
+// A list's private entries, opened with the account's own key: for the approval card to
+// say what a list edit changes, and for the snapshot it is diffed against next time.
+// Content sealed to self only, and the plaintext goes to the card, never to the page.
+// Null when it can't be read (locked, or not sealed to this account); callers fall back.
+async function ownListPrivate(pubkey, ev) {
+  if (!ev || !LISTCHANGE.isList(ev.kind) || KS.isLocked()) return null;
+  try {
+    const priv = await KS.getPrivkey(pubkey);
+    return await LISTCHANGE.openPrivate(ev, (nip, ciphertext) =>
+      SIGNER.perform(nip === 44 ? 'nip44.decrypt' : 'nip04.decrypt', { pubkey, ciphertext }, priv, pubkey));
+  } catch (_) {
+    return null;
+  }
+}
+
+// Snapshot a list we just signed (or the panel just saw), so the next edit can be shown
+// as a diff. Best-effort: bookkeeping must never fail a sign that already happened.
+async function recordListSnapshot(pubkey, ev, opts) {
+  if (!ev || !LISTCHANGE.isList(ev.kind)) return;
+  try {
+    await LISTCHANGE.record(pubkey, ev, await ownListPrivate(pubkey, ev), opts);
+  } catch (_) {}
+}
+
 async function handleNostrRpc(method, params, host, sendResponse, originWindowId) {
   try {
     if (!host) throw new Error('Missing host');
@@ -1579,6 +1604,24 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       if (params && params.pubkey && /\.(encrypt|decrypt)$/.test(method)) {
         try { peerNpub = self.NostrTools.nip19.npubEncode(params.pubkey); } catch (_) {}
       }
+      // What a list edit changes, in words: "mutes @bob" rather than the whole list
+      // sealed to yourself as base64. Local only (see list-change.js); null falls back
+      // to the raw event, which the card shows either way.
+      const listChange =
+        method === 'signEvent' && !needUnlock && LISTCHANGE.isList(signEvent && signEvent.kind)
+          ? await LISTCHANGE.describe(activePubkey, signEvent, await ownListPrivate(activePubkey, signEvent))
+          : null;
+      // Keys and ids as npub/note, the way people recognize them. The prompt window has
+      // no nostr-tools of its own, so the encoding happens here.
+      if (listChange) {
+        for (const e of listChange.added.concat(listChange.removed)) {
+          if (!/^[0-9a-f]{64}$/.test(e.value)) continue;
+          try {
+            if (e.tag === 'p') e.bech = self.NostrTools.nip19.npubEncode(e.value);
+            else if (e.tag === 'e') e.bech = self.NostrTools.nip19.noteEncode(e.value);
+          } catch (_) {}
+        }
+      }
       // If this is a sign whose content we sealed moments ago, hand the plaintext to the
       // card. Only ever to the PROMPT, never back to the page, and only for the same host
       // and account that asked us to encrypt it.
@@ -1591,6 +1634,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         method,
         params,
         sealed,
+        listChange,
         peerNpub,
         activePubkey,
         npub: self.NostrTools.nip19.npubEncode(activePubkey),
@@ -1752,6 +1796,8 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     if (method === 'signEvent' && !isRelayAuth && result && BASELINE.isTracked(result.kind)) {
       try { await BASELINE.record(activePubkey, result, result.created_at || 0); } catch (_) {}
     }
+    // Same for the list-change snapshot: this version is what the next edit is diffed against.
+    if (method === 'signEvent' && result) await recordListSnapshot(activePubkey, result);
 
     // A relay list signed in a client is the account's list from now on, so the next
     // getRelays() reports it. Recorded on signing, like the baseline above: the client
@@ -3413,6 +3459,7 @@ async function handleControl(message, sender, sendResponse) {
         await BUDGETS.clearAccount(message.pubkey);
         await clearSiteAccountsForPubkey(message.pubkey);
         await BASELINE.forget(message.pubkey); // don't leave overwrite baselines behind
+        await LISTCHANGE.forget(message.pubkey); // nor list snapshots
         const acts = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
         await sset({ [ACTIVITY_KEY]: acts.filter((e) => e.pubkey !== message.pubkey) });
         break;
@@ -3497,6 +3544,7 @@ async function handleControl(message, sender, sendResponse) {
         // expectedPubkey (when the caller supplies it) makes this fail closed if
         // the active account changed out from under the caller — see KS.ownerSign.
         result = await KS.ownerSign(message.event, message.expectedPubkey);
+        if (result) await recordListSnapshot(result.pubkey, result);
         // The panel's relay editor signs here. Saving it now keeps a client's next
         // getRelays() current without waiting for the panel's next lookup.
         if (result && result.kind === 10002) await rememberSignedRelayList(result);
@@ -4165,6 +4213,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // late-arriving older relay copy can't clobber what Sidecar itself just signed.
   // Extension-page only (not in CONTENT_OK) — a page must never write these.
   if (message.type === 'SIDECAR_SEED_BASELINE') {
+    // The list-change snapshot rides the same seed, so the first mute after a fresh
+    // install can already be shown as "mutes @bob" rather than the whole list.
+    if (message.event && message.event.pubkey === message.pubkey) {
+      recordListSnapshot(message.pubkey, message.event, { ifNewer: true });
+    }
     BASELINE.recordIfNewer(message.pubkey, message.event, (message.event && message.event.created_at) || 0)
       .then((updated) => sendResponse({ ok: true, result: updated }))
       .catch(() => sendResponse({ ok: true, result: false }));

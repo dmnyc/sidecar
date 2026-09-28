@@ -192,6 +192,32 @@
       font-size: 12px; white-space: pre-wrap; word-break: break-word;
       max-height: 160px; overflow: auto; color: var(--text);
     }
+    /* What a list edit changes (list-change.js): a heading per direction, one line per
+       entry. The label is prose-like data and is what truncates; the sign and the
+       "private" tag keep their size beside it. Mirrors the same block in styles.css. */
+    .list-change {
+      margin-top: 8px; padding: 10px; border-radius: 8px;
+      background: rgba(var(--well-rgb), 0.6);
+    }
+    .list-change-group + .list-change-group { margin-top: 8px; }
+    .list-change-head { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .list-change-item { display: flex; align-items: center; gap: 8px; padding: 2px 0; min-width: 0; }
+    .list-change-sign { flex-shrink: 0; width: 1em; text-align: center; color: var(--lav); font-weight: 600; }
+    .list-change-label {
+      flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .list-change-label.list-change-person { display: flex; flex-direction: column; font-family: inherit; }
+    .list-change-name, .list-change-npub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .list-change-name { font-weight: 600; font-size: 13px; }
+    .list-change-npub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+    .list-change-private {
+      flex-shrink: 0; font-size: 11px; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 999px; padding: 0 7px;
+    }
+    .list-change-more { color: var(--muted); font-size: 12px; padding: 2px 0 0 calc(1em + 8px); }
+    .list-change-total { margin-top: 8px; font-size: 12px; color: var(--text); }
+    .list-change-hint { margin-top: 2px; font-size: 11.5px; color: var(--muted); }
     /* Event-content preview: short by default (keeps the account card in view),
        expandable, with a Formatted/Raw toggle for note-like kinds. */
     .evpreview {

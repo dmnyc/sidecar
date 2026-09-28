@@ -20935,7 +20935,7 @@
   // reposts). "Formatted" reuses the composer's renderNotePreview so @mentions, media,
   // and note/nevent/naddr embeds render as a client would show them; "Raw" is the
   // exact signed content. Other kinds show Raw only.
-  function appendEventContent(container, ev) {
+  function appendEventContent(container, ev, opts) {
     const raw = String(ev.content == null ? '' : ev.content);
     const noteLike = ev.kind === 1 || ev.kind === 6 || ev.kind === 16;
     // Views: Formatted (composer render, note-like only), Raw (the content string),
@@ -20945,10 +20945,13 @@
     const LABEL = { formatted: 'Formatted', raw: 'Raw', json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
+    // Tucked: a list whose change is already spelled out above. The signed event is still
+    // one tap away, exactly as it is, but it no longer leads the card as a wall of base64.
+    let tucked = !!(opts && opts.tucked);
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (tucked ? ' hidden' : '');
       view.innerHTML = '';
       if (mode === 'formatted') renderNotePreview(view, noteTextForEvent(ev));
       else if (mode === 'json') view.textContent = eventJson();
@@ -20978,6 +20981,7 @@
       modeRow.appendChild(b);
     }
     syncModes();
+    if (tucked) modeRow.classList.add('hidden');
     controls.appendChild(modeRow);
 
     // Show more/less — always available on every mode; toggles the clamp so the
@@ -20985,14 +20989,98 @@
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'evpreview-toggle';
-    more.textContent = 'Show more';
+    more.textContent = tucked ? t('Show signed event') : 'Show more';
     more.addEventListener('click', () => {
+      if (tucked) {
+        tucked = false;
+        paintView();
+        modeRow.classList.remove('hidden');
+        more.textContent = 'Show more';
+        return;
+      }
       expanded = !expanded;
       view.classList.toggle('clamped', !expanded);
       more.textContent = expanded ? 'Show less' : 'Show more';
     });
     controls.appendChild(more);
     container.appendChild(controls);
+  }
+
+  // What a list edit changes, in words (see list-change.js): "Mutes npub1…" in place of
+  // the whole list sealed to yourself as base64. The background did the reading; this
+  // only draws it. Twin of the one in prompt.js; here a person also gets their name.
+  function listChangeVerbs(kind) {
+    if (kind === 10000) return { add: t('Mutes'), remove: t('Unmutes') };
+    if (kind === 3) return { add: t('Follows'), remove: t('Unfollows') };
+    if (kind === 10001) return { add: t('Pins'), remove: t('Unpins') };
+    if (kind === 10003 || kind === 30003) return { add: t('Bookmarks'), remove: t('Removes bookmark') };
+    return { add: t('Adds'), remove: t('Removes') };
+  }
+  function listEntryLabel(kind, e) {
+    const short = (b) => b.slice(0, 12) + '…' + b.slice(-6);
+    switch (e.tag) {
+      case 'p': return e.bech ? short(e.bech) : e.value;
+      case 't': return '#' + e.value;
+      case 'word': return t('Word “{{word}}”', { word: e.value });
+      case 'e': return kind === 10000
+        ? t('Thread {{id}}', { id: e.bech ? short(e.bech) : e.value })
+        : t('Note {{id}}', { id: e.bech ? short(e.bech) : e.value });
+      case 'a': return e.value.startsWith('30023:')
+        ? t('Article “{{name}}”', { name: e.value.split(':').slice(2).join(':') || e.value })
+        : e.value;
+      case 'r': case 'relay': return e.value.replace(/^wss?:\/\//, '').replace(/\/$/, '');
+      case 'emoji': return ':' + e.value + ':';
+      default: return t('{{tag}}: {{value}}', { tag: e.tag, value: e.value });
+    }
+  }
+  function appendListChange(container, lc, labelFor) {
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    };
+    const verbs = listChangeVerbs(lc.kind);
+    const box = el('div', 'list-change');
+    const group = (heading, sign, entries, count, privateOnly) => {
+      if (!count) return;
+      const g = el('div', 'list-change-group');
+      g.appendChild(el('div', 'list-change-head', heading));
+      for (const e of entries) {
+        const item = el('div', 'list-change-item');
+        item.appendChild(el('span', 'list-change-sign', sign));
+        const label = el('span', 'list-change-label');
+        label.textContent = listEntryLabel(lc.kind, e);
+        if (e.bech || e.value) label.title = e.bech || e.value;
+        if (labelFor) labelFor(e, label);
+        item.appendChild(label);
+        if (e.private) item.appendChild(el('span', 'list-change-private', t('private')));
+        g.appendChild(item);
+      }
+      const more = count - entries.length - (privateOnly || 0);
+      if (more > 0) g.appendChild(el('div', 'list-change-more', tn('and {{count}} more', 'and {{count}} more', more)));
+      if (privateOnly) {
+        g.appendChild(el('div', 'list-change-more',
+          tn('{{count}} private entry', '{{count}} private entries', privateOnly)));
+      }
+      box.appendChild(g);
+    };
+    if (lc.known) {
+      group(verbs.add, '+', lc.added, lc.addedCount);
+      group(verbs.remove, '−', lc.removed, lc.removedCount, lc.removedPrivate);
+      if (!lc.addedCount && !lc.removedCount) box.appendChild(el('div', 'list-change-head', t('No entries change')));
+    } else {
+      group(t('Contains'), '•', lc.added, lc.addedCount);
+      if (!lc.addedCount) box.appendChild(el('div', 'list-change-head', t('The list is empty')));
+    }
+    box.appendChild(el('div', 'list-change-total', lc.privateTotal
+      ? tn('{{count}} entry in all, {{private}} private', '{{count}} entries in all, {{private}} private',
+        lc.total, { private: I18N.fmtNum(lc.privateTotal) })
+      : tn('{{count}} entry in all', '{{count}} entries in all', lc.total)));
+    box.appendChild(el('div', 'list-change-hint', lc.known
+      ? t('Compared with the version Sidecar last saw.')
+      : t('Sidecar has not seen this list before, so it cannot say what changed.')));
+    container.appendChild(box);
   }
 
   function renderApprovalPreview(data) {
@@ -21114,13 +21202,32 @@
       // is then the only description of what's being signed.
       // What the ciphertext says, when we sealed it moments ago (#305). Twin of the row
       // in prompt.js; the event preview below is still the literal thing being signed.
-      if (data.sealed) {
+      // A list edit spelled out replaces the sealed row (see prompt.js). A person is
+      // named when we know them, the npub kept beneath it: a name alone is spoofable.
+      if (data.listChange) {
+        appendListChange(box, data.listChange, (e, label) => {
+          if (e.tag !== 'p' || !e.bech) return;
+          const npub = label.textContent;
+          const paint = (name) => {
+            if (!name) return;
+            label.textContent = '';
+            label.classList.add('list-change-person');
+            label.append(
+              h('span', { className: 'list-change-name', textContent: '@' + name }),
+              h('span', { className: 'list-change-npub', textContent: npub })
+            );
+          };
+          const cached = cachedProfile(e.value);
+          paint(cached && cached.name);
+          if (!(cached && cached.name)) fetchPreviewProfile(e.value).then((p) => paint(p && p.name)).catch(() => {});
+        });
+      } else if (data.sealed) {
         box.append(h('div', { className: 'row prose sealed' }, [
           h('span', { textContent: 'Sealed content' }),
           h('span', { textContent: clampApprovalText(data.sealed, 220) }),
         ]));
       }
-      if (ev.content || unreadable) appendEventContent(box, ev);
+      if (ev.content || unreadable) appendEventContent(box, ev, { tucked: !!data.listChange });
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(peerRow('From', data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {

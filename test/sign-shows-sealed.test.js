@@ -214,10 +214,11 @@ test('BOTH approval surfaces show it, marked the same way', () => {
 
 test('the event preview is still shown alongside it', () => {
   // The row is a convenience, not a replacement: what is being signed is the event, and
-  // the JSON view remains the literal answer to "what am I approving".
+  // the JSON view remains the literal answer to "what am I approving". (A list edit
+  // spelled out by list-change.js tucks it behind a tap, but it is still there.)
   for (const [name, src, call] of [
-    ['prompt.js', prompt, 'appendEventContent(els.preview, ev)'],
-    ['sidepanel.js', panel, 'appendEventContent(box, ev)'],
+    ['prompt.js', prompt, 'appendEventContent(els.preview, ev'],
+    ['sidepanel.js', panel, 'appendEventContent(box, ev'],
   ]) {
     assert.ok(stripComments(src).includes(call), name + ' dropped the event preview');
   }
