@@ -277,7 +277,7 @@ test('the popup theme allowlist matches the panel', () => {
 
 test('the auto-lock setting explains the once-per-session PIN', () => {
   const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
-  const block = html.match(/<h3>Auto-lock<\/h3>[\s\S]*?<\/div>/);
+  const block = html.match(/<h3[^>]*>Auto-lock<\/h3>[\s\S]*?<\/div>/);
   assert.ok(block, 'could not find the auto-lock setting');
   assert.match(block[0], /once per browser session/,
     'Never needs a hint, or it reads as an absolute promise');

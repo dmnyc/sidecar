@@ -3047,14 +3047,12 @@
   // fail-open ones are stated plainly rather than dressed up: "showing everything" is the
   // honest description of what the bell is doing, and someone who reads it knows to look
   // at their follows or their relays rather than at the switch.
-  const WOT_STATUS = {
-    idle: '',
-    building: '', // the bar and its caption say it; see renderWotStatus
-
-    ready: null, // filled with the count
-    empty: 'No network to sort by yet. Follow some people, or check your relays. Showing everything.',
-    failed: 'Couldn’t reach your relays to work this out. Showing everything.',
-  };
+  // Built when drawn, so the lines go through t() after the language has loaded.
+  function wotStatusText(st) {
+    if (st === 'empty') return t('No network to sort by yet. Follow some people, or check your relays. Showing everything.');
+    if (st === 'failed') return t('Couldn’t reach your relays to work this out. Showing everything.');
+    return ''; // idle, and building, whose bar and caption say it; see renderWotStatus
+  }
   function renderWotStatus() {
     const el = document.getElementById('wot-status');
     if (!el) return;
@@ -3072,14 +3070,16 @@
     }
     if (_wotState === 'building') {
       el.textContent = _wotTotal
-        ? 'Working out your network… ' + fmtSats(_wotDone) + ' of ' + fmtSats(_wotTotal) + ' follows.'
-        : 'Working out your network…';
+        ? t('Working out your network… {{done}} of {{total}} follows.', { done: fmtSats(_wotDone), total: fmtSats(_wotTotal) })
+        : t('Working out your network…');
       return;
     }
     el.textContent = _wotState === 'ready'
-      ? 'Your network: ' + fmtSats(_wotCount) + ' ' + (_wotCount === 1 ? 'person' : 'people') +
-        (_wotSeen ? ', from ' + fmtSats(_wotSeen) + ' your follows follow.' : '.')
-      : (WOT_STATUS[_wotState] || '');
+      ? (_wotSeen
+        ? tn('Your network: {{count}} person, from {{seen}} your follows follow.', 'Your network: {{count}} people, from {{seen}} your follows follow.',
+          _wotCount, { seen: fmtSats(_wotSeen) })
+        : tn('Your network: {{count}} person.', 'Your network: {{count}} people.', _wotCount))
+      : wotStatusText(_wotState);
   }
 
   // ---- header account switcher (dropdown) ----
@@ -5102,7 +5102,7 @@
       const field = $('default-zap');
       if (field) field.value = String(sats);
       sync();
-      toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
+      toast(t('Default zap set to {{amount}} sats', { amount: fmtSats(sats) }), 'success');
     });
     sync();
     return btn;
@@ -8165,7 +8165,7 @@
     // Fold the link INTO the text (no separate `url` field): with both set, most
     // share targets use only the url and drop the message — embedding it keeps
     // the blurb + link together everywhere.
-    const message = 'Sidecar — a classy Nostr signer right in your browser side panel.\n' + SIDECAR_STORE_URL;
+    const message = t('Sidecar, a classy Nostr signer right in your browser side panel.') + '\n' + SIDECAR_STORE_URL;
     const shareData = { text: message };
     if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
       try { await navigator.share(shareData); return; }
@@ -8173,9 +8173,9 @@
     }
     try {
       await copyPlain(message);
-      toast('Message copied — share it with a friend', 'success');
+      toast(t('Message copied. Share it with a friend.'), 'success');
     } catch (_) {
-      toast('Could not share', 'error');
+      toast(t('Could not share'), 'error');
     }
   }
   const shareLink = $('share-sidecar-link');
@@ -9739,9 +9739,7 @@
     // version + update check
     const build = window.SIDECAR_BUILD || {};
     const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
-    $('settings-version').textContent = ver
-      ? 'Version ' + ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '')
-      : '';
+    $('settings-version').textContent = buildVersionText(true);
     $('check-update-status').textContent = '';
 
     // auto-lock
@@ -9755,7 +9753,7 @@
     $('client-select').value = own || '';
     const globalLabel = (VIEW_CLIENTS[settings.defaultClient || DEFAULT_CLIENT] || {}).label || '';
     const defaultOpt = $('client-select').querySelector('option[value=""]');
-    if (defaultOpt) defaultOpt.textContent = globalLabel ? 'Use the default (' + globalLabel + ')' : 'Use the default';
+    if (defaultOpt) defaultOpt.textContent = globalLabel ? t('Use the default ({{client}})', { client: globalLabel }) : t('Use the default');
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
@@ -9766,7 +9764,7 @@
     $('headsup-restore').addEventListener('click', async () => {
       await chrome.storage.local.remove(['sharedHeadsUpDismissed', 'sharedHeadsUpOptOut']);
       sharedHeadsUp = { dismissed: false, optedOut: false };
-      toast('The multi-account note will show again', 'success');
+      toast(t('The multi-account note will show again'), 'success');
     });
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
@@ -9784,7 +9782,7 @@
     const fiatSel = $('fiat-select');
     if (fiatSel && !fiatSel.options.length) {
       FIAT_CURRENCIES.forEach(([code, name]) => {
-        fiatSel.append(h('option', { value: code, textContent: name + ' (' + code + ')' }));
+        fiatSel.append(h('option', { value: code, textContent: currencyName(code, name) + ' (' + code + ')' }));
       });
     }
     fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
@@ -9803,7 +9801,7 @@
     const nip65Scope = $('nip65-only-scope');
     if (nip65Scope) {
       const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey);
-      nip65Scope.textContent = acct ? 'for ' + displayName(acct) : '';
+      nip65Scope.textContent = acct ? t('for {{name}}', { name: displayName(acct) }) : '';
     }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
@@ -9849,7 +9847,7 @@
     Object.keys(relays).forEach((url) => {
       const row = h('div', { className: 'item' });
       row.append(h('div', { className: 'item-main' }, [h('div', { className: 'item-sub', textContent: url })]));
-      const rm = iconButton('Remove', 'trash', async () => {
+      const rm = iconButton(t('Remove'), 'trash', async () => {
         const next = { ...relays };
         delete next[url];
         await call({ type: 'SIDECAR_SET_RELAYS', relays: next });
@@ -9876,6 +9874,13 @@
     ['ZAR', 'South African rand'], ['KRW', 'South Korean won'], ['TRY', 'Turkish lira'],
     ['ARS', 'Argentine peso'],
   ];
+  // In English, the names above, which are what this list has always said. In any other
+  // language, the browser's own name for the currency (Intl.DisplayNames), so the list
+  // needs no translation and cannot fall out of step with the codes.
+  function currencyName(code, english) {
+    if (/^en\b/.test(I18N.lang)) return english;
+    try { return new Intl.DisplayNames([I18N.lang], { type: 'currency' }).of(code) || english; } catch (_) { return english; }
+  }
 
   // ---- activity tab: connected sites (permission tiers) + signing history ----
   const LEVELS = [
@@ -17591,7 +17596,7 @@
     const flash = $('zapflash-toggle');
     if (!flash) return;
     flash.disabled = reduceBalanceMotion;
-    flash.title = reduceBalanceMotion ? 'Reduce motion is on, which already turns this off.' : '';
+    flash.title = reduceBalanceMotion ? t('Reduce motion is on, which already turns this off.') : '';
   }
 
   // ---- the peek ------------------------------------------------------------------
@@ -20024,21 +20029,22 @@
   async function checkForUpdates(btn, statusEl) {
     const prevLabel = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Checking…';
+    btn.textContent = t('Checking…');
     statusEl.textContent = '';
     try {
       const result = await chrome.runtime.requestUpdateCheck();
       const status = result && result.status;
       if (status === 'update_available') {
-        const v = result.version ? ' (v' + result.version + ')' : '';
-        statusEl.textContent = 'Update found' + v + ' — it installs the next time Sidecar restarts.';
+        statusEl.textContent = result.version
+          ? t('Update found (v{{version}}). It installs the next time Sidecar restarts.', { version: result.version })
+          : t('Update found. It installs the next time Sidecar restarts.');
       } else if (status === 'throttled') {
-        statusEl.textContent = 'Checked recently — try again in a few minutes.';
+        statusEl.textContent = t('Checked recently. Try again in a few minutes.');
       } else {
-        statusEl.textContent = "You're on the latest version.";
+        statusEl.textContent = t("You're on the latest version.");
       }
     } catch (_) {
-      statusEl.textContent = 'Could not check for updates.';
+      statusEl.textContent = t('Could not check for updates.');
     }
     btn.disabled = false;
     btn.textContent = prevLabel;
@@ -20060,21 +20066,22 @@
     const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
     if (!ver) return '';
     const commit = build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '';
-    return (withPrefix ? 'Version ' : '') + ver + commit;
+    return withPrefix ? t('Version {{version}}', { version: ver + commit }) : ver + commit;
   }
 
   function versionChip(cls, withPrefix) {
     const text = buildVersionText(withPrefix);
     if (!text) return null;
-    const el = h('button', { className: cls + ' version-chip', title: 'Copy version' });
+    const el = h('button', { className: cls + ' version-chip', title: t('Copy version') });
     const span = h('span', { textContent: text });
     el.append(span);
     el.addEventListener('click', async () => {
       try {
         // What is on screen, so what you paste is what you were looking at.
         await copyPlain(text);
-        span.textContent = 'Copied \u2713';
-        setTimeout(() => { if (span.textContent === 'Copied \u2713') span.textContent = text; }, 1200);
+        const copied = t('Copied') + ' \u2713';
+        span.textContent = copied;
+        setTimeout(() => { if (span.textContent === copied) span.textContent = text; }, 1200);
       } catch (_) {}
     });
     return el;
@@ -20678,7 +20685,7 @@
     // there is nothing for the number to belong to.
     if (!state.activePubkey) return;
     await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
-    toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
+    toast(t('Default zap set to {{amount}} sats', { amount: fmtSats(sats) }), 'success');
   });
 
   $('autozap-max').addEventListener('change', async (e) => {
@@ -20717,7 +20724,7 @@
   } else {
     // Firefox has no on-demand update check — the browser updates add-ons itself.
     $('check-update-btn').hidden = true;
-    $('check-update-status').textContent = 'Updates install automatically through your browser.';
+    $('check-update-status').textContent = t('Updates install automatically through your browser.');
   }
 
   $('export-vault-btn').addEventListener('click', () => exportVaultModal());
@@ -20730,7 +20737,7 @@
       const file = JSON.parse(await f.text());
       importVaultModal(file);
     } catch (_) {
-      toast('That file is not valid JSON.', 'error');
+      toast(t('That file is not valid JSON.'), 'error');
     }
   });
 
@@ -20742,11 +20749,12 @@
       const err = h('div', { className: 'error' });
       const warn = h('p', {
         className: 'hint',
-        textContent:
-          'This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone — any account without a backed-up nsec is lost for good.',
+        textContent: tSec(
+          'This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone. Any account without a backed-up nsec is lost for good.'),
       });
-      const confirmInput = h('input', { type: 'text', placeholder: 'Type RESET to confirm' });
-      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      // RESET stays RESET in every language: it is what matches() compares.
+      const confirmInput = h('input', { type: 'text', placeholder: tSec('Type {{word}} to confirm', { word: 'RESET' }) });
+      const del = h('button', { className: 'danger', textContent: tSec('Erase everything') });
       del.disabled = true;
       const matches = () => confirmInput.value.trim().toUpperCase() === 'RESET';
       confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
@@ -20756,18 +20764,18 @@
           await call({ type: 'SIDECAR_RESET_ALL' });
           closeModal();
           await refresh(); // no keystore now → onboarding
-          toast('Sidecar reset', 'success');
+          toast(t('Sidecar reset'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Reset Sidecar?' }),
+        h('h3', { textContent: tSec('Reset Sidecar?') }),
         warn,
-        h('label', { textContent: 'Confirm' }),
+        h('label', { textContent: t('Confirm') }),
         confirmInput,
         err,
         h('div', { className: 'actions' }, [del, cancel])
@@ -20778,29 +20786,29 @@
 
   $('change-pin-btn').addEventListener('click', () => {
     openModal((modal) => {
-      const oldP = h('input', { type: 'password', placeholder: 'Current PIN', maxLength: MAX_PIN_LEN });
-      const newP = h('input', { type: 'password', placeholder: 'New PIN', maxLength: MAX_PIN_LEN });
-      const newP2 = h('input', { type: 'password', placeholder: 'Confirm new PIN', maxLength: MAX_PIN_LEN });
+      const oldP = h('input', { type: 'password', placeholder: tSec('Current PIN'), maxLength: MAX_PIN_LEN });
+      const newP = h('input', { type: 'password', placeholder: tSec('New PIN'), maxLength: MAX_PIN_LEN });
+      const newP2 = h('input', { type: 'password', placeholder: tSec('Confirm new PIN'), maxLength: MAX_PIN_LEN });
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Change PIN' });
+      const save = h('button', { className: 'primary', textContent: tSec('Change PIN') });
       save.addEventListener('click', async () => {
         err.textContent = '';
-        if (newP.value.length < MIN_PIN_LEN) return (err.textContent = `New PIN must be at least ${MIN_PIN_LEN} characters.`);
-        if (newP.value.length > MAX_PIN_LEN) return (err.textContent = `Max ${MAX_PIN_LEN} characters.`);
-        if (newP.value !== newP2.value) return (err.textContent = 'New PINs do not match.');
+        if (newP.value.length < MIN_PIN_LEN) return (err.textContent = t('New PIN must be at least {{count}} characters.', { count: MIN_PIN_LEN }));
+        if (newP.value.length > MAX_PIN_LEN) return (err.textContent = t('Use at most {{count}} characters.', { count: MAX_PIN_LEN }));
+        if (newP.value !== newP2.value) return (err.textContent = t('New PINs do not match.'));
         try {
           await call({ type: 'SIDECAR_CHANGE_PIN', oldPin: oldP.value, newPin: newP.value });
           closeModal();
-          toast('PIN changed', 'success');
+          toast(t('PIN changed'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Change PIN' }),
+        h('h3', { textContent: tSec('Change PIN') }),
         oldP,
         newP,
         newP2,

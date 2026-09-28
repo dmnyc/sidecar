@@ -55,7 +55,7 @@ test('the narrower switch is disabled rather than left doing nothing', () => {
 });
 
 test('the copy no longer scopes the toggle to balances and countdowns', () => {
-  const i = html.indexOf('<h3>Reduce motion</h3>');
+  const i = html.indexOf('<h3 data-i18n="Reduce motion">Reduce motion</h3>');
   assert.notEqual(i, -1);
   const block = html.slice(i, i + 400);
   assert.match(block, /lightning bolt on payments/, 'the hint must name what it now covers');

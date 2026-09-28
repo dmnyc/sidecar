@@ -85,7 +85,7 @@ test('off: no quote is even drawn', () => {
 });
 
 test('the switch is wired like On this day: default on, stored as an explicit false', () => {
-  assert.match(html, /<input type="checkbox" id="quotes-toggle" \/> <span>Show literary quotes<\/span>/);
+  assert.match(html, /<input type="checkbox" id="quotes-toggle" \/> <span[^>]*>Show literary quotes<\/span>/);
   assert.ok(html.indexOf('id="quotes-toggle"') > html.indexOf('id="otd-toggle"'), 'it sits under On this day');
   assert.match(src, /let showQuotes = true;/);
   assert.match(src, /showQuotes = !\(settings && settings\.literaryQuotes === false\);/);

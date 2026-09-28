@@ -152,5 +152,5 @@ test('the picker offers an explicit way back to the default', () => {
   const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
   const at = html.indexOf('<select id="client-select">');
   assert.ok(at !== -1);
-  assert.match(html.slice(at, at + 200), /<option value="">/, 'no option clears the per-account choice');
+  assert.match(html.slice(at, at + 200), /<option value=""[ >]/, 'no option clears the per-account choice');
 });
