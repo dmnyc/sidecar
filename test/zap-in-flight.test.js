@@ -189,7 +189,7 @@ test('THE PANEL LEAVES WHEN THE PAYMENT DOES', () => {
   assert.doesNotMatch(bare, /pay-flight/, 'and so is the block it sat in');
   assert.doesNotMatch(css, /\.pay-flight/, 'the styles went with it');
   assert.match(bare, /function beginFlight\(sats\)/);
-  assert.match(bare, /toast\(sats != null \? 'Sending ' \+ fmtSats\(sats\) \+ ' sats' : 'Sending payment', 'progress'\)/);
+  assert.match(bare, /toast\(sats != null \? tSec\('Sending \{\{amount\}\} sats', \{ amount: fmtSats\(sats\) \}\) : tSec\('Sending payment'\), 'progress'\)/);
 });
 
 test('the modal closes only once nothing can fail back into the form', () => {

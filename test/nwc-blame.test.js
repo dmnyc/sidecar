@@ -19,6 +19,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'nwc-client.js'), 'utf8');
@@ -44,6 +45,7 @@ function harness(up) {
     probed,
   };
   ctx.globalThis = ctx;
+  withI18n(ctx); // the wallet's strings go through t(), tn() and tSec()
   vm.createContext(ctx);
   vm.runInContext(
     [
@@ -146,7 +148,7 @@ test('the relay-down claim is now guarded by the control check', () => {
 test('the panel surfaces the local failure distinctly', () => {
   // Otherwise it falls through to "balance unavailable", which says nothing.
   const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
-  assert.match(panel, /localSocketFailure\s*\n?\s*\?\s*'browser out of connections'/);
+  assert.match(panel, /localSocketFailure\s*\n?\s*\?\s*t\('browser out of connections'\)/);
   assert.match(panel, /e\.localSocketFailure \|\| e\.relayDown/, 'and still toasts the full sentence');
 });
 

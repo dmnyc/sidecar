@@ -17446,7 +17446,7 @@
     if (next === 'fiat') {
       const p = await getBtcPrice(fiatCurrency);
       if (p == null) {
-        toast("Couldn't reach a price source — showing sats", 'error');
+        toast(t("Couldn't reach a price source — showing sats"), 'error');
         denom = 'sats';
         repaintBalances();
         return;
@@ -17483,14 +17483,14 @@
   // placed here because this is where you are when you tap the balance.
   function renderFiatPicker() {
     const wrap = h('div', { className: 'setting' });
-    wrap.append(h('h3', { textContent: 'Local currency' }));
+    wrap.append(h('h3', { textContent: t('Local currency') }));
     wrap.append(h('p', {
       className: 'hint',
-      textContent: 'Tap your balance to switch between sats, BTC, and this currency.',
+      textContent: t('Tap your balance to switch between sats, BTC, and this currency.'),
     }));
     const sel = h('select', { id: 'wallet-fiat-select' });
     FIAT_CURRENCIES.forEach(([code, name]) => {
-      sel.append(h('option', { value: code, textContent: name + ' (' + code + ')' }));
+      sel.append(h('option', { value: code, textContent: currencyName(code, name) + ' (' + code + ')' }));
     });
     sel.value = fiatCurrency;
     sel.addEventListener('change', (e) => setFiatCurrency(e.target.value));
@@ -17500,11 +17500,10 @@
 
   // Is the wallet card's unit line currently showing a failure instead of a unit?
   // A repaint must not overwrite it with 'sats' — that would claim a balance loaded
-  // when none did. Kept as one predicate because there are several such strings now
-  // (#120 added the relay-specific one) and comparing against a single literal is
-  // how the previous guard quietly stopped covering all of them.
-  const BALANCE_ERROR_UNITS = ['balance unavailable', 'wallet relay unreachable'];
-  const isBalanceErrorUnit = (s) => BALANCE_ERROR_UNITS.includes(String(s || '').trim());
+  // when none did. A FLAG ON THE ELEMENT, set where the failure is painted, rather than
+  // a match on its text: the text is translated, and a list of literals had already
+  // fallen behind the four failures it was meant to cover.
+  const isBalanceErrorUnit = (el) => !!el && el.dataset.balanceError === '1';
 
   // Repaint whichever balance surfaces are on screen, from the cached balance.
   function repaintBalances() {
@@ -17513,7 +17512,7 @@
     paintBalanceEl($('pinned-balance-amt'), parts, 'pinned-fiat-sym');
     paintBalanceEl(document.querySelector('.wallet-balance'), parts, 'wallet-fiat-sym');
     const cardUnit = document.querySelector('.wallet-unit');
-    if (cardUnit && !isBalanceErrorUnit(cardUnit.textContent)) cardUnit.textContent = parts.unit;
+    if (cardUnit && !isBalanceErrorUnit(cardUnit)) cardUnit.textContent = parts.unit;
   }
 
   // Optional pinned balance bar — compact balance + Send/Receive under the nav,
@@ -17530,13 +17529,13 @@
     if (!has) { hide(bar); return; } // no wallet for this account — Wallet tab owns onboarding
     show(bar);
     const hideBtn = $('pinned-hide');
-    if (hideBtn) { hideBtn.innerHTML = ''; hideBtn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); hideBtn.title = hideBalances ? 'Show balances' : 'Hide balances'; }
+    if (hideBtn) { hideBtn.innerHTML = ''; hideBtn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); hideBtn.title = hideBalances ? t('Show balances') : t('Hide balances'); }
     const amt = $('pinned-balance-amt');
     if (!amt) return;
     // Tap the amount to cycle sats → BTC → fiat. Bound once (renderPinnedBalanceBar
     // runs on every tab switch), hence onclick rather than addEventListener.
     amt.onclick = cycleDenom;
-    amt.title = 'Tap to change units';
+    amt.title = t('Tap to change units');
     const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     if (cached) paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
     else amt.textContent = '···';
@@ -17571,7 +17570,7 @@
     // its paint record cleared or the reveal would repaint the same number and
     // suppress the strike. Harmless in the other five themes, which never strike.
     restrikeBalances();
-    const setEye = (btn) => { if (!btn) return; btn.innerHTML = ''; btn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); btn.title = hideBalances ? 'Show balances' : 'Hide balances'; };
+    const setEye = (btn) => { if (!btn) return; btn.innerHTML = ''; btn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); btn.title = hideBalances ? t('Show balances') : t('Hide balances'); };
     setEye($('pinned-hide'));
     document.querySelectorAll('.wallet-eye').forEach(setEye);
     const cb = $('hidebalance-toggle');
@@ -17616,7 +17615,7 @@
       _balancePeekTimer = null;
       hideBalances = true;
       syncHideControls();
-      toast('Balances hidden again');
+      toast(t('Balances hidden again'));
     }, BALANCE_PEEK_MS);
   }
 
@@ -17816,10 +17815,10 @@
 
   // "Expires in …" for the invoice card: coarse on purpose, since it is read once.
   function fmtExpiresIn(seconds) {
-    if (seconds < 60) return 'under a minute';
-    if (seconds < 3600) return Math.round(seconds / 60) + ' min';
-    if (seconds < 48 * 3600) return Math.round(seconds / 3600) + ' h';
-    return Math.round(seconds / 86400) + ' days';
+    if (seconds < 60) return tSec('under a minute');
+    if (seconds < 3600) return tSec('{{count}} min', { count: Math.round(seconds / 60) });
+    if (seconds < 48 * 3600) return tSec('{{count}} h', { count: Math.round(seconds / 3600) });
+    return tn('{{count}} day', '{{count}} days', Math.round(seconds / 86400));
   }
 
   // ---- Live balance updates (NIP-47 notifications + fallback polling) ----
@@ -17851,7 +17850,7 @@
         const cardBal = document.querySelector('.wallet-balance');
         if (cardBal) { cardBal.classList.remove('loading'); paintBalanceEl(cardBal, parts, 'wallet-fiat-sym'); }
         const cardUnit = document.querySelector('.wallet-unit');
-        if (cardUnit && !isBalanceErrorUnit(cardUnit.textContent)) cardUnit.textContent = parts.unit;
+        if (cardUnit && !isBalanceErrorUnit(cardUnit)) cardUnit.textContent = parts.unit;
         // Glow pulse when balance increases
         if (prevSats != null && newSats > prevSats) {
           [pinAmt, cardBal].forEach((el) => {
@@ -17885,7 +17884,7 @@
         if (type === 'payment_received') {
           const amt = payload.notification && payload.notification.amount;
           if (amt) toast('Received ' + fmtSats(msatToSat(amt)) + ' sats', 'success');
-          else toast('Payment received', 'success');
+          else toast(t('Payment received'), 'success');
         }
       }
     });
@@ -17943,7 +17942,7 @@
     const seq = ++walletRenderSeq;
     if (!state.activePubkey) {
       view.innerHTML = '';
-      view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
+      view.append(h('p', { className: 'hint', textContent: t('No active account.') }));
       return;
     }
     // A DELAYED placeholder, not an immediate one. renderWallet runs often — a tab
@@ -17959,7 +17958,7 @@
     const slow = setTimeout(() => {
       if (seq !== walletRenderSeq) return;
       view.innerHTML = '';
-      view.append(h('p', { className: 'hint', textContent: 'Loading wallet…' }));
+      view.append(h('p', { className: 'hint', textContent: t('Loading wallet…') }));
     }, 400);
 
     let has;
@@ -18004,10 +18003,10 @@
     view.append(
       h('p', {
         className: 'hint',
-        textContent: (e && e.message) || 'Could not load your wallet.',
+        textContent: (e && e.message) || t('Could not load your wallet.'),
       })
     );
-    const retry = h('button', { className: 'secondary', textContent: 'Try again' });
+    const retry = h('button', { className: 'secondary', textContent: t('Try again') });
     retry.addEventListener('click', () => {
       forgetBalancePaint('wallet');
       renderWallet();
@@ -18050,13 +18049,13 @@
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.text()).slice(0, 200); } catch (_) {}
-      throw new Error(detail || 'Rizful rejected that code (' + res.status + ').');
+      throw new Error(detail || t('Rizful rejected that code ({{status}}).', { status: res.status }));
     }
     let data;
-    try { data = await res.json(); } catch (_) { throw new Error('Rizful sent a response Sidecar could not read.'); }
+    try { data = await res.json(); } catch (_) { throw new Error(t('Rizful sent a response Sidecar could not read.')); }
     const nwcUri = data && typeof data.nwc_uri === 'string' ? data.nwc_uri.trim() : '';
     if (!nwcUri.startsWith('nostr+walletconnect://')) {
-      throw new Error('Rizful did not return a wallet connection.');
+      throw new Error(t('Rizful did not return a wallet connection.'));
     }
     warnIfInsecureNwcRelay(nwcUri);
     const addr = data && typeof data.lightning_address === 'string' ? data.lightning_address.trim() : '';
@@ -18068,16 +18067,16 @@
       const err = h('div', { className: 'error' });
       const code = h('input', {
         type: 'text', className: 'rizful-code', spellcheck: false, autocomplete: 'off',
-        placeholder: 'Paste your one-time code',
+        placeholder: t('Paste your one-time code'),
       });
-      const go = h('button', { className: 'primary', textContent: 'Connect wallet' });
+      const go = h('button', { className: 'primary', textContent: t('Connect wallet') });
 
       go.addEventListener('click', async () => {
         const value = code.value.trim();
-        if (!value) return (err.textContent = 'Paste the code from Rizful.');
+        if (!value) return (err.textContent = t('Paste the code from Rizful.'));
         err.textContent = '';
         go.disabled = true;
-        go.textContent = 'Connecting…';
+        go.textContent = t('Connecting…');
         try {
           const { nwcUri, lightningAddress } = await rizfulExchangeCode(value, state.activePubkey);
           // Prove it works before storing it — same check the paste path makes.
@@ -18086,19 +18085,19 @@
           client.close();
           await call({ type: 'SIDECAR_SET_NWC', connection: nwcUri });
           closeModal();
-          toast(lightningAddress ? 'Wallet connected — ' + lightningAddress : 'Wallet connected', 'success');
+          toast(lightningAddress ? t('Wallet connected: {{address}}', { address: lightningAddress }) : t('Wallet connected'), 'success');
           // The Profile screen's existing lud16 prompt picks it up from here and
           // offers to publish the address, which is what makes zaps reachable.
           renderWallet();
         } catch (e) {
-          err.textContent = (e && e.message) || 'Could not connect that wallet.';
+          err.textContent = (e && e.message) || t('Could not connect that wallet.');
           go.disabled = false;
-          go.textContent = 'Connect wallet';
+          go.textContent = t('Connect wallet');
         }
       });
       code.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
 
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       // Two buttons, in order, then the field.
@@ -18114,12 +18113,12 @@
       // are visible up front. Anyone who already has an account just skips the first.
       // Still no step numbers — top-to-bottom order carries the sequence.
       const signup = h('button', {
-        className: 'secondary rizful-get', textContent: 'Create a Rizful account',
+        className: 'secondary rizful-get', textContent: t('Create a Rizful account'),
       });
       signup.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_SIGNUP_URL }));
 
       const getCode = h('button', {
-        className: 'secondary rizful-get', textContent: 'Get your one-time code',
+        className: 'secondary rizful-get', textContent: t('Get your one-time code'),
       });
       getCode.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_GET_CODE_URL }));
 
@@ -18128,7 +18127,7 @@
       // actually carries the warning.
       const note = h('p', { className: 'rizful-note' });
       note.append(document.createTextNode('Run by '));
-      const megalith = h('a', { href: '#', className: 'explore-link inline', textContent: 'Megalith' });
+      const megalith = h('a', { href: '#', className: 'explore-link inline', textContent: t('Megalith') });
       megalith.addEventListener('click', (e) => {
         e.preventDefault();
         chrome.tabs.create({ url: 'https://megalithic.me/' });
@@ -18141,8 +18140,8 @@
       const actions = h('div', { className: 'actions setup-actions' }, [cancel, go]);
 
       modal.append(
-        h('h3', { textContent: 'Start with Rizful' }),
-        h('p', { className: 'rizful-lede', textContent: 'A hosted Lightning wallet, ready in about a minute.' }),
+        h('h3', { textContent: t('Start with Rizful') }),
+        h('p', { className: 'rizful-lede', textContent: t('A hosted Lightning wallet, ready in about a minute.') }),
         signup,
         getCode,
         code,
@@ -18155,13 +18154,13 @@
   }
 
   function renderWalletConnect(view) {
-    view.append(h('h2', { textContent: 'Wallet' }));
+    view.append(h('h2', { textContent: t('Wallet') }));
 
     view.append(
       h('p', {
         className: 'hint',
         textContent:
-          'Paste a Nostr Wallet Connect (NWC) connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.',
+          t('Paste a Nostr Wallet Connect (NWC) connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.'),
       })
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
@@ -18171,22 +18170,22 @@
     // red validation-error tone above, plus a way straight to a working wallet.
     const primalNotice = h('p', { className: 'hint wallet-notice hidden' });
     primalNotice.append(
-      h('strong', { textContent: "Primal's NWC connection only works inside Primal's own apps " }),
-      document.createTextNode("— it doesn't support external apps like Sidecar."),
+      h('strong', { textContent: t("Primal's NWC connection only works inside Primal's own apps.") }),
+      document.createTextNode(' ' + t("It doesn't support external apps like Sidecar.")),
       document.createElement('br')
     );
-    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'More Lightning wallet options →' });
+    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: t('More Lightning wallet options →') });
     primalLink.addEventListener('click', (e) => {
       e.preventDefault();
       openExtensionPage('wallets.html');
     });
     primalNotice.append(primalLink);
-    const connect = h('button', { className: 'primary wallet-connect-btn', textContent: 'Connect wallet' });
+    const connect = h('button', { className: 'primary wallet-connect-btn', textContent: t('Connect wallet') });
     connect.addEventListener('click', async () => {
       const conn = input.value.trim();
       primalNotice.classList.add('hidden');
-      if (!conn) return (err.textContent = 'Paste a connection string.');
-      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = "That doesn't look like an NWC string.");
+      if (!conn) return (err.textContent = t('Paste a connection string.'));
+      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = t("That doesn't look like an NWC string."));
       warnIfInsecureNwcRelay(conn);
       if (isPrimalNwc(conn)) {
         err.textContent = '';
@@ -18195,20 +18194,20 @@
       }
       err.textContent = '';
       connect.disabled = true;
-      connect.textContent = 'Connecting…';
+      connect.textContent = t('Connecting…');
       try {
         // Validate by parsing + a getInfo round-trip before saving.
         const client = window.SidecarNWC.makeClient(conn);
         await client.getInfo();
         client.close();
         await call({ type: 'SIDECAR_SET_NWC', connection: conn });
-        toast('Wallet connected', 'success');
+        toast(t('Wallet connected'), 'success');
         renderWallet();
       } catch (e) {
-        err.textContent = e.message || 'Could not reach that wallet.';
-        toast('Could not connect wallet', 'error');
+        err.textContent = e.message || t('Could not reach that wallet.');
+        toast(t('Could not connect wallet'), 'error');
         connect.disabled = false;
-        connect.textContent = 'Connect wallet';
+        connect.textContent = t('Connect wallet');
       }
     });
     view.append(input, err, primalNotice, connect);
@@ -18217,20 +18216,20 @@
     // its own block (with its own status line) so its messages don't land in the
     // middle of the connect form.
     const restoreBlock = h('div', { className: 'wallet-restore-block' });
-    restoreBlock.append(h('div', { className: 'wallet-or', textContent: 'or' }));
-    const restore = h('button', { className: 'secondary', textContent: 'Restore from Nostr' });
-    const restoreNote = h('p', { className: 'hint compact', textContent: 'Restore a wallet you backed up to your relays.' });
+    restoreBlock.append(h('div', { className: 'wallet-or', textContent: t('or') }));
+    const restore = h('button', { className: 'secondary', textContent: t('Restore from Nostr') });
+    const restoreNote = h('p', { className: 'hint compact', textContent: t('Restore a wallet you backed up to your relays.') });
     restore.addEventListener('click', async () => {
       restore.disabled = true;
-      restore.textContent = 'Checking relays…';
+      restore.textContent = t('Checking relays…');
       try {
         await restoreNwcFromRelays();
-        toast('Wallet restored', 'success');
+        toast(t('Wallet restored'), 'success');
         renderWallet();
       } catch (e) {
         toast(e.message, 'error');
         restore.disabled = false;
-        restore.textContent = 'Restore from Nostr';
+        restore.textContent = t('Restore from Nostr');
       }
     });
     restoreBlock.append(restore, restoreNote);
@@ -18242,21 +18241,21 @@
     // sits last because it reads onward into the suggestions link below it.
     // The divider goes OUTSIDE the card — .wallet-quickstart has its own border and
     // background, and a rule inside it reads as a stray line rather than a separator.
-    view.append(h('div', { className: 'wallet-or quickstart-or', textContent: 'or' }));
+    view.append(h('div', { className: 'wallet-or quickstart-or', textContent: t('or') }));
     const quick = h('div', { className: 'wallet-quickstart' });
-    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: 'New to Lightning?' }));
+    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: t('New to Lightning?') }));
     quick.append(h('p', {
       className: 'hint compact',
-      textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
+      textContent: t('Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.'),
     }));
     // Rizful carries the recommended tint — it's the one-minute path for someone
     // with no wallet at all. The directory link sits in the same card as a
     // co-equal second choice rather than a footnote below it, so "I'd rather pick
     // my own" is visible at the same moment as "just set one up for me".
-    const quickBtn = h('button', { className: 'secondary wallet-quickstart-primary', textContent: 'Quick start with Rizful' });
+    const quickBtn = h('button', { className: 'secondary wallet-quickstart-primary', textContent: t('Quick start with Rizful') });
     quickBtn.addEventListener('click', rizfulQuickStartModal);
     quick.append(quickBtn);
-    const browseBtn = h('button', { className: 'secondary wallet-quickstart-browse', textContent: 'Browse all wallets' });
+    const browseBtn = h('button', { className: 'secondary wallet-quickstart-browse', textContent: t('Browse all wallets') });
     browseBtn.addEventListener('click', () => openExtensionPage('wallets.html'));
     quick.append(browseBtn);
     view.append(quick);
@@ -18287,14 +18286,14 @@
     const bal = h('div', {
       className: 'wallet-balance' + (cached ? '' : ' loading'),
       textContent: '···',
-      title: 'Tap to change units',
+      title: t('Tap to change units'),
     });
     if (cached) paintBalanceEl(bal, denomParts(balanceCache.sats), 'wallet-fiat-sym');
     // Tap the number to cycle sats → BTC → fiat. stopPropagation so it doesn't also
     // trigger the card's scroll-to-top handler while the card is collapsed.
     bal.addEventListener('click', (e) => { e.stopPropagation(); cycleDenom(); });
     const unit = h('div', { className: 'wallet-unit', textContent: denomParts(cached ? balanceCache.sats : null).unit });
-    const refresh = h('button', { className: 'wallet-refresh', title: 'Refresh' });
+    const refresh = h('button', { className: 'wallet-refresh', title: t('Refresh') });
     refresh.appendChild(icon('refresh'));
     // Refresh is a deliberate ask, so it strikes whatever comes back — including the
     // same figure, which is the answer most refreshes give and the only feedback that
@@ -18319,12 +18318,12 @@
       if (!balanceOk && !listOk) toast(t('Couldn’t reach your wallet'), 'error');
     });
     // Privacy toggle on the balance card (masks balance, history, budgets).
-    const eye = h('button', { className: 'wallet-eye', title: hideBalances ? 'Show balances' : 'Hide balances' });
+    const eye = h('button', { className: 'wallet-eye', title: hideBalances ? t('Show balances') : t('Hide balances') });
     eye.appendChild(icon(hideBalances ? 'eye-off' : 'eye'));
     eye.addEventListener('click', onBalanceEye);
     // Pin the balance bar from the card's corner. Only reachable while the bar is
     // unpinned (the card hides once pinned), so this is a one-way "pin" affordance.
-    const pin = h('button', { className: 'wallet-pin', title: 'Pin balance bar' });
+    const pin = h('button', { className: 'wallet-pin', title: t('Pin balance bar') });
     pin.appendChild(icon('pin'));
     pin.addEventListener('click', async () => {
       pinBalanceBar = true;
@@ -18334,7 +18333,7 @@
     // Price chart toggle, bottom-left corner (mirroring the pin at bottom-right).
     // Expands the card to reveal a 24h BTC price chart in the chosen currency.
     // Wallet screen only — the pinned bar stays compact by design.
-    const chartBtn = h('button', { className: 'wallet-chart-btn', title: 'Bitcoin price, last 24 hours' });
+    const chartBtn = h('button', { className: 'wallet-chart-btn', title: t('Bitcoin price, last 24 hours') });
     chartBtn.appendChild(icon('chart'));
     const chartSlot = h('div', { className: 'wallet-chart-slot' });
     // Opening/closing the chart changes the card's expanded height, so the collapse
@@ -18353,13 +18352,13 @@
       chartSlot.innerHTML = '';
       // The one surface that said "Loading" and showed nothing moving, so a slow price
       // fetch was indistinguishable from a dead one.
-      chartSlot.append(h('div', { className: 'wallet-chart-loading' }, [waitingRow('Loading price history…')]));
+      chartSlot.append(h('div', { className: 'wallet-chart-loading' }, [waitingRow(t('Loading price history…'))]));
       const history = await getPriceHistory(fiatCurrency, chartRange);
       if (seq !== chartSeq) return; // a newer range was picked while this was in flight
       chartSlot.innerHTML = '';
       if (!history) {
         // Leave the slot open with an explanation rather than silently collapsing.
-        chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Price history unavailable' }));
+        chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: t('Price history unavailable') }));
         chartSlot.dataset.currency = '';
         remeasureAfterToggle();
         return;
@@ -18385,13 +18384,13 @@
       }
       await paintChart();
     });
-    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit, chartSlot, chartBtn, pin);
+    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: t('Balance') }), bal, unit, chartSlot, chartBtn, pin);
     view.append(card);
 
     // Actions
     const actions = h('div', { className: 'wallet-actions' });
-    const sendBtn = h('button', { className: 'primary' }, [icon('arrow-up-right'), h('span', { textContent: 'Send' })]);
-    const recvBtn = h('button', { className: 'secondary' }, [icon('arrow-down-left'), h('span', { textContent: 'Receive' })]);
+    const sendBtn = h('button', { className: 'primary' }, [icon('arrow-up-right'), h('span', { textContent: t('Send') })]);
+    const recvBtn = h('button', { className: 'secondary' }, [icon('arrow-down-left'), h('span', { textContent: t('Receive') })]);
     sendBtn.addEventListener('click', () => sendModal());
     recvBtn.addEventListener('click', () => receiveModal());
     actions.append(sendBtn, recvBtn);
@@ -18405,12 +18404,12 @@
     let nudgeStateName = 'unknown';
     const nudge = h('p', { className: 'hint wallet-notice wallet-backup-nudge hidden' });
     const nudgeText = h('span', { textContent: '' });
-    const nudgeBtn = h('button', { className: 'explore-link', textContent: 'Back up' });
+    const nudgeBtn = h('button', { className: 'explore-link', textContent: t('Back up') });
     const doNudgeBackup = async () => {
       nudgeBtn.disabled = true;
       try {
         await backupNwcToRelays();
-        toast('Wallet backed up', 'success');
+        toast(t('Wallet backed up'), 'success');
         renderWallet();
       } catch (e) {
         toast(e.message, 'error');
@@ -18426,7 +18425,7 @@
       }
       doNudgeBackup();
     });
-    const nudgeX = h('button', { className: 'wallet-nudge-x', textContent: '×', title: 'Dismiss' });
+    const nudgeX = h('button', { className: 'wallet-nudge-x', textContent: '×', title: t('Dismiss') });
     nudgeX.addEventListener('click', () => {
       // Per account, and only for this session — renderWallet() runs often enough
       // that a render-scoped dismissal would reappear immediately, but a permanent
@@ -18442,8 +18441,8 @@
       if (nwcNudgeDismissed === state.activePubkey) return;
       nudgeStateName = s;
       nudgeText.textContent = s === 'stale'
-        ? 'Your backup is a different wallet.'
-        : "This wallet isn't backed up.";
+        ? t('Your backup is a different wallet.')
+        : t("This wallet isn't backed up.");
       nudge.classList.remove('hidden');
     }).catch(() => {});
 
@@ -18454,7 +18453,7 @@
     getLightningAddress().then((lud16) => {
       if (!lud16) return;
       const row = h('div', { className: 'address-row' });
-      const addr = h('button', { className: 'address-value', title: 'Copy address' }, [
+      const addr = h('button', { className: 'address-value', title: t('Copy address') }, [
         boltIcon(), h('span', { textContent: lud16 }),
       ]);
       addr.addEventListener('click', async () => {
@@ -18462,11 +18461,11 @@
           await copyPlain(lud16);
           const s = addr.querySelector('span');
           const prev = s.textContent;
-          s.textContent = 'Copied ✓';
+          s.textContent = t('Copied ✓');
           setTimeout(() => (s.textContent = prev), 1200);
         } catch (_) {}
       });
-      const qrToggle = h('button', { className: 'address-qr-toggle', title: 'Show QR code' });
+      const qrToggle = h('button', { className: 'address-qr-toggle', title: t('Show QR code') });
       qrToggle.appendChild(icon('qr'));
       const qrBox = h('div', { className: 'address-qr hidden' });
       let built = false;
@@ -18482,13 +18481,13 @@
         qrToggle.classList.toggle('active', !showing);
       });
       row.append(addr, qrToggle);
-      addrCard.append(h('h3', { textContent: 'Lightning address' }), row, qrBox);
+      addrCard.append(h('h3', { textContent: t('Lightning address') }), row, qrBox);
       addrCard.classList.remove('hidden');
     });
 
     // Transactions
     const txWrap = h('div', { className: 'setting' });
-    txWrap.append(h('h3', { textContent: 'Recent transactions' }));
+    txWrap.append(h('h3', { textContent: t('Recent transactions') }));
     const txList = h('div', { className: 'list flat' });
     txWrap.append(txList);
     view.append(txWrap);
@@ -18504,16 +18503,16 @@
     view.append(renderFiatPicker());
 
     // Disconnect
-    const disc = h('button', { className: 'ghost wallet-disconnect', textContent: 'Disconnect wallet' });
+    const disc = h('button', { className: 'ghost wallet-disconnect', textContent: t('Disconnect wallet') });
     disc.addEventListener('click', () => disconnectModal());
     view.append(disc);
 
     // Self-custody disclaimer (bottom of the wallet screen).
     view.append(
       h('p', { className: 'wallet-disclaimer' }, [
-        h('strong', { textContent: 'IMPORTANT: ' }),
+        h('strong', { textContent: t('IMPORTANT:') }),
         document.createTextNode(
-          'Sidecar never holds user funds. You manage your own wallet and are responsible for securing it properly.'
+          ' ' + t('Sidecar never holds user funds. You manage your own wallet and are responsible for securing it properly.')
         ),
       ])
     );
@@ -18534,6 +18533,7 @@
       const parts = denomParts(balanceCache.sats);
       paintBalanceEl(bal, parts, 'wallet-fiat-sym');
       unit.textContent = parts.unit;
+      delete unit.dataset.balanceError;
     } catch (e) {
       if (!cached) {
         bal.textContent = '—';
@@ -18541,21 +18541,22 @@
         // down reads as a Sidecar failure otherwise. Kept short — this sits under
         // the balance in a narrow panel; the full sentence goes in the toast.
         unit.textContent = e && e.localSocketFailure
-          ? 'browser out of connections'
+          ? t('browser out of connections')
           : e && e.relayDown
-            ? 'wallet relay unreachable'
+            ? t('wallet relay unreachable')
             : e && e.staleSocket
-              ? 'connection lost — retry'
-              : 'balance unavailable';
+              ? t('connection lost, retry')
+              : t('balance unavailable');
+        unit.dataset.balanceError = '1';
         if (e && (e.localSocketFailure || e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
         // A way out, on the screen where the failure is visible. Only for the
         // connection-shaped failures — a wallet that answered "no" is not fixed by
         // reconnecting, and offering a button that cannot help is its own small lie.
         if (e && (e.localSocketFailure || e.relayDown || e.staleSocket)) {
-          const again = h('button', { className: 'secondary wallet-reset', textContent: 'Reset connections' });
+          const again = h('button', { className: 'secondary wallet-reset', textContent: t('Reset connections') });
           again.addEventListener('click', async () => {
             again.disabled = true;
-            again.textContent = 'Reconnecting…';
+            again.textContent = t('Reconnecting…');
             await resetConnections();
             renderWallet(); // rebuilds the card against fresh sockets
           });
@@ -18617,7 +18618,7 @@
     } catch (_) {}
   }
 
-  const satsLabel = (n) => fmtSats(n) + (Math.round(n) === 1 ? ' sat' : ' sats');
+  const satsLabel = (n) => tn('{{count}} sat', '{{count}} sats', Math.round(n));
   // fees_paid is in msats; show it rounded to the nearest whole sat.
   function fmtFeeMsat(msat) {
     return msat == null ? null : satsLabel(Math.round(msat / 1000));
@@ -18643,10 +18644,10 @@
     const host = listEl.parentNode; // append the "Show more" button below the card
     const more = h('button', { className: 'ghost show-more-btn' });
     hide(more);
-    more.textContent = 'Show more';
+    more.textContent = t('Show more');
     if (host) host.append(more);
 
-    listState(listEl, 'Loading…');
+    listState(listEl, t('Loading…'));
 
     async function loadPage() {
       if (loading) return false;
@@ -18655,17 +18656,17 @@
         const res = await client.listTransactions({ limit: PAGE, offset, unpaid: false });
         const txns = (res && res.transactions) || [];
         if (offset === 0) {
-          if (!txns.length) { listState(listEl, 'No transactions yet.'); hide(more); return; }
+          if (!txns.length) { listState(listEl, t('No transactions yet.')); hide(more); return; }
           listEl.innerHTML = '';
         }
         txns.forEach((tx) => listEl.append(txRow(tx, metaMap)));
         offset += txns.length;
         // A full page back suggests there may be more to fetch.
-        if (txns.length >= PAGE) { show(more); more.textContent = 'Show more'; }
+        if (txns.length >= PAGE) { show(more); more.textContent = t('Show more'); }
         else hide(more);
         return true;
       } catch (e) {
-        if (offset === 0) listState(listEl, 'Could not load transactions.');
+        if (offset === 0) listState(listEl, t('Could not load transactions.'));
         hide(more);
         return false;
       } finally {
@@ -18703,7 +18704,7 @@
           const freshMeta = await getPayMeta();
           fresh.reverse().forEach((tx) => listEl.prepend(txRow(tx, freshMeta)));
           show(more);
-          more.textContent = 'Show more';
+          more.textContent = t('Show more');
         }
       } catch (_) {
         // A failed refresh leaves the list as it was: never cleared, never replaced by an
@@ -18719,7 +18720,7 @@
       return ok;
     }
 
-    more.addEventListener('click', () => { more.textContent = 'Loading…'; loadPage(); });
+    more.addEventListener('click', () => { more.textContent = t('Loading…'); loadPage(); });
     _refreshTxList = refresh;
     loadPage();
   }
@@ -18805,13 +18806,13 @@
     const val = h('span', { className: 'tx-d-val' + (prose ? ' prose' : ''), textContent: String(value) });
     if (copyValue) {
       val.classList.add('copyable');
-      val.title = 'Copy';
+      val.title = t('Copy');
       val.addEventListener('click', async (e) => {
         e.stopPropagation();
         try {
           await copyPlain(String(copyValue));
           const old = val.textContent;
-          val.textContent = 'Copied';
+          val.textContent = t('Copied');
           val.classList.add('copied');
           setTimeout(() => { val.textContent = old; val.classList.remove('copied'); }, 1000);
         } catch (_) {}
@@ -18827,12 +18828,12 @@
   // just "Zap" when the event carried no usable key. Never the raw hex, which is 64
   // characters of noise in a 328px row.
   function zapLabel(incoming, pubkey, rec) {
-    const verb = incoming ? 'Zap from ' : 'Zap to ';
-    if (rec && rec.name) return verb + rec.name;
-    if (!pubkey) return 'Zap';
+    const label = (name) => (incoming ? t('Zap from {{name}}', { name }) : t('Zap to {{name}}', { name }));
+    if (rec && rec.name) return label(rec.name);
+    if (!pubkey) return t('Zap');
     let npub = '';
-    try { npub = NT.nip19.npubEncode(pubkey); } catch (_) { return 'Zap'; }
-    return verb + npub.slice(0, 10) + '…' + npub.slice(-4);
+    try { npub = NT.nip19.npubEncode(pubkey); } catch (_) { return t('Zap'); }
+    return label(npub.slice(0, 10) + '…' + npub.slice(-4));
   }
 
   // Swap the direction arrow for the zapper's face, keeping the arrow as a corner badge.
@@ -18864,7 +18865,8 @@
     // it paid for instead — never the raw node key, which is 64 characters of noise in a
     // 328px row.
     const boostLabel = meta.keysend
-      ? (meta.podcast ? 'Boost to ' + meta.podcast : meta.dest ? 'Keysend to ' + truncMid(meta.dest, 8, 6) : 'Boost')
+      ? (meta.podcast ? t('Boost to {{show}}', { show: meta.podcast })
+        : meta.dest ? t('Keysend to {{node}}', { node: truncMid(meta.dest, 8, 6) }) : t('Boost'))
       : '';
     const counterparty = incoming ? '' : meta.address || boostLabel || '';
 
@@ -18910,7 +18912,7 @@
       if (String(note).trim()) {
         const mark = h('span', { className: 'tx-note', title: note });
         mark.setAttribute('role', 'img');
-        mark.setAttribute('aria-label', 'Note: ' + note);
+        mark.setAttribute('aria-label', t('Note: {{note}}', { note }));
         mark.append(icon('message-filled'));
         labelEl.classList.add('has-note');
         labelEl.append(mark);
@@ -18926,11 +18928,11 @@
           .catch(() => {});
       }
     } else {
-      labelEl.textContent = counterparty || normDesc || (incoming ? 'Received' : 'Sent');
+      labelEl.textContent = counterparty || normDesc || (incoming ? t('Received') : t('Sent'));
     }
     const main = h('div', { className: 'item-main' }, [
       labelEl,
-      h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : 'pending' }),
+      h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : t('pending') }),
     ]);
     const amt = h('div', { className: 'tx-amt ' + (incoming ? 'in' : 'out'), textContent: (incoming ? '+' : '−') + fmtSats(sats) });
     const caret = h('span', { className: 'tx-caret' });
@@ -18947,17 +18949,20 @@
       // From/To row above would otherwise be blank on every one of them.
       const zapWho = isZap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
       const rows = [
-        txDetailRow(incoming ? 'From' : 'To', counterparty || zapWho),
-        txDetailRow('Note', note, null, true),
-        txDetailRow('Amount', satsLabel(sats)),
-        incoming ? null : txDetailRow('Fee', fmtFeeMsat(fee)),
-        txDetailRow('Date', when ? new Date(when * 1000).toLocaleString() : null),
-        txDetailRow('Payment hash', tx.payment_hash ? truncMid(tx.payment_hash, 12, 8) : null, tx.payment_hash),
-        txDetailRow('Preimage', tx.preimage ? truncMid(tx.preimage, 12, 8) : null, tx.preimage),
-        txDetailRow('Invoice', tx.invoice ? truncMid(tx.invoice, 12, 10) : null, tx.invoice),
+        txDetailRow(incoming ? t('From') : t('To'), counterparty || zapWho),
+        txDetailRow(t('Note'), note, null, true),
+        txDetailRow(t('Amount'), satsLabel(sats)),
+        incoming ? null : txDetailRow(t('Fee'), fmtFeeMsat(fee)),
+        txDetailRow(t('Date'), when ? I18N.fmtDate(when * 1000,
+          // Option by option, so English reads as toLocaleString() did (9/28/2026,
+          // 4:42:40 PM); dateStyle: 'short' cuts the year to two digits.
+          { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }) : null),
+        txDetailRow(t('Payment hash'), tx.payment_hash ? truncMid(tx.payment_hash, 12, 8) : null, tx.payment_hash),
+        txDetailRow(t('Preimage'), tx.preimage ? truncMid(tx.preimage, 12, 8) : null, tx.preimage),
+        txDetailRow(t('Invoice'), tx.invoice ? truncMid(tx.invoice, 12, 10) : null, tx.invoice),
       ].filter(Boolean);
       if (!rows.length) {
-        rows.push(h('div', { className: 'tx-d-row' }, [h('span', { className: 'tx-d-label', textContent: 'No extra details.' })]));
+        rows.push(h('div', { className: 'tx-d-row' }, [h('span', { className: 'tx-d-label', textContent: t('No extra details.') })]));
       }
       rows.forEach((r) => details.append(r));
       built = true;
@@ -18977,33 +18982,33 @@
   // Export the raw NWC connection string — PIN-gated step-up, then a copyable
   // reveal that auto-hides (mirrors the nsec reveal).
   function exportNwcModal() {
-    if (!state.activePubkey) { toast('No active account', 'error'); return; }
+    if (!state.activePubkey) { toast(tSec('No active account'), 'error'); return; }
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Reveal' });
+      const go = h('button', { className: 'primary', textContent: tSec('Reveal') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        if (!pin.value) return (err.textContent = tSec('Enter your PIN.'));
         go.disabled = true;
-        go.textContent = 'Revealing…';
+        go.textContent = tSec('Revealing…');
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NWC', pubkey: state.activePubkey, pin: pin.value });
-          if (!r.connection) throw new Error('No wallet connection saved for this account');
+          if (!r.connection) throw new Error(tSec('No wallet connection saved for this account'));
           nwcRevealModal(r.connection);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
-          go.textContent = 'Reveal';
+          go.textContent = tSec('Reveal');
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Export wallet connection' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the NWC connection string for this account.' }),
-        h('label', { textContent: 'PIN' }),
+        h('h3', { textContent: tSec('Export wallet connection') }),
+        h('p', { className: 'hint', textContent: tSec('Enter your PIN to reveal the NWC connection string for this account.') }),
+        h('label', { textContent: tSec('PIN') }),
         pin,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -19017,11 +19022,11 @@
     openModal(
       (modal) => {
         const body = h('div', {});
-        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        const done = h('button', { className: 'primary', textContent: tSec("I've saved it") });
         done.addEventListener('click', closeModal);
         modal.append(
-          h('h3', { textContent: 'Wallet connection string' }),
-          h('p', { className: 'hint', textContent: 'Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.' }),
+          h('h3', { textContent: tSec('Wallet connection string') }),
+          h('p', { className: 'hint', textContent: tSec('Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.') }),
           body,
           h('div', { className: 'actions' }, [done])
         );
@@ -19033,8 +19038,8 @@
           noun: 'connection string',
           qrLevel: 'L',
           qrExclusive: true, // the URI is long — show the string OR the QR, not both
-          qrHint: 'Scan in an NWC-compatible app to connect the same wallet.',
-          warnText: 'This string can spend from your wallet up to its limits. Store it safely and never share it.',
+          qrHint: tSec('Scan in an NWC-compatible app to connect the same wallet.'),
+          warnText: tSec('This string can spend from your wallet up to its limits. Store it safely and never share it.'),
           onExpire: closeModal,
         });
       },
@@ -19054,21 +19059,21 @@
       const body = h('p', { className: 'hint' });
       body.append(
         document.createTextNode(
-          backupState === 'stale'
-            ? 'Your relays hold a different wallet. Backing up replaces it. '
-            : "Sidecar couldn't check what your relays hold. Backing up replaces it. "
+          (backupState === 'stale'
+            ? t('Your relays hold a different wallet. Backing up replaces it.')
+            : t("Sidecar couldn't check what your relays hold. Backing up replaces it.")) + ' '
         ),
-        h('strong', { textContent: 'Restore it first if you still need it.' })
+        h('strong', { textContent: t('Restore it first if you still need it.') })
       );
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       // Action first, Cancel last — matching disconnectModal, the other wallet
       // confirm. 'danger' not 'primary': this discards a stored wallet, so it
       // shouldn't wear the color reserved for the encouraged choice.
-      const go = h('button', { className: 'danger', textContent: 'Replace backup' });
+      const go = h('button', { className: 'danger', textContent: t('Replace backup') });
       go.addEventListener('click', () => { closeModal(); onConfirm(); });
       modal.append(
-        h('h3', { textContent: 'Replace saved backup?' }),
+        h('h3', { textContent: t('Replace saved backup?') }),
         body,
         h('div', { className: 'actions' }, [go, cancel])
       );
@@ -19081,18 +19086,18 @@
       const body = h('p', { className: 'hint' });
       body.append(
         document.createTextNode(
-          backupState === 'stale'
-            ? 'The backup is a different wallet. '
-            : "Sidecar couldn't check what the backup holds. "
+          (backupState === 'stale'
+            ? t('The backup is a different wallet.')
+            : t("Sidecar couldn't check what the backup holds.")) + ' '
         ),
-        h('strong', { textContent: 'The wallet you have connected now will be replaced.' })
+        h('strong', { textContent: t('The wallet you have connected now will be replaced.') })
       );
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
-      const go = h('button', { className: 'danger', textContent: 'Replace it' });
+      const go = h('button', { className: 'danger', textContent: t('Replace it') });
       go.addEventListener('click', () => { closeModal(); onConfirm(); });
       modal.append(
-        h('h3', { textContent: 'Replace connected wallet?' }),
+        h('h3', { textContent: t('Replace connected wallet?') }),
         body,
         h('div', { className: 'actions' }, [go, cancel])
       );
@@ -19103,18 +19108,18 @@
   // fetch + decrypt happens once per wallet render, not once per consumer.
   function renderWalletBackup(statePromise) {
     const wrap = h('div', { className: 'setting wallet-backup' });
-    wrap.append(h('h3', { textContent: 'Backup' }));
-    wrap.append(h('p', { className: 'hint', textContent: 'Encrypt your wallet connection to your own key and store it on your relays (NIP-78). Restore it on another device or after a reset.' }));
+    wrap.append(h('h3', { textContent: t('Backup') }));
+    wrap.append(h('p', { className: 'hint', textContent: t('Encrypt your wallet connection to your own key and store it on your relays (NIP-78). Restore it on another device or after a reset.') }));
 
     let backupState = 'unknown';
-    const status = h('span', { className: 'backup-status', textContent: 'Checking…' });
+    const status = h('span', { className: 'backup-status', textContent: t('Checking…') });
     // Only shown for 'stale', where the pill alone can't say what's wrong.
-    const staleNote = h('p', { className: 'hint backup-stale-note hidden', textContent: 'The backup is a different wallet.' });
-    const back = h('button', { className: 'secondary', textContent: 'Back up' });
-    const restore = h('button', { className: 'secondary', textContent: 'Restore' });
+    const staleNote = h('p', { className: 'hint backup-stale-note hidden', textContent: t('The backup is a different wallet.') });
+    const back = h('button', { className: 'secondary', textContent: t('Back up') });
+    const restore = h('button', { className: 'secondary', textContent: t('Restore') });
     const doBackup = async () => {
       back.disabled = true;
-      back.textContent = 'Backing up…';
+      back.textContent = t('Backing up…');
       try {
         await backupNwcToRelays();
         backupState = 'current';
@@ -19122,12 +19127,12 @@
         status.classList.add('done');
         status.classList.remove('warn');
         staleNote.classList.add('hidden');
-        toast('Wallet backed up', 'success');
+        toast(t('Wallet backed up'), 'success');
       } catch (e) {
         toast(e.message, 'error');
       }
       back.disabled = false;
-      back.textContent = 'Back up';
+      back.textContent = t('Back up');
     };
     back.addEventListener('click', () => {
       // Only when there's something to lose. 'none' has no stored wallet and
@@ -19140,15 +19145,15 @@
     });
     const doRestore = async () => {
       restore.disabled = true;
-      restore.textContent = 'Restoring…';
+      restore.textContent = t('Restoring…');
       try {
         await restoreNwcFromRelays();
-        toast('Wallet restored', 'success');
+        toast(t('Wallet restored'), 'success');
         renderWallet();
       } catch (e) {
         toast(e.message, 'error');
         restore.disabled = false;
-        restore.textContent = 'Restore';
+        restore.textContent = t('Restore');
       }
     };
     restore.addEventListener('click', () => {
@@ -19162,14 +19167,14 @@
       }
       doRestore();
     });
-    const exportBtn = h('button', { className: 'wallet-export-link', textContent: 'Export connection string' });
+    const exportBtn = h('button', { className: 'wallet-export-link', textContent: t('Export connection string') });
     exportBtn.append(icon('key'));
     exportBtn.addEventListener('click', exportNwcModal);
     hide(exportBtn); // shown only when a connection exists for the active account
 
     const card = h('div', { className: 'wallet-backup-card' }, [
       h('div', { className: 'wallet-backup-head' }, [
-        h('span', { className: 'item-label', textContent: 'Wallet connection' }),
+        h('span', { className: 'item-label', textContent: t('Wallet connection') }),
         status,
       ]),
       staleNote,
@@ -19201,11 +19206,11 @@
   // a prompt, up to a daily allowance. Lets the user review and revoke them.
   function renderSitePayments() {
     const wrap = h('div', { className: 'setting wallet-budgets' });
-    wrap.append(h('h3', { textContent: 'Site payments' }));
-    wrap.append(h('p', { className: 'hint', textContent: 'Sites allowed to pay from your wallet without asking, up to a daily budget. Revoke any time.' }));
+    wrap.append(h('h3', { textContent: tSec('Site payments') }));
+    wrap.append(h('p', { className: 'hint', textContent: tSec('Sites allowed to pay from your wallet without asking, up to a daily budget. Revoke any time.') }));
     const list = h('div', { className: 'list flat' });
     wrap.append(list);
-    listState(list, 'Loading…');
+    listState(list, tSec('Loading…'));
     call({ type: 'SIDECAR_GET_BUDGETS' })
       .then((budgets) => {
         const hosts = Object.keys(budgets || {}).sort();
@@ -19213,14 +19218,14 @@
         // say how — otherwise the feature is invisible to anyone who ever unticked it.
         if (!hosts.length) {
           list.classList.add('empty');
-          listState(list, 'No sites have a spending budget. Tick “remember a budget” when you approve a payment.');
+          listState(list, tSec('No sites have a spending budget. Tick “remember a budget” when you approve a payment.'));
           return;
         }
         list.classList.remove('empty');
         list.innerHTML = '';
         hosts.forEach((host) => list.append(budgetRow(host, budgets[host])));
       })
-      .catch(() => listState(list, 'Could not load budgets.'));
+      .catch(() => listState(list, tSec('Could not load budgets.')));
     return wrap;
   }
 
@@ -19233,18 +19238,17 @@
   // figures, stay masked.
   function budgetRow(host, b) {
     const row = h('div', { className: 'item' });
-    const sub = h('div', { className: 'item-sub' }, [
-      h('span', { textContent: fmtSats(b.remainingSats) }),
-      document.createTextNode(' of '),
-      h('span', { textContent: fmtSats(b.budgetSats) }),
-      document.createTextNode(' sats left today'),
-    ]);
+    // One sentence with the two figures as their own spans, placed by fill().
+    const sub = h('div', { className: 'item-sub' }, I18N.fill(tSec('{{left}} of {{budget}} sats left today'), {
+      left: h('span', { textContent: fmtSats(b.remainingSats) }),
+      budget: h('span', { textContent: fmtSats(b.budgetSats) }),
+    }));
     const main = h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: host }),
       sub,
     ]);
-    const edit = iconButton('Edit budget', 'edit', () => editBudgetModal(host, b));
-    const rm = iconButton('Revoke budget', 'trash', async () => {
+    const edit = iconButton(tSec('Edit budget'), 'edit', () => editBudgetModal(host, b));
+    const rm = iconButton(tSec('Revoke budget'), 'trash', async () => {
       await call({ type: 'SIDECAR_REVOKE_BUDGET', host });
       renderWallet();
     });
@@ -19256,34 +19260,34 @@
     openModal((modal) => {
       const err = h('div', { className: 'error' });
       const input = h('input', { type: 'text', inputMode: 'numeric', value: String(b.budgetSats || 0) });
-      const save = h('button', { className: 'primary', textContent: 'Save budget' });
+      const save = h('button', { className: 'primary', textContent: tSec('Save budget') });
       save.addEventListener('click', async () => {
         err.textContent = '';
         const budgetSats = parseInt(input.value, 10);
         if (!budgetSats || budgetSats < 1) {
-          err.textContent = 'Enter a daily budget in sats.';
+          err.textContent = tSec('Enter a daily budget in sats.');
           return;
         }
         try {
           await call({ type: 'SIDECAR_SET_BUDGET', host, budgetSats, perPaymentSats: b.perPaymentSats || 0 });
           closeModal();
           renderWallet();
-          toast('Budget updated', 'success');
+          toast(tSec('Budget updated'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Edit budget' }),
+        h('h3', { textContent: tSec('Edit budget') }),
         h('p', {
           className: 'hint',
           textContent:
-            'Daily amount ' + host + ' can spend without a prompt. Saving resets the remaining amount for today.',
+            tSec('Daily amount {{host}} can spend without a prompt. Saving resets the remaining amount for today.', { host }),
         }),
-        h('label', { textContent: 'Daily budget (sats)' }),
+        h('label', { textContent: tSec('Daily budget (sats)') }),
         input,
         err,
         h('div', { className: 'actions' }, [save, cancel])
@@ -19328,14 +19332,14 @@
 
   function sendModal() {
     openModal((modal) => {
-      const input = h('textarea', { className: 'compose-text', placeholder: 'Lightning invoice (lnbc…) or lightning address' });
-      const amountLabel = h('label', { className: 'hidden', textContent: 'Amount (sats)' });
-      const amount = satsInput('Amount in sats');
+      const input = h('textarea', { className: 'compose-text', placeholder: tSec('Lightning invoice (lnbc…) or lightning address') });
+      const amountLabel = h('label', { className: 'hidden', textContent: tSec('Amount (sats)') });
+      const amount = satsInput(tSec('Amount in sats'));
       amount.classList.add('hidden');
-      const comment = h('input', { className: 'send-comment', type: 'text', maxLength: 280, placeholder: 'Comment (optional)' });
+      const comment = h('input', { className: 'send-comment', type: 'text', maxLength: 280, placeholder: tSec('Comment (optional)') });
       const err = h('div', { className: 'error' });
-      const pay = h('button', { className: 'primary', textContent: 'Pay' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const pay = h('button', { className: 'primary', textContent: tSec('Pay') });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       // The amount on the Pay button, as soon as there is one to show: the invoice's own,
@@ -19352,8 +19356,8 @@
       }
       const payGate = largeSendGate(pay, {
         sats: paySatsNow,
-        label: (n) => (n ? 'Pay ' + fmtSats(n) + (n === 1 ? ' sat' : ' sats') : 'Pay'),
-        confirmLabel: 'Confirm amount above',
+        label: (n) => (n ? tn('Pay {{count}} sat', 'Pay {{count}} sats', n) : tSec('Pay')),
+        confirmLabel: tSec('Confirm amount above'),
       });
       const refreshPay = payGate.paint;
       amount.addEventListener('input', refreshPay);
@@ -19369,7 +19373,7 @@
       // own NWC client and pressing Pay IS the authorization. So the moment it closes is
       // the moment the money is genuinely moving, and nothing here has to hedge.
       function beginFlight(sats) {
-        return toast(sats != null ? 'Sending ' + fmtSats(sats) + ' sats' : 'Sending payment', 'progress');
+        return toast(sats != null ? tSec('Sending {{amount}} sats', { amount: fmtSats(sats) }) : tSec('Sending payment'), 'progress');
       }
 
       // The recipient card: who the address resolved to, and on what terms.
@@ -19401,8 +19405,8 @@
         // textContent throughout — every string here came from the recipient's server.
         who.append(h('span', { className: 'ln-recipient-name', textContent: p.identifier || p.addr }));
         const limits = p.minSats === p.maxSats
-          ? fmtSats(p.minSats) + ' sats only'
-          : fmtSats(p.minSats) + ' to ' + fmtSats(p.maxSats) + ' sats';
+          ? tSec('{{amount}} sats only', { amount: fmtSats(p.minSats) })
+          : tSec('{{min}} to {{max}} sats', { min: fmtSats(p.minSats), max: fmtSats(p.maxSats) });
         who.append(h('span', { className: 'ln-recipient-limits', textContent: limits }));
         head.append(who);
         card.append(head);
@@ -19412,9 +19416,9 @@
         const tags = h('div', { className: 'ln-recipient-tags' });
         tags.append(h('span', {
           className: 'ln-recipient-tag',
-          textContent: p.commentAllowed ? 'Comments up to ' + p.commentAllowed : 'No comments',
+          textContent: p.commentAllowed ? tSec('Comments up to {{count}}', { count: I18N.fmtNum(p.commentAllowed) }) : tSec('No comments'),
         }));
-        if (p.zappable) tags.append(h('span', { className: 'ln-recipient-tag', textContent: 'Zappable' }));
+        if (p.zappable) tags.append(h('span', { className: 'ln-recipient-tag', textContent: tSec('Zappable') }));
         card.append(tags);
 
         // Match the comment field to what this recipient will actually accept,
@@ -19427,7 +19431,7 @@
         } else {
           comment.disabled = true;
           comment.value = '';
-          comment.placeholder = 'This wallet does not accept comments';
+          comment.placeholder = tSec('This wallet does not accept comments');
         }
       }
 
@@ -19438,24 +19442,26 @@
         card.classList.remove('hidden', 'checking', 'failed');
         if (inv && paid) {
           card.classList.add('failed');
-          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: 'This invoice has already been paid' }));
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: tSec('This invoice has already been paid') }));
           card.append(h('span', {
             className: 'ln-recipient-status',
-            textContent: paid.ts ? 'Sidecar paid it ' + new Date(paid.ts).toLocaleString() + '.' : 'Sidecar paid it earlier.',
+            textContent: paid.ts
+              ? tSec('Sidecar paid it {{when}}.', { when: I18N.fmtDate(paid.ts, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }) })
+              : tSec('Sidecar paid it earlier.'),
           }));
           return;
         }
         if (!inv) {
           card.classList.add('failed');
-          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: "That invoice doesn't read correctly" }));
-          card.append(h('span', { className: 'ln-recipient-status', textContent: 'Check it was copied whole, or ask for a new one.' }));
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: tSec("That invoice doesn't read correctly") }));
+          card.append(h('span', { className: 'ln-recipient-status', textContent: tSec('Check it was copied whole, or ask for a new one.') }));
           return;
         }
         const left = inv.expiresAt - Math.floor(Date.now() / 1000);
         if (left <= 0) {
           card.classList.add('failed');
-          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: 'This invoice has expired' }));
-          card.append(h('span', { className: 'ln-recipient-status', textContent: 'Ask the recipient for a new one.' }));
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: tSec('This invoice has expired') }));
+          card.append(h('span', { className: 'ln-recipient-status', textContent: tSec('Ask the recipient for a new one.') }));
           return;
         }
         const who = h('div', { className: 'ln-recipient-who' });
@@ -19463,9 +19469,9 @@
         // name line; the amountless prompt is an instruction, not a figure, and is not.
         who.append(h('span', {
           className: 'ln-recipient-name' + (inv.sats != null ? ' ln-invoice-amount' : ''),
-          textContent: inv.sats != null ? fmtSats(inv.sats) + (inv.sats === 1 ? ' sat' : ' sats') : 'No amount set, enter one below',
+          textContent: inv.sats != null ? tn('{{count}} sat', '{{count}} sats', inv.sats) : tSec('No amount set, enter one below'),
         }));
-        who.append(h('span', { className: 'ln-recipient-limits', textContent: 'Expires in ' + fmtExpiresIn(left) }));
+        who.append(h('span', { className: 'ln-recipient-limits', textContent: tSec('Expires in {{time}}', { time: fmtExpiresIn(left) }) }));
         card.append(h('div', { className: 'ln-recipient-head' }, [who]));
         // textContent: the description is the payee's own text.
         if (inv.description) card.append(h('p', { className: 'ln-recipient-desc', textContent: inv.description }));
@@ -19476,7 +19482,7 @@
         card.textContent = '';
         card.classList.remove('hidden', 'failed');
         card.classList.add('checking');
-        card.append(h('span', { className: 'ln-recipient-status', textContent: 'Checking ' + addr + '…' }));
+        card.append(h('span', { className: 'ln-recipient-status', textContent: tSec('Checking {{address}}…', { address: addr }) }));
         try {
           const p = await lnAddressParams(addr);
           if (seq !== resolveSeq) return; // a newer address is being checked
@@ -19496,11 +19502,11 @@
           const speakable = raw && raw.length <= 90 && !/[{}<>]|JSON|token|undefined|TypeError/i.test(raw);
           card.append(h('span', {
             className: 'ln-recipient-fail-title',
-            textContent: speakable ? raw : "Couldn't check that address",
+            textContent: speakable ? raw : tSec("Couldn't check that address"),
           }));
           card.append(h('span', {
             className: 'ln-recipient-status',
-            textContent: 'Check the spelling, or paste an invoice instead.',
+            textContent: tSec('Check the spelling, or paste an invoice instead.'),
           }));
         }
       }
@@ -19528,7 +19534,7 @@
           // It is kept beside this payment in your own history, and says so.
           comment.disabled = false;
           comment.maxLength = 280;
-          comment.placeholder = 'Note (on this device)';
+          comment.placeholder = tSec('Note (on this device)');
           // An amountless invoice leaves the amount to the payer, so it gets the field.
           const needsAmount = !!inv && inv.sats == null;
           amount.classList.toggle('hidden', !needsAmount);
@@ -19560,7 +19566,7 @@
 
       pay.addEventListener('click', async () => {
         const val = input.value.replace(/^lightning:/i, '').trim();
-        if (!val) return (err.textContent = 'Paste an invoice or lightning address.');
+        if (!val) return (err.textContent = tSec('Paste an invoice or lightning address.'));
         err.textContent = '';
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
@@ -19573,12 +19579,12 @@
             // The same checks the card shows, made again at the moment of paying: the
             // invoice may have expired while the sheet sat open.
             const inv = decodeBolt11(val);
-            if (!inv) return (err.textContent = "That invoice doesn't read correctly. Check it was copied whole.");
-            if (inv.expiresAt <= Math.floor(Date.now() / 1000)) return (err.textContent = 'This invoice has expired. Ask for a new one.');
-            if (await paidHere(val).catch(() => null)) return (err.textContent = 'This invoice has already been paid.');
+            if (!inv) return (err.textContent = tSec("That invoice doesn't read correctly. Check it was copied whole."));
+            if (inv.expiresAt <= Math.floor(Date.now() / 1000)) return (err.textContent = tSec('This invoice has expired. Ask for a new one.'));
+            if (await paidHere(val).catch(() => null)) return (err.textContent = tSec('This invoice has already been paid.'));
             if (inv.sats == null) {
               const sats = parseInt(amount.value, 10);
-              if (!sats || sats < 1) return (err.textContent = 'This invoice has no amount. Enter one in sats.');
+              if (!sats || sats < 1) return (err.textContent = tSec('This invoice has no amount. Enter one in sats.'));
               amountMsat = sats * 1000;
               paySats = sats;
             } else {
@@ -19591,23 +19597,23 @@
             // Checked above.
           } else if (isLnAddress(val)) {
             const sats = parseInt(amount.value, 10);
-            if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+            if (!sats || sats < 1) return (err.textContent = tSec('Enter an amount in sats.'));
             // Check against the limits we already fetched, so an out-of-range
             // amount is caught here rather than after a round trip. The server
             // still enforces its own at invoice time — this only saves the trip.
             if (resolved && resolved.addr === val && (sats < resolved.minSats || sats > resolved.maxSats)) {
               return (err.textContent = resolved.minSats === resolved.maxSats
-                ? 'This address only accepts ' + fmtSats(resolved.minSats) + ' sats.'
-                : 'Amount must be between ' + fmtSats(resolved.minSats) + ' and ' + fmtSats(resolved.maxSats) + ' sats.');
+                ? tSec('This address only accepts {{amount}} sats.', { amount: fmtSats(resolved.minSats) })
+                : tSec('Amount must be between {{min}} and {{max}} sats.', { min: fmtSats(resolved.minSats), max: fmtSats(resolved.maxSats) }));
             }
             if (!payGate.pass(sats)) return;
             address = val;
             paySats = sats;
             pay.disabled = true;
-            pay.textContent = 'Paying…';
+            pay.textContent = tSec('Paying…');
             invoice = await lnAddressToInvoice(val, sats * 1000, note || 'Sidecar payment');
           } else {
-            return (err.textContent = 'Enter a BOLT11 invoice (lnbc…) or a lightning address.');
+            return (err.textContent = tSec('Enter a BOLT11 invoice (lnbc…) or a lightning address.'));
           }
           // Everything that could still fail back INTO this form has happened: a bad
           // address, an out-of-range amount, a server that would not issue an invoice.
@@ -19629,8 +19635,8 @@
           // the field above. An amountless invoice leaves us nothing honest to state,
           // so it falls back to the bare confirmation rather than guessing.
           toast(
-            (paySats != null ? 'Sent ' + fmtSats(paySats) + ' sats' : 'Payment sent') +
-              (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''),
+            (paySats != null ? tSec('Sent {{amount}} sats', { amount: fmtSats(paySats) }) : tSec('Payment sent')) +
+              (feeMsat != null ? ' · ' + tSec('fee {{fee}}', { fee: fmtFeeMsat(feeMsat) }) : ''),
             'success'
           );
           renderWallet();
@@ -19648,7 +19654,7 @@
         }
       });
       modal.append(
-        h('h3', { textContent: 'Send' }),
+        h('h3', { textContent: tSec('Send') }),
         input,
         card,
         amountLabel,
@@ -19667,14 +19673,14 @@
     const stopPoll = () => { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } };
 
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: tSec('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
-      modal.append(xClose, h('h3', { textContent: 'Receive' }));
+      modal.append(xClose, h('h3', { textContent: tSec('Receive') }));
 
       // Tabs: Invoice (always) + Lightning address (added if the profile has lud16).
       const tabs = h('div', { className: 'compose-tabs' });
-      const tabInvoice = h('button', { className: 'compose-tab active', textContent: 'Invoice' });
+      const tabInvoice = h('button', { className: 'compose-tab active', textContent: tSec('Invoice') });
       tabs.append(tabInvoice);
       modal.append(tabs);
       const body = h('div');
@@ -19684,7 +19690,7 @@
         stopPoll();
         body.innerHTML = '';
         const presets = h('div', { className: 'amount-presets' });
-        const amount = satsInput('Amount in sats');
+        const amount = satsInput(tSec('Amount in sats'));
         const chipLabel = (n) => (n >= 1000 ? n / 1000 + 'K' : String(n));
         RECEIVE_PRESETS.forEach((p) => {
           const b = h('button', { className: 'preset-chip', textContent: chipLabel(p) });
@@ -19695,20 +19701,20 @@
           });
           presets.append(b);
         });
-        const memo = h('input', { type: 'text', placeholder: 'Note (optional)' });
+        const memo = h('input', { type: 'text', placeholder: tSec('Note (optional)') });
         const err = h('div', { className: 'error' });
-        const create = h('button', { className: 'primary', textContent: 'Create invoice' });
+        const create = h('button', { className: 'primary', textContent: tSec('Create invoice') });
         create.addEventListener('click', async () => {
           const sats = parseInt(amount.value, 10);
-          if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+          if (!sats || sats < 1) return (err.textContent = tSec('Enter an amount in sats.'));
           err.textContent = '';
           create.disabled = true;
-          create.textContent = 'Creating…';
+          create.textContent = tSec('Creating…');
           try {
             const client = await ensureNwc();
             const res = await client.makeInvoice(sats * 1000, memo.value.trim());
             const invoice = res && (res.invoice || res.payment_request || res.bolt11);
-            if (!invoice) throw new Error('Wallet returned no invoice');
+            if (!invoice) throw new Error(tSec('Wallet returned no invoice'));
             // Swap the whole form for the invoice + QR; the corner ✕ cancels.
             showInvoice(body, invoice);
             // Poll for settlement so we can show a success state — with a backoff
@@ -19738,14 +19744,14 @@
           } catch (e) {
             err.textContent = e.message;
             create.disabled = false;
-            create.textContent = 'Create invoice';
+            create.textContent = tSec('Create invoice');
           }
         });
         body.append(
-          h('label', { textContent: 'Amount (sats)' }),
+          h('label', { textContent: tSec('Amount (sats)') }),
           presets,
           amount,
-          h('label', { textContent: 'Note' }),
+          h('label', { textContent: tSec('Note') }),
           memo,
           err,
           h('div', { className: 'actions' }, [create])
@@ -19760,17 +19766,17 @@
         canvas.className = 'recv-qr';
         try { window.SidecarQR.draw(canvas, 'lightning:' + lud16, 220, 'M'); } catch (_) {}
         // Truncate to one line if it overflows — the full address is still copied.
-        const copy = h('button', { className: 'secondary recv-addr', title: 'Copy address' });
+        const copy = h('button', { className: 'secondary recv-addr', title: tSec('Copy address') });
         const addrText = h('span', { textContent: lud16 });
         copy.append(addrText);
         copy.addEventListener('click', async () => {
           try {
             await copyPlain(lud16);
-            addrText.textContent = 'Copied ✓';
+            addrText.textContent = tSec('Copied ✓');
             setTimeout(() => (addrText.textContent = lud16), 1200);
           } catch (_) {}
         });
-        out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Your reusable lightning address — anyone can pay it any amount.' }));
+        out.append(canvas, copy, h('p', { className: 'hint', textContent: tSec('Your reusable lightning address — anyone can pay it any amount.') }));
         body.append(out);
       }
 
@@ -19785,7 +19791,7 @@
       // Address tab so the user can toggle between an invoice and their address.
       getLightningAddress().then((lud16) => {
         if (!lud16) return;
-        const tabAddress = h('button', { className: 'compose-tab', textContent: 'Address' });
+        const tabAddress = h('button', { className: 'compose-tab', textContent: tSec('Address') });
         tabAddress.addEventListener('click', () => {
           tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
           tabAddress.classList.add('active');
@@ -19803,10 +19809,10 @@
     badge.append(icon('check'));
     wrap.append(
       badge,
-      h('div', { className: 'recv-success-title', textContent: 'Payment received' }),
-      h('div', { className: 'recv-success-amt', textContent: '+' + fmtSats(sats) + ' sats' })
+      h('div', { className: 'recv-success-title', textContent: tSec('Payment received') }),
+      h('div', { className: 'recv-success-amt', textContent: '+' + tn('{{count}} sat', '{{count}} sats', sats) })
     );
-    const done = h('button', { className: 'primary', textContent: 'Done' });
+    const done = h('button', { className: 'primary', textContent: tSec('Done') });
     done.addEventListener('click', closeModal);
     container.append(wrap, h('div', { className: 'actions' }, [done]));
   }
@@ -19821,35 +19827,35 @@
     } catch (_) {}
     // Show a short middle-ellipsis of the invoice; the full string is on Copy.
     const short = invoice.length > 36 ? invoice.slice(0, 22) + '…' + invoice.slice(-10) : invoice;
-    const copy = h('button', { className: 'secondary recv-copy', textContent: 'Copy invoice' });
+    const copy = h('button', { className: 'secondary recv-copy', textContent: tSec('Copy invoice') });
     copy.addEventListener('click', async () => {
       try {
         await copyPlain(invoice);
-        copy.textContent = 'Copied ✓';
-        setTimeout(() => (copy.textContent = 'Copy invoice'), 1200);
+        copy.textContent = tSec('Copied ✓');
+        setTimeout(() => (copy.textContent = tSec('Copy invoice')), 1200);
       } catch (_) {}
     });
-    const waiting = waitingRow('Waiting for payment…');
+    const waiting = waitingRow(tSec('Waiting for payment…'));
     out.append(canvas, h('div', { className: 'recv-bolt', textContent: short }), copy, waiting);
     container.append(out);
   }
 
   function disconnectModal() {
     openModal((modal) => {
-      const go = h('button', { className: 'danger', textContent: 'Disconnect' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const go = h('button', { className: 'danger', textContent: tSec('Disconnect') });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_NWC' });
         stopWalletMonitor();
         if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
         closeModal();
-        toast('Wallet disconnected', 'success');
+        toast(tSec('Wallet disconnected'), 'success');
         renderWallet();
       });
       modal.append(
-        h('h3', { textContent: 'Disconnect wallet?' }),
-        h('p', { className: 'hint', textContent: "Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected." }),
+        h('h3', { textContent: tSec('Disconnect wallet?') }),
+        h('p', { className: 'hint', textContent: tSec("Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected.") }),
         h('div', { className: 'actions' }, [go, cancel])
       );
     });
@@ -19898,7 +19904,7 @@
   // rejected, after the amount was already typed.
   async function lnAddressParams(addr) {
     const [name, domain] = String(addr || '').split('@');
-    if (!name || !domain) throw new Error('That does not look like a lightning address');
+    if (!name || !domain) throw new Error(t('That does not look like a lightning address'));
 
     // Each failure gets its own sentence, because they mean different things to
     // whoever is standing there with an address they expected to work: the
@@ -19910,7 +19916,7 @@
     try {
       res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name);
     } catch (_) {
-      throw new Error("Couldn't reach " + domain);
+      throw new Error(t("Couldn't reach {{domain}}", { domain }));
     }
     if (!res.ok) throw new Error(domain + ' has no lightning address for ' + name);
     let meta;
@@ -19959,10 +19965,10 @@
   async function zapInvoice({ addr, msats, comment, recipientPubkey, event }) {
     const { meta } = await lnAddressParams(addr);
     if (!(meta.allowsNostr && meta.nostrPubkey)) {
-      throw new Error('That lightning address cannot receive zaps, only payments.');
+      throw new Error(t('That lightning address cannot receive zaps, only payments.'));
     }
     if (msats < meta.minSendable || msats > meta.maxSendable) {
-      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+      throw new Error(tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(Math.ceil(meta.minSendable / 1000)), max: fmtSats(Math.floor(meta.maxSendable / 1000)) }));
     }
 
     // The relays the recipient's provider should publish the receipt to. Theirs, not
@@ -19989,12 +19995,12 @@
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
 
     const cb = new URL(meta.callback);
-    if (cb.protocol !== 'https:') throw new Error('That lightning address uses an insecure callback');
+    if (cb.protocol !== 'https:') throw new Error(t('That lightning address uses an insecure callback'));
     cb.searchParams.set('amount', String(msats));
     cb.searchParams.set('nostr', JSON.stringify(signed));
     const res = await fetch(cb.toString());
     const body = await res.json();
-    if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : 'The lightning address did not return an invoice');
+    if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : t('The lightning address did not return an invoice'));
     return body.pr;
   }
 
@@ -20005,18 +20011,18 @@
     // enforced. The server's answer at payment time is the only one that counts.
     const { meta } = await lnAddressParams(addr);
     if (msats < meta.minSendable || msats > meta.maxSendable) {
-      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+      throw new Error(tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(Math.ceil(meta.minSendable / 1000)), max: fmtSats(Math.floor(meta.maxSendable / 1000)) }));
     }
     const cb = new URL(meta.callback);
     // The callback URL is chosen by whoever runs the lightning-address domain —
     // an http:// one sends the payment request (and its amount/comment) in
     // cleartext and is trivially swapped by a MITM. LNURL-pay callbacks are
     // https in practice, so refuse anything else.
-    if (cb.protocol !== 'https:') throw new Error('Lightning address returned an insecure callback URL');
+    if (cb.protocol !== 'https:') throw new Error(t('Lightning address returned an insecure callback URL'));
     cb.searchParams.set('amount', String(msats));
     if (comment && meta.commentAllowed > 0) cb.searchParams.set('comment', comment.slice(0, meta.commentAllowed));
     const res = await (await fetch(cb.toString())).json();
-    if (!res.pr) throw new Error(res.reason || 'No invoice returned');
+    if (!res.pr) throw new Error(res.reason || t('No invoice returned'));
     return res.pr;
   }
 
