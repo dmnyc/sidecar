@@ -2270,10 +2270,19 @@
       const offerPresets = zapPresetRow(offerAmount);
       const offerPay = h('button', { className: 'primary', textContent: 'Pay' });
       let offerData = null;
+      const offerGate = largeSendGate(offerPay, {
+        sats: () => (!offerData ? 0
+          : window.SidecarCLINK.amountRequired(offerData) ? parseInt(offerAmount.value, 10) || 0
+            : offerData.price || 0),
+        label: () => 'Pay',
+        confirmLabel: 'Confirm',
+      });
+      offerAmount.addEventListener('input', offerGate.paint);
       let offerHandoff = null; // the QR and copy block, built the first time it is wanted
 
       async function openOfferPanel(offer) {
         offerData = offer;
+        offerGate.paint(); // a fixed-price offer may be large before anything is typed
         // NO WALLET IS NOT NO WAY TO PAY, which is the whole lesson of the zap branch
         // beside it: picking an amount and pressing Pay only to be told at the end that
         // there is no wallet is the dead end that block exists to remove.
@@ -2334,8 +2343,8 @@
           return (offerErr.textContent = 'Enter an amount in sats.');
         }
         offerErr.textContent = '';
+        if (!offerGate.pass(needsAmount ? sats : offerData.price || 0)) return;
         offerPay.disabled = true;
-        const label = offerPay.textContent;
         let flight = null;
         try {
           // The wallet first, because there is no point asking a stranger's service for
@@ -2360,7 +2369,7 @@
           offerErr.textContent = e.message || 'Could not pay that offer.';
         }
         offerPay.disabled = false;
-        offerPay.textContent = label;
+        offerGate.paint();
       });
 
       // The same way out, for the same reason.
@@ -2397,12 +2406,14 @@
       const presets = zapPresetRow(amount);
       const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
       const send = h('button', { className: 'primary', textContent: 'Send zap' });
+      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => 'Send zap', confirmLabel: 'Confirm' });
+      amount.addEventListener('input', zapGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
         if (!sats || sats < 1) return (zapErr.textContent = 'Enter an amount in sats.');
         zapErr.textContent = '';
+        if (!zapGate.pass(sats)) return;
         send.disabled = true;
-        const label = send.textContent;
         send.textContent = 'Sending…';
         // The panel path people actually reach. This sheet is dismissible mid-zap, so a
         // disabled button inside it was never an in-flight indicator: close the sheet and
@@ -2452,7 +2463,7 @@
           zapErr.textContent = e.message;
         } finally {
           send.disabled = false;
-          send.textContent = label;
+          zapGate.paint();
         }
       });
       zapBtn.addEventListener('click', () => {
@@ -5001,6 +5012,9 @@
         if (stop) stop(e);
         amountEl.value = String(n);
         amountEl.focus();
+        // The same event typing sends, so anything reading the field (the large-send
+        // gate on the button beside it) sees a picked amount the way it sees a typed one.
+        amountEl.dispatchEvent(new Event('input'));
         // Setting .value fires no input event, so anything watching the field has to be
         // told. A listener on the row itself would not survive the row being rebuilt.
         if (onPick) onPick(n);
@@ -6878,6 +6892,8 @@
       const presets = zapPresetRow(amount, stop);
       const comment = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
       const send = h('button', { className: 'primary', type: 'button', textContent: 'Send zap' });
+      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => 'Send zap', confirmLabel: 'Confirm' });
+      amount.addEventListener('input', zapGate.paint);
       const status = h('div', { className: 'hint', textContent: 'Checking their lightning address…' });
       // Under the field it reads, so the offer to keep an amount sits with the amount.
       zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
@@ -6912,8 +6928,8 @@
         const sats = parseInt(amount.value, 10);
         if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
         err.textContent = '';
+        if (!zapGate.pass(sats)) return;
         send.disabled = true;
-        const label = send.textContent;
         send.textContent = 'Sending…';
         try {
           const client = await ensureNwc();
@@ -6944,7 +6960,7 @@
           err.textContent = e2.message;
         } finally {
           send.disabled = false;
-          send.textContent = label;
+          zapGate.paint();
         }
       });
     }
@@ -17697,6 +17713,92 @@
     return sats > 0 ? sats : null;
   }
 
+  // A BOLT11 read far enough to confirm a payment before it is made: the amount, the
+  // payee's description, and when it expires. Send used to pay a pasted invoice without
+  // showing any of it; the amount first appeared in the toast, after the money had left.
+  //
+  // The bech32 checksum is verified, so a truncated or mistyped paste reads as "not an
+  // invoice" rather than as an invoice with the wrong details. The signature is not: the
+  // wallet checks it, and nothing it says is something the payer could act on here.
+  // Returns null for anything that is not a well-formed invoice.
+  //
+  // { sats (null when amountless), timestamp, expiry, expiresAt (unix seconds),
+  //   description (null when absent), descriptionHash (true when only a hash is given) }
+  const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  function decodeBolt11(raw) {
+    const inv = String(raw || '').replace(/^lightning:/i, '').trim().toLowerCase();
+    const sep = inv.lastIndexOf('1');
+    if (!/^ln(bc|tb|bcrt)/.test(inv) || sep < 4 || inv.length - sep < 8) return null;
+    const hrp = inv.slice(0, sep);
+    const words = [];
+    for (const c of inv.slice(sep + 1)) {
+      const v = BECH32_CHARSET.indexOf(c);
+      if (v === -1) return null;
+      words.push(v);
+    }
+    // BIP-173's checksum: the polymod over the expanded prefix and the data must be 1.
+    const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+    let chk = 1;
+    const step = (v) => {
+      const top = chk >>> 25;
+      chk = ((chk & 0x1ffffff) << 5) ^ v;
+      for (let i = 0; i < 5; i++) if ((top >>> i) & 1) chk ^= GEN[i];
+    };
+    for (const c of hrp) step(c.charCodeAt(0) >>> 5);
+    step(0);
+    for (const c of hrp) step(c.charCodeAt(0) & 31);
+    for (const w of words) step(w);
+    if (chk !== 1) return null;
+
+    // After the checksum: a 35-bit timestamp (7 words), tagged fields, and a 520-bit
+    // signature (104 words) at the end.
+    const data = words.slice(0, -6);
+    if (data.length < 7 + 104) return null;
+    const num = (ws) => ws.reduce((n, w) => n * 32 + w, 0);
+    const timestamp = num(data.slice(0, 7));
+    const fields = data.slice(7, data.length - 104);
+    let description = null;
+    let expiry = 3600; // BOLT11's default when the invoice carries no x field
+    let descriptionHash = false;
+    for (let i = 0; i < fields.length;) {
+      if (i + 3 > fields.length) return null;
+      const type = fields[i];
+      const len = fields[i + 1] * 32 + fields[i + 2];
+      const val = fields.slice(i + 3, i + 3 + len);
+      if (val.length < len) return null;
+      if (type === 13) description = bech32WordsToText(val);      // d
+      else if (type === 6) expiry = num(val);                     // x
+      else if (type === 23) descriptionHash = true;               // h
+      i += 3 + len;
+    }
+    return { sats: bolt11Sats(inv), timestamp, expiry, expiresAt: timestamp + expiry, description, descriptionHash };
+  }
+
+  // 5-bit words to UTF-8 text, dropping the padding bits at the end.
+  function bech32WordsToText(ws) {
+    const out = [];
+    let acc = 0;
+    let bits = 0;
+    for (const w of ws) {
+      acc = (acc << 5) | w;
+      bits += 5;
+      while (bits >= 8) {
+        bits -= 8;
+        out.push((acc >> bits) & 255);
+      }
+      acc &= (1 << bits) - 1;
+    }
+    return new TextDecoder('utf-8').decode(new Uint8Array(out));
+  }
+
+  // "Expires in …" for the invoice card: coarse on purpose, since it is read once.
+  function fmtExpiresIn(seconds) {
+    if (seconds < 60) return 'under a minute';
+    if (seconds < 3600) return Math.round(seconds / 60) + ' min';
+    if (seconds < 48 * 3600) return Math.round(seconds / 3600) + ' h';
+    return Math.round(seconds / 86400) + ' days';
+  }
+
   // ---- Live balance updates (NIP-47 notifications + fallback polling) ----
 
   // Fetch the current balance, update the cache, and refresh visible displays.
@@ -18443,6 +18545,17 @@
       .then((m) => m || {})
       .catch(() => ({}));
   }
+  // Did this Sidecar pay that invoice? The pay meta store is keyed by invoice and Send
+  // records every payment it makes, so an entry means paid. Only this Sidecar's payments:
+  // one paid from another app is still refused by the wallet, in its own words.
+  async function paidHere(invoice) {
+    const want = String(invoice || '').replace(/^lightning:/i, '').trim().toLowerCase();
+    if (!want) return null;
+    const all = await getPayMeta();
+    const key = Object.keys(all).find((k) => k.toLowerCase() === want);
+    return key ? all[key] : null;
+  }
+
   async function savePayMeta(invoice, meta) {
     if (!invoice) return;
     try {
@@ -19126,6 +19239,40 @@
     });
   }
 
+  // A LARGE PAYMENT TAKES A SECOND PRESS. Every send the panel makes itself is
+  // authorized by the one press that starts it, which is right for 21 sats and too
+  // little for a mistyped extra zero. At LARGE_SEND_SATS or more the button itself asks
+  // first: it reads "Confirm" in the secondary style, and once pressed becomes the
+  // payment in the primary one, so the press that sends is always the one that says so.
+  //
+  // The gate owns the button's label and style. Callers repaint it when the amount
+  // changes, ask pass(sats) before paying, and repaint instead of restoring a label of
+  // their own after a failure. A confirmation holds for one amount and a short while:
+  // changing the amount, or leaving it, asks again.
+  const LARGE_SEND_SATS = 10000;
+  const LARGE_SEND_WINDOW_MS = 15000;
+  function largeSendGate(button, { sats, label, confirmLabel }) {
+    let armed = null; // { sats, timer }
+    const disarm = () => { if (armed) { clearTimeout(armed.timer); armed = null; } };
+    function paint() {
+      if (button.disabled) return; // mid-payment: the handler's own "Sending…" stands
+      const n = sats();
+      const ask = n >= LARGE_SEND_SATS && !(armed && armed.sats === n);
+      button.textContent = ask ? confirmLabel : label(n);
+      button.classList.toggle('primary', !ask);
+      button.classList.toggle('secondary', ask);
+    }
+    // True when this press should pay.
+    function pass(n) {
+      const ok = !(n >= LARGE_SEND_SATS) || !!(armed && armed.sats === n);
+      disarm();
+      if (!ok) armed = { sats: n, timer: setTimeout(() => { armed = null; paint(); }, LARGE_SEND_WINDOW_MS) };
+      paint();
+      return ok;
+    }
+    return { paint, pass };
+  }
+
   function sendModal() {
     openModal((modal) => {
       const input = h('textarea', { className: 'compose-text', placeholder: 'Lightning invoice (lnbc…) or lightning address' });
@@ -19137,6 +19284,26 @@
       const pay = h('button', { className: 'primary', textContent: 'Pay' });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
+
+      // The amount on the Pay button, as soon as there is one to show: the invoice's own,
+      // or what was typed for an address or an amountless invoice. What the press will
+      // send is then on the thing being pressed.
+      function paySatsNow() {
+        const v = input.value.replace(/^lightning:/i, '').trim();
+        if (isLnInvoice(v)) {
+          const inv = decodeBolt11(v);
+          if (!inv || inv.expiresAt <= Math.floor(Date.now() / 1000) || paidInvoice === v) return 0;
+          return inv.sats != null ? inv.sats : parseInt(amount.value, 10) || 0;
+        }
+        return isLnAddress(v) ? parseInt(amount.value, 10) || 0 : 0;
+      }
+      const payGate = largeSendGate(pay, {
+        sats: paySatsNow,
+        label: (n) => (n ? 'Pay ' + fmtSats(n) + (n === 1 ? ' sat' : ' sats') : 'Pay'),
+        confirmLabel: 'Confirm amount above',
+      });
+      const refreshPay = payGate.paint;
+      amount.addEventListener('input', refreshPay);
 
       // LEAVING IS NOT CANCELLING, and the payment was never bound to this modal: it runs
       // in the handler, and closing early breaks nothing. The first cut of this said so on
@@ -19156,6 +19323,7 @@
       const card = h('div', { className: 'ln-recipient hidden' });
       const commentDefault = comment.placeholder;
       let resolved = null;      // params for the address currently in the card
+      let paidInvoice = null;   // the pasted invoice, once found among this Sidecar's payments
       let resolveSeq = 0;       // guards against a slow lookup landing after a newer one
       let debounce = null;
 
@@ -19210,6 +19378,46 @@
         }
       }
 
+      // The invoice card: what a pasted BOLT11 will pay, BEFORE Pay is pressed. Same
+      // block as the address card, so an invoice and an address read the same way.
+      function renderInvoice(inv, paid) {
+        card.textContent = '';
+        card.classList.remove('hidden', 'checking', 'failed');
+        if (inv && paid) {
+          card.classList.add('failed');
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: 'This invoice has already been paid' }));
+          card.append(h('span', {
+            className: 'ln-recipient-status',
+            textContent: paid.ts ? 'Sidecar paid it ' + new Date(paid.ts).toLocaleString() + '.' : 'Sidecar paid it earlier.',
+          }));
+          return;
+        }
+        if (!inv) {
+          card.classList.add('failed');
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: "That invoice doesn't read correctly" }));
+          card.append(h('span', { className: 'ln-recipient-status', textContent: 'Check it was copied whole, or ask for a new one.' }));
+          return;
+        }
+        const left = inv.expiresAt - Math.floor(Date.now() / 1000);
+        if (left <= 0) {
+          card.classList.add('failed');
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: 'This invoice has expired' }));
+          card.append(h('span', { className: 'ln-recipient-status', textContent: 'Ask the recipient for a new one.' }));
+          return;
+        }
+        const who = h('div', { className: 'ln-recipient-who' });
+        // The amount is what this card is for, so it is set larger than the address card's
+        // name line; the amountless prompt is an instruction, not a figure, and is not.
+        who.append(h('span', {
+          className: 'ln-recipient-name' + (inv.sats != null ? ' ln-invoice-amount' : ''),
+          textContent: inv.sats != null ? fmtSats(inv.sats) + (inv.sats === 1 ? ' sat' : ' sats') : 'No amount set, enter one below',
+        }));
+        who.append(h('span', { className: 'ln-recipient-limits', textContent: 'Expires in ' + fmtExpiresIn(left) }));
+        card.append(h('div', { className: 'ln-recipient-head' }, [who]));
+        // textContent: the description is the payee's own text.
+        if (inv.description) card.append(h('p', { className: 'ln-recipient-desc', textContent: inv.description }));
+      }
+
       async function lookup(addr) {
         const seq = ++resolveSeq;
         card.textContent = '';
@@ -19244,9 +19452,36 @@
         }
       }
 
-      // Auto-detect: only a lightning address needs an amount (invoices carry it).
+      // Auto-detect what was pasted. An address needs an amount, and so does the rare
+      // invoice that leaves it to the payer; an invoice with its own shows its card.
       function detect() {
         const v = input.value.replace(/^lightning:/i, '').trim();
+        if (isLnInvoice(v)) {
+          if (debounce) { clearTimeout(debounce); debounce = null; }
+          resolveSeq++; // an address lookup still in flight must not land over this
+          resolved = null;
+          const inv = decodeBolt11(v);
+          renderInvoice(inv);
+          if (inv) {
+            const seq = resolveSeq; // bumped above; a newer paste bumps it again
+            paidHere(v).then((paid) => {
+              if (!paid || seq !== resolveSeq) return;
+              paidInvoice = v;
+              renderInvoice(inv, paid);
+              refreshPay();
+            }).catch(() => {});
+          }
+          // An invoice is fixed when it is made, so nothing typed here reaches the payee.
+          // It is kept beside this payment in your own history, and says so.
+          comment.disabled = false;
+          comment.maxLength = 280;
+          comment.placeholder = 'Note (on this device)';
+          // An amountless invoice leaves the amount to the payer, so it gets the field.
+          const needsAmount = !!inv && inv.sats == null;
+          amount.classList.toggle('hidden', !needsAmount);
+          amountLabel.classList.toggle('hidden', !needsAmount);
+          return;
+        }
         const isAddr = isLnAddress(v) && !isLnInvoice(v);
         amount.classList.toggle('hidden', !isAddr);
         amountLabel.classList.toggle('hidden', !isAddr);
@@ -19268,7 +19503,7 @@
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)) return;
         debounce = setTimeout(() => lookup(v), 600);
       }
-      input.addEventListener('input', detect);
+      input.addEventListener('input', () => { detect(); refreshPay(); });
 
       pay.addEventListener('click', async () => {
         const val = input.value.replace(/^lightning:/i, '').trim();
@@ -19278,10 +19513,29 @@
         let address = ''; // lightning address, when sending to one
         let flight = null; // the progress toast, once the payment is past the point of return
         try {
-          const client = await ensureNwc();
           let invoice = val;
+          let paySats = null;     // what is being sent, for the toasts
+          let amountMsat;         // only for an amountless invoice
           if (isLnInvoice(val)) {
-            // BOLT11 — amount is already in the invoice.
+            // The same checks the card shows, made again at the moment of paying: the
+            // invoice may have expired while the sheet sat open.
+            const inv = decodeBolt11(val);
+            if (!inv) return (err.textContent = "That invoice doesn't read correctly. Check it was copied whole.");
+            if (inv.expiresAt <= Math.floor(Date.now() / 1000)) return (err.textContent = 'This invoice has expired. Ask for a new one.');
+            if (await paidHere(val).catch(() => null)) return (err.textContent = 'This invoice has already been paid.');
+            if (inv.sats == null) {
+              const sats = parseInt(amount.value, 10);
+              if (!sats || sats < 1) return (err.textContent = 'This invoice has no amount. Enter one in sats.');
+              amountMsat = sats * 1000;
+              paySats = sats;
+            } else {
+              paySats = inv.sats;
+            }
+            if (!payGate.pass(paySats)) return;
+          }
+          const client = await ensureNwc();
+          if (isLnInvoice(val)) {
+            // Checked above.
           } else if (isLnAddress(val)) {
             const sats = parseInt(amount.value, 10);
             if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
@@ -19293,7 +19547,9 @@
                 ? 'This address only accepts ' + fmtSats(resolved.minSats) + ' sats.'
                 : 'Amount must be between ' + fmtSats(resolved.minSats) + ' and ' + fmtSats(resolved.maxSats) + ' sats.');
             }
+            if (!payGate.pass(sats)) return;
             address = val;
+            paySats = sats;
             pay.disabled = true;
             pay.textContent = 'Paying…';
             invoice = await lnAddressToInvoice(val, sats * 1000, note || 'Sidecar payment');
@@ -19304,24 +19560,23 @@
           // address, an out-of-range amount, a server that would not issue an invoice.
           // Past here the payment is going out, so the form stops being the right place to
           // stand and the toast takes over.
-          flight = beginFlight(isLnInvoice(val) ? bolt11Sats(val) : parseInt(amount.value, 10) || null);
+          flight = beginFlight(paySats);
           closeModal();
-          const res = await client.payInvoice(invoice);
+          const res = await client.payInvoice(invoice, amountMsat);
           // Record what NWC history won't keep: who we paid, the note, the fee —
           // keyed by invoice so txRow can match it back.
           const feeMsat = res && res.fees_paid;
-          if (address || note || feeMsat != null) {
-            await savePayMeta(invoice, { address, comment: note, feeMsat });
-          }
+          // Always, not only when there is a note or a fee to keep: the record is also
+          // how the card knows this invoice was paid if it is pasted again.
+          await savePayMeta(invoice, { address, comment: note, feeMsat, paid: true });
           flight.close();
           lightningStrike(); // only after the payment actually settles
           // Lead with the amount — "Payment sent" alone doesn't tell you what left.
           // A pasted BOLT11 carries its own amount; a lightning address took one from
           // the field above. An amountless invoice leaves us nothing honest to state,
           // so it falls back to the bare confirmation rather than guessing.
-          const paidSats = isLnInvoice(val) ? bolt11Sats(val) : parseInt(amount.value, 10) || null;
           toast(
-            (paidSats != null ? 'Sent ' + fmtSats(paidSats) + ' sats' : 'Payment sent') +
+            (paySats != null ? 'Sent ' + fmtSats(paySats) + ' sats' : 'Payment sent') +
               (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''),
             'success'
           );
@@ -19336,7 +19591,7 @@
           toast(e.message, 'error');
           err.textContent = e.message;
           pay.disabled = false;
-          pay.textContent = 'Pay';
+          payGate.paint();
         }
       });
       modal.append(
@@ -19886,10 +20141,13 @@
       const message = h('input', { type: 'text', placeholder: 'Message (optional)', value: 'Thanks for Sidecar! 🍸', maxLength: 200 });
       const amount = satsInput('sats');
       const send = h('button', { className: 'primary', textContent: 'Zap' });
+      const creatorGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => 'Zap', confirmLabel: 'Confirm' });
+      amount.addEventListener('input', creatorGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
         if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
         err.textContent = '';
+        if (!creatorGate.pass(sats)) return;
         send.disabled = true;
         send.textContent = 'Sending…';
         try {
@@ -19903,7 +20161,7 @@
         } catch (e) {
           err.textContent = e.message;
           send.disabled = false;
-          send.textContent = 'Zap';
+          creatorGate.paint();
         }
       });
       modal.append(
@@ -20533,6 +20791,22 @@
   // approval into a whole boost. Mirrors isPayment in prompt.js — keep the two in step.
   const isPaymentApproval = (data) =>
     data.scope === 'webln' && (data.method === 'sendPayment' || data.method === 'keysend');
+
+  // A page's large payment asks first too: the same two presses as the panel's own sends
+  // (largeSendGate) and as prompt.js, with the Pay button reading "Confirm amount above"
+  // in the secondary style until pressed. Armed per approval id, because one Allow button
+  // serves every card in turn and a confirmation must not carry over to the next.
+  let approvalLargeArmed = null; // { id, timer }
+  const isLargeApproval = (data) =>
+    isPaymentApproval(data) && data.amountSats != null && data.amountSats >= LARGE_SEND_SATS;
+  function paintApprovalPay(id, data) {
+    const allow = $('approval-allow');
+    const ask = isLargeApproval(data) && !(approvalLargeArmed && approvalLargeArmed.id === id);
+    allow.textContent = ask ? 'Confirm amount above'
+      : data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+    allow.classList.toggle('primary', !ask);
+    allow.classList.toggle('secondary', ask);
+  }
 
   // Human-readable labels for the event kinds sites most commonly ask Sidecar to
   // sign (not exhaustive — see https://nips.nostr.com for the full registry).
@@ -21175,8 +21449,12 @@
     const remember = $('approval-remember');
     const rememberBudget = $('approval-remember-budget');
     const budgetAmount = $('approval-budget-amount');
+    // Every card starts from the primary style: a large payment before this one may have
+    // left the button in its "Confirm" one.
+    allow.classList.add('primary');
+    allow.classList.remove('secondary');
     if (payment) {
-      allow.textContent = data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+      paintApprovalPay(pendingApproval && pendingApproval.id, data);
       hide(trust);
       show(remember);
       rememberBudget.checked = false;
@@ -21280,6 +21558,20 @@
     const pinErr = $('approval-pin-error');
     err.textContent = '';
     pinErr.textContent = '';
+    // The first press on a large payment only confirms. Before the unlock below, so it
+    // cannot spend a PIN attempt on a press that was never going to pay.
+    if (action === 'once' && isLargeApproval(data) && !(approvalLargeArmed && approvalLargeArmed.id === id)) {
+      if (approvalLargeArmed) clearTimeout(approvalLargeArmed.timer);
+      approvalLargeArmed = {
+        id,
+        timer: setTimeout(() => {
+          approvalLargeArmed = null;
+          if (pendingApproval && pendingApproval.id === id) paintApprovalPay(id, data);
+        }, LARGE_SEND_WINDOW_MS),
+      };
+      paintApprovalPay(id, data);
+      return;
+    }
     // Unlock first if needed. 'detach' is in here even though it never signs: it clears
     // the site binding and moves the GLOBAL active account, and without it a locked prompt
     // would be the one surface that can change persistent state with no authentication —
