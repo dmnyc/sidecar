@@ -20098,14 +20098,15 @@
   // it comes back for anyone who goes looking, and the tap-to-copy keeps working. A
   // version you can read but not copy would undo the point of the chip.
   const VERSION_FADE_MS = 4000;
-  ['lock-version', 'onboarding-version'].forEach((id) => {
+  // After the language loads: the chip reads "Version …" through t().
+  I18N.ready.catch(() => {}).then(() => ['lock-version', 'onboarding-version'].forEach((id) => {
     const slot = document.getElementById(id);
     if (!slot) return;
     const chip = versionChip('pre-version', true);
     if (!chip) return;
     slot.append(chip);
     setTimeout(() => chip.classList.add('faded'), VERSION_FADE_MS);
-  });
+  }));
 
   // ---- About + zap the creator (opened from the Sidecar logo) ----
   function aboutModal() {
@@ -21948,6 +21949,7 @@
   async function initLanguagePicker() {
     const langs = I18N.languages();
     if (langs.length < 2) return;
+    try { await I18N.ready; } catch (_) {}
     const select = $('language-select');
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const current = (settings && settings.language) || 'auto';
@@ -22259,11 +22261,20 @@
   }
 
   // ---- boot ----
-  // Static markup first (data-i18n attributes, and <html lang dir>), so nothing below
-  // draws over untranslated text. The language itself was settled as i18n.js loaded.
-  I18N.applyDom();
-  document.addEventListener('DOMContentLoaded', refresh);
-  if (document.readyState !== 'loading') refresh();
+  // WAIT FOR THE LANGUAGE FILE before anything draws. The language code is known at once
+  // (i18n.js reads a cached copy synchronously), but a real language's strings are a
+  // fetch, and the panel drew before it landed: every data-i18n label and the first
+  // render stayed English. English and the pseudo-locale load nothing, so this costs
+  // them nothing; a language pays one read of a bundled file.
+  // Then the static markup (data-i18n attributes, and <html lang dir>), so nothing below
+  // draws over untranslated text.
+  const boot = async () => {
+    try { await I18N.ready; } catch (_) {}
+    I18N.applyDom();
+    refresh();
+  };
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot);
   initDevBadge();
   initLanguagePicker();
   initHostPermGuard();
