@@ -65,6 +65,10 @@
   /* surfaces — soot, with a brown cast rather than Cast Iron's neutral jet */
   --bg: #0D0C0A;
   --bg-2: #14120F;
+  /* The field every input sits on, including the ones that are not <input>: the tab
+     composer's editor is a contenteditable div, which the input rule below never
+     reaches, and without this it fell back to the default dark purple. */
+  --input-bg: var(--bg-2);
   --velvet-1: #1B1815;
   --velvet-2: #241F1A;
   --velvet-1-rgb: 27, 24, 21;
