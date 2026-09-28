@@ -60,6 +60,20 @@ test('every plate has its drawing and its rule', () => {
   }
 });
 
+test('the full-tab composer lays the WIDE plate, for every season', () => {
+  // The tall sheet covering a 1440px tab draws every star at twice the panel's size. The
+  // tab reads --sky-plate-wide instead: the same sky at the same scale, wider.
+  const css = read('themes/patterns.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\[data-theme="constellation"\] body\.compose-page \{[^}]*background-image:\s*var\(--sky-plate-wide\)/,
+    'the tab does not read --sky-plate-wide');
+  for (const plate of ['orion', 'leo', 'cygnus', 'andromeda']) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'themes', `constellation-sky-${plate}-wide.svg`)), `no wide drawing for ${plate}`);
+    const sel = plate === 'orion' ? '\\[data-theme="constellation"\\]' : `\\[data-theme="constellation"\\]\\[data-sky="${plate}"\\]`;
+    assert.match(css, new RegExp(sel + `\\s*\\{\\s*--sky-plate-wide:\\s*url\\(constellation-sky-${plate}-wide\\.svg\\);`),
+      `no rule picks the ${plate} wide plate`);
+  }
+});
+
 test('every page that applies the theme marks its sky, before the first paint', () => {
   // A page applies the user's theme if one of its scripts sets data-theme. Found rather
   // than listed, so a new themed page is covered the day it is added.

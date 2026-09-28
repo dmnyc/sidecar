@@ -185,8 +185,10 @@ test('the Ukiyo-e field leaves its body inks above AA', () => {
 // two overlapped they stacked to 36% or more: patches twice as bright as the seams,
 // putting --muted at 3.3 wherever one sat. That is why the seams are solid now, and the
 // last assertion keeps them that way.
-test('the Wabi-sabi seams leave its body inks readable', () => {
-  const svg = fs.readFileSync(path.join(THEMES, 'wabi-sabi-seams.svg'), 'utf8');
+// Both breaks: the panel's tile, and the wide one the full-tab composer lays down.
+for (const file of ['wabi-sabi-seams.svg', 'wabi-sabi-seams-wide.svg'])
+test('the Wabi-sabi seams leave its body inks readable: ' + file, () => {
+  const svg = fs.readFileSync(path.join(THEMES, file), 'utf8');
   const css = fs.readFileSync(path.join(THEMES, 'wabi-sabi.css'), 'utf8');
   const token = (name) => {
     const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
@@ -308,16 +310,18 @@ test('Constellation haloes the prose that sits on its chart', () => {
   }
 });
 
-// Film Noir's field is a close-up of a 35mm print (scripts/gen-film-noir-film.py), and
-// every hint in Settings sits straight on it. The print is aged by darkening, so the
+// Film Noir's field is strips of a 35mm print (scripts/gen-film-noir-film.py), and
+// every hint in Settings sits straight on it. Both sheets: the panel's, and the one the
+// full-tab composer covers itself with. The print is aged by darkening, so the
 // only light marks are the lip under each perforation, the dust and scratches, and the
 // grain; this stacks the strongest of each on the brightest film fill, which is a pixel
 // the panel rarely contains but the one that bounds all the rest. It also holds the two
 // structural promises the generator makes: the perforations are punched darker than the
 // film, and everything in the emulsion except the grain is black.
-test('the Film Noir film leaves its hints readable', () => {
+for (const sheet of ['film-noir-strips.svg', 'film-noir-strips-wide.svg'])
+test('the Film Noir film leaves its hints readable: ' + sheet, () => {
   const read = (f) => fs.readFileSync(path.join(THEMES, f), 'utf8');
-  const frames = read('film-noir-frames.svg');
+  const frames = read(sheet);
   const emulsion = read('film-noir-emulsion.svg');
   const damage = read('film-noir-damage.svg');
   const css = read('film-noir.css');
@@ -335,7 +339,13 @@ test('the Film Noir film leaves its hints readable', () => {
     'the perforations have to be darker than the film: a hint over a lit one loses contrast');
 
   const alphas = (src) => [...src.matchAll(/(?:stroke|fill)-opacity="([\d.]+)"/g)].map((m) => parseFloat(m[1]));
-  const lip = Math.max(...alphas(frames));
+  // The lip is the white edge under each perforation. The strips' other translucent
+  // paint is the black shadow one casts on another, which darkens and so is not a lip;
+  // anything translucent that is not white has to be black.
+  const lip = Math.max(...[...frames.matchAll(/stroke="#FFFFFF" stroke-opacity="([\d.]+)"/gi)].map((m) => parseFloat(m[1])));
+  for (const m of frames.matchAll(/(?:fill|stroke)="(#[0-9A-Fa-f]{6})" (?:fill|stroke)-opacity/g)) {
+    assert.ok(/^#(000000|ffffff)$/i.test(m[1]), `${sheet} paints a translucent ${m[1]}: only a white lip or a black shadow`);
+  }
   const dust = Math.max(...alphas(damage));
 
   // The grain's strength is its group opacity times the most its color matrix can put in
@@ -360,4 +370,14 @@ test('the Film Noir film leaves its hints readable', () => {
       `--${name} is ${r.toFixed(2)} on the brightest pixel the film can make (${brightest}), ` +
       `under ${floor}. The damage and grain alphas are a measured ceiling.`);
   }
+});
+
+// The panel and the full-tab composer lay two sheets of the same film. Same inks, so
+// neither can be the one that is lighter.
+test('both Film Noir sheets use the same inks', () => {
+  const read = (f) => fs.readFileSync(path.join(THEMES, f), 'utf8');
+  const inks = (src) => [...new Set([...src.matchAll(/(?:fill|stroke)="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1].toLowerCase()))].sort();
+  const tall = inks(read('film-noir-strips.svg'));
+  assert.ok(tall.length >= 4, 'could not read the strips\' inks');
+  assert.deepEqual(inks(read('film-noir-strips-wide.svg')), tall);
 });
