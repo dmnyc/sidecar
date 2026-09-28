@@ -440,6 +440,27 @@ test('a crossed event cannot outrank the real one by being newer', async () => {
   assert.deepEqual([...info.list.write], ['wss://declared-both', 'wss://declared-write']);
 });
 
+test('A REPLY OF ONLY SOMEONE ELSE\'S LIST IS NO ANSWER, AND ERASES NOTHING (#388)', async () => {
+  // Read as "no list", it was cached for the session and deleted the remembered list.
+  const ctx = harness({ stored: { [PK]: REMEMBERED } });
+  ctx.poolQueryAnswered = async () => ({ events: [{ ...listEvent, pubkey: 'm'.repeat(64) }], answered: true });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.resolved, false, 'nothing was said about this account');
+  assert.equal(info.stale, true, 'so the remembered list stands in');
+  assert.deepEqual([...info.list.read], ['wss://old-read']);
+  assert.notEqual(await ctx.recallNip65(PK), null, 'and it is still on disk');
+  ctx.poolQueryAnswered = async () => ({ events: [listEvent], answered: true });
+  assert.equal((await ctx.getNip65Info(PK)).resolved, true, 'not cached: the next lookup asks again');
+});
+
+test('an honest empty answer with nothing crossed is still "no list"', async () => {
+  const ctx = harness();
+  ctx.poolQueryAnswered = async () => ({ events: [], answered: true });
+  const info = await ctx.getNip65Info(PK);
+  assert.equal(info.resolved, true);
+  assert.equal(info.list, null);
+});
+
 test('CONCURRENT CALLERS SHARE ONE LOOKUP', async () => {
   // The overview asks for the same list from three places as it opens. Before the first
   // answer was cached, each ran its own: three identical REQs per relay.
