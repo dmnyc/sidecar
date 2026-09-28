@@ -157,20 +157,52 @@ test('forgetBalancePaint makes the next paint strike again', () => {
 // broke — that the route clears the slot before it re-renders.
 
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
-test('the refresh button clears the wallet slot before re-rendering', () => {
-  // EVERY handler named `refresh`, not the first one in the file. A `.match` took
-  // whichever came first in source order, so an unrelated button that happened to be
-  // called `refresh` and sat higher up silently became the thing under test: the poll
-  // results sheet did exactly that, and this assertion started reporting on a handler
-  // with no wallet in it at all.
-  const handlers = [...panel.matchAll(/refresh\.addEventListener\('click',([^\n]*)\)/g)].map((m) => m[1]);
-  assert.ok(handlers.length, 'could not find any refresh click handler');
-  assert.ok(
-    handlers.some((body) => /forgetBalancePaint\('wallet'\)/.test(body)),
-    "the refresh button must forget the wallet slot first, or the rebuilt card finds the " +
-    'same figure and redraws in silence — a refresh that reports nothing looks broken'
-  );
+// The wallet card's refresh handler, whole: from its button to the end of its listener.
+function walletRefreshHandler() {
+  const at = panel.indexOf("const refresh = h('button', { className: 'wallet-refresh'");
+  assert.ok(at !== -1, 'could not find the wallet refresh button');
+  const start = panel.indexOf("refresh.addEventListener('click', async () => {", at);
+  assert.ok(start !== -1, 'could not find its click handler');
+  return panel.slice(start, panel.indexOf('\n    });', start));
+}
+
+test('the refresh button clears the wallet slot before it repaints', () => {
+  // Or the repaint finds the same figure and redraws in silence: a refresh that reports
+  // nothing looks broken.
+  const body = walletRefreshHandler();
+  const forget = body.indexOf("forgetBalancePaint('wallet')");
+  const paint = body.indexOf('refreshWalletBalance({ force: true })');
+  assert.ok(forget !== -1 && paint !== -1 && forget < paint, 'forget the slot, then repaint with force');
+});
+
+test('A REFRESH IS IN PLACE: IT NEVER REBUILDS THE WALLET VIEW', () => {
+  // renderWallet() tore the card and the history down and drew them again, so every
+  // refresh blinked the whole list away and back.
+  const body = walletRefreshHandler();
+  assert.doesNotMatch(body, /renderWallet\(/);
+  assert.match(body, /refreshTransactionList\(\)/, 'new transactions join the list that is already there');
+});
+
+test('it spins while it works, and speaks only when the wallet answered neither ask', () => {
+  const body = walletRefreshHandler();
+  assert.match(body, /refresh\.classList\.add\('spinning'\)[\s\S]*refresh\.classList\.remove\('spinning'\)/);
+  assert.match(body, /if \(!balanceOk && !listOk\) toast\(/);
+  assert.match(css, /\.wallet-refresh\.spinning svg \{ animation: spin 0\.8s linear infinite; \}/);
+});
+
+test('an unchanged balance is repainted when forced, and nowhere else', () => {
+  // The live monitor calls refreshWalletBalance() too, and must stay quiet on no change.
+  const fn = panel.slice(panel.indexOf('async function refreshWalletBalance('));
+  assert.match(fn.slice(0, 2000), /if \(changed \|\| force\) \{/);
+  assert.match(fn.slice(0, 400), /\{ force = false \} = \{\}/);
+});
+
+test('the list refresh loads the first page when there is nothing to add to', () => {
+  // A history that failed to load showed "Could not load" forever to an in-place refresh.
+  const fn = panel.slice(panel.indexOf('    async function refresh() {'));
+  assert.match(fn.slice(0, 600), /if \(offset === 0\) return loadPage\(\);/);
 });
 
 test('arriving from the lock screen clears both balance slots', () => {
