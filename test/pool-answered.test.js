@@ -154,3 +154,35 @@ test('the default timing line is the vendored relay\'s own EOSE timeout', () => 
   const vendored = fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8');
   assert.ok(vendored.includes(`baseEoseTimeout = ${n};`), 'AbstractRelay.baseEoseTimeout is no longer ' + n);
 });
+
+// ---- the pool's own author check -------------------------------------------------------
+//
+// #388 asked what happens when a relay ignores the authors filter and sends another
+// account's event. The vendored library answers first: AbstractRelay passes an event on
+// only if matchFilters(sub.filters, event) holds, so a crossed event never reaches the
+// panel. The panel checks the author as well (getNip65Info, poolGetProfile), which is the
+// fallback if a nostr-tools update ever drops this. This pins the library's half, so such
+// an update fails here rather than quietly leaning on the fallback.
+
+const STRANGER_SK = NT.generateSecretKey();
+const strangerList = NT.finalizeEvent({ kind: 10002, created_at: 200, tags: [['r', 'wss://stranger.example']], content: '' }, STRANGER_SK);
+const ownList = NT.finalizeEvent({ kind: 10002, created_at: 100, tags: [['r', 'wss://mine.example']], content: '' }, SK);
+
+test('THE POOL DROPS AN EVENT BY SOMEONE THE FILTER DID NOT ASK FOR (#388)', async () => {
+  // The relay sends the stranger's list, newer than the account's own, to a request
+  // for this account's list only.
+  const res = await run({ 'wss://a.example': [strangerList, ownList] }, { kinds: [10002], authors: [PK] });
+  assert.deepEqual(res.events.map((e) => e.pubkey), [PK], 'only the account\'s own list arrives');
+  assert.equal(res.answered, true);
+});
+
+test('a reply of only someone else\'s list arrives as nothing at all', async () => {
+  const res = await run({ 'wss://a.example': [strangerList] }, { kinds: [10002], authors: [PK] });
+  assert.deepEqual(res.events, []);
+});
+
+test('the vendored relay still checks matchFilters before handing an event on', () => {
+  const vendored = fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8');
+  assert.match(vendored, /if \(this\.verifyEvent\(event\) && matchFilters\(so\.filters, event\)\) \{\s*so\.onevent\(event\);/,
+    'nostr-tools no longer filters events by the subscription\'s filters; the panel\'s own author checks are now the only guard');
+});
