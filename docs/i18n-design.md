@@ -1,6 +1,7 @@
 # Multilingual support — design
 
-Status: proposal. Nothing described here is implemented yet.
+Status: phase 1 (infrastructure) implemented on `feat/i18n-core`; phases 2 to 5 to
+come. Where phase 1 settled something this proposal left open, §6 says what and why.
 
 Sidecar has no translation layer today. This document measures what would need
 to change, describes how Jumble (a Nostr web client that ships 19 languages)
@@ -320,3 +321,26 @@ the rule translations will stress.
 - Should `help.html` be translated at all, or link out to translated docs?
 - Should the pay card in `content.js` ever follow the in-app language override,
   accepting the fingerprinting cost, or always follow the browser?
+
+## 6. Decided in phase 1
+
+- **Plurals carry their English "other" form in the call**: `tn('{{count}} relay',
+  '{{count}} relays', n)`. English then needs no locale file, which keeps the English
+  path free of any fetch (§3.3). Translations key every form on the singular:
+  `"{{count}} relay_one"`, `"_few"`, `"_many"`, `"_other"`.
+- **Parameters are substituted after translation**, and the pseudo-locale transforms
+  the template before substitution, so names and amounts stay unaccented.
+- **English numbers stay `en-US`** (what the code wrote by hand), and **English dates
+  keep following the browser**, as they did (`undefined` locale). Forcing `en-US`
+  dates would have turned a UK reader's "4 Mar" into "Mar 4". Other languages take
+  their own conventions for both.
+- **`relativeTime()`** uses `Intl.RelativeTimeFormat` with the `narrow` style, which in
+  English is word for word what the panel wrote by hand ("5m ago", "3h ago", "2d
+  ago"); only "just now" stays a translated string.
+- **The picker is hidden until a second language is listed** in `i18n.js`. A language
+  change writes the resolved code to the start-up cache and reloads the panel.
+- **en-XA lives inside `t()`**, switched from Settings → Developer on local builds. The
+  DOM-walking pseudo-locale on `feat/pseudo-locale` is superseded; its audit
+  (`docs/enxa-audit-2026-09-25.md` there) is the evidence for wrapping at the source.
+- **Test contexts get the real module in English** from `test/helpers/i18n.js`
+  (`withI18n(ctx)`), not a stub.

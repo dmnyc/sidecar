@@ -41,3 +41,35 @@ text. If something has to shrink, the layout is wrong — stack it (rule 2).
 Truncation belongs to prose only: `white-space: nowrap; overflow: hidden;
 text-overflow: ellipsis` on the line, and `min-width: 0` on the flex child so it
 can actually shrink.
+
+## Translation (i18n)
+
+Every page loads `i18n.js` first; the panel takes `t`, `tn` and `I18N` from it. The
+design, and the reasons behind each rule here, are in `docs/i18n-design.md`.
+
+- **New user-facing text goes through `t()`.** The key is the English itself:
+  `t('Copy')`. Untranslated, it reads as the key, so English never needs a locale file.
+- **One template per sentence, never glued fragments.** Word order differs between
+  languages: `t('{{name}} removed from {{host}}', { name, host })`, not
+  `name + ' removed from ' + host`.
+- **Plurals take `tn(one, other, count)`**, never a `n === 1 ? '' : 's'` ternary:
+  `tn('{{count}} relay', '{{count}} relays', n)`. Locales supply every form their
+  language has (`_one`, `_few`, `_many`, `_other`, …) under the singular key.
+- **Data is a parameter, never part of the text.** Names, amounts, hosts, keys and kind
+  numbers go in as `{{values}}`, so a translation cannot alter what an approval card
+  says is being paid or signed.
+- **Numbers and dates go through `I18N.fmtNum`, `I18N.fmtDate` and
+  `I18N.fmtRelative`**, never `toLocaleString('en-US')` or a hand-written "5m ago".
+- **Translated text goes into `textContent`.** Never build `innerHTML` from `t()`;
+  where markup is needed, build it with `h()` around translated fragments. Locale files
+  are rejected by the tests if they contain markup.
+- **Static HTML uses `data-i18n`** (and `data-i18n-placeholder`, `-title`,
+  `-aria-label`, `-alt`), keeping the English in the markup.
+- **New keys go at the end of each locale file**, never in the middle, so parallel
+  pull requests do not conflict.
+- **Check new UI in the pseudo-locale**: Settings → Developer → Pseudo-locale (en-XA)
+  accents and pads every wrapped string by 40%. Overflow there is where German breaks,
+  and a label that stays plain is one that was never wrapped.
+- **`dir="auto"` on user-written content only** (notes, names, bios, the composer),
+  never on translated interface text.
+- **Errors returned to web pages over NIP-07 stay English**: apps match on them.
