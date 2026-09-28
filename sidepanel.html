@@ -812,6 +812,10 @@
                  shows where a longer language breaks, and a plain label is one nothing
                  wrapped. See docs/i18n-design.md. -->
             <label class="toggle-row"><input type="checkbox" id="pseudo-locale-toggle" /> <span>Pseudo-locale (en-XA)</span></label>
+            <!-- en-XB: the test locale, a real file written by
+                 `node scripts/i18n-keys.mjs --test-locale`. Every string ⟦marked⟧; one that
+                 is not was never extracted, or its file did not load. -->
+            <label class="toggle-row"><input type="checkbox" id="test-locale-toggle" /> <span>Test locale file (en-XB)</span></label>
           </div>
 
         </div>
