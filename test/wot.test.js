@@ -261,12 +261,14 @@ test('THE FILTER SAYS WHAT IT IS DOING', () => {
   assert.match(panel, /let _wotState = 'idle';/);
   assert.match(panel, /function renderWotStatus\(\)/);
   assert.match(html, /id="wot-status"/);
-  for (const st of ['building', 'empty', 'failed']) {
-    assert.ok(new RegExp("\\b" + st + ":").test(panel.match(/const WOT_STATUS = \{[\s\S]*?\n  \};/)[0]),
-      'no copy for state: ' + st);
+  // The two fail-open states each have a line; building is carried by the bar and its
+  // own caption in renderWotStatus.
+  const fn = panel.match(/function wotStatusText\(st\) \{[\s\S]*?\n  \}/)[0];
+  for (const st of ['empty', 'failed']) {
+    assert.match(fn, new RegExp("st === '" + st + "'"), 'no copy for state: ' + st);
   }
-  const map = panel.match(/const WOT_STATUS = \{[\s\S]*?\n  \};/)[0];
-  assert.match(map, /Showing everything/, 'the fail-open states must say what the bell is doing');
+  assert.equal((fn.match(/Showing everything/g) || []).length, 2, 'the fail-open states must say what the bell is doing');
+  assert.match(panel, /t\('Working out your network…'\)/, 'no copy for state: building');
   // And every transition repaints it, or the row lies.
   assert.ok((panel.match(/renderWotStatus\(\);/g) || []).length >= 5, 'every state change must repaint');
 });
@@ -306,7 +308,7 @@ test('the panel reports both numbers, and composes with mutes', () => {
   // "9.3k from 48.9k your follows follow" says what the threshold actually did.
   assert.match(panel, /let _wotSeen = 0;/);
   assert.match(panel, /_wotSeen = res\.seen;/);
-  assert.match(panel, /, from ' \+ fmtSats\(_wotSeen\) \+ ' your follows follow\.'/);
+  assert.match(panel, /from \{\{seen\}\} your follows follow\.'[\s\S]{0,120}\{ seen: fmtSats\(_wotSeen\) \}/);
   // Persisted alongside the keys, or a cached set would claim numbers it does not have.
   assert.match(panel, /seen: res\.seen, qualified: res\.qualified/);
   assert.match(panel, /_wotSeen = saved\.seen \|\| 0;/);
@@ -411,7 +413,7 @@ test('the build reports progress', () => {
   assert.match(panel, /getElementById\('wot-progress'\)/, 'the panel drives the bar');
   assert.match(html, /id="wot-progress"/, 'and the markup provides it');
   // The count is in the copy too, so the bar is not the only thing carrying it.
-  assert.match(panel, /' of ' \+ fmtSats\(_wotTotal\) \+ ' follows\.'/);
+  assert.match(panel, /\{\{done\}\} of \{\{total\}\} follows\.', \{ done: fmtSats\(_wotDone\), total: fmtSats\(_wotTotal\) \}/);
   // Shown only while building, and reset with the rest of the state.
   assert.match(panel, /_wotState === 'building' && _wotTotal > 0/);
   assert.match(panel, /_wotDone = 0;\s*\n\s*_wotTotal = 0;/);
