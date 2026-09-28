@@ -21577,7 +21577,9 @@
     // textContent, never innerHTML — `host` is attacker-controlled.
     const nudge = $('approval-trust-nudge');
     nudge.textContent = '';
-    if (data.nudgeTrust && !payment) {
+    // Only beside a Trust button that is actually on the card: payments, pure unlocks,
+    // shared-identity confirms and batches all hide it above.
+    if (data.nudgeTrust && !payment && !trust.classList.contains('hidden')) {
       const strong = h('strong', { textContent: data.host || 'this site' });
       nudge.append(
         document.createTextNode('Approving this often? Trust '),

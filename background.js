@@ -1605,7 +1605,11 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // destructive warning is showing: that screen is asking for full attention on
         // what's about to be lost, and "trust this site to stop asking" is the last
         // advice it should be carrying.
-        nudgeTrust: !destructive && (await shouldNudgeTrust(host, activePubkey)),
+        //
+        // And only on a card that offers Trust at all. A shared-identity confirm hides the
+        // button (trusting the site cannot stop a question asked on every sign), and so does
+        // a pure unlock (nothing to approve), so a nudge there points at nothing.
+        nudgeTrust: !destructive && !sharedIdentity && needApproval && (await shouldNudgeTrust(host, activePubkey)),
         // The "wrong account" escape: offer the account list on any content sign where
         // the user holds more than one account and no switcher is already on screen.
         //
