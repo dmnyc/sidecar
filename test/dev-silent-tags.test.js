@@ -161,6 +161,6 @@ test('THE TAGS ARE ADDITIVE, AND CHANGE NOTHING ELSE', () => {
 test('the author can see what the reader will not', () => {
   // Everything else in Preview is what a reader sees; this is the opposite. A control
   // whose whole effect is hidden needs one place the author can check before posting.
-  assert.match(bare, /textContent: 'Silent p tags: ' \+ n \+ '\. Notified, not mentioned in the text\.'/);
+  assert.match(bare, /textContent: t\('Silent p tags: \{\{count\}\}\. Notified, not mentioned in the text\.', \{ count: n \}\)/);
   assert.match(bare, /if \(isDevBuild\(\) && devSilentEnabled\) \{/);
 });

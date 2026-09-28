@@ -39,6 +39,9 @@ function withI18n(ctx) {
   ctx.t = I18N.t;
   ctx.tn = I18N.tn;
   ctx.tSec = I18N.tSec;
+  // Under the name the pages read it by, for code that runs whole (composer-core.js takes
+  // window.SidecarI18n, and a context whose window is itself finds it here).
+  ctx.SidecarI18n = I18N;
   return ctx;
 }
 

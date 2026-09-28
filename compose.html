@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Write in Sidecar</title>
+  <title data-i18n="Write in Sidecar">Write in Sidecar</title>
   <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="themes/speakeasy.css" />
@@ -43,21 +43,21 @@
     <main class="compose-sheet">
       <!-- The card's own corner, the same slot every sheet in the panel puts its close box
            in. The page bar above belongs to Sidecar; this one belongs to the note. -->
-      <button type="button" class="modal-x compose-x" id="compose-x" title="Close"></button>
+      <button type="button" class="modal-x compose-x" id="compose-x" title="Close" data-i18n-title="Close"></button>
 
       <header class="compose-head">
         <div class="compose-who">
           <span class="avatar compose-av" id="compose-av"></span>
           <span class="compose-who-text">
-            <span class="compose-name" id="compose-name">Loading…</span>
-            <span class="compose-sub" id="compose-sub">Writing as this account</span>
+            <span class="compose-name" id="compose-name" data-i18n="Loading…">Loading…</span>
+            <span class="compose-sub" id="compose-sub" data-i18n="Writing as this account">Writing as this account</span>
           </span>
         </div>
       </header>
 
       <div class="compose-tabs" id="compose-tabs">
-        <button type="button" class="compose-tab active" id="tab-write">Write</button>
-        <button type="button" class="compose-tab" id="tab-preview">Preview</button>
+        <button type="button" class="compose-tab active" id="tab-write" data-i18n="Write">Write</button>
+        <button type="button" class="compose-tab" id="tab-preview" data-i18n="Preview">Preview</button>
       </div>
 
       <div id="compose-slot"></div>
@@ -75,8 +75,8 @@
         <span class="compose-count" id="compose-count"></span>
         <!-- Not a button. Leaving is not an action with the same weight as publishing, and
              two buttons side by side say they are. -->
-        <button type="button" class="compose-cancel" id="compose-close">Cancel</button>
-        <button type="button" class="primary compose-post" id="compose-post" disabled>Post</button>
+        <button type="button" class="compose-cancel" id="compose-close" data-i18n="Cancel">Cancel</button>
+        <button type="button" class="primary compose-post" id="compose-post" disabled data-i18n="Post">Post</button>
       </footer>
     </main>
   </div>

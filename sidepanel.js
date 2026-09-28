@@ -4322,14 +4322,17 @@
   function pollEndsText(endsAt) {
     // "open", not "no end date". The old wording named a field the poll does not carry,
     // which reads as something missing rather than as the state it actually is.
-    if (!endsAt) return 'open';
+    if (!endsAt) return t('open');
     const secs = endsAt - Math.floor(Date.now() / 1000);
     const mag = Math.abs(secs);
-    const unit =
-      mag < 3600 ? [Math.max(1, Math.round(mag / 60)), 'm'] :
-      mag < 86400 ? [Math.round(mag / 3600), 'h'] :
-      [Math.round(mag / 86400), 'd'];
-    return secs > 0 ? 'ends in ' + unit[0] + unit[1] : 'ended ' + unit[0] + unit[1] + ' ago';
+    const [n, unit] =
+      mag < 3600 ? [Math.max(1, Math.round(mag / 60)), 'minute'] :
+      mag < 86400 ? [Math.round(mag / 3600), 'hour'] :
+      [Math.round(mag / 86400), 'day'];
+    // A narrow unit ("5h") is what this wrote by hand in English, and each language
+    // gets its own abbreviation from Intl with no translation.
+    const span = I18N.fmtNum(n, { style: 'unit', unit, unitDisplay: 'narrow' });
+    return secs > 0 ? t('ends in {{time}}', { time: span }) : t('ended {{time}} ago', { time: span });
   }
 
   function pollHasEnded(endsAt) {
@@ -12000,7 +12003,7 @@
 
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
-      toast('Add an account first', 'error');
+      toast(t('Add an account first'), 'error');
       return;
     }
     // A MINE IS ALREADY RUNNING. A backstop, not the affordance: every button that leads
@@ -12029,7 +12032,7 @@
           await chrome.tabs.update(open.tabId, { active: true });
           await chrome.windows.update(open.windowId, { focused: true });
         } catch (_) { /* the tab went away between the query and the focus */ }
-        toast('Your draft is already open in a tab', 'info');
+        toast(t('Your draft is already open in a tab'), 'info');
         return;
       }
     }
@@ -12086,8 +12089,8 @@
       // One line at this width. The longer version of this wrapped onto two and left
       // "editor." alone on the second, which is a ragged way to end the one screen whose
       // whole job is to look calm while it makes you wait.
-      const note = h('p', { className: 'hint', textContent: 'Stopping keeps your draft.' });
-      const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
+      const note = h('p', { className: 'hint', textContent: t('Stopping keeps your draft.') });
+      const stop = h('button', { className: 'secondary', type: 'button', textContent: t('Stop mining') });
       stop.addEventListener('click', powCancel);
       // GET THE PANEL BACK WITHOUT LOSING THE WORK. The worker has always outlived this
       // pane; what has not existed until now is anything that keeps the promise to
@@ -12108,8 +12111,8 @@
       //
       // Chevron down rather than an X, because it does not close anything. It sends the
       // mine to the bar at the foot of the panel, which is the direction it points.
-      const mini = h('button', { className: 'modal-x mining-mini', type: 'button', title: 'Keep mining in the background' });
-      mini.setAttribute('aria-label', 'Keep mining in the background');
+      const mini = h('button', { className: 'modal-x mining-mini', type: 'button', title: t('Keep mining in the background') });
+      mini.setAttribute('aria-label', t('Keep mining in the background'));
       mini.append(icon('chevron-down'));
       mini.addEventListener('click', () => {
         beginMinimizedMine(bits, minePubkey, startedAt, best);
@@ -12119,7 +12122,7 @@
       });
       modal.append(
         mini,
-        h('h3', { textContent: 'Mining proof of work' }),
+        h('h3', { textContent: t('Mining proof of work') }),
         h('div', { className: 'mining-body' }, [glyph, line, note]),
         h('div', { className: 'actions' }, [stop])
       );
@@ -12150,7 +12153,7 @@
           // holds the pane's shape; this one is absolute and holds nothing.
           hide(mini);
           stop.disabled = true;
-          line.textContent = 'Found it. Posting…';
+          line.textContent = t('Found it. Posting…');
         },
       };
     }
@@ -12345,7 +12348,7 @@
       if (!isDevBuild() || !devSilentEnabled) return null;
       const field = h('input', {
         type: 'text', id: 'compose-dev-silent', className: 'status-input',
-        placeholder: 'npub1… or hex, space separated',
+        placeholder: t('npub1… or hex, space separated'),
       });
       devSilentInput = field;
       const hint = h('p', { className: 'hint' });
@@ -12353,14 +12356,14 @@
         const n = parseSilentTags(field.value).length;
         const typed = field.value.trim();
         hint.textContent = !typed
-          ? 'Dev build only. Adds a p tag with no mention in the text.'
-          : n === 0 ? 'Nothing readable here yet. npub1… or 64 hex characters.'
-          : n + (n === 1 ? ' key' : ' keys') + ' will be tagged, invisibly.';
+          ? t('Dev build only. Adds a p tag with no mention in the text.')
+          : n === 0 ? t('Nothing readable here yet. npub1… or 64 hex characters.')
+          : tn('{{count}} key will be tagged, invisibly.', '{{count}} keys will be tagged, invisibly.', n);
       };
       field.addEventListener('input', paint);
       paint();
       return h('div', { className: 'compose-dev-kind' }, [
-        h('label', { htmlFor: 'compose-dev-silent', textContent: 'Silent p tags' }), field, hint,
+        h('label', { htmlFor: 'compose-dev-silent', textContent: t('Silent p tags') }), field, hint,
       ]);
     }
 
@@ -12368,24 +12371,24 @@
       if (!isDevBuild() || !devKindEnabled) return null;
       const select = h('select', { id: 'compose-dev-kind' });
       select.append(
-        h('option', { value: '0', textContent: 'Automatic' }),
-        h('option', { value: '1', textContent: 'Kind 1 — note' }),
-        h('option', { value: '1111', textContent: 'Kind 1111 — comment', disabled: !replyTo }),
+        h('option', { value: '0', textContent: t('Automatic') }),
+        h('option', { value: '1', textContent: t('Kind 1 — note') }),
+        h('option', { value: '1111', textContent: t('Kind 1111 — comment'), disabled: !replyTo }),
       );
       select.value = String(devKind);
       select.disabled = !!draft.poll;
       const hint = h('p', { className: 'hint' });
       const paint = () => {
-        hint.textContent = draft.poll ? 'Polls use their own event kind.'
-          : !replyTo ? 'Start with a note, then choose either kind when replying.'
+        hint.textContent = draft.poll ? t('Polls use their own event kind.')
+          : !replyTo ? t('Start with a note, then choose either kind when replying.')
           : devKind === 1 && replyTo.kind === WEB_COMMENT_KIND
-          ? 'Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.'
-          : 'Dev build only. Automatic preserves the kind of the event you answer.';
+          ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
+          : t('Dev build only. Automatic preserves the kind of the event you answer.');
       };
       select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
       paint();
       return h('div', { className: 'compose-dev-kind' }, [
-        h('label', { htmlFor: 'compose-dev-kind', textContent: 'Demo event kind' }), select, hint,
+        h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
       ]);
     }
 
@@ -12396,14 +12399,14 @@
 
       // Write / Preview tab bar
       let preview = false;
-      const tabWrite = h('button', { className: 'compose-tab active', textContent: 'Write' });
-      const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
+      const tabWrite = h('button', { className: 'compose-tab active', textContent: t('Write') });
+      const tabPreview = h('button', { className: 'compose-tab', textContent: t('Preview') });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
       // Rich text box with @mention autocomplete, shared with the page-comment
       // modal. Edits flow back through onChange into the draft + Post button.
       const mentionEditor = createMentionEditor({
-        placeholder: replyTo ? 'Write your reply…' : "What’s on your mind?",
+        placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
         onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
         // A URL pasted on its own becomes a real attachment: cut from the prose,
         // into the strip, appended at publish — as if it had been uploaded.
@@ -12438,7 +12441,7 @@
           renderNotePreview(body, bodyText);
           previewPane.append(body);
         } else {
-          previewPane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
+          previewPane.append(h('p', { className: 'hint', textContent: t('Nothing to preview yet.') }));
         }
         if (!draft.poll) return;
         // The choices as they will be read, which is the one thing the editor above
@@ -12452,7 +12455,7 @@
           h('p', {
             className: 'hint poll-preview-meta',
             textContent:
-              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+              (draft.poll.multiple ? t('Multiple choice') : t('Single choice')) + ' · ' + pollEndsText(endsAt),
           })
         );
         previewPane.append(list);
@@ -12510,8 +12513,9 @@
           el.addEventListener('error', () => {
             if (tries >= THUMB_RETRIES) {
               cell.classList.add('is-broken');
-              cell.title = 'This ' + (m.isVideo ? 'video' : 'image')
-                + ' did not load. It may still be uploading, or the link may be bad.';
+              cell.title = m.isVideo
+                ? t('This video did not load. It may still be uploading, or the link may be bad.')
+                : t('This image did not load. It may still be uploading, or the link may be bad.');
               return;
             }
             tries += 1;
@@ -12575,7 +12579,7 @@
             // the strip; the tag itself only goes out for described images.
             const alt = h('button', {
               className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
-              title: m.alt ? 'Edit the image description' : 'Add a description',
+              title: m.alt ? t('Edit the image description') : t('Add a description'),
               type: 'button',
             });
             alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
@@ -12603,10 +12607,10 @@
                 });
                 return b;
               };
-              if (i > 0) cell.append(step(-1, 'Move earlier'));
-              if (i < draft.media.length - 1) cell.append(step(1, 'Move later'));
+              if (i > 0) cell.append(step(-1, t('Move earlier')));
+              if (i < draft.media.length - 1) cell.append(step(1, t('Move later')));
             }
-          const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
+          const rm = h('button', { className: 'compose-thumb-x', title: t('Remove') });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
             // The URL lives in the media slot alone now; taking the thumb off is
@@ -12684,7 +12688,7 @@
       fileInput.accept = 'image/*,video/*';
       fileInput.style.display = 'none';
       const addBtn = h('button', { className: 'mini compose-add' });
-      addBtn.append(icon('camera'), h('span', { textContent: 'Media' }));
+      addBtn.append(icon('camera'), h('span', { textContent: t('Media') }));
       addBtn.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files && fileInput.files[0];
@@ -12790,8 +12794,8 @@
         const lvl = powForThisPost.on ? powLevelFor(powForThisPost.bits) : null;
         // "PoW 18" and "PoW off" are the same width, so cycling never makes the row
         // opposite it jump. The full name is in the title and in Settings.
-        powBtnLabel.textContent = lvl ? 'PoW ' + lvl.bits : 'PoW off';
-        powBtn.title = lvl ? lvl.cost : 'Off. Tap to mine one into this post.';
+        powBtnLabel.textContent = lvl ? t('PoW {{bits}}', { bits: lvl.bits }) : t('PoW off');
+        powBtn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
         powBtn.classList.toggle('compose-add-on', !!lvl);
       }
       powBtn.addEventListener('click', () => {
@@ -12807,7 +12811,7 @@
 
       const pollWrap = h('div', { className: 'poll-editor hidden' });
       const pollAdd = h('button', { className: 'mini compose-add' });
-      pollAdd.append(icon('bar-chart'), h('span', { textContent: 'Poll' }));
+      pollAdd.append(icon('bar-chart'), h('span', { textContent: t('Poll') }));
       pollAdd.addEventListener('click', () => {
         draft.poll = newPollDraft();
         paintPoll();
@@ -12837,7 +12841,7 @@
             type: 'text',
             value,
             maxLength: 200,
-            placeholder: 'Option ' + (i + 1),
+            placeholder: t('Option {{number}}', { number: i + 1 }),
           });
           input.addEventListener('input', () => {
             draft.poll.options[i] = input.value;
@@ -12849,7 +12853,7 @@
           // would only ever be disabled. An icon-only control in the inline slot, per
           // the panel's row rules: a worded button here would leave the input no width.
           if (opts.length > 2) {
-            const rm = h('button', { className: 'poll-option-x', title: 'Remove option ' + (i + 1) });
+            const rm = h('button', { className: 'poll-option-x', title: t('Remove option {{number}}', { number: i + 1 }) });
             rm.append(icon('x'));
             rm.addEventListener('click', () => {
               draft.poll.options.splice(i, 1);
@@ -12884,7 +12888,7 @@
         paintPollOptions(list);
 
         const addOpt = h('button', { className: 'poll-add-option' });
-        addOpt.append(icon('plus'), h('span', { textContent: 'Add option' }));
+        addOpt.append(icon('plus'), h('span', { textContent: t('Add option') }));
         addOpt.addEventListener('click', () => {
           draft.poll.options.push('');
           paintPollOptions(list);
@@ -12900,7 +12904,7 @@
         });
         const multiRow = h('label', { className: 'toggle-row' }, [
           multi,
-          h('span', { textContent: 'Allow multiple choices' }),
+          h('span', { textContent: t('Allow multiple choices') }),
         ]);
 
         // Durations, plus the two ends of the range: a specific moment, and none at all.
@@ -12908,8 +12912,8 @@
         POLL_DURATIONS.forEach((d) => {
           sel.append(h('option', { value: 'in:' + d.secs, textContent: d.label }));
         });
-        sel.append(h('option', { value: 'at', textContent: 'Custom date and time…' }));
-        sel.append(h('option', { value: 'none', textContent: 'No end date' }));
+        sel.append(h('option', { value: 'at', textContent: t('Custom date and time…') }));
+        sel.append(h('option', { value: 'none', textContent: t('No end date') }));
         sel.value =
           draft.poll.ends.kind === 'in' ? 'in:' + draft.poll.ends.secs : draft.poll.ends.kind;
 
@@ -12941,14 +12945,14 @@
             // real uses for one that never closes, but a running total is not a result:
             // there is no moment the number means anything, and nothing stops a late
             // arrival moving it a year from now.
-            endsNote.textContent = 'Not recommended: the count never settles, so the poll has no final result.';
+            endsNote.textContent = t('Not recommended: the count never settles, so the poll has no final result.');
           } else if (k === 'at' && !(draft.poll.ends.at > 0)) {
-            endsNote.textContent = 'Pick the date and time the poll should close.';
+            endsNote.textContent = t('Pick the date and time the poll should close.');
           } else {
             const at = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
             endsNote.textContent = at && at <= Math.floor(Date.now() / 1000)
-              ? 'That time has already passed, so the poll would close on posting.'
-              : 'Votes stop counting when the poll closes.';
+              ? t('That time has already passed, so the poll would close on posting.')
+              : t('Votes stop counting when the poll closes.');
           }
         }
         sel.addEventListener('change', () => {
@@ -12973,11 +12977,11 @@
         // color alone (the point made above .destructive-warn).
         const clientWarn = h('div', {
           className: 'kind-warn',
-          textContent: 'Some clients cannot show polls. On those, this will not appear at all.',
+          textContent: t('Some clients cannot show polls. On those, this will not appear at all.'),
         });
 
         const remove = h('button', { className: 'poll-remove' });
-        remove.append(icon('trash'), h('span', { textContent: 'Remove poll' }));
+        remove.append(icon('trash'), h('span', { textContent: t('Remove poll') }));
         remove.addEventListener('click', () => {
           draft.poll = null;
           paintPoll();
@@ -12990,7 +12994,7 @@
           addOpt,
           h('div', { className: 'poll-editor-sep' }),
           multiRow,
-          h('label', { className: 'poll-ends-label', textContent: 'Runs for' }),
+          h('label', { className: 'poll-ends-label', textContent: t('Runs for') }),
           sel,
           custom,
           endsNote,
@@ -13001,7 +13005,7 @@
       }
 
       const err = h('div', { className: 'error' });
-      const post = h('button', { className: 'primary', textContent: 'Post' });
+      const post = h('button', { className: 'primary', textContent: t('Post') });
       function updatePostState() {
         // The tab composes a note. A poll is a different kind with its own editor, so
         // once one is open the way out of the panel goes away rather than quietly
@@ -13026,11 +13030,11 @@
           showCountdown(secs);
         } else {
           post.disabled = true;
-          post.textContent = 'Posting…';
+          post.textContent = t('Posting…');
           finishPublish();
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       // Show which account is posting so the user is never confused about identity.
@@ -13039,7 +13043,7 @@
       author.append(avatarEl(active || {}, 'compose-author-av'));
       author.append(
         h('div', { className: 'compose-author-info' }, [
-          h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+          h('span', { className: 'compose-author-eyebrow', textContent: t('Posting as') }),
           h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
         ])
       );
@@ -13065,8 +13069,8 @@
       // browser entirely. Write / Preview / Expand is a row of three things you can do
       // with what you are writing, and the third one says what it is.
       const expand = replyTo ? null : h('button', {
-        className: 'compose-expand', type: 'button', textContent: 'Expand',
-        title: 'Write in a tab, with room to read it back',
+        className: 'compose-expand', type: 'button', textContent: t('Expand'),
+        title: t('Write in a tab, with room to read it back'),
       });
       if (expand) {
         expand.addEventListener('click', async () => {
@@ -13100,7 +13104,7 @@
             closeModal();
           } catch (e) {
             expand.disabled = false;
-            toast(e.message || 'Could not open a tab', 'error');
+            toast(e.message || t('Could not open a tab'), 'error');
           }
         });
       }
@@ -13108,7 +13112,7 @@
       if (expand) tabBar.append(expand);
 
       modal.append(
-        h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
+        h('h3', { textContent: replyTo ? t('Reply') : t('New note') }),
         author,
         ...(replyTo ? [buildReplyBlock()] : []),
         ...(isDevBuild() && devKindEnabled ? [buildDevKindSelector()] : []),
@@ -13149,7 +13153,7 @@
         clearComposeDraft(dkey);
         endMinimizedMine(); // no-op unless this one was minimized
         closeModal();
-        toast(signed.kind === POLL_KIND ? 'Poll published' : 'Note published', 'success');
+        toast(signed.kind === POLL_KIND ? t('Poll published') : t('Note published'), 'success');
         showPostBanner(signed);
       } catch (e) {
         // BACK TO THE EDITOR WITH THE TEXT INTACT, whether the mine failed, the signer
@@ -13188,12 +13192,12 @@
         if (n) {
           previewScroll.append(h('p', {
             className: 'hint',
-            textContent: 'Silent p tags: ' + n + '. Notified, not mentioned in the text.',
+            textContent: t('Silent p tags: {{count}}. Notified, not mentioned in the text.', { count: n }),
           }));
         }
       }
       if (isDevBuild() && devKindEnabled && devKind && !draft.poll) {
-        previewScroll.append(h('p', { className: 'hint', textContent: 'Demo event kind: ' + devKind }));
+        previewScroll.append(h('p', { className: 'hint', textContent: t('Demo event kind: {{kind}}', { kind: devKind }) }));
       }
       const previewBody = h('div', { className: 'preview-body' });
       // The composed string — attachments appended — is what publishes, so it is
@@ -13215,7 +13219,7 @@
           h('p', {
             className: 'hint poll-preview-meta',
             textContent:
-              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+              (draft.poll.multiple ? t('Multiple choice') : t('Single choice')) + ' · ' + pollEndsText(endsAt),
           })
         );
         previewScroll.append(list);
@@ -13224,7 +13228,7 @@
         modal,
         author: composeAuthorStrip(),
         secs,
-        title: draft.poll && !replyTo ? 'Posting your poll' : replyTo ? 'Posting your reply' : 'Posting your note',
+        title: draft.poll && !replyTo ? t('Posting your poll') : replyTo ? t('Posting your reply') : t('Posting your note'),
         preview: previewScroll,
         onFire: finishPublish,
         onCancel: showEditor,
@@ -13251,12 +13255,12 @@
       // they publish.
       const preview = stripDraftMediaUrls(saved.text, saved.media).trim()
         .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
-      const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
+      const when = saved.savedAt ? relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
         ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
         : '';
 
-      const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
+      const resume = h('button', { className: 'primary', textContent: t('Resume draft') });
       resume.addEventListener('click', () => {
         // Restore the target too, or this resumes as a note and posts as one. And
         // strip the attachment URLs an older draft carried in its text: they live in
@@ -13277,7 +13281,7 @@
         }
         showEditor();
       });
-      const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
+      const fresh = h('button', { className: 'ghost', textContent: t('Start fresh') });
       fresh.addEventListener('click', () => {
         clearComposeDraft(dkey);
         // The target you ARRIVED with, not the saved one. Discarding an old draft must
@@ -13291,11 +13295,14 @@
       // draft may be a reply while you arrived here to write a note, or the other way
       // round — and resuming silently changes what pressing Post will publish.
       const savedIsReply = !!saved.replyTo;
+      // Four whole sentences rather than " from " glued in: the age phrase and the name
+      // take different places in other languages.
+      const whom = savedIsReply ? notifAuthorName(saved.replyTo.pubkey) : '';
       const what = savedIsReply
-        ? 'You have an unsaved reply to ' + notifAuthorName(saved.replyTo.pubkey) + when + '.'
-        : 'You have an unsaved draft' + when + '.';
+        ? (when ? t('You have an unsaved reply to {{name}} from {{when}}.', { name: whom, when }) : t('You have an unsaved reply to {{name}}.', { name: whom }))
+        : (when ? t('You have an unsaved draft from {{when}}.', { when }) : t('You have an unsaved draft.'));
       const parts = [
-        h('h3', { textContent: savedIsReply ? 'Resume your reply?' : 'Resume your draft?' }),
+        h('h3', { textContent: savedIsReply ? t('Resume your reply?') : t('Resume your draft?') }),
         h('p', { className: 'hint', textContent: what }),
       ];
       if (preview) {
@@ -13326,7 +13333,7 @@
         // background instead — which is now guarded and does nothing, so without this the
         // guard would read as a stuck dialog. It discards like Cancel does; the draft is
         // already saved, so nothing is actually lost.
-        const closeX = h('button', { className: 'modal-x', title: 'Close' });
+        const closeX = h('button', { className: 'modal-x', title: t('Close') });
         closeX.append(icon('x'));
         closeX.addEventListener('click', closeModal);
         modal.append(closeX);
@@ -20471,7 +20478,7 @@
     line.classList.toggle('hidden', !on);
     if (!on) return;
     const lvl = powLevelFor(bits);
-    line.textContent = lvl.cost;
+    line.textContent = lvl.cost();
   }
 
   $('pow-toggle').addEventListener('change', async (e) => {

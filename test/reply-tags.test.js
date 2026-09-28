@@ -216,7 +216,7 @@ test('the composer shows what is being answered', () => {
 test('the reply context sits above the tabs, not inside a view', () => {
   // Same reasoning as the page-comment modal's target block: it is the subject, not
   // one of the two panes, so it must not vanish when you switch to Preview.
-  const at = source.indexOf("h('h3', { textContent: replyTo ? 'Reply' : 'New note' })");
+  const at = source.indexOf("h('h3', { textContent: replyTo ? t('Reply') : t('New note') })");
   assert.ok(at !== -1, 'the composer heading moved');
   const block = source.slice(at, at + 400);
   const ctx = block.indexOf('buildReplyBlock()');
@@ -248,7 +248,7 @@ test('the reply block is built fresh, not held as one node', () => {
 
 test('the countdown names what it is posting', () => {
   const fn = lift('function showCountdown(');
-  assert.match(fn, /replyTo \? 'Posting your reply' : 'Posting your note'/);
+  assert.match(fn, /replyTo \? t\('Posting your reply'\) : t\('Posting your note'\)/);
 });
 
 test('the review preview cannot be squashed to nothing', () => {
@@ -324,7 +324,7 @@ test('the draft chooser says whether the saved draft is a reply', () => {
   // One slot per account, so the saved draft may be a reply while you came to write a
   // note. Resuming silently changes what Post will publish.
   assert.match(source, /const savedIsReply = !!saved\.replyTo/);
-  assert.match(source, /savedIsReply \? 'Resume your reply\?' : 'Resume your draft\?'/);
+  assert.match(source, /savedIsReply \? t\('Resume your reply\?'\) : t\('Resume your draft\?'\)/);
 });
 
 test('the reply target is stored without its signature', () => {

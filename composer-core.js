@@ -11,6 +11,9 @@
 // it is drawing into. Anything that reaches for the panel's own state stays in the panel
 // and is handed in instead.
 window.SidecarCore = (function () {
+  // i18n.js loads before this file on every page that uses it.
+  const I18N = window.SidecarI18n;
+  const { t, tn } = I18N;
   const show = (el) => el.classList.remove('hidden');
   const hide = (el) => el.classList.add('hidden');
 
@@ -652,7 +655,7 @@ window.SidecarCore = (function () {
       if (loading) {
         acDropdown.append(h('div', { className: 'ac-loading' }, [
           h('span', { className: 'ac-spinner' }),
-          h('span', { textContent: acResults.length ? 'Searching more…' : 'Searching Nostr…' }),
+          h('span', { textContent: acResults.length ? t('Searching more…') : t('Searching Nostr…') }),
         ]));
       }
       // The ask goes ABOVE the results: the box caps at 200px and scrolls, and
@@ -762,7 +765,7 @@ window.SidecarCore = (function () {
     // built here, so both get this at once.
     const trackRow = h('div', { className: 'track-row hidden' });
     const trackBtn = h('button', { className: 'mini ghost compose-add track-clean', type: 'button' });
-    const trackLabel = h('span', { textContent: 'Remove tracking tags' });
+    const trackLabel = h('span', { textContent: t('Remove tracking tags') });
     trackBtn.append(icon('eye-off'), trackLabel);
     trackRow.append(trackBtn);
     wrap.append(trackRow);
@@ -774,8 +777,8 @@ window.SidecarCore = (function () {
       // The count only when there is more than one, because "Remove tracking tags from 1
       // link" is a sentence nobody writes.
       trackLabel.textContent = tracked.length === 1
-        ? 'Remove tracking tags'
-        : 'Remove tracking tags from ' + tracked.length + ' links';
+        ? t('Remove tracking tags')
+        : t('Remove tracking tags from {{count}} links', { count: I18N.fmtNum(tracked.length) });
       show(trackRow);
     }
     trackBtn.addEventListener('click', () => {
@@ -817,7 +820,7 @@ window.SidecarCore = (function () {
     const attachBtn = h('button', { className: 'mini ghost compose-add attach-accept', type: 'button' });
     // Named per paste, not fixed: the offer now covers video too, and "Attach this
     // image" over an .mp4 is the offer describing something else.
-    const attachLabel = h('span', { textContent: 'Attach this image' });
+    const attachLabel = h('span', { textContent: t('Attach this image') });
     attachBtn.append(icon('plus'), attachLabel);
     attachRow.append(attachBtn);
     wrap.prepend(attachRow);
@@ -845,7 +848,7 @@ window.SidecarCore = (function () {
     // it. The ✕ dismisses for THIS url; the offer returns only after the line has
     // gone and the url is pasted afresh, so a deliberate no is not a forever no.
     const attachDismissed = new Set();
-    const attachX = h('button', { className: 'attach-x', title: 'Keep it as text', type: 'button' });
+    const attachX = h('button', { className: 'attach-x', title: t('Keep it as text'), type: 'button' });
     attachX.append(icon('x'));
     attachRow.append(attachX);
     attachX.addEventListener('click', () => {
@@ -862,7 +865,7 @@ window.SidecarCore = (function () {
         // rip it out of one.
         if (!urlOnBoundary(serializeEditor(editor).split('\n'), url)) return;
         offeredUrl = url;
-        attachLabel.textContent = 'Attach this ' + (urlIsVideo(url) ? 'video' : 'image');
+        attachLabel.textContent = urlIsVideo(url) ? t('Attach this video') : t('Attach this image');
         attachRow.classList.remove('hidden');
       }, 0);
     });
@@ -1007,7 +1010,7 @@ window.SidecarCore = (function () {
           a.className = 'quote-inline loading';
           a.href = 'https://njump.me/' + bech;
           a.target = '_blank'; a.rel = 'noreferrer noopener';
-          a.textContent = 'quoted note…';
+          a.textContent = t('quoted note…');
           quotes.push({ el: a, bech });
           pushBlock(a);
         }
@@ -1066,17 +1069,17 @@ window.SidecarCore = (function () {
           signal: controller.signal,
         });
         clearTimeout(timer);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        if (!resp.ok) throw new Error(t('HTTP {{status}}', { status: resp.status }));
         const data = await resp.json().catch(() => null);
         if (data && data.url) return data.url;
-        throw new Error('No URL in Blossom response');
+        throw new Error(t('No URL in Blossom response'));
       } catch (e) {
         clearTimeout(timer);
         console.warn('[Blossom] upload to ' + server + ' failed:', e);
         lastError = e;
       }
     }
-    throw lastError || new Error('All Blossom servers failed');
+    throw lastError || new Error(t('All Blossom servers failed'));
   }
 
   async function tryBlossomFirst(file, forPubkey) {
@@ -1098,8 +1101,8 @@ window.SidecarCore = (function () {
   async function uploadMedia(file, forPubkey) {
     const isImg = file.type.startsWith('image/');
     const isVid = file.type.startsWith('video/');
-    if (!isImg && !isVid) throw new Error('Choose an image or video');
-    if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100MB)');
+    if (!isImg && !isVid) throw new Error(t('Choose an image or video'));
+    if (file.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
     const forPk = forPubkey || deps.activePubkey();
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -1115,10 +1118,10 @@ window.SidecarCore = (function () {
     const form = new FormData();
     form.append('file', file);
     const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
-    if (!resp.ok) throw new Error('Upload failed (' + resp.status + ')');
+    if (!resp.ok) throw new Error(t('Upload failed ({{status}})', { status: resp.status }));
     const json = await resp.json().catch(() => null);
     const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
-    if (!u) throw new Error('Upload returned no URL');
+    if (!u) throw new Error(t('Upload returned no URL'));
     return u;
   }
 
@@ -1207,16 +1210,16 @@ window.SidecarCore = (function () {
       im.src = opts.url;
       head.append(im);
     }
-    head.append(h('span', { className: 'compose-alt-hint', textContent: 'Describe this image for anyone who may not be able to see it.' }));
+    head.append(h('span', { className: 'compose-alt-hint', textContent: t('Describe this image for anyone who may not be able to see it.') }));
     if (initial) {
-      const rm = h('button', { className: 'mini ghost compose-alt-remove', title: 'Remove the description', type: 'button' });
+      const rm = h('button', { className: 'mini ghost compose-alt-remove', title: t('Remove the description'), type: 'button' });
       rm.append(icon('trash'));
       rm.addEventListener('click', () => commit(''));
       head.append(rm);
     }
     row.append(head);
 
-    const field = h('textarea', { className: 'compose-alt-text', maxLength: ALT_MAX, placeholder: 'What does the image show?' });
+    const field = h('textarea', { className: 'compose-alt-text', maxLength: ALT_MAX, placeholder: t('What does the image show?') });
     field.value = initial;
     row.append(field);
 
@@ -1237,7 +1240,7 @@ window.SidecarCore = (function () {
       '<circle cx="10" cy="10" r="' + RING_R + '" class="ring-fill" ' +
       'stroke-dasharray="' + RING_C + '" stroke-dashoffset="' + RING_C + '" transform="rotate(-90 10 10)"/>';
     const count = h('span', { className: 'compose-alt-count' });
-    const save = h('button', { className: 'ghost compose-alt-save', type: 'button', textContent: 'Save description' });
+    const save = h('button', { className: 'ghost compose-alt-save', type: 'button', textContent: t('Save description') });
     row.append(h('div', { className: 'compose-alt-foot' }, [ring, count, save]));
 
     function paintMeter() {
@@ -1411,7 +1414,7 @@ window.SidecarCore = (function () {
         const rowEl = h('div', { className: 'compose-media-row' });
         const u = h('span', { className: 'compose-media-url', textContent: m.url });
         u.title = m.url;
-        const cp = h('button', { className: 'compose-media-copy', title: 'Copy link', type: 'button' });
+        const cp = h('button', { className: 'compose-media-copy', title: t('Copy link'), type: 'button' });
         cp.append(icon('copy'));
         cp.addEventListener('click', () => {
           navigator.clipboard.writeText(m.url).then(() => {
@@ -1437,11 +1440,13 @@ window.SidecarCore = (function () {
     return { wrap, drawer, sync };
   }
 
+  // cost() is a function so it is translated when read, not when this file loads, which
+  // is before the language has.
   const POW_LEVELS = [
-    { bits: 16, cost: 'Usually instant.' },
-    { bits: 18, cost: 'About a second.' },
-    { bits: 20, cost: 'A few seconds, sometimes fifteen.' },
-    { bits: 22, cost: 'Ten seconds or so, sometimes a minute.' },
+    { bits: 16, cost: () => t('Usually instant.') },
+    { bits: 18, cost: () => t('About a second.') },
+    { bits: 20, cost: () => t('A few seconds, sometimes fifteen.') },
+    { bits: 22, cost: () => t('Ten seconds or so, sometimes a minute.') },
   ];
   const POW_DEFAULT_BITS = 18;
   const powLevelFor = (bits) => POW_LEVELS.find((l) => l.bits === bits) || POW_LEVELS[1];
@@ -1498,7 +1503,7 @@ window.SidecarCore = (function () {
           if (url.startsWith('https://')) {
             const card = document.createElement('a');
             card.className = 'link-card loading';
-            card.textContent = 'Loading preview…';
+            card.textContent = t('Loading preview…');
             pushBlock(card);
             fetchOgMeta(url).then((meta) => renderLinkCard(card, url, meta));
           }
@@ -1513,7 +1518,7 @@ window.SidecarCore = (function () {
           if (pubkey) mentions.push({ el: a, pubkey });
           container.append(a);
         } else if (d && (d.type === 'note' || d.type === 'nevent' || d.type === 'naddr')) {
-          const card = h('div', { className: 'note-embed loading', textContent: 'Loading nostr event…' });
+          const card = h('div', { className: 'note-embed loading', textContent: t('Loading nostr event…') });
           embeds.push({ el: card, ref: embedRef(d) });
           pushBlock(card);
         } else {
@@ -1549,7 +1554,7 @@ window.SidecarCore = (function () {
       if (!ev) {
         el.classList.remove('loading');
         el.classList.add('embed-missing');
-        el.textContent = 'nostr event (not found)';
+        el.textContent = t('nostr event (not found)');
         continue;
       }
       renderEmbedCard(el, ev);
@@ -1646,14 +1651,14 @@ window.SidecarCore = (function () {
     // Flagged rather than matched on its message: stopping a mine is a decision, and the
     // composer has to be able to tell it apart from a mine that broke, which reads the
     // same way through a rejected promise.
-    const stopped = new Error('Mining canceled');
+    const stopped = new Error(t('Mining canceled'));
     stopped.canceled = true;
     powWorkerSettleAll(stopped);
   }
 
   function minePow(event, bits, onProgress) {
     if (typeof Worker !== 'function') {
-      return Promise.reject(new Error('This browser cannot mine in the background'));
+      return Promise.reject(new Error(t('This browser cannot mine in the background')));
     }
     if (!powWorker) {
       powWorker = new Worker(chrome.runtime.getURL('pow-worker.js'));
@@ -1664,13 +1669,13 @@ window.SidecarCore = (function () {
         if (progress) { if (p.onProgress) p.onProgress({ attempts, best }); return; }
         powPending.delete(id);
         if (ok) p.resolve({ event: mined, attempts, difficulty });
-        else p.reject(new Error(error || 'Mining failed'));
+        else p.reject(new Error(error || t('Mining failed')));
       };
       powWorker.onerror = () => {
         // A packaging miss or a load failure. Settle everything waiting rather than
         // leaving a promise that never resolves and a composer stuck on "Mining".
         powWorker = null;
-        powWorkerSettleAll(new Error('Mining failed to start'));
+        powWorkerSettleAll(new Error(t('Mining failed to start')));
       };
     }
     return new Promise((resolve, reject) => {
@@ -1763,12 +1768,12 @@ window.SidecarCore = (function () {
 
     const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
     const now = h('button', { className: 'primary', textContent: confirmLabel || 'Post now' });
-    const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+    const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
 
     async function fire() {
       stop();
       now.disabled = true;
-      now.textContent = 'Posting…';
+      now.textContent = t('Posting…');
       await onFire();
     }
     now.addEventListener('click', fire);
@@ -1894,11 +1899,15 @@ window.SidecarCore = (function () {
   // of trying to strip strings and comments with a regex.
   function relTime(ts) {
     const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
-    if (s < 45) return 'just now';
-    if (s < 3600) return Math.round(s / 60) + 'm ago';
-    if (s < 86400) return Math.round(s / 3600) + 'h ago';
-    if (s < 604800) return Math.round(s / 86400) + 'd ago';
-    return new Date(ts).toLocaleDateString();
+    if (s < 45) return t('just now');
+    // Intl's narrow style is word for word what this wrote by hand in English ("5m ago"),
+    // and every other language gets its own. numeric: 'always', or one day reads
+    // "yesterday" where this has always said "1d ago".
+    const rel = (v, unit) => I18N.fmtRelative(-v, unit, { numeric: 'always' });
+    if (s < 3600) return rel(Math.round(s / 60), 'minute');
+    if (s < 86400) return rel(Math.round(s / 3600), 'hour');
+    if (s < 604800) return rel(Math.round(s / 86400), 'day');
+    return I18N.fmtDate(ts);
   }
 
   async function resolveQuotePreviews(quotes) {
@@ -1918,7 +1927,7 @@ window.SidecarCore = (function () {
       }
       el.classList.remove('loading');
       if (!ev) {
-        el.textContent = 'quoted note'; // not found — today's plain link-out
+        el.textContent = t('quoted note'); // not found — today's plain link-out
         continue;
       }
       const who = h('span', {
@@ -1947,7 +1956,7 @@ window.SidecarCore = (function () {
         im.onerror = () => im.remove();
         kids.push(im);
       }
-      if (hasInvoice) kids.push(h('div', { className: 'quote-inline-meta', textContent: '⚡ invoice' }));
+      if (hasInvoice) kids.push(h('div', { className: 'quote-inline-meta', textContent: t('⚡ invoice') }));
       el.replaceChildren(...kids);
       deps.fetchPreviewProfile(ev.pubkey).then((p) => {
         if (p && p.name) who.textContent = '@' + p.name;
