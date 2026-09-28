@@ -70,6 +70,9 @@
   --fiat-sym-opacity: 1;
   --purple: #1D4674;
   --lav: #2F5E8A;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   --add-badge-ink: var(--velvet-1);
   /* The yellow-green of the cliffs in Hokusai's bridge print, the accent this palette
      is built around. A light fill, so the count is dark on it: 8.61:1. */

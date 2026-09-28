@@ -55,6 +55,9 @@
      purple and silver. 6.45:1 and 5.95:1. */
   --purple: #C98B5E;
   --lav: #D69A6A;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   --hover-soft: rgba(201, 139, 94, 0.08);
   --hover-medium: rgba(201, 139, 94, 0.13);
   --hover-faint: rgba(201, 139, 94, 0.06);

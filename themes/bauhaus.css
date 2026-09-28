@@ -151,6 +151,9 @@
      invisible on this theme's --purple — white on the blue disc, 7.96. */
   --add-badge-ink: #FFFFFF;
   --lav: #0057FF;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
 
   /* Relax countdown dot. The shared default (#4ade80) measured 1.74:1 on this white
      status bar; --success (#1F6B3F) was the first fix and was too dark — muddy on a

@@ -50,6 +50,9 @@
   --pending-sub: #A28ECC;
   --purple: #a78bfa;
   --lav: #bda1ff;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
 
   /* ink */
   --text: #f1e8f8;

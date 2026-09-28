@@ -112,6 +112,9 @@
   --pending-sub: #989898;
   --purple: #d4d4d4; /* kept for logo compatibility */
   --lav: #e0e0e0;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
 
   /* Relax bar's restart chip. The default trio resolves to silver here — the same
      metal as the End X — so the disc goes charcoal instead: recessive value, no

@@ -137,6 +137,9 @@
      stop, and is only reached through the Trust fill, which this theme overrides
      below — so it stays cool for the one other rule that reads it. */
   --lav: #d8e3ee;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   --purple: #8fb6cf;
 
   /* ---- buttons: dark glass, lit lettering ------------------------------------

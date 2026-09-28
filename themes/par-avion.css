@@ -138,6 +138,9 @@
      invisible on this theme's --purple — the letter sheet on navy, 12.84. */
   --add-badge-ink: var(--velvet-1);
   --lav: #1B4C8C;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
 
   /* Relax countdown dot. The shared default (#4ade80) is built for a dark status bar
      and disappears on manila. --success was the first fix and read olive at 7px, the

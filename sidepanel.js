@@ -237,6 +237,10 @@
     // list did not already have.
     { text: 'It is not down in any map; true places never are.', who: 'Herman Melville, 1851' },
     { text: 'Things do not change; we change.', who: 'Henry David Thoreau, 1854' },
+    // 1.15.0. Checked against the Project Gutenberg texts: Middlemarch, chapter 72, in
+    // Book VIII (1872), and Through the Looking-Glass (December 1871).
+    { text: 'What do we live for, if it is not to make life less difficult to each other?', who: 'George Eliot, 1872' },
+    { text: 'Why, sometimes I’ve believed as many as six impossible things before breakfast.', who: 'Lewis Carroll, 1871' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

@@ -58,6 +58,9 @@
      where the glaze pooled thin over the clay. 7.40:1 and 8.91:1 on the card. */
   --purple: #A7B6C2;
   --lav: #BAC7D1;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   --hover-soft: rgba(167, 182, 194, 0.07);
   --hover-medium: rgba(167, 182, 194, 0.11);
   --hover-faint: rgba(167, 182, 194, 0.05);
