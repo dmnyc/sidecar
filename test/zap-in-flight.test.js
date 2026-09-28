@@ -129,7 +129,8 @@ test('what replaces it is a corner indicator, not another overlay', () => {
   assert.doesNotMatch(fn, /role="dialog"/, 'the indicator announces itself as a dialog');
   assert.match(fn, /role="status" aria-live="polite"/,
     'a status that changes under you has to be announced');
-  assert.match(fn, /auto \? 'Zapping ' : 'Sending '/, 'the indicator does not say what it is doing');
+  assert.match(fn, /auto \? msgHtml\('flightZapping', 'Zapping \$1 sats', bold\) : msgHtml\('flightSending', 'Sending \$1 sats', bold\)/,
+    'the indicator does not say what it is doing');
   // Hiding it hides the indicator, not the payment. Remembered anyway, or the next DOM
   // scan turns around and offers to pay an invoice that is already being paid.
   assert.match(fn, /dismissedInvoice = invoice/);
@@ -154,7 +155,7 @@ test('a failure comes back to the card, because a retry is a decision again', ()
   assert.match(fn, /setError: \(detail\) => renderCard\(invoice, detail\)/);
   const card = lift(contentCode, 'function renderCard(');
   assert.match(card, /if \(errorText\) setError\(errorText\);/, 'the reopened card does not show the error');
-  assert.match(card, /label\.textContent = 'Try again'/);
+  assert.match(card, /label\.textContent = msg\('cardTryAgain', 'Try again'\)/);
 });
 
 test('and the page cannot take either state off the screen', () => {
@@ -172,7 +173,7 @@ test('and the page cannot take either state off the screen', () => {
   // Module scope on purpose: the card's own `awaiting` closure is invisible from here.
   // And cleared by removeCard, or a torn-down card leaves the scan wedged forever.
   assert.match(lift(contentCode, 'function removeCard('), /awaitingDecision = false;/);
-  assert.match(lift(contentCode, 'function renderCard('), /awaitingDecision = false;[\s\S]{0,200}Try again/,
+  assert.match(lift(contentCode, 'function renderCard('), /awaitingDecision = false;[\s\S]{0,260}Try again/,
     'a failed payment must unwedge the scan as well as the card');
 });
 

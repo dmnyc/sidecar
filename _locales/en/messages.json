@@ -14,5 +14,157 @@
   "sidebarTitle": {
     "message": "Sidecar",
     "description": "Title of the sidebar in Firefox. The product name, not translated."
+  },
+  "payPillPayable": {
+    "message": "$AMOUNT$ sats payable",
+    "description": "The corner pill for a Lightning invoice found on a web page. AMOUNT is the number, shown in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "payPillInvoicePayable": {
+    "message": "An invoice payable",
+    "description": "The same pill for an invoice with no amount of its own."
+  },
+  "payPillLabel": {
+    "message": "$AMOUNT$ sat Lightning invoice is payable on $SITE$. Open Sidecar to pay it.",
+    "description": "Screen-reader label for the pill. SITE is the web page's host.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      },
+      "site": {
+        "content": "$2",
+        "example": "example.com"
+      }
+    }
+  },
+  "payPillLabelNoAmount": {
+    "message": "A Lightning invoice is payable on $SITE$. Open Sidecar to pay it.",
+    "description": "Screen-reader label for the pill when the invoice has no amount.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "dismiss": {
+    "message": "Dismiss",
+    "description": "Screen-reader label for the pill's close button."
+  },
+  "hide": {
+    "message": "Hide",
+    "description": "Screen-reader label for the close button on the payment-in-progress pill. Hides the indicator; it does not cancel the payment."
+  },
+  "flightSending": {
+    "message": "Sending $AMOUNT$ sats",
+    "description": "The corner pill while a payment is going out. AMOUNT in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "flightZapping": {
+    "message": "Zapping $AMOUNT$ sats",
+    "description": "The same pill for an automatic zap.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "flightSendingPayment": {
+    "message": "Sending payment",
+    "description": "The pill while a payment with no stated amount goes out."
+  },
+  "flightZappingPayment": {
+    "message": "Zapping payment",
+    "description": "The same, for an automatic zap."
+  },
+  "flightPaid": {
+    "message": "Paid $AMOUNT$ sats",
+    "description": "The pill once the payment has settled. AMOUNT in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "paid": {
+    "message": "Paid",
+    "description": "A payment has settled."
+  },
+  "cardEyebrow": {
+    "message": "Request to pay",
+    "description": "Small heading on the payment card. A REQUEST, not a charge: nothing has been paid yet. Keep that sense."
+  },
+  "unitSats": {
+    "message": "sats",
+    "description": "The unit under the amount on the payment card (satoshis)."
+  },
+  "cardNoAmountMemo": {
+    "message": "A Lightning invoice. Choose the amount in Sidecar.",
+    "description": "Shown on the card for an invoice with no amount of its own."
+  },
+  "cardAutoZapOffer": {
+    "message": "Turn on Auto Zaps ($MAX$ sats max)",
+    "description": "Switch on the card that turns on automatic zaps up to MAX.",
+    "placeholders": {
+      "max": {
+        "content": "$1",
+        "example": "1,000"
+      }
+    }
+  },
+  "cardLabel": {
+    "message": "Pay with Sidecar",
+    "description": "Screen-reader label for the payment card."
+  },
+  "cardFoundOn": {
+    "message": "found on $SITE$",
+    "description": "Under the amount: where the invoice was found. SITE in bold.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "cardPay": {
+    "message": "Pay with Sidecar",
+    "description": "The card's pay button. Pressing it asks Sidecar; nothing is sent until approved there."
+  },
+  "cardNotNow": {
+    "message": "Not now",
+    "description": "Closes the card without paying."
+  },
+  "cardDontShow": {
+    "message": "Don't show this prompt again",
+    "description": "Switch that stops the card appearing for invoices found on pages."
+  },
+  "cardConfirmInSidecar": {
+    "message": "Confirm in Sidecar",
+    "description": "The pay button while Sidecar asks for approval."
+  },
+  "cardAwaiting": {
+    "message": "Approve it in Sidecar to send it. Nothing has left your wallet yet.",
+    "description": "Status under the button while waiting for approval. Must stay clear that nothing has been paid yet."
+  },
+  "cardTryAgain": {
+    "message": "Try again",
+    "description": "The pay button after a payment failed."
+  },
+  "cardFailed": {
+    "message": "Payment failed. Please try again.",
+    "description": "Shown when a payment fails with no reason given."
   }
 }

@@ -21907,6 +21907,8 @@
     });
     $('pseudo-locale-toggle').checked = settings.language === I18N.PSEUDO;
     $('pseudo-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.PSEUDO : 'auto'));
+    $('test-locale-toggle').checked = settings.language === I18N.TEST;
+    $('test-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.TEST : 'auto'));
   }
 
   // ---- language ----

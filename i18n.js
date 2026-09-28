@@ -29,6 +29,12 @@
     { code: 'en', name: 'English' },
   ];
   const PSEUDO = 'en-XA';
+  // en-XB, the developer's TEST locale: a real locale file (locales/en-XB.json, written by
+  // scripts/i18n-keys.mjs --test-locale, git-ignored, never shipped) that marks every
+  // string ⟦like this⟧. It exercises what a real language does, fetching and applying a
+  // file with English fallback, which en-XA (generated in code) never touches. Reachable
+  // only by choosing it explicitly; no browser language resolves to it.
+  const TEST = 'en-XB';
   const RTL = new Set(['ar', 'fa', 'he', 'ur']);
   const CACHE_KEY = 'sidecar_lang'; // localStorage: the resolved code, for a synchronous start
 
@@ -41,6 +47,7 @@
     const want = String(requested || '').trim();
     if (!want) return 'en';
     if (want === PSEUDO) return PSEUDO;
+    if (want === TEST) return TEST;
     const codes = supported();
     const exact = codes.find((c) => c.toLowerCase() === want.toLowerCase());
     if (exact) return exact;
@@ -237,6 +244,7 @@
     resolveSetting: (setting) => resolve(!setting || setting === 'auto' ? browserLanguage() : setting),
     CACHE_KEY,
     PSEUDO,
+    TEST,
   };
   root.SidecarI18n = api;
 })(typeof self !== 'undefined' ? self : globalThis);
