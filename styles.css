@@ -4382,17 +4382,19 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
 }
 .evpreview:not(.clamped) { max-height: 320px; overflow-y: auto; }
-.evpreview-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 7px; }
+/* Labels never break inside themselves; when a language runs long, the row wraps and
+   Show more drops to its own line, still on the right. Same rules in prompt.html. */
+.evpreview-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-top: 7px; }
 .evpreview-modes { display: flex; gap: 12px; }
 .evpreview-mode {
   background: none; border: none; padding: 2px 0; cursor: pointer;
-  color: var(--muted); font-size: 12px; font-family: inherit;
+  color: var(--muted); font-size: 12px; font-family: inherit; white-space: nowrap;
 }
 .evpreview-mode:hover { color: var(--text); }
 .evpreview-mode.active { color: var(--lav); font-weight: 600; }
 .evpreview-toggle {
   background: none; border: none; padding: 2px 0; cursor: pointer;
-  color: var(--lav); font-size: 12px; font-family: inherit;
+  color: var(--lav); font-size: 12px; font-family: inherit; white-space: nowrap; margin-left: auto;
 }
 .evpreview-toggle:hover { color: var(--text); }
 .kind-warn {

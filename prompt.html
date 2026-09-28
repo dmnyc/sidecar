@@ -210,17 +210,19 @@
     .evpreview .ev-mention { color: var(--lav); }
     .evpreview .ev-ref { color: var(--muted); }
     .evpreview a { color: var(--lav); word-break: break-all; }
-    .evpreview-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 7px; }
+    /* Labels never break inside themselves; a long language wraps the row instead.
+       Same rules in styles.css. */
+    .evpreview-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-top: 7px; }
     .evpreview-modes { display: flex; gap: 12px; }
     .evpreview-mode {
       background: none; border: none; padding: 2px 0; cursor: pointer;
-      color: var(--muted); font-size: 11.5px; font-family: inherit;
+      color: var(--muted); font-size: 11.5px; font-family: inherit; white-space: nowrap;
     }
     .evpreview-mode:hover { color: var(--text); }
     .evpreview-mode.active { color: var(--lav); font-weight: 600; }
     .evpreview-toggle {
       background: none; border: none; padding: 2px 0; cursor: pointer;
-      color: var(--lav); font-size: 11.5px; font-family: inherit;
+      color: var(--lav); font-size: 11.5px; font-family: inherit; white-space: nowrap; margin-left: auto;
     }
     .evpreview-toggle:hover { color: var(--text); }
     .kind-warn {
@@ -409,21 +411,21 @@
   <div class="prompt-scroll">
     <div class="brand"><img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
     <div class="host" id="host">…</div>
-    <div class="ask" id="ask">wants to…</div>
+    <div class="ask" id="ask" data-i18n="wants to…">wants to…</div>
 
     <!-- Account capsule ABOVE the event preview: "Signing as" is context, not
          detail — it belongs with the host name, before the thing being signed.
          Below the preview it was pushed off-screen by a long event, defeating
          the clamp's own comment ("keeps the account card in view"). -->
     <div class="account" id="account"></div>
-    <button class="switch-toggle hidden" id="switch-toggle">Sign in with a different account</button>
+    <button class="switch-toggle hidden" id="switch-toggle" data-i18n="Sign in with a different account" data-i18n-review>Sign in with a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
     <!-- "Wrong account?" escape — mirrors #approval-wrong-acct in sidepanel.html. Shown
          on a content sign whenever an account exists that the switcher above can't offer.
          Copy must stay in step with the panel's. -->
     <div class="wrong-acct hidden" id="wrong-acct">
-      <strong>Not the right account?</strong>
-      <button class="wrong-acct-toggle" id="wrong-acct-toggle" aria-expanded="false">Detach and use another identity.</button>
+      <strong data-i18n="Not the right account?" data-i18n-review>Not the right account?</strong>
+      <button class="wrong-acct-toggle" id="wrong-acct-toggle" aria-expanded="false" data-i18n="Detach and use another identity." data-i18n-review>Detach and use another identity.</button>
       <div class="wrong-acct-list hidden" id="wrong-acct-list"></div>
     </div>
 
@@ -440,7 +442,7 @@
          .prompt-scroll fades its own bottom edge, which was leaving the field
          half-transparent before it even left the viewport. -->
     <div id="unlock" class="hidden">
-      <label for="pin">Enter your PIN to unlock</label>
+      <label for="pin" data-i18n="Enter your PIN to unlock">Enter your PIN to unlock</label>
       <input type="password" id="pin" autocomplete="off" maxlength="32" autofocus />
       <!-- PIN failures belong against the PIN, not two controls further down next to
            the buttons — this is where "N attempts left before all data is erased"
@@ -453,22 +455,22 @@
          already asked for it on the card — untick to pay without enabling it. -->
     <div id="autozap-offer" class="remember hidden">
       <label class="check"><input type="checkbox" id="autozap-offer-box" checked />
-      <span id="autozap-offer-label">Turn on Auto Zaps</span></label>
+      <span id="autozap-offer-label" data-i18n="Turn on Auto Zaps" data-i18n-review>Turn on Auto Zaps</span></label>
     </div>
 
     <div id="remember" class="remember hidden">
-    <label class="check"><input type="checkbox" id="remember-budget" /> Allow this site to spend up to</label>
+    <label class="check"><input type="checkbox" id="remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
     <div class="budget-row">
-      <input type="number" id="budget-amount" min="1" placeholder="sats" />
-      <span class="budget-unit">sats / day without asking</span>
+      <input type="number" id="budget-amount" min="1" placeholder="sats" data-i18n-placeholder="sats" />
+      <span class="budget-unit" data-i18n="sats / day without asking" data-i18n-review>sats / day without asking</span>
     </div>
     </div>
     <div id="relax-row" class="relax-row hidden">
-    <div class="relax-label">Auto-sign for the next</div>
+    <div class="relax-label" data-i18n="Auto-sign for the next" data-i18n-review>Auto-sign for the next</div>
     <div class="relax-chips">
-      <button type="button" class="relax-chip" data-mins="5">5 min</button>
-      <button type="button" class="relax-chip" data-mins="15">15 min</button>
-      <button type="button" class="relax-chip" data-mins="30">30 min</button>
+      <button type="button" class="relax-chip" data-mins="5" data-i18n="5 min" data-i18n-review>5 min</button>
+      <button type="button" class="relax-chip" data-mins="15" data-i18n="15 min" data-i18n-review>15 min</button>
+      <button type="button" class="relax-chip" data-mins="30" data-i18n="30 min" data-i18n-review>30 min</button>
     </div>
     </div>
     <div class="error" id="error"></div>
@@ -478,9 +480,9 @@
          a label for the one below it. -->
     <div id="trust-nudge" class="trust-nudge hidden"></div>
     <div class="actions">
-      <button class="primary" id="allow">Allow once</button>
-      <button class="lav-btn" id="trust">Trust this site</button>
-      <button class="ghost" id="reject">Reject</button>
+      <button class="primary" id="allow" data-i18n="Allow once" data-i18n-review>Allow once</button>
+      <button class="lav-btn" id="trust" data-i18n="Trust this site" data-i18n-review>Trust this site</button>
+      <button class="ghost" id="reject" data-i18n="Reject" data-i18n-review>Reject</button>
     </div>
   </div>
 

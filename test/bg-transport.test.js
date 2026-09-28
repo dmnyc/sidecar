@@ -19,6 +19,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -33,7 +34,8 @@ function lift(source, pattern, label) {
 // `behavior` decides what the fake chrome does with the callback.
 function harness(source, pattern, label, timeoutName, behavior) {
   const clock = { now: 0, next: 1, timers: new Map() };
-  const ctx = {
+  // withI18n: prompt.js's timeout messages go through t().
+  const ctx = withI18n({
     Promise, Error, String, clearTimeout: (id) => clock.timers.delete(id),
     setTimeout: (fn, ms) => {
       const id = clock.next++;
@@ -46,7 +48,7 @@ function harness(source, pattern, label, timeoutName, behavior) {
         sendMessage(msg, cb) { behavior(msg, cb, ctx.chrome.runtime); },
       },
     },
-  };
+  });
   vm.createContext(ctx);
   vm.runInContext(
     '(function () {\n' + lift(source, pattern, label) + '\nthis.fn = ' + label + ';\nthis.TIMEOUT = ' + timeoutName + ';\n}).call(this)',
@@ -192,5 +194,5 @@ test('a transport failure is not reported as a wrong PIN', () => {
 test('init() cannot fail silently into a blank window', () => {
   assert.match(prompt, /init\(\)\.catch\(\(e\) => \{/);
   const fn = prompt.slice(prompt.indexOf('init().catch('));
-  assert.match(fn, /els\.reject\.textContent = 'Close'/, 'and must leave a way out');
+  assert.match(fn, /els\.reject\.textContent = t\('Close'\)/, 'and must leave a way out');
 });

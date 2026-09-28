@@ -15,6 +15,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -59,11 +60,11 @@ function promptPaint(amountSats, armed) {
   const allow = { textContent: '', cls: new Set(['primary']) };
   allow.classList = { toggle: (c, on) => (on ? allow.cls.add(c) : allow.cls.delete(c)) };
   // eslint-disable-next-line no-new-func
-  const paintPay = new Function('els', 'data', 'fmtSats', 'isPayment', 'largeArmed', `
+  const paintPay = new Function('els', 'data', 'fmtSats', 'isPayment', 'largeArmed', 'tSec', `
     const LARGE_SEND_SATS = 10000;
     const isLargePayment = () => isPayment && data.amountSats != null && data.amountSats >= LARGE_SEND_SATS;
     ${lift(prompt, 'function paintPay(')}
-    return paintPay;`)({ allow }, { amountSats }, (n) => String(n), true, armed);
+    return paintPay;`)({ allow }, { amountSats }, (n) => String(n), true, armed, withI18n({}).tSec);
   paintPay();
   return allow;
 }

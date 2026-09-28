@@ -4,6 +4,11 @@
 (function () {
   'use strict';
 
+  // Translation (i18n.js, loaded first). tSec marks the text a native speaker must review
+  // before a language ships: this window is where people decide what to sign and pay.
+  const I18N = self.SidecarI18n;
+  const { t, tn, tSec } = I18N;
+
   const params = new URLSearchParams(location.search);
   const promptId = params.get('id');
 
@@ -54,13 +59,13 @@
         fn(arg);
       };
       const timer = setTimeout(
-        () => finish(reject, new Error('Sidecar’s background worker did not respond.')),
+        () => finish(reject, new Error(t('Sidecar’s background worker did not respond.'))),
         timeoutMs || SEND_TIMEOUT_MS
       );
       try {
         chrome.runtime.sendMessage(message, (resp) => {
           const err = chrome.runtime.lastError;
-          if (err) return finish(reject, new Error(err.message || 'Sidecar’s background worker is unavailable.'));
+          if (err) return finish(reject, new Error(err.message || t('Sidecar’s background worker is unavailable.')));
           finish(resolve, resp);
         });
       } catch (e) {
@@ -85,18 +90,24 @@
     });
   });
 
-  const METHOD_LABELS = {
-    getPublicKey: 'see your public key (npub)',
-    signEvent: 'sign an event with your key',
-    getRelays: 'read your relay list',
-    'nip04.encrypt': 'encrypt a message (NIP-04)',
-    'nip04.decrypt': 'decrypt a message (NIP-04)',
-    'nip44.encrypt': 'encrypt a message (NIP-44)',
-    'nip44.decrypt': 'decrypt a message (NIP-44)',
-    'webln.getInfo': 'see your wallet info',
-    'webln.getBalance': 'see your wallet balance',
-    'webln.makeInvoice': 'create a Lightning invoice',
-  };
+  // What the site is asking, as the line under its host. Whole phrases rather than
+  // "wants to " glued to a verb, so a language can order the sentence its own way. Built
+  // when drawn, not at load, so a translation that arrives after load is the one shown.
+  function methodAsk(method) {
+    const asks = {
+      getPublicKey: tSec('wants to see your public key (npub)'),
+      signEvent: tSec('wants to sign an event with your key'),
+      getRelays: tSec('wants to read your relay list'),
+      'nip04.encrypt': tSec('wants to encrypt a message (NIP-04)'),
+      'nip04.decrypt': tSec('wants to decrypt a message (NIP-04)'),
+      'nip44.encrypt': tSec('wants to encrypt a message (NIP-44)'),
+      'nip44.decrypt': tSec('wants to decrypt a message (NIP-44)'),
+      'webln.getInfo': tSec('wants to see your wallet info'),
+      'webln.getBalance': tSec('wants to see your wallet balance'),
+      'webln.makeInvoice': tSec('wants to create a Lightning invoice'),
+    };
+    return asks[method] || tSec('wants to {{method}}', { method });
+  }
 
   let data = null;
   let isPayment = false;
@@ -112,8 +123,8 @@
   const isLargePayment = () => isPayment && data.amountSats != null && data.amountSats >= LARGE_SEND_SATS;
   function paintPay() {
     const ask = isLargePayment() && !largeArmed;
-    els.allow.textContent = ask ? 'Confirm amount above'
-      : data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+    els.allow.textContent = ask ? tSec('Confirm amount above')
+      : data.amountSats != null ? tSec('Pay {{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('Pay');
     els.allow.classList.toggle('primary', !ask);
     els.allow.classList.toggle('secondary', ask);
   }
@@ -124,59 +135,68 @@
   let avatarPh = 'icons/avatar-default.svg';
 
   function fmtSats(n) {
-    return Number(n).toLocaleString('en-US');
+    return I18N.fmtNum(Number(n));
   }
 
   // Human-readable labels for the event kinds sites most commonly ask Sidecar to
   // sign (not exhaustive — see https://nips.nostr.com for the full registry).
-  const KIND_LABELS = {
-    0: 'Profile metadata', 1: 'Note', 3: 'Follow list', 4: 'Encrypted DM (legacy)',
-    5: 'Delete request', 6: 'Repost', 7: 'Reaction', 8: 'Badge award', 9: 'Chat message',
-    11: 'Thread', 13: 'Seal', 14: 'Direct message', 15: 'File message', 16: 'Generic repost',
-    17: 'Reaction (website)', 20: 'Picture', 21: 'Video', 22: 'Short video',
-    62: 'Request to vanish',
-    1018: 'Poll response', 1063: 'File metadata', 1068: 'Poll', 1111: 'Comment',
-    1222: 'Voice message', 1244: 'Voice message reply', 1311: 'Live chat message',
-    1337: 'Code snippet', 1984: 'Report', 1985: 'Label',
-    4454: 'DM device key', 4455: 'DM key transfer', 4550: 'Community post approval',
-    9041: 'Zap goal', 9321: 'Nutzap', 9734: 'Zap request', 9735: 'Zap receipt', 9802: 'Highlight',
-    10000: 'Mute list', 10001: 'Pin list', 10002: 'Relay list', 10003: 'Bookmark list',
-    10004: 'Communities list', 10005: 'Public chats list', 10006: 'Blocked relays list',
-    10007: 'Search relays list', 10008: 'Profile badges', 10009: 'Groups list',
-    10012: 'Favorite relays list', 10015: 'Interests list', 10020: 'Media follows',
-    10030: 'Emoji list', 10044: 'DM encryption key', 10050: 'DM relay list',
-    10063: 'Blossom server list',
-    13194: 'Wallet info', 22242: 'Relay auth', 23194: 'Wallet request', 23195: 'Wallet response',
-    24133: 'Remote signing handshake', 24242: 'Blossom authorization', 27235: 'HTTP auth',
-    30000: 'Follow set', 30002: 'Relay set', 30003: 'Bookmark set', 30004: 'Curation set',
-    30005: 'Video set', 30008: 'Badge set', 30009: 'Badge definition', 30015: 'Interest set',
-    30017: 'Marketplace stall', 30018: 'Marketplace product', 30023: 'Long-form article',
-    30024: 'Article draft', 30030: 'Emoji set', 30040: 'Publication index',
-    30041: 'Publication content', 30078: 'App data', 30311: 'Live event',
-    30312: 'Interactive room', 30313: 'Conference event', 30315: 'User status',
-    30402: 'Classified listing', 30403: 'Classified listing draft', 30818: 'Wiki article',
-    31234: 'Draft event', 31922: 'Calendar event (date)', 31923: 'Calendar event (time)',
-    31924: 'Calendar', 31925: 'Calendar RSVP', 31989: 'Handler recommendation',
-    31990: 'Handler info', 34235: 'Video (addressable)', 34236: 'Short video (addressable)',
-    34550: 'Community definition', 39089: 'Starter pack', 39092: 'Media starter pack',
-    39701: 'Web bookmark',
-  };
+  // Built when drawn, not at load, so a translation that arrives after load is the
+  // one shown. Every label is tSec: it names what is being signed.
+  function kindLabels() {
+    return {
+      0: tSec('Profile metadata'), 1: tSec('Note'), 3: tSec('Follow list'), 4: tSec('Encrypted DM (legacy)'),
+      5: tSec('Delete request'), 6: tSec('Repost'), 7: tSec('Reaction'), 8: tSec('Badge award'), 9: tSec('Chat message'),
+      11: tSec('Thread'), 13: tSec('Seal'), 14: tSec('Direct message'), 15: tSec('File message'), 16: tSec('Generic repost'),
+      17: tSec('Reaction (website)'), 20: tSec('Picture'), 21: tSec('Video'), 22: tSec('Short video'),
+      62: tSec('Request to vanish'),
+      1018: tSec('Poll response'), 1063: tSec('File metadata'), 1068: tSec('Poll'), 1111: tSec('Comment'),
+      1222: tSec('Voice message'), 1244: tSec('Voice message reply'), 1311: tSec('Live chat message'),
+      1337: tSec('Code snippet'), 1984: tSec('Report'), 1985: tSec('Label'),
+      4454: tSec('DM device key'), 4455: tSec('DM key transfer'), 4550: tSec('Community post approval'),
+      9041: tSec('Zap goal'), 9321: tSec('Nutzap'), 9734: tSec('Zap request'), 9735: tSec('Zap receipt'), 9802: tSec('Highlight'),
+      10000: tSec('Mute list'), 10001: tSec('Pin list'), 10002: tSec('Relay list'), 10003: tSec('Bookmark list'),
+      10004: tSec('Communities list'), 10005: tSec('Public chats list'), 10006: tSec('Blocked relays list'),
+      10007: tSec('Search relays list'), 10008: tSec('Profile badges'), 10009: tSec('Groups list'),
+      10012: tSec('Favorite relays list'), 10015: tSec('Interests list'), 10020: tSec('Media follows'),
+      10030: tSec('Emoji list'), 10044: tSec('DM encryption key'), 10050: tSec('DM relay list'),
+      10063: tSec('Blossom server list'),
+      13194: tSec('Wallet info'), 22242: tSec('Relay auth'), 23194: tSec('Wallet request'), 23195: tSec('Wallet response'),
+      24133: tSec('Remote signing handshake'), 24242: tSec('Blossom authorization'), 27235: tSec('HTTP auth'),
+      30000: tSec('Follow set'), 30002: tSec('Relay set'), 30003: tSec('Bookmark set'), 30004: tSec('Curation set'),
+      30005: tSec('Video set'), 30008: tSec('Badge set'), 30009: tSec('Badge definition'), 30015: tSec('Interest set'),
+      30017: tSec('Marketplace stall'), 30018: tSec('Marketplace product'), 30023: tSec('Long-form article'),
+      30024: tSec('Article draft'), 30030: tSec('Emoji set'), 30040: tSec('Publication index'),
+      30041: tSec('Publication content'), 30078: tSec('App data'), 30311: tSec('Live event'),
+      30312: tSec('Interactive room'), 30313: tSec('Conference event'), 30315: tSec('User status'),
+      30402: tSec('Classified listing'), 30403: tSec('Classified listing draft'), 30818: tSec('Wiki article'),
+      31234: tSec('Draft event'), 31922: tSec('Calendar event (date)'), 31923: tSec('Calendar event (time)'),
+      31924: tSec('Calendar'), 31925: tSec('Calendar RSVP'), 31989: tSec('Handler recommendation'),
+      31990: tSec('Handler info'), 34235: tSec('Video (addressable)'), 34236: tSec('Short video (addressable)'),
+      34550: tSec('Community definition'), 39089: tSec('Starter pack'), 39092: tSec('Media starter pack'),
+      39701: tSec('Web bookmark'),
+    };
+  }
   // Kinds worth a second look before signing: they either move/delete other
   // events, or normally belong to a wallet's own key rather than a NIP-07 site.
-  const KIND_WARNINGS = {
-    5: 'Deletes other events — make sure you intended this.',
-    62: 'Asks relays to delete all of your events — make sure you intended this.',
-    23194: "Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
-    23195: "Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
-    24133: 'This is a remote-signing handshake — approving it could hand control of your account to another app or device.',
-  };
+  function kindWarnings() {
+    return {
+      5: tSec('Deletes other events. Make sure you intended this.'),
+      62: tSec('Asks relays to delete all of your events. Make sure you intended this.'),
+      23194: tSec("Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this."),
+      23195: tSec("Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this."),
+      24133: tSec('This is a remote-signing handshake. Approving it could hand control of your account to another app or device.'),
+    };
+  }
+  // The number beside the name, always: a translated name alone could be wrong, and the
+  // number is what the event actually is (docs/i18n-design.md §3.7).
   function kindLabel(kind) {
     if (kind == null) return '—';
-    return KIND_LABELS[kind] ? kind + ' — ' + KIND_LABELS[kind] : kind + ' (unrecognized kind)';
+    const label = kindLabels()[kind];
+    return label ? kind + ' · ' + label : tSec('{{kind}} (unrecognized kind)', { kind });
   }
   function kindWarning(kind) {
     if (kind == null) return null;
-    return KIND_WARNINGS[kind] || (!KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
+    return kindWarnings()[kind] || (!kindLabels()[kind] ? tSec('Unrecognized event kind. Review carefully before approving.') : null);
   }
   // A request we can't read as an event at all — no integer kind, so there is nothing
   // to label, no tag count, and no content to preview. normalizeSignEventParams in
@@ -185,8 +205,8 @@
   // bare "—" where the event should be, with Allow looking as ordinary as ever. If one
   // ever gets through again, say so on the card instead of showing a blank.
   // Duplicated verbatim in sidepanel.js — same words on both approval surfaces.
-  const UNREADABLE_WARNING =
-    "Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.";
+  const unreadableWarning = () =>
+    tSec("Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.");
   function kindUnreadable(ev) {
     return !Number.isInteger(ev && ev.kind);
   }
@@ -239,7 +259,7 @@
           span.textContent = '@' + bech.slice(0, 10) + '…';
         } else {
           span.className = 'ev-ref';
-          span.textContent = bech.startsWith('naddr1') ? '[article]' : '[note]';
+          span.textContent = bech.startsWith('naddr1') ? t('[article]') : t('[note]');
         }
         container.appendChild(span);
       }
@@ -259,7 +279,7 @@
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
     const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
-    const LABEL = { formatted: 'Formatted', raw: 'Raw', json: 'JSON' };
+    const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
@@ -302,11 +322,11 @@
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'evpreview-toggle';
-    more.textContent = 'Show more';
+    more.textContent = t('Show more');
     more.addEventListener('click', () => {
       expanded = !expanded;
       view.classList.toggle('clamped', !expanded);
-      more.textContent = expanded ? 'Show less' : 'Show more';
+      more.textContent = expanded ? t('Show less') : t('Show more');
     });
     controls.appendChild(more);
     container.appendChild(controls);
@@ -317,25 +337,25 @@
     if (data.offerAutoZap > 0) {
       els.autozapOffer.classList.remove('hidden');
       els.autozapOfferLabel.textContent =
-        'Turn on Auto Zaps (' + fmtSats(data.offerAutoZap) + ' sats max)';
+        tSec('Turn on Auto Zaps ({{max}} sats max)', { max: fmtSats(data.offerAutoZap) });
     }
 
     if (isPayment) {
       const rows = [];
-      rows.push(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
+      rows.push(row(tSec('Amount'), data.amountSats != null ? tSec('{{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('set by invoice')));
       // Keysend goes to a bare node key, so say where — and, when the site sent a
       // boostagram, say what it is for. A card reading "500 sats to 03a1…9f2c" tells
       // nobody anything; one naming the show is a decision someone can actually make.
       if (data.method === 'keysend') {
         const b = data.boost || {};
         const who = b.podcast || b.episode || '';
-        rows.push(row('To', who ? clampText(who, 60) : truncMid(data.destination, 10, 8)));
+        rows.push(row(tSec('To'), who ? clampText(who, 60) : truncMid(data.destination, 10, 8)));
         // Named as the site's words, not Sidecar's. Nothing here is verified — the page
         // wrote it — and a spend card must not lend it authority it has not earned.
-        if (who && data.destination) rows.push(row('Node', truncMid(data.destination, 10, 8)));
-        if (b.message) rows.push(row('Message from site', clampText(b.message, 140), 'prose'));
+        if (who && data.destination) rows.push(row(tSec('Node'), truncMid(data.destination, 10, 8)));
+        if (b.message) rows.push(row(tSec('Message from site'), clampText(b.message, 140), 'prose'));
       }
-      if (data.memo) rows.push(row('Memo', String(data.memo)));
+      if (data.memo) rows.push(row(tSec('Memo'), String(data.memo)));
       els.preview.innerHTML = rows.join('');
       els.preview.classList.remove('hidden');
       return;
@@ -344,10 +364,10 @@
       const ev = (data.params && (data.params.event || data.params)) || {};
       const unreadable = kindUnreadable(ev);
       const rows = [];
-      rows.push(row('Kind', unreadable ? 'Unreadable' : kindLabel(ev.kind)));
-      if (Array.isArray(ev.tags)) rows.push(row('Tags', String(ev.tags.length)));
+      rows.push(row(tSec('Kind'), unreadable ? tSec('Unreadable') : kindLabel(ev.kind)));
+      if (Array.isArray(ev.tags)) rows.push(row(tSec('Tags'), I18N.fmtNum(ev.tags.length)));
       els.preview.innerHTML = rows.join('');
-      const warning = unreadable ? UNREADABLE_WARNING : kindWarning(ev.kind);
+      const warning = unreadable ? unreadableWarning() : kindWarning(ev.kind);
       if (warning) {
         const warn = document.createElement('div');
         warn.className = 'kind-warn';
@@ -376,13 +396,13 @@
           '<circle cx="12" cy="12" r="10"></circle>' +
           '<line x1="12" y1="8" x2="12" y2="12"></line>' +
           '<line x1="12" y1="16" x2="12.01" y2="16"></line>';
-        title.append(warnIcon, document.createTextNode('This action erases data'));
+        title.append(warnIcon, document.createTextNode(tSec('This action erases data')));
         const body = document.createElement('p');
         body.className = 'destructive-warn-body';
         body.textContent = data.destructive.message;
         const hint = document.createElement('p');
         hint.className = 'destructive-warn-hint';
-        hint.textContent = "If you didn't mean to do this, don't allow it — the version on your relays stays as it is.";
+        hint.textContent = tSec("If you didn't mean to do this, don't allow it. The version on your relays stays as it is.");
 
         // Reject inside the warning; Allow/Trust disabled until acknowledged. See the
         // matching note in sidepanel.js — approving normally is muscle memory, and this
@@ -391,17 +411,17 @@
         actions.className = 'destructive-warn-actions';
         const rejectBtn = document.createElement('button');
         rejectBtn.className = 'destructive-warn-reject';
-        rejectBtn.textContent = "Don't allow";
+        rejectBtn.textContent = tSec("Don't allow");
         rejectBtn.addEventListener('click', () => decide('reject'));
         const ackBtn = document.createElement('button');
         ackBtn.className = 'destructive-warn-ack';
-        ackBtn.textContent = 'I understand';
+        ackBtn.textContent = tSec('I understand');
         ackBtn.addEventListener('click', () => {
           setLocked(false);
           ackBtn.remove();
           const note = document.createElement('p');
           note.className = 'destructive-warn-unlocked';
-          note.textContent = 'Approval unlocked below.';
+          note.textContent = tSec('Approval unlocked below.');
           box.appendChild(note);
         });
         actions.append(rejectBtn, ackBtn);
@@ -415,12 +435,12 @@
       // The event preview below still shows exactly what is being signed; this row is the
       // only place the plaintext appears, marked the same way the encrypt card marks it.
       if (data.sealed) {
-        els.preview.innerHTML += row('Sealed content', clampText(data.sealed, 220), 'prose sealed');
+        els.preview.innerHTML += row(tSec('Sealed content'), clampText(data.sealed, 220), 'prose sealed');
       }
       if (ev.content || unreadable) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      els.preview.innerHTML = row('From', peerLabel());
+      els.preview.innerHTML = row(tSec('From'), peerLabel());
       els.preview.classList.remove('hidden');
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
       // WHAT, not just to whom. Reported in #305: an app storing settings costs two
@@ -430,8 +450,8 @@
       // exposed by showing it: the page wrote this text and is asking us to seal it.
       const plain = String((data.params && data.params.plaintext) || '');
       els.preview.innerHTML =
-        row('To', peerLabel()) +
-        (plain ? row('Sealing', clampText(plain, 220), 'prose sealed') : '');
+        row(tSec('To'), peerLabel()) +
+        (plain ? row(tSec('Sealing'), clampText(plain, 220), 'prose sealed') : '');
       els.preview.classList.remove('hidden');
     }
   }
@@ -442,8 +462,10 @@
     if (data.peerNpub) return shortNpub(data.peerNpub);
     return (data.params && data.params.pubkey) || '—';
   }
+  // Both halves escaped. The label was a literal until it became translated text, and a
+  // locale file is something a pull request can change.
   function row(k, v, cls) {
-    return `<div class="row${cls ? ' ' + cls : ''}"><span>${k}</span><span>${escapeHtml(v)}</span></div>`;
+    return `<div class="row${cls ? ' ' + cls : ''}"><span>${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`;
   }
 
   // Middle-elide an identifier so it stays one line.
@@ -472,9 +494,13 @@
   // init() is fire-and-forget at the bottom of this file, so anything it throws would be
   // an unhandled rejection in a window whose entire job is to show the user something.
   async function init() {
+    // The language before anything is drawn: a real locale arrives as a file, and a card
+    // painted before it lands would read in English until the next request.
+    await I18N.ready;
+    I18N.applyDom();
     const resp = await send({ type: 'SIDECAR_GET_PROMPT_DATA', id: promptId });
     if (!resp || !resp.ok) {
-      els.ask.textContent = 'This request has expired.';
+      els.ask.textContent = t('This request has expired.');
       els.allow.classList.add('hidden');
       els.trust.classList.add('hidden');
       // The request is already purged from the background queue, so routing Close
@@ -482,7 +508,7 @@
       // the background has nothing to settle for this id and never closes the window.
       // Swap in a fresh node (cloneNode drops the old listener) and close directly.
       const close = els.reject.cloneNode(true);
-      close.textContent = 'Close';
+      close.textContent = t('Close');
       els.reject.replaceWith(close);
       els.reject = close;
       els.reject.addEventListener('click', () => window.close());
@@ -530,7 +556,7 @@
     chosenPubkey = data.activePubkey;
 
     els.host.textContent = data.host;
-    const verb = isPayment ? 'wants to send a Lightning payment' : 'wants to ' + (METHOD_LABELS[data.method] || data.method);
+    const verb = isPayment ? tSec('wants to send a Lightning payment') : methodAsk(data.method);
     els.ask.textContent = verb;
     buildAccountCapsule();
     buildWrongAcct();
@@ -541,8 +567,7 @@
     // decrypting, so the signer isn't hammered with one prompt per message — be
     // upfront that "Allow" here is broader than a single message.
     if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      let text =
-        'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+      let text = tSec('Allowing lets {{host}} decrypt your messages for about a minute, enough to load a conversation or inbox without asking for each one.', { host: data.host });
       // Audit K4: decrypt is the sharpest edge of the Trust tier — a trusted site
       // silently reads every future DM until revoked. Say so on the one screen
       // where both choices sit side by side, but only while the Trust button is
@@ -551,7 +576,7 @@
       // condition and sentence as the sidepanel's renderConsentNote — keep the
       // two surfaces in step.
       if (!(data.needUnlock && !data.needApproval) && !data.sharedIdentity) {
-        text += ' Trust this site and it can read your messages without asking, until you revoke.';
+        text += ' ' + tSec('Trust this site and it can read your messages without asking, until you revoke.');
       }
       els.decryptNote.textContent = text;
       els.decryptNote.classList.remove('hidden');
@@ -563,12 +588,12 @@
     // once-per-read prompt would be noise — but the broader grant must be said.
     if (data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice') {
       els.decryptNote.textContent =
-        'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';
+        tSec('Allowing lets {{host}} read wallet info from Sidecar for the rest of this session.', { host: data.host });
       els.decryptNote.classList.remove('hidden');
       // The grant covers the session, so the button can't claim "once" — label
       // and note must agree. A pure unlock later in init() still relabels to
       // "Unlock & continue", which is also right (there's nothing to allow).
-      els.allow.textContent = 'Allow this session';
+      els.allow.textContent = tSec('Allow this session');
     }
 
     // Boosts are not one payment. A Podcasting 2.0 value split pays each recipient
@@ -579,7 +604,7 @@
     // Identical sentence in the sidepanel's renderConsentNote — keep the two in step.
     if (data.method === 'keysend') {
       els.decryptNote.textContent =
-        'A boost is several payments — one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.';
+        tSec('A boost is several payments, one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.');
       els.decryptNote.classList.remove('hidden');
     }
 
@@ -622,11 +647,14 @@
     // assembled from it.
     if (data.nudgeTrust && !isPayment) {
       const host = document.createElement('strong');
-      host.textContent = data.host || 'this site';
+      host.textContent = data.host || t('this site');
+      // One template, split at the host so the host stays an element (and never
+      // markup). A language can put the host anywhere in its own sentence.
+      const [before, after] = tSec('Approving this often? Trust {{host}} to stop being asked.').split('{{host}}');
       els.trustNudge.append(
-        document.createTextNode('Approving this often? Trust '),
+        document.createTextNode(before),
         host,
-        document.createTextNode(' to stop being asked.')
+        document.createTextNode(after || '')
       );
       els.trustNudge.classList.remove('hidden');
     }
@@ -638,7 +666,7 @@
       // written to disk. Say so, or the setting looks broken.
       if (data.autoLockNever) {
         const label = els.unlock.querySelector('label');
-        if (label) label.textContent = 'Enter your PIN — first unlock since your browser started';
+        if (label) label.textContent = t('Enter your PIN: first unlock since your browser started');
       }
       setTimeout(() => els.pin.focus(), 50);
     }
@@ -663,7 +691,7 @@
     // A pure unlock (site already trusted, keystore just locked) doesn't need the
     // "Trust this site" choice — it's already remembered.
     if (data.needUnlock && !data.needApproval) {
-      els.allow.textContent = 'Unlock & continue';
+      els.allow.textContent = t('Unlock & continue');
       els.trust.classList.add('hidden');
     }
   }
@@ -680,7 +708,7 @@
     if (prev) prev.remove();
     if (!d.sharedIdentity) return;
     await sharedHeadsUpReady; // the flags are known before a branch is taken
-    els.switchToggle.textContent = 'Sign as a different account';
+    els.switchToggle.textContent = tSec('Sign as a different account');
     els.trust.classList.add('hidden');
     // Opted out: no note at all. The confirm itself and the account picker stay —
     // the opt-out silences the explanation, never the question it explains.
@@ -690,23 +718,23 @@
       note = document.createElement('div');
       note.id = 'shared-note-box';
       note.className = 'shared-caption';
-      note.textContent = 'Multiple accounts used';
+      note.textContent = tSec('Multiple accounts used');
     } else {
       note = document.createElement('div');
       note.id = 'shared-note-box';
       note.className = 'shared-headsup';
       const title = document.createElement('div');
       title.className = 'shared-headsup-title';
-      title.textContent = 'Heads up!';
+      title.textContent = t('Heads up!');
       const body = document.createElement('p');
       body.className = 'shared-headsup-body';
       body.textContent =
-        "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.";
+        tSec("You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.");
       const actions = document.createElement('div');
       actions.className = 'shared-headsup-actions';
       const got = document.createElement('button');
       got.className = 'shared-headsup-btn';
-      got.textContent = 'Got it';
+      got.textContent = t('Got it');
       got.addEventListener('click', () => {
         sharedHeadsUp.dismissed = true;
         chrome.storage.local.set({ sharedHeadsUpDismissed: true });
@@ -718,7 +746,7 @@
       // surfaces and the Settings restorer all read.
       const never = document.createElement('button');
       never.className = 'shared-headsup-btn shared-headsup-btn-quiet';
-      never.textContent = "Don't show this again";
+      never.textContent = t("Don't show this again");
       never.addEventListener('click', () => {
         sharedHeadsUp.optedOut = true;
         chrome.storage.local.set({ sharedHeadsUpOptOut: true });
@@ -756,7 +784,7 @@
     els.account.innerHTML = '';
     const label = document.createElement('div');
     label.className = 'as-label';
-    label.textContent = isPayment ? 'Paying from' : 'Signing as';
+    label.textContent = isPayment ? tSec('Paying from') : tSec('Signing as');
     const av = document.createElement('img');
     av.className = 'acct-av';
     av.referrerPolicy = 'no-referrer';
@@ -855,7 +883,7 @@
     // Copy asserted identical to the panel's — see buildWrongAcctList in sidepanel.js for
     // why the reconnect instruction isn't here. This window closes on the decision, so it
     // has no toast of its own; the client's error is the only channel either way.
-    lede.textContent = 'Cancels this request and makes the selected account active.';
+    lede.textContent = tSec('Cancels this request and makes the selected account active.');
     els.wrongAcctList.append(lede);
     accts.forEach((a) => {
       const row = document.createElement('button');
@@ -878,7 +906,7 @@
       if (a.active) {
         const tag = document.createElement('span');
         tag.className = 'wrong-acct-tag';
-        tag.textContent = 'Active';
+        tag.textContent = t('Active');
         row.append(tag);
       }
       row.addEventListener('click', () => decide('detach', { detachPubkey: a.pubkey }));
@@ -912,7 +940,7 @@
     if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {
       const pin = els.pin.value;
       if (!pin) {
-        els.pinError.textContent = 'Enter your PIN.';
+        els.pinError.textContent = t('Enter your PIN.');
         return;
       }
       // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
@@ -923,16 +951,16 @@
         // Distinct from a wrong PIN, and it must not read as one — a transport failure
         // spends none of the attempts, and telling someone their PIN was wrong when it
         // was not is how they burn the ones they have.
-        els.pinError.textContent = (e && e.message) || 'Could not reach Sidecar. Try again.';
+        els.pinError.textContent = (e && e.message) || t('Could not reach Sidecar. Try again.');
         return;
       }
       const st = unlocked && unlocked.ok && unlocked.result;
       if (!st || st.status !== 'ok') {
         els.pinError.textContent =
-          st && st.status === 'throttled' ? 'Too many attempts. Try again in ' + Math.ceil(st.waitMs / 1000) + 's.'
-          : st && st.status === 'bad' ? 'Incorrect PIN — ' + st.remaining + ' attempt' + (st.remaining === 1 ? '' : 's') + ' left before all data is erased.'
-          : st && st.status === 'wiped' ? 'Too many attempts — all data on this device was erased.'
-          : (unlocked && unlocked.error) || 'Incorrect PIN';
+          st && st.status === 'throttled' ? tSec('Too many attempts. Try again in {{seconds}}s.', { seconds: Math.ceil(st.waitMs / 1000) })
+          : st && st.status === 'bad' ? tn('Incorrect PIN. {{count}} attempt left before all data is erased.', 'Incorrect PIN. {{count}} attempts left before all data is erased.', st.remaining)
+          : st && st.status === 'wiped' ? tSec('Too many attempts. All data on this device was erased.')
+          : (unlocked && unlocked.error) || tSec('Incorrect PIN');
         els.pin.value = '';
         els.pin.focus();
         return;
@@ -944,7 +972,7 @@
     if (isPayment && action === 'once' && els.rememberBudget.checked) {
       const budgetSats = parseInt(els.budgetAmount.value, 10);
       if (!budgetSats || budgetSats < 1) {
-        els.error.textContent = 'Enter a budget in sats, or uncheck the box.';
+        els.error.textContent = tSec('Enter a budget in sats, or uncheck the box.');
         return;
       }
       action = 'budget';
@@ -987,7 +1015,7 @@
       // nor reject, on a site waiting for an answer. Now that the send can fail, give the
       // controls back and say so — the decision is still theirs to make.
       setDisabled(false);
-      els.error.textContent = (e && e.message) || 'Could not send your decision. Try again.';
+      els.error.textContent = (e && e.message) || t('Could not send your decision. Try again.');
       return;
     }
     // Background either navigates this window to the next queued request or closes it.
@@ -1008,8 +1036,8 @@
     // leave a way out — the site's request is unaffected either way; it stays pending
     // until this window answers or closes.
     try {
-      els.error.textContent = (e && e.message) || 'Sidecar could not load this request.';
-      els.reject.textContent = 'Close';
+      els.error.textContent = (e && e.message) || t('Sidecar could not load this request.');
+      els.reject.textContent = t('Close');
       els.reject.disabled = false;
     } catch (_) {}
   });

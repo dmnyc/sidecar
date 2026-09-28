@@ -42,6 +42,6 @@ if (arg === '--test-locale') {
   }
   console.log(JSON.stringify(out, null, 2));
 } else {
-  for (const k of keys) console.log(k.plural ? k.key + '  |  ' + k.other : k.key);
-  console.error(keys.length + ' keys');
+  for (const k of keys) console.log((k.security ? '[review] ' : '') + (k.plural ? k.key + '  |  ' + k.other : k.key));
+  console.error(keys.length + ' keys, ' + keys.filter((k) => k.security).length + ' marked [review]: a native speaker checks those before a language ships');
 }

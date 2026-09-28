@@ -13,7 +13,7 @@
   // this file. Keys are the English text, so t('Copy') is "Copy" until a locale says
   // otherwise; tn() carries a plural's English "other" form inline.
   const I18N = window.SidecarI18n;
-  const { t, tn } = I18N;
+  const { t, tn, tSec } = I18N;
   const { TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls } = window.SidecarCore;
   // Which cut of the logo and the avatar garnish a theme wants. There too because the
@@ -10078,7 +10078,7 @@
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_BINDING', host });
         closeModal();
-        toast('Detached. Sign out of ' + host + ' and back in as ' + activeName + '.', 'success');
+        toast(t('Detached. Sign out of {{host}} and back in as {{name}}.', { host, name: activeName }), 'success');
         renderActivity();
       });
       modal.append(
@@ -20819,18 +20819,23 @@
   // a popup window instead.
   let pendingApproval = null; // { id, data, chosenPubkey }
 
-  const APPROVAL_METHOD_LABELS = {
-    getPublicKey: 'see your public key (npub)',
-    signEvent: 'sign an event with your key',
-    getRelays: 'read your relay list',
-    'nip04.encrypt': 'encrypt a message (NIP-04)',
-    'nip04.decrypt': 'decrypt a message (NIP-04)',
-    'nip44.encrypt': 'encrypt a message (NIP-44)',
-    'nip44.decrypt': 'decrypt a message (NIP-44)',
-    'webln.getInfo': 'see your wallet info',
-    'webln.getBalance': 'see your wallet balance',
-    'webln.makeInvoice': 'create a Lightning invoice',
-  };
+  // The whole phrase is the key, not "wants to " + a fragment: word order differs by
+  // language. Word for word the same as prompt.js's methodAsk().
+  function approvalMethodAsk(method) {
+    const asks = {
+      getPublicKey: tSec('wants to see your public key (npub)'),
+      signEvent: tSec('wants to sign an event with your key'),
+      getRelays: tSec('wants to read your relay list'),
+      'nip04.encrypt': tSec('wants to encrypt a message (NIP-04)'),
+      'nip04.decrypt': tSec('wants to decrypt a message (NIP-04)'),
+      'nip44.encrypt': tSec('wants to encrypt a message (NIP-44)'),
+      'nip44.decrypt': tSec('wants to decrypt a message (NIP-44)'),
+      'webln.getInfo': tSec('wants to see your wallet info'),
+      'webln.getBalance': tSec('wants to see your wallet balance'),
+      'webln.makeInvoice': tSec('wants to create a Lightning invoice'),
+    };
+    return asks[method] || tSec('wants to {{method}}', { method });
+  }
 
   // keysend is a payment too, and this predicate is what makes it one everywhere: the Pay
   // button, hiding "Trust this site" on a spend card, and the budget capture that turns one
@@ -20848,8 +20853,8 @@
   function paintApprovalPay(id, data) {
     const allow = $('approval-allow');
     const ask = isLargeApproval(data) && !(approvalLargeArmed && approvalLargeArmed.id === id);
-    allow.textContent = ask ? 'Confirm amount above'
-      : data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+    allow.textContent = ask ? tSec('Confirm amount above')
+      : data.amountSats != null ? tSec('Pay {{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('Pay');
     allow.classList.toggle('primary', !ask);
     allow.classList.toggle('secondary', ask);
   }
@@ -20858,54 +20863,62 @@
   // sign (not exhaustive — see https://nips.nostr.com for the full registry).
   // Prefixed APPROVAL_ to avoid colliding with the small KIND_LABELS map used by
   // the backup/restore UI (kind:0/3/10000/10002 only).
-  const APPROVAL_KIND_LABELS = {
-    0: 'Profile metadata', 1: 'Note', 3: 'Follow list', 4: 'Encrypted DM (legacy)',
-    5: 'Delete request', 6: 'Repost', 7: 'Reaction', 8: 'Badge award', 9: 'Chat message',
-    11: 'Thread', 13: 'Seal', 14: 'Direct message', 15: 'File message', 16: 'Generic repost',
-    17: 'Reaction (website)', 20: 'Picture', 21: 'Video', 22: 'Short video',
-    62: 'Request to vanish',
-    1018: 'Poll response', 1063: 'File metadata', 1068: 'Poll', 1111: 'Comment',
-    1222: 'Voice message', 1244: 'Voice message reply', 1311: 'Live chat message',
-    1337: 'Code snippet', 1984: 'Report', 1985: 'Label',
-    4454: 'DM device key', 4455: 'DM key transfer', 4550: 'Community post approval',
-    9041: 'Zap goal', 9321: 'Nutzap', 9734: 'Zap request', 9735: 'Zap receipt', 9802: 'Highlight',
-    10000: 'Mute list', 10001: 'Pin list', 10002: 'Relay list', 10003: 'Bookmark list',
-    10004: 'Communities list', 10005: 'Public chats list', 10006: 'Blocked relays list',
-    10007: 'Search relays list', 10008: 'Profile badges', 10009: 'Groups list',
-    10012: 'Favorite relays list', 10015: 'Interests list', 10020: 'Media follows',
-    10030: 'Emoji list', 10044: 'DM encryption key', 10050: 'DM relay list',
-    10063: 'Blossom server list',
-    13194: 'Wallet info', 22242: 'Relay auth', 23194: 'Wallet request', 23195: 'Wallet response',
-    24133: 'Remote signing handshake', 24242: 'Blossom authorization', 27235: 'HTTP auth',
-    30000: 'Follow set', 30002: 'Relay set', 30003: 'Bookmark set', 30004: 'Curation set',
-    30005: 'Video set', 30008: 'Badge set', 30009: 'Badge definition', 30015: 'Interest set',
-    30017: 'Marketplace stall', 30018: 'Marketplace product', 30023: 'Long-form article',
-    30024: 'Article draft', 30030: 'Emoji set', 30040: 'Publication index',
-    30041: 'Publication content', 30078: 'App data', 30311: 'Live event',
-    30312: 'Interactive room', 30313: 'Conference event', 30315: 'User status',
-    30402: 'Classified listing', 30403: 'Classified listing draft', 30818: 'Wiki article',
-    31234: 'Draft event', 31922: 'Calendar event (date)', 31923: 'Calendar event (time)',
-    31924: 'Calendar', 31925: 'Calendar RSVP', 31989: 'Handler recommendation',
-    31990: 'Handler info', 34235: 'Video (addressable)', 34236: 'Short video (addressable)',
-    34550: 'Community definition', 39089: 'Starter pack', 39092: 'Media starter pack',
-    39701: 'Web bookmark',
-  };
+  // Built when drawn, like prompt.js's kindLabels(), and word for word the same: the
+  // two approval surfaces must name every kind identically (approval-kind-isolation).
+  function approvalKindLabels() {
+    return {
+      0: tSec('Profile metadata'), 1: tSec('Note'), 3: tSec('Follow list'), 4: tSec('Encrypted DM (legacy)'),
+      5: tSec('Delete request'), 6: tSec('Repost'), 7: tSec('Reaction'), 8: tSec('Badge award'), 9: tSec('Chat message'),
+      11: tSec('Thread'), 13: tSec('Seal'), 14: tSec('Direct message'), 15: tSec('File message'), 16: tSec('Generic repost'),
+      17: tSec('Reaction (website)'), 20: tSec('Picture'), 21: tSec('Video'), 22: tSec('Short video'),
+      62: tSec('Request to vanish'),
+      1018: tSec('Poll response'), 1063: tSec('File metadata'), 1068: tSec('Poll'), 1111: tSec('Comment'),
+      1222: tSec('Voice message'), 1244: tSec('Voice message reply'), 1311: tSec('Live chat message'),
+      1337: tSec('Code snippet'), 1984: tSec('Report'), 1985: tSec('Label'),
+      4454: tSec('DM device key'), 4455: tSec('DM key transfer'), 4550: tSec('Community post approval'),
+      9041: tSec('Zap goal'), 9321: tSec('Nutzap'), 9734: tSec('Zap request'), 9735: tSec('Zap receipt'), 9802: tSec('Highlight'),
+      10000: tSec('Mute list'), 10001: tSec('Pin list'), 10002: tSec('Relay list'), 10003: tSec('Bookmark list'),
+      10004: tSec('Communities list'), 10005: tSec('Public chats list'), 10006: tSec('Blocked relays list'),
+      10007: tSec('Search relays list'), 10008: tSec('Profile badges'), 10009: tSec('Groups list'),
+      10012: tSec('Favorite relays list'), 10015: tSec('Interests list'), 10020: tSec('Media follows'),
+      10030: tSec('Emoji list'), 10044: tSec('DM encryption key'), 10050: tSec('DM relay list'),
+      10063: tSec('Blossom server list'),
+      13194: tSec('Wallet info'), 22242: tSec('Relay auth'), 23194: tSec('Wallet request'), 23195: tSec('Wallet response'),
+      24133: tSec('Remote signing handshake'), 24242: tSec('Blossom authorization'), 27235: tSec('HTTP auth'),
+      30000: tSec('Follow set'), 30002: tSec('Relay set'), 30003: tSec('Bookmark set'), 30004: tSec('Curation set'),
+      30005: tSec('Video set'), 30008: tSec('Badge set'), 30009: tSec('Badge definition'), 30015: tSec('Interest set'),
+      30017: tSec('Marketplace stall'), 30018: tSec('Marketplace product'), 30023: tSec('Long-form article'),
+      30024: tSec('Article draft'), 30030: tSec('Emoji set'), 30040: tSec('Publication index'),
+      30041: tSec('Publication content'), 30078: tSec('App data'), 30311: tSec('Live event'),
+      30312: tSec('Interactive room'), 30313: tSec('Conference event'), 30315: tSec('User status'),
+      30402: tSec('Classified listing'), 30403: tSec('Classified listing draft'), 30818: tSec('Wiki article'),
+      31234: tSec('Draft event'), 31922: tSec('Calendar event (date)'), 31923: tSec('Calendar event (time)'),
+      31924: tSec('Calendar'), 31925: tSec('Calendar RSVP'), 31989: tSec('Handler recommendation'),
+      31990: tSec('Handler info'), 34235: tSec('Video (addressable)'), 34236: tSec('Short video (addressable)'),
+      34550: tSec('Community definition'), 39089: tSec('Starter pack'), 39092: tSec('Media starter pack'),
+      39701: tSec('Web bookmark'),
+    };
+  }
   // Kinds worth a second look before signing: they either move/delete other
   // events, or normally belong to a wallet's own key rather than a NIP-07 site.
-  const APPROVAL_KIND_WARNINGS = {
-    5: 'Deletes other events — make sure you intended this.',
-    62: 'Asks relays to delete all of your events — make sure you intended this.',
-    23194: "Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
-    23195: "Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
-    24133: 'This is a remote-signing handshake — approving it could hand control of your account to another app or device.',
-  };
+  function approvalKindWarnings() {
+    return {
+      5: tSec('Deletes other events. Make sure you intended this.'),
+      62: tSec('Asks relays to delete all of your events. Make sure you intended this.'),
+      23194: tSec("Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this."),
+      23195: tSec("Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this."),
+      24133: tSec('This is a remote-signing handshake. Approving it could hand control of your account to another app or device.'),
+    };
+  }
+  // The number beside the name, always (docs/i18n-design.md §3.7). Same as prompt.js.
   function approvalKindLabel(kind) {
     if (kind == null) return '—';
-    return APPROVAL_KIND_LABELS[kind] ? kind + ' — ' + APPROVAL_KIND_LABELS[kind] : kind + ' (unrecognized kind)';
+    const label = approvalKindLabels()[kind];
+    return label ? kind + ' · ' + label : tSec('{{kind}} (unrecognized kind)', { kind });
   }
   function approvalKindWarning(kind) {
     if (kind == null) return null;
-    return APPROVAL_KIND_WARNINGS[kind] || (!APPROVAL_KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
+    return approvalKindWarnings()[kind] || (!approvalKindLabels()[kind] ? tSec('Unrecognized event kind. Review carefully before approving.') : null);
   }
   // A request we can't read as an event at all — no integer kind, so there is nothing
   // to label, no tag count, and no content to preview. normalizeSignEventParams in
@@ -20914,8 +20927,8 @@
   // bare "—" where the event should be, with Allow looking as ordinary as ever. If one
   // ever gets through again, say so on the card instead of showing a blank.
   // Duplicated verbatim in prompt.js — same words on both approval surfaces.
-  const APPROVAL_UNREADABLE_WARNING =
-    "Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.";
+  const approvalUnreadableWarning = () =>
+    tSec("Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.");
   function approvalKindUnreadable(ev) {
     return !Number.isInteger(ev && ev.kind);
   }
@@ -20942,7 +20955,7 @@
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
     const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
-    const LABEL = { formatted: 'Formatted', raw: 'Raw', json: 'JSON' };
+    const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
@@ -20985,11 +20998,11 @@
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'evpreview-toggle';
-    more.textContent = 'Show more';
+    more.textContent = t('Show more');
     more.addEventListener('click', () => {
       expanded = !expanded;
       view.classList.toggle('clamped', !expanded);
-      more.textContent = expanded ? 'Show less' : 'Show more';
+      more.textContent = expanded ? t('Show less') : t('Show more');
     });
     controls.appendChild(more);
     container.appendChild(controls);
@@ -21044,30 +21057,30 @@
       return h('div', { className: 'row' }, [h('span', { textContent: label }), val]);
     };
     if (isPaymentApproval(data)) {
-      box.append(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
+      box.append(row(tSec('Amount'), data.amountSats != null ? tSec('{{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('set by invoice')));
       // Keysend pays a bare node key, so say where it goes and — when the site sent a
       // boostagram — what it is for. Wording matches prompt.js; keep the two surfaces in
       // step. Never the raw 66-character key, for the reason stated at txRow below.
       if (data.method === 'keysend') {
         const b = data.boost || {};
         const who = b.podcast || b.episode || '';
-        box.append(row('To', who ? clampApprovalText(who, 60) : truncMid(data.destination, 10, 8)));
-        if (who && data.destination) box.append(row('Node', truncMid(data.destination, 10, 8)));
+        box.append(row(tSec('To'), who ? clampApprovalText(who, 60) : truncMid(data.destination, 10, 8)));
+        if (who && data.destination) box.append(row(tSec('Node'), truncMid(data.destination, 10, 8)));
         // Labelled as the site's words. Nothing in a boostagram is verified — the page
         // wrote it — and a spend card must not lend it authority it has not earned.
         if (b.message) {
-          const r = row('Message from site', clampApprovalText(b.message, 140));
+          const r = row(tSec('Message from site'), clampApprovalText(b.message, 140));
           r.classList.add('prose');
           box.append(r);
         }
       }
-      if (data.memo) box.append(row('Memo', String(data.memo)));
+      if (data.memo) box.append(row(tSec('Memo'), String(data.memo)));
     } else if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
       const unreadable = approvalKindUnreadable(ev);
-      box.append(row('Kind', unreadable ? 'Unreadable' : approvalKindLabel(ev.kind)));
-      if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
-      const warning = unreadable ? APPROVAL_UNREADABLE_WARNING : approvalKindWarning(ev.kind);
+      box.append(row(tSec('Kind'), unreadable ? tSec('Unreadable') : approvalKindLabel(ev.kind)));
+      if (Array.isArray(ev.tags)) box.append(row(tSec('Tags'), I18N.fmtNum(ev.tags.length)));
+      const warning = unreadable ? approvalUnreadableWarning() : approvalKindWarning(ev.kind);
       if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
       // Destructive replaceable overwrite (see replaceable-baseline.js) — louder than
       // the kind warning above, because this one is about losing data you already have.
@@ -21079,12 +21092,12 @@
         // a deliberate second action.
         const reject = h('button', {
           className: 'destructive-warn-reject',
-          textContent: "Don't allow",
+          textContent: tSec("Don't allow"),
         });
         reject.addEventListener('click', () => decideApproval('reject'));
         const ack = h('button', {
           className: 'destructive-warn-ack',
-          textContent: 'I understand',
+          textContent: tSec('I understand'),
         });
         ack.addEventListener('click', () => {
           setApprovalLocked(false);
@@ -21092,19 +21105,19 @@
           // Say what changed rather than just removing the button — otherwise the
           // buttons below silently become live and it isn't obvious why.
           box.querySelector('.destructive-warn').append(
-            h('p', { className: 'destructive-warn-unlocked', textContent: 'Approval unlocked below.' })
+            h('p', { className: 'destructive-warn-unlocked', textContent: tSec('Approval unlocked below.') })
           );
         });
         box.append(
           h('div', { className: 'destructive-warn' }, [
             h('div', { className: 'destructive-warn-title' }, [
               icon('alert'),
-              h('span', { textContent: 'This action erases data' }),
+              h('span', { textContent: tSec('This action erases data') }),
             ]),
             h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
             h('p', {
               className: 'destructive-warn-hint',
-              textContent: 'If you didn\'t mean to do this, don\'t allow it — the version on your relays stays as it is.',
+              textContent: tSec("If you didn't mean to do this, don't allow it. The version on your relays stays as it is."),
             }),
             h('div', { className: 'destructive-warn-actions' }, [reject, ack]),
           ])
@@ -21116,21 +21129,21 @@
       // in prompt.js; the event preview below is still the literal thing being signed.
       if (data.sealed) {
         box.append(h('div', { className: 'row prose sealed' }, [
-          h('span', { textContent: 'Sealed content' }),
+          h('span', { textContent: tSec('Sealed content') }),
           h('span', { textContent: clampApprovalText(data.sealed, 220) }),
         ]));
       }
       if (ev.content || unreadable) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      box.append(peerRow('From', data.params && data.params.pubkey));
+      box.append(peerRow(tSec('From'), data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
-      box.append(peerRow('To', data.params && data.params.pubkey));
+      box.append(peerRow(tSec('To'), data.params && data.params.pubkey));
       // WHAT, not just to whom. See the twin of this in prompt.js: the plaintext rides
       // along in params already, and an approval nobody can read is one taken blind (#305).
       const plain = String((data.params && data.params.plaintext) || '');
       if (plain) {
         box.append(h('div', { className: 'row prose sealed' }, [
-          h('span', { textContent: 'Sealing' }),
+          h('span', { textContent: tSec('Sealing') }),
           h('span', { textContent: clampApprovalText(plain, 220) }),
         ]));
       }
@@ -21173,11 +21186,11 @@
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
     if (!data.sharedIdentity) {
-      $('approval-switch-toggle').textContent = 'Sign in with a different account';
+      $('approval-switch-toggle').textContent = tSec('Sign in with a different account');
       return;
     }
     await sharedHeadsUpReady; // the flags are known before a branch is taken
-    $('approval-switch-toggle').textContent = 'Sign as a different account';
+    $('approval-switch-toggle').textContent = tSec('Sign as a different account');
     const acct = $('approval-account');
     if (!acct) return;
     // Opted out: no note at all. The confirm itself and the account picker stay —
@@ -21187,17 +21200,17 @@
     if (sharedHeadsUp.dismissed) {
       note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
         icon('users'),
-        h('span', { textContent: 'Multiple accounts used' }),
+        h('span', { textContent: tSec('Multiple accounts used') }),
       ]);
     } else {
       note = h('div', { id: 'approval-shared-note', className: 'shared-headsup' }, [
-        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: 'Heads up!' })]),
+        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: t('Heads up!') })]),
         h('p', {
           className: 'shared-headsup-body',
-          textContent: "Multiple accounts are signed in here — confirm who's posting each time.",
+          textContent: tSec("Multiple accounts are signed in here. Confirm who's posting each time."),
         }),
       ]);
-      const got = h('button', { className: 'shared-headsup-btn', textContent: 'Got it' });
+      const got = h('button', { className: 'shared-headsup-btn', textContent: t('Got it') });
       got.addEventListener('click', () => {
         sharedHeadsUp.dismissed = true;
         chrome.storage.local.set({ sharedHeadsUpDismissed: true });
@@ -21207,7 +21220,7 @@
       // choice, and want the note gone altogether — "Got it" only ever collapsed it
       // to the caption, and the caption never ended. This writes the opt-out both
       // surfaces and the Settings restorer all read.
-      const never = h('button', { className: 'shared-headsup-btn shared-headsup-btn-quiet', textContent: "Don't show this again" });
+      const never = h('button', { className: 'shared-headsup-btn shared-headsup-btn-quiet', textContent: t("Don't show this again") });
       never.addEventListener('click', () => {
         sharedHeadsUp.optedOut = true;
         chrome.storage.local.set({ sharedHeadsUpOptOut: true });
@@ -21229,27 +21242,26 @@
     const note = $('approval-consent-note');
     if (!note) return;
     if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      let text =
-        'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+      let text = tSec('Allowing lets {{host}} decrypt your messages for about a minute, enough to load a conversation or inbox without asking for each one.', { host: data.host });
       // Audit K4: decrypt is the sharpest edge of the Trust tier — a trusted site
       // silently reads every future DM until revoked. Only while the Trust button
       // is visible in showApproval (pure-unlock and shared-identity hide it;
       // decrypts never batch). Identical condition and sentence as prompt.js —
       // keep the two surfaces in step.
       if (!(data.needUnlock && !data.needApproval) && !data.sharedIdentity) {
-        text += ' Trust this site and it can read your messages without asking, until you revoke.';
+        text += ' ' + tSec('Trust this site and it can read your messages without asking, until you revoke.');
       }
       note.textContent = text;
     } else if (data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice') {
       note.textContent =
-        'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';
+        tSec('Allowing lets {{host}} read wallet info from Sidecar for the rest of this session.', { host: data.host });
     } else if (data.method === 'keysend') {
       // Boosts are not one payment: a value split pays each recipient separately, so the
       // site sends one keysend per share and Sidecar sees them as the independent payments
       // they are — nothing tells it that four calls were one boost. Plain Pay therefore
       // brings the next card straight up. Wording matches prompt.js exactly.
       note.textContent =
-        'A boost is several payments — one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.';
+        tSec('A boost is several payments, one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.');
     } else {
       hide(note);
       return;
@@ -21277,7 +21289,7 @@
 
     const acct = $('approval-account');
     acct.innerHTML = '';
-    acct.append(h('div', { className: 'approval-as', textContent: payment ? 'Paying from' : 'Signing as' }));
+    acct.append(h('div', { className: 'approval-as', textContent: payment ? tSec('Paying from') : tSec('Signing as') }));
     acct.append(
       h('div', { className: 'active-account approval-capsule' }, [
         avatarEl({ picture: chosen.picture }, 'aa-avatar'),
@@ -21390,7 +21402,7 @@
     // The reconnect instruction is deliberately NOT here — it lands as a toast the moment
     // the detach settles, with the account name filled in, which this can't do. Three lines
     // of lede in a sidebar to pre-announce it was too much.
-    list.append(h('p', { className: 'wrong-acct-lede', textContent: 'Cancels this request and makes the selected account active.' }));
+    list.append(h('p', { className: 'wrong-acct-lede', textContent: tSec('Cancels this request and makes the selected account active.') }));
     accts.forEach((a) => {
       const row = h('button', { className: 'acct-row' });
       const av = document.createElement('span');
@@ -21403,7 +21415,7 @@
           h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
         ])
       );
-      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: 'Active' }));
+      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: t('Active') }));
       row.addEventListener('click', () => decideApproval('detach', { detachPubkey: a.pubkey }));
       list.append(row);
     });
@@ -21442,8 +21454,8 @@
     const payment = isPaymentApproval(data);
     $('approval-host').textContent = data.host;
     $('approval-ask').textContent = payment
-      ? 'wants to send a Lightning payment'
-      : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
+      ? tSec('wants to send a Lightning payment')
+      : approvalMethodAsk(data.method);
 
     renderApprovalAccountCapsule(data);
     renderWrongAcctEscape(data);
@@ -21476,8 +21488,8 @@
       const unlockLabel = $('approval-unlock').querySelector('label');
       if (unlockLabel) {
         unlockLabel.textContent = data.autoLockNever
-          ? 'Enter your PIN — first unlock since your browser started'
-          : 'Enter your PIN to unlock';
+          ? t('Enter your PIN: first unlock since your browser started')
+          : t('Enter your PIN to unlock');
       }
       setTimeout(() => pin.focus(), 50);
     } else {
@@ -21488,7 +21500,7 @@
     if (data.offerAutoZap > 0) {
       $('approval-autozap-offer').classList.remove('hidden');
       $('approval-autozap-offer-label').textContent =
-        'Turn on Auto Zaps (' + fmtSats(data.offerAutoZap) + ' sats max)';
+        tSec('Turn on Auto Zaps ({{max}} sats max)', { max: fmtSats(data.offerAutoZap) });
     }
 
     // Payment: one Pay button + an optional "remember a budget" toggle (no Trust).
@@ -21515,7 +21527,7 @@
       // A pure unlock (site already trusted, keystore just locked) has nothing to
       // approve — relabel and drop the "Trust this site" choice.
       if (data.needUnlock && !data.needApproval) {
-        allow.textContent = 'Unlock & continue';
+        allow.textContent = t('Unlock & continue');
         hide(trust);
       } else {
         // WebLN reads grant the rest of the session (the consent note under the
@@ -21523,8 +21535,8 @@
         // Sidecar locks". Mirrors the payment relabel just above.
         allow.textContent =
           data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice'
-            ? 'Allow this session'
-            : 'Allow once';
+            ? tSec('Allow this session')
+            : tSec('Allow once');
         show(trust);
       }
     }
@@ -21541,8 +21553,8 @@
     // kind, so it's clear what the N are. (Must run last so it wins the labels.)
     const groupN = pendingApproval.groupIds ? pendingApproval.groupIds.length : 1;
     if (!payment && groupN > 1) {
-      $('approval-ask').textContent = 'wants to sign ' + groupN + ' events with your key';
-      allow.textContent = 'Allow all (' + groupN + ')';
+      $('approval-ask').textContent = tn('wants to sign {{count}} event with your key', 'wants to sign {{count}} events with your key', groupN);
+      allow.textContent = tSec('Allow all ({{count}})', { count: I18N.fmtNum(groupN) });
       hide(trust);
     }
     // M1: the batch button settles N events, so the card shows N events. Rendered
@@ -21585,12 +21597,11 @@
     const nudge = $('approval-trust-nudge');
     nudge.textContent = '';
     if (data.nudgeTrust && !payment) {
-      const strong = h('strong', { textContent: data.host || 'this site' });
-      nudge.append(
-        document.createTextNode('Approving this often? Trust '),
-        strong,
-        document.createTextNode(' to stop being asked.')
-      );
+      const strong = h('strong', { textContent: data.host || t('this site') });
+      // Split around the slot so the host stays its own bold node, wherever a language
+      // puts it. Same key as prompt.js.
+      const [before, after] = tSec('Approving this often? Trust {{host}} to stop being asked.').split('{{host}}');
+      nudge.append(document.createTextNode(before), strong, document.createTextNode(after || ''));
       show(nudge);
     } else {
       hide(nudge);
@@ -21626,7 +21637,7 @@
     if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {
       const pin = $('approval-pin').value;
       if (!pin) {
-        pinErr.textContent = 'Enter your PIN.';
+        pinErr.textContent = t('Enter your PIN.');
         return;
       }
       // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
@@ -21634,10 +21645,10 @@
       const st = resp && resp.ok && resp.result;
       if (!st || st.status !== 'ok') {
         pinErr.textContent =
-          st && st.status === 'throttled' ? 'Too many attempts. Try again in ' + Math.ceil(st.waitMs / 1000) + 's.'
-          : st && st.status === 'bad' ? 'Incorrect PIN — ' + st.remaining + ' attempt' + (st.remaining === 1 ? '' : 's') + ' left before all data is erased.'
-          : st && st.status === 'wiped' ? 'Too many attempts — all data on this device was erased.'
-          : (resp && resp.error) || 'Incorrect PIN';
+          st && st.status === 'throttled' ? tSec('Too many attempts. Try again in {{seconds}}s.', { seconds: Math.ceil(st.waitMs / 1000) })
+          : st && st.status === 'bad' ? tn('Incorrect PIN. {{count}} attempt left before all data is erased.', 'Incorrect PIN. {{count}} attempts left before all data is erased.', st.remaining)
+          : st && st.status === 'wiped' ? tSec('Too many attempts. All data on this device was erased.')
+          : (resp && resp.error) || tSec('Incorrect PIN');
         $('approval-pin').value = '';
         $('approval-pin').focus();
         return;
@@ -21648,7 +21659,7 @@
     if (isPaymentApproval(data) && action === 'once' && $('approval-remember-budget').checked) {
       const budgetSats = parseInt($('approval-budget-amount').value, 10);
       if (!budgetSats || budgetSats < 1) {
-        err.textContent = 'Enter a budget in sats, or uncheck the box.';
+        err.textContent = tSec('Enter a budget in sats, or uncheck the box.');
         return;
       }
       action = 'budget';
@@ -21690,8 +21701,7 @@
     if (action === 'detach') {
       const picked = (data.allAccounts || []).find((a) => a.pubkey === (opts && opts.detachPubkey));
       toast(
-        'Detached. Sign out of ' + data.host + ' and back in as ' +
-          ((picked && picked.name) || 'that account') + '.',
+        t('Detached. Sign out of {{host}} and back in as {{name}}.', { host: data.host, name: (picked && picked.name) || t('that account') }),
         'success'
       );
     }
@@ -21805,11 +21815,11 @@
     for (const m of members) {
       const what = [];
       if (m.method === 'signEvent') {
-        what.push('kind ' + m.kind);
-        if (m.unreadable) what.push('unreadable content');
+        what.push(t('kind {{kind}}', { kind: m.kind }));
+        if (m.unreadable) what.push(t('unreadable content'));
       } else {
         what.push(m.method);
-        if (m.peer) what.push('to ' + m.peer.slice(0, 8) + '…' + m.peer.slice(-4));
+        if (m.peer) what.push(t('to {{peer}}', { peer: m.peer.slice(0, 8) + '…' + m.peer.slice(-4) }));
       }
       const body = m.method === 'signEvent' ? String(m.content || '') : String(m.plaintext || '');
       list.append(h('div', { className: 'batch-member' }, [
@@ -21826,7 +21836,7 @@
     if (!strip) return;
     if (!waiting.length) { hide(strip); return; }
     const count = $('approval-backlog-count');
-    count.textContent = waiting.length + (waiting.length === 1 ? ' more request waiting' : ' more requests waiting');
+    count.textContent = tn('{{count}} more request waiting', '{{count}} more requests waiting', waiting.length);
     show(strip);
   }
 
@@ -21838,10 +21848,10 @@
     if (!banner) return;
     if (!list.length) { hide(banner); banner.innerHTML = ''; return; }
     banner.innerHTML = '';
-    const msg = h('span', { className: 'interrupted-msg', textContent:
-      list.length + (list.length === 1 ? ' signing request was' : ' signing requests were') +
-      ' interrupted when Sidecar restarted — the site' + (list.length === 1 ? '' : 's') + ' will ask again.' });
-    const dismiss = h('button', { className: 'interrupted-dismiss', textContent: 'Dismiss' });
+    const msg = h('span', { className: 'interrupted-msg', textContent: tn(
+      '{{count}} signing request was interrupted when Sidecar restarted. The site will ask again.',
+      '{{count}} signing requests were interrupted when Sidecar restarted. The sites will ask again.', list.length) });
+    const dismiss = h('button', { className: 'interrupted-dismiss', textContent: t('Dismiss') });
     dismiss.addEventListener('click', async () => { await bg({ type: 'SIDECAR_DISMISS_INTERRUPTED' }); refreshApproval(); });
     banner.append(msg, dismiss);
     show(banner);
