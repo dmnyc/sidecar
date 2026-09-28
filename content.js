@@ -448,6 +448,35 @@
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
+
+  // THE PILL AND CARD FOLLOW THE BROWSER'S LANGUAGE, through chrome.i18n and _locales,
+  // never Sidecar's own setting (docs/i18n-design.md §3.2). They sit in OPEN shadow roots
+  // this page can read, and the page already knows the browser's language from
+  // navigator.language, so following it reveals nothing new; following a different
+  // in-app choice would hand every site one more fingerprinting bit.
+  //
+  // msg() falls back to the English written here if a message is missing, so a gap in a
+  // locale is English, never a blank button. `subs` fill $1, $2 in order.
+  const UI_LANG = (() => { try { return chrome.i18n.getUILanguage(); } catch (_) { return 'en-US'; } })();
+  function msg(name, fallback, subs) {
+    let out = '';
+    try { out = chrome.i18n.getMessage(name, subs); } catch (_) {}
+    if (!out) {
+      out = fallback;
+      (subs || []).forEach((v, i) => { out = out.split('$' + (i + 1)).join(v); });
+    }
+    return out;
+  }
+  // For innerHTML: the message ESCAPED, then markup set where each placeholder was, so a
+  // translation can never put markup into a page, and a bold amount stays code-built.
+  function msgHtml(name, fallback, marks) {
+    const tokens = marks.map((_, i) => '\u0001' + i + '\u0001');
+    let out = escapeHtml(msg(name, fallback, tokens));
+    marks.forEach((m, i) => { out = out.split(tokens[i]).join(m); });
+    return out;
+  }
+  // Amounts in the browser's own number format: en-US's for an English browser, as before.
+  const fmtAmount = (n) => { try { return new Intl.NumberFormat(UI_LANG).format(n); } catch (_) { return String(n); } };
   function bolt(cls) {
     return (
       '<svg class="' + cls + '" viewBox="0 0 55 94" fill="currentColor">' +
@@ -1210,15 +1239,18 @@
   function renderPill(invoice) {
     const sats = invoiceSats(invoice);
     const site = location.host.replace(/^www\./, '');
-    const amount = sats != null ? '<b>' + sats.toLocaleString('en-US') + '</b> sats' : 'An invoice';
+    const payable = sats != null
+      ? msgHtml('payPillPayable', '$1 sats payable', ['<b>' + escapeHtml(fmtAmount(sats)) + '</b>'])
+      : escapeHtml(msg('payPillInvoicePayable', 'An invoice payable'));
+    const label = sats != null
+      ? msg('payPillLabel', '$1 sat Lightning invoice is payable on $2. Open Sidecar to pay it.', [fmtAmount(sats), site])
+      : msg('payPillLabelNoAmount', 'A Lightning invoice is payable on $1. Open Sidecar to pay it.', [site]);
 
     // mountPill clears shownInvoice/shownMode on its way in, so claim them after it.
     const sh = mountPill(
-      '<div class="pill" role="button" tabindex="0" aria-label="' +
-      (sats != null ? sats + ' sat' : 'A') + ' Lightning invoice is payable on ' + escapeHtml(site) +
-      '. Open Sidecar to pay it.">' +
-      bolt('b') + '<span class="t">' + amount + ' payable</span>' +
-      '<button class="x" type="button" aria-label="Dismiss">\u00D7</button></div>'
+      '<div class="pill" role="button" tabindex="0" aria-label="' + escapeHtml(label) + '">' +
+      bolt('b') + '<span class="t">' + payable + '</span>' +
+      '<button class="x" type="button" aria-label="' + escapeHtml(msg('dismiss', 'Dismiss')) + '">\u00D7</button></div>'
     );
     shownInvoice = invoice;
     shownMode = 'pill';
@@ -1251,14 +1283,17 @@
   // nothing on it to press.
   function renderFlightPill(invoice, auto) {
     const sats = invoiceSats(invoice);
-    const amount = sats != null ? '<b>' + sats.toLocaleString('en-US') + '</b> sats' : 'payment';
+    const bold = sats != null ? ['<b>' + escapeHtml(fmtAmount(sats)) + '</b>'] : null;
+    const going = bold
+      ? (auto ? msgHtml('flightZapping', 'Zapping $1 sats', bold) : msgHtml('flightSending', 'Sending $1 sats', bold))
+      : escapeHtml(auto ? msg('flightZappingPayment', 'Zapping payment') : msg('flightSendingPayment', 'Sending payment'));
     const sh = mountPill(
       '<div class="pill flight" role="status" aria-live="polite">' +
       '<span class="sp"></span>' +
       '<svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" ' +
       'stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
-      '<span class="t">' + (auto ? 'Zapping ' : 'Sending ') + amount + '</span>' +
-      '<button class="x" type="button" aria-label="Hide">\u00D7</button></div>'
+      '<span class="t">' + going + '</span>' +
+      '<button class="x" type="button" aria-label="' + escapeHtml(msg('hide', 'Hide')) + '">\u00D7</button></div>'
     );
     shownInvoice = invoice;
     shownMode = 'flight';
@@ -1279,7 +1314,7 @@
       setPaid: () => {
         flightPaid = true;
         pill.classList.add('paid');
-        text.innerHTML = sats != null ? 'Paid ' + amount : 'Paid';
+        text.innerHTML = bold ? msgHtml('flightPaid', 'Paid $1 sats', bold) : escapeHtml(msg('paid', 'Paid'));
       },
       // A failure is a decision again, and a decision needs the room and the button that
       // only the card has. This is the one way back out of the corner.
@@ -1305,12 +1340,13 @@
     //
     // A spend already underway has no business on a card at all now. It goes to the
     // corner indicator, where the present tense is the honest tense.
-    const eyebrow = 'Request to pay';
+    const eyebrow = escapeHtml(msg('cardEyebrow', 'Request to pay'));
     const amountBlock =
       sats != null
-        ? '<div class="amt"><span class="num">' + sats.toLocaleString('en-US') + '</span><span class="unit">sats</span></div>'
+        ? '<div class="amt"><span class="num">' + escapeHtml(fmtAmount(sats)) + '</span><span class="unit">' +
+          escapeHtml(msg('unitSats', 'sats')) + '</span></div>'
         : '';
-    const memoText = memo || (sats == null ? 'A Lightning invoice — choose the amount in Sidecar.' : '');
+    const memoText = memo || (sats == null ? msg('cardNoAmountMemo', 'A Lightning invoice. Choose the amount in Sidecar.') : '');
     const memoBlock = memoText ? '<div class="memo">' + escapeHtml(memoText) + '</div>' : '';
 
     // Offer auto-zap only when this very payment is one it would cover, so the
@@ -1318,9 +1354,9 @@
     // opened in its error state: see the note on the settings rows below.
     const canOfferAutoZap = !errorText && autoZapOffer > 0 && sats != null && sats <= autoZapOffer;
     const offerRow = canOfferAutoZap
-      ? '<label class="tg tg-autozap"><span class="tg-label">Turn on Auto Zaps (' +
-        autoZapOffer.toLocaleString('en-US') +
-        ' sats max)</span>' +
+      ? '<label class="tg tg-autozap"><span class="tg-label">' +
+        escapeHtml(msg('cardAutoZapOffer', 'Turn on Auto Zaps ($1 sats max)', [fmtAmount(autoZapOffer)])) +
+        '</span>' +
         '<input class="tg-input tg-autozap-input" type="checkbox">' +
         '<span class="tg-track"><span class="tg-thumb"></span></span></label>'
       : '';
@@ -1344,17 +1380,17 @@
     s.innerHTML =
       '<style>' + cardCss + '</style>' +
       '<div class="ov">' +
-      '<div class="card" role="dialog" aria-label="Pay with Sidecar">' +
+      '<div class="card" role="dialog" aria-label="' + escapeHtml(msg('cardLabel', 'Pay with Sidecar')) + '">' +
       '<div class="brand">' + logoSvg + '</div>' +
       '<div class="eyebrow">' + eyebrow + '</div>' +
       amountBlock +
       memoBlock +
-      '<div class="site">found on <b>' + escapeHtml(site) + '</b></div>' +
+      '<div class="site">' + msgHtml('cardFoundOn', 'found on $1', ['<b>' + escapeHtml(site) + '</b>']) + '</div>' +
       '<button class="pay" type="button">' + bolt('pay-bolt') +
       '<svg class="pay-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
-      '<span class="pay-label">Pay with Sidecar</span></button>' +
+      '<span class="pay-label">' + escapeHtml(msg('cardPay', 'Pay with Sidecar')) + '</span></button>' +
       '<div class="pay-status" hidden></div>' +
-      '<button class="cancel" type="button">Not now</button>' +
+      '<button class="cancel" type="button">' + escapeHtml(msg('cardNotNow', 'Not now')) + '</button>' +
       (offerRow || '') +
       // NOT ON THE ERROR CARD, and #208 is why. This toggle writes showPayButton: false,
       // which gates the manual scan-and-show path below and nothing else. It used to
@@ -1369,7 +1405,7 @@
       // the one card that offers no settings.
       (errorText
         ? ''
-        : '<label class="tg"><span class="tg-label">Don\'t show this prompt again</span>' +
+        : '<label class="tg"><span class="tg-label">' + escapeHtml(msg('cardDontShow', 'Don\'t show this prompt again')) + '</span>' +
           '<input class="tg-input tg-showcard-input" type="checkbox">' +
           '<span class="tg-track"><span class="tg-thumb"></span></span></label>') +
       '</div></div>';
@@ -1398,10 +1434,10 @@
       awaitingDecision = true;
       card.classList.add('busy');
       payBtn.disabled = true;
-      label.textContent = 'Confirm in Sidecar';
+      label.textContent = msg('cardConfirmInSidecar', 'Confirm in Sidecar');
       status.hidden = false;
       status.className = 'pay-status';
-      status.textContent = 'Approve it in Sidecar to send it. Nothing has left your wallet yet.';
+      status.textContent = msg('cardAwaiting', 'Approve it in Sidecar to send it. Nothing has left your wallet yet.');
     }
     // An invoice can settle while this card is still open: paid from the panel, or by the
     // page's own WebLN flow. Nothing to announce, but the button has to stop being
@@ -1409,7 +1445,7 @@
     function setPaid() {
       payBtn.classList.add('done');
       payBtn.disabled = true;
-      label.textContent = 'Paid';
+      label.textContent = msg('paid', 'Paid');
       status.hidden = true;
     }
     function setError(detail) {
@@ -1418,10 +1454,10 @@
       card.classList.remove('busy'); // Not now and the toggle come back for the retry
       payBtn.classList.remove('done');
       payBtn.disabled = false;
-      label.textContent = 'Try again';
+      label.textContent = msg('cardTryAgain', 'Try again');
       status.hidden = false;
       status.className = 'pay-status err';
-      status.textContent = detail || 'Payment failed. Please try again.';
+      status.textContent = detail || msg('cardFailed', 'Payment failed. Please try again.');
     }
     cardControls = { invoice: invoice, setPaid: setPaid, setError: setError, setAwaiting: setAwaiting };
 
