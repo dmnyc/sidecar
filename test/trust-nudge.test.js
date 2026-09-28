@@ -184,7 +184,16 @@ test('trusting and blocking both clear the tally', async () => {
 test('the nudge is suppressed while a destructive warning is showing', async () => {
   // That screen is asking for full attention on what is about to be lost. "Trust this
   // site to stop asking" is the last advice it should be carrying.
-  assert.match(source, /nudgeTrust: !destructive && \(await shouldNudgeTrust\(/);
+  assert.match(source, /nudgeTrust: !destructive && [^\n]*\(await shouldNudgeTrust\(/);
+});
+
+test('THE NUDGE NEVER POINTS AT A TRUST BUTTON THE CARD DOES NOT SHOW', () => {
+  // A shared-identity confirm and a pure unlock both hide Trust, on both surfaces, so the
+  // background does not raise the nudge for either. The panel also batches, which hides
+  // Trust too, so it checks the button itself before showing the line.
+  assert.match(source, /nudgeTrust: !destructive && !sharedIdentity && needApproval && \(await shouldNudgeTrust\(/);
+  const panelSrc = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  assert.match(panelSrc, /if \(data\.nudgeTrust && !payment && !trust\.classList\.contains\('hidden'\)\)/);
 });
 
 // ---- both approval UIs -----------------------------------------------------------
