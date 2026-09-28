@@ -249,7 +249,7 @@ test('BOTH COMPOSERS, because it is built where both of them are', () => {
 });
 
 test('the count is only spoken when there is more than one', () => {
-  assert.match(bare, /\? 'Remove tracking tags'\s*\n\s*: 'Remove tracking tags from ' \+ tracked\.length \+ ' links'/);
+  assert.match(bare, /\? t\('Remove tracking tags'\)\s*\n\s*: t\('Remove tracking tags from \{\{count\}\} links', \{ count: I18N\.fmtNum\(tracked\.length\) \}\)/);
 });
 
 test('a restored draft is scanned too, not only a fresh paste', () => {

@@ -111,7 +111,7 @@ test('the way in is a word on the tab bar, not an icon in the corner', () => {
   // of it. And the outward arrow that means "expand" in most apps reads here as leaving
   // the browser, which is the one thing it does not do. Write / Preview / Expand is a row
   // of three things you can do with what you are writing.
-  assert.match(panelBare, /textContent: 'Expand'/);
+  assert.match(panelBare, /textContent: t\('Expand'\)/);
   assert.match(panelBare, /if \(expand\) tabBar\.append\(expand\);/);
   assert.ok(!/compose-expand[^']*modal-x|modal-x compose-expand/.test(panelBare),
     'the expand control must not take the corner slot the close box owns');
@@ -426,8 +426,8 @@ test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   // mark quietly undid that, which is what matching the panel is for.
   assert.match(body, /glyph\.classList\.add\('mining-glyph'\)/);
   assert.match(body, /const line = h\('div', \{ className: 'mining-line' \}\)/);
-  assert.match(body, /textContent: 'Stopping keeps your draft\.'/);
-  assert.match(body, /textContent: 'Mining proof of work'/);
+  assert.match(body, /textContent: t\('Stopping keeps your draft\.'\)/);
+  assert.match(body, /textContent: t\('Mining proof of work'\)/);
   assert.match(body, /line\.textContent = bits \+ ' bits · ' \+ secs \+ 's' \+ \(best \? ' · best ' \+ best : ''\);/,
     'the line no longer matches the panel word for word');
 
@@ -469,7 +469,7 @@ test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   // which reads as the note having been handed back rather than sent. Reported during
   // 1.14 QA as seeing the preview flash by after mining stopped.
   assert.match(bare, /function mineDone\(\) \{/);
-  assert.match(bare, /line\.textContent = 'Found it\. Posting…';/);
+  assert.match(bare, /line\.textContent = t\('Found it\. Posting…'\);/);
   assert.match(bare, /if \(stop\) stop\.disabled = true;/,
     'Stop still offers to cancel a mine that has already finished');
   // The mine branch ends with mineDone, never with setMining(false): that is what used
@@ -518,7 +518,7 @@ test('A LOCKED STORE IS SAID ONCE, AND NOTHING PRETENDS TO FIX IT', () => {
   // sentence twice, and the banner was the one carrying no other information.
   assert.ok(!/compose-locked/.test(pageHtml), 'the banner is redundant with the button');
   assert.ok(!/compose-locked/.test(css));
-  assert.match(bare, /status\.textContent = \(state && state\.locked\) \? 'Sidecar is locked\.' : '';/);
+  assert.match(bare, /status\.textContent = \(state && state\.locked\) \? t\('Sidecar is locked\.'\) : '';/);
 
   // NOTHING PRETENDS. chrome.sidePanel.open was the obvious way to offer the unlock from
   // here and it does not work: the API wants a user gesture and declines the click on an
@@ -536,7 +536,7 @@ test('A LOCKED STORE IS SAID ONCE, AND NOTHING PRETENDS TO FIX IT', () => {
   // minute into no feedback is worse than anything that could follow it.
   const paint = bare.slice(bare.indexOf('function paintPostButton()'));
   const pbody = paint.slice(0, paint.indexOf('\n  }'));
-  assert.match(pbody, /post\.textContent = 'Unlock to post';/);
+  assert.match(pbody, /post\.textContent = t\('Unlock to post'\);/);
   assert.match(pbody, /post\.disabled = true;/, 'there is no route from here, so it is inert');
   // Belt and braces on the route the button no longer offers.
   const review = bare.slice(bare.indexOf('async function reviewThenPost()'));
@@ -565,7 +565,7 @@ test('A LOCKED STORE IS SAID ONCE, AND NOTHING PRETENDS TO FIX IT', () => {
 test('a mine can be stopped, and the button that started it is how', () => {
   // Ten seconds at 22 bits and sometimes a minute. The panel offers a Stop for exactly
   // that reason; here the only button that could be pressed is the one that started it.
-  assert.match(bare, /post\.textContent = 'Stop mining';/);
+  assert.match(bare, /post\.textContent = t\('Stop mining'\);/);
   assert.match(bare, /if \(mining\) return composer\.powCancel\(\);/);
   // A stop is a decision, not a fault, so it takes the branch that says nothing at all
   // rather than falling through to an error toast.
@@ -603,7 +603,7 @@ test('THE WAY OUT IS A CORNER BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER'
 
   // Cancel is not a button. Leaving is not an action with the same weight as publishing,
   // and two filled controls side by side claim it is.
-  assert.match(pageHtml, /class="compose-cancel" id="compose-close">Cancel</);
+  assert.match(pageHtml, /class="compose-cancel" id="compose-close"[^>]*>Cancel</);
   const cancel = css.slice(css.indexOf('.compose-cancel {'), css.indexOf('.compose-cancel:hover'));
   assert.match(cancel, /background: none/);
   assert.match(cancel, /border: none/);
@@ -625,8 +625,8 @@ test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
   const fn = bare.slice(bare.indexOf('async function showPosted('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /sheet\.innerHTML = '';/);
-  assert.match(body, /textContent: 'Your note is live\.'/);
-  assert.match(body, /'Published to ' \+ relayCount/);
+  assert.match(body, /textContent: t\('Your note is live\.'\)/);
+  assert.match(body, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', relayCount\)/);
 
   // Only after the publish resolved. A receipt for a note no relay took is a lie.
   const post = bare.slice(bare.indexOf('async function doPost()'));
@@ -682,7 +682,7 @@ test('ONE COMPOSER PER ACCOUNT, BECAUSE THERE IS ONE DRAFT SLOT PER ACCOUNT', ()
   // Focused rather than refused. The tab can be in another window, and a panel that does
   // nothing when you tap Compose is indistinguishable from a broken one.
   assert.match(panelBare, /chrome\.tabs\.update\(open\.tabId, \{ active: true \}\)/);
-  assert.match(panelBare, /toast\('Your draft is already open in a tab', 'info'\)/);
+  assert.match(panelBare, /toast\(t\('Your draft is already open in a tab'\), 'info'\)/);
 
   // A reply is a different slot, so only the main composer is held back.
   assert.match(panelBare, /if \(!\(opts && opts\.replyTo\)\) \{\n\s*const open = await liveComposeTab\(\)/);
@@ -716,7 +716,7 @@ test('WHO THIS IS WRITTEN AS CAN CHANGE UNDER THE TAB', () => {
   // to its own relays and follows its own people.
   assert.match(body, /handoverRelays = null;/);
   assert.match(body, /followCache = null;/);
-  assert.match(body, /toast\('Now writing as '/);
+  assert.match(body, /toast\(t\('Now writing as \{\{name\}\}'/);
 });
 
 test('CLOSING THE TAB KEEPS WHAT WAS TYPED, AND BEFOREUNLOAD IS NOT HOW', () => {

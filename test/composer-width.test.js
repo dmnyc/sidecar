@@ -116,7 +116,7 @@ test('the post composer has an X, and it discards', () => {
   // reads as a stuck dialog. Safe to discard here because drafts autosave.
   const fn = panel.slice(panel.indexOf('async function openComposer('));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
-  assert.match(body, /className: 'modal-x', title: 'Close'/);
+  assert.match(body, /className: 'modal-x', title: t\('Close'\)/);
   assert.match(body, /closeX\.addEventListener\('click', closeModal\)/);
   // After the content: showEditor clears the modal to build itself, so an X appended
   // before it is wiped.

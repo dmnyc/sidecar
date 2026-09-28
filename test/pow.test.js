@@ -159,7 +159,7 @@ test('THE PANEL AND THE BACKGROUND AGREE ON THE RUNGS', () => {
   }
 
   // A level carries what it COSTS, which is the half a bare number cannot say.
-  const costs = [...levels[1].matchAll(/cost: '([^']+)'/g)].map((m) => m[1]);
+  const costs = [...levels[1].matchAll(/cost: \(\) => t\('([^']+)'\)/g)].map((m) => m[1]);
   assert.equal(costs.length, panelBits.length, 'every rung needs its cost written down');
   assert.ok(costs.every((c) => /\.$/.test(c)), 'costs read as sentences');
   assert.doesNotMatch(levels[1], /name:/, 'the adjective labels are meant to be gone');
@@ -314,7 +314,7 @@ test('the three add buttons share a row, and it wraps rather than shrinks', () =
 
   // Both PoW states are the same width, so cycling never makes the row reflow under the
   // thumb that is cycling it.
-  assert.match(bare, /'PoW ' \+ lvl\.bits : 'PoW off'/);
+  assert.match(bare, /t\('PoW \{\{bits\}\}', \{ bits: lvl\.bits \}\) : t\('PoW off'\)/);
 });
 
 test('the proof-of-work icon does not mean something else already', () => {
@@ -344,7 +344,7 @@ test('MINING OWNS THE MODAL, BECAUSE THE COUNTDOWN WIPES IT', () => {
   const body = fn.slice(0, fn.indexOf('\n    }'));
   assert.match(body, /modal\.innerHTML = '';/, 'the pane has to own the modal, not sit in the editor');
   assert.match(body, /stopCountdown\(\);/, 'the countdown must not keep ticking underneath it');
-  assert.match(body, /textContent: 'Stop mining'/);
+  assert.match(body, /textContent: t\('Stop mining'\)/);
   assert.match(body, /stop\.addEventListener\('click', powCancel\)/, 'stop must be reachable on both paths');
 
   // Its own clock. Worker reports arrive per block of attempts, so on a slow machine they
@@ -367,7 +367,7 @@ test('the pane stops claiming to mine once it has', () => {
   const fn = bare.slice(bare.indexOf('function showMiningPane('));
   const body = fn.slice(0, fn.indexOf('\n    }'));
   assert.match(body, /stop\.disabled = true;/);
-  assert.match(body, /line\.textContent = 'Found it\. Posting…';/);
+  assert.match(body, /line\.textContent = t\('Found it\. Posting…'\);/);
 });
 
 test('THE MINING GLYPH IS SIZED ON ITSELF, NOT AS A DESCENDANT', () => {
@@ -454,8 +454,8 @@ test('the minimize offer costs the pane no height and no wait', () => {
   assert.match(paneBody, /mini\.append\(icon\('chevron-down'\)\)/);
   assert.doesNotMatch(paneBody, /icon\('x'\)/);
   // Icon only, so it says what it is to a screen reader and on hover.
-  assert.match(paneBody, /title: 'Keep mining in the background'/);
-  assert.match(paneBody, /mini\.setAttribute\('aria-label', 'Keep mining in the background'\)/);
+  assert.match(paneBody, /title: t\('Keep mining in the background'\)/);
+  assert.match(paneBody, /mini\.setAttribute\('aria-label', t\('Keep mining in the background'\)\)/);
 });
 
 // ---- a mine that has left the composer ---------------------------------------------

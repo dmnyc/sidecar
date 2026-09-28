@@ -24,6 +24,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
@@ -425,6 +426,7 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
   const ctx2 = { document: { createElement: makeEl, createElementNS: () => makeEl('svg') } };
   ctx2.window = ctx2;
   ctx2.requestAnimationFrame = () => {};
+  withI18n(ctx2);
   vm.createContext(ctx2);
   vm.runInContext(core + '\n;globalThis.SC = window.SidecarCore;', ctx2);
 
@@ -604,7 +606,7 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
   assert.match(core, /attachRow\.classList\.remove\('hidden'\)/);
   // Named per paste: the offer covers video now, and a fixed "image" would be the
   // offer describing something other than what it is about to do.
-  assert.match(core, /'Attach this ' \+ \(urlIsVideo\(url\) \? 'video' : 'image'\)/);
+  assert.match(core, /urlIsVideo\(url\) \? t\('Attach this video'\) : t\('Attach this image'\)/);
   // And it stays visible, in both senses: seated above the editor where the eye
   // starts, and still standing while the user types beside the pasted line.
   assert.match(core, /wrap\.prepend\(attachRow\)/, 'the offer sits below the fold');
