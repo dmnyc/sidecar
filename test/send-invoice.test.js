@@ -17,6 +17,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
 function liftFn(decl) {
@@ -46,7 +47,8 @@ const COFFEE = 'lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rq
 const HASH_ONLY = 'lnbc20m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqscc6gd6ql3jrc5yzme8v4ntcewwz5cnw92tz0pc8qcuufvq7khhr8wpald05e92xw006sq94mg8v2ndf4sefvf9sygkshp5zfem29trqq2yxxz7';
 const SIGNED_AT = 1496314658;
 
-const decode = new Function(`${DECODER}\nreturn { decodeBolt11, fmtExpiresIn };`)();
+const EN = withI18n({});
+const decode = new Function('t', 'tn', 'tSec', `${DECODER}\nreturn { decodeBolt11, fmtExpiresIn };`)(EN.t, EN.tn, EN.tSec);
 const GATE = [
   source.match(/const LARGE_SEND_SATS = \d+;/)[0],
   source.match(/const LARGE_SEND_WINDOW_MS = \d+;/)[0],
@@ -161,6 +163,7 @@ function openSheet({ now = SIGNED_AT + 10, payStore = {} } = {}) {
     savePayMeta: async (inv, meta) => { payStore[inv] = Object.assign({ ts: clock.now * 1000 }, meta); },
     lightningStrike() {}, renderWallet() {}, renderPinnedBalanceBar() {},
   };
+  withI18n(ctx); // the wallet's strings go through t(), tn() and tSec()
   vm.createContext(ctx);
   vm.runInContext(
     `${DECODER}\n${GATE}\n${liftFn('async function paidHere(')}\n${liftFn('function satsInput(')}\n${liftFn('function sendModal(')}\nsendModal();`,
@@ -186,14 +189,14 @@ test('PASTING AN INVOICE SHOWS WHAT IT WILL PAY, BEFORE PAY', async () => {
   const s = openSheet();
   await s.paste(COFFEE);
   assert.ok(!s.card.cls.has('hidden'), 'the card is shown');
-  assert.match(textOf(s.card), /250000 sats/);
+  assert.match(textOf(s.card), /250,000 sats/);
   assert.match(textOf(s.card), /1 cup coffee/);
   assert.match(textOf(s.card), /Expires in under a minute/);
   assert.ok(s.amount.cls.has('hidden'), 'the invoice carries its own amount');
   assert.equal(s.pay.textContent, 'Confirm amount above', '250,000 sats is over the line');
   const find = (e, pred) => (pred(e) ? e : (e.children || []).map((c) => find(c, pred)).find(Boolean));
   const amountEl = find(s.card, (e) => e.cls && e.cls.has('ln-invoice-amount'));
-  assert.equal(amountEl && amountEl.textContent, '250000 sats', 'the amount is set in its own, larger style');
+  assert.equal(amountEl && amountEl.textContent, '250,000 sats', 'the amount is set in its own, larger style');
 });
 
 test('an amountless invoice\'s prompt is not set as a figure', async () => {
@@ -220,7 +223,7 @@ test('and Pay then pays that invoice, for its own amount, after the button has a
   await s.paste(COFFEE);
   await s.pay.fire('click');
   assert.deepEqual(s.paid, [], 'the first press confirms, it does not pay');
-  assert.equal(s.pay.textContent, 'Pay 250000 sats');
+  assert.equal(s.pay.textContent, 'Pay 250,000 sats');
   assert.ok(s.pay.cls.has('primary'));
   await s.pay.fire('click');
   assert.deepEqual(s.paid, [{ inv: COFFEE, msat: undefined }]);
@@ -237,7 +240,7 @@ async function amountless(s, sats) {
 test('UNDER 10,000 SATS THE BUTTON IS THE PAYMENT, AND ONE PRESS SENDS', async () => {
   const s = openSheet();
   await amountless(s, 9999);
-  assert.equal(s.pay.textContent, 'Pay 9999 sats');
+  assert.equal(s.pay.textContent, 'Pay 9,999 sats');
   assert.ok(s.pay.cls.has('primary') && !s.pay.cls.has('secondary'));
   await s.pay.fire('click');
   assert.deepEqual(s.paid, [{ inv: DONATION, msat: 9999000 }]);
@@ -250,7 +253,7 @@ test('AT 10,000 SATS THE BUTTON ASKS FIRST, IN ANOTHER STYLE, AND THEN BECOMES T
   assert.ok(s.pay.cls.has('secondary') && !s.pay.cls.has('primary'), 'styled apart from the payment');
   await s.pay.fire('click');
   assert.deepEqual(s.paid, []);
-  assert.equal(s.pay.textContent, 'Pay 10000 sats');
+  assert.equal(s.pay.textContent, 'Pay 10,000 sats');
   assert.ok(s.pay.cls.has('primary') && !s.pay.cls.has('secondary'));
   await s.pay.fire('click');
   assert.deepEqual(s.paid, [{ inv: DONATION, msat: 10000000 }]);
@@ -282,7 +285,7 @@ test('changing the amount asks again', async () => {
   const s = openSheet();
   await amountless(s, 10000);
   await s.pay.fire('click');
-  assert.equal(s.pay.textContent, 'Pay 10000 sats');
+  assert.equal(s.pay.textContent, 'Pay 10,000 sats');
   s.amount.value = '100000';
   await s.amount.fire('input');
   assert.equal(s.pay.textContent, 'Confirm amount above', 'a confirmation for one amount is not one for another');
@@ -296,7 +299,7 @@ test('leaving it asks again', async () => {
   const s = openSheet();
   await amountless(s, 50000);
   await s.pay.fire('click');
-  assert.equal(s.pay.textContent, 'Pay 50000 sats');
+  assert.equal(s.pay.textContent, 'Pay 50,000 sats');
   s.fireTimers(); // the window lapses
   assert.equal(s.pay.textContent, 'Confirm amount above');
   await s.pay.fire('click');
@@ -307,6 +310,7 @@ test('BESIDE AN AMOUNT FIELD THE BUTTON ASKS WITH A SHORT WORD, AND KEEPS ITS OW
   // The four zap and offer buttons share a row with the amount field, where "Confirm
   // amount above" would squeeze them: they ask with "Confirm" and pay under their label.
   const ctx = { Date, setTimeout: () => 0, clearTimeout() {} };
+  withI18n(ctx); // the wallet's strings go through t(), tn() and tSec()
   vm.createContext(ctx);
   const largeSendGate = vm.runInContext(`${GATE}\nlargeSendGate`, ctx);
   const send = el('button', { textContent: 'Send zap', className: 'primary' });

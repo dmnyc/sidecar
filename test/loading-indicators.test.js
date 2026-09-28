@@ -57,7 +57,9 @@ test('a region that waits uses the shared row, wherever it is', () => {
   // the Lazarus screen, whose scanning row composes its label per kind.)
   for (const label of ['Looking for your polls…', 'Counting votes…', 'Fetching the poll…',
                        'Waiting for payment…', 'Loading price history…']) {
-    assert.ok(bare.includes("waitingRow('" + label + "')"), label + ' is not on the shared row');
+    // Translated or not yet: the label may be wrapped in t() / tSec().
+    const lit = "'" + label + "'";
+    assert.ok([lit, 't(' + lit + ')', 'tSec(' + lit + ')'].some((a) => bare.includes('waitingRow(' + a + ')')), label + ' is not on the shared row');
   }
   assert.match(bare, /waitingRow\(label\)/, 'and the bookmarks/notifications block builds it too');
 });

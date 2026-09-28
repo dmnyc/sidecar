@@ -164,7 +164,7 @@ test('a failed wallet load says so and offers the one action that helps', () => 
   assert.match(panel, /function walletLoadFailed\(view, e\) \{/);
   const fn = panel.slice(panel.indexOf('function walletLoadFailed'));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
-  assert.match(body, /textContent: 'Try again'/, 'the recovery people actually found was switching accounts');
+  assert.match(body, /textContent: t\('Try again'\)/, 'the recovery people actually found was switching accounts');
   assert.match(body, /renderWallet\(\)/);
   // Both roads to a blank tab are covered: the first await, and the unawaited
   // renderWalletConnected that follows it.
