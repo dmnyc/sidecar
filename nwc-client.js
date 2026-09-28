@@ -138,6 +138,13 @@
     // with an error) means no money moved. Every other rejection — timeout, dropped
     // relay, undecryptable response — is INDETERMINATE, and a caller that spends
     // money must verify with lookup_invoice before reporting failure.
+    function asSentence(msg) {
+      const t = String(msg).trim();
+      if (!t) return t;
+      const first = t.charAt(0).toUpperCase() + t.slice(1);
+      return /[.!?]$/.test(first) ? first : first + '.';
+    }
+
     function request(method, params, timeoutMs) {
       return new Promise((resolve, reject) => {
         (async () => {
@@ -171,7 +178,10 @@
                     // The wallet answered, and the answer was no. This is the ONLY
                     // failure we can be certain left the money where it was — see
                     // the rejection contract above.
-                    const err = new Error(res.error.message || res.error.code || 'Wallet error');
+                    // Sentence-cased: this text goes straight to a toast or an error line,
+                    // and wallets write theirs for logs ("this invoice has already been
+                    // paid"). A bare code is left as it is.
+                    const err = new Error(res.error.message ? asSentence(res.error.message) : res.error.code || 'Wallet error');
                     err.walletDenied = true;
                     reject(err);
                   } else resolve(res.result);

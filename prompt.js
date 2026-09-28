@@ -100,6 +100,23 @@
 
   let data = null;
   let isPayment = false;
+  // A LARGE PAYMENT TAKES A SECOND PRESS, here as in the panel's own sends: at this many
+  // sats or more the Pay button first reads "Confirm amount above" in the secondary style,
+  // and only once pressed becomes the payment. The background also never lets a budget
+  // pay this much without this card. Same value as LARGE_SEND_SATS in sidepanel.js and
+  // background.js; test/large-send-pages.test.js holds the three together.
+  const LARGE_SEND_SATS = 10000;
+  const LARGE_SEND_WINDOW_MS = 15000;
+  let largeArmed = false;
+  let largeTimer = null;
+  const isLargePayment = () => isPayment && data.amountSats != null && data.amountSats >= LARGE_SEND_SATS;
+  function paintPay() {
+    const ask = isLargePayment() && !largeArmed;
+    els.allow.textContent = ask ? 'Confirm amount above'
+      : data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+    els.allow.classList.toggle('primary', !ask);
+    els.allow.classList.toggle('secondary', ask);
+  }
   let chosenPubkey = null; // login (getPublicKey) prompts only — see canOfferAccountSwitch in background.js
   // Which cut of the placeholder garnish this window is drawing — set once the theme
   // arrives with the request (see the note beside THEMES below). The white default is
@@ -628,7 +645,7 @@
 
     if (isPayment) {
       // Payment: one Pay button + an optional "remember a budget" toggle.
-      els.allow.textContent = data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+      paintPay();
       els.trust.classList.add('hidden');
       els.remember.classList.remove('hidden');
       // Suggest a daily budget; the field is disabled until the box is ticked, so
@@ -881,6 +898,15 @@
   async function decide(action, opts) {
     els.error.textContent = '';
     els.pinError.textContent = '';
+    // The first press on a large payment only confirms. Before the unlock, so it cannot
+    // spend a PIN attempt on a press that was never going to pay.
+    if (action === 'once' && isLargePayment() && !largeArmed) {
+      largeArmed = true;
+      clearTimeout(largeTimer);
+      largeTimer = setTimeout(() => { largeArmed = false; paintPay(); }, LARGE_SEND_WINDOW_MS);
+      paintPay();
+      return;
+    }
     // Unlock first if needed. 'detach' is included even though it never signs — see
     // decideApproval in sidepanel.js. Reject stays ungated.
     if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {

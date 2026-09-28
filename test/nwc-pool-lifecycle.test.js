@@ -287,7 +287,7 @@ test('a wallet error still sets walletDenied', async () => {
   });
   const c = h.makeClient(CONN);
   await assert.rejects(() => c.payInvoice('lnbc1'), (err) => {
-    assert.equal(err.message, 'Not enough');
+    assert.equal(err.message, 'Not enough.', 'the wallet\'s own words, read as a sentence');
     assert.equal(err.walletDenied, true, 'the ONE case where money definitely did not move');
     return true;
   });
