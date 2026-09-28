@@ -102,3 +102,13 @@
 @media (prefers-reduced-motion: reduce) {
   [data-theme="speakeasy"] .bal-glyph.bal-in { animation: none; }
 }
+
+/* The full-tab composer's top bar, in the same near-black violet as the help and welcome
+   pages' bar (.helpnav in welcome.css), which is Speakeasy's own: --velvet-1 made it a
+   lighter purple than the bar on every other Sidecar page in this theme. A page with no
+   theme set draws in Speakeasy's colors, so it takes the bar too. */
+[data-theme="speakeasy"] .compose-topbar,
+html:not([data-theme]) .compose-topbar {
+  background: rgba(10, 1, 24, 0.88);
+  backdrop-filter: blur(10px);
+}

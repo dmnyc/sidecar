@@ -26,6 +26,10 @@
   /* surfaces */
   --bg: #F0EAD6;
   --bg-2: #E8E0D0;
+  /* The field every input sits on, including the ones that are not <input>: the tab
+     composer's editor is a contenteditable div, which the input rule below never
+     reaches, and without this it fell back to the default dark purple. */
+  --input-bg: var(--bg-2);
   --velvet-1: #E6DCC8;
   --velvet-2: #DED4C0;
   --velvet-1-rgb: 230, 220, 200;

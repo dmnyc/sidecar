@@ -15,16 +15,20 @@ body {
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
 }
 
-/* Film Noir — a close-up of a 35mm print: the frame at the panel's width, four
-   perforations down each side of it, the frame line under it, and the print aged over
-   all of it (themes/film-noir-*.svg, from scripts/gen-film-noir-film.py). Four layers,
-   top down:
+/* Film Noir — strips of 35mm film laid loose on a light table: each tipped a few degrees
+   off true and overlapping its neighbors, casting a soft shadow where it lies over one,
+   with four perforations down each side of every frame and the frame line under it, and
+   the print aged over all of it (themes/film-noir-*.svg, from
+   scripts/gen-film-noir-film.py). Four layers, top down:
      damage    rain, scratches, dust and hairs, faint white, on a tall tile so no
                scratch lines up with the frame it crosses
      emulsion  uneven density, burns and grain, on a square tile; darkens, apart from
                the grain
      vignette  the edge of the projector's light
-     frames    the film itself, scaled to the panel's width so one frame always spans it
+     strips    the film itself, a portrait sheet covering the panel (the full-tab
+               composer covers itself with a landscape one; see the end of this file).
+               It replaced one frame at the panel's width, which tiled into a grid the
+               moment a page was wider than the panel
    Everything that ages the print darkens it, because on a black field lightening is
    what spends the hints' contrast; the dust, scratches and grain are the only light
    marks, and test/theme-svg-assets.test.js measures the brightest pixel they can make.
@@ -36,10 +40,10 @@ body {
     url(film-noir-damage.svg),
     url(film-noir-emulsion.svg),
     radial-gradient(130% 95% at 50% 45%, transparent 60%, rgba(0, 0, 0, 0.4) 100%),
-    url(film-noir-frames.svg);
-  background-size: 420px 1100px, 480px 480px, auto, 100% auto;
-  background-position: center top, 0 0, 0 0, center top;
-  background-repeat: repeat, repeat, no-repeat, repeat-y;
+    url(film-noir-strips.svg);
+  background-size: 420px 1100px, 480px 480px, auto, cover;
+  background-position: center top, 0 0, 0 0, center center;
+  background-repeat: repeat, repeat, no-repeat, no-repeat;
 }
 
 /* Art Deco — Geometric sunburst/fan */
@@ -503,4 +507,66 @@ body {
   background-size: 520px, auto, auto;
   background-position: center, 0% 0%, 0% 0%;
   background-repeat: repeat, no-repeat, no-repeat;
+}
+
+/* ---- The full-tab composer (compose.html) ----------------------------------------
+   Every field above is drawn for a side panel about 360px wide, and several are sized
+   to the frame: a tile at 100% of the width, a sheet that covers it. On a tab four
+   times as wide, those scale up with it, so a motif meant to sit behind a narrow column
+   fills a desktop at four times its size. These put each one back at the scale the
+   panel shows it at. Only the tab's body carries .compose-page. */
+
+/* Film Noir: the landscape sheet of strips (film-noir-strips-wide.svg), at the same
+   density as the panel's portrait one, since covering a tab with the portrait sheet would
+   draw every strip at four times its size. */
+[data-theme="film-noir"] body.compose-page {
+  background-image:
+    url(film-noir-damage.svg),
+    url(film-noir-emulsion.svg),
+    radial-gradient(130% 95% at 50% 45%, transparent 60%, rgba(0, 0, 0, 0.4) 100%),
+    url(film-noir-strips-wide.svg);
+}
+
+/* Populuxe: the tile at a panel's width, near Bauhaus's 320, instead of the page's. round
+   ACROSS ONLY keeps the whole-tile edge the 100% sizing was there for: rounding down as
+   well stretched the square tile into a rectangle, and the SVG, keeping its own aspect,
+   left a white gap at both sides of every tile. */
+[data-theme="populuxe"] body.compose-page {
+  background-size: 360px, auto;
+  background-repeat: round repeat, no-repeat;
+}
+
+/* Wabi-sabi: a break grown for a landscape page (wabi-sabi-seams-wide.svg, from
+   scripts/gen-japanese-patterns.py), big enough that a desktop window shows no repeat. */
+[data-theme="wabi-sabi"] body.compose-page {
+  background-image:
+    url(wabi-sabi-seams-wide.svg),
+    radial-gradient(900px 420px at 30% -8%, rgba(186, 199, 209, 0.07), transparent 62%),
+    radial-gradient(700px 480px at 110% 108%, rgba(201, 138, 75, 0.05), transparent 55%),
+    linear-gradient(168deg, #1C1F23 0%, var(--bg) 58%);
+  background-size: 1920px 1200px, auto, auto, auto;
+}
+
+/* Constellation: the season's WIDE plate, the same sky at the same scale with more of it
+   to either side, so covering a tab draws the stars at about the size the panel does. */
+[data-theme="constellation"] { --sky-plate-wide: url(constellation-sky-orion-wide.svg); }
+[data-theme="constellation"][data-sky="leo"] { --sky-plate-wide: url(constellation-sky-leo-wide.svg); }
+[data-theme="constellation"][data-sky="cygnus"] { --sky-plate-wide: url(constellation-sky-cygnus-wide.svg); }
+[data-theme="constellation"][data-sky="andromeda"] { --sky-plate-wide: url(constellation-sky-andromeda-wide.svg); }
+[data-theme="constellation"] body.compose-page {
+  background-image:
+    var(--sky-plate-wide),
+    radial-gradient(900px 600px at 50% 20%, rgba(201, 170, 108, 0.05), transparent 65%),
+    linear-gradient(180deg, #13110D 0%, var(--bg) 60%);
+}
+
+/* Metropolis: the same fan in a wider frame (metropolis-rays-wide.svg), still at 100% of
+   the width, so a 1440px tab draws the rays at about 1.5 times the panel's weight instead
+   of 3.6. */
+[data-theme="metropolis"] body.compose-page {
+  background-image:
+    linear-gradient(180deg, transparent 0%, rgba(13, 12, 10, 0.46) 42%, var(--bg) 78%),
+    url(metropolis-rays-wide.svg),
+    radial-gradient(1200px 520px at 50% -10%, rgba(168, 132, 60, 0.12), transparent 62%),
+    linear-gradient(178deg, #17140F 0%, var(--bg) 46%);
 }
