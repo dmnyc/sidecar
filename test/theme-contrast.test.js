@@ -1059,3 +1059,33 @@ test('the undescribed chip stays white, so only the accent state is themed', () 
   const chip = rule(css, '.compose-thumb-alt');
   assert.match(chip, /color:\s*#fff\b/, 'the + ALT chip no longer has a fixed light label');
 });
+
+// THE UPDATE CARD IS TINTED FROM THE THEME, NOT FROM SPEAKEASY. Its frame and fill were
+// written as rgba(167, 139, 250, …), the default lavender, so every theme showed a purple
+// card with its own --lav text on it. Both now mix from --lav, and the text has to clear
+// 4.5:1 on that fill over every surface the card can sit on.
+test('THE UPDATE CARD TAKES ITS TINT FROM EACH THEME, AND ITS TEXT READS ON IT', () => {
+  const body = rule(css, '.version-card');
+  assert.doesNotMatch(body, /rgba?\(\s*\d/, 'a color literal is back in .version-card');
+  assert.match(body, /background: color-mix\(in srgb, var\(--lav\) 8%, transparent\);/);
+  assert.match(body, /border-color: color-mix\(in srgb, var\(--lav\) 35%, transparent\);/);
+  // The text: --lav a quarter of the way to --text, since --lav alone is not an ink.
+  const textRule = rule(css, '.version-card .switch-tip-link');
+  assert.match(textRule, /color: color-mix\(in srgb, var\(--lav\) 75%, var\(--text\)\);/);
+  const mix = (a, b, t) => hex(toRgb(a).map((c, i) => c * (1 - t) + toRgb(b)[i] * t));
+  const failures = [];
+  for (const theme of THEMES) {
+    const lav = resolve('var(--lav)', theme.vars);
+    const text = resolve('var(--text)', theme.vars);
+    if (!/^#[0-9a-f]{3,6}$/i.test(lav || '')) { failures.push(theme.name + ': --lav is ' + lav); continue; }
+    const ink = mix(lav, text, 0.25);
+    for (const surface of SURFACES) {
+      const under = resolve('var(' + surface + ')', theme.vars);
+      if (!/^#[0-9a-f]{3,6}$/i.test(under || '')) continue;
+      const fill = mix(under, lav, 0.08);
+      const ratio = contrast(ink, fill);
+      if (ratio < 4.5) failures.push(theme.name + ' on ' + surface + ': ' + ratio.toFixed(2));
+    }
+  }
+  assert.deepEqual(failures, [], 'the card\'s --lav text is too faint on its own tint');
+});

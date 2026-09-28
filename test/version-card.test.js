@@ -122,8 +122,10 @@ test('it reuses the switch tip rather than inventing a second banner', () => {
   // But a different colour, because the switch tip is a caution about posting from the
   // wrong account and this is news. Identical-looking banners in the same place train
   // people to dismiss both unread.
-  assert.match(css, /\.version-card \{ border-color: rgba\(167, 139, 250/);
-  assert.match(css, /\.version-card \.switch-tip-title \{ color: var\(--lav\); \}/);
+  // Lavender from each theme's own --lav, never a literal: the literal was Speakeasy's
+  // lavender in every theme.
+  assert.match(css, /\.version-card \{\s*border-color: color-mix\(in srgb, var\(--lav\) 35%, transparent\);/);
+  assert.match(css, /\.version-card \.switch-tip-title,\s*\.version-card \.switch-tip-link \{ color: color-mix\(in srgb, var\(--lav\) 75%, var\(--text\)\); \}/);
   // After .switch-tip-link so the colour wins the tie; both are one class.
   assert.ok(css.indexOf('.version-card .switch-tip-link') > css.indexOf('.switch-tip-link:hover'),
     'the lavender link loses to the gold one on source order');

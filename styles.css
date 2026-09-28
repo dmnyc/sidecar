@@ -1368,9 +1368,18 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
    After .switch-tip-link, so the link colour wins the tie: both are one class, and
    source order is what decides. */
-.version-card { border-color: rgba(167, 139, 250, 0.35); background: rgba(167, 139, 250, 0.08); }
-.version-card .switch-tip-title { color: var(--lav); }
-.version-card .switch-tip-link { color: var(--lav); }
+/* The tint is mixed from --lav, the theme's own, and not written as a color: a literal
+   here was the default lavender in every theme, a purple frame on a gold one. */
+.version-card {
+  border-color: color-mix(in srgb, var(--lav) 35%, transparent);
+  background: color-mix(in srgb, var(--lav) 8%, transparent);
+}
+/* The text is --lav moved a quarter of the way to --text. --lav is not an ink this
+   file guarantees, and on its own it fell to 3.9:1 in Industria and under 4.5 in four
+   more light themes; a quarter of --text clears 4.5 in all of them (theme-contrast
+   test) and still reads as lavender, so the card stays apart from the gold switch tip. */
+.version-card .switch-tip-title,
+.version-card .switch-tip-link { color: color-mix(in srgb, var(--lav) 75%, var(--text)); }
 .switch-tip-x {
   position: absolute; top: 6px; right: 6px;
   background: none; border: none; padding: 2px;
