@@ -125,6 +125,9 @@
      invisible on this theme's --purple — the sheet on charcoal, 12.77. */
   --add-badge-ink: var(--chip-ink);
   --lav: #3F3A22;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
 
   --relax-dot-ok: #2F6B3A;
   --relax-dot-low: var(--warn);

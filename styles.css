@@ -52,6 +52,11 @@
   --gold-soft: rgba(203, 161, 78, 0.5);
   --purple: #a78bfa;
   --lav: #bda1ff;
+  /* The update card's color (its frame and fill) and the ink for its words. Every theme
+     declares both, most by pointing at what it already has, so a new theme meets the
+     question on its checklist rather than inheriting an answer it never looked at. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   --hover-soft: rgba(167, 139, 250, 0.08);
   --hover-medium: rgba(167, 139, 250, 0.1);
   --hover-faint: rgba(167, 139, 250, 0.06);
@@ -1368,18 +1373,21 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 
    After .switch-tip-link, so the link colour wins the tie: both are one class, and
    source order is what decides. */
-/* The tint is mixed from --lav, the theme's own, and not written as a color: a literal
-   here was the default lavender in every theme, a purple frame on a gold one. */
+/* The tint is mixed from the theme's own color, never written as one: a literal here was
+   the default lavender in every theme, a purple frame on a gold one. The color is
+   --news, which every theme declares: --lav in most, something else where --lav would
+   not read as news (Populuxe's is the deep teal of its pattern). */
 .version-card {
-  border-color: color-mix(in srgb, var(--lav) 35%, transparent);
-  background: color-mix(in srgb, var(--lav) 8%, transparent);
+  border-color: color-mix(in srgb, var(--news) 35%, transparent);
+  background: color-mix(in srgb, var(--news) 8%, transparent);
 }
 /* The text is --lav moved a quarter of the way to --text. --lav is not an ink this
    file guarantees, and on its own it fell to 3.9:1 in Industria and under 4.5 in four
    more light themes; a quarter of --text clears 4.5 in all of them (theme-contrast
-   test) and still reads as lavender, so the card stays apart from the gold switch tip. */
+   test) and still reads as lavender, so the card stays apart from the gold switch tip.
+   That mix is --news-ink's default; a theme with its own --news names its own ink. */
 .version-card .switch-tip-title,
-.version-card .switch-tip-link { color: color-mix(in srgb, var(--lav) 75%, var(--text)); }
+.version-card .switch-tip-link { color: var(--news-ink); }
 .switch-tip-x {
   position: absolute; top: 6px; right: 6px;
   background: none; border: none; padding: 2px;

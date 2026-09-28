@@ -1067,25 +1067,42 @@ test('the undescribed chip stays white, so only the accent state is themed', () 
 test('THE UPDATE CARD TAKES ITS TINT FROM EACH THEME, AND ITS TEXT READS ON IT', () => {
   const body = rule(css, '.version-card');
   assert.doesNotMatch(body, /rgba?\(\s*\d/, 'a color literal is back in .version-card');
-  assert.match(body, /background: color-mix\(in srgb, var\(--lav\) 8%, transparent\);/);
-  assert.match(body, /border-color: color-mix\(in srgb, var\(--lav\) 35%, transparent\);/);
+  assert.match(body, /background: color-mix\(in srgb, var\(--news\) 8%, transparent\);/);
+  assert.match(body, /border-color: color-mix\(in srgb, var\(--news\) 35%, transparent\);/);
   // The text: --lav a quarter of the way to --text, since --lav alone is not an ink.
   const textRule = rule(css, '.version-card .switch-tip-link');
-  assert.match(textRule, /color: color-mix\(in srgb, var\(--lav\) 75%, var\(--text\)\);/);
+  assert.match(textRule, /color: var\(--news-ink\);/);
   const mix = (a, b, t) => hex(toRgb(a).map((c, i) => c * (1 - t) + toRgb(b)[i] * t));
   const failures = [];
   for (const theme of THEMES) {
     const lav = resolve('var(--lav)', theme.vars);
     const text = resolve('var(--text)', theme.vars);
     if (!/^#[0-9a-f]{3,6}$/i.test(lav || '')) { failures.push(theme.name + ': --lav is ' + lav); continue; }
-    const ink = mix(lav, text, 0.25);
+    // Every theme names both. The usual ink is --lav a quarter of the way to --text,
+    // written as that color-mix; a theme with its own card color names a plain ink.
+    const news = resolve(theme.vars['--news'] || 'var(--lav)', theme.vars);
+    const rawInk = String(theme.vars['--news-ink'] || '');
+    const ink = /^color-mix\(in srgb, var\(--lav\) 75%, var\(--text\)\)$/.test(rawInk)
+      ? mix(lav, text, 0.25)
+      : resolve(rawInk, theme.vars);
+    if (!/^#[0-9a-f]{3,6}$/i.test(ink || '') || !/^#[0-9a-f]{3,6}$/i.test(news || '')) {
+      failures.push(theme.name + ': --news ' + news + ' / --news-ink ' + ink + ' do not resolve to colors');
+      continue;
+    }
     for (const surface of SURFACES) {
       const under = resolve('var(' + surface + ')', theme.vars);
       if (!/^#[0-9a-f]{3,6}$/i.test(under || '')) continue;
-      const fill = mix(under, lav, 0.08);
+      const fill = mix(under, news, 0.08);
       const ratio = contrast(ink, fill);
       if (ratio < 4.5) failures.push(theme.name + ' on ' + surface + ': ' + ratio.toFixed(2));
     }
   }
   assert.deepEqual(failures, [], 'the card\'s --lav text is too faint on its own tint');
+});
+
+test('EVERY THEME DECLARES THE UPDATE CARD\'S COLORS', () => {
+  // --news and --news-ink, even where they only point at --lav: a new theme should meet
+  // the question on its checklist, not inherit Speakeasy's answer without looking.
+  const missing = THEMES.filter((t) => !t.vars['--news'] || !t.vars['--news-ink']).map((t) => t.name);
+  assert.deepEqual(missing, []);
 });

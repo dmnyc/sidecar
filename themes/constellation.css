@@ -67,6 +67,9 @@
      the engraving is thinnest. 9.70:1 and 11.94:1 on the card. */
   --purple: #D9C08A;
   --lav: #E6D6AE;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   --hover-soft: rgba(201, 170, 108, 0.07);
   --hover-medium: rgba(201, 170, 108, 0.11);
   --hover-faint: rgba(201, 170, 108, 0.05);

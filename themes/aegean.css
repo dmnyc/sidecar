@@ -74,6 +74,9 @@
      invisible on this theme's --purple — white on the cobalt disc, 7.21. */
   --add-badge-ink: #FFFFFF;
   --lav: #1565C0;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   /* Relax countdown dot. The shared default (#4ade80) measured 1.74:1 on this whitewash;
      --success (#4F6B3A) was the first fix and read as muddy — darker than it needs to be,
      since a 7px indicator only has to clear 3.0:1, not the 4.5 a label does. #1A9943

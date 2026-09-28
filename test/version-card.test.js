@@ -124,8 +124,16 @@ test('it reuses the switch tip rather than inventing a second banner', () => {
   // people to dismiss both unread.
   // Lavender from each theme's own --lav, never a literal: the literal was Speakeasy's
   // lavender in every theme.
-  assert.match(css, /\.version-card \{\s*border-color: color-mix\(in srgb, var\(--lav\) 35%, transparent\);/);
-  assert.match(css, /\.version-card \.switch-tip-title,\s*\.version-card \.switch-tip-link \{ color: color-mix\(in srgb, var\(--lav\) 75%, var\(--text\)\); \}/);
+  assert.match(css, /\.version-card \{\s*border-color: color-mix\(in srgb, var\(--news\) 35%, transparent\);/);
+  assert.match(css, /\.version-card \.switch-tip-title,\s*\.version-card \.switch-tip-link \{ color: var\(--news-ink\); \}/);
+  // Populuxe's --lav is its pattern's deep teal, which read as green; its card is coral.
+  const populuxe = fs.readFileSync(path.join(ROOT, 'themes', 'populuxe.css'), 'utf8');
+  assert.match(populuxe, /--news: #F5675B;/);
+  assert.match(populuxe, /--news-ink: #792830;/);
+  // Mycelium's is moss, beside a moss switch tip; its card is the fly agaric's red.
+  const mycelium = fs.readFileSync(path.join(ROOT, 'themes', 'mycelium.css'), 'utf8');
+  assert.match(mycelium, /--news: #B23A2E;/);
+  assert.match(mycelium, /--news-ink: #A5352B;/);
   // After .switch-tip-link so the colour wins the tie; both are one class.
   assert.ok(css.indexOf('.version-card .switch-tip-link') > css.indexOf('.switch-tip-link:hover'),
     'the lavender link loses to the gold one on source order');

@@ -60,6 +60,11 @@
   /* Eucalyptus, the blue-green of the plants a forest floor grows under, so the second
      accent is not a second moss. 4.89:1 on the darker paper. */
   --lav: #46655E;
+  /* The update card. Its default is --lav, which here is moss and read as green beside a
+     moss switch tip; it takes the fly agaric's red instead, the badge's for the tint and
+     the balance's for its words. */
+  --news: #B23A2E;
+  --news-ink: #A5352B;
   --add-badge-ink: var(--velvet-1);
   /* The unread count in the fly agaric's red, with white: 5.94:1. The balance's red a
      shade brighter, as a cap is in sun. */

@@ -121,6 +121,9 @@
      Art Deco makes for the same reason. */
   --purple: #C9A45C;
   --lav: #DCC084;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
 
   --fiat-sym-ink: #C9A45C;
   /* The shared 0.72 mute drops the symbol under the small-text bar on the pinned

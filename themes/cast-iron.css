@@ -75,6 +75,9 @@
   --pending-sub: #91897b;
   --purple: #8f887a; /* kept for logo compatibility */
   --lav: #948c79;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
 
   /* The accent-chip pair. styles.css paints several small controls as
      --accent-fill background + --chip-ink label, each falling back through warm grays

@@ -103,6 +103,9 @@
      invisible on this theme's --purple — the theme's own eggshell on bronze, 5.59. */
   --add-badge-ink: var(--velvet-1);
   --lav: #7A5A18;
+  /* The update card: this theme's --lav, which reads as news here. */
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
   /* Relax countdown dot — 1.28:1 and 1.55:1 against this cream with the shared defaults,
      the worst of any theme. --warn is this palette's burnt amber, so the traffic-light
      reading survives the move. 3.70:1 / 3.97:1 worst surface. */
