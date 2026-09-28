@@ -102,6 +102,7 @@ test('THE WALLET SEND SHEET BUILDS, WHICH IT DID NOT IN 1.13.0', () => {
   // declared inside the Pay handler, so the builder threw a ReferenceError before
   // openModal could reveal the overlay, and Send did nothing at all for everyone.
   const src =
+    lift(/  const LARGE_SEND_SATS = \d+;\n  const LARGE_SEND_WINDOW_MS = \d+;\n  function largeSendGate\([\s\S]*?\n  \}\n/, 'largeSendGate') + '\n' +
     lift(/  function satsInput\([\s\S]*?\n  \}\n/, 'satsInput') + '\n' +
     lift(/  function sendModal\(\) \{[\s\S]*?\n  \}\n/, 'sendModal');
   const { threw, built } = runBuilder(src, 'sendModal');

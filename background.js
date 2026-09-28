@@ -2294,6 +2294,12 @@ const AUTOZAP_DEFAULT_MAX = 200;
 // thinking, so four digits is the range worth having one tap away.
 const ZAP_DEFAULT_ABS_MAX = 9999;
 const AUTOZAP_ABS_MAX = 1000; // sats, per zap
+// A SINGLE PAYMENT THIS LARGE ALWAYS SHOWS THE CARD. A budget is an allowance for small
+// payments made without asking; no budget covers one of these, whatever it has left, and
+// the card then takes two presses (prompt.js, and the panel's approval card). Auto-zap
+// cannot reach it: AUTOZAP_ABS_MAX sits well under it. Same value as LARGE_SEND_SATS in
+// sidepanel.js and prompt.js; test/large-send-pages.test.js holds the three together.
+const LARGE_SEND_SATS = 10000;
 const AUTOZAP_ABS_DAILY_MAX = 100000; // sats, rolling day
 
 // The auto-zap limits in force, clamped. Applied on READ as well as on write, so a
@@ -2597,7 +2603,7 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // amount, or "auto-approve zaps" is on and this is a genuine zap within the limit.
   const settings = (await sget('sidecar_settings')).sidecar_settings || {};
   const unlocked = !KS.isLocked() && sats != null;
-  const budgetOk = unlocked && (await BUDGETS.covers(pubkey, host, sats));
+  const budgetOk = unlocked && sats < LARGE_SEND_SATS && (await BUDGETS.covers(pubkey, host, sats));
   // Auto-zap is gated by BOTH a per-zap cap and a rolling daily aggregate cap, each
   // held under a hard ceiling (see autoZapLimits).
   const { perZap: zapMax, daily: zapDailyMax } = autoZapLimits(settings);
@@ -2775,7 +2781,7 @@ async function payKeysendLocked(ks, host, pubkey, originWindowId) {
   // check reads a balance the previous split has not debited yet, so four of them clear a
   // budget with room for two. Reserving spends the allowance before the request goes out,
   // so the next split sees what is actually left.
-  let reserved = !KS.isLocked() && (await BUDGETS.reserve(pubkey, host, ks.sats));
+  let reserved = !KS.isLocked() && ks.sats < LARGE_SEND_SATS && (await BUDGETS.reserve(pubkey, host, ks.sats));
 
   if (!reserved) {
     const st = await KS.getState();

@@ -3712,6 +3712,8 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ln-recipient-limits { color: var(--gold); font-size: 12px; font-family: var(--font-mono); }
+/* A pasted invoice's amount, the one figure the card exists to show before Pay. */
+.ln-invoice-amount { font-size: 20px; font-weight: 700; line-height: 1.25; }
 .ln-recipient-desc {
   color: var(--muted); font-size: 12px; line-height: 1.5; margin: 8px 0 0;
   overflow-wrap: anywhere;
