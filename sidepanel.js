@@ -17803,18 +17803,21 @@
 
   // Fetch the current balance, update the cache, and refresh visible displays.
   // Called when a payment notification arrives or the poll timer fires.
-  async function refreshWalletBalance() {
-    if (!state || state.locked) return;
+  // Returns whether the wallet answered. `force` repaints even an unchanged figure: the
+  // refresh button asks for that, because a strike on the same number is the only sign
+  // the button did anything (see its handler).
+  async function refreshWalletBalance({ force = false } = {}) {
+    if (!state || state.locked) return false;
     try {
       const client = await ensureNwc();
-      if (!client || state.locked) return; // state may have changed during await
+      if (!client || state.locked) return false; // state may have changed during await
       const b = await client.getBalance();
-      if (state.locked) return; // re-check after network call
+      if (state.locked) return false; // re-check after network call
       const prevSats = balanceCache ? balanceCache.sats : null;
       const newSats = msatToSat(b && b.balance);
       const changed = !balanceCache || balanceCache.sats !== newSats;
       balanceCache = { pubkey: state.activePubkey, sats: newSats, ts: Date.now() };
-      if (changed) {
+      if (changed || force) {
         // Paint in the active denomination, so a live update doesn't silently snap
         // the display back to sats while the user is reading BTC or fiat.
         const parts = denomParts(newSats);
@@ -17837,7 +17840,10 @@
           });
         }
       }
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   function stopWalletMonitor() {
@@ -17906,7 +17912,7 @@
   // Prepend any transactions not already in the list, without clearing it.
   // Called from the walletChanged handler so a zap doesn't make the history blink.
   function refreshTransactionList() {
-    if (_refreshTxList) _refreshTxList();
+    return _refreshTxList ? _refreshTxList() : Promise.resolve(false);
   }
 
   async function renderWallet() {
@@ -18272,7 +18278,23 @@
     // the button did anything. Without this the slot record survives the rebuild and
     // the card silently redraws (#248 keyed the record by slot; before that every
     // rebuild minted a new node and struck by accident).
-    refresh.addEventListener('click', () => { forgetBalancePaint('wallet'); renderWallet(); });
+    //
+    // In place, not a rebuild. renderWallet() tore the card and the history down and drew
+    // them again, so every refresh blinked the whole list away and back. Now the balance
+    // is repainted where it stands and new transactions are added to the top of the list
+    // that is already there, the same quiet path a zap landing takes. The icon spins while
+    // the wallet is asked, and only a refresh that reaches neither says so.
+    refresh.addEventListener('click', async () => {
+      if (refresh.classList.contains('spinning')) return;
+      forgetBalancePaint('wallet');
+      refresh.classList.add('spinning');
+      const [balanceOk, listOk] = await Promise.all([
+        refreshWalletBalance({ force: true }),
+        refreshTransactionList(),
+      ]);
+      refresh.classList.remove('spinning');
+      if (!balanceOk && !listOk) toast(t('Couldn’t reach your wallet'), 'error');
+    });
     // Privacy toggle on the balance card (masks balance, history, budgets).
     const eye = h('button', { className: 'wallet-eye', title: hideBalances ? 'Show balances' : 'Hide balances' });
     eye.appendChild(icon(hideBalances ? 'eye-off' : 'eye'));
@@ -18604,7 +18626,7 @@
     listState(listEl, 'Loading…');
 
     async function loadPage() {
-      if (loading) return;
+      if (loading) return false;
       loading = true;
       try {
         const res = await client.listTransactions({ limit: PAGE, offset, unpaid: false });
@@ -18618,9 +18640,11 @@
         // A full page back suggests there may be more to fetch.
         if (txns.length >= PAGE) { show(more); more.textContent = 'Show more'; }
         else hide(more);
+        return true;
       } catch (e) {
         if (offset === 0) listState(listEl, 'Could not load transactions.');
         hide(more);
+        return false;
       } finally {
         loading = false;
       }
@@ -18635,7 +18659,11 @@
     // something asked, and run once more when the current pass finishes.
     let refreshAgain = false;
     async function refresh() {
-      if (loading) { refreshAgain = true; return; }
+      if (loading) { refreshAgain = true; return true; }
+      // Nothing on screen yet (the first page failed, or never came): there is nothing to
+      // prepend to, so load the page the ordinary way, which also clears "Could not load".
+      if (offset === 0) return loadPage();
+      let ok = true;
       loading = true;
       try {
         const res = await client.listTransactions({ limit: PAGE, offset: 0, unpaid: false });
@@ -18655,8 +18683,9 @@
           more.textContent = 'Show more';
         }
       } catch (_) {
-        // Best-effort — a failed refresh is silent (the next full renderWallet picks
-        // everything up). Don't clear the list or show an error.
+        // A failed refresh leaves the list as it was: never cleared, never replaced by an
+        // error. The caller decides whether to say anything (the button does).
+        ok = false;
       } finally {
         loading = false;
       }
@@ -18664,6 +18693,7 @@
         refreshAgain = false;
         await refresh();
       }
+      return ok;
     }
 
     more.addEventListener('click', () => { more.textContent = 'Loading…'; loadPage(); });
