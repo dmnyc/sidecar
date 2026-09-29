@@ -167,7 +167,7 @@ test('THE ACTIONS ARE ICONS, NOT LABELLED BUTTONS', () => {
   assert.match(f, /b\.setAttribute\('aria-label', label\)/, 'an icon-only button with no accessible name');
   assert.match(f, /title: label/, 'the icons carry no tooltip');
   for (const [name, glyph] of [['Reply', "icon\\('message-filled'\\)"], ['React', "icon\\('heart'\\)"], ['Zap', 'boltIcon\\(\\)']]) {
-    assert.match(f, new RegExp("actBtn\\('" + name + "', " + glyph + "\\)"), name + ' lost its glyph');
+    assert.match(f, new RegExp("actBtn\\(t\\('" + name + "'\\), " + glyph + "\\)"), name + ' lost its glyph');
   }
   // 30px square: a tap target, not a shrunken button. Shrinking controls to fit is the
   // thing CLAUDE.md forbids outright.

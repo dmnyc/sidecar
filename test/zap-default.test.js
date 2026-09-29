@@ -273,7 +273,7 @@ test('A [+] SITS IN THE SLOT UNTIL AN AMOUNT IS CHOSEN', () => {
   assert.match(fn, /if \(!defaultZapIsOwn\) \{/, 'the row never offers a way to set one');
   assert.match(fn, /textContent: '\+'/, 'the invitation is not a [+]');
   assert.match(fn, /amountEl\.focus\(\)/, '[+] does not put the cursor where you type the amount');
-  assert.match(fn, /aria-label', 'Set your own zap amount'/, '[+] has no accessible name');
+  assert.match(fn, /aria-label', t\('Set your own zap amount'\)/, '[+] has no accessible name');
   assert.match(css, /\.peek-preset-add \{[^}]*border-style: dashed/, '[+] reads as an amount rather than an invitation');
 });
 

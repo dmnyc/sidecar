@@ -2420,7 +2420,7 @@
       const presets = zapPresetRow(amount);
       const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
       const send = h('button', { className: 'primary', textContent: 'Send zap' });
-      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => 'Send zap', confirmLabel: 'Confirm' });
+      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm') });
       amount.addEventListener('input', zapGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
@@ -2436,7 +2436,7 @@
         let flight = null;
         try {
           const client = await ensureNwc();
-          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
           const invoice = await zapInvoice({
             addr: zapAddr,
             msats: sats * 1000,
@@ -2463,7 +2463,7 @@
           });
           flight.close();
           lightningStrike(); // only once it settles
-          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          toast(tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }), 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
           note.value = '';
@@ -4361,7 +4361,9 @@
   // Ordered by how much is settled: running, finished, and the one whose result is
   // provisional because the poll is still technically open.
   const POLL_GROUPS = ['open', 'ended', 'untracked'];
-  const POLL_GROUP_LABELS = { open: 'Open', ended: 'Ended', untracked: 'Untracked' };
+  // Functions, not strings: this runs before the language file has loaded, so a label
+  // translated here would stay English. Each is looked up when its heading is drawn.
+  const POLL_GROUP_LABELS = { open: () => t('Open'), ended: () => t('Ended'), untracked: () => t('Untracked') };
 
   function pollGroup(ev) {
     if (pollHasEnded(pollEndsAt(ev))) return 'ended';
@@ -4379,12 +4381,12 @@
   // the eye has to pick a number back out of, and so a folded group still says how much
   // is behind it. There is no zero case: a heading is only drawn where a row follows.
   function pollGroupHeading(list, group, count) {
-    const label = h('span', { className: 'poll-group-label', textContent: POLL_GROUP_LABELS[group] });
+    const label = h('span', { className: 'poll-group-label', textContent: POLL_GROUP_LABELS[group]() });
     if (group === 'open') return { el: h('div', { className: 'poll-group' }, [label]), apply: () => {} };
 
     const head = h('button', { className: 'poll-group poll-group-fold', type: 'button' });
     head.append(icon('chevron-down'), label,
-      h('span', { className: 'poll-group-count', textContent: String(count) }));
+      h('span', { className: 'poll-group-count', textContent: I18N.fmtNum(count) }));
     const apply = () => {
       const folded = !!_pollGroupFolded[group];
       head.setAttribute('aria-expanded', String(!folded));
@@ -4980,7 +4982,7 @@
     const count = pubkey ? notifUnseenCount(pubkey) : 0;
     const badge = btn.querySelector('.notif-badge');
     if (!badge) return;
-    badge.textContent = count > 99 ? '99+' : count > 0 ? String(count) : '';
+    badge.textContent = count > 99 ? t('{{count}}+', { count: I18N.fmtNum(99) }) : count > 0 ? I18N.fmtNum(count) : '';
     badge.classList.toggle('hidden', count === 0);
   }
 
@@ -5062,9 +5064,9 @@
         className: 'secondary peek-preset peek-preset-add',
         type: 'button',
         textContent: '+',
-        title: 'Set your own amount',
+        title: t('Set your own amount'),
       });
-      add.setAttribute('aria-label', 'Set your own zap amount');
+      add.setAttribute('aria-label', t('Set your own zap amount'));
       add.addEventListener('click', (e) => {
         if (stop) stop(e);
         amountEl.focus();
@@ -5089,7 +5091,7 @@
       const n = parseInt(amountEl.value, 10);
       const worth = !!n && n > 0 && clampZapDefault(n) !== defaultZapSats;
       btn.classList.toggle('hidden', !worth);
-      if (worth) btn.textContent = 'Save ' + fmtSats(clampZapDefault(n)) + ' as your default';
+      if (worth) btn.textContent = t('Save {{amount}} as your default', { amount: fmtSats(clampZapDefault(n)) });
     };
     amountEl.addEventListener('input', sync);
     btn.addEventListener('click', async (e) => {
@@ -5208,19 +5210,21 @@
     if (ev.kind === 9735) {
       const msats = zapMsats(ev);
       const amount = zapAmountText(msats);
-      return { glyph: '⚡', text: amount ? 'zapped ' + amount : 'zapped you' };
+      // Each label is a phrase of its own, on the line under the sender's name, so it is
+      // translated whole rather than attached to the name.
+      return { glyph: '⚡', text: amount ? t('zapped {{amount}}', { amount }) : t('zapped you') };
     }
     // Bundled SVG rather than 🔁. Emoji are rendered by the OS: they carry their own
     // colors, so they ignore the theme, and they differ between platforms — the same
     // notification is a flat glyph on one machine and a glossy 3D badge on another.
     // These use currentColor, so every theme gets them right for free. The zap already
     // moved for the same reason (boltIcon, because ⚡ washed out on light themes).
-    if (ev.kind === 6) return { icon: 'repeat', text: 'reposted your note' };
+    if (ev.kind === 6) return { icon: 'repeat', text: t('reposted your note') };
     if (ev.kind === 7) {
       // What a reaction draws is decided in reactionDisplay, shared with the
       // your-reactions chip so the two surfaces cannot drift apart.
       const d = reactionDisplay(ev);
-      return { glyph: d.glyph, text: 'reacted to your note', emojiUrl: d.emojiUrl || '' };
+      return { glyph: d.glyph, text: t('reacted to your note'), emojiUrl: d.emojiUrl || '' };
     }
     // Direct replies belong to the parent author, even when someone else owns
     // the root thread. Extra p tags can be mentions, so prefer the parent event
@@ -5236,28 +5240,28 @@
         const parentIsOwn = parentAuthor ? parentAuthor === acctPubkey
           : parentKind === '1' && _ownNoteIds.get(acctPubkey)?.has(parent[1]);
         if (parentIsOwn && (parentKind === '1' || parentKind === String(WEB_COMMENT_KIND))) {
-          return { icon: 'message-filled', text: parentKind === '1' ? 'replied to your note' : 'replied to your comment' };
+          return { icon: 'message-filled', text: parentKind === '1' ? t('replied to your note') : t('replied to your comment') };
         }
       }
       const K = tags.find((t) => t[0] === 'K' && t[1]);
       if (K && K[1] === '1' && commentRootIsOwn(ev, acctPubkey)) {
-        return { icon: 'message-filled', text: 'replied to your note' };
+        return { icon: 'message-filled', text: t('replied to your note') };
       }
-      return { glyph: '@', text: 'mentioned you in a comment' };
+      return { glyph: '@', text: t('mentioned you in a comment') };
     }
     // A vote. The wording says "your poll" because that is the only poll a vote can
     // reach this list for: both filters that collect them are anchored on this account.
-    if (ev.kind === POLL_RESPONSE_KIND) return { icon: 'bar-chart', text: 'voted in your poll' };
+    if (ev.kind === POLL_RESPONSE_KIND) return { icon: 'bar-chart', text: t('voted in your poll') };
     // kind 1
     const hasQ = ev.tags.some((t) => t[0] === 'q' && t[1]); // NIP-18 quote repost
     // Ornamental quote mark (U+275D) — a text glyph like the '@' below, so it
     // inherits the light text color. The speech-bubble emoji (🗨️) rendered
     // near-black on the panel background.
-    if (hasQ) return { glyph: '❝', text: 'quoted your note' };
+    if (hasQ) return { glyph: '❝', text: t('quoted your note') };
     const hasE = ev.tags.some((t) => t[0] === 'e');
     return hasE
-      ? { icon: 'message-filled', text: 'replied to your note' }
-      : { glyph: '@', text: 'mentioned you' };
+      ? { icon: 'message-filled', text: t('replied to your note') }
+      : { glyph: '@', text: t('mentioned you') };
   }
 
   // The actual zapper for a kind:9735 receipt — the receipt's own pubkey is the
@@ -5556,10 +5560,10 @@
     const sheet = h('div', { className: 'emoji-over' });
     const close = () => sheet.remove();
 
-    const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+    const xBtn = h('button', { className: 'modal-x', title: t('Close') });
     xBtn.appendChild(icon('x'));
     xBtn.addEventListener('click', close);
-    sheet.append(xBtn, h('h3', { textContent: 'React' }));
+    sheet.append(xBtn, h('h3', { textContent: t('React') }));
 
     // Escape closes the picker and nothing else. Without stopping it here the panel's own
     // handler would take it as a dismiss of the sheet behind it.
@@ -5576,7 +5580,7 @@
       // The table is a static script, so this only fails if the file is missing from a
       // build. Saying so beats an empty sheet that looks like a hung fetch.
       if (!groups) {
-        modal.append(h('p', { className: 'hint', textContent: 'The emoji table did not load. Reload Sidecar and try again.' }));
+        modal.append(h('p', { className: 'hint', textContent: t('The emoji table did not load. Reload Sidecar and try again.') }));
         return;
       }
 
@@ -5590,7 +5594,7 @@
       });
       modal.append(quick);
 
-      const search = h('input', { type: 'search', placeholder: 'Search emoji', autocomplete: 'off' });
+      const search = h('input', { type: 'search', placeholder: t('Search emoji'), autocomplete: 'off' });
       modal.append(search);
 
       const tabs = h('div', { className: 'emoji-tabs' });
@@ -5652,7 +5656,7 @@
             if (hits.length >= EMOJI_SEARCH_MAX) break;
           }
           paintGrid(hits);
-          if (!hits.length) grid.append(h('p', { className: 'hint emoji-none', textContent: 'No emoji matches that.' }));
+          if (!hits.length) grid.append(h('p', { className: 'hint emoji-none', textContent: t('No emoji matches that.') }));
         }, 120);
       });
 
@@ -6459,14 +6463,14 @@
             href: linkTarget,
             target: '_blank',
             rel: 'noreferrer noopener',
-            title: 'Open in ' + client.label,
+            title: t('Open in {{client}}', { client: client.label }),
           })
         : pollTarget
         ? h('div', {
             className: 'notif-item notif-clickable' + (isNew ? ' notif-new' : ''),
             role: 'button',
             tabIndex: 0,
-            title: 'See results',
+            title: t('See results'),
           })
         : h('div', { className: 'notif-item' + (isNew ? ' notif-new' : '') });
       // Lets the background mute re-check (see showNotifModal) remove this row in
@@ -6642,7 +6646,7 @@
         const toggle = h('button', {
           className: 'notif-expand-btn',
           type: 'button',
-          title: 'Expand',
+          title: t('Expand'),
           'aria-expanded': 'false',
         });
         toggle.appendChild(icon('chevron-down'));
@@ -6696,8 +6700,8 @@
 
           if (targetId) {
             const note = h('div', { className: 'notif-target' }, [
-              h('div', { className: 'notif-target-label', textContent: 'Your note' }),
-              h('p', { className: 'notif-target-body', textContent: 'Looking for it…' }),
+              h('div', { className: 'notif-target-label', textContent: t('Your note') }),
+              h('p', { className: 'notif-target-body', textContent: t('Looking for it…') }),
             ]);
             panel.appendChild(note);
             const body = note.querySelector('.notif-target-body');
@@ -6706,7 +6710,7 @@
               // A note no configured relay holds is a normal outcome — it may live only
               // on the sender's relays — and saying so beats a row stuck on "looking".
               if (!got) {
-                body.textContent = 'That note is not on your relays.';
+                body.textContent = t('That note is not on your relays.');
                 body.classList.add('notif-target-missing');
                 return;
               }
@@ -6746,7 +6750,7 @@
 
           toggle.classList.toggle('open', open);
           toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-          toggle.title = open ? 'Collapse' : 'Expand';
+          toggle.title = open ? t('Collapse') : t('Expand');
         });
         item.appendChild(panel);
       }
@@ -6790,7 +6794,7 @@
       // The two actions here that open the composer. Marked so a mine can make them
       // inert without touching react, repost, zap or bookmark, which have no quarrel
       // with a mine and should keep working while one runs.
-      const replyBtn = actBtn('Reply', icon('message-filled'));
+      const replyBtn = actBtn(t('Reply'), icon('message-filled'));
       replyBtn.classList.add('needs-composer');
       replyBtn.addEventListener('click', (e) => {
         stop(e);
@@ -6804,7 +6808,7 @@
         openComposer('', { replyTo: ev, returnTo: () => showNotifModal(a, place) });
       });
 
-      const reactBtn = actBtn('React', icon('heart'));
+      const reactBtn = actBtn(t('React'), icon('heart'));
       reactBtn.addEventListener('click', (e) => {
         stop(e);
         emojiPickerOver($('modal'), async (ch) => {
@@ -6815,7 +6819,7 @@
             // you already answered something. A minimal event shape: the picker is
             // unicode-only, so there is no emoji tag to carry.
             addMyReaction(ev.id, { content: ch, tags: [] });
-            toast('Reacted ' + ch, 'success');
+            toast(t('Reacted {{reaction}}', { reaction: ch }), 'success');
           } catch (e2) {
             toast(e2.message, 'error');
           }
@@ -6829,10 +6833,10 @@
       // The two choices are also the confirmation. A repost is public the moment it is
       // signed and a deletion request is only ever advisory, so the second tap is
       // deliberate rather than a flourish.
-      const repostBtn = actBtn('Repost or quote', icon('repeat'));
+      const repostBtn = actBtn(t('Repost or quote'), icon('repeat'));
       const choices = h('div', { className: 'notif-repost hidden' });
-      const repostNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: 'Repost' });
-      const quoteNow = h('button', { className: 'secondary notif-repost-choice needs-composer', type: 'button', textContent: 'Quote' });
+      const repostNow = h('button', { className: 'secondary notif-repost-choice', type: 'button', textContent: t('Repost') });
+      const quoteNow = h('button', { className: 'secondary notif-repost-choice needs-composer', type: 'button', textContent: t('Quote') });
       choices.append(repostNow, quoteNow);
       // Built inert if a mine is already running, since rows are created long after the
       // lock went on. Plain repost is untouched: it publishes without the composer.
@@ -6852,7 +6856,7 @@
         try {
           await publishRepost(ev);
           closeChoices();
-          toast('Reposted', 'success');
+          toast(t('Reposted'), 'success');
         } catch (e2) {
           err.textContent = e2.message;
         } finally {
@@ -6872,7 +6876,7 @@
         openComposer('\n\nnostr:' + nevent, { returnTo: () => showNotifModal(a, place) });
       });
 
-      const zapBtn = actBtn('Zap', boltIcon());
+      const zapBtn = actBtn(t('Zap'), boltIcon());
       const zapForm = h('div', { className: 'notif-zap hidden' });
       let zapBuilt = false;
       zapBtn.addEventListener('click', (e) => {
@@ -6889,7 +6893,7 @@
       // to the right edge away from them, where Jumble and the rest put it. No resting
       // state, deliberately. Knowing whether a note is ALREADY bookmarked would cost a
       // list fetch per row, and the sheet builds 25 of them.
-      const bmBtn = actBtn('Bookmark', icon('bookmark'));
+      const bmBtn = actBtn(t('Bookmark'), icon('bookmark'));
       bmBtn.classList.add('notif-act-end');
       bmBtn.addEventListener('click', async (e) => {
         stop(e);
@@ -6899,7 +6903,7 @@
           // Stays lit and stays disabled either way: the list is replaceable, so a second
           // publish rewrites it to say the same thing.
           bmBtn.classList.add('done');
-          toast(added ? 'Bookmarked' : 'Already bookmarked', 'success');
+          toast(added ? t('Bookmarked') : t('Already bookmarked'), 'success');
         } catch (e2) {
           err.textContent = e2.message;
           bmBtn.disabled = false;
@@ -6918,11 +6922,11 @@
       const who = zapSender(ev);
       const amount = satsInput('sats');
       const presets = zapPresetRow(amount, stop);
-      const comment = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
-      const send = h('button', { className: 'primary', type: 'button', textContent: 'Send zap' });
-      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => 'Send zap', confirmLabel: 'Confirm' });
+      const comment = h('input', { type: 'text', className: 'status-input', placeholder: t('Message (optional)'), maxLength: 200 });
+      const send = h('button', { className: 'primary', type: 'button', textContent: t('Send zap') });
+      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm') });
       amount.addEventListener('input', zapGate.paint);
-      const status = h('div', { className: 'hint', textContent: 'Checking their lightning address…' });
+      const status = h('div', { className: 'hint', textContent: t('Checking their lightning address…') });
       // Under the field it reads, so the offer to keep an amount sits with the amount.
       zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
         zapDefaultSaver(amount, presets, stop));
@@ -6938,9 +6942,9 @@
           if (!zapForm.isConnected) return;
           let lud = '';
           try { lud = (JSON.parse(prof.content) || {}).lud16 || ''; } catch (_) {}
-          if (!lud) throw new Error('They have no lightning address.');
+          if (!lud) throw new Error(t('They have no lightning address.'));
           const p = await lnAddressParams(lud);
-          if (!p.zappable) throw new Error('Their lightning address cannot receive zaps.');
+          if (!p.zappable) throw new Error(t('Their lightning address cannot receive zaps.'));
           if (!zapForm.isConnected) return;
           addr = lud;
           send.disabled = false;
@@ -6948,20 +6952,20 @@
         })
         .catch((e2) => {
           if (!zapForm.isConnected) return;
-          status.textContent = e2 && e2.message ? e2.message : 'They cannot be zapped.';
+          status.textContent = e2 && e2.message ? e2.message : t('They cannot be zapped.');
         });
 
       send.addEventListener('click', async (e) => {
         stop(e);
         const sats = parseInt(amount.value, 10);
-        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        if (!sats || sats < 1) return (err.textContent = t('Enter an amount in sats.'));
         err.textContent = '';
         if (!zapGate.pass(sats)) return;
         send.disabled = true;
-        send.textContent = 'Sending…';
+        send.textContent = t('Sending…');
         try {
           const client = await ensureNwc();
-          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
           // `event`, not just `pubkey`: makeZapRequest adds the e tag from it, which is
           // what makes this a zap OF THE NOTE rather than a zap of its author. Without it
           // the receipt shows up on their profile with no note attached.
@@ -6980,7 +6984,7 @@
             feeMsat: res && res.fees_paid,
           });
           lightningStrike();
-          toast('Zapped ' + fmtSats(sats) + ' sats', 'success');
+          toast(tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }), 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
           comment.value = '';
@@ -6996,7 +7000,7 @@
     openModal((modal) => {
       modal.classList.add('modal-sheet');
 
-      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      const xBtn = h('button', { className: 'modal-x', title: t('Close') });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
@@ -7011,7 +7015,7 @@
       const refreshBtn = h('button', {
         className: 'modal-x notif-refresh',
         type: 'button',
-        title: 'Check for new notifications',
+        title: t('Check for new notifications'),
       });
       refreshBtn.appendChild(icon('refresh'));
       refreshBtn.addEventListener('click', async () => {
@@ -7050,7 +7054,7 @@
         // not 'error' as a success, so 'info' would read in the source as a neutral toast
         // this app cannot draw.
         const added = (_notifCache.get(a.pubkey) || {}).refetchAdded || 0;
-        if (!added) return toast('No new notifications', 'success');
+        if (!added) return toast(t('No new notifications'), 'success');
 
         // REBUILT FROM THE CACHE, not streamed in. The cache is sorted newest-first and
         // the sheet's paging is computed from it at open, so the honest way to show a
@@ -7080,7 +7084,7 @@
       // button alone is the honest amount of furniture for "here is your list".
       const heading = h('div', { className: 'notif-modal-head' });
       const titleBox = h('div', { className: 'notif-modal-titlebox' }, [
-        h('div', { className: 'notif-modal-title', textContent: 'Notifications' }),
+        h('div', { className: 'notif-modal-title', textContent: t('Notifications') }),
       ]);
       if ((state.accounts || []).length > 1) {
         titleBox.appendChild(h('div', { className: 'notif-modal-sub', textContent: displayName(a) }));
@@ -7116,8 +7120,8 @@
       let onPollsTab = false;
       let showPollsTab = null;
       if (accountHasPolls(a.pubkey)) {
-        const tabAll = h('button', { className: 'modal-tab active', type: 'button', textContent: 'All' });
-        const tabPolls = h('button', { className: 'modal-tab', type: 'button', textContent: 'Polls' });
+        const tabAll = h('button', { className: 'modal-tab active', type: 'button', textContent: t('All') });
+        const tabPolls = h('button', { className: 'modal-tab', type: 'button', textContent: t('Polls') });
         const tabs = h('div', { className: 'modal-tabs' }, [tabAll, tabPolls]);
 
         // HOW MANY POLLS ARE IN THERE, which is the only thing a number beside a tab can
@@ -7202,7 +7206,7 @@
       // the app and the one most likely to be someone's first.
       let emptyMsg = events.length || offNet.length
         ? null
-        : emptyQuote('Replies, reactions and zaps show up here.', panelQuote);
+        : emptyQuote(t('Replies, reactions and zaps show up here.'), panelQuote);
       if (emptyMsg) scroll.appendChild(emptyMsg);
       function clearEmptyMessage() {
         if (emptyMsg) { emptyMsg.remove(); emptyMsg = null; }
@@ -7235,7 +7239,7 @@
         const chev = icon('chevron-down');
         const toggle = h('button', { className: 'notif-offnet-toggle' }, [
           chev,
-          h('span', { textContent: offNet.length + ' from outside your network' }),
+          h('span', { textContent: tn('{{count}} from outside your network', '{{count}} from outside your network', offNet.length) }),
         ]);
         let open = false;
         toggle.addEventListener('click', () => {
@@ -7256,9 +7260,9 @@
         // would be noise. No jargon — "web of trust" belongs in the help guide, not in a
         // list someone is trying to read.
         const note = h('p', { className: 'notif-offnet-note' }, [
-          document.createTextNode('Sorted by who you follow, and who they follow. Nothing is hidden. '),
+          document.createTextNode(t('Sorted by who you follow, and who they follow. Nothing is hidden.') + ' '),
         ]);
-        const toSettings = h('button', { className: 'notif-offnet-settings', textContent: 'Settings' });
+        const toSettings = h('button', { className: 'notif-offnet-settings', textContent: t('Settings') });
         toSettings.addEventListener('click', () => {
           // The same four steps the auto-lock jump uses. showTab() is NOT this: it is a
           // local function inside webCommentModal that flips the composer between write
@@ -7292,7 +7296,7 @@
           showOffNet();
           if (offNetBox) {
             const lbl = offNetBox.querySelector('.notif-offnet-toggle span');
-            if (lbl) lbl.textContent = offNet.length + ' from outside your network';
+            if (lbl) lbl.textContent = tn('{{count}} from outside your network', '{{count}} from outside your network', offNet.length);
             // Only when the group is already expanded; collapsed, the count IS the update.
             const inner = offNetBox.querySelector('.notif-offnet-list');
             if (inner && inner.children.length > 1) inner.prepend(buildItem(ev));
@@ -7310,21 +7314,19 @@
         const sub = h('p', { className: 'notif-end-sub' });
         let profileUrl = '';
         try { profileUrl = client.profile(NT.nip19.npubEncode(a.pubkey)); } catch (_) {}
-        sub.appendChild(document.createTextNode('Visit '));
+        // One sentence with the client's name as a link where it can be, placed by fill().
+        let clientEl = document.createTextNode(client.label);
         if (profileUrl) {
-          const link = document.createElement('a');
-          link.className = 'notif-end-link';
-          link.href = profileUrl;
-          link.target = '_blank';
-          link.rel = 'noreferrer noopener';
-          link.textContent = client.label;
-          sub.appendChild(link);
-        } else {
-          sub.appendChild(document.createTextNode(client.label));
+          clientEl = document.createElement('a');
+          clientEl.className = 'notif-end-link';
+          clientEl.href = profileUrl;
+          clientEl.target = '_blank';
+          clientEl.rel = 'noreferrer noopener';
+          clientEl.textContent = client.label;
         }
-        sub.appendChild(document.createTextNode(' for more history.'));
+        sub.append(...I18N.fill(t('Visit {{client}} for more history.'), { client: clientEl }));
         endNote = h('div', { className: 'notif-end' }, [
-          h('p', { className: 'notif-end-title', textContent: "You're all caught up." }),
+          h('p', { className: 'notif-end-title', textContent: t("You're all caught up.") }),
           sub,
           endQuote(panelQuote),
         ]);
@@ -7339,7 +7341,7 @@
           if (moreBtn) { moreBtn.remove(); moreBtn = null; }
           showEndNote();
         } else if (!moreBtn) {
-          moreBtn = h('button', { className: 'notif-load-more', textContent: 'Load more' });
+          moreBtn = h('button', { className: 'notif-load-more', textContent: t('Load more') });
           moreBtn.addEventListener('click', loadMore);
           scroll.appendChild(moreBtn);
         }
@@ -20225,7 +20227,7 @@
         send.textContent = 'Sending…';
         try {
           const client = await ensureNwc();
-          if (!client) throw new Error('Wallet unavailable — reconnect in the Wallet tab.');
+          if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
           const invoice = await lnAddressToInvoice(CREATOR_LN, sats * 1000, message.value.trim() || 'Sidecar zap');
           await client.payInvoice(invoice);
           closeModal();

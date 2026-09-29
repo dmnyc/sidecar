@@ -166,7 +166,7 @@ test('NOTHING IS DROPPED, ONLY MOVED', () => {
   // annoyed anybody. Out-of-network rows go into a collapsed, counted group.
   assert.match(panel, /const offNet = split \? split\.out : \[\];/);
   assert.match(panel, /function showOffNet\(\)/);
-  assert.match(panel, /' from outside your network'/);
+  assert.match(panel, /tn\('\{\{count\}\} from outside your network', '\{\{count\}\} from outside your network', offNet\.length\)/);
   // And they are still rendered with the same builder as everything else.
   // Inserted before the explanatory note, which lives at the foot of the group.
   assert.match(panel, /offNet\.forEach\(\(ev\) => inner\.insertBefore\(buildItem\(ev\), note\)\)/);
@@ -278,8 +278,8 @@ test('the group explains itself and offers the way out', () => {
   // at it — so the honest answer to "is there an opt-out" was "yes, and you would never
   // find it". Expanded only: collapsed, the count is doing its job.
   assert.match(panel, /className: 'notif-offnet-note'/);
-  assert.match(panel, /Sorted by who you follow, and who they follow\. Nothing is hidden\. /);
-  assert.match(panel, /className: 'notif-offnet-settings', textContent: 'Settings'/);
+  assert.match(panel, /t\('Sorted by who you follow, and who they follow\. Nothing is hidden\.'\)/);
+  assert.match(panel, /className: 'notif-offnet-settings', textContent: t\('Settings'\)/);
   // Settings is a VIEW, not a tab, and its sections are collapsed by default. The first
   // version called showTab('settings') — which is a local function inside
   // webCommentModal that flips the composer between write and preview, so it threw and

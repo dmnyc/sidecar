@@ -153,7 +153,7 @@ test('the row ends with the bookmark, after the four public actions', () => {
     /row\.append\(replyBtn, repostBtn, reactBtn, zapBtn, bmBtn\)/,
     'the action row changed order or lost the bookmark'
   );
-  assert.match(src, /const bmBtn = actBtn\('Bookmark', icon\('bookmark'\)\)/, 'the button is unlabeled');
+  assert.match(src, /const bmBtn = actBtn\(t\('Bookmark'\), icon\('bookmark'\)\)/, 'the button is unlabeled');
   // Appended last AND pushed to the far edge: the gap is what separates the private
   // action from the four public ones, the way every client the user came from groups them.
   assert.match(src, /bmBtn\.classList\.add\('notif-act-end'\)/, 'the button sits against the zap');
@@ -163,7 +163,7 @@ test('the row ends with the bookmark, after the four public actions', () => {
 test('a bookmarked button stops taking taps', () => {
   // The list is replaceable: a second publish rewrites it to say the same thing, and
   // each rewrite is another chance to land on a list that failed to load.
-  const at = stripComments(source).indexOf("const bmBtn = actBtn('Bookmark'");
+  const at = stripComments(source).indexOf("const bmBtn = actBtn(t('Bookmark')");
   const handler = stripComments(source).slice(at, at + 700);
   assert.match(handler, /bmBtn\.disabled = true/, 'the button can be tapped twice');
   assert.match(handler, /bmBtn\.classList\.add\('done'\)/, 'nothing says it worked after the toast fades');

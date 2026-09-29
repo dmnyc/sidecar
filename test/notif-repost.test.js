@@ -78,7 +78,7 @@ test('ONE BUTTON, WHERE EVERY OTHER CLIENT PUTS IT', () => {
   // the way the hand already expects. Open at the tail on purpose, since the claim is
   // where the repost sits among the public actions, not how many actions there are.
   assert.match(f, /row\.append\(replyBtn, repostBtn, reactBtn, zapBtn[,)]/, 'the order moved');
-  assert.match(f, /actBtn\('Repost or quote', icon\('repeat'\)\)/, 'the button lost its glyph or its name');
+  assert.match(f, /actBtn\(t\('Repost or quote'\), icon\('repeat'\)\)/, 'the button lost its glyph or its name');
   // Icon only, like its neighbours: four labelled buttons do not fit a ~300px sheet.
   assert.doesNotMatch(f, /textContent: 'Repost or quote'/, 'the action button grew a label');
 });

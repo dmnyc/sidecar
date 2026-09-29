@@ -205,7 +205,7 @@ test('THREE GROUPS, AND THE THIRD IS THE HONEST ONE', () => {
   // true thing to say is that Sidecar stopped following it. Filing it under Ended would
   // put a close on somebody else's poll that nobody ever made.
   assert.deepEqual([...POLL_GROUPS], ['open', 'ended', 'untracked'], 'the group order moved');
-  assert.equal(POLL_GROUP_LABELS.untracked, 'Untracked');
+  assert.equal(POLL_GROUP_LABELS.untracked(), 'Untracked');
 
   assert.equal(pollGroup(poll({ endsAt: NOW() + DAY })), 'open');
   assert.equal(pollGroup(poll({ createdAt: NOW() - 3 * DAY })), 'open', 'young and open-ended is live');

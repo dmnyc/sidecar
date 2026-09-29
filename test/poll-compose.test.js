@@ -829,7 +829,7 @@ test('THE NUMBER ON THE TAB IS HOW MANY POLLS ARE IN IT', () => {
   // In a capsule, not loose in the label: "Polls 3" is one string to the eye and the
   // number has to be picked back out of it.
   const body = notifModalBody();
-  assert.match(body, /className: 'modal-tab', type: 'button', textContent: 'Polls'/, 'the word');
+  assert.match(body, /className: 'modal-tab', type: 'button', textContent: t\('Polls'\)/, 'the word');
   assert.match(body, /className: 'modal-tab-count', textContent: String\(n\)/, 'and the number');
   assert.doesNotMatch(bare, /openPollCount/, 'the open-only count is gone, not left alongside');
 });
