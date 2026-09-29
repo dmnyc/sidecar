@@ -10,7 +10,8 @@
     "sidePanel",
     "alarms",
     "contextMenus",
-    "notifications"
+    "notifications",
+    "scripting"
   ],
   "host_permissions": [
     "https://*/*"
