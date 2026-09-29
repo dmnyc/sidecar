@@ -45,6 +45,18 @@
   const SHRINK_RATIO = 0.5;   // warn when over half the entries disappear
   const SHRINK_FLOOR = 10;    // ...and at least this many are lost
 
+  // A follow list that suddenly GROWS by hundreds is the other shape of the same harm.
+  // A client whose own account switcher disagrees with Sidecar's builds the follow list
+  // from the account it has selected and asks Sidecar to sign it as another: 30 follows
+  // became 1,096 in one tap, which is someone else's list, and publishing it would
+  // replace this account's own. A shrink check cannot see it, so this one does. Set
+  // high, because following a whole pack at once is real: at least this many added,
+  // and at least doubling the list. Follow lists only, and only when the caller asks
+  // (see check): Sidecar's own writes, a Lazarus restore above all, legitimately grow a
+  // list back by hundreds.
+  const GROWTH_FLOOR = 300;
+  const GROWTH_RATIO = 2;
+
   // Profile fields worth protecting. Deliberately NOT "every field that was there
   // before": plenty of clients round-trip only the fields they understand, so warning
   // on any omission would fire on ordinary edits from ordinary clients and train
@@ -138,9 +150,25 @@
   // or the change looks unremarkable), else a plain-language finding the prompt can
   // render. Never throws: a broken check must not be able to block a signature.
   //
-  // { kind, type, from, to, lost, fields, message }
-  async function check(pubkey, ev) {
+  // { kind, type, from, to, lost, added, name, message }
+  //
+  // opts.growth also flags a follow list that grows by hundreds at once (see
+  // GROWTH_FLOOR). opts.name names the account in the message ("Drops Sidecar's
+  // follows…") for someone with more than one: a warning that says "your follows" when
+  // the list in question is another account's is how a mix-up goes unread.
+  //
+  // `message` is English, for the paths that pass it on as an error. The approval
+  // screens translate the finding with describe(), from its data, not from this text.
+  async function check(pubkey, ev, opts) {
+    const finding = await judge(pubkey, ev, opts);
+    if (finding) finding.message = describe(finding);
+    return finding;
+  }
+
+  async function judge(pubkey, ev, opts) {
     try {
+      const o = opts || {};
+      const name = o.name || '';
       const s = summarize(ev);
       if (!s || !pubkey) return null;
       const prev = (await all())[key(pubkey, s.kind)];
@@ -151,34 +179,27 @@
         const after = new Set(s.fields || []);
         const lost = [...before].filter((f) => !after.has(f));
         if (!lost.length) return null;
-        return {
-          kind: s.kind, type: 'profile-fields', lost,
-          message: 'Clears your ' + humanFields(lost) + '.',
-        };
+        return { kind: s.kind, type: 'profile-fields', lost, name };
       }
 
       const from = prev.count || 0;
       const to = s.count || 0;
-      if (to >= from) return null; // growing or unchanged
+      if (to >= from) {
+        const added = to - from;
+        if (o.growth && s.kind === KIND_FOLLOWS && added >= GROWTH_FLOOR && to >= from * GROWTH_RATIO) {
+          return { kind: s.kind, type: 'growth', from, to, added, name };
+        }
+        return null; // growing or unchanged
+      }
       const lost = from - to;
 
       // Emptying a list that had anything in it is always worth flagging, however
       // small — that's the total-wipe case people actually get burned by.
       if (to === 0 && from > 0) {
-        return {
-          kind: s.kind, type: 'emptied', from, to, lost,
-          message: s.kind === KIND_FOLLOWS
-            ? 'Removes all ' + from + ' accounts you follow.'
-            : 'Clears your mute list of ' + from + ' ' + plural(from, 'account') + '.',
-        };
+        return { kind: s.kind, type: 'emptied', from, to, lost, name };
       }
       if (lost >= SHRINK_FLOOR && to <= from * SHRINK_RATIO) {
-        return {
-          kind: s.kind, type: 'shrink', from, to, lost,
-          message: s.kind === KIND_FOLLOWS
-            ? 'Drops your follows from ' + from + ' to ' + to + '.'
-            : 'Drops your mute list from ' + from + ' to ' + to + '.',
-        };
+        return { kind: s.kind, type: 'shrink', from, to, lost, name };
       }
       return null;
     } catch (_) {
@@ -186,17 +207,80 @@
     }
   }
 
-  function plural(n, word) { return n === 1 ? word : word + 's'; }
-
-  const FIELD_LABELS = {
-    about: 'bio', picture: 'profile picture', nip05: 'verified name',
-    lud16: 'Lightning address', lud06: 'Lightning address', display_name: 'display name',
+  // A finding as one sentence, in the reader's language when i18n is passed (the panel
+  // and the prompt pass I18N) and in English when it is not. One template per sentence,
+  // with a named and an unnamed form, because "your" and "Sidecar's" do not swap as a
+  // word in every language. Counts, names and field labels go in as parameters, so a
+  // translation cannot change the numbers the warning is about.
+  const EN = {
+    tSec: (key, p) => fillIn(key, p),
+    tn: (one, other, n, p) => fillIn(n === 1 ? one : other, Object.assign({ count: String(n) }, p)),
+    fmtNum: (n) => String(n),
+    lang: 'en',
   };
-  function humanFields(fields) {
-    const names = [...new Set(fields.map((f) => FIELD_LABELS[f] || f))];
-    if (names.length === 1) return names[0];
-    if (names.length === 2) return names[0] + ' and ' + names[1];
-    return names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1];
+  function fillIn(s, p) {
+    return String(s).replace(/\{\{(\w+)\}\}/g, (m, k) => (p && p[k] != null ? String(p[k]) : m));
+  }
+
+  function describe(f, i18n) {
+    const { tSec, tn, fmtNum } = i18n || EN;
+    const lang = (i18n || EN).lang;
+    const name = f.name || '';
+
+    if (f.type === 'profile-fields') {
+      const fields = fieldList(f.lost || [], tSec, lang);
+      return name
+        ? tSec('Clears {{name}}’s {{fields}}.', { name, fields })
+        : tSec('Clears your {{fields}}.', { fields });
+    }
+    const nums = { from: fmtNum(f.from || 0), to: fmtNum(f.to || 0) };
+    if (f.type === 'growth') {
+      return name
+        ? tn('Adds {{count}} follow at once, taking {{name}}’s list from {{from}} to {{to}}. This may be another account’s follow list.',
+          'Adds {{count}} follows at once, taking {{name}}’s list from {{from}} to {{to}}. This may be another account’s follow list.',
+          f.added, Object.assign({ name }, nums))
+        : tn('Adds {{count}} follow at once, taking your list from {{from}} to {{to}}. This may be another account’s follow list.',
+          'Adds {{count}} follows at once, taking your list from {{from}} to {{to}}. This may be another account’s follow list.',
+          f.added, nums);
+    }
+    const follows = f.kind === KIND_FOLLOWS;
+    if (f.type === 'emptied') {
+      if (follows) {
+        return name
+          ? tn('Removes the {{count}} account {{name}} follows.', 'Removes all {{count}} accounts {{name}} follows.', f.from, { name })
+          : tn('Removes the {{count}} account you follow.', 'Removes all {{count}} accounts you follow.', f.from);
+      }
+      return name
+        ? tn('Clears {{name}}’s mute list of {{count}} account.', 'Clears {{name}}’s mute list of {{count}} accounts.', f.from, { name })
+        : tn('Clears your mute list of {{count}} account.', 'Clears your mute list of {{count}} accounts.', f.from);
+    }
+    if (f.type === 'shrink') {
+      if (follows) {
+        return name
+          ? tSec('Drops {{name}}’s follows from {{from}} to {{to}}.', Object.assign({ name }, nums))
+          : tSec('Drops your follows from {{from}} to {{to}}.', nums);
+      }
+      return name
+        ? tSec('Drops {{name}}’s mute list from {{from}} to {{to}}.', Object.assign({ name }, nums))
+        : tSec('Drops your mute list from {{from}} to {{to}}.', nums);
+    }
+    return '';
+  }
+
+  // Field labels translated one by one and joined the language's own way ("bio and
+  // Lightning address", "bio, display name, and Lightning address").
+  function fieldList(fields, tSec, lang) {
+    const LABELS = {
+      about: () => tSec('bio'), picture: () => tSec('profile picture'), nip05: () => tSec('verified name'),
+      lud16: () => tSec('Lightning address'), lud06: () => tSec('Lightning address'),
+      display_name: () => tSec('display name'),
+    };
+    const names = [...new Set(fields.map((f) => (LABELS[f] ? LABELS[f]() : f)))];
+    try {
+      return new Intl.ListFormat(lang, { type: 'conjunction' }).format(names);
+    } catch (_) {
+      return names.join(', ');
+    }
   }
 
   async function forget(pubkey) {
@@ -209,9 +293,9 @@
   }
 
   const api = {
-    STORAGE_KEY, TRACKED, PROFILE_FIELDS, SHRINK_RATIO, SHRINK_FLOOR,
+    STORAGE_KEY, TRACKED, PROFILE_FIELDS, SHRINK_RATIO, SHRINK_FLOOR, GROWTH_FLOOR, GROWTH_RATIO,
     KIND_PROFILE, KIND_FOLLOWS, KIND_MUTE,
-    summarize, record, recordIfNewer, check, forget,
+    summarize, record, recordIfNewer, check, describe, forget,
     isTracked: (k) => TRACKED.has(k),
   };
   if (typeof self !== 'undefined') self.SidecarBaseline = api;

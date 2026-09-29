@@ -376,7 +376,12 @@
           '<circle cx="12" cy="12" r="10"></circle>' +
           '<line x1="12" y1="8" x2="12" y2="12"></line>' +
           '<line x1="12" y1="16" x2="12.01" y2="16"></line>';
-        title.append(warnIcon, document.createTextNode('This action erases data'));
+        // A list that grows by hundreds is not erasing anything; it is most likely another
+        // account's list, and publishing it would replace this one's. Same as sidepanel.js.
+        const growth = data.destructive.type === 'growth';
+        title.append(warnIcon, document.createTextNode(growth
+          ? 'This may be another account’s list'
+          : 'This action erases data'));
         const body = document.createElement('p');
         body.className = 'destructive-warn-body';
         body.textContent = data.destructive.message;

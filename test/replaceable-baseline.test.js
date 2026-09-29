@@ -162,6 +162,120 @@ test('growing or unchanged lists are never flagged', async () => {
   assert.equal(await B.check(pk, listEvent(3, 140)), null);
 });
 
+// ---- growth: another account's list signed as this one ----
+//
+// The case that prompted this (2026-09-29): a client whose own account switcher had the
+// main account selected built a follow list from its 1,095 follows plus one, and asked
+// Sidecar to sign it as a second account that followed 30. A shrink check sees 30 -> 1096
+// as harmless. It is not: publishing it replaces the account's own list.
+
+test('A FOLLOW LIST THAT JUMPS BY HUNDREDS IS FLAGGED, WHEN THE CALLER ASKS', async () => {
+  await B.record(pk, listEvent(3, 30), 1);
+  const w = await B.check(pk, listEvent(3, 1096), { growth: true });
+  assert.equal(w.type, 'growth');
+  assert.equal(w.added, 1066);
+  assert.match(w.message, /Adds 1066 follows at once, taking your list from 30 to 1096/);
+  assert.match(w.message, /another account’s follow list/);
+});
+
+test('without the option, growth is never flagged: Sidecar\'s own restores grow lists legitimately', async () => {
+  await B.record(pk, listEvent(3, 30), 1);
+  assert.equal(await B.check(pk, listEvent(3, 1096)), null);
+});
+
+test('real bulk following stays quiet: under the floor, or short of doubling', async () => {
+  await B.record(pk, listEvent(3, 100), 1);
+  assert.equal(await B.check(pk, listEvent(3, 399), { growth: true }), null, '299 added is under the floor');
+  await B.record(pk, listEvent(3, 400), 2);
+  assert.equal(await B.check(pk, listEvent(3, 750), { growth: true }), null, '350 added but not doubling');
+  const w = await B.check(pk, listEvent(3, 800), { growth: true });
+  assert.equal(w && w.type, 'growth', '400 added and doubled');
+});
+
+test('a mute list growing is never a growth finding', async () => {
+  await B.record(pk, listEvent(10000, 5), 1);
+  assert.equal(await B.check(pk, listEvent(10000, 900), { growth: true }), null);
+});
+
+test('WITH A NAME, EVERY FINDING SAYS WHOSE LIST IT IS', async () => {
+  await B.record(pk, listEvent(3, 814), 1);
+  assert.match((await B.check(pk, listEvent(3, 12), { name: 'Sidecar' })).message, /^Drops Sidecar’s follows from 814 to 12\.$/);
+  assert.match((await B.check(pk, listEvent(3, 0), { name: 'Sidecar' })).message, /^Removes all 814 accounts Sidecar follows\.$/);
+  await B.record(pk, listEvent(3, 30), 2);
+  assert.match((await B.check(pk, listEvent(3, 1096), { growth: true, name: 'Sidecar' })).message, /taking Sidecar’s list from 30 to 1096/);
+  await B.record(pk, listEvent(10000, 40), 3);
+  assert.match((await B.check(pk, listEvent(10000, 0), { name: 'Sidecar' })).message, /^Clears Sidecar’s mute list of 40 accounts\.$/);
+  await B.record(pk, profileEvent({ about: 'x', nip05: 'a@b.c' }), 4);
+  assert.match((await B.check(pk, profileEvent({ about: 'x' }), { name: 'Sidecar' })).message, /^Clears Sidecar’s verified name\.$/);
+});
+
+test('without a name the wording is unchanged', async () => {
+  await B.record(pk, listEvent(3, 814), 1);
+  assert.match((await B.check(pk, listEvent(3, 12))).message, /^Drops your follows from 814 to 12\.$/);
+  assert.match((await B.check(pk, listEvent(3, 0))).message, /^Removes all 814 accounts you follow\.$/);
+});
+
+test('sites get the growth check and the name; Sidecar\'s own signing path does not ask for growth', () => {
+  const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  assert.match(bg, /await BASELINE\.check\(activePubkey, signEvent, \{ growth: true, name \}\)/);
+  assert.match(bg, /accts\.length > 1 \? accts\.find\(\(x\) => x\.pubkey === activePubkey\) : null/, 'named only when there is more than one account');
+  assert.match(bg, /await BASELINE\.check\(ownerPk, message\.event\);/, 'the owner path must not flag growth: a Lazarus restore grows a list by hundreds');
+});
+
+test('both approval cards title a growth finding as another account\'s list, not as erasing data', () => {
+  for (const f of ['prompt.js', 'sidepanel.js']) {
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    assert.match(src, /type === 'growth'[\s\S]{0,160}'This may be another account’s list'/, f);
+  }
+});
+
+// ---- translation: the screens build the sentence from the finding's data ----
+//
+// check()'s message is English for the error paths. The approval screens call
+// describe(finding, I18N), so every finding type has to come out through t()/tn() with
+// its numbers formatted by the language, and never as the background's English.
+
+const fakeI18n = {
+  lang: 'en',
+  tSec: (k, p) => '⟦' + k.replace(/\{\{(\w+)\}\}/g, (m, x) => (p && p[x] != null ? p[x] : m)) + '⟧',
+  tn: (one, other, n, p) => '⟦' + (n === 1 ? one : other).replace(/\{\{(\w+)\}\}/g, (m, x) => {
+    const q = Object.assign({ count: n.toLocaleString('en-US') }, p);
+    return q[x] != null ? q[x] : m;
+  }) + '⟧',
+  fmtNum: (n) => n.toLocaleString('en-US'),
+};
+
+test('EVERY FINDING TYPE COMES OUT THROUGH THE TRANSLATION CALLS, NUMBERS FORMATTED', async () => {
+  const cases = [];
+  await B.record(pk, listEvent(3, 30), 1);
+  cases.push([await B.check(pk, listEvent(3, 1096), { growth: true, name: 'Sidecar' }), /^⟦Adds 1,066 follows at once, taking Sidecar’s list from 30 to 1,096\. This may be another account’s follow list\.⟧$/]);
+  await B.record(pk, listEvent(3, 1096), 2);
+  cases.push([await B.check(pk, listEvent(3, 31)), /^⟦Drops your follows from 1,096 to 31\.⟧$/]);
+  cases.push([await B.check(pk, listEvent(3, 0), { name: 'Sidecar' }), /^⟦Removes all 1,096 accounts Sidecar follows\.⟧$/]);
+  await B.record(pk, listEvent(10000, 40), 3);
+  cases.push([await B.check(pk, listEvent(10000, 0)), /^⟦Clears your mute list of 40 accounts\.⟧$/]);
+  cases.push([await B.check(pk, listEvent(10000, 5), { name: 'Sidecar' }), /^⟦Drops Sidecar’s mute list from 40 to 5\.⟧$/]);
+  await B.record(pk, profileEvent({ about: 'x', nip05: 'a@b.c' }), 4);
+  cases.push([await B.check(pk, profileEvent({})), /^⟦Clears your ⟦bio⟧ and ⟦verified name⟧\.⟧$/]);
+  for (const [f, want] of cases) {
+    assert.ok(f, 'no finding for ' + want);
+    assert.match(B.describe(f, fakeI18n), want);
+  }
+});
+
+test('a list of one is singular, not "all 1 accounts"', async () => {
+  await B.record(pk, listEvent(3, 1), 1);
+  assert.equal((await B.check(pk, listEvent(3, 0))).message, 'Removes the 1 account you follow.');
+});
+
+test('both approval screens show the finding\'s own sentence', () => {
+  // 1.15.x has no translation layer, so the screens show check()'s English message.
+  // Translating it from the finding's data is main's (1.16) version of this test.
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  assert.match(read('prompt.js'), /body\.textContent = data\.destructive\.message;/);
+  assert.match(read('sidepanel.js'), /className: 'destructive-warn-body', textContent: data\.destructive\.message/);
+});
+
 // ---- mute list ----
 
 test('clearing a mute list is flagged with mute-specific wording', async () => {

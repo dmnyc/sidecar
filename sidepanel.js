@@ -21120,7 +21120,11 @@
           h('div', { className: 'destructive-warn' }, [
             h('div', { className: 'destructive-warn-title' }, [
               icon('alert'),
-              h('span', { textContent: 'This action erases data' }),
+              // Same as prompt.js: a list that grows by hundreds erases nothing, but is most
+              // likely another account's, and would replace this one's.
+              h('span', { textContent: data.destructive.type === 'growth'
+                ? 'This may be another account’s list'
+                : 'This action erases data' }),
             ]),
             h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
             h('p', {
