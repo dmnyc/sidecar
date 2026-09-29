@@ -3594,6 +3594,23 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   transform: translateY(var(--display-ink-nudge, -0.08em));
 }
 .wallet-balance.loading { animation: balance-pulse 1.1s ease-in-out infinite; }
+/* "1 BTC = 1 BTC", the chart button's answer in Bitcoin-only mode (sidepanel.js,
+   showBtcJoke). Thirteen characters, as long as the longest fiat balance, so it is set
+   at 0.8em: at full size Werkstätte's Syncopate runs it to the card's edge, and 0.8em
+   fits all sixteen themes with room (widest 232px of 294px, measured). On an inner
+   span, so the figure's line keeps the balance's own height and the card does not
+   change size. Display text, not a control. It also shows through Hide balances,
+   since it reveals nothing; html in front outranks the themes' own disc rules
+   (Nixie's is [data-theme] .balances-hidden .wallet-balance::after). */
+/* Centered in the held box rather than left on the full-size line's baseline, where
+   the smaller text would sit low. The face's optical nudge still applies (above). */
+html .wallet-balance.btc-joke { white-space: nowrap; display: flex; align-items: center; justify-content: center; }
+html .wallet-balance.btc-joke .btc-joke-text { font-size: 0.8em; }
+/* The one balance with spaces in it. splitGlyphs gives each character a span, and most
+   themes make those inline-block, where a lone space collapses to nothing. */
+html .btc-joke-text .bal-glyph { white-space: pre; }
+html .balances-hidden .wallet-balance.btc-joke { visibility: visible; }
+html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 /* Both balance displays cycle sats → BTC → fiat on tap. Subtle affordance only —
    a full button treatment would fight the card's typography. */
 .wallet-balance, .pinned-balance-amt { cursor: pointer; user-select: none; }

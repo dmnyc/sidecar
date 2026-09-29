@@ -7,6 +7,11 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [Unreleased]
+
+### Added
+- **Bitcoin only.** A switch under Local currency, in Settings and on the wallet screen, takes local currency out of Sidecar: tapping your balance cycles sats and BTC, the currency picker is hidden, and no exchange rate is fetched. The currency you had chosen is kept, so turning the switch off brings it back.
+
 ## [1.15.2] — 2026-09-29
 
 ### Fixed
