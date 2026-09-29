@@ -11,6 +11,7 @@ Update that section alongside this file as part of every release.
 
 ### Fixed
 - **Open tabs stay connected when Sidecar restarts.** An update, turning Sidecar off and on, or the browser repairing the install cut every open tab off from Sidecar, and the browser does not reconnect tabs that were already open. A client kept open for days, such as Jumble, then failed every signature with "Sidecar was updated — reload this page to reconnect", even on days with no release. Sidecar now reconnects open tabs itself after any such restart, so they keep signing without a reload. "Sidecar was updated" now only appears when that is what happened. (#400)
+- **Sidecar warns before signing another account's follow list.** A client whose own account switcher has a different account selected than Sidecar can build that account's follow list and ask Sidecar to sign it as the one Sidecar is using, which replaces its list with someone else's: 30 follows became 1,096 in one tap. When a site's follow list grows by at least 300 at once and at least doubles, the approval now says it may be another account's list, and approving it takes the same extra step as a wipe. With more than one account, every warning about a follow list, mute list or profile names the account it is about.
 
 ## [1.15.1] — 2026-09-28
 
