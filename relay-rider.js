@@ -30,6 +30,12 @@
   const MIN_W = 116;           // narrower than this and the title text runs off the sides
   const RATIO = 9 / 16;        // the widest the field may ever get; past it, letterbox
   const HUD_H = 20;            // dark band along the top; the road starts under it
+  const BUTTON = 30;           // the corner buttons, in CSS pixels: the panel's close, our sound
+
+  // CORNER. How far in from the edge each corner button sits, in CSS pixels: whatever
+  // centers a button in the HUD band, so the close button up there is not sitting on the
+  // band's bottom edge. The panel reads the band off the canvas and does the same sum.
+  const corner = (s) => Math.max(4, Math.round((HUD_H * s - BUTTON) / 2));
   let W = 160;
   let H = 240;
   let scale = 2;
@@ -37,6 +43,8 @@
   let AHEAD = 300;             // spawn this far up-road, comfortably off screen
 
   const cv = document.getElementById('screen');
+  // For the panel, which floats its close button over this band and centers it there.
+  cv.dataset.hud = String(HUD_H);
   const ctx = cv.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
 
@@ -337,6 +345,7 @@
   // pavement is: the drawing code, the off-road test, and where a box gets planted.
   let curveAmp = 6;
   let roadHalf = 48;
+  let roadTarget = 48;         // where roadHalf is heading; a new scene eases it there
 
   const roadMid = (wy) =>
     W / 2 + Math.sin(wy * 0.0115) * curveAmp + Math.sin(wy * 0.0041) * curveAmp * 0.55;
@@ -361,20 +370,41 @@
   const REACH = 12;            // how far the sidecar can reach a box, in pixels
   const VERGE = 3;             // how far past the pavement a mailbox is planted
 
-  function applyScene() {
-    // Each scene tightens exactly three things: less pavement, more bend, more speed to
-    // hold. Everything else stays put so a run gets harder in a way you can name.
-    //
-    // Fractions of the playfield, not pixels, so a wider panel gets a proportionally wider
-    // road rather than the same strip with more grass either side of it. At W=160 these
-    // come out as the 48, 31 and 3 they were written as.
-    roadHalf = Math.max(W * 0.19, W * 0.3 - (scene - 1) * W * 0.019);
+  // A new scene's road arrives over about a second and a half instead of in one frame,
+  // which jumped the whole visible road narrower under the banner. Per step, and the
+  // curve follows from the width at every step, so the bound below holds mid-ease too.
+  const ROAD_EASE_STEPS = 90;
+
+  function fitCurve() {
     // The two sine terms peak at amp * 1.55 between them, and the far side of a box sits
     // at roadR + VERGE + BOX_W, which has to land inside the screen. Solve for amp and the
     // boxes stay on screen at every road width AND at every panel size, which is why this
     // reads off W and roadHalf rather than off the scene, and why it needs no ceiling of
     // its own: a narrower road buys the bend, and the sum is fixed.
     curveAmp = Math.max(0, (W / 2 - 2 - BOX_W - VERGE - roadHalf) / 1.55);
+  }
+
+  function easeRoad() {
+    if (roadHalf === roadTarget) return;
+    const by = (W * 0.019) / ROAD_EASE_STEPS;
+    roadHalf = roadHalf > roadTarget ? Math.max(roadTarget, roadHalf - by) : Math.min(roadTarget, roadHalf + by);
+    fitCurve();
+  }
+
+  // `ease` is for a scene change mid-run. A reset or a resize puts the road where it
+  // belongs at once: a new run owes nothing to the last one, and a resize has already
+  // moved everything.
+  function applyScene(ease) {
+    // Each scene tightens exactly three things here: less pavement, more bend, more speed
+    // to hold. The fourth, the gap between fuel cans, is kept in step at the can spawn.
+    // Everything else stays put so a run gets harder in a way you can name.
+    //
+    // Fractions of the playfield, not pixels, so a wider panel gets a proportionally wider
+    // road rather than the same strip with more grass either side of it. At W=160 these
+    // come out as the 48, 31 and 3 they were written as.
+    roadTarget = Math.max(W * 0.19, W * 0.3 - (scene - 1) * W * 0.019);
+    if (!ease) roadHalf = roadTarget;
+    fitCurve();
     maxSpeed = Math.min(4.6, 2.5 + (scene - 1) * 0.22);
   }
 
@@ -391,18 +421,18 @@
   // ---- input --------------------------------------------------------------------------
   const held = new Set();
   // Arrows and WASD, every action on both. Which hand you use is not a thing to have an
-  // opinion about, and the pairing is the reason sound cannot live on S.
+  // opinion about.
   const ACTION = {
     ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
     ArrowUp: 'gas', KeyW: 'gas', Space: 'gas', ArrowDown: 'brake', KeyS: 'brake',
   };
 
   addEventListener('keydown', (e) => {
-    // Q, for being as far from the driving keys as the board goes. M is the convention for
-    // mute, but the sound starts OFF here so the first press un-mutes and the mnemonic is
-    // backwards exactly when someone meets it; S is the brake; and V sits under the hand
-    // that is already busy.
-    if (e.code === 'KeyQ') { toggleSound(); e.preventDefault(); return; }
+    // Sound is the button in the corner, not a key. It used to be Q, which is as far from
+    // the driving keys as the board goes and for the same reason the one nobody
+    // remembered. A focused button still answers Enter and Space on its own, and they
+    // must not also start a run underneath it.
+    if (e.target === soundBtn && (e.code === 'Space' || e.code === 'Enter')) return;
     if (e.code === 'KeyP' && (mode === 'play' || mode === 'pause')) {
       mode = mode === 'play' ? 'pause' : 'play';
       if (mode === 'pause') hush();
@@ -413,23 +443,58 @@
       if (mode === 'title' || mode === 'over') { reset(); mode = 'play'; }
     }
     if (ACTION[e.code]) { held.add(ACTION[e.code]); e.preventDefault(); }
+    wake();
   });
   addEventListener('keyup', (e) => { if (ACTION[e.code]) held.delete(ACTION[e.code]); });
   // A window that loses focus mid-throttle should not come back still accelerating.
-  addEventListener('blur', () => { held.clear(); if (mode === 'play') mode = 'pause'; hush(); });
+  addEventListener('blur', () => {
+    held.clear();
+    focused = false;
+    if (mode === 'play') mode = 'pause';
+    hush();
+  });
+  addEventListener('focus', () => { focused = true; });
 
   // ---- sound --------------------------------------------------------------------------
   // OFF until asked for. A page that starts buzzing the moment it opens is a page nobody
-  // opens twice, and creating the context lazily also satisfies the autoplay rule for
-  // free: the first thing that ever builds it is a keypress.
-  let ac = null, engine = null, engineGain = null, soundOn = false;
+  // opens twice. Once asked for it is remembered, but the context is still only ever
+  // built or resumed from a keypress or a tap, which is what the autoplay rule wants.
+  const SOUND_KEY = 'relay-rider.sound';
+  let ac = null, engine = null, engineGain = null;
+  let soundOn = false;
+  try { soundOn = localStorage.getItem(SOUND_KEY) === 'on'; } catch (_) { soundOn = false; }
+  let focused = document.hasFocus();
+
+  const soundBtn = document.getElementById('sound');
+  // The button's label is the one translated string on the page; everything else is drawn.
+  if (window.SidecarI18n) window.SidecarI18n.ready.then(() => window.SidecarI18n.applyDom());
+
+  function paintSound() {
+    if (soundBtn) soundBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  }
 
   function toggleSound() {
     soundOn = !soundOn;
-    if (!soundOn) { hush(); return; }
+    try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (_) { /* private window */ }
+    if (soundOn) wake(); else { hush(); stopMusic(); }
+    paintSound();
+  }
+
+  if (soundBtn) {
+    // Never takes focus from the page. A focused button is where Space goes, and Space is
+    // the throttle.
+    soundBtn.addEventListener('pointerdown', (e) => e.preventDefault());
+    soundBtn.addEventListener('click', () => { toggleSound(); soundBtn.blur(); });
+  }
+  paintSound();
+
+  // Builds the context on the first gesture that finds sound on, and resumes it on every
+  // later one. Safe to call on every key.
+  function wake() {
+    if (!soundOn) return;
     if (!ac) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) { soundOn = false; return; }
+      if (!AC) { soundOn = false; paintSound(); return; }
       ac = new AC();
       engineGain = ac.createGain();
       engineGain.gain.value = 0;
@@ -444,6 +509,7 @@
     }
     if (ac.state === 'suspended') ac.resume();
   }
+  addEventListener('pointerdown', wake);
 
   function hush() { if (engineGain && ac) engineGain.gain.setTargetAtTime(0, ac.currentTime, 0.05); }
 
@@ -486,6 +552,84 @@
     n.start(t);
   }
 
+  // ---- music --------------------------------------------------------------------------
+  // Scott Joplin, "The Strenuous Life" (1902), a ragtime two-step, which is about what a
+  // delivery round on a motorcycle is. Public domain, reduced to two voices by
+  // scripts/midi-to-rider-score.mjs from the Mutopia Project's engraving, so it is the
+  // tune on the page and not one remembered.
+  //
+  // Scheduled a fifth of a second ahead from the render loop, the usual Web Audio
+  // lookahead: a note timed from a frame callback lands late by however late the frame
+  // was, and a rag is nothing but where the notes land. It plays on the title and the
+  // game-over card as well as the road, stops for pause and for a window that has lost
+  // focus, and picks up from where it stopped.
+  const SCORE = window.RelayRiderScore;
+  const SIXTEENTH = SCORE ? 60 / SCORE.bpm / 4 : 0;
+  // Notes bucketed by the sixteenth they start on, so each step is one lookup.
+  const onsets = [];
+  if (SCORE) {
+    for (let s = 0; s < SCORE.length; s++) onsets.push([]);
+    const add = (flat, voice) => {
+      for (let i = 0; i < flat.length; i += 3) onsets[flat[i]].push([voice, flat[i + 1], flat[i + 2]]);
+    };
+    add(SCORE.lead, 0);
+    add(SCORE.bass, 1);
+  }
+  let bus = null;              // this stretch of music's own gain; a stop drops it whole
+  let t0 = 0;                  // context time of sixteenth 0, as if it had never stopped
+  let nextStep = 0;            // the next sixteenth to schedule, counted across loops
+
+  // A piano's shape on an oscillator: struck, then dying away while held. The lead is a
+  // square through a soft filter for the plink of an upright; the bass a triangle, round
+  // enough to sit under the engine without fighting it.
+  function note(midi, t, len, voice) {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    const peak = voice ? 0.1 : 0.045;
+    const end = t + Math.max(len - 0.02, 0.04);
+    o.type = voice ? 'triangle' : 'square';
+    o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(peak * 0.3, end);
+    g.gain.linearRampToValueAtTime(0, end + 0.03);
+    o.connect(g).connect(bus);
+    o.start(t);
+    o.stop(end + 0.05);
+  }
+
+  function startMusic() {
+    const tone = ac.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 2600;
+    bus = ac.createGain();
+    bus.connect(tone).connect(ac.destination);
+    t0 = ac.currentTime + 0.05 - nextStep * SIXTEENTH;
+  }
+
+  function stopMusic() {
+    if (!bus) return;
+    const old = bus;
+    old.gain.setTargetAtTime(0, ac.currentTime, 0.02);
+    setTimeout(() => old.disconnect(), 400);
+    bus = null;
+    // Back to the note that was sounding, so the tune resumes rather than skipping the
+    // lookahead's worth it had already queued into a bus that is now silent.
+    nextStep = Math.max(0, Math.min(nextStep, Math.floor((ac.currentTime - t0) / SIXTEENTH)));
+  }
+
+  function music() {
+    const want = SCORE && soundOn && ac && ac.state === 'running' && focused && mode !== 'pause';
+    if (!want) { if (bus) stopMusic(); return; }
+    if (!bus) startMusic();
+    const horizon = ac.currentTime + 0.2;
+    while (t0 + nextStep * SIXTEENTH < horizon) {
+      const t = t0 + nextStep * SIXTEENTH;
+      for (const [voice, midi, len] of onsets[nextStep % SCORE.length]) note(midi, t, len * SIXTEENTH, voice);
+      nextStep++;
+    }
+  }
+
   // ---- events -------------------------------------------------------------------------
   // A pop lands on grass, road, water or a mailbox depending on where you happened to be,
   // and the old miss red measured 1.07:1 against the road: the word was there and could
@@ -524,7 +668,7 @@
     if (sceneMail >= MAIL_PER_SCENE) {
       sceneMail = 0;
       scene++;
-      applyScene();
+      applyScene(true);
       bannerT = 100;
       fuel = Math.min(100, fuel + 8);    // a finished scene buys a little road back
       blip(680, 0.09, 'triangle');
@@ -609,6 +753,7 @@
   const screenY = (wy) => RIG_Y - (wy - dist);
 
   function advance() {
+    easeRoad();
     for (const c of bikes) c.wy += c.speed;
     // Everything on the road holds an offset from the center line and gets its x here, so
     // one place decides where things are and a resize moves them all together.
@@ -659,7 +804,11 @@
     }
     while (spawn.can < dist + AHEAD) {
       drop(cans, spawn.can, { off: -roadHalf + 4 + Math.random() * (roadHalf * 2 - CAN_W - 8), got: false });
-      spawn.can += Math.max(1100, 1900 - scene * 60) + Math.random() * 700;
+      // Spaced out as the scenes climb, because a faster rig covers more road per unit of
+      // fuel: with a fixed gap the gauge would fill in the late scenes. This holds the burn
+      // between cans near 20 against a can's 16 until top speed stops climbing (scene 10),
+      // and past that the burn's own per-scene rise makes the clock run faster.
+      spawn.can += Math.min(2600, 1700 + scene * 60) + Math.random() * 700;
     }
 
     const gone = (o, h) => screenY(o.wy) > H + h + 4;
@@ -811,8 +960,10 @@
 
     // Keep the top-right clear: the panel floats its close button there, and a scene
     // counter underneath one is a scene counter nobody can read. The button is sized in
-    // CSS pixels, so what it costs in playfield pixels depends on the scale.
-    const gutter = Math.ceil(46 / scale);
+    // CSS pixels and centered in this band (see CORNER), so what it costs in playfield
+    // pixels depends on the scale: half the band for its inset, plus the button and a
+    // little air, the two of those being fixed in CSS pixels.
+    const gutter = Math.ceil(HUD_H / 2 + (BUTTON / 2 + 6) / scale);
     const sc = 'SCENE ' + scene;
     // On a narrow field the two counters do not both fit. The label gives way first, and
     // only then the scene counter, which is the one already announced by a banner every
@@ -974,7 +1125,7 @@
     // Drawn, not spelled. Naming two of the four directions in words while the other two
     // are arrows made the block read as two different legends.
     textMid('↑ GAS  ↓ BRAKE', top + 100, C.inkDim);
-    textMid('Q SOUND  P PAUSE', top + 110, C.inkDim);
+    textMid('P PAUSE', top + 110, C.inkDim);
     textMid('YOUR BEST ' + pad(best, 3), top + 124, C.inkDim);
     if ((performance.now() % 900) < 560) textMid('PRESS SPACE', top + 140, C.cream);
   }
@@ -1019,6 +1170,7 @@
       acc -= STEP;
     }
     draw();
+    music();
     requestAnimationFrame(frame);
   }
 
@@ -1078,6 +1230,9 @@
     // the center line so it moves along; the rig is the one thing that has to be caught.
     if (typeof rx === 'number') rx = Math.max(-6, Math.min(W - RIG_W + 6, rx));
     if (scene) applyScene();
+    // The sound button sits in the bottom corner the same distance in as the panel's close
+    // button sits in the top one, which is whatever centers that button in the HUD band.
+    if (soundBtn) soundBtn.style.right = soundBtn.style.bottom = corner(scale) + 'px';
   }
 
   addEventListener('resize', fit);

@@ -6,6 +6,17 @@ Use a prefix that describes the work, such as `feat/`, `fix/`, or `docs/`.
 Do not use `claude/` or `codex/` as a branch prefix in this repo: a branch is
 named for what it changes, never for what wrote it.
 
+## Commits, pull requests and merging
+
+Commits are authored and committed as the maintainer:
+`The Daniel <dmnyc@users.noreply.github.com>`. Commit messages, pull request
+descriptions and comments carry no tool attribution: no `Co-Authored-By`
+trailers, no session links, no "Generated with" footers. Check a pull request's
+description after creating it, since some tools append a footer on their own.
+
+Squash-merge pull requests. GitHub then creates and signs the commit on `main`,
+so it shows as Verified even when the branch's own commits were unsigned.
+
 ## UI rules
 
 ## Row controls in a narrow panel (the recurring remove-button mistake)
