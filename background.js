@@ -1486,9 +1486,22 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // exempts the account/wallet-control kinds: losing your whole follow list is not
     // something to auto-approve. Purely local state, so it costs no network time.
     // Fails open (null) — it can raise a confirm, never suppress one.
-    const destructive = method === 'signEvent' && !isRelayAuth
-      ? await BASELINE.check(activePubkey, signEvent)
-      : null;
+    //
+    // From a site, a follow list that grows by hundreds at once is checked too (growth):
+    // it is the shape a client's account mix-up takes, one account's follows signed as
+    // another's. And with more than one account the finding names this one, so "Drops
+    // Sidecar's follows" cannot be read as your main account's. Only for the tracked
+    // kinds, so no other sign pays for the account lookup.
+    let destructive = null;
+    if (method === 'signEvent' && !isRelayAuth && BASELINE.isTracked(signKind)) {
+      let name = '';
+      try {
+        const accts = ((await KS.getState()) || {}).accounts || [];
+        const acct = accts.length > 1 ? accts.find((x) => x.pubkey === activePubkey) : null;
+        name = (acct && acct.name) || '';
+      } catch (_) {}
+      destructive = await BASELINE.check(activePubkey, signEvent, { growth: true, name });
+    }
 
     // A shared-identity content sign always confirms, regardless of trust tier —
     // unless it's a coalesced app-data sign, under an active relax window, etc.

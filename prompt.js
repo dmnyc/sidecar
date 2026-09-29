@@ -396,10 +396,17 @@
           '<circle cx="12" cy="12" r="10"></circle>' +
           '<line x1="12" y1="8" x2="12" y2="12"></line>' +
           '<line x1="12" y1="16" x2="12.01" y2="16"></line>';
-        title.append(warnIcon, document.createTextNode(tSec('This action erases data')));
+        // A list that grows by hundreds is not erasing anything; it is most likely another
+        // account's list, and publishing it would replace this one's. Same as sidepanel.js.
+        const growth = data.destructive.type === 'growth';
+        title.append(warnIcon, document.createTextNode(growth
+          ? tSec('This may be another account’s list')
+          : tSec('This action erases data')));
         const body = document.createElement('p');
         body.className = 'destructive-warn-body';
-        body.textContent = data.destructive.message;
+        // From the finding's data, in the reader's language (replaceable-baseline.js).
+        body.textContent = (self.SidecarBaseline && self.SidecarBaseline.describe(data.destructive, I18N)) ||
+          data.destructive.message;
         const hint = document.createElement('p');
         hint.className = 'destructive-warn-hint';
         hint.textContent = tSec("If you didn't mean to do this, don't allow it. The version on your relays stays as it is.");

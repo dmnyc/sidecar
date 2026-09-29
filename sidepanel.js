@@ -14,6 +14,10 @@
   // otherwise; tn() carries a plural's English "other" form inline.
   const I18N = window.SidecarI18n;
   const { t, tn, tSec } = I18N;
+  // A wipe-check finding as a sentence in the reader's language, built from its data
+  // (replaceable-baseline.js), with the background's English as the fallback.
+  const describeFinding = (f) =>
+    (f && window.SidecarBaseline && window.SidecarBaseline.describe(f, I18N)) || (f && f.message) || '';
   const { TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls } = window.SidecarCore;
   // Which cut of the logo and the avatar garnish a theme wants. There too because the
@@ -16516,7 +16520,7 @@
         back.addEventListener('click', () => showResults());
         body.append(
           h('h3', { textContent: 'This restore removes data' }),
-          h('p', { className: 'hint warn', textContent: finding.message || 'Sidecar’s wipe check flagged this restore.' }),
+          h('p', { className: 'hint warn', textContent: describeFinding(finding) || 'Sidecar’s wipe check flagged this restore.' }),
           h('div', { className: 'actions' }, [anyway, back])
         );
       }
@@ -21136,9 +21140,14 @@
           h('div', { className: 'destructive-warn' }, [
             h('div', { className: 'destructive-warn-title' }, [
               icon('alert'),
-              h('span', { textContent: tSec('This action erases data') }),
+              // Same as prompt.js: a list that grows by hundreds erases nothing, but is most
+              // likely another account's, and would replace this one's.
+              h('span', { textContent: data.destructive.type === 'growth'
+                ? tSec('This may be another account’s list')
+                : tSec('This action erases data') }),
             ]),
-            h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
+            // From the finding's data, in the reader's language (replaceable-baseline.js).
+            h('p', { className: 'destructive-warn-body', textContent: describeFinding(data.destructive) }),
             h('p', {
               className: 'destructive-warn-hint',
               textContent: tSec("If you didn't mean to do this, don't allow it. The version on your relays stays as it is."),

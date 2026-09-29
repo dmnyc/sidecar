@@ -587,7 +587,12 @@ function modalHarness(deps = {}) {
   });
   ctx.resetPoolRelays = (urls) => base.calls.push({ type: 'reset', urls });
   ctx._pool = base.pool;
+  // The real wipe-check module, so the refusal screen shows the sentence the panel builds
+  // from the finding's data. No I18N in this harness, so describe() speaks English.
+  ctx.window = {};
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'replaceable-baseline.js'), 'utf8').replace(/\bself\.SidecarBaseline\b/, 'window.SidecarBaseline'), ctx);
   vm.runInContext([
+    liftLine(/const describeFinding = \(f\) =>\n[^\n]+/, 'describeFinding'),
     lift('function iconButton('),
     liftLine(/const publishFailed = \(r\) =>\n[^\n]+\n[^\n]+/, 'publishFailed'),
     lift('function lazarusAttribution('),
@@ -601,7 +606,8 @@ function modalHarness(deps = {}) {
 const signer = (opts = {}) => (msg) => {
   if (msg.type !== 'SIDECAR_OWNER_SIGN') return null;
   if (opts.refuse && opts.refuse(msg)) {
-    throw Object.assign(new Error('Removes 3 accounts you follow'), { destructive: { message: 'Removes 3 accounts you follow' } });
+    const destructive = { kind: 3, type: 'shrink', from: 100, to: 20, lost: 80, name: '', message: 'the background’s English' };
+    throw Object.assign(new Error(destructive.message), { destructive });
   }
   return NT.finalizeEvent(structuredClone(msg.event), SK);
 };
@@ -671,7 +677,7 @@ test('SCREENS: THE WIPE CHECK\'S REFUSAL IS SHOWN, AND GOING AHEAD IS ITS OWN CL
   button(h.modal.querySelectorAll('recovery-row').find((r) => r.classList.contains('rec')), 'Restore this version').click();
   button(h.modal, 'Publish restore').click();
   await waitFor(() => /This restore removes data/.test(h.modal.textContent), 'the wipe check screen');
-  assert.match(h.modal.textContent, /Removes 3 accounts you follow/, 'the finding itself, not a bare failure');
+  assert.match(h.modal.textContent, /Drops your follows from 100 to 20\./, 'the finding itself, not a bare failure');
   button(h.modal, 'Restore anyway').click();
   await waitFor(() => /Version restored/.test(h.modal.textContent), 'the done screen');
 });
