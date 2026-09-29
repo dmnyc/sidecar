@@ -12,6 +12,9 @@ Update that section alongside this file as part of every release.
 ### Added
 - **Bitcoin only.** A switch under Local currency, in Settings and on the wallet screen, takes local currency out of Sidecar: tapping your balance cycles sats and BTC, the currency picker is hidden, and no exchange rate is fetched. The currency you had chosen is kept, so turning the switch off brings it back.
 
+### Fixed
+- **Film Noir's balance reads as one piece of lettering.** Each digit cast its own title-card extrusion, and each one fell across the face of the digit to its left, so the figure looked like overlapping letters. The extrusion now falls behind the neighboring digit, and behind the currency symbol too.
+
 ## [1.15.2] — 2026-09-29
 
 ### Fixed
