@@ -755,6 +755,9 @@
   let showQuotes = true;
   let notifWotFilter = true;
   let fiatCurrency = 'USD';   // Settings preference; the "fiat" leg of the denom cycle
+  // "Bitcoin only": no local currency anywhere. The tap cycles sats and BTC, the price
+  // chart (which is priced in that currency) is hidden, and no rate is fetched.
+  let fiatOff = false;
   let zapFlash = true; // lightning bolt on payment — on unless turned off
   // The fourth zap preset. Cached here rather than read per form, the same way
   // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
@@ -1078,6 +1081,8 @@
     // (themes/nixie.css), so no paint call ever runs to gate.
     document.documentElement.classList.toggle('reduce-balance-motion', reduceBalanceMotion);
     fiatCurrency = (settings && settings.fiatCurrency) || 'USD';
+    fiatOff = !!(settings && settings.fiatDisabled === true); // default off
+    syncFiatControls();
     zapFlash = !(settings && settings.zapFlash === false); // default on
     // Re-resolved on every state change, which includes an account switch — so the zap
     // rows drawn after a switch offer the amount belonging to whoever you switched to.
@@ -17455,7 +17460,9 @@
   // that silently renders as sats — otherwise the tap looks like it did nothing, and
   // the display looks identical to the step before it. Says so once, out loud.
   async function cycleDenom() {
-    const next = DENOM_ORDER[(DENOM_ORDER.indexOf(denom) + 1) % DENOM_ORDER.length];
+    endBtcJoke(false);
+    const order = fiatOff ? DENOM_ORDER.filter((d) => d !== 'fiat') : DENOM_ORDER;
+    const next = order[(order.indexOf(denom) + 1) % order.length];
     if (next === 'fiat') {
       const p = await getBtcPrice(fiatCurrency);
       if (p == null) {
@@ -17492,15 +17499,61 @@
     repaintBalances();
   }
 
+  // Apply the "Bitcoin only" switch from either copy of it, then bring every surface
+  // it touches into line.
+  async function setFiatOff(off) {
+    fiatOff = !!off;
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { fiatDisabled: fiatOff } });
+    syncFiatControls();
+  }
+
+  // Both switches, both pickers and their hints, the chart button, and a balance left
+  // showing fiat. The currency picker is hidden rather than dimmed, and its stored
+  // choice left alone, so switching local currency back on restores it.
+  function syncFiatControls() {
+    ['fiat-off-toggle', 'wallet-fiat-off-toggle'].forEach((id) => {
+      const cb = $(id);
+      if (cb) cb.checked = fiatOff;
+    });
+    ['fiat-select', 'wallet-fiat-select'].forEach((id) => {
+      const sel = $(id);
+      if (sel) sel.classList.toggle('hidden', fiatOff);
+    });
+    document.querySelectorAll('.fiat-on-hint').forEach((p) => p.classList.toggle('hidden', fiatOff));
+    document.querySelectorAll('.fiat-off-hint').forEach((p) => p.classList.toggle('hidden', !fiatOff));
+    document.querySelectorAll('.wallet-chart-btn').forEach((b) => { b.title = chartBtnTitle(); });
+    if (!fiatOff) endBtcJoke(true); // the joke is only true in bitcoin
+    if (fiatOff) {
+      // Close an open chart: it is priced in the currency that was just switched off.
+      const card = document.querySelector('.wallet-card.chart-open');
+      if (card) card.classList.remove('chart-open');
+      const cb = document.querySelector('.wallet-chart-btn.active');
+      if (cb) cb.classList.remove('active');
+    }
+    if (fiatOff && denom === 'fiat') {
+      denom = 'sats';
+      repaintBalances();
+    }
+  }
+
   // The wallet screen's copy of the currency preference — same setting as Settings,
   // placed here because this is where you are when you tap the balance.
   function renderFiatPicker() {
     const wrap = h('div', { className: 'setting' });
     wrap.append(h('h3', { textContent: t('Local currency') }));
     wrap.append(h('p', {
-      className: 'hint',
+      className: 'hint fiat-on-hint',
       textContent: t('Tap your balance to switch between sats, BTC, and this currency.'),
     }));
+    wrap.append(h('p', {
+      className: 'hint fiat-off-hint hidden',
+      textContent: t('Tap your balance to switch between sats and BTC. No exchange rate is fetched.'),
+    }));
+    const off = h('input', { type: 'checkbox', id: 'wallet-fiat-off-toggle' });
+    off.addEventListener('change', (e) => setFiatOff(e.target.checked));
+    wrap.append(h('label', { className: 'toggle-row' }, [
+      off, h('span', { textContent: t('Bitcoin only (no local currency)') }),
+    ]));
     const sel = h('select', { id: 'wallet-fiat-select' });
     FIAT_CURRENCIES.forEach(([code, name]) => {
       sel.append(h('option', { value: code, textContent: currencyName(code, name) + ' (' + code + ')' }));
@@ -17518,12 +17571,73 @@
   // fallen behind the four failures it was meant to cover.
   const isBalanceErrorUnit = (el) => !!el && el.dataset.balanceError === '1';
 
+  // BITCOIN, PRICED IN BITCOIN. With local currency off there is no chart to draw, so
+  // the chart button answers in the card itself for a few seconds: "Bitcoin only" where
+  // "Balance" was, "1 BTC = 1 BTC" for the figure, and "∞/21M" for the unit. Then the
+  // real card comes back. A second tap brings it
+  // back at once, and so does a tap on the balance. While it shows, a repaint of the
+  // wallet card waits, so a refresh landing mid-joke does not cut it short.
+  //
+  // Held against the element it was painted on: the card is rebuilt on refresh, and a
+  // new card is not showing the joke.
+  const BTC_JOKE_MS = 3000;
+  let btcJoke = null; // { el, unit, label, rec, unitText, labelText, timer }
+  const chartBtnTitle = () => (fiatOff ? t('Bitcoin, priced in bitcoin') : t('Bitcoin price, last 24 hours'));
+  const btcJokeShowing = (el) => !!btcJoke && btcJoke.el === el && el.isConnected;
+
+  function showBtcJoke(card) {
+    const el = card.querySelector('.wallet-balance');
+    const unit = card.querySelector('.wallet-unit');
+    const label = card.querySelector('.wallet-bal-label');
+    if (!el) return;
+    if (btcJokeShowing(el)) { endBtcJoke(true); return; }
+    endBtcJoke(false);
+    const slot = balanceSlot(el);
+    btcJoke = {
+      el, unit, label,
+      rec: paintedSats.get(slot),
+      unitText: unit ? unit.textContent : '',
+      labelText: label ? label.textContent : '',
+      timer: setTimeout(() => endBtcJoke(true), BTC_JOKE_MS),
+    };
+    // THE CARD DOES NOT MOVE. The figure is set smaller than a balance (.btc-joke-text),
+    // and in some display faces a smaller run of text sits on a line box a pixel or two
+    // different, so the figure is held at the height it had a moment ago instead.
+    el.style.height = el.getBoundingClientRect().height + 'px';
+    el.classList.add('btc-joke');
+    const text = h('span', { className: 'btc-joke-text' });
+    el.textContent = '';
+    el.append(text);
+    splitGlyphs(text, t('{{amount}} BTC = {{amount}} BTC', { amount: I18N.fmtNum(1) }), () => false);
+    if (label) label.textContent = t('Bitcoin only');
+    // The 21M is the language's own short form (21 Mio., 2100万), not a hand-written M.
+    if (unit) unit.textContent = t('∞/{{supply}}', { supply: I18N.fmtNum(21000000, { notation: 'compact' }) });
+  }
+
+  // Put the real figure back. The paint record is restored first, so the balance
+  // returns without striking as if it had changed: nothing about it did.
+  function endBtcJoke(repaint) {
+    if (!btcJoke) return;
+    const { el, unit, label, rec, unitText, labelText, timer } = btcJoke;
+    clearTimeout(timer);
+    btcJoke = null;
+    el.classList.remove('btc-joke');
+    el.style.height = '';
+    if (label) label.textContent = labelText;
+    const slot = balanceSlot(el);
+    if (rec) paintedSats.set(slot, rec); else forgetBalancePaint(slot);
+    if (unit && isBalanceErrorUnit(unit)) unit.textContent = unitText;
+    if (repaint) repaintBalances();
+  }
+
   // Repaint whichever balance surfaces are on screen, from the cached balance.
   function repaintBalances() {
     const sats = balanceCache && balanceCache.pubkey === (state && state.activePubkey) ? balanceCache.sats : null;
     const parts = denomParts(sats);
     paintBalanceEl($('pinned-balance-amt'), parts, 'pinned-fiat-sym');
-    paintBalanceEl(document.querySelector('.wallet-balance'), parts, 'wallet-fiat-sym');
+    const cardBal = document.querySelector('.wallet-balance');
+    if (btcJokeShowing(cardBal)) return; // the joke's own timer repaints the card
+    paintBalanceEl(cardBal, parts, 'wallet-fiat-sym');
     const cardUnit = document.querySelector('.wallet-unit');
     if (cardUnit && !isBalanceErrorUnit(cardUnit)) cardUnit.textContent = parts.unit;
   }
@@ -18346,7 +18460,7 @@
     // Price chart toggle, bottom-left corner (mirroring the pin at bottom-right).
     // Expands the card to reveal a 24h BTC price chart in the chosen currency.
     // Wallet screen only — the pinned bar stays compact by design.
-    const chartBtn = h('button', { className: 'wallet-chart-btn', title: t('Bitcoin price, last 24 hours') });
+    const chartBtn = h('button', { className: 'wallet-chart-btn', title: chartBtnTitle() });
     chartBtn.appendChild(icon('chart'));
     const chartSlot = h('div', { className: 'wallet-chart-slot' });
     // Opening/closing the chart changes the card's expanded height, so the collapse
@@ -18387,6 +18501,7 @@
 
     chartBtn.addEventListener('click', async (e) => {
       e.stopPropagation(); // don't trigger the card's scroll-to-top handler
+      if (fiatOff) { showBtcJoke(card); return; } // priced in bitcoin: see showBtcJoke
       const open = card.classList.toggle('chart-open');
       chartBtn.classList.toggle('active', open);
       if (!open) { remeasureAfterToggle(); return; }
@@ -18514,6 +18629,7 @@
     // Local currency — the same preference as Settings, surfaced here because this
     // is where you're looking when you tap the balance and want a different currency.
     view.append(renderFiatPicker());
+    syncFiatControls();
 
     // Disconnect
     const disc = h('button', { className: 'ghost wallet-disconnect', textContent: t('Disconnect wallet') });
@@ -20455,6 +20571,7 @@
   });
 
   $('fiat-select').addEventListener('change', (e) => setFiatCurrency(e.target.value));
+  $('fiat-off-toggle').addEventListener('change', (e) => setFiatOff(e.target.checked));
 
   // One switch covers both bolts: the in-panel one (payments started here) and the
   // page one (a zap from a client) — the background reads the same flag before

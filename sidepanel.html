@@ -639,7 +639,9 @@
 
           <div class="setting">
             <h3 data-i18n="Local currency">Local currency</h3>
-            <p class="hint" data-i18n="Tap your balance to cycle sats, BTC and this. Rates from mempool.space and Coinbase.">Tap your balance to cycle sats, BTC and this. Rates from mempool.space and Coinbase.</p>
+            <p class="hint fiat-on-hint" data-i18n="Tap your balance to cycle sats, BTC and this. Rates from mempool.space and Coinbase.">Tap your balance to cycle sats, BTC and this. Rates from mempool.space and Coinbase.</p>
+            <p class="hint fiat-off-hint hidden" data-i18n="Tap your balance to switch between sats and BTC. No exchange rate is fetched.">Tap your balance to switch between sats and BTC. No exchange rate is fetched.</p>
+            <label class="toggle-row"><input type="checkbox" id="fiat-off-toggle" /> <span data-i18n="Bitcoin only (no local currency)">Bitcoin only (no local currency)</span></label>
             <!-- Options are populated from FIAT_CURRENCIES in sidepanel.js, shared with
                  the wallet screen's copy of this picker. -->
             <select id="fiat-select"></select>
