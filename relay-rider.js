@@ -345,6 +345,7 @@
   // pavement is: the drawing code, the off-road test, and where a box gets planted.
   let curveAmp = 6;
   let roadHalf = 48;
+  let roadTarget = 48;         // where roadHalf is heading; a new scene eases it there
 
   const roadMid = (wy) =>
     W / 2 + Math.sin(wy * 0.0115) * curveAmp + Math.sin(wy * 0.0041) * curveAmp * 0.55;
@@ -369,7 +370,31 @@
   const REACH = 12;            // how far the sidecar can reach a box, in pixels
   const VERGE = 3;             // how far past the pavement a mailbox is planted
 
-  function applyScene() {
+  // A new scene's road arrives over about a second and a half instead of in one frame,
+  // which jumped the whole visible road narrower under the banner. Per step, and the
+  // curve follows from the width at every step, so the bound below holds mid-ease too.
+  const ROAD_EASE_STEPS = 90;
+
+  function fitCurve() {
+    // The two sine terms peak at amp * 1.55 between them, and the far side of a box sits
+    // at roadR + VERGE + BOX_W, which has to land inside the screen. Solve for amp and the
+    // boxes stay on screen at every road width AND at every panel size, which is why this
+    // reads off W and roadHalf rather than off the scene, and why it needs no ceiling of
+    // its own: a narrower road buys the bend, and the sum is fixed.
+    curveAmp = Math.max(0, (W / 2 - 2 - BOX_W - VERGE - roadHalf) / 1.55);
+  }
+
+  function easeRoad() {
+    if (roadHalf === roadTarget) return;
+    const by = (W * 0.019) / ROAD_EASE_STEPS;
+    roadHalf = roadHalf > roadTarget ? Math.max(roadTarget, roadHalf - by) : Math.min(roadTarget, roadHalf + by);
+    fitCurve();
+  }
+
+  // `ease` is for a scene change mid-run. A reset or a resize puts the road where it
+  // belongs at once: a new run owes nothing to the last one, and a resize has already
+  // moved everything.
+  function applyScene(ease) {
     // Each scene tightens exactly three things here: less pavement, more bend, more speed
     // to hold. The fourth, the gap between fuel cans, is kept in step at the can spawn.
     // Everything else stays put so a run gets harder in a way you can name.
@@ -377,13 +402,9 @@
     // Fractions of the playfield, not pixels, so a wider panel gets a proportionally wider
     // road rather than the same strip with more grass either side of it. At W=160 these
     // come out as the 48, 31 and 3 they were written as.
-    roadHalf = Math.max(W * 0.19, W * 0.3 - (scene - 1) * W * 0.019);
-    // The two sine terms peak at amp * 1.55 between them, and the far side of a box sits
-    // at roadR + VERGE + BOX_W, which has to land inside the screen. Solve for amp and the
-    // boxes stay on screen at every road width AND at every panel size, which is why this
-    // reads off W and roadHalf rather than off the scene, and why it needs no ceiling of
-    // its own: a narrower road buys the bend, and the sum is fixed.
-    curveAmp = Math.max(0, (W / 2 - 2 - BOX_W - VERGE - roadHalf) / 1.55);
+    roadTarget = Math.max(W * 0.19, W * 0.3 - (scene - 1) * W * 0.019);
+    if (!ease) roadHalf = roadTarget;
+    fitCurve();
     maxSpeed = Math.min(4.6, 2.5 + (scene - 1) * 0.22);
   }
 
@@ -647,7 +668,7 @@
     if (sceneMail >= MAIL_PER_SCENE) {
       sceneMail = 0;
       scene++;
-      applyScene();
+      applyScene(true);
       bannerT = 100;
       fuel = Math.min(100, fuel + 8);    // a finished scene buys a little road back
       blip(680, 0.09, 'triangle');
@@ -732,6 +753,7 @@
   const screenY = (wy) => RIG_Y - (wy - dist);
 
   function advance() {
+    easeRoad();
     for (const c of bikes) c.wy += c.speed;
     // Everything on the road holds an offset from the center line and gets its x here, so
     // one place decides where things are and a resize moves them all together.

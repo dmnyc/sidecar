@@ -525,7 +525,7 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
   // integer scale, so the bound has to hold across the whole range of that, not at one
   // number. Both ends are covered: 140 is about the narrowest the scale rule can produce,
   // and a maximized browser tab lands near 240.
-  const ctx = { Math, roadHalf: 0, curveAmp: 0, maxSpeed: 0, scene: 1, W: 160, BOX_W: 9, VERGE: 3 };
+  const ctx = { Math, roadHalf: 0, roadTarget: 0, curveAmp: 0, maxSpeed: 0, scene: 1, W: 160, BOX_W: 9, VERGE: 3 };
   vm.createContext(ctx);
   const lift = (decl) => {
     const at = js.indexOf(decl);
@@ -545,11 +545,14 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
   assert.match(roadMidSrc, /Math\.sin/, 'the curve was lifted without its body');
   vm.runInContext(
     [
+      js.match(/const ROAD_EASE_STEPS = .*/)[0],
+      lift('function fitCurve('),
+      lift('function easeRoad('),
       lift('function applyScene('),
       roadMidSrc,
       js.match(/const roadL = .*/)[0],
       js.match(/const roadR = .*/)[0],
-      'globalThis.out = { applyScene, roadL, roadR };',
+      'globalThis.out = { applyScene, easeRoad, roadL, roadR };',
     ].join('\n'),
     ctx
   );
@@ -557,11 +560,7 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
   // The grid and the planting distance, both checked elsewhere in this file.
   const BOX_W = 9;
   const VERGE = 3;
-  for (const W of [140, 150, 160, 180, 190, 210, 240, 280]) {
-  ctx.W = W;
-  for (let scene = 1; scene <= 25; scene++) {
-    ctx.scene = scene;
-    ctx.out.applyScene();
+  const check = (W, where) => {
     let worst = 0;
     let leftMost = W;
     // Two sines of incommensurate period: sample far enough to catch them in phase.
@@ -569,14 +568,43 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
       worst = Math.max(worst, ctx.out.roadR(wy) + VERGE + BOX_W);
       leftMost = Math.min(leftMost, ctx.out.roadL(wy));
     }
-    const where = 'W=' + W + ' scene ' + scene + ': ';
     assert.ok(worst <= W, where + 'a mailbox reaches x=' + worst.toFixed(1) + ', off a ' + W + 'px screen');
     assert.ok(leftMost >= 0, where + 'the road reaches x=' + leftMost.toFixed(1) + ', off the left edge');
     // A road you cannot fit the rig down is not a difficulty curve, it is a wall. The rig
     // is 15 wide and has to have somewhere to be that is not against a box.
     assert.ok(ctx.roadHalf * 2 >= 40, where + 'the road narrowed to ' + (ctx.roadHalf * 2).toFixed(1) + 'px');
+  };
+  for (const W of [140, 150, 160, 180, 190, 210, 240, 280]) {
+  ctx.W = W;
+  for (let scene = 1; scene <= 25; scene++) {
+    ctx.scene = scene;
+    ctx.out.applyScene();
+    check(W, 'W=' + W + ' scene ' + scene + ': ');
+  }
+  // And on the way between two scenes, since a scene change now eases the road rather
+  // than setting it: the start, a third, two thirds, and where it lands.
+  for (let scene = 2; scene <= 8; scene++) {
+    ctx.scene = scene - 1;
+    ctx.out.applyScene();
+    const from = ctx.roadHalf;
+    ctx.scene = scene;
+    ctx.out.applyScene(true);
+    assert.equal(ctx.roadHalf, from, 'W=' + W + ' scene ' + scene + ': a scene change snapped the road');
+    for (let s = 0; s <= 120; s++) {
+      if (s % 30 === 0) check(W, 'W=' + W + ' easing into scene ' + scene + ', step ' + s + ': ');
+      ctx.out.easeRoad();
+    }
+    assert.equal(ctx.roadHalf, ctx.roadTarget, 'W=' + W + ' scene ' + scene + ': the road never arrived');
   }
   }
+});
+
+test('A SCENE CHANGE EASES THE ROAD IN, A RESET DOES NOT', () => {
+  const body = stripComments(js);
+  assert.match(body, /scene\+\+;\s*applyScene\(true\);/, 'a new scene snaps the road narrower in one frame');
+  assert.match(body, /function advance\(\) \{\s*easeRoad\(\);/, 'nothing steps the road toward its target');
+  const reset = body.slice(body.indexOf('function reset()'), body.indexOf('function reset()') + 400);
+  assert.match(reset, /applyScene\(\);/, 'a new run eases in from the last run\'s road');
 });
 
 test('it reads nothing and connects to nothing', () => {
