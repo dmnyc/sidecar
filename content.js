@@ -11,6 +11,31 @@
 
   const host = location.host; // trusted origin identity (includes port, e.g. localhost:3000)
 
+  // WHEN THE EXTENSION RESTARTS UNDER AN OPEN TAB. An update, a disable/enable, or Chrome
+  // repairing the install all cut this script off from the extension — every chrome.* call
+  // throws "Extension context invalidated" — while it stays in the page, still hearing
+  // every window.nostr request. The browser does not inject a fresh copy into tabs that
+  // were already open, so a long-lived client tab (Jumble) failed every signature until
+  // it was reloaded, and nothing told the user why beyond "reload this page".
+  //
+  // The worker now injects a fresh copy into open tabs after any such restart (see
+  // reconnectOpenTabs in background.js). This copy's job, once cut off, is to get out of
+  // the way: take its card down and let the fresh copy answer (see handOff below).
+  //
+  // `rt` is captured, not looked up: whether an old and a new copy share a global is up to
+  // the browser, and a check reading the global `chrome` could report the old copy alive.
+  const rt = chrome.runtime;
+  function extensionAlive() {
+    try { return !!(rt && rt.id); } catch (_) { return false; }
+  }
+  // A live copy is already here (the manifest's injection and the worker's raced on a tab
+  // that was still loading): answering every request twice is the one outcome to avoid.
+  try {
+    if (typeof window.__sidecarContentAlive === 'function' && window.__sidecarContentAlive()) return;
+  } catch (_) {}
+  window.__sidecarContentAlive = extensionAlive;
+  const UPDATED_ERROR = 'Sidecar was updated — reload this page to reconnect.';
+
   // Whether this page is signed into Sidecar's signer. Seeded from the persistent
   // site binding on startup, then flipped live the moment the page successfully
   // uses window.nostr. The "Pay with Sidecar" card only shows when this is true:
@@ -37,6 +62,13 @@
     const d = event.data;
     if (!d || d.ext !== 'sidecar') return;
 
+    // A fresh copy answered a request this cut-off copy stood aside for.
+    if (d.kind === 'response') {
+      const t = handoffs.get(d.id);
+      if (t) { clearTimeout(t); handoffs.delete(d.id); }
+      return;
+    }
+
     // An invoice the page just copied to its own clipboard (see the writeText
     // wrapper in nostr-provider.js). Re-validated here rather than trusted: the
     // provider runs in the page world, so anything arriving on this channel is
@@ -56,6 +88,12 @@
     if (d.kind !== 'request') return;
     const type = SCOPE_TO_TYPE[d.scope];
     if (!type) return;
+
+    if (!extensionAlive()) {
+      retire();
+      handOff(d);
+      return;
+    }
 
     // Always answer the page exactly once. If the service worker dies mid-request
     // (MV3 recycles it) the callback may never fire, which would hang the page's
@@ -117,7 +155,7 @@
           function (response) {
             let err;
             try { err = chrome.runtime.lastError; } catch (_) {
-              return reply({ ok: false, error: 'Sidecar was updated — reload this page to reconnect.' });
+              return reply({ ok: false, error: UPDATED_ERROR });
             }
             // Undelivered, and we haven't retried yet: wake the worker and try once
             // more. A short delay gives Chrome time to actually start it — an
@@ -136,11 +174,45 @@
           }
         );
       } catch (e) {
-        reply({ ok: false, error: 'Sidecar was updated — reload this page to reconnect.' });
+        // Only say "updated" when that is what happened. Anything else sendMessage throws
+        // is reported as itself, so a report of this message means what it says.
+        reply({
+          ok: false,
+          error: extensionAlive() ? 'Sidecar request failed: ' + ((e && e.message) || e) : UPDATED_ERROR,
+        });
       }
     }
     dispatch();
   });
+
+  // Requests this cut-off copy is leaving to a fresh one, by id. If none answers in time
+  // (the worker could not inject one, or has not yet), the page still gets its promise
+  // settled, with the one instruction that fixes it.
+  const handoffs = new Map();
+  const HANDOFF_MS = 2000;
+  function handOff(d) {
+    if (handoffs.has(d.id)) return;
+    handoffs.set(d.id, setTimeout(() => {
+      handoffs.delete(d.id);
+      try {
+        window.postMessage(
+          { ext: 'sidecar', scope: d.scope, kind: 'response', id: d.id, response: { ok: false, error: UPDATED_ERROR } },
+          '*'
+        );
+      } catch (_) {}
+    }, HANDOFF_MS));
+  }
+
+  // Take this copy's card and invoice watching down for good, so a fresh copy's card is
+  // not joined by a second one that can no longer pay anything.
+  let retired = false;
+  let scanObserver = null;
+  function retire() {
+    if (retired) return;
+    retired = true;
+    try { if (scanObserver) scanObserver.disconnect(); } catch (_) {}
+    try { removeCard(); } catch (_) {}
+  }
 
   // Turn Chrome's internal messaging errors into something a user can act on. The raw
   // strings name Chrome's plumbing ("the message port closed before a response was
@@ -158,7 +230,7 @@
       return "Sidecar didn't respond. Make sure it's enabled, then try again.";
     }
     if (/context invalidated/i.test(m)) {
-      return 'Sidecar was updated — reload this page to reconnect.';
+      return UPDATED_ERROR;
     }
     return m || 'Sidecar request failed.';
   }
@@ -1496,6 +1568,8 @@
   let autopayDeclined = '';
 
   function scanForInvoice() {
+    if (retired) return;
+    if (!extensionAlive()) { retire(); return; }
     // NOT THE PAGE'S TO TAKE DOWN, in either of the two states where money is at stake.
     //
     // A payment in flight, because pages routinely pull the invoice out of the DOM the
@@ -1570,6 +1644,7 @@
   // the default is deliberately NOT prevented: whoever registered a protocol handler for
   // lightning: keeps it.
   document.addEventListener('click', (e) => {
+    if (retired) return;
     if (!showCard || !connectedToSite || !hasWallet) return;
     const path = (e.composedPath && e.composedPath()) || [];
     for (const el of path) {
@@ -1592,7 +1667,10 @@
 
   // React to events pushed from the worker: setting toggle, and payment success
   // (clear the card — the invoice link often lingers after "Paid").
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    // The worker asking whether this tab has a live copy (reconnectOpenTabs). Only a copy
+    // still connected to the extension can hear it, which is the whole question.
+    if (msg && msg.type === 'SIDECAR_PING') { sendResponse(true); return; }
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
     if (msg.event === 'settings') {
       showCard = msg.showPayButton !== false;
@@ -1645,7 +1723,9 @@
   // Start detection immediately (default on); refine with the saved setting
   // async so a settings-fetch hiccup can't prevent the card from ever appearing.
   function startCard() {
-    new MutationObserver(scheduleScan).observe(document.documentElement, { childList: true, subtree: true });
+    if (retired) return;
+    scanObserver = new MutationObserver(scheduleScan);
+    scanObserver.observe(document.documentElement, { childList: true, subtree: true });
     scanForInvoice();
   }
   if (document.body) startCard();
