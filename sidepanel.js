@@ -20277,6 +20277,12 @@
       // Keys have to reach the frame, not the panel behind it, or the arrows scroll
       // settings while the rig sits still. Same origin, so reaching in is allowed.
       try { frame.contentWindow.focus(); } catch (_) { /* gone */ }
+      // Playing is use, but the keys land in the frame and never reach the panel, so the
+      // idle auto-lock fired mid-run. The panel listens on the game's behalf, keeping the
+      // game itself unable to message the extension; the listeners go with the document.
+      try {
+        for (const type of ['keydown', 'pointerdown']) frame.contentWindow.addEventListener(type, noteActivity);
+      } catch (_) { /* gone */ }
     };
     // A local page, so load is a formality, but never revealing the overlay because an
     // event did not arrive is not a failure worth risking. The timer wins if it does.

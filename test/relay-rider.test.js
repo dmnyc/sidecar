@@ -591,3 +591,16 @@ test('it reads nothing and connects to nothing', () => {
   // No remote anything: a store review treats one <img> from a CDN as a policy problem.
   assert.doesNotMatch(src, /https?:\/\/(?!www\.w3\.org)/, 'the page references a remote URL');
 });
+
+test('PLAYING COUNTS AS USE, SO THE IDLE LOCK WAITS', () => {
+  // Keys go to the frame, not the panel, and the composer's activity ping was the only
+  // one the panel sent, so fifteen minutes of play locked the keystore mid-run. The
+  // panel carries the ping for the game, which stays barred from chrome.runtime above.
+  const body = stripComments(panel);
+  const open = body.slice(body.indexOf('function openRider()'), body.indexOf('function placeRiderClose()'));
+  assert.ok(open.length > 0, 'openRider is gone');
+  assert.match(open, /\['keydown',\s*'pointerdown'\]/, 'the game frame does not report keys and taps');
+  assert.match(open, /frame\.contentWindow\.addEventListener\(type,\s*noteActivity\)/,
+    'input in the game does not re-arm the idle auto-lock');
+  assert.match(body, /function noteActivity\(\)[\s\S]{0,200}SIDECAR_ACTIVITY/, 'noteActivity no longer pings the background');
+});
