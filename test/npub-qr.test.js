@@ -67,7 +67,7 @@ test('the QR is repainted when the encoding changes', () => {
 test('both surfaces reach it', () => {
   // The two places the backlog named, and the two places an npub is already shown.
   assert.match(panel, /menuItem\('Show npub QR', 'qr', \(\) => npubQrModal\(a\)\)/);
-  assert.match(panel, /iconButton\('Show npub QR', 'qr', \(\) => npubQrModal\(active\)\)/);
+  assert.match(panel, /iconButton\(t\('Show npub QR'\), 'qr', \(\) => npubQrModal\(active\)\)/);
 });
 
 test('the copy chip keeps its one meaning', () => {

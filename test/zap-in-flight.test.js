@@ -230,7 +230,7 @@ test('THE PROFILE SHEET ZAP GETS THE SAME INDICATOR', () => {
   // nothing at all until the toast landed.
   const at = bare.indexOf("send.addEventListener('click'");
   const body = bare.slice(at, bare.indexOf('\n      });', at));
-  assert.match(body, /toast\('Zapping ' \+ fmtSats\(sats\) \+ ' sats', 'progress'\)/);
+  assert.match(body, /toast\(tSec\('Zapping \{\{amount\}\} sats', \{ amount: fmtSats\(sats\) \}\), 'progress'\)/);
   // Started after the invoice exists, so an address that will not issue one still errors
   // into the sheet rather than behind a toast that says the zap is going.
   assert.ok(body.indexOf('flight = toast(') > body.indexOf('await zapInvoice('),

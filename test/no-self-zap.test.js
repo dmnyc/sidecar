@@ -88,7 +88,7 @@ test('NO CONNECT-A-WALLET LINE ON YOUR OWN PROFILE', () => {
   const zapPick = bare.match(/const selfPay = \{[^}]*\}/);
   assert.ok(zapPick, 'selfPay options moved');
   assert.match(zapPick[0], /hideConnect: true/);
-  assert.match(zapPick[0], /hint: '[^']+'/, 'the hint still addresses a payer, not you');
+  assert.match(zapPick[0], /hint: tSec\('[^']+'\)/, 'the hint still addresses a payer, not you');
 
   const offerFn = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
   assert.match(offerFn.slice(0, 900), /offerPayBlock\(offer, isSelf[\s\S]{0,120}hideConnect: true/);
@@ -101,8 +101,8 @@ test('IT SAYS WHY THERE IS NO AMOUNT FIELD', () => {
   //
   // "Sending", not "payments": the QR directly above this line is a working payment path.
   // What is off is paying OUT of your own wallet.
-  assert.match(bare, /note: 'Sending is off on your own profile\.'/);
-  const uses = (bare.match(/note: 'Sending is off on your own profile\.'/g) || []).length;
+  assert.match(bare, /note: t\('Sending is off on your own profile\.'\)/);
+  const uses = (bare.match(/note: t\('Sending is off on your own profile\.'\)/g) || []).length;
   assert.equal(uses, 2, 'the zap block and the offer block should both carry it, found ' + uses);
 
   // Rendered under the hint and above the connect slot, and only when asked for.
@@ -123,7 +123,7 @@ test('and the provider is never asked about your own address', () => {
 });
 
 test('the address is still shown and still copies', () => {
-  assert.match(bare, /lud\.title = 'Copy lightning address';/);
+  assert.match(bare, /lud\.title = t\('Copy lightning address'\);/);
   const at = bare.indexOf("lud.title = 'Copy lightning address';");
   assert.doesNotMatch(bare.slice(at - 300, at), /if \(isSelf\) return;/,
     'the copy line got swept up in the payment gate');

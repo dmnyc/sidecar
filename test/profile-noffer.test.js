@@ -34,8 +34,8 @@ test('the editor reads the offer tolerantly and writes it under noffer', () => {
   // The input sits in the advanced block, beside the image URLs. The summary says
   // "Advanced" and stops: a disclosure that lists its own contents is a second label for
   // the labels underneath it, and this one was wrapping to two lines to do it.
-  assert.match(fn, /sum\.textContent = 'Advanced';/);
-  assert.match(fn, /textContent: 'CLINK offer'/);
+  assert.match(fn, /sum\.textContent = t\('Advanced'\);/);
+  assert.match(fn, /textContent: t\('CLINK offer'\)/);
   assert.match(fn, /nofferInp\.placeholder = 'noffer1…';/);
   // And the publish carries it with the alternates cleared.
   assert.match(fn, /fields\.noffer = draft\.noffer;/);
@@ -102,10 +102,10 @@ const stripComments = (s) =>
 
 test('BOTH WAYS YOU CAN BE PAID SIT ON THE PROFILE, BUILT THE SAME WAY', () => {
   const bare = stripComments(src);
-  assert.match(bare, /if \(content\.lud16\) body\.append\(payLine\(content\.lud16, boltIcon\(\), 'Lightning address'\)\);/,
+  assert.match(bare, /if \(content\.lud16\) body\.append\(payLine\(content\.lud16, boltIcon\(\), t\('Lightning address'\)\)\);/,
     'the address is no longer a payment line');
   assert.match(bare, /const ownOffer = profileOffer\(content\);/);
-  assert.match(bare, /payLine\(ownOffer\.raw, boltIcon\(\), 'CLINK offer', truncMid\(ownOffer\.raw, 18, 6\)\)/,
+  assert.match(bare, /payLine\(ownOffer\.raw, boltIcon\(\), t\('CLINK offer'\), truncMid\(ownOffer\.raw, 18, 6\)\)/,
     'the offer has no line on the profile');
 
   // THE SAME GLYPH ON BOTH. They drew two different lightning bolts, the panel's filled
