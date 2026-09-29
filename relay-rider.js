@@ -370,8 +370,9 @@
   const VERGE = 3;             // how far past the pavement a mailbox is planted
 
   function applyScene() {
-    // Each scene tightens exactly three things: less pavement, more bend, more speed to
-    // hold. Everything else stays put so a run gets harder in a way you can name.
+    // Each scene tightens exactly three things here: less pavement, more bend, more speed
+    // to hold. The fourth, the gap between fuel cans, is kept in step at the can spawn.
+    // Everything else stays put so a run gets harder in a way you can name.
     //
     // Fractions of the playfield, not pixels, so a wider panel gets a proportionally wider
     // road rather than the same strip with more grass either side of it. At W=160 these
@@ -781,7 +782,11 @@
     }
     while (spawn.can < dist + AHEAD) {
       drop(cans, spawn.can, { off: -roadHalf + 4 + Math.random() * (roadHalf * 2 - CAN_W - 8), got: false });
-      spawn.can += Math.max(1100, 1900 - scene * 60) + Math.random() * 700;
+      // Spaced out as the scenes climb, because a faster rig covers more road per unit of
+      // fuel: with a fixed gap the gauge would fill in the late scenes. This holds the burn
+      // between cans near 20 against a can's 16 until top speed stops climbing (scene 10),
+      // and past that the burn's own per-scene rise makes the clock run faster.
+      spawn.can += Math.min(2600, 1700 + scene * 60) + Math.random() * 700;
     }
 
     const gone = (o, h) => screenY(o.wy) > H + h + 4;
