@@ -12,6 +12,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -36,6 +37,7 @@ const MY_NOTE = 'c'.repeat(64);
 // commentRootIsOwn reads a module-level map, so the lift carries a stand-in for it.
 function rootChecker(ownIds) {
   const ctx = { _ownNoteIds: new Map([[MINE, new Set(ownIds)]]) };
+  withI18n(ctx); // notification labels go through t() and tn()
   vm.createContext(ctx);
   vm.runInContext(lift('function commentRootIsOwn(') + '\nglobalThis.fn = commentRootIsOwn;', ctx);
   return ctx.fn;
@@ -72,9 +74,9 @@ test('a 1111 on your note reads as a reply, not as a mention', () => {
   const fn = lift('function notifLabel(');
   const branch = fn.slice(fn.indexOf('WEB_COMMENT_KIND'));
   assert.match(branch, /K\[1\] === '1' && commentRootIsOwn\(ev, acctPubkey\)/, 'the root KIND has to be read, not assumed');
-  assert.match(branch, /icon: 'message-filled', text: 'replied to your note'/);
-  assert.match(fn, /icon: 'message-filled', text: 'replied to your note'/, 'the kind:1 reply must still say it too');
-  assert.match(branch, /glyph: '@', text: 'mentioned you in a comment'/, 'anything else keeps the old wording');
+  assert.match(branch, /icon: 'message-filled', text: t\('replied to your note'\)/);
+  assert.match(fn, /icon: 'message-filled', text: t\('replied to your note'\)/, 'the kind:1 reply must still say it too');
+  assert.match(branch, /glyph: '@', text: t\('mentioned you in a comment'\)/, 'anything else keeps the old wording');
 
   // The account has to reach the label, or there is nothing to compare a root against.
   assert.match(bare, /function notifLabel\(ev, acctPubkey\)/);
@@ -114,6 +116,7 @@ function commentLabel(tags, account = MINE, cached = []) {
     WEB_COMMENT_KIND: 1111, POLL_RESPONSE_KIND: 1018,
     _noteCache: new Map(cached), _ownNoteIds: new Map([[MINE, new Set([MY_NOTE])]]),
   };
+  withI18n(ctx); // notification labels go through t() and tn()
   vm.createContext(ctx);
   vm.runInContext(lift('function commentRootIsOwn(') + '\n' + lift('function notifLabel('), ctx);
   return ctx.notifLabel({ kind: 1111, tags }, account);

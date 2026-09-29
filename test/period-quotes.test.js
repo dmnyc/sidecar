@@ -66,7 +66,7 @@ test('one source, three uses', () => {
   assert.match(panel, /scroll\.append\(emptyQuote\('Bookmark a note from any Nostr client/);
   assert.match(panel, /scroll\.append\(endQuote\(panelQuote\)\);/);
   // Notifications: empty for a new account, and the caught-up note.
-  assert.match(panel, /emptyQuote\('Replies, reactions and zaps show up here\.', panelQuote\)/);
+  assert.match(panel, /emptyQuote\(t\('Replies, reactions and zaps show up here\.'\), panelQuote\)/);
   assert.match(panel, /sub,\s*\n\s*endQuote\(panelQuote\),/);
 });
 
@@ -159,7 +159,7 @@ test('A PANEL KEEPS THE QUOTE IT STARTED WITH', () => {
   }
   // The bell is the surface where both can appear in sequence, so it must pass one.
   assert.match(panel, /const panelQuote = pickQuote\(\);/);
-  assert.match(panel, /emptyQuote\('Replies, reactions and zaps show up here\.', panelQuote\)/);
+  assert.match(panel, /emptyQuote\(t\('Replies, reactions and zaps show up here\.'\), panelQuote\)/);
   assert.match(panel, /endQuote\(panelQuote\),/);
   // Bookmarks follow the same rule.
   assert.match(panel, /emptyQuote\('Bookmark a note from any Nostr client and it shows up here\.', panelQuote\)/);

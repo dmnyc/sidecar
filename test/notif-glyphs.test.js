@@ -16,6 +16,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 // composer-core.js is loaded beside the panel: the DOM toolkit moved there so the
@@ -45,6 +46,7 @@ const ctx = {
   POLL_RESPONSE_KIND: 1018,
   fmtSats: (n) => Math.round(n).toLocaleString('en-US'),
 };
+withI18n(ctx); // notification labels go through t() and tn()
 vm.createContext(ctx);
 vm.runInContext(
   [
@@ -201,7 +203,7 @@ test('the title is never conditional', () => {
   // Whatever else goes, the sheet has to say what it is.
   const at = source.indexOf("const heading = h('div', { className: 'notif-modal-head' });");
   const block = source.slice(at, at + 1100);
-  const title = block.indexOf("textContent: 'Notifications'");
+  const title = block.indexOf("textContent: t('Notifications')");
   const guard = block.indexOf('.length > 1');
   assert.ok(title !== -1 && title < guard, 'the title is built before any branching');
 });

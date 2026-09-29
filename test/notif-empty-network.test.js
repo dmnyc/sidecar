@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const panel = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
 // Execute the actual initial rendering, paging, and outside-network toggle together.
@@ -16,7 +17,8 @@ const source = panel.slice(start, end);
 function element(tag, props = {}, children = []) {
   const node = {
     tag, ...props, children: [], style: {}, listeners: {},
-    append(...items) { items.forEach((item) => this.appendChild(item)); },
+    // Strings become text nodes, as in the DOM: fill() hands back a sentence's words as strings.
+    append(...items) { items.forEach((item) => this.appendChild(typeof item === 'string' ? { text: item } : item)); },
     appendChild(item) { this.children.push(item); item.parent = this; return item; },
     insertBefore(item, before) {
       const at = this.children.indexOf(before);
@@ -49,6 +51,7 @@ function render(events, offNet) {
     client: { label: 'Client', profile: () => 'https://example.com/profile' },
     NT: { nip19: { npubEncode: () => 'npub' } }, a: { pubkey: 'account' },
   };
+  withI18n(ctx); // notification labels go through t() and tn()
   vm.runInNewContext(source, ctx);
   const find = (className) => scroll.children.find((n) => n.className === className);
   return { list, scroll, find };
