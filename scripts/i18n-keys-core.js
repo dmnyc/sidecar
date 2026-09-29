@@ -12,7 +12,8 @@ const ROOT = path.join(__dirname, '..');
 // The files whose strings are translated through i18n.js. content.js is not among them:
 // it follows the browser through chrome.i18n and _locales (docs/i18n-design.md §3.2).
 const JS_FILES = ['sidepanel.js', 'prompt.js', 'welcome.js', 'compose.js', 'composer-core.js',
-  'wallets.js', 'help.js', 'scan-qr.js', 'relay-rider.js', 'theme-tile.js', 'background.js'];
+  'wallets.js', 'help.js', 'scan-qr.js', 'relay-rider.js', 'theme-tile.js', 'background.js',
+  'replaceable-baseline.js'];
 const HTML_FILES = ['sidepanel.html', 'prompt.html', 'welcome.html', 'compose.html', 'help.html',
   'wallets.html', 'scan-qr.html', 'relay-rider.html', 'theme-tile.html'];
 
