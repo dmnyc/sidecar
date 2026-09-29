@@ -368,6 +368,14 @@
   100% { opacity: 1; filter: brightness(1); transform: translateY(0); }
 }
 [data-theme="film-noir"] .bal-glyph { display: inline-block; }
+/* The extrusion is painted per glyph, not under the figure as a whole: each glyph is
+   its own box, laid down left to right, so each one's extrusion (falling left) was
+   drawn over the face of the glyph before it. Stacked in reverse, every face sits above
+   the extrusion of the glyph to its right, the way one piece of lettering would. */
+[data-theme="film-noir"] .wallet-balance .bal-glyph { position: relative; z-index: calc(var(--n) - var(--i)); }
+/* The currency symbol is the leftmost piece of all, so it goes above every glyph (a
+   balance is never near a hundred of them). */
+[data-theme="film-noir"] .wallet-balance .wallet-fiat-sym { position: relative; z-index: 100; }
 [data-theme="film-noir"] .bal-glyph.bal-in {
   /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
      never more than 30ms behind the first, however many there are. See splitGlyphs
