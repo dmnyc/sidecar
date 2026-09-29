@@ -299,13 +299,61 @@ test('ARROWS AND WASD STAY PAIRED, AND SOUND IS NOT ONE OF THEM', () => {
   assert.deepEqual(transpose(arrow('←')), arrow('↑'), 'the up arrow is not the left arrow turned');
   assert.deepEqual(transpose(arrow('→')), arrow('↓'), 'the down arrow is not the right arrow turned');
 
-  // Sound cannot sit on a letter the movement keys need, which is exactly why it is not on
-  // S. Whatever it is, the title has to name the same one the handler listens for.
-  const sound = src.match(/if \(e\.code === '(\w+)'\) \{ toggleSound\(\)/)[1];
-  assert.ok(!keys[sound], sound + ' is a movement key as well as the sound key');
-  assert.ok(!['KeyP', 'Space', 'Enter'].includes(sound), sound + ' collides with pause or start');
-  assert.match(src, new RegExp('\\b' + sound.replace('Key', '') + ' SOUND\\b'),
-    'the title names a different sound key than the handler listens for');
+  // Sound is a button now, not a key: Q was the one nobody remembered. No key may toggle
+  // it, and the title must not go on naming one.
+  assert.doesNotMatch(src, /e\.code === '\w+'\) \{ toggleSound\(\)/, 'a key toggles sound again');
+  assert.doesNotMatch(src, /textMid\('[^']*\bSOUND\b/, 'the title still names a sound key');
+});
+
+test('SOUND IS A BUTTON IN THE CORNER, AND THE CLOSE BUTTON SITS IN ITS BAND', () => {
+  const body = stripComments(html);
+  const src = stripComments(js);
+  // Inside the stage that wraps the canvas, so it is placed against the playfield and
+  // not against a letterboxed window.
+  assert.match(body, /<div id="stage">\s*<canvas id="screen"[^>]*><\/canvas>\s*<button type="button" id="sound" aria-pressed="false"/,
+    'the sound button is not beside the canvas in the stage');
+  assert.match(body, /data-i18n-aria-label="Sound"/, 'the sound button has no translatable label');
+  assert.match(src, /setAttribute\('aria-pressed', soundOn \? 'true' : 'false'\)/, 'the button never shows its state');
+  // A focused button is where Space goes, and Space is the throttle.
+  assert.match(src, /soundBtn\.addEventListener\('pointerdown', \(e\) => e\.preventDefault\(\)\)/,
+    'tapping the sound button takes focus, and the next Space presses it instead of the gas');
+
+  // Both corner buttons use the same inset, the one that centers a button in the HUD.
+  assert.match(src, /const corner = \(s\) => Math\.max\(4, Math\.round\(\(HUD_H \* s - BUTTON\) \/ 2\)\)/);
+  assert.match(src, /cv\.dataset\.hud = String\(HUD_H\)/, 'the panel cannot find the HUD band to center its button in');
+  const p = stripComments(panel);
+  const place = p.slice(p.indexOf('function placeRiderClose('), p.indexOf('function closeRider('));
+  assert.match(place, /cv\.dataset\.hud/, 'the close button is not placed from the HUD band');
+  const open = p.slice(p.indexOf('function openRider('), p.indexOf('function placeRiderClose('));
+  assert.match(open, /addEventListener\('resize', placeRiderClose\)/, 'a resized panel leaves the close button where it was');
+});
+
+test('THE SOUNDTRACK IS A REAL SCORE, AND IT FITS ITS OWN LOOP', () => {
+  // Generated from a public-domain engraving by scripts/midi-to-rider-score.mjs. A hand
+  // edit that puts a note past the loop would index an empty bucket and throw inside the
+  // render loop, which stops the game, not just the music.
+  const scoreSrc = fs.readFileSync(path.join(ROOT, 'relay-rider-score.js'), 'utf8');
+  assert.match(scoreSrc, /Public domain/, 'the score has lost its provenance');
+  const box = { window: {} };
+  vm.runInNewContext(scoreSrc, box);
+  const score = box.window.RelayRiderScore;
+  assert.ok(score.bpm > 40 && score.bpm < 200, 'bpm ' + score.bpm);
+  assert.equal(score.length % 8, 0, 'the loop is not a whole number of 2/4 bars');
+  for (const voice of ['lead', 'bass']) {
+    const v = score[voice];
+    assert.equal(v.length % 3, 0, voice + ' is not a run of triples');
+    assert.ok(v.length / 3 > 200, voice + ' is too short to be the piece');
+    for (let i = 0; i < v.length; i += 3) {
+      const [at, midi, len] = [v[i], v[i + 1], v[i + 2]];
+      assert.ok(Number.isInteger(at) && at >= 0 && at < score.length, voice + ' note ' + i / 3 + ' starts outside the loop');
+      assert.ok(midi >= 21 && midi <= 108, voice + ' note ' + i / 3 + ' is off the piano');
+      assert.ok(len >= 1, voice + ' note ' + i / 3 + ' has no length');
+    }
+  }
+  // Loaded before the game, which reads it once at startup.
+  const scripts = [...stripComments(html).matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(scripts.indexOf('relay-rider-score.js') !== -1 &&
+    scripts.indexOf('relay-rider-score.js') < scripts.indexOf('relay-rider.js'), 'the score loads after the game that reads it');
 });
 
 test('EVERY POP IS LEGIBLE WHEREVER IT LANDS', () => {
@@ -477,7 +525,7 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
   // integer scale, so the bound has to hold across the whole range of that, not at one
   // number. Both ends are covered: 140 is about the narrowest the scale rule can produce,
   // and a maximized browser tab lands near 240.
-  const ctx = { Math, roadHalf: 0, curveAmp: 0, maxSpeed: 0, scene: 1, W: 160, BOX_W: 9, VERGE: 3 };
+  const ctx = { Math, roadHalf: 0, roadTarget: 0, curveAmp: 0, maxSpeed: 0, scene: 1, W: 160, BOX_W: 9, VERGE: 3 };
   vm.createContext(ctx);
   const lift = (decl) => {
     const at = js.indexOf(decl);
@@ -497,11 +545,14 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
   assert.match(roadMidSrc, /Math\.sin/, 'the curve was lifted without its body');
   vm.runInContext(
     [
+      js.match(/const ROAD_EASE_STEPS = .*/)[0],
+      lift('function fitCurve('),
+      lift('function easeRoad('),
       lift('function applyScene('),
       roadMidSrc,
       js.match(/const roadL = .*/)[0],
       js.match(/const roadR = .*/)[0],
-      'globalThis.out = { applyScene, roadL, roadR };',
+      'globalThis.out = { applyScene, easeRoad, roadL, roadR };',
     ].join('\n'),
     ctx
   );
@@ -509,11 +560,7 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
   // The grid and the planting distance, both checked elsewhere in this file.
   const BOX_W = 9;
   const VERGE = 3;
-  for (const W of [140, 150, 160, 180, 190, 210, 240, 280]) {
-  ctx.W = W;
-  for (let scene = 1; scene <= 25; scene++) {
-    ctx.scene = scene;
-    ctx.out.applyScene();
+  const check = (W, where) => {
     let worst = 0;
     let leftMost = W;
     // Two sines of incommensurate period: sample far enough to catch them in phase.
@@ -521,24 +568,67 @@ test('NO MAILBOX CAN LEAVE THE SCREEN, AT ANY ROAD WIDTH OR PANEL SIZE', () => {
       worst = Math.max(worst, ctx.out.roadR(wy) + VERGE + BOX_W);
       leftMost = Math.min(leftMost, ctx.out.roadL(wy));
     }
-    const where = 'W=' + W + ' scene ' + scene + ': ';
     assert.ok(worst <= W, where + 'a mailbox reaches x=' + worst.toFixed(1) + ', off a ' + W + 'px screen');
     assert.ok(leftMost >= 0, where + 'the road reaches x=' + leftMost.toFixed(1) + ', off the left edge');
     // A road you cannot fit the rig down is not a difficulty curve, it is a wall. The rig
     // is 15 wide and has to have somewhere to be that is not against a box.
     assert.ok(ctx.roadHalf * 2 >= 40, where + 'the road narrowed to ' + (ctx.roadHalf * 2).toFixed(1) + 'px');
+  };
+  for (const W of [140, 150, 160, 180, 190, 210, 240, 280]) {
+  ctx.W = W;
+  for (let scene = 1; scene <= 25; scene++) {
+    ctx.scene = scene;
+    ctx.out.applyScene();
+    check(W, 'W=' + W + ' scene ' + scene + ': ');
+  }
+  // And on the way between two scenes, since a scene change now eases the road rather
+  // than setting it: the start, a third, two thirds, and where it lands.
+  for (let scene = 2; scene <= 8; scene++) {
+    ctx.scene = scene - 1;
+    ctx.out.applyScene();
+    const from = ctx.roadHalf;
+    ctx.scene = scene;
+    ctx.out.applyScene(true);
+    assert.equal(ctx.roadHalf, from, 'W=' + W + ' scene ' + scene + ': a scene change snapped the road');
+    for (let s = 0; s <= 120; s++) {
+      if (s % 30 === 0) check(W, 'W=' + W + ' easing into scene ' + scene + ', step ' + s + ': ');
+      ctx.out.easeRoad();
+    }
+    assert.equal(ctx.roadHalf, ctx.roadTarget, 'W=' + W + ' scene ' + scene + ': the road never arrived');
   }
   }
+});
+
+test('A SCENE CHANGE EASES THE ROAD IN, A RESET DOES NOT', () => {
+  const body = stripComments(js);
+  assert.match(body, /scene\+\+;\s*applyScene\(true\);/, 'a new scene snaps the road narrower in one frame');
+  assert.match(body, /function advance\(\) \{\s*easeRoad\(\);/, 'nothing steps the road toward its target');
+  const reset = body.slice(body.indexOf('function reset()'), body.indexOf('function reset()') + 400);
+  assert.match(reset, /applyScene\(\);/, 'a new run eases in from the last run\'s road');
 });
 
 test('it reads nothing and connects to nothing', () => {
   // The page says so in its own header comment, and a claim in a comment is worth what
   // the test under it is worth. localStorage for a high score is the whole of its state.
-  const src = stripComments(js) + stripComments(html);
+  const src = stripComments(js) + stripComments(html) +
+    stripComments(fs.readFileSync(path.join(ROOT, 'relay-rider-score.js'), 'utf8'));
   for (const forbidden of [/chrome\.storage/, /chrome\.runtime/, /\bfetch\s*\(/, /WebSocket/, /XMLHttpRequest/, /sidecar_settings/]) {
     assert.doesNotMatch(src, forbidden, 'the game touches ' + forbidden + ', which its header says it does not');
   }
   assert.match(src, /localStorage/, 'the high score is not stored at all');
   // No remote anything: a store review treats one <img> from a CDN as a policy problem.
   assert.doesNotMatch(src, /https?:\/\/(?!www\.w3\.org)/, 'the page references a remote URL');
+});
+
+test('PLAYING COUNTS AS USE, SO THE IDLE LOCK WAITS', () => {
+  // Keys go to the frame, not the panel, and the composer's activity ping was the only
+  // one the panel sent, so fifteen minutes of play locked the keystore mid-run. The
+  // panel carries the ping for the game, which stays barred from chrome.runtime above.
+  const body = stripComments(panel);
+  const open = body.slice(body.indexOf('function openRider()'), body.indexOf('function placeRiderClose()'));
+  assert.ok(open.length > 0, 'openRider is gone');
+  assert.match(open, /\['keydown',\s*'pointerdown'\]/, 'the game frame does not report keys and taps');
+  assert.match(open, /frame\.contentWindow\.addEventListener\(type,\s*noteActivity\)/,
+    'input in the game does not re-arm the idle auto-lock');
+  assert.match(body, /function noteActivity\(\)[\s\S]{0,200}SIDECAR_ACTIVITY/, 'noteActivity no longer pings the background');
 });

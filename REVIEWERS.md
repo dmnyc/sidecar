@@ -154,7 +154,8 @@ makes no network requests and needs no image assets:
 Line numbers are for the 1.15.0 package and move between releases; the rule to apply
 is the shape, not the line. `sidepanel.js` no longer has a line long enough to
 qualify. `emoji-data.js` has one very long line and is covered in section 4 above,
-because it is generated data rather than first-party source.
+because it is generated data rather than first-party source, and so is
+`relay-rider-score.js`, a table of note numbers covered in section 6.
 
 Every one is a single string of SVG coordinates. No first-party JavaScript in
 this repository is minified, transpiled, concatenated, or otherwise
@@ -162,7 +163,7 @@ machine-generated.
 
 ## 6. Relay Rider, the hidden game
 
-`relay-rider.html` and `relay-rider.js` (1087 lines) are a small game, reached
+`relay-rider.html` and `relay-rider.js` (1215 lines) are a small game, reached
 only from the rig at the foot of the panel's About card. It is unusual enough in a
 signing extension to be worth naming rather than leaving to be discovered in the
 package.
@@ -175,8 +176,13 @@ It is deliberately inert, and every part of that is checkable in the file:
   all, so it is covered by §7 below without qualification.
 - Not listed in `web_accessible_resources` (the manifest key is absent entirely),
   so no web page can reach it. The panel loads it in a same-origin iframe.
-- The only thing it persists is a high score, in its own page's `localStorage`.
-  No key material, no account data, no user content.
+- The only things it persists are a high score and a sound on/off flag, in its
+  own page's `localStorage`. No key material, no account data, no user content.
+- `relay-rider-score.js` is its soundtrack, and it is data: one assignment of a
+  note table (Scott Joplin's "The Strenuous Life", 1902, public domain), generated
+  from a MIDI rendering of the Mutopia Project's public-domain engraving by
+  `scripts/midi-to-rider-score.mjs`. It is played on Web Audio oscillators in the
+  page; there are no audio files and nothing is fetched.
 
 `test/relay-rider.test.js` asserts the inertness so a later edit cannot quietly
 introduce any of the above, and the 2026-09-13 security audit in
