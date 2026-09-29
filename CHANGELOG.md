@@ -7,7 +7,7 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
-## [Unreleased]
+## [1.15.2] — 2026-09-29
 
 ### Fixed
 - **Open tabs stay connected when Sidecar restarts.** An update, turning Sidecar off and on, or the browser repairing the install cut every open tab off from Sidecar, and the browser does not reconnect tabs that were already open. A client kept open for days, such as Jumble, then failed every signature with "Sidecar was updated — reload this page to reconnect", even on days with no release. Sidecar now reconnects open tabs itself after any such restart, so they keep signing without a reload. "Sidecar was updated" now only appears when that is what happened. (#400)
