@@ -15,6 +15,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -102,6 +103,7 @@ function harness(profile) {
     showZapFace: () => {},
     copyPlain: async () => {},
   };
+  withI18n(ctx); // the wallet's strings go through t(), tn() and tSec()
   vm.createContext(ctx);
   vm.runInContext([
     lift('function parseZapRequest('),

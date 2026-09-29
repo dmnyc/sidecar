@@ -132,7 +132,7 @@ test('A FRAME IS ASKED FOR, AND THE BADGE MOVES ASIDE WHEN IT ARRIVES', () => {
 });
 
 test('the broken message names what actually failed', () => {
-  assert.match(bare(panel), /'This ' \+ \(m\.isVideo \? 'video' : 'image'\)/,
+  assert.match(bare(panel), /m\.isVideo\s*\n?\s*\? t\('This video did not load\. [^']*'\)\s*\n?\s*: t\('This image did not load\. [^']*'\)/,
     'a failed video still reports itself as an image');
 });
 

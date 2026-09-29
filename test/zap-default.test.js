@@ -335,7 +335,7 @@ test('a preset tap is heard, and Settings is kept honest', () => {
 // ---- the setting ----------------------------------------------------------------------
 
 test('the setting is in Settings, and saved', () => {
-  assert.match(html, /<h3>Default zap amount<\/h3>/, 'no setting for it');
+  assert.match(html, /<h3[^>]*>Default zap amount<\/h3>/, 'no setting for it');
   assert.match(html, /id="default-zap"/, 'the input is gone');
   const src = stripComments(source);
   assert.match(src, /SIDECAR_SET_ZAP_DEFAULT_FOR/, 'the amount is never persisted');

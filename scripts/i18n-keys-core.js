@@ -34,9 +34,11 @@ function codeOnly(src) {
 function extractFromJs(src) {
   const code = codeOnly(src);
   const keys = [];
-  // t('Copy') — the name t alone, not something.t or format(
-  for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$.])t\(\s*` + LIT, 'g'))) {
-    keys.push({ key: unquote(m[1]) });
+  // t('Copy') — the name t alone, not something.t or format(. tSec('…') is the same call,
+  // marked security-critical: those keys need a native speaker's review before a language
+  // ships (docs/i18n-design.md §3.7).
+  for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$.])(t|tSec)\(\s*` + LIT, 'g'))) {
+    keys.push(m[1] === 'tSec' ? { key: unquote(m[2]), security: true } : { key: unquote(m[2]) });
   }
   // tn('{{count}} relay', '{{count}} relays', n)
   for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$.])tn\(\s*` + LIT + String.raw`\s*,\s*` + LIT, 'g'))) {
@@ -50,17 +52,23 @@ function extractFromJs(src) {
 function nonLiteralCalls(src) {
   const code = codeOnly(src);
   const out = [];
-  for (const m of code.matchAll(/(?<![\w$.])(tn?)\(\s*([^'"\s)])/g)) {
+  for (const m of code.matchAll(/(?<![\w$.])(tn?|tSec)\(\s*([^'"\s)])/g)) {
     const line = code.slice(0, m.index).split('\n').length;
     out.push(line + ': ' + code.slice(m.index, code.indexOf('\n', m.index)).trim());
   }
   return out;
 }
 
+// data-i18n="…" and its attribute forms. A tag that also carries data-i18n-review is
+// the HTML form of tSec: its keys are security-critical.
 function extractFromHtml(src) {
   const keys = [];
-  for (const m of src.matchAll(/data-i18n(?:-[a-z-]+)?="([^"]*)"/g)) {
-    keys.push({ key: m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') });
+  const decode = (v) => v.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  for (const tag of src.matchAll(/<[a-z][^>]*\bdata-i18n[^>]*>/gi)) {
+    const review = /\bdata-i18n-review\b/.test(tag[0]);
+    for (const m of tag[0].matchAll(/data-i18n(?:-(?!review\b)[a-z-]+)?="([^"]*)"/g)) {
+      keys.push(review ? { key: decode(m[1]), security: true } : { key: decode(m[1]) });
+    }
   }
   return keys;
 }
@@ -68,7 +76,12 @@ function extractFromHtml(src) {
 // Every key, deduplicated, in first-seen order: { key, other?, plural? }.
 function allKeys(root = ROOT) {
   const seen = new Map();
-  const add = (k) => { if (!seen.has(k.key)) seen.set(k.key, k); };
+  // A key used as tSec anywhere is security-critical everywhere it appears.
+  const add = (k) => {
+    const had = seen.get(k.key);
+    if (!had) seen.set(k.key, k);
+    else if (k.security) had.security = true;
+  };
   for (const f of JS_FILES) {
     const p = path.join(root, f);
     if (fs.existsSync(p)) extractFromJs(fs.readFileSync(p, 'utf8')).forEach(add);

@@ -19,6 +19,8 @@
 (function () {
   const SC = window.SidecarCore;
   const { h, icon, logoSrcFor, avatarPhSrc } = SC;
+  const I18N = window.SidecarI18n;
+  const { t, tn } = I18N;
   const NT = window.NostrTools;
   const $ = (id) => document.getElementById(id);
 
@@ -30,15 +32,15 @@
   function bg(message, timeoutMs) {
     return new Promise((resolve, reject) => {
       let done = false;
-      const finish = (fn, arg) => { if (!done) { done = true; clearTimeout(t); fn(arg); } };
-      const t = setTimeout(
-        () => finish(reject, new Error('Sidecar’s background worker did not answer.')),
+      const finish = (fn, arg) => { if (!done) { done = true; clearTimeout(timer); fn(arg); } };
+      const timer = setTimeout(
+        () => finish(reject, new Error(t('Sidecar’s background worker did not respond.'))),
         timeoutMs || BG_TIMEOUT_MS
       );
       try {
         chrome.runtime.sendMessage(message, (resp) => {
           const err = chrome.runtime.lastError;
-          if (err) return finish(reject, new Error(err.message || 'Sidecar’s background worker is unavailable.'));
+          if (err) return finish(reject, new Error(err.message || t('Sidecar’s background worker is unavailable.')));
           finish(resolve, resp);
         });
       } catch (e) {
@@ -48,7 +50,7 @@
   }
   async function call(message) {
     const resp = await bg(message);
-    if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Request failed');
+    if (!resp || !resp.ok) throw new Error((resp && resp.error) || t('Request failed'));
     return resp.result;
   }
 
@@ -59,15 +61,15 @@
   // caller here, and copying them would be copying maintenance rather than behavior.
   function toast(message, kind) {
     const host = $('toasts');
-    const t = h('div', { className: 'toast toast-' + (kind === 'error' ? 'error' : 'success') });
-    t.append(icon(kind === 'error' ? 'alert' : 'check'));
-    t.append(h('span', { textContent: message }));
-    host.append(t);
-    requestAnimationFrame(() => t.classList.add('show'));
-    const dismiss = () => { t.classList.remove('show'); setTimeout(() => t.remove(), 250); };
+    const el = h('div', { className: 'toast toast-' + (kind === 'error' ? 'error' : 'success') });
+    el.append(icon(kind === 'error' ? 'alert' : 'check'));
+    el.append(h('span', { textContent: message }));
+    host.append(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    const dismiss = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); };
     const timer = setTimeout(dismiss, 3600);
-    t.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
-    return t;
+    el.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
+    return el;
   }
 
   // ---- state ----
@@ -254,10 +256,10 @@
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
-      textContent: 'Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.',
+      textContent: t('Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.'),
     }));
-    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: 'Search everyone' });
-    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: 'Just my follows' });
+    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: t('Search everyone') });
+    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: t('Just my follows') });
     const pick = (on) => (e) => { e.preventDefault(); e.stopPropagation(); onDecided(on); };
     yes.addEventListener('mousedown', pick(true));
     no.addEventListener('mousedown', pick(false));
@@ -393,12 +395,12 @@
     paintPostButton();
     const status = $('compose-status');
     if (posting) return; // it is mid-flight and has something more urgent to say
-    status.textContent = (state && state.locked) ? 'Sidecar is locked.' : '';
+    status.textContent = (state && state.locked) ? t('Sidecar is locked.') : '';
   }
 
   function paintWho() {
     const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
-    $('compose-name').textContent = acct.name || shortNpub(acct.npub) || 'Your account';
+    $('compose-name').textContent = acct.name || shortNpub(acct.npub) || t('Your account');
     applyAvatar($('compose-av'), acct);
   }
 
@@ -450,7 +452,7 @@
     renderThumbs();
     paintCount();
     const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
-    toast('Now writing as ' + (acct.name || shortNpub(acct.npub) || 'another account'), 'success');
+    toast(t('Now writing as {{name}}', { name: acct.name || shortNpub(acct.npub) || t('another account') }), 'success');
   }
 
   function paintCount() {
@@ -506,9 +508,9 @@
       // Here the card's own header stays up: a second face and a second name six lines
       // below the first is the same sentence twice.
       modal: pane, secs,
-      title: 'Posting your note',
+      title: t('Posting your note'),
       preview,
-      confirmLabel: 'Post now',
+      confirmLabel: t('Post now'),
       onFire: () => { restore(); doPost(); },
       onCancel: restore,
     });
@@ -572,16 +574,16 @@
         template = rest;
         mineDone();
       }
-      status.textContent = 'Signing…';
+      status.textContent = t('Signing…');
       const signed = await call({
         type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey,
       });
-      status.textContent = 'Publishing…';
+      status.textContent = t('Publishing…');
       const relays = await targetRelays();
-      if (!relays.length) throw new Error('No relays configured (add some in Settings)');
+      if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
       const results = await Promise.allSettled(pool().publish(relays, signed));
       const ok = results.filter((r) => r.status === 'fulfilled').length;
-      if (!ok) throw new Error('No relay accepted the note. It is still saved as a draft.');
+      if (!ok) throw new Error(t('No relay accepted the note. It is still saved as a draft.'));
       // The draft goes only once the note is actually out. A cleared draft plus a failed
       // publish is the one outcome worth engineering against.
       // TELL THE PANEL, if one is open. It filters the notification bell against its own
@@ -616,8 +618,8 @@
         // It locked between the last paint and Post being pressed. The button and the
         // status line say so from here on; the toast is for the attempt that just failed.
         if (state) state.locked = true;
-        toast('Sidecar is locked. Unlock it, then press Post again.', 'error');
-      } else toast(e.message || 'Could not post', 'error');
+        toast(t('Sidecar is locked. Unlock it, then press Post again.'), 'error');
+      } else toast(e.message || t('Could not post'), 'error');
     }
     setMining(false);
     posting = false;
@@ -639,7 +641,7 @@
   function paintPostButton() {
     const post = $('compose-post');
     if (mining) {
-      post.textContent = 'Stop mining';
+      post.textContent = t('Stop mining');
       post.className = 'secondary compose-post';
       post.disabled = false;
       return;
@@ -647,12 +649,12 @@
     if (state && state.locked) {
       // Inert, and saying so. There is no route from this page to the unlock, so a button
       // that looked pressable would be the third thing today that does nothing when it is.
-      post.textContent = 'Unlock to post';
+      post.textContent = t('Unlock to post');
       post.className = 'secondary compose-post';
       post.disabled = true;
       return;
     }
-    post.textContent = 'Post';
+    post.textContent = t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
     post.disabled = posting || (!n && !draft.media.length);
@@ -711,11 +713,11 @@
     const glyph = icon('pickaxe');
     glyph.classList.add('mining-glyph');
     const line = h('div', { className: 'mining-line' });
-    const note = h('p', { className: 'hint', textContent: 'Stopping keeps your draft.' });
-    const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
+    const note = h('p', { className: 'hint', textContent: t('Stopping keeps your draft.') });
+    const stop = h('button', { className: 'secondary', type: 'button', textContent: t('Stop mining') });
     stop.addEventListener('click', () => composer.powCancel());
     mineCard.append(
-      h('h2', { className: 'compose-done-title', textContent: 'Mining proof of work' }),
+      h('h2', { className: 'compose-done-title', textContent: t('Mining proof of work') }),
       h('div', { className: 'mining-body' }, [glyph, line, note]),
       h('div', { className: 'compose-done-actions' }, [stop])
     );
@@ -760,7 +762,7 @@
     const stop = mineCard.querySelector('.compose-done-actions button');
     if (stop) stop.disabled = true;
     const line = mineCard.querySelector('.mining-line');
-    if (line) line.textContent = 'Found it. Posting…';
+    if (line) line.textContent = t('Found it. Posting…');
   }
 
   let editorApi = null;
@@ -803,10 +805,10 @@
     mark.append(icon('check'));
     sheet.append(
       mark,
-      h('h2', { className: 'compose-done-title', textContent: 'Your note is live.' }),
+      h('h2', { className: 'compose-done-title', textContent: t('Your note is live.') }),
       h('p', {
         className: 'compose-done-sub',
-        textContent: 'Published to ' + relayCount + (relayCount === 1 ? ' relay.' : ' relays.'),
+        textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', relayCount),
       })
     );
 
@@ -817,15 +819,15 @@
       open.href = href;
       open.target = '_blank';
       open.rel = 'noreferrer noopener';
-      open.textContent = 'Open in ' + label;
+      open.textContent = t('Open in {{client}}', { client: label });
       row.append(open);
     }
-    const again = h('button', { className: 'mini ghost', type: 'button', textContent: 'Write another' });
+    const again = h('button', { className: 'mini ghost', type: 'button', textContent: t('Write another') });
     again.addEventListener('click', () => window.location.reload());
     row.append(again);
     sheet.append(row);
 
-    const done = h('button', { className: 'compose-cancel', type: 'button', textContent: 'Close this tab' });
+    const done = h('button', { className: 'compose-cancel', type: 'button', textContent: t('Close this tab') });
     done.addEventListener('click', () => window.close());
     sheet.append(done);
   }
@@ -894,7 +896,7 @@
         // ✓ ALT once it is. The tag itself only goes out for described images.
         const alt = h('button', {
           className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
-          title: m.alt ? 'Edit the image description' : 'Add a description',
+          title: m.alt ? t('Edit the image description') : t('Add a description'),
           type: 'button',
         });
         alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
@@ -921,10 +923,10 @@
           });
           return b;
         };
-        if (i > 0) cell.append(step(-1, 'Move earlier'));
-        if (i < draft.media.length - 1) cell.append(step(1, 'Move later'));
+        if (i > 0) cell.append(step(-1, t('Move earlier')));
+        if (i < draft.media.length - 1) cell.append(step(1, t('Move later')));
       }
-      const rm = h('button', { className: 'compose-thumb-x', title: 'Remove', type: 'button' });
+      const rm = h('button', { className: 'compose-thumb-x', title: t('Remove'), type: 'button' });
       rm.append(icon('trash'));
       rm.addEventListener('click', () => {
         // The URL lives in the media slot alone now; taking the thumb off is just
@@ -1005,7 +1007,7 @@
     fileInput.accept = 'image/*,video/*';
     fileInput.style.display = 'none';
     const addBtn = h('button', { className: 'mini compose-add', type: 'button' });
-    addBtn.append(icon('camera'), h('span', { textContent: 'Media' }));
+    addBtn.append(icon('camera'), h('span', { textContent: t('Media') }));
     addBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0];
@@ -1014,7 +1016,7 @@
       addBtn.disabled = true;
       const lbl = addBtn.querySelector('span');
       const prev = lbl.textContent;
-      lbl.textContent = 'Uploading…';
+      lbl.textContent = t('Uploading…');
       try {
         const url = await composer.uploadMedia(file, state.activePubkey);
         // Into the media slot only. The URL is appended to the content at publish
@@ -1042,8 +1044,8 @@
     powBtn.append(icon('pickaxe'), powLabel);
     function paintPow() {
       const lvl = powForThisPost.on ? SC.powLevelFor(powForThisPost.bits) : null;
-      powLabel.textContent = lvl ? 'PoW ' + lvl.bits : 'PoW off';
-      powBtn.title = lvl ? lvl.cost : 'Off. Tap to mine one into this post.';
+      powLabel.textContent = lvl ? t('PoW {{bits}}', { bits: lvl.bits }) : t('PoW off');
+      powBtn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
       powBtn.classList.toggle('compose-add-on', !!lvl);
     }
     repaintPow = paintPow;
@@ -1082,7 +1084,7 @@
       // composed string.
       const body = SC.composeNoteContent(draft.text, draft.media);
       if (!body) {
-        pane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
+        pane.append(h('p', { className: 'hint', textContent: t('Nothing to preview yet.') }));
         return;
       }
       const box = h('div', { className: 'preview-body' });
@@ -1094,10 +1096,13 @@
   }
 
   async function boot() {
+    // The language file first, as every page does, then the static markup.
+    try { await I18N.ready; } catch (_) {}
+    I18N.applyDom();
     state = await call({ type: 'SIDECAR_GET_STATE' });
     if (!state || !state.activePubkey) {
       document.body.innerHTML = '';
-      document.body.append(h('p', { className: 'hint compose-empty', textContent: 'Open Sidecar and unlock it, then expand the composer again.' }));
+      document.body.append(h('p', { className: 'hint compose-empty', textContent: t('Open Sidecar and unlock it, then expand the composer again.') }));
       return;
     }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
@@ -1117,7 +1122,7 @@
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
 
     editorApi = composer.createMentionEditor({
-      placeholder: 'What’s on your mind?',
+      placeholder: t('What’s on your mind?'),
       onChange: (text) => { draft.text = text; paintCount(); scheduleSave(); },
       // A URL pasted on its own becomes a real attachment: cut from the prose,
       // into the strip, appended at publish — as if it had been uploaded.
@@ -1166,7 +1171,7 @@
       if (state) state.locked = msg.event === 'locked';
       paintLocked();
       if (msg.event === 'unlocked') {
-        toast('Unlocked. Your draft is still here.', 'success');
+        toast(t('Unlocked. Your draft is still here.'), 'success');
         // AND SAVED, NOW THAT THE STORE ANSWERS. A save attempted while the store was
         // locked fails, and persistDraft swallows it on purpose — but everything typed
         // since the lock existed only in this page's memory, so the unlock is the
@@ -1209,6 +1214,6 @@
 
   boot().catch((e) => {
     document.body.innerHTML = '';
-    document.body.append(h('p', { className: 'hint compose-empty', textContent: e.message || 'Sidecar could not open the composer.' }));
+    document.body.append(h('p', { className: 'hint compose-empty', textContent: e.message || t('Sidecar could not open the composer.') }));
   });
 })();

@@ -23,6 +23,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -33,7 +34,7 @@ function lift(pattern, label) {
   return m[0];
 }
 
-const ctx = { console, Date, Math, Number, Set, Map, Array };
+const ctx = withI18n({ console, Date, Math, Number, Set, Map, Array });
 vm.createContext(ctx);
 vm.runInContext(
   lift(/const POLL_RESPONSE_KIND = \d+;/, 'POLL_RESPONSE_KIND') + '\n' +

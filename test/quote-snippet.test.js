@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n.js');
 
 // composer-core.js is loaded beside the panel: the preview renderer, the uploader and
 // the proof-of-work miner moved there so the expanded composer page could share them.
@@ -25,7 +26,7 @@ function lift(pattern, label) {
   if (!m) throw new Error('Could not find ' + label + ' in sidepanel.js');
   return m[0];
 }
-const ctx = {};
+const ctx = withI18n({});
 vm.createContext(ctx);
 vm.runInContext(
   // The REAL IMG_EXT, lifted — a local mirror could drift from sidepanel.js and
@@ -122,6 +123,7 @@ const rctx = {
   resolveMentions: () => {},
   resolveQuotePreviews: () => {},
 };
+withI18n(rctx);
 vm.createContext(rctx);
 vm.runInContext(
   lift(/const IMG_EXT = [^;]+;/, 'IMG_EXT') + '\n' +

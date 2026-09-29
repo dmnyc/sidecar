@@ -31,13 +31,17 @@ function englishI18n() {
   return ctx.SidecarI18n;
 }
 
-// Adds I18N, t and tn to a context object (before or after vm.createContext), and
+// Adds I18N, t, tn and tSec to a context object (before or after vm.createContext), and
 // returns it.
 function withI18n(ctx) {
   const I18N = englishI18n();
   ctx.I18N = I18N;
   ctx.t = I18N.t;
   ctx.tn = I18N.tn;
+  ctx.tSec = I18N.tSec;
+  // Under the name the pages read it by, for code that runs whole (composer-core.js takes
+  // window.SidecarI18n, and a context whose window is itself finds it here).
+  ctx.SidecarI18n = I18N;
   return ctx;
 }
 

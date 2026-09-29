@@ -29,6 +29,10 @@ import math, random
 
 # ---- Wabi-sabi -----------------------------------------------------------------------
 KW, KH = 520, 1040              # portrait, taller than a panel, so the break never visibly repeats
+# The WIDE break, for the full-tab composer: the 520 tile repeats three times across a
+# 1440px tab, and three copies of one break read as wallpaper. This is its own bowl,
+# broken the same way at the same weights, over an area a desktop window fits inside.
+WIDE_KW, WIDE_KH = 1920, 1200
 # The seams are SOLID, never translucent: overlapping translucent shapes stack wherever
 # they meet, and that stacking read as patches. Their brightness is capped by the text
 # laid over them (hints sit directly on this field): test/theme-svg-assets.test.js holds
@@ -216,17 +220,28 @@ def fracture(seed):
     global rng
     rng = random.Random(seed)
     net, cracks = Net(), []
-    # Four main breaks, laid in different directions from different quarters of the
-    # tile: a bowl breaks into a few large shards, not into gravel.
-    starts = ((0.0, 0.4, 0.04, 0.18, rng.uniform(0.15, 0.45)),
-              (0.35, 0.65, 0.26, 0.44, rng.uniform(1.3, 1.8)),
-              (0.0, 0.3, 0.52, 0.68, rng.uniform(0.2, 0.55)),
-              (0.7, 1.0, 0.76, 0.94, rng.uniform(2.35, 2.85)))
+    if (KW, KH) == (520, 1040):
+        # Four main breaks, laid in different directions from different quarters of the
+        # tile: a bowl breaks into a few large shards, not into gravel.
+        starts = ((0.0, 0.4, 0.04, 0.18, rng.uniform(0.15, 0.45)),
+                  (0.35, 0.65, 0.26, 0.44, rng.uniform(1.3, 1.8)),
+                  (0.0, 0.3, 0.52, 0.68, rng.uniform(0.2, 0.55)),
+                  (0.7, 1.0, 0.76, 0.94, rng.uniform(2.35, 2.85)))
+    else:
+        # The wide bowl: the panel tile's density of main breaks (four in 520 x 1040, one
+        # per 135,000 square px), each started in its own cell of a grid over the sheet
+        # and sent off in its own direction, so no two shards line up.
+        # Started in the middle half of each cell, not anywhere in it: two neighbours
+        # starting at their shared edge left the quadrant beside them bare.
+        cols, rows = round(KW / 400), round(KH / 400)
+        starts = tuple(((c + 0.25) / cols, (c + 0.75) / cols, (r + 0.25) / rows, (r + 0.75) / rows,
+                        rng.uniform(0, math.tau))
+                       for c in range(cols) for r in range(rows))
     for x0, x1, y0, y1, heading in starts:
         grow(net, cracks, rng.uniform(x0, x1) * KW, rng.uniform(y0, y1) * KH, heading,
              rng.uniform(900, 1300), rng.uniform(1.8, 3.4), 0)
     # Hairline crazing between them: short, faint, tapered at both ends.
-    for _ in range(10):
+    for _ in range(round(10 * KW * KH / (520 * 1040))):
         grow(net, cracks, rng.uniform(0, KW), rng.uniform(0, KH), rng.uniform(0, math.tau),
              rng.uniform(40, 130), rng.uniform(0.45, 0.7), 2)
     return cracks
@@ -242,7 +257,7 @@ def fits(cracks):
 def largest_gap(cracks):
     """The widest stretch of bare glaze, in px: the distance from the emptiest point of
     the tile to the nearest seam, measured on the torus the tile wraps into."""
-    step = 10
+    step = 10 if KW * KH <= 520 * 1040 else 24   # the wide sheet a little coarser, or it takes many minutes
     points = [p for c in cracks if c['base'] > 0.8 for p in c['pts'][::3]]
     worst = 0.0
     for gx in range(0, KW, step):
@@ -258,7 +273,9 @@ def largest_gap(cracks):
 SEED_TRIES = range(1590, 1630)   # 1590: when Rikyu's tea bowls were being made
 
 
-def wabi_sabi():
+def wabi_sabi(size=None):
+    global KW, KH
+    KW, KH = size or (520, 1040)
     def score(seed):
         cracks = fracture(seed)
         return largest_gap(cracks) if fits(cracks) else math.inf
@@ -269,7 +286,7 @@ def wabi_sabi():
     seams = [f'<path d="{d}"/>' for d in (outline(c) for c in cracks) if d]
 
     spots = []
-    for _ in range(190):
+    for _ in range(round(190 * KW * KH / (520 * 1040))):
         x, y = rng.uniform(0, KW), rng.uniform(0, KH)
         if rng.random() < 0.7:
             spots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{rng.uniform(0.5, 1.6):.1f}" fill="{RUST}"/>')
@@ -347,6 +364,8 @@ def ukiyo_e():
 if __name__ == '__main__':
     with open('themes/wabi-sabi-seams.svg', 'w') as f:
         f.write(wabi_sabi())
+    with open('themes/wabi-sabi-seams-wide.svg', 'w') as f:
+        f.write(wabi_sabi((WIDE_KW, WIDE_KH)))
     with open('themes/ukiyo-e-seigaiha.svg', 'w') as f:
         f.write(ukiyo_e())
-    print('wrote themes/wabi-sabi-seams.svg and themes/ukiyo-e-seigaiha.svg')
+    print('wrote themes/wabi-sabi-seams.svg (and -wide) and themes/ukiyo-e-seigaiha.svg')

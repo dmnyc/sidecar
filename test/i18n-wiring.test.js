@@ -112,3 +112,23 @@ test('plural suffixes are only the CLDR forms', () => {
     }
   }
 });
+
+test('A TRANSLATED PAGE WAITS FOR ITS LANGUAGE FILE BEFORE IT DRAWS', () => {
+  // The language code is known synchronously, but a real language's strings are a
+  // fetch. The panel used to apply its data-i18n labels and render before that landed,
+  // so everything it drew first stayed English; the pseudo-locale, which loads no file,
+  // could never show it. Each page awaits I18N.ready before applyDom and its first draw.
+  const strip = (s) => s.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+  const panel = strip(read('sidepanel.js'));
+  const boot = panel.match(/const boot = async \(\) => \{[\s\S]*?\n  \};/);
+  assert.ok(boot, 'sidepanel.js has no boot that waits');
+  const wait = boot[0].indexOf('await I18N.ready');
+  assert.notEqual(wait, -1, 'the panel boot does not wait for the language file');
+  assert.ok(wait < boot[0].indexOf('I18N.applyDom()'), 'the panel applies labels before the file loads');
+  assert.ok(wait < boot[0].indexOf('refresh()'), 'the panel draws before the file loads');
+  assert.doesNotMatch(panel.slice(panel.indexOf('// ---- boot ----')), /^\s*I18N\.applyDom\(\);/m, 'an unguarded applyDom is back at boot');
+  for (const f of ['prompt.js', 'welcome.js']) {
+    const src = strip(read(f));
+    assert.ok(src.indexOf('await I18N.ready') !== -1 && src.indexOf('await I18N.ready') < src.indexOf('I18N.applyDom()'), f + ' applies labels before the file loads');
+  }
+});

@@ -425,6 +425,40 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
+// ---- reconnect tabs that outlived an extension restart ----
+// An update, a disable/enable, or the browser repairing the install cuts every open tab's
+// content script off from the extension, and the browser does not inject fresh ones into
+// tabs that were already open. A client tab kept open for days (Jumble) then failed every
+// signature with "Sidecar was updated — reload this page", on days with no release at all,
+// until the user reloaded it.
+//
+// storage.session is cleared by exactly those restarts (and by a browser restart), and
+// survives the worker's ordinary idle shutdowns, so an empty marker means this worker is
+// the first since one. It then pings each open tab: only a content script still connected
+// to the extension can answer, and a tab that cannot gets a fresh copy. The MAIN-world
+// provider (nostr-provider.js) is page script and survives, so it is not re-injected; the
+// old content.js stands aside for the new one (see handOff in content.js).
+const RECONNECT_MARKER = 'contentScriptsReconnected';
+async function reconnectOpenTabs() {
+  if (!chrome.scripting || !chrome.storage.session) return;
+  const got = await chrome.storage.session.get(RECONNECT_MARKER);
+  if (got[RECONNECT_MARKER]) return;
+  await chrome.storage.session.set({ [RECONNECT_MARKER]: true });
+  // Loaded tabs only: one still loading gets the manifest's own injection, and a
+  // discarded one reloads from scratch when it comes back.
+  const tabs = await chrome.tabs.query({ url: 'https://*/*', status: 'complete', discarded: false });
+  await Promise.all(tabs.map(async (tab) => {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'SIDECAR_PING' });
+    } catch (_) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+      } catch (_) { /* a page the browser does not let extensions touch */ }
+    }
+  }));
+}
+reconnectOpenTabs().catch(() => {});
+
 // Numeric compare, part by part, so 1.14.0 beats 1.9.1. A string compare gets that pair
 // backwards, and it is exactly the pair this will meet.
 function isNewerVersion(a, b) {
@@ -1605,7 +1639,11 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // destructive warning is showing: that screen is asking for full attention on
         // what's about to be lost, and "trust this site to stop asking" is the last
         // advice it should be carrying.
-        nudgeTrust: !destructive && (await shouldNudgeTrust(host, activePubkey)),
+        //
+        // And only on a card that offers Trust at all. A shared-identity confirm hides the
+        // button (trusting the site cannot stop a question asked on every sign), and so does
+        // a pure unlock (nothing to approve), so a nudge there points at nothing.
+        nudgeTrust: !destructive && !sharedIdentity && needApproval && (await shouldNudgeTrust(host, activePubkey)),
         // The "wrong account" escape: offer the account list on any content sign where
         // the user holds more than one account and no switcher is already on screen.
         //

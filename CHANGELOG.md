@@ -7,6 +7,24 @@ Release practice: the latest release's highlights are also summarized in-app, in
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
 Update that section alongside this file as part of every release.
 
+## [Unreleased]
+
+### Fixed
+- **Open tabs stay connected when Sidecar restarts.** An update, turning Sidecar off and on, or the browser repairing the install cut every open tab off from Sidecar, and the browser does not reconnect tabs that were already open. A client kept open for days, such as Jumble, then failed every signature with "Sidecar was updated — reload this page to reconnect", even on days with no release. Sidecar now reconnects open tabs itself after any such restart, so they keep signing without a reload. "Sidecar was updated" now only appears when that is what happened. (#400)
+
+## [1.15.1] — 2026-09-28
+
+### Fixed
+- **The expanded composer's text field is readable in Industria.** The composer that opens in a tab writes into its own editor, which is not an input field, so it missed the rule that gives each theme's fields their color and fell back to the default dark purple. In Industria, a light theme, that put dark text on a dark field. Industria and Metropolis now give it their own field color.
+- **The expanded composer's backgrounds are drawn at the panel's scale.** Every theme's background is drawn for a side panel about 360px wide, and several were sized to the page, so a tab four times as wide drew them four times as large. Constellation now lays a wider plate of the same sky, Wabi-sabi a larger break that does not repeat across a desktop window, Metropolis its fan at close to the panel's weight, and Populuxe its tile at a panel's width.
+- **A stray line no longer runs across Constellation's icon row.** It was the scale rule engraved along the top of each star plate, which the panel's top bar sits over.
+- **Refreshing the wallet no longer blinks the history away.** Refresh redrew the whole card and list, so every press emptied the history and filled it again. It now updates the balance in place and adds new transactions to the top of the list, and a history that failed to load loads when you refresh. (#389)
+- **"Approving this often? Trust this site" only appears beside a Trust button.** It showed on approvals that hide Trust, such as a site signed in with more than one of your accounts, where trusting the site cannot stop the question. (#394)
+
+### Changed
+- **Film Noir is strips of film laid across each other.** Each strip is tipped a few degrees off true and overlaps its neighbors, casting a soft shadow where it lies over one, in the panel and the expanded composer alike. It replaces a single frame at the panel's width, which turned into a grid on any wider page.
+- **Speakeasy's expanded composer has the same dark top bar** as the guide and the app directory.
+
 ## [1.15.0] — 2026-09-27
 
 ### Added

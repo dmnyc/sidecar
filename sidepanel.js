@@ -13,7 +13,7 @@
   // this file. Keys are the English text, so t('Copy') is "Copy" until a locale says
   // otherwise; tn() carries a plural's English "other" form inline.
   const I18N = window.SidecarI18n;
-  const { t, tn } = I18N;
+  const { t, tn, tSec } = I18N;
   const { TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls } = window.SidecarCore;
   // Which cut of the logo and the avatar garnish a theme wants. There too because the
@@ -1124,10 +1124,11 @@
       // cleared on browser close. Without saying so, "Never" reads as broken.
       call({ type: 'SIDECAR_GET_SETTINGS' })
         .then((s) => {
-          if (s && s.autoLockMinutes === 0) {
-            $('view-lock').querySelector('.lede').textContent =
-              'Locked since your browser closed. Enter your PIN to unlock your accounts.';
-          }
+          // Both branches set it: the node outlives the setting, so a Never lede left
+          // behind would still be there after a switch to a timed lock.
+          $('view-lock').querySelector('.lede').textContent = s && s.autoLockMinutes === 0
+            ? t('Locked since your browser closed. Enter your PIN to unlock.')
+            : t('Enter your PIN to unlock.');
         })
         .catch(() => {});
       setTimeout(() => $('unlock-pin').focus(), 50);
@@ -1201,15 +1202,15 @@
     err.textContent = '';
     const pin = $('ob-pin').value;
     const pin2 = $('ob-pin2').value;
-    if (pin.length < MIN_PIN_LEN) return (err.textContent = `Use at least ${MIN_PIN_LEN} characters.`);
-    if (pin.length > MAX_PIN_LEN) return (err.textContent = `Use at most ${MAX_PIN_LEN} characters.`);
-    if (pin !== pin2) return (err.textContent = 'PINs do not match.');
+    if (pin.length < MIN_PIN_LEN) return (err.textContent = t('Use at least {{count}} characters.', { count: MIN_PIN_LEN }));
+    if (pin.length > MAX_PIN_LEN) return (err.textContent = t('Use at most {{count}} characters.', { count: MAX_PIN_LEN }));
+    if (pin !== pin2) return (err.textContent = t('PINs do not match.'));
     try {
       await call({ type: 'SIDECAR_INIT', pin });
       // Hold the welcome/empty-state view behind this reminder until it's dismissed.
       pinReminderModal(async () => {
         await refresh();
-        toast('Keystore created', 'success');
+        toast(t('Keystore created'), 'success');
       });
     } catch (e) {
       err.textContent = e.message;
@@ -1227,12 +1228,14 @@
   function unlockNotice(remaining) {
     const low = remaining != null && remaining <= 5;
     const note = h('div', { className: 'unlock-note' + (low ? ' unlock-danger' : '') });
-    note.append(h('div', { className: 'unlock-note-title', textContent: 'Incorrect PIN' }));
+    note.append(h('div', { className: 'unlock-note-title', textContent: tSec('Incorrect PIN') }));
     if (remaining != null) {
-      note.append(h('div', { className: 'unlock-note-sub' }, [
-        h('span', { className: 'unlock-note-count', textContent: String(remaining) }),
-        document.createTextNode((remaining === 1 ? ' attempt' : ' attempts') + ' left before this device erases'),
-      ]));
+      // The count keeps its own styled node wherever the language puts it: the plural
+      // form is chosen from the number, and {{count}} is left in place for fill().
+      const count = h('span', { className: 'unlock-note-count', textContent: I18N.fmtNum(remaining) });
+      const line = tn('{{count}} attempt left before this device erases', '{{count}} attempts left before this device erases',
+        remaining, { count: '{{count}}' });
+      note.append(h('div', { className: 'unlock-note-sub' }, I18N.fill(line, { count })));
     }
     return note;
   }
@@ -1275,7 +1278,7 @@
     const wrap = h('div', { className: 'countdown-wrap' }, [ring, num]);
     const cap = remaining != null
       ? unlockNotice(remaining)
-      : h('div', { className: 'unlock-note' }, [h('div', { className: 'unlock-note-title', textContent: 'Too many attempts' })]);
+      : h('div', { className: 'unlock-note' }, [h('div', { className: 'unlock-note-title', textContent: tSec('Too many attempts') })]);
     box.innerHTML = '';
     box.append(wrap, cap);
     box.classList.remove('hidden');
@@ -1311,15 +1314,15 @@
       return;
     }
     pin.value = '';
-    if (r.status === 'ok') { clearUnlockCooldown(); await refresh(); toast('Unlocked', 'success'); return; }
-    if (r.status === 'wiped') { clearUnlockCooldown(); await refresh(); toast('Too many attempts — all data erased', 'error'); return; }
+    if (r.status === 'ok') { clearUnlockCooldown(); await refresh(); toast(t('Unlocked'), 'success'); return; }
+    if (r.status === 'wiped') { clearUnlockCooldown(); await refresh(); toast(tSec('Too many attempts. All data on this device was erased.'), 'error'); return; }
     if (r.status === 'throttled') { startUnlockCooldown(r.waitMs, r.remaining, false); return; }
     if (r.status === 'bad') {
       showUnlockRemaining(r.remaining);
       if (r.nextWaitMs > 0) startUnlockCooldown(r.nextWaitMs, r.remaining, true);
       return;
     }
-    err.textContent = r.error || 'Could not unlock';
+    err.textContent = r.error || t('Could not unlock');
   });
 
   // Locked out (forgot PIN): let the user erase everything and start over, with a
@@ -1330,11 +1333,13 @@
       const err = h('div', { className: 'error' });
       const warn = h('p', {
         className: 'hint',
-        textContent:
-          "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh — all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered.",
+        textContent: tSec(
+          "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh: all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered."),
       });
-      const confirmInput = h('input', { type: 'text', placeholder: 'Type ERASE to confirm' });
-      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      // ERASE stays ERASE in every language: it is what the check below compares, and a
+      // word to type is not prose. The sentence around it is translated.
+      const confirmInput = h('input', { type: 'text', placeholder: tSec('Type {{word}} to confirm', { word: 'ERASE' }) });
+      const del = h('button', { className: 'danger', textContent: tSec('Erase everything') });
       del.disabled = true;
       const matches = () => confirmInput.value.trim().toUpperCase() === 'ERASE';
       confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
@@ -1344,18 +1349,18 @@
           await call({ type: 'SIDECAR_RESET_ALL' });
           closeModal();
           await refresh(); // no keystore now → onboarding
-          toast('Sidecar erased', 'success');
+          toast(t('Sidecar erased'), 'success');
         } catch (ex) {
           err.textContent = ex.message;
           toast(ex.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Forgot your PIN?' }),
+        h('h3', { textContent: t('Forgot your PIN?') }),
         warn,
-        h('label', { textContent: 'Confirm' }),
+        h('label', { textContent: t('Confirm') }),
         confirmInput,
         err,
         h('div', { className: 'actions' }, [del, cancel])
@@ -1368,7 +1373,7 @@
   $('lock-btn').addEventListener('click', async () => {
     await call({ type: 'SIDECAR_LOCK' });
     await refresh();
-    toast('Locked', 'success');
+    toast(t('Locked'), 'success');
   });
 
   $('compose-fab').addEventListener('click', () => {
@@ -3042,14 +3047,12 @@
   // fail-open ones are stated plainly rather than dressed up: "showing everything" is the
   // honest description of what the bell is doing, and someone who reads it knows to look
   // at their follows or their relays rather than at the switch.
-  const WOT_STATUS = {
-    idle: '',
-    building: '', // the bar and its caption say it; see renderWotStatus
-
-    ready: null, // filled with the count
-    empty: 'No network to sort by yet. Follow some people, or check your relays. Showing everything.',
-    failed: 'Couldn’t reach your relays to work this out. Showing everything.',
-  };
+  // Built when drawn, so the lines go through t() after the language has loaded.
+  function wotStatusText(st) {
+    if (st === 'empty') return t('No network to sort by yet. Follow some people, or check your relays. Showing everything.');
+    if (st === 'failed') return t('Couldn’t reach your relays to work this out. Showing everything.');
+    return ''; // idle, and building, whose bar and caption say it; see renderWotStatus
+  }
   function renderWotStatus() {
     const el = document.getElementById('wot-status');
     if (!el) return;
@@ -3067,14 +3070,16 @@
     }
     if (_wotState === 'building') {
       el.textContent = _wotTotal
-        ? 'Working out your network… ' + fmtSats(_wotDone) + ' of ' + fmtSats(_wotTotal) + ' follows.'
-        : 'Working out your network…';
+        ? t('Working out your network… {{done}} of {{total}} follows.', { done: fmtSats(_wotDone), total: fmtSats(_wotTotal) })
+        : t('Working out your network…');
       return;
     }
     el.textContent = _wotState === 'ready'
-      ? 'Your network: ' + fmtSats(_wotCount) + ' ' + (_wotCount === 1 ? 'person' : 'people') +
-        (_wotSeen ? ', from ' + fmtSats(_wotSeen) + ' your follows follow.' : '.')
-      : (WOT_STATUS[_wotState] || '');
+      ? (_wotSeen
+        ? tn('Your network: {{count}} person, from {{seen}} your follows follow.', 'Your network: {{count}} people, from {{seen}} your follows follow.',
+          _wotCount, { seen: fmtSats(_wotSeen) })
+        : tn('Your network: {{count}} person.', 'Your network: {{count}} people.', _wotCount))
+      : wotStatusText(_wotState);
   }
 
   // ---- header account switcher (dropdown) ----
@@ -4317,14 +4322,17 @@
   function pollEndsText(endsAt) {
     // "open", not "no end date". The old wording named a field the poll does not carry,
     // which reads as something missing rather than as the state it actually is.
-    if (!endsAt) return 'open';
+    if (!endsAt) return t('open');
     const secs = endsAt - Math.floor(Date.now() / 1000);
     const mag = Math.abs(secs);
-    const unit =
-      mag < 3600 ? [Math.max(1, Math.round(mag / 60)), 'm'] :
-      mag < 86400 ? [Math.round(mag / 3600), 'h'] :
-      [Math.round(mag / 86400), 'd'];
-    return secs > 0 ? 'ends in ' + unit[0] + unit[1] : 'ended ' + unit[0] + unit[1] + ' ago';
+    const [n, unit] =
+      mag < 3600 ? [Math.max(1, Math.round(mag / 60)), 'minute'] :
+      mag < 86400 ? [Math.round(mag / 3600), 'hour'] :
+      [Math.round(mag / 86400), 'day'];
+    // A narrow unit ("5h") is what this wrote by hand in English, and each language
+    // gets its own abbreviation from Intl with no translation.
+    const span = I18N.fmtNum(n, { style: 'unit', unit, unitDisplay: 'narrow' });
+    return secs > 0 ? t('ends in {{time}}', { time: span }) : t('ended {{time}} ago', { time: span });
   }
 
   function pollHasEnded(endsAt) {
@@ -5097,7 +5105,7 @@
       const field = $('default-zap');
       if (field) field.value = String(sats);
       sync();
-      toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
+      toast(t('Default zap set to {{amount}} sats', { amount: fmtSats(sats) }), 'success');
     });
     sync();
     return btn;
@@ -8160,7 +8168,7 @@
     // Fold the link INTO the text (no separate `url` field): with both set, most
     // share targets use only the url and drop the message — embedding it keeps
     // the blurb + link together everywhere.
-    const message = 'Sidecar — a classy Nostr signer right in your browser side panel.\n' + SIDECAR_STORE_URL;
+    const message = t('Sidecar, a classy Nostr signer right in your browser side panel.') + '\n' + SIDECAR_STORE_URL;
     const shareData = { text: message };
     if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
       try { await navigator.share(shareData); return; }
@@ -8168,9 +8176,9 @@
     }
     try {
       await copyPlain(message);
-      toast('Message copied — share it with a friend', 'success');
+      toast(t('Message copied. Share it with a friend.'), 'success');
     } catch (_) {
-      toast('Could not share', 'error');
+      toast(t('Could not share'), 'error');
     }
   }
   const shareLink = $('share-sidecar-link');
@@ -9340,17 +9348,14 @@
           '<line x1="24" y1="12" x2="24" y2="17" stroke-width="2.25"></line>' +
           '<line x1="29" y1="12" x2="29" y2="16" stroke-width="2.25"></line>' +
           '</svg>';
-        const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+        const ok = h('button', { className: 'primary', textContent: t('OK, got it') });
         ok.addEventListener('click', closeModal);
         const body = h('p', { className: 'hint pin-reminder-body' });
-        body.append(
-          document.createTextNode('Write it down, or save it in a password manager, before you go any further. '),
-          h('strong', { className: 'pin-reminder-warn', textContent: "This PIN can't be recovered" }),
-          document.createTextNode(' — only a separate backup of your keys can get your accounts back.')
-        );
+        const warn = h('strong', { className: 'pin-reminder-warn', textContent: tSec("This PIN can't be recovered") });
+        body.append(...I18N.fill(tSec('Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.'), { warning: warn }));
         modal.append(
           keyWrap,
-          h('h3', { className: 'pin-reminder-title', textContent: 'Save your PIN somewhere safe' }),
+          h('h3', { className: 'pin-reminder-title', textContent: tSec('Save your PIN somewhere safe') }),
           body,
           h('div', { className: 'actions' }, [ok])
         );
@@ -9737,9 +9742,7 @@
     // version + update check
     const build = window.SIDECAR_BUILD || {};
     const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
-    $('settings-version').textContent = ver
-      ? 'Version ' + ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '')
-      : '';
+    $('settings-version').textContent = buildVersionText(true);
     $('check-update-status').textContent = '';
 
     // auto-lock
@@ -9753,7 +9756,7 @@
     $('client-select').value = own || '';
     const globalLabel = (VIEW_CLIENTS[settings.defaultClient || DEFAULT_CLIENT] || {}).label || '';
     const defaultOpt = $('client-select').querySelector('option[value=""]');
-    if (defaultOpt) defaultOpt.textContent = globalLabel ? 'Use the default (' + globalLabel + ')' : 'Use the default';
+    if (defaultOpt) defaultOpt.textContent = globalLabel ? t('Use the default ({{client}})', { client: globalLabel }) : t('Use the default');
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
@@ -9764,7 +9767,7 @@
     $('headsup-restore').addEventListener('click', async () => {
       await chrome.storage.local.remove(['sharedHeadsUpDismissed', 'sharedHeadsUpOptOut']);
       sharedHeadsUp = { dismissed: false, optedOut: false };
-      toast('The multi-account note will show again', 'success');
+      toast(t('The multi-account note will show again'), 'success');
     });
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
@@ -9782,7 +9785,7 @@
     const fiatSel = $('fiat-select');
     if (fiatSel && !fiatSel.options.length) {
       FIAT_CURRENCIES.forEach(([code, name]) => {
-        fiatSel.append(h('option', { value: code, textContent: name + ' (' + code + ')' }));
+        fiatSel.append(h('option', { value: code, textContent: currencyName(code, name) + ' (' + code + ')' }));
       });
     }
     fiatSel.value = settings.fiatCurrency || 'USD'; // default USD
@@ -9801,7 +9804,7 @@
     const nip65Scope = $('nip65-only-scope');
     if (nip65Scope) {
       const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey);
-      nip65Scope.textContent = acct ? 'for ' + displayName(acct) : '';
+      nip65Scope.textContent = acct ? t('for {{name}}', { name: displayName(acct) }) : '';
     }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
@@ -9847,7 +9850,7 @@
     Object.keys(relays).forEach((url) => {
       const row = h('div', { className: 'item' });
       row.append(h('div', { className: 'item-main' }, [h('div', { className: 'item-sub', textContent: url })]));
-      const rm = iconButton('Remove', 'trash', async () => {
+      const rm = iconButton(t('Remove'), 'trash', async () => {
         const next = { ...relays };
         delete next[url];
         await call({ type: 'SIDECAR_SET_RELAYS', relays: next });
@@ -9874,6 +9877,13 @@
     ['ZAR', 'South African rand'], ['KRW', 'South Korean won'], ['TRY', 'Turkish lira'],
     ['ARS', 'Argentine peso'],
   ];
+  // In English, the names above, which are what this list has always said. In any other
+  // language, the browser's own name for the currency (Intl.DisplayNames), so the list
+  // needs no translation and cannot fall out of step with the codes.
+  function currencyName(code, english) {
+    if (/^en\b/.test(I18N.lang)) return english;
+    try { return new Intl.DisplayNames([I18N.lang], { type: 'currency' }).of(code) || english; } catch (_) { return english; }
+  }
 
   // ---- activity tab: connected sites (permission tiers) + signing history ----
   const LEVELS = [
@@ -10078,7 +10088,7 @@
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_BINDING', host });
         closeModal();
-        toast('Detached. Sign out of ' + host + ' and back in as ' + activeName + '.', 'success');
+        toast(t('Detached. Sign out of {{host}} and back in as {{name}}.', { host, name: activeName }), 'success');
         renderActivity();
       });
       modal.append(
@@ -11993,7 +12003,7 @@
 
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
-      toast('Add an account first', 'error');
+      toast(t('Add an account first'), 'error');
       return;
     }
     // A MINE IS ALREADY RUNNING. A backstop, not the affordance: every button that leads
@@ -12022,7 +12032,7 @@
           await chrome.tabs.update(open.tabId, { active: true });
           await chrome.windows.update(open.windowId, { focused: true });
         } catch (_) { /* the tab went away between the query and the focus */ }
-        toast('Your draft is already open in a tab', 'info');
+        toast(t('Your draft is already open in a tab'), 'info');
         return;
       }
     }
@@ -12079,8 +12089,8 @@
       // One line at this width. The longer version of this wrapped onto two and left
       // "editor." alone on the second, which is a ragged way to end the one screen whose
       // whole job is to look calm while it makes you wait.
-      const note = h('p', { className: 'hint', textContent: 'Stopping keeps your draft.' });
-      const stop = h('button', { className: 'secondary', type: 'button', textContent: 'Stop mining' });
+      const note = h('p', { className: 'hint', textContent: t('Stopping keeps your draft.') });
+      const stop = h('button', { className: 'secondary', type: 'button', textContent: t('Stop mining') });
       stop.addEventListener('click', powCancel);
       // GET THE PANEL BACK WITHOUT LOSING THE WORK. The worker has always outlived this
       // pane; what has not existed until now is anything that keeps the promise to
@@ -12101,8 +12111,8 @@
       //
       // Chevron down rather than an X, because it does not close anything. It sends the
       // mine to the bar at the foot of the panel, which is the direction it points.
-      const mini = h('button', { className: 'modal-x mining-mini', type: 'button', title: 'Keep mining in the background' });
-      mini.setAttribute('aria-label', 'Keep mining in the background');
+      const mini = h('button', { className: 'modal-x mining-mini', type: 'button', title: t('Keep mining in the background') });
+      mini.setAttribute('aria-label', t('Keep mining in the background'));
       mini.append(icon('chevron-down'));
       mini.addEventListener('click', () => {
         beginMinimizedMine(bits, minePubkey, startedAt, best);
@@ -12112,7 +12122,7 @@
       });
       modal.append(
         mini,
-        h('h3', { textContent: 'Mining proof of work' }),
+        h('h3', { textContent: t('Mining proof of work') }),
         h('div', { className: 'mining-body' }, [glyph, line, note]),
         h('div', { className: 'actions' }, [stop])
       );
@@ -12143,7 +12153,7 @@
           // holds the pane's shape; this one is absolute and holds nothing.
           hide(mini);
           stop.disabled = true;
-          line.textContent = 'Found it. Posting…';
+          line.textContent = t('Found it. Posting…');
         },
       };
     }
@@ -12338,7 +12348,7 @@
       if (!isDevBuild() || !devSilentEnabled) return null;
       const field = h('input', {
         type: 'text', id: 'compose-dev-silent', className: 'status-input',
-        placeholder: 'npub1… or hex, space separated',
+        placeholder: t('npub1… or hex, space separated'),
       });
       devSilentInput = field;
       const hint = h('p', { className: 'hint' });
@@ -12346,14 +12356,14 @@
         const n = parseSilentTags(field.value).length;
         const typed = field.value.trim();
         hint.textContent = !typed
-          ? 'Dev build only. Adds a p tag with no mention in the text.'
-          : n === 0 ? 'Nothing readable here yet. npub1… or 64 hex characters.'
-          : n + (n === 1 ? ' key' : ' keys') + ' will be tagged, invisibly.';
+          ? t('Dev build only. Adds a p tag with no mention in the text.')
+          : n === 0 ? t('Nothing readable here yet. npub1… or 64 hex characters.')
+          : tn('{{count}} key will be tagged, invisibly.', '{{count}} keys will be tagged, invisibly.', n);
       };
       field.addEventListener('input', paint);
       paint();
       return h('div', { className: 'compose-dev-kind' }, [
-        h('label', { htmlFor: 'compose-dev-silent', textContent: 'Silent p tags' }), field, hint,
+        h('label', { htmlFor: 'compose-dev-silent', textContent: t('Silent p tags') }), field, hint,
       ]);
     }
 
@@ -12361,24 +12371,24 @@
       if (!isDevBuild() || !devKindEnabled) return null;
       const select = h('select', { id: 'compose-dev-kind' });
       select.append(
-        h('option', { value: '0', textContent: 'Automatic' }),
-        h('option', { value: '1', textContent: 'Kind 1 — note' }),
-        h('option', { value: '1111', textContent: 'Kind 1111 — comment', disabled: !replyTo }),
+        h('option', { value: '0', textContent: t('Automatic') }),
+        h('option', { value: '1', textContent: t('Kind 1 — note') }),
+        h('option', { value: '1111', textContent: t('Kind 1111 — comment'), disabled: !replyTo }),
       );
       select.value = String(devKind);
       select.disabled = !!draft.poll;
       const hint = h('p', { className: 'hint' });
       const paint = () => {
-        hint.textContent = draft.poll ? 'Polls use their own event kind.'
-          : !replyTo ? 'Start with a note, then choose either kind when replying.'
+        hint.textContent = draft.poll ? t('Polls use their own event kind.')
+          : !replyTo ? t('Start with a note, then choose either kind when replying.')
           : devKind === 1 && replyTo.kind === WEB_COMMENT_KIND
-          ? 'Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.'
-          : 'Dev build only. Automatic preserves the kind of the event you answer.';
+          ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
+          : t('Dev build only. Automatic preserves the kind of the event you answer.');
       };
       select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
       paint();
       return h('div', { className: 'compose-dev-kind' }, [
-        h('label', { htmlFor: 'compose-dev-kind', textContent: 'Demo event kind' }), select, hint,
+        h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
       ]);
     }
 
@@ -12389,14 +12399,14 @@
 
       // Write / Preview tab bar
       let preview = false;
-      const tabWrite = h('button', { className: 'compose-tab active', textContent: 'Write' });
-      const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
+      const tabWrite = h('button', { className: 'compose-tab active', textContent: t('Write') });
+      const tabPreview = h('button', { className: 'compose-tab', textContent: t('Preview') });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
       // Rich text box with @mention autocomplete, shared with the page-comment
       // modal. Edits flow back through onChange into the draft + Post button.
       const mentionEditor = createMentionEditor({
-        placeholder: replyTo ? 'Write your reply…' : "What’s on your mind?",
+        placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
         onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
         // A URL pasted on its own becomes a real attachment: cut from the prose,
         // into the strip, appended at publish — as if it had been uploaded.
@@ -12431,7 +12441,7 @@
           renderNotePreview(body, bodyText);
           previewPane.append(body);
         } else {
-          previewPane.append(h('p', { className: 'hint', textContent: 'Nothing to preview yet.' }));
+          previewPane.append(h('p', { className: 'hint', textContent: t('Nothing to preview yet.') }));
         }
         if (!draft.poll) return;
         // The choices as they will be read, which is the one thing the editor above
@@ -12445,7 +12455,7 @@
           h('p', {
             className: 'hint poll-preview-meta',
             textContent:
-              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+              (draft.poll.multiple ? t('Multiple choice') : t('Single choice')) + ' · ' + pollEndsText(endsAt),
           })
         );
         previewPane.append(list);
@@ -12503,8 +12513,9 @@
           el.addEventListener('error', () => {
             if (tries >= THUMB_RETRIES) {
               cell.classList.add('is-broken');
-              cell.title = 'This ' + (m.isVideo ? 'video' : 'image')
-                + ' did not load. It may still be uploading, or the link may be bad.';
+              cell.title = m.isVideo
+                ? t('This video did not load. It may still be uploading, or the link may be bad.')
+                : t('This image did not load. It may still be uploading, or the link may be bad.');
               return;
             }
             tries += 1;
@@ -12568,7 +12579,7 @@
             // the strip; the tag itself only goes out for described images.
             const alt = h('button', {
               className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
-              title: m.alt ? 'Edit the image description' : 'Add a description',
+              title: m.alt ? t('Edit the image description') : t('Add a description'),
               type: 'button',
             });
             alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
@@ -12596,10 +12607,10 @@
                 });
                 return b;
               };
-              if (i > 0) cell.append(step(-1, 'Move earlier'));
-              if (i < draft.media.length - 1) cell.append(step(1, 'Move later'));
+              if (i > 0) cell.append(step(-1, t('Move earlier')));
+              if (i < draft.media.length - 1) cell.append(step(1, t('Move later')));
             }
-          const rm = h('button', { className: 'compose-thumb-x', title: 'Remove' });
+          const rm = h('button', { className: 'compose-thumb-x', title: t('Remove') });
           rm.append(icon('trash'));
           rm.addEventListener('click', () => {
             // The URL lives in the media slot alone now; taking the thumb off is
@@ -12677,7 +12688,7 @@
       fileInput.accept = 'image/*,video/*';
       fileInput.style.display = 'none';
       const addBtn = h('button', { className: 'mini compose-add' });
-      addBtn.append(icon('camera'), h('span', { textContent: 'Media' }));
+      addBtn.append(icon('camera'), h('span', { textContent: t('Media') }));
       addBtn.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files && fileInput.files[0];
@@ -12783,8 +12794,8 @@
         const lvl = powForThisPost.on ? powLevelFor(powForThisPost.bits) : null;
         // "PoW 18" and "PoW off" are the same width, so cycling never makes the row
         // opposite it jump. The full name is in the title and in Settings.
-        powBtnLabel.textContent = lvl ? 'PoW ' + lvl.bits : 'PoW off';
-        powBtn.title = lvl ? lvl.cost : 'Off. Tap to mine one into this post.';
+        powBtnLabel.textContent = lvl ? t('PoW {{bits}}', { bits: lvl.bits }) : t('PoW off');
+        powBtn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
         powBtn.classList.toggle('compose-add-on', !!lvl);
       }
       powBtn.addEventListener('click', () => {
@@ -12800,7 +12811,7 @@
 
       const pollWrap = h('div', { className: 'poll-editor hidden' });
       const pollAdd = h('button', { className: 'mini compose-add' });
-      pollAdd.append(icon('bar-chart'), h('span', { textContent: 'Poll' }));
+      pollAdd.append(icon('bar-chart'), h('span', { textContent: t('Poll') }));
       pollAdd.addEventListener('click', () => {
         draft.poll = newPollDraft();
         paintPoll();
@@ -12830,7 +12841,7 @@
             type: 'text',
             value,
             maxLength: 200,
-            placeholder: 'Option ' + (i + 1),
+            placeholder: t('Option {{number}}', { number: i + 1 }),
           });
           input.addEventListener('input', () => {
             draft.poll.options[i] = input.value;
@@ -12842,7 +12853,7 @@
           // would only ever be disabled. An icon-only control in the inline slot, per
           // the panel's row rules: a worded button here would leave the input no width.
           if (opts.length > 2) {
-            const rm = h('button', { className: 'poll-option-x', title: 'Remove option ' + (i + 1) });
+            const rm = h('button', { className: 'poll-option-x', title: t('Remove option {{number}}', { number: i + 1 }) });
             rm.append(icon('x'));
             rm.addEventListener('click', () => {
               draft.poll.options.splice(i, 1);
@@ -12877,7 +12888,7 @@
         paintPollOptions(list);
 
         const addOpt = h('button', { className: 'poll-add-option' });
-        addOpt.append(icon('plus'), h('span', { textContent: 'Add option' }));
+        addOpt.append(icon('plus'), h('span', { textContent: t('Add option') }));
         addOpt.addEventListener('click', () => {
           draft.poll.options.push('');
           paintPollOptions(list);
@@ -12893,7 +12904,7 @@
         });
         const multiRow = h('label', { className: 'toggle-row' }, [
           multi,
-          h('span', { textContent: 'Allow multiple choices' }),
+          h('span', { textContent: t('Allow multiple choices') }),
         ]);
 
         // Durations, plus the two ends of the range: a specific moment, and none at all.
@@ -12901,8 +12912,8 @@
         POLL_DURATIONS.forEach((d) => {
           sel.append(h('option', { value: 'in:' + d.secs, textContent: d.label }));
         });
-        sel.append(h('option', { value: 'at', textContent: 'Custom date and time…' }));
-        sel.append(h('option', { value: 'none', textContent: 'No end date' }));
+        sel.append(h('option', { value: 'at', textContent: t('Custom date and time…') }));
+        sel.append(h('option', { value: 'none', textContent: t('No end date') }));
         sel.value =
           draft.poll.ends.kind === 'in' ? 'in:' + draft.poll.ends.secs : draft.poll.ends.kind;
 
@@ -12934,14 +12945,14 @@
             // real uses for one that never closes, but a running total is not a result:
             // there is no moment the number means anything, and nothing stops a late
             // arrival moving it a year from now.
-            endsNote.textContent = 'Not recommended: the count never settles, so the poll has no final result.';
+            endsNote.textContent = t('Not recommended: the count never settles, so the poll has no final result.');
           } else if (k === 'at' && !(draft.poll.ends.at > 0)) {
-            endsNote.textContent = 'Pick the date and time the poll should close.';
+            endsNote.textContent = t('Pick the date and time the poll should close.');
           } else {
             const at = pollEndsAtFor(draft.poll, Math.floor(Date.now() / 1000));
             endsNote.textContent = at && at <= Math.floor(Date.now() / 1000)
-              ? 'That time has already passed, so the poll would close on posting.'
-              : 'Votes stop counting when the poll closes.';
+              ? t('That time has already passed, so the poll would close on posting.')
+              : t('Votes stop counting when the poll closes.');
           }
         }
         sel.addEventListener('change', () => {
@@ -12966,11 +12977,11 @@
         // color alone (the point made above .destructive-warn).
         const clientWarn = h('div', {
           className: 'kind-warn',
-          textContent: 'Some clients cannot show polls. On those, this will not appear at all.',
+          textContent: t('Some clients cannot show polls. On those, this will not appear at all.'),
         });
 
         const remove = h('button', { className: 'poll-remove' });
-        remove.append(icon('trash'), h('span', { textContent: 'Remove poll' }));
+        remove.append(icon('trash'), h('span', { textContent: t('Remove poll') }));
         remove.addEventListener('click', () => {
           draft.poll = null;
           paintPoll();
@@ -12983,7 +12994,7 @@
           addOpt,
           h('div', { className: 'poll-editor-sep' }),
           multiRow,
-          h('label', { className: 'poll-ends-label', textContent: 'Runs for' }),
+          h('label', { className: 'poll-ends-label', textContent: t('Runs for') }),
           sel,
           custom,
           endsNote,
@@ -12994,7 +13005,7 @@
       }
 
       const err = h('div', { className: 'error' });
-      const post = h('button', { className: 'primary', textContent: 'Post' });
+      const post = h('button', { className: 'primary', textContent: t('Post') });
       function updatePostState() {
         // The tab composes a note. A poll is a different kind with its own editor, so
         // once one is open the way out of the panel goes away rather than quietly
@@ -13019,11 +13030,11 @@
           showCountdown(secs);
         } else {
           post.disabled = true;
-          post.textContent = 'Posting…';
+          post.textContent = t('Posting…');
           finishPublish();
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       // Show which account is posting so the user is never confused about identity.
@@ -13032,7 +13043,7 @@
       author.append(avatarEl(active || {}, 'compose-author-av'));
       author.append(
         h('div', { className: 'compose-author-info' }, [
-          h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+          h('span', { className: 'compose-author-eyebrow', textContent: t('Posting as') }),
           h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
         ])
       );
@@ -13058,8 +13069,8 @@
       // browser entirely. Write / Preview / Expand is a row of three things you can do
       // with what you are writing, and the third one says what it is.
       const expand = replyTo ? null : h('button', {
-        className: 'compose-expand', type: 'button', textContent: 'Expand',
-        title: 'Write in a tab, with room to read it back',
+        className: 'compose-expand', type: 'button', textContent: t('Expand'),
+        title: t('Write in a tab, with room to read it back'),
       });
       if (expand) {
         expand.addEventListener('click', async () => {
@@ -13093,7 +13104,7 @@
             closeModal();
           } catch (e) {
             expand.disabled = false;
-            toast(e.message || 'Could not open a tab', 'error');
+            toast(e.message || t('Could not open a tab'), 'error');
           }
         });
       }
@@ -13101,7 +13112,7 @@
       if (expand) tabBar.append(expand);
 
       modal.append(
-        h('h3', { textContent: replyTo ? 'Reply' : 'New note' }),
+        h('h3', { textContent: replyTo ? t('Reply') : t('New note') }),
         author,
         ...(replyTo ? [buildReplyBlock()] : []),
         ...(isDevBuild() && devKindEnabled ? [buildDevKindSelector()] : []),
@@ -13142,7 +13153,7 @@
         clearComposeDraft(dkey);
         endMinimizedMine(); // no-op unless this one was minimized
         closeModal();
-        toast(signed.kind === POLL_KIND ? 'Poll published' : 'Note published', 'success');
+        toast(signed.kind === POLL_KIND ? t('Poll published') : t('Note published'), 'success');
         showPostBanner(signed);
       } catch (e) {
         // BACK TO THE EDITOR WITH THE TEXT INTACT, whether the mine failed, the signer
@@ -13181,12 +13192,12 @@
         if (n) {
           previewScroll.append(h('p', {
             className: 'hint',
-            textContent: 'Silent p tags: ' + n + '. Notified, not mentioned in the text.',
+            textContent: t('Silent p tags: {{count}}. Notified, not mentioned in the text.', { count: n }),
           }));
         }
       }
       if (isDevBuild() && devKindEnabled && devKind && !draft.poll) {
-        previewScroll.append(h('p', { className: 'hint', textContent: 'Demo event kind: ' + devKind }));
+        previewScroll.append(h('p', { className: 'hint', textContent: t('Demo event kind: {{kind}}', { kind: devKind }) }));
       }
       const previewBody = h('div', { className: 'preview-body' });
       // The composed string — attachments appended — is what publishes, so it is
@@ -13208,7 +13219,7 @@
           h('p', {
             className: 'hint poll-preview-meta',
             textContent:
-              (draft.poll.multiple ? 'Multiple choice' : 'Single choice') + ' · ' + pollEndsText(endsAt),
+              (draft.poll.multiple ? t('Multiple choice') : t('Single choice')) + ' · ' + pollEndsText(endsAt),
           })
         );
         previewScroll.append(list);
@@ -13217,7 +13228,7 @@
         modal,
         author: composeAuthorStrip(),
         secs,
-        title: draft.poll && !replyTo ? 'Posting your poll' : replyTo ? 'Posting your reply' : 'Posting your note',
+        title: draft.poll && !replyTo ? t('Posting your poll') : replyTo ? t('Posting your reply') : t('Posting your note'),
         preview: previewScroll,
         onFire: finishPublish,
         onCancel: showEditor,
@@ -13244,12 +13255,12 @@
       // they publish.
       const preview = stripDraftMediaUrls(saved.text, saved.media).trim()
         .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
-      const when = saved.savedAt ? ' from ' + relativeTime(Math.floor(saved.savedAt / 1000)) : '';
+      const when = saved.savedAt ? relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
         ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
         : '';
 
-      const resume = h('button', { className: 'primary', textContent: 'Resume draft' });
+      const resume = h('button', { className: 'primary', textContent: t('Resume draft') });
       resume.addEventListener('click', () => {
         // Restore the target too, or this resumes as a note and posts as one. And
         // strip the attachment URLs an older draft carried in its text: they live in
@@ -13270,7 +13281,7 @@
         }
         showEditor();
       });
-      const fresh = h('button', { className: 'ghost', textContent: 'Start fresh' });
+      const fresh = h('button', { className: 'ghost', textContent: t('Start fresh') });
       fresh.addEventListener('click', () => {
         clearComposeDraft(dkey);
         // The target you ARRIVED with, not the saved one. Discarding an old draft must
@@ -13284,11 +13295,14 @@
       // draft may be a reply while you arrived here to write a note, or the other way
       // round — and resuming silently changes what pressing Post will publish.
       const savedIsReply = !!saved.replyTo;
+      // Four whole sentences rather than " from " glued in: the age phrase and the name
+      // take different places in other languages.
+      const whom = savedIsReply ? notifAuthorName(saved.replyTo.pubkey) : '';
       const what = savedIsReply
-        ? 'You have an unsaved reply to ' + notifAuthorName(saved.replyTo.pubkey) + when + '.'
-        : 'You have an unsaved draft' + when + '.';
+        ? (when ? t('You have an unsaved reply to {{name}} from {{when}}.', { name: whom, when }) : t('You have an unsaved reply to {{name}}.', { name: whom }))
+        : (when ? t('You have an unsaved draft from {{when}}.', { when }) : t('You have an unsaved draft.'));
       const parts = [
-        h('h3', { textContent: savedIsReply ? 'Resume your reply?' : 'Resume your draft?' }),
+        h('h3', { textContent: savedIsReply ? t('Resume your reply?') : t('Resume your draft?') }),
         h('p', { className: 'hint', textContent: what }),
       ];
       if (preview) {
@@ -13319,7 +13333,7 @@
         // background instead — which is now guarded and does nothing, so without this the
         // guard would read as a stuck dialog. It discards like Cancel does; the draft is
         // already saved, so nothing is actually lost.
-        const closeX = h('button', { className: 'modal-x', title: 'Close' });
+        const closeX = h('button', { className: 'modal-x', title: t('Close') });
         closeX.append(icon('x'));
         closeX.addEventListener('click', closeModal);
         modal.append(closeX);
@@ -17439,7 +17453,7 @@
     if (next === 'fiat') {
       const p = await getBtcPrice(fiatCurrency);
       if (p == null) {
-        toast("Couldn't reach a price source — showing sats", 'error');
+        toast(t("Couldn't reach a price source — showing sats"), 'error');
         denom = 'sats';
         repaintBalances();
         return;
@@ -17476,14 +17490,14 @@
   // placed here because this is where you are when you tap the balance.
   function renderFiatPicker() {
     const wrap = h('div', { className: 'setting' });
-    wrap.append(h('h3', { textContent: 'Local currency' }));
+    wrap.append(h('h3', { textContent: t('Local currency') }));
     wrap.append(h('p', {
       className: 'hint',
-      textContent: 'Tap your balance to switch between sats, BTC, and this currency.',
+      textContent: t('Tap your balance to switch between sats, BTC, and this currency.'),
     }));
     const sel = h('select', { id: 'wallet-fiat-select' });
     FIAT_CURRENCIES.forEach(([code, name]) => {
-      sel.append(h('option', { value: code, textContent: name + ' (' + code + ')' }));
+      sel.append(h('option', { value: code, textContent: currencyName(code, name) + ' (' + code + ')' }));
     });
     sel.value = fiatCurrency;
     sel.addEventListener('change', (e) => setFiatCurrency(e.target.value));
@@ -17493,11 +17507,10 @@
 
   // Is the wallet card's unit line currently showing a failure instead of a unit?
   // A repaint must not overwrite it with 'sats' — that would claim a balance loaded
-  // when none did. Kept as one predicate because there are several such strings now
-  // (#120 added the relay-specific one) and comparing against a single literal is
-  // how the previous guard quietly stopped covering all of them.
-  const BALANCE_ERROR_UNITS = ['balance unavailable', 'wallet relay unreachable'];
-  const isBalanceErrorUnit = (s) => BALANCE_ERROR_UNITS.includes(String(s || '').trim());
+  // when none did. A FLAG ON THE ELEMENT, set where the failure is painted, rather than
+  // a match on its text: the text is translated, and a list of literals had already
+  // fallen behind the four failures it was meant to cover.
+  const isBalanceErrorUnit = (el) => !!el && el.dataset.balanceError === '1';
 
   // Repaint whichever balance surfaces are on screen, from the cached balance.
   function repaintBalances() {
@@ -17506,7 +17519,7 @@
     paintBalanceEl($('pinned-balance-amt'), parts, 'pinned-fiat-sym');
     paintBalanceEl(document.querySelector('.wallet-balance'), parts, 'wallet-fiat-sym');
     const cardUnit = document.querySelector('.wallet-unit');
-    if (cardUnit && !isBalanceErrorUnit(cardUnit.textContent)) cardUnit.textContent = parts.unit;
+    if (cardUnit && !isBalanceErrorUnit(cardUnit)) cardUnit.textContent = parts.unit;
   }
 
   // Optional pinned balance bar — compact balance + Send/Receive under the nav,
@@ -17523,13 +17536,13 @@
     if (!has) { hide(bar); return; } // no wallet for this account — Wallet tab owns onboarding
     show(bar);
     const hideBtn = $('pinned-hide');
-    if (hideBtn) { hideBtn.innerHTML = ''; hideBtn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); hideBtn.title = hideBalances ? 'Show balances' : 'Hide balances'; }
+    if (hideBtn) { hideBtn.innerHTML = ''; hideBtn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); hideBtn.title = hideBalances ? t('Show balances') : t('Hide balances'); }
     const amt = $('pinned-balance-amt');
     if (!amt) return;
     // Tap the amount to cycle sats → BTC → fiat. Bound once (renderPinnedBalanceBar
     // runs on every tab switch), hence onclick rather than addEventListener.
     amt.onclick = cycleDenom;
-    amt.title = 'Tap to change units';
+    amt.title = t('Tap to change units');
     const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     if (cached) paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
     else amt.textContent = '···';
@@ -17564,7 +17577,7 @@
     // its paint record cleared or the reveal would repaint the same number and
     // suppress the strike. Harmless in the other five themes, which never strike.
     restrikeBalances();
-    const setEye = (btn) => { if (!btn) return; btn.innerHTML = ''; btn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); btn.title = hideBalances ? 'Show balances' : 'Hide balances'; };
+    const setEye = (btn) => { if (!btn) return; btn.innerHTML = ''; btn.appendChild(icon(hideBalances ? 'eye-off' : 'eye')); btn.title = hideBalances ? t('Show balances') : t('Hide balances'); };
     setEye($('pinned-hide'));
     document.querySelectorAll('.wallet-eye').forEach(setEye);
     const cb = $('hidebalance-toggle');
@@ -17589,7 +17602,7 @@
     const flash = $('zapflash-toggle');
     if (!flash) return;
     flash.disabled = reduceBalanceMotion;
-    flash.title = reduceBalanceMotion ? 'Reduce motion is on, which already turns this off.' : '';
+    flash.title = reduceBalanceMotion ? t('Reduce motion is on, which already turns this off.') : '';
   }
 
   // ---- the peek ------------------------------------------------------------------
@@ -17609,7 +17622,7 @@
       _balancePeekTimer = null;
       hideBalances = true;
       syncHideControls();
-      toast('Balances hidden again');
+      toast(t('Balances hidden again'));
     }, BALANCE_PEEK_MS);
   }
 
@@ -17809,10 +17822,10 @@
 
   // "Expires in …" for the invoice card: coarse on purpose, since it is read once.
   function fmtExpiresIn(seconds) {
-    if (seconds < 60) return 'under a minute';
-    if (seconds < 3600) return Math.round(seconds / 60) + ' min';
-    if (seconds < 48 * 3600) return Math.round(seconds / 3600) + ' h';
-    return Math.round(seconds / 86400) + ' days';
+    if (seconds < 60) return tSec('under a minute');
+    if (seconds < 3600) return tSec('{{count}} min', { count: Math.round(seconds / 60) });
+    if (seconds < 48 * 3600) return tSec('{{count}} h', { count: Math.round(seconds / 3600) });
+    return tn('{{count}} day', '{{count}} days', Math.round(seconds / 86400));
   }
 
   // ---- Live balance updates (NIP-47 notifications + fallback polling) ----
@@ -17844,7 +17857,7 @@
         const cardBal = document.querySelector('.wallet-balance');
         if (cardBal) { cardBal.classList.remove('loading'); paintBalanceEl(cardBal, parts, 'wallet-fiat-sym'); }
         const cardUnit = document.querySelector('.wallet-unit');
-        if (cardUnit && !isBalanceErrorUnit(cardUnit.textContent)) cardUnit.textContent = parts.unit;
+        if (cardUnit && !isBalanceErrorUnit(cardUnit)) cardUnit.textContent = parts.unit;
         // Glow pulse when balance increases
         if (prevSats != null && newSats > prevSats) {
           [pinAmt, cardBal].forEach((el) => {
@@ -17878,7 +17891,7 @@
         if (type === 'payment_received') {
           const amt = payload.notification && payload.notification.amount;
           if (amt) toast('Received ' + fmtSats(msatToSat(amt)) + ' sats', 'success');
-          else toast('Payment received', 'success');
+          else toast(t('Payment received'), 'success');
         }
       }
     });
@@ -17936,7 +17949,7 @@
     const seq = ++walletRenderSeq;
     if (!state.activePubkey) {
       view.innerHTML = '';
-      view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
+      view.append(h('p', { className: 'hint', textContent: t('No active account.') }));
       return;
     }
     // A DELAYED placeholder, not an immediate one. renderWallet runs often — a tab
@@ -17952,7 +17965,7 @@
     const slow = setTimeout(() => {
       if (seq !== walletRenderSeq) return;
       view.innerHTML = '';
-      view.append(h('p', { className: 'hint', textContent: 'Loading wallet…' }));
+      view.append(h('p', { className: 'hint', textContent: t('Loading wallet…') }));
     }, 400);
 
     let has;
@@ -17997,10 +18010,10 @@
     view.append(
       h('p', {
         className: 'hint',
-        textContent: (e && e.message) || 'Could not load your wallet.',
+        textContent: (e && e.message) || t('Could not load your wallet.'),
       })
     );
-    const retry = h('button', { className: 'secondary', textContent: 'Try again' });
+    const retry = h('button', { className: 'secondary', textContent: t('Try again') });
     retry.addEventListener('click', () => {
       forgetBalancePaint('wallet');
       renderWallet();
@@ -18043,13 +18056,13 @@
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.text()).slice(0, 200); } catch (_) {}
-      throw new Error(detail || 'Rizful rejected that code (' + res.status + ').');
+      throw new Error(detail || t('Rizful rejected that code ({{status}}).', { status: res.status }));
     }
     let data;
-    try { data = await res.json(); } catch (_) { throw new Error('Rizful sent a response Sidecar could not read.'); }
+    try { data = await res.json(); } catch (_) { throw new Error(t('Rizful sent a response Sidecar could not read.')); }
     const nwcUri = data && typeof data.nwc_uri === 'string' ? data.nwc_uri.trim() : '';
     if (!nwcUri.startsWith('nostr+walletconnect://')) {
-      throw new Error('Rizful did not return a wallet connection.');
+      throw new Error(t('Rizful did not return a wallet connection.'));
     }
     warnIfInsecureNwcRelay(nwcUri);
     const addr = data && typeof data.lightning_address === 'string' ? data.lightning_address.trim() : '';
@@ -18061,16 +18074,16 @@
       const err = h('div', { className: 'error' });
       const code = h('input', {
         type: 'text', className: 'rizful-code', spellcheck: false, autocomplete: 'off',
-        placeholder: 'Paste your one-time code',
+        placeholder: t('Paste your one-time code'),
       });
-      const go = h('button', { className: 'primary', textContent: 'Connect wallet' });
+      const go = h('button', { className: 'primary', textContent: t('Connect wallet') });
 
       go.addEventListener('click', async () => {
         const value = code.value.trim();
-        if (!value) return (err.textContent = 'Paste the code from Rizful.');
+        if (!value) return (err.textContent = t('Paste the code from Rizful.'));
         err.textContent = '';
         go.disabled = true;
-        go.textContent = 'Connecting…';
+        go.textContent = t('Connecting…');
         try {
           const { nwcUri, lightningAddress } = await rizfulExchangeCode(value, state.activePubkey);
           // Prove it works before storing it — same check the paste path makes.
@@ -18079,19 +18092,19 @@
           client.close();
           await call({ type: 'SIDECAR_SET_NWC', connection: nwcUri });
           closeModal();
-          toast(lightningAddress ? 'Wallet connected — ' + lightningAddress : 'Wallet connected', 'success');
+          toast(lightningAddress ? t('Wallet connected: {{address}}', { address: lightningAddress }) : t('Wallet connected'), 'success');
           // The Profile screen's existing lud16 prompt picks it up from here and
           // offers to publish the address, which is what makes zaps reachable.
           renderWallet();
         } catch (e) {
-          err.textContent = (e && e.message) || 'Could not connect that wallet.';
+          err.textContent = (e && e.message) || t('Could not connect that wallet.');
           go.disabled = false;
-          go.textContent = 'Connect wallet';
+          go.textContent = t('Connect wallet');
         }
       });
       code.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
 
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       // Two buttons, in order, then the field.
@@ -18107,12 +18120,12 @@
       // are visible up front. Anyone who already has an account just skips the first.
       // Still no step numbers — top-to-bottom order carries the sequence.
       const signup = h('button', {
-        className: 'secondary rizful-get', textContent: 'Create a Rizful account',
+        className: 'secondary rizful-get', textContent: t('Create a Rizful account'),
       });
       signup.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_SIGNUP_URL }));
 
       const getCode = h('button', {
-        className: 'secondary rizful-get', textContent: 'Get your one-time code',
+        className: 'secondary rizful-get', textContent: t('Get your one-time code'),
       });
       getCode.addEventListener('click', () => chrome.tabs.create({ url: RIZFUL_GET_CODE_URL }));
 
@@ -18121,7 +18134,7 @@
       // actually carries the warning.
       const note = h('p', { className: 'rizful-note' });
       note.append(document.createTextNode('Run by '));
-      const megalith = h('a', { href: '#', className: 'explore-link inline', textContent: 'Megalith' });
+      const megalith = h('a', { href: '#', className: 'explore-link inline', textContent: t('Megalith') });
       megalith.addEventListener('click', (e) => {
         e.preventDefault();
         chrome.tabs.create({ url: 'https://megalithic.me/' });
@@ -18134,8 +18147,8 @@
       const actions = h('div', { className: 'actions setup-actions' }, [cancel, go]);
 
       modal.append(
-        h('h3', { textContent: 'Start with Rizful' }),
-        h('p', { className: 'rizful-lede', textContent: 'A hosted Lightning wallet, ready in about a minute.' }),
+        h('h3', { textContent: t('Start with Rizful') }),
+        h('p', { className: 'rizful-lede', textContent: t('A hosted Lightning wallet, ready in about a minute.') }),
         signup,
         getCode,
         code,
@@ -18148,13 +18161,13 @@
   }
 
   function renderWalletConnect(view) {
-    view.append(h('h2', { textContent: 'Wallet' }));
+    view.append(h('h2', { textContent: t('Wallet') }));
 
     view.append(
       h('p', {
         className: 'hint',
         textContent:
-          'Paste a Nostr Wallet Connect (NWC) connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.',
+          t('Paste a Nostr Wallet Connect (NWC) connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.'),
       })
     );
     const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
@@ -18164,22 +18177,22 @@
     // red validation-error tone above, plus a way straight to a working wallet.
     const primalNotice = h('p', { className: 'hint wallet-notice hidden' });
     primalNotice.append(
-      h('strong', { textContent: "Primal's NWC connection only works inside Primal's own apps " }),
-      document.createTextNode("— it doesn't support external apps like Sidecar."),
+      h('strong', { textContent: t("Primal's NWC connection only works inside Primal's own apps.") }),
+      document.createTextNode(' ' + t("It doesn't support external apps like Sidecar.")),
       document.createElement('br')
     );
-    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: 'More Lightning wallet options →' });
+    const primalLink = h('a', { href: '#', className: 'explore-link', textContent: t('More Lightning wallet options →') });
     primalLink.addEventListener('click', (e) => {
       e.preventDefault();
       openExtensionPage('wallets.html');
     });
     primalNotice.append(primalLink);
-    const connect = h('button', { className: 'primary wallet-connect-btn', textContent: 'Connect wallet' });
+    const connect = h('button', { className: 'primary wallet-connect-btn', textContent: t('Connect wallet') });
     connect.addEventListener('click', async () => {
       const conn = input.value.trim();
       primalNotice.classList.add('hidden');
-      if (!conn) return (err.textContent = 'Paste a connection string.');
-      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = "That doesn't look like an NWC string.");
+      if (!conn) return (err.textContent = t('Paste a connection string.'));
+      if (!conn.startsWith('nostr+walletconnect://')) return (err.textContent = t("That doesn't look like an NWC string."));
       warnIfInsecureNwcRelay(conn);
       if (isPrimalNwc(conn)) {
         err.textContent = '';
@@ -18188,20 +18201,20 @@
       }
       err.textContent = '';
       connect.disabled = true;
-      connect.textContent = 'Connecting…';
+      connect.textContent = t('Connecting…');
       try {
         // Validate by parsing + a getInfo round-trip before saving.
         const client = window.SidecarNWC.makeClient(conn);
         await client.getInfo();
         client.close();
         await call({ type: 'SIDECAR_SET_NWC', connection: conn });
-        toast('Wallet connected', 'success');
+        toast(t('Wallet connected'), 'success');
         renderWallet();
       } catch (e) {
-        err.textContent = e.message || 'Could not reach that wallet.';
-        toast('Could not connect wallet', 'error');
+        err.textContent = e.message || t('Could not reach that wallet.');
+        toast(t('Could not connect wallet'), 'error');
         connect.disabled = false;
-        connect.textContent = 'Connect wallet';
+        connect.textContent = t('Connect wallet');
       }
     });
     view.append(input, err, primalNotice, connect);
@@ -18210,20 +18223,20 @@
     // its own block (with its own status line) so its messages don't land in the
     // middle of the connect form.
     const restoreBlock = h('div', { className: 'wallet-restore-block' });
-    restoreBlock.append(h('div', { className: 'wallet-or', textContent: 'or' }));
-    const restore = h('button', { className: 'secondary', textContent: 'Restore from Nostr' });
-    const restoreNote = h('p', { className: 'hint compact', textContent: 'Restore a wallet you backed up to your relays.' });
+    restoreBlock.append(h('div', { className: 'wallet-or', textContent: t('or') }));
+    const restore = h('button', { className: 'secondary', textContent: t('Restore from Nostr') });
+    const restoreNote = h('p', { className: 'hint compact', textContent: t('Restore a wallet you backed up to your relays.') });
     restore.addEventListener('click', async () => {
       restore.disabled = true;
-      restore.textContent = 'Checking relays…';
+      restore.textContent = t('Checking relays…');
       try {
         await restoreNwcFromRelays();
-        toast('Wallet restored', 'success');
+        toast(t('Wallet restored'), 'success');
         renderWallet();
       } catch (e) {
         toast(e.message, 'error');
         restore.disabled = false;
-        restore.textContent = 'Restore from Nostr';
+        restore.textContent = t('Restore from Nostr');
       }
     });
     restoreBlock.append(restore, restoreNote);
@@ -18235,21 +18248,21 @@
     // sits last because it reads onward into the suggestions link below it.
     // The divider goes OUTSIDE the card — .wallet-quickstart has its own border and
     // background, and a rule inside it reads as a stray line rather than a separator.
-    view.append(h('div', { className: 'wallet-or quickstart-or', textContent: 'or' }));
+    view.append(h('div', { className: 'wallet-or quickstart-or', textContent: t('or') }));
     const quick = h('div', { className: 'wallet-quickstart' });
-    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: 'New to Lightning?' }));
+    quick.append(h('div', { className: 'wallet-quickstart-title', textContent: t('New to Lightning?') }));
     quick.append(h('p', {
       className: 'hint compact',
-      textContent: 'Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.',
+      textContent: t('Set up a hosted wallet with Rizful in about a minute, and start receiving zaps.'),
     }));
     // Rizful carries the recommended tint — it's the one-minute path for someone
     // with no wallet at all. The directory link sits in the same card as a
     // co-equal second choice rather than a footnote below it, so "I'd rather pick
     // my own" is visible at the same moment as "just set one up for me".
-    const quickBtn = h('button', { className: 'secondary wallet-quickstart-primary', textContent: 'Quick start with Rizful' });
+    const quickBtn = h('button', { className: 'secondary wallet-quickstart-primary', textContent: t('Quick start with Rizful') });
     quickBtn.addEventListener('click', rizfulQuickStartModal);
     quick.append(quickBtn);
-    const browseBtn = h('button', { className: 'secondary wallet-quickstart-browse', textContent: 'Browse all wallets' });
+    const browseBtn = h('button', { className: 'secondary wallet-quickstart-browse', textContent: t('Browse all wallets') });
     browseBtn.addEventListener('click', () => openExtensionPage('wallets.html'));
     quick.append(browseBtn);
     view.append(quick);
@@ -18280,14 +18293,14 @@
     const bal = h('div', {
       className: 'wallet-balance' + (cached ? '' : ' loading'),
       textContent: '···',
-      title: 'Tap to change units',
+      title: t('Tap to change units'),
     });
     if (cached) paintBalanceEl(bal, denomParts(balanceCache.sats), 'wallet-fiat-sym');
     // Tap the number to cycle sats → BTC → fiat. stopPropagation so it doesn't also
     // trigger the card's scroll-to-top handler while the card is collapsed.
     bal.addEventListener('click', (e) => { e.stopPropagation(); cycleDenom(); });
     const unit = h('div', { className: 'wallet-unit', textContent: denomParts(cached ? balanceCache.sats : null).unit });
-    const refresh = h('button', { className: 'wallet-refresh', title: 'Refresh' });
+    const refresh = h('button', { className: 'wallet-refresh', title: t('Refresh') });
     refresh.appendChild(icon('refresh'));
     // Refresh is a deliberate ask, so it strikes whatever comes back — including the
     // same figure, which is the answer most refreshes give and the only feedback that
@@ -18312,12 +18325,12 @@
       if (!balanceOk && !listOk) toast(t('Couldn’t reach your wallet'), 'error');
     });
     // Privacy toggle on the balance card (masks balance, history, budgets).
-    const eye = h('button', { className: 'wallet-eye', title: hideBalances ? 'Show balances' : 'Hide balances' });
+    const eye = h('button', { className: 'wallet-eye', title: hideBalances ? t('Show balances') : t('Hide balances') });
     eye.appendChild(icon(hideBalances ? 'eye-off' : 'eye'));
     eye.addEventListener('click', onBalanceEye);
     // Pin the balance bar from the card's corner. Only reachable while the bar is
     // unpinned (the card hides once pinned), so this is a one-way "pin" affordance.
-    const pin = h('button', { className: 'wallet-pin', title: 'Pin balance bar' });
+    const pin = h('button', { className: 'wallet-pin', title: t('Pin balance bar') });
     pin.appendChild(icon('pin'));
     pin.addEventListener('click', async () => {
       pinBalanceBar = true;
@@ -18327,7 +18340,7 @@
     // Price chart toggle, bottom-left corner (mirroring the pin at bottom-right).
     // Expands the card to reveal a 24h BTC price chart in the chosen currency.
     // Wallet screen only — the pinned bar stays compact by design.
-    const chartBtn = h('button', { className: 'wallet-chart-btn', title: 'Bitcoin price, last 24 hours' });
+    const chartBtn = h('button', { className: 'wallet-chart-btn', title: t('Bitcoin price, last 24 hours') });
     chartBtn.appendChild(icon('chart'));
     const chartSlot = h('div', { className: 'wallet-chart-slot' });
     // Opening/closing the chart changes the card's expanded height, so the collapse
@@ -18346,13 +18359,13 @@
       chartSlot.innerHTML = '';
       // The one surface that said "Loading" and showed nothing moving, so a slow price
       // fetch was indistinguishable from a dead one.
-      chartSlot.append(h('div', { className: 'wallet-chart-loading' }, [waitingRow('Loading price history…')]));
+      chartSlot.append(h('div', { className: 'wallet-chart-loading' }, [waitingRow(t('Loading price history…'))]));
       const history = await getPriceHistory(fiatCurrency, chartRange);
       if (seq !== chartSeq) return; // a newer range was picked while this was in flight
       chartSlot.innerHTML = '';
       if (!history) {
         // Leave the slot open with an explanation rather than silently collapsing.
-        chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: 'Price history unavailable' }));
+        chartSlot.append(h('div', { className: 'wallet-chart-loading', textContent: t('Price history unavailable') }));
         chartSlot.dataset.currency = '';
         remeasureAfterToggle();
         return;
@@ -18378,13 +18391,13 @@
       }
       await paintChart();
     });
-    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: 'Balance' }), bal, unit, chartSlot, chartBtn, pin);
+    card.append(eye, refresh, h('div', { className: 'wallet-bal-label', textContent: t('Balance') }), bal, unit, chartSlot, chartBtn, pin);
     view.append(card);
 
     // Actions
     const actions = h('div', { className: 'wallet-actions' });
-    const sendBtn = h('button', { className: 'primary' }, [icon('arrow-up-right'), h('span', { textContent: 'Send' })]);
-    const recvBtn = h('button', { className: 'secondary' }, [icon('arrow-down-left'), h('span', { textContent: 'Receive' })]);
+    const sendBtn = h('button', { className: 'primary' }, [icon('arrow-up-right'), h('span', { textContent: t('Send') })]);
+    const recvBtn = h('button', { className: 'secondary' }, [icon('arrow-down-left'), h('span', { textContent: t('Receive') })]);
     sendBtn.addEventListener('click', () => sendModal());
     recvBtn.addEventListener('click', () => receiveModal());
     actions.append(sendBtn, recvBtn);
@@ -18398,12 +18411,12 @@
     let nudgeStateName = 'unknown';
     const nudge = h('p', { className: 'hint wallet-notice wallet-backup-nudge hidden' });
     const nudgeText = h('span', { textContent: '' });
-    const nudgeBtn = h('button', { className: 'explore-link', textContent: 'Back up' });
+    const nudgeBtn = h('button', { className: 'explore-link', textContent: t('Back up') });
     const doNudgeBackup = async () => {
       nudgeBtn.disabled = true;
       try {
         await backupNwcToRelays();
-        toast('Wallet backed up', 'success');
+        toast(t('Wallet backed up'), 'success');
         renderWallet();
       } catch (e) {
         toast(e.message, 'error');
@@ -18419,7 +18432,7 @@
       }
       doNudgeBackup();
     });
-    const nudgeX = h('button', { className: 'wallet-nudge-x', textContent: '×', title: 'Dismiss' });
+    const nudgeX = h('button', { className: 'wallet-nudge-x', textContent: '×', title: t('Dismiss') });
     nudgeX.addEventListener('click', () => {
       // Per account, and only for this session — renderWallet() runs often enough
       // that a render-scoped dismissal would reappear immediately, but a permanent
@@ -18435,8 +18448,8 @@
       if (nwcNudgeDismissed === state.activePubkey) return;
       nudgeStateName = s;
       nudgeText.textContent = s === 'stale'
-        ? 'Your backup is a different wallet.'
-        : "This wallet isn't backed up.";
+        ? t('Your backup is a different wallet.')
+        : t("This wallet isn't backed up.");
       nudge.classList.remove('hidden');
     }).catch(() => {});
 
@@ -18447,7 +18460,7 @@
     getLightningAddress().then((lud16) => {
       if (!lud16) return;
       const row = h('div', { className: 'address-row' });
-      const addr = h('button', { className: 'address-value', title: 'Copy address' }, [
+      const addr = h('button', { className: 'address-value', title: t('Copy address') }, [
         boltIcon(), h('span', { textContent: lud16 }),
       ]);
       addr.addEventListener('click', async () => {
@@ -18455,11 +18468,11 @@
           await copyPlain(lud16);
           const s = addr.querySelector('span');
           const prev = s.textContent;
-          s.textContent = 'Copied ✓';
+          s.textContent = t('Copied ✓');
           setTimeout(() => (s.textContent = prev), 1200);
         } catch (_) {}
       });
-      const qrToggle = h('button', { className: 'address-qr-toggle', title: 'Show QR code' });
+      const qrToggle = h('button', { className: 'address-qr-toggle', title: t('Show QR code') });
       qrToggle.appendChild(icon('qr'));
       const qrBox = h('div', { className: 'address-qr hidden' });
       let built = false;
@@ -18475,13 +18488,13 @@
         qrToggle.classList.toggle('active', !showing);
       });
       row.append(addr, qrToggle);
-      addrCard.append(h('h3', { textContent: 'Lightning address' }), row, qrBox);
+      addrCard.append(h('h3', { textContent: t('Lightning address') }), row, qrBox);
       addrCard.classList.remove('hidden');
     });
 
     // Transactions
     const txWrap = h('div', { className: 'setting' });
-    txWrap.append(h('h3', { textContent: 'Recent transactions' }));
+    txWrap.append(h('h3', { textContent: t('Recent transactions') }));
     const txList = h('div', { className: 'list flat' });
     txWrap.append(txList);
     view.append(txWrap);
@@ -18497,16 +18510,16 @@
     view.append(renderFiatPicker());
 
     // Disconnect
-    const disc = h('button', { className: 'ghost wallet-disconnect', textContent: 'Disconnect wallet' });
+    const disc = h('button', { className: 'ghost wallet-disconnect', textContent: t('Disconnect wallet') });
     disc.addEventListener('click', () => disconnectModal());
     view.append(disc);
 
     // Self-custody disclaimer (bottom of the wallet screen).
     view.append(
       h('p', { className: 'wallet-disclaimer' }, [
-        h('strong', { textContent: 'IMPORTANT: ' }),
+        h('strong', { textContent: t('IMPORTANT:') }),
         document.createTextNode(
-          'Sidecar never holds user funds. You manage your own wallet and are responsible for securing it properly.'
+          ' ' + t('Sidecar never holds user funds. You manage your own wallet and are responsible for securing it properly.')
         ),
       ])
     );
@@ -18527,6 +18540,7 @@
       const parts = denomParts(balanceCache.sats);
       paintBalanceEl(bal, parts, 'wallet-fiat-sym');
       unit.textContent = parts.unit;
+      delete unit.dataset.balanceError;
     } catch (e) {
       if (!cached) {
         bal.textContent = '—';
@@ -18534,21 +18548,22 @@
         // down reads as a Sidecar failure otherwise. Kept short — this sits under
         // the balance in a narrow panel; the full sentence goes in the toast.
         unit.textContent = e && e.localSocketFailure
-          ? 'browser out of connections'
+          ? t('browser out of connections')
           : e && e.relayDown
-            ? 'wallet relay unreachable'
+            ? t('wallet relay unreachable')
             : e && e.staleSocket
-              ? 'connection lost — retry'
-              : 'balance unavailable';
+              ? t('connection lost, retry')
+              : t('balance unavailable');
+        unit.dataset.balanceError = '1';
         if (e && (e.localSocketFailure || e.relayDown || e.walletSilent || e.staleSocket)) toast(e.message, 'error');
         // A way out, on the screen where the failure is visible. Only for the
         // connection-shaped failures — a wallet that answered "no" is not fixed by
         // reconnecting, and offering a button that cannot help is its own small lie.
         if (e && (e.localSocketFailure || e.relayDown || e.staleSocket)) {
-          const again = h('button', { className: 'secondary wallet-reset', textContent: 'Reset connections' });
+          const again = h('button', { className: 'secondary wallet-reset', textContent: t('Reset connections') });
           again.addEventListener('click', async () => {
             again.disabled = true;
-            again.textContent = 'Reconnecting…';
+            again.textContent = t('Reconnecting…');
             await resetConnections();
             renderWallet(); // rebuilds the card against fresh sockets
           });
@@ -18610,7 +18625,7 @@
     } catch (_) {}
   }
 
-  const satsLabel = (n) => fmtSats(n) + (Math.round(n) === 1 ? ' sat' : ' sats');
+  const satsLabel = (n) => tn('{{count}} sat', '{{count}} sats', Math.round(n));
   // fees_paid is in msats; show it rounded to the nearest whole sat.
   function fmtFeeMsat(msat) {
     return msat == null ? null : satsLabel(Math.round(msat / 1000));
@@ -18636,10 +18651,10 @@
     const host = listEl.parentNode; // append the "Show more" button below the card
     const more = h('button', { className: 'ghost show-more-btn' });
     hide(more);
-    more.textContent = 'Show more';
+    more.textContent = t('Show more');
     if (host) host.append(more);
 
-    listState(listEl, 'Loading…');
+    listState(listEl, t('Loading…'));
 
     async function loadPage() {
       if (loading) return false;
@@ -18648,17 +18663,17 @@
         const res = await client.listTransactions({ limit: PAGE, offset, unpaid: false });
         const txns = (res && res.transactions) || [];
         if (offset === 0) {
-          if (!txns.length) { listState(listEl, 'No transactions yet.'); hide(more); return; }
+          if (!txns.length) { listState(listEl, t('No transactions yet.')); hide(more); return; }
           listEl.innerHTML = '';
         }
         txns.forEach((tx) => listEl.append(txRow(tx, metaMap)));
         offset += txns.length;
         // A full page back suggests there may be more to fetch.
-        if (txns.length >= PAGE) { show(more); more.textContent = 'Show more'; }
+        if (txns.length >= PAGE) { show(more); more.textContent = t('Show more'); }
         else hide(more);
         return true;
       } catch (e) {
-        if (offset === 0) listState(listEl, 'Could not load transactions.');
+        if (offset === 0) listState(listEl, t('Could not load transactions.'));
         hide(more);
         return false;
       } finally {
@@ -18696,7 +18711,7 @@
           const freshMeta = await getPayMeta();
           fresh.reverse().forEach((tx) => listEl.prepend(txRow(tx, freshMeta)));
           show(more);
-          more.textContent = 'Show more';
+          more.textContent = t('Show more');
         }
       } catch (_) {
         // A failed refresh leaves the list as it was: never cleared, never replaced by an
@@ -18712,7 +18727,7 @@
       return ok;
     }
 
-    more.addEventListener('click', () => { more.textContent = 'Loading…'; loadPage(); });
+    more.addEventListener('click', () => { more.textContent = t('Loading…'); loadPage(); });
     _refreshTxList = refresh;
     loadPage();
   }
@@ -18798,13 +18813,13 @@
     const val = h('span', { className: 'tx-d-val' + (prose ? ' prose' : ''), textContent: String(value) });
     if (copyValue) {
       val.classList.add('copyable');
-      val.title = 'Copy';
+      val.title = t('Copy');
       val.addEventListener('click', async (e) => {
         e.stopPropagation();
         try {
           await copyPlain(String(copyValue));
           const old = val.textContent;
-          val.textContent = 'Copied';
+          val.textContent = t('Copied');
           val.classList.add('copied');
           setTimeout(() => { val.textContent = old; val.classList.remove('copied'); }, 1000);
         } catch (_) {}
@@ -18820,12 +18835,12 @@
   // just "Zap" when the event carried no usable key. Never the raw hex, which is 64
   // characters of noise in a 328px row.
   function zapLabel(incoming, pubkey, rec) {
-    const verb = incoming ? 'Zap from ' : 'Zap to ';
-    if (rec && rec.name) return verb + rec.name;
-    if (!pubkey) return 'Zap';
+    const label = (name) => (incoming ? t('Zap from {{name}}', { name }) : t('Zap to {{name}}', { name }));
+    if (rec && rec.name) return label(rec.name);
+    if (!pubkey) return t('Zap');
     let npub = '';
-    try { npub = NT.nip19.npubEncode(pubkey); } catch (_) { return 'Zap'; }
-    return verb + npub.slice(0, 10) + '…' + npub.slice(-4);
+    try { npub = NT.nip19.npubEncode(pubkey); } catch (_) { return t('Zap'); }
+    return label(npub.slice(0, 10) + '…' + npub.slice(-4));
   }
 
   // Swap the direction arrow for the zapper's face, keeping the arrow as a corner badge.
@@ -18857,7 +18872,8 @@
     // it paid for instead — never the raw node key, which is 64 characters of noise in a
     // 328px row.
     const boostLabel = meta.keysend
-      ? (meta.podcast ? 'Boost to ' + meta.podcast : meta.dest ? 'Keysend to ' + truncMid(meta.dest, 8, 6) : 'Boost')
+      ? (meta.podcast ? t('Boost to {{show}}', { show: meta.podcast })
+        : meta.dest ? t('Keysend to {{node}}', { node: truncMid(meta.dest, 8, 6) }) : t('Boost'))
       : '';
     const counterparty = incoming ? '' : meta.address || boostLabel || '';
 
@@ -18903,7 +18919,7 @@
       if (String(note).trim()) {
         const mark = h('span', { className: 'tx-note', title: note });
         mark.setAttribute('role', 'img');
-        mark.setAttribute('aria-label', 'Note: ' + note);
+        mark.setAttribute('aria-label', t('Note: {{note}}', { note }));
         mark.append(icon('message-filled'));
         labelEl.classList.add('has-note');
         labelEl.append(mark);
@@ -18919,11 +18935,11 @@
           .catch(() => {});
       }
     } else {
-      labelEl.textContent = counterparty || normDesc || (incoming ? 'Received' : 'Sent');
+      labelEl.textContent = counterparty || normDesc || (incoming ? t('Received') : t('Sent'));
     }
     const main = h('div', { className: 'item-main' }, [
       labelEl,
-      h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : 'pending' }),
+      h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : t('pending') }),
     ]);
     const amt = h('div', { className: 'tx-amt ' + (incoming ? 'in' : 'out'), textContent: (incoming ? '+' : '−') + fmtSats(sats) });
     const caret = h('span', { className: 'tx-caret' });
@@ -18940,17 +18956,20 @@
       // From/To row above would otherwise be blank on every one of them.
       const zapWho = isZap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
       const rows = [
-        txDetailRow(incoming ? 'From' : 'To', counterparty || zapWho),
-        txDetailRow('Note', note, null, true),
-        txDetailRow('Amount', satsLabel(sats)),
-        incoming ? null : txDetailRow('Fee', fmtFeeMsat(fee)),
-        txDetailRow('Date', when ? new Date(when * 1000).toLocaleString() : null),
-        txDetailRow('Payment hash', tx.payment_hash ? truncMid(tx.payment_hash, 12, 8) : null, tx.payment_hash),
-        txDetailRow('Preimage', tx.preimage ? truncMid(tx.preimage, 12, 8) : null, tx.preimage),
-        txDetailRow('Invoice', tx.invoice ? truncMid(tx.invoice, 12, 10) : null, tx.invoice),
+        txDetailRow(incoming ? t('From') : t('To'), counterparty || zapWho),
+        txDetailRow(t('Note'), note, null, true),
+        txDetailRow(t('Amount'), satsLabel(sats)),
+        incoming ? null : txDetailRow(t('Fee'), fmtFeeMsat(fee)),
+        txDetailRow(t('Date'), when ? I18N.fmtDate(when * 1000,
+          // Option by option, so English reads as toLocaleString() did (9/28/2026,
+          // 4:42:40 PM); dateStyle: 'short' cuts the year to two digits.
+          { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }) : null),
+        txDetailRow(t('Payment hash'), tx.payment_hash ? truncMid(tx.payment_hash, 12, 8) : null, tx.payment_hash),
+        txDetailRow(t('Preimage'), tx.preimage ? truncMid(tx.preimage, 12, 8) : null, tx.preimage),
+        txDetailRow(t('Invoice'), tx.invoice ? truncMid(tx.invoice, 12, 10) : null, tx.invoice),
       ].filter(Boolean);
       if (!rows.length) {
-        rows.push(h('div', { className: 'tx-d-row' }, [h('span', { className: 'tx-d-label', textContent: 'No extra details.' })]));
+        rows.push(h('div', { className: 'tx-d-row' }, [h('span', { className: 'tx-d-label', textContent: t('No extra details.') })]));
       }
       rows.forEach((r) => details.append(r));
       built = true;
@@ -18970,33 +18989,33 @@
   // Export the raw NWC connection string — PIN-gated step-up, then a copyable
   // reveal that auto-hides (mirrors the nsec reveal).
   function exportNwcModal() {
-    if (!state.activePubkey) { toast('No active account', 'error'); return; }
+    if (!state.activePubkey) { toast(tSec('No active account'), 'error'); return; }
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Reveal' });
+      const go = h('button', { className: 'primary', textContent: tSec('Reveal') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        if (!pin.value) return (err.textContent = tSec('Enter your PIN.'));
         go.disabled = true;
-        go.textContent = 'Revealing…';
+        go.textContent = tSec('Revealing…');
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NWC', pubkey: state.activePubkey, pin: pin.value });
-          if (!r.connection) throw new Error('No wallet connection saved for this account');
+          if (!r.connection) throw new Error(tSec('No wallet connection saved for this account'));
           nwcRevealModal(r.connection);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
-          go.textContent = 'Reveal';
+          go.textContent = tSec('Reveal');
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Export wallet connection' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to reveal the NWC connection string for this account.' }),
-        h('label', { textContent: 'PIN' }),
+        h('h3', { textContent: tSec('Export wallet connection') }),
+        h('p', { className: 'hint', textContent: tSec('Enter your PIN to reveal the NWC connection string for this account.') }),
+        h('label', { textContent: tSec('PIN') }),
         pin,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -19010,11 +19029,11 @@
     openModal(
       (modal) => {
         const body = h('div', {});
-        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        const done = h('button', { className: 'primary', textContent: tSec("I've saved it") });
         done.addEventListener('click', closeModal);
         modal.append(
-          h('h3', { textContent: 'Wallet connection string' }),
-          h('p', { className: 'hint', textContent: 'Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.' }),
+          h('h3', { textContent: tSec('Wallet connection string') }),
+          h('p', { className: 'hint', textContent: tSec('Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.') }),
           body,
           h('div', { className: 'actions' }, [done])
         );
@@ -19026,8 +19045,8 @@
           noun: 'connection string',
           qrLevel: 'L',
           qrExclusive: true, // the URI is long — show the string OR the QR, not both
-          qrHint: 'Scan in an NWC-compatible app to connect the same wallet.',
-          warnText: 'This string can spend from your wallet up to its limits. Store it safely and never share it.',
+          qrHint: tSec('Scan in an NWC-compatible app to connect the same wallet.'),
+          warnText: tSec('This string can spend from your wallet up to its limits. Store it safely and never share it.'),
           onExpire: closeModal,
         });
       },
@@ -19047,21 +19066,21 @@
       const body = h('p', { className: 'hint' });
       body.append(
         document.createTextNode(
-          backupState === 'stale'
-            ? 'Your relays hold a different wallet. Backing up replaces it. '
-            : "Sidecar couldn't check what your relays hold. Backing up replaces it. "
+          (backupState === 'stale'
+            ? t('Your relays hold a different wallet. Backing up replaces it.')
+            : t("Sidecar couldn't check what your relays hold. Backing up replaces it.")) + ' '
         ),
-        h('strong', { textContent: 'Restore it first if you still need it.' })
+        h('strong', { textContent: t('Restore it first if you still need it.') })
       );
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       // Action first, Cancel last — matching disconnectModal, the other wallet
       // confirm. 'danger' not 'primary': this discards a stored wallet, so it
       // shouldn't wear the color reserved for the encouraged choice.
-      const go = h('button', { className: 'danger', textContent: 'Replace backup' });
+      const go = h('button', { className: 'danger', textContent: t('Replace backup') });
       go.addEventListener('click', () => { closeModal(); onConfirm(); });
       modal.append(
-        h('h3', { textContent: 'Replace saved backup?' }),
+        h('h3', { textContent: t('Replace saved backup?') }),
         body,
         h('div', { className: 'actions' }, [go, cancel])
       );
@@ -19074,18 +19093,18 @@
       const body = h('p', { className: 'hint' });
       body.append(
         document.createTextNode(
-          backupState === 'stale'
-            ? 'The backup is a different wallet. '
-            : "Sidecar couldn't check what the backup holds. "
+          (backupState === 'stale'
+            ? t('The backup is a different wallet.')
+            : t("Sidecar couldn't check what the backup holds.")) + ' '
         ),
-        h('strong', { textContent: 'The wallet you have connected now will be replaced.' })
+        h('strong', { textContent: t('The wallet you have connected now will be replaced.') })
       );
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
-      const go = h('button', { className: 'danger', textContent: 'Replace it' });
+      const go = h('button', { className: 'danger', textContent: t('Replace it') });
       go.addEventListener('click', () => { closeModal(); onConfirm(); });
       modal.append(
-        h('h3', { textContent: 'Replace connected wallet?' }),
+        h('h3', { textContent: t('Replace connected wallet?') }),
         body,
         h('div', { className: 'actions' }, [go, cancel])
       );
@@ -19096,18 +19115,18 @@
   // fetch + decrypt happens once per wallet render, not once per consumer.
   function renderWalletBackup(statePromise) {
     const wrap = h('div', { className: 'setting wallet-backup' });
-    wrap.append(h('h3', { textContent: 'Backup' }));
-    wrap.append(h('p', { className: 'hint', textContent: 'Encrypt your wallet connection to your own key and store it on your relays (NIP-78). Restore it on another device or after a reset.' }));
+    wrap.append(h('h3', { textContent: t('Backup') }));
+    wrap.append(h('p', { className: 'hint', textContent: t('Encrypt your wallet connection to your own key and store it on your relays (NIP-78). Restore it on another device or after a reset.') }));
 
     let backupState = 'unknown';
-    const status = h('span', { className: 'backup-status', textContent: 'Checking…' });
+    const status = h('span', { className: 'backup-status', textContent: t('Checking…') });
     // Only shown for 'stale', where the pill alone can't say what's wrong.
-    const staleNote = h('p', { className: 'hint backup-stale-note hidden', textContent: 'The backup is a different wallet.' });
-    const back = h('button', { className: 'secondary', textContent: 'Back up' });
-    const restore = h('button', { className: 'secondary', textContent: 'Restore' });
+    const staleNote = h('p', { className: 'hint backup-stale-note hidden', textContent: t('The backup is a different wallet.') });
+    const back = h('button', { className: 'secondary', textContent: t('Back up') });
+    const restore = h('button', { className: 'secondary', textContent: t('Restore') });
     const doBackup = async () => {
       back.disabled = true;
-      back.textContent = 'Backing up…';
+      back.textContent = t('Backing up…');
       try {
         await backupNwcToRelays();
         backupState = 'current';
@@ -19115,12 +19134,12 @@
         status.classList.add('done');
         status.classList.remove('warn');
         staleNote.classList.add('hidden');
-        toast('Wallet backed up', 'success');
+        toast(t('Wallet backed up'), 'success');
       } catch (e) {
         toast(e.message, 'error');
       }
       back.disabled = false;
-      back.textContent = 'Back up';
+      back.textContent = t('Back up');
     };
     back.addEventListener('click', () => {
       // Only when there's something to lose. 'none' has no stored wallet and
@@ -19133,15 +19152,15 @@
     });
     const doRestore = async () => {
       restore.disabled = true;
-      restore.textContent = 'Restoring…';
+      restore.textContent = t('Restoring…');
       try {
         await restoreNwcFromRelays();
-        toast('Wallet restored', 'success');
+        toast(t('Wallet restored'), 'success');
         renderWallet();
       } catch (e) {
         toast(e.message, 'error');
         restore.disabled = false;
-        restore.textContent = 'Restore';
+        restore.textContent = t('Restore');
       }
     };
     restore.addEventListener('click', () => {
@@ -19155,14 +19174,14 @@
       }
       doRestore();
     });
-    const exportBtn = h('button', { className: 'wallet-export-link', textContent: 'Export connection string' });
+    const exportBtn = h('button', { className: 'wallet-export-link', textContent: t('Export connection string') });
     exportBtn.append(icon('key'));
     exportBtn.addEventListener('click', exportNwcModal);
     hide(exportBtn); // shown only when a connection exists for the active account
 
     const card = h('div', { className: 'wallet-backup-card' }, [
       h('div', { className: 'wallet-backup-head' }, [
-        h('span', { className: 'item-label', textContent: 'Wallet connection' }),
+        h('span', { className: 'item-label', textContent: t('Wallet connection') }),
         status,
       ]),
       staleNote,
@@ -19194,11 +19213,11 @@
   // a prompt, up to a daily allowance. Lets the user review and revoke them.
   function renderSitePayments() {
     const wrap = h('div', { className: 'setting wallet-budgets' });
-    wrap.append(h('h3', { textContent: 'Site payments' }));
-    wrap.append(h('p', { className: 'hint', textContent: 'Sites allowed to pay from your wallet without asking, up to a daily budget. Revoke any time.' }));
+    wrap.append(h('h3', { textContent: tSec('Site payments') }));
+    wrap.append(h('p', { className: 'hint', textContent: tSec('Sites allowed to pay from your wallet without asking, up to a daily budget. Revoke any time.') }));
     const list = h('div', { className: 'list flat' });
     wrap.append(list);
-    listState(list, 'Loading…');
+    listState(list, tSec('Loading…'));
     call({ type: 'SIDECAR_GET_BUDGETS' })
       .then((budgets) => {
         const hosts = Object.keys(budgets || {}).sort();
@@ -19206,14 +19225,14 @@
         // say how — otherwise the feature is invisible to anyone who ever unticked it.
         if (!hosts.length) {
           list.classList.add('empty');
-          listState(list, 'No sites have a spending budget. Tick “remember a budget” when you approve a payment.');
+          listState(list, tSec('No sites have a spending budget. Tick “remember a budget” when you approve a payment.'));
           return;
         }
         list.classList.remove('empty');
         list.innerHTML = '';
         hosts.forEach((host) => list.append(budgetRow(host, budgets[host])));
       })
-      .catch(() => listState(list, 'Could not load budgets.'));
+      .catch(() => listState(list, tSec('Could not load budgets.')));
     return wrap;
   }
 
@@ -19226,18 +19245,17 @@
   // figures, stay masked.
   function budgetRow(host, b) {
     const row = h('div', { className: 'item' });
-    const sub = h('div', { className: 'item-sub' }, [
-      h('span', { textContent: fmtSats(b.remainingSats) }),
-      document.createTextNode(' of '),
-      h('span', { textContent: fmtSats(b.budgetSats) }),
-      document.createTextNode(' sats left today'),
-    ]);
+    // One sentence with the two figures as their own spans, placed by fill().
+    const sub = h('div', { className: 'item-sub' }, I18N.fill(tSec('{{left}} of {{budget}} sats left today'), {
+      left: h('span', { textContent: fmtSats(b.remainingSats) }),
+      budget: h('span', { textContent: fmtSats(b.budgetSats) }),
+    }));
     const main = h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: host }),
       sub,
     ]);
-    const edit = iconButton('Edit budget', 'edit', () => editBudgetModal(host, b));
-    const rm = iconButton('Revoke budget', 'trash', async () => {
+    const edit = iconButton(tSec('Edit budget'), 'edit', () => editBudgetModal(host, b));
+    const rm = iconButton(tSec('Revoke budget'), 'trash', async () => {
       await call({ type: 'SIDECAR_REVOKE_BUDGET', host });
       renderWallet();
     });
@@ -19249,34 +19267,34 @@
     openModal((modal) => {
       const err = h('div', { className: 'error' });
       const input = h('input', { type: 'text', inputMode: 'numeric', value: String(b.budgetSats || 0) });
-      const save = h('button', { className: 'primary', textContent: 'Save budget' });
+      const save = h('button', { className: 'primary', textContent: tSec('Save budget') });
       save.addEventListener('click', async () => {
         err.textContent = '';
         const budgetSats = parseInt(input.value, 10);
         if (!budgetSats || budgetSats < 1) {
-          err.textContent = 'Enter a daily budget in sats.';
+          err.textContent = tSec('Enter a daily budget in sats.');
           return;
         }
         try {
           await call({ type: 'SIDECAR_SET_BUDGET', host, budgetSats, perPaymentSats: b.perPaymentSats || 0 });
           closeModal();
           renderWallet();
-          toast('Budget updated', 'success');
+          toast(tSec('Budget updated'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Edit budget' }),
+        h('h3', { textContent: tSec('Edit budget') }),
         h('p', {
           className: 'hint',
           textContent:
-            'Daily amount ' + host + ' can spend without a prompt. Saving resets the remaining amount for today.',
+            tSec('Daily amount {{host}} can spend without a prompt. Saving resets the remaining amount for today.', { host }),
         }),
-        h('label', { textContent: 'Daily budget (sats)' }),
+        h('label', { textContent: tSec('Daily budget (sats)') }),
         input,
         err,
         h('div', { className: 'actions' }, [save, cancel])
@@ -19321,14 +19339,14 @@
 
   function sendModal() {
     openModal((modal) => {
-      const input = h('textarea', { className: 'compose-text', placeholder: 'Lightning invoice (lnbc…) or lightning address' });
-      const amountLabel = h('label', { className: 'hidden', textContent: 'Amount (sats)' });
-      const amount = satsInput('Amount in sats');
+      const input = h('textarea', { className: 'compose-text', placeholder: tSec('Lightning invoice (lnbc…) or lightning address') });
+      const amountLabel = h('label', { className: 'hidden', textContent: tSec('Amount (sats)') });
+      const amount = satsInput(tSec('Amount in sats'));
       amount.classList.add('hidden');
-      const comment = h('input', { className: 'send-comment', type: 'text', maxLength: 280, placeholder: 'Comment (optional)' });
+      const comment = h('input', { className: 'send-comment', type: 'text', maxLength: 280, placeholder: tSec('Comment (optional)') });
       const err = h('div', { className: 'error' });
-      const pay = h('button', { className: 'primary', textContent: 'Pay' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const pay = h('button', { className: 'primary', textContent: tSec('Pay') });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       // The amount on the Pay button, as soon as there is one to show: the invoice's own,
@@ -19345,8 +19363,8 @@
       }
       const payGate = largeSendGate(pay, {
         sats: paySatsNow,
-        label: (n) => (n ? 'Pay ' + fmtSats(n) + (n === 1 ? ' sat' : ' sats') : 'Pay'),
-        confirmLabel: 'Confirm amount above',
+        label: (n) => (n ? tn('Pay {{count}} sat', 'Pay {{count}} sats', n) : tSec('Pay')),
+        confirmLabel: tSec('Confirm amount above'),
       });
       const refreshPay = payGate.paint;
       amount.addEventListener('input', refreshPay);
@@ -19362,7 +19380,7 @@
       // own NWC client and pressing Pay IS the authorization. So the moment it closes is
       // the moment the money is genuinely moving, and nothing here has to hedge.
       function beginFlight(sats) {
-        return toast(sats != null ? 'Sending ' + fmtSats(sats) + ' sats' : 'Sending payment', 'progress');
+        return toast(sats != null ? tSec('Sending {{amount}} sats', { amount: fmtSats(sats) }) : tSec('Sending payment'), 'progress');
       }
 
       // The recipient card: who the address resolved to, and on what terms.
@@ -19394,8 +19412,8 @@
         // textContent throughout — every string here came from the recipient's server.
         who.append(h('span', { className: 'ln-recipient-name', textContent: p.identifier || p.addr }));
         const limits = p.minSats === p.maxSats
-          ? fmtSats(p.minSats) + ' sats only'
-          : fmtSats(p.minSats) + ' to ' + fmtSats(p.maxSats) + ' sats';
+          ? tSec('{{amount}} sats only', { amount: fmtSats(p.minSats) })
+          : tSec('{{min}} to {{max}} sats', { min: fmtSats(p.minSats), max: fmtSats(p.maxSats) });
         who.append(h('span', { className: 'ln-recipient-limits', textContent: limits }));
         head.append(who);
         card.append(head);
@@ -19405,9 +19423,9 @@
         const tags = h('div', { className: 'ln-recipient-tags' });
         tags.append(h('span', {
           className: 'ln-recipient-tag',
-          textContent: p.commentAllowed ? 'Comments up to ' + p.commentAllowed : 'No comments',
+          textContent: p.commentAllowed ? tSec('Comments up to {{count}}', { count: I18N.fmtNum(p.commentAllowed) }) : tSec('No comments'),
         }));
-        if (p.zappable) tags.append(h('span', { className: 'ln-recipient-tag', textContent: 'Zappable' }));
+        if (p.zappable) tags.append(h('span', { className: 'ln-recipient-tag', textContent: tSec('Zappable') }));
         card.append(tags);
 
         // Match the comment field to what this recipient will actually accept,
@@ -19420,7 +19438,7 @@
         } else {
           comment.disabled = true;
           comment.value = '';
-          comment.placeholder = 'This wallet does not accept comments';
+          comment.placeholder = tSec('This wallet does not accept comments');
         }
       }
 
@@ -19431,24 +19449,26 @@
         card.classList.remove('hidden', 'checking', 'failed');
         if (inv && paid) {
           card.classList.add('failed');
-          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: 'This invoice has already been paid' }));
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: tSec('This invoice has already been paid') }));
           card.append(h('span', {
             className: 'ln-recipient-status',
-            textContent: paid.ts ? 'Sidecar paid it ' + new Date(paid.ts).toLocaleString() + '.' : 'Sidecar paid it earlier.',
+            textContent: paid.ts
+              ? tSec('Sidecar paid it {{when}}.', { when: I18N.fmtDate(paid.ts, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }) })
+              : tSec('Sidecar paid it earlier.'),
           }));
           return;
         }
         if (!inv) {
           card.classList.add('failed');
-          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: "That invoice doesn't read correctly" }));
-          card.append(h('span', { className: 'ln-recipient-status', textContent: 'Check it was copied whole, or ask for a new one.' }));
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: tSec("That invoice doesn't read correctly") }));
+          card.append(h('span', { className: 'ln-recipient-status', textContent: tSec('Check it was copied whole, or ask for a new one.') }));
           return;
         }
         const left = inv.expiresAt - Math.floor(Date.now() / 1000);
         if (left <= 0) {
           card.classList.add('failed');
-          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: 'This invoice has expired' }));
-          card.append(h('span', { className: 'ln-recipient-status', textContent: 'Ask the recipient for a new one.' }));
+          card.append(h('span', { className: 'ln-recipient-fail-title', textContent: tSec('This invoice has expired') }));
+          card.append(h('span', { className: 'ln-recipient-status', textContent: tSec('Ask the recipient for a new one.') }));
           return;
         }
         const who = h('div', { className: 'ln-recipient-who' });
@@ -19456,9 +19476,9 @@
         // name line; the amountless prompt is an instruction, not a figure, and is not.
         who.append(h('span', {
           className: 'ln-recipient-name' + (inv.sats != null ? ' ln-invoice-amount' : ''),
-          textContent: inv.sats != null ? fmtSats(inv.sats) + (inv.sats === 1 ? ' sat' : ' sats') : 'No amount set, enter one below',
+          textContent: inv.sats != null ? tn('{{count}} sat', '{{count}} sats', inv.sats) : tSec('No amount set, enter one below'),
         }));
-        who.append(h('span', { className: 'ln-recipient-limits', textContent: 'Expires in ' + fmtExpiresIn(left) }));
+        who.append(h('span', { className: 'ln-recipient-limits', textContent: tSec('Expires in {{time}}', { time: fmtExpiresIn(left) }) }));
         card.append(h('div', { className: 'ln-recipient-head' }, [who]));
         // textContent: the description is the payee's own text.
         if (inv.description) card.append(h('p', { className: 'ln-recipient-desc', textContent: inv.description }));
@@ -19469,7 +19489,7 @@
         card.textContent = '';
         card.classList.remove('hidden', 'failed');
         card.classList.add('checking');
-        card.append(h('span', { className: 'ln-recipient-status', textContent: 'Checking ' + addr + '…' }));
+        card.append(h('span', { className: 'ln-recipient-status', textContent: tSec('Checking {{address}}…', { address: addr }) }));
         try {
           const p = await lnAddressParams(addr);
           if (seq !== resolveSeq) return; // a newer address is being checked
@@ -19489,11 +19509,11 @@
           const speakable = raw && raw.length <= 90 && !/[{}<>]|JSON|token|undefined|TypeError/i.test(raw);
           card.append(h('span', {
             className: 'ln-recipient-fail-title',
-            textContent: speakable ? raw : "Couldn't check that address",
+            textContent: speakable ? raw : tSec("Couldn't check that address"),
           }));
           card.append(h('span', {
             className: 'ln-recipient-status',
-            textContent: 'Check the spelling, or paste an invoice instead.',
+            textContent: tSec('Check the spelling, or paste an invoice instead.'),
           }));
         }
       }
@@ -19521,7 +19541,7 @@
           // It is kept beside this payment in your own history, and says so.
           comment.disabled = false;
           comment.maxLength = 280;
-          comment.placeholder = 'Note (on this device)';
+          comment.placeholder = tSec('Note (on this device)');
           // An amountless invoice leaves the amount to the payer, so it gets the field.
           const needsAmount = !!inv && inv.sats == null;
           amount.classList.toggle('hidden', !needsAmount);
@@ -19553,7 +19573,7 @@
 
       pay.addEventListener('click', async () => {
         const val = input.value.replace(/^lightning:/i, '').trim();
-        if (!val) return (err.textContent = 'Paste an invoice or lightning address.');
+        if (!val) return (err.textContent = tSec('Paste an invoice or lightning address.'));
         err.textContent = '';
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
@@ -19566,12 +19586,12 @@
             // The same checks the card shows, made again at the moment of paying: the
             // invoice may have expired while the sheet sat open.
             const inv = decodeBolt11(val);
-            if (!inv) return (err.textContent = "That invoice doesn't read correctly. Check it was copied whole.");
-            if (inv.expiresAt <= Math.floor(Date.now() / 1000)) return (err.textContent = 'This invoice has expired. Ask for a new one.');
-            if (await paidHere(val).catch(() => null)) return (err.textContent = 'This invoice has already been paid.');
+            if (!inv) return (err.textContent = tSec("That invoice doesn't read correctly. Check it was copied whole."));
+            if (inv.expiresAt <= Math.floor(Date.now() / 1000)) return (err.textContent = tSec('This invoice has expired. Ask for a new one.'));
+            if (await paidHere(val).catch(() => null)) return (err.textContent = tSec('This invoice has already been paid.'));
             if (inv.sats == null) {
               const sats = parseInt(amount.value, 10);
-              if (!sats || sats < 1) return (err.textContent = 'This invoice has no amount. Enter one in sats.');
+              if (!sats || sats < 1) return (err.textContent = tSec('This invoice has no amount. Enter one in sats.'));
               amountMsat = sats * 1000;
               paySats = sats;
             } else {
@@ -19584,23 +19604,23 @@
             // Checked above.
           } else if (isLnAddress(val)) {
             const sats = parseInt(amount.value, 10);
-            if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+            if (!sats || sats < 1) return (err.textContent = tSec('Enter an amount in sats.'));
             // Check against the limits we already fetched, so an out-of-range
             // amount is caught here rather than after a round trip. The server
             // still enforces its own at invoice time — this only saves the trip.
             if (resolved && resolved.addr === val && (sats < resolved.minSats || sats > resolved.maxSats)) {
               return (err.textContent = resolved.minSats === resolved.maxSats
-                ? 'This address only accepts ' + fmtSats(resolved.minSats) + ' sats.'
-                : 'Amount must be between ' + fmtSats(resolved.minSats) + ' and ' + fmtSats(resolved.maxSats) + ' sats.');
+                ? tSec('This address only accepts {{amount}} sats.', { amount: fmtSats(resolved.minSats) })
+                : tSec('Amount must be between {{min}} and {{max}} sats.', { min: fmtSats(resolved.minSats), max: fmtSats(resolved.maxSats) }));
             }
             if (!payGate.pass(sats)) return;
             address = val;
             paySats = sats;
             pay.disabled = true;
-            pay.textContent = 'Paying…';
+            pay.textContent = tSec('Paying…');
             invoice = await lnAddressToInvoice(val, sats * 1000, note || 'Sidecar payment');
           } else {
-            return (err.textContent = 'Enter a BOLT11 invoice (lnbc…) or a lightning address.');
+            return (err.textContent = tSec('Enter a BOLT11 invoice (lnbc…) or a lightning address.'));
           }
           // Everything that could still fail back INTO this form has happened: a bad
           // address, an out-of-range amount, a server that would not issue an invoice.
@@ -19622,8 +19642,8 @@
           // the field above. An amountless invoice leaves us nothing honest to state,
           // so it falls back to the bare confirmation rather than guessing.
           toast(
-            (paySats != null ? 'Sent ' + fmtSats(paySats) + ' sats' : 'Payment sent') +
-              (feeMsat != null ? ' · fee ' + fmtFeeMsat(feeMsat) : ''),
+            (paySats != null ? tSec('Sent {{amount}} sats', { amount: fmtSats(paySats) }) : tSec('Payment sent')) +
+              (feeMsat != null ? ' · ' + tSec('fee {{fee}}', { fee: fmtFeeMsat(feeMsat) }) : ''),
             'success'
           );
           renderWallet();
@@ -19641,7 +19661,7 @@
         }
       });
       modal.append(
-        h('h3', { textContent: 'Send' }),
+        h('h3', { textContent: tSec('Send') }),
         input,
         card,
         amountLabel,
@@ -19660,14 +19680,14 @@
     const stopPoll = () => { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } };
 
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: tSec('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
-      modal.append(xClose, h('h3', { textContent: 'Receive' }));
+      modal.append(xClose, h('h3', { textContent: tSec('Receive') }));
 
       // Tabs: Invoice (always) + Lightning address (added if the profile has lud16).
       const tabs = h('div', { className: 'compose-tabs' });
-      const tabInvoice = h('button', { className: 'compose-tab active', textContent: 'Invoice' });
+      const tabInvoice = h('button', { className: 'compose-tab active', textContent: tSec('Invoice') });
       tabs.append(tabInvoice);
       modal.append(tabs);
       const body = h('div');
@@ -19677,7 +19697,7 @@
         stopPoll();
         body.innerHTML = '';
         const presets = h('div', { className: 'amount-presets' });
-        const amount = satsInput('Amount in sats');
+        const amount = satsInput(tSec('Amount in sats'));
         const chipLabel = (n) => (n >= 1000 ? n / 1000 + 'K' : String(n));
         RECEIVE_PRESETS.forEach((p) => {
           const b = h('button', { className: 'preset-chip', textContent: chipLabel(p) });
@@ -19688,20 +19708,20 @@
           });
           presets.append(b);
         });
-        const memo = h('input', { type: 'text', placeholder: 'Note (optional)' });
+        const memo = h('input', { type: 'text', placeholder: tSec('Note (optional)') });
         const err = h('div', { className: 'error' });
-        const create = h('button', { className: 'primary', textContent: 'Create invoice' });
+        const create = h('button', { className: 'primary', textContent: tSec('Create invoice') });
         create.addEventListener('click', async () => {
           const sats = parseInt(amount.value, 10);
-          if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+          if (!sats || sats < 1) return (err.textContent = tSec('Enter an amount in sats.'));
           err.textContent = '';
           create.disabled = true;
-          create.textContent = 'Creating…';
+          create.textContent = tSec('Creating…');
           try {
             const client = await ensureNwc();
             const res = await client.makeInvoice(sats * 1000, memo.value.trim());
             const invoice = res && (res.invoice || res.payment_request || res.bolt11);
-            if (!invoice) throw new Error('Wallet returned no invoice');
+            if (!invoice) throw new Error(tSec('Wallet returned no invoice'));
             // Swap the whole form for the invoice + QR; the corner ✕ cancels.
             showInvoice(body, invoice);
             // Poll for settlement so we can show a success state — with a backoff
@@ -19731,14 +19751,14 @@
           } catch (e) {
             err.textContent = e.message;
             create.disabled = false;
-            create.textContent = 'Create invoice';
+            create.textContent = tSec('Create invoice');
           }
         });
         body.append(
-          h('label', { textContent: 'Amount (sats)' }),
+          h('label', { textContent: tSec('Amount (sats)') }),
           presets,
           amount,
-          h('label', { textContent: 'Note' }),
+          h('label', { textContent: tSec('Note') }),
           memo,
           err,
           h('div', { className: 'actions' }, [create])
@@ -19753,17 +19773,17 @@
         canvas.className = 'recv-qr';
         try { window.SidecarQR.draw(canvas, 'lightning:' + lud16, 220, 'M'); } catch (_) {}
         // Truncate to one line if it overflows — the full address is still copied.
-        const copy = h('button', { className: 'secondary recv-addr', title: 'Copy address' });
+        const copy = h('button', { className: 'secondary recv-addr', title: tSec('Copy address') });
         const addrText = h('span', { textContent: lud16 });
         copy.append(addrText);
         copy.addEventListener('click', async () => {
           try {
             await copyPlain(lud16);
-            addrText.textContent = 'Copied ✓';
+            addrText.textContent = tSec('Copied ✓');
             setTimeout(() => (addrText.textContent = lud16), 1200);
           } catch (_) {}
         });
-        out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Your reusable lightning address — anyone can pay it any amount.' }));
+        out.append(canvas, copy, h('p', { className: 'hint', textContent: tSec('Your reusable lightning address — anyone can pay it any amount.') }));
         body.append(out);
       }
 
@@ -19778,7 +19798,7 @@
       // Address tab so the user can toggle between an invoice and their address.
       getLightningAddress().then((lud16) => {
         if (!lud16) return;
-        const tabAddress = h('button', { className: 'compose-tab', textContent: 'Address' });
+        const tabAddress = h('button', { className: 'compose-tab', textContent: tSec('Address') });
         tabAddress.addEventListener('click', () => {
           tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
           tabAddress.classList.add('active');
@@ -19796,10 +19816,10 @@
     badge.append(icon('check'));
     wrap.append(
       badge,
-      h('div', { className: 'recv-success-title', textContent: 'Payment received' }),
-      h('div', { className: 'recv-success-amt', textContent: '+' + fmtSats(sats) + ' sats' })
+      h('div', { className: 'recv-success-title', textContent: tSec('Payment received') }),
+      h('div', { className: 'recv-success-amt', textContent: '+' + tn('{{count}} sat', '{{count}} sats', sats) })
     );
-    const done = h('button', { className: 'primary', textContent: 'Done' });
+    const done = h('button', { className: 'primary', textContent: tSec('Done') });
     done.addEventListener('click', closeModal);
     container.append(wrap, h('div', { className: 'actions' }, [done]));
   }
@@ -19814,35 +19834,35 @@
     } catch (_) {}
     // Show a short middle-ellipsis of the invoice; the full string is on Copy.
     const short = invoice.length > 36 ? invoice.slice(0, 22) + '…' + invoice.slice(-10) : invoice;
-    const copy = h('button', { className: 'secondary recv-copy', textContent: 'Copy invoice' });
+    const copy = h('button', { className: 'secondary recv-copy', textContent: tSec('Copy invoice') });
     copy.addEventListener('click', async () => {
       try {
         await copyPlain(invoice);
-        copy.textContent = 'Copied ✓';
-        setTimeout(() => (copy.textContent = 'Copy invoice'), 1200);
+        copy.textContent = tSec('Copied ✓');
+        setTimeout(() => (copy.textContent = tSec('Copy invoice')), 1200);
       } catch (_) {}
     });
-    const waiting = waitingRow('Waiting for payment…');
+    const waiting = waitingRow(tSec('Waiting for payment…'));
     out.append(canvas, h('div', { className: 'recv-bolt', textContent: short }), copy, waiting);
     container.append(out);
   }
 
   function disconnectModal() {
     openModal((modal) => {
-      const go = h('button', { className: 'danger', textContent: 'Disconnect' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const go = h('button', { className: 'danger', textContent: tSec('Disconnect') });
+      const cancel = h('button', { className: 'ghost', textContent: tSec('Cancel') });
       cancel.addEventListener('click', closeModal);
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_NWC' });
         stopWalletMonitor();
         if (nwc) { try { nwc.close(); } catch (_) {} nwc = null; nwcPubkey = null; nwcConn = null; }
         closeModal();
-        toast('Wallet disconnected', 'success');
+        toast(tSec('Wallet disconnected'), 'success');
         renderWallet();
       });
       modal.append(
-        h('h3', { textContent: 'Disconnect wallet?' }),
-        h('p', { className: 'hint', textContent: "Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected." }),
+        h('h3', { textContent: tSec('Disconnect wallet?') }),
+        h('p', { className: 'hint', textContent: tSec("Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected.") }),
         h('div', { className: 'actions' }, [go, cancel])
       );
     });
@@ -19891,7 +19911,7 @@
   // rejected, after the amount was already typed.
   async function lnAddressParams(addr) {
     const [name, domain] = String(addr || '').split('@');
-    if (!name || !domain) throw new Error('That does not look like a lightning address');
+    if (!name || !domain) throw new Error(t('That does not look like a lightning address'));
 
     // Each failure gets its own sentence, because they mean different things to
     // whoever is standing there with an address they expected to work: the
@@ -19903,7 +19923,7 @@
     try {
       res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name);
     } catch (_) {
-      throw new Error("Couldn't reach " + domain);
+      throw new Error(t("Couldn't reach {{domain}}", { domain }));
     }
     if (!res.ok) throw new Error(domain + ' has no lightning address for ' + name);
     let meta;
@@ -19952,10 +19972,10 @@
   async function zapInvoice({ addr, msats, comment, recipientPubkey, event }) {
     const { meta } = await lnAddressParams(addr);
     if (!(meta.allowsNostr && meta.nostrPubkey)) {
-      throw new Error('That lightning address cannot receive zaps, only payments.');
+      throw new Error(t('That lightning address cannot receive zaps, only payments.'));
     }
     if (msats < meta.minSendable || msats > meta.maxSendable) {
-      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+      throw new Error(tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(Math.ceil(meta.minSendable / 1000)), max: fmtSats(Math.floor(meta.maxSendable / 1000)) }));
     }
 
     // The relays the recipient's provider should publish the receipt to. Theirs, not
@@ -19982,12 +20002,12 @@
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
 
     const cb = new URL(meta.callback);
-    if (cb.protocol !== 'https:') throw new Error('That lightning address uses an insecure callback');
+    if (cb.protocol !== 'https:') throw new Error(t('That lightning address uses an insecure callback'));
     cb.searchParams.set('amount', String(msats));
     cb.searchParams.set('nostr', JSON.stringify(signed));
     const res = await fetch(cb.toString());
     const body = await res.json();
-    if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : 'The lightning address did not return an invoice');
+    if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : t('The lightning address did not return an invoice'));
     return body.pr;
   }
 
@@ -19998,18 +20018,18 @@
     // enforced. The server's answer at payment time is the only one that counts.
     const { meta } = await lnAddressParams(addr);
     if (msats < meta.minSendable || msats > meta.maxSendable) {
-      throw new Error('Amount must be ' + Math.ceil(meta.minSendable / 1000) + '–' + Math.floor(meta.maxSendable / 1000) + ' sats');
+      throw new Error(tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(Math.ceil(meta.minSendable / 1000)), max: fmtSats(Math.floor(meta.maxSendable / 1000)) }));
     }
     const cb = new URL(meta.callback);
     // The callback URL is chosen by whoever runs the lightning-address domain —
     // an http:// one sends the payment request (and its amount/comment) in
     // cleartext and is trivially swapped by a MITM. LNURL-pay callbacks are
     // https in practice, so refuse anything else.
-    if (cb.protocol !== 'https:') throw new Error('Lightning address returned an insecure callback URL');
+    if (cb.protocol !== 'https:') throw new Error(t('Lightning address returned an insecure callback URL'));
     cb.searchParams.set('amount', String(msats));
     if (comment && meta.commentAllowed > 0) cb.searchParams.set('comment', comment.slice(0, meta.commentAllowed));
     const res = await (await fetch(cb.toString())).json();
-    if (!res.pr) throw new Error(res.reason || 'No invoice returned');
+    if (!res.pr) throw new Error(res.reason || t('No invoice returned'));
     return res.pr;
   }
 
@@ -20022,21 +20042,22 @@
   async function checkForUpdates(btn, statusEl) {
     const prevLabel = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Checking…';
+    btn.textContent = t('Checking…');
     statusEl.textContent = '';
     try {
       const result = await chrome.runtime.requestUpdateCheck();
       const status = result && result.status;
       if (status === 'update_available') {
-        const v = result.version ? ' (v' + result.version + ')' : '';
-        statusEl.textContent = 'Update found' + v + ' — it installs the next time Sidecar restarts.';
+        statusEl.textContent = result.version
+          ? t('Update found (v{{version}}). It installs the next time Sidecar restarts.', { version: result.version })
+          : t('Update found. It installs the next time Sidecar restarts.');
       } else if (status === 'throttled') {
-        statusEl.textContent = 'Checked recently — try again in a few minutes.';
+        statusEl.textContent = t('Checked recently. Try again in a few minutes.');
       } else {
-        statusEl.textContent = "You're on the latest version.";
+        statusEl.textContent = t("You're on the latest version.");
       }
     } catch (_) {
-      statusEl.textContent = 'Could not check for updates.';
+      statusEl.textContent = t('Could not check for updates.');
     }
     btn.disabled = false;
     btn.textContent = prevLabel;
@@ -20058,21 +20079,22 @@
     const ver = build.version || (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
     if (!ver) return '';
     const commit = build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '';
-    return (withPrefix ? 'Version ' : '') + ver + commit;
+    return withPrefix ? t('Version {{version}}', { version: ver + commit }) : ver + commit;
   }
 
   function versionChip(cls, withPrefix) {
     const text = buildVersionText(withPrefix);
     if (!text) return null;
-    const el = h('button', { className: cls + ' version-chip', title: 'Copy version' });
+    const el = h('button', { className: cls + ' version-chip', title: t('Copy version') });
     const span = h('span', { textContent: text });
     el.append(span);
     el.addEventListener('click', async () => {
       try {
         // What is on screen, so what you paste is what you were looking at.
         await copyPlain(text);
-        span.textContent = 'Copied \u2713';
-        setTimeout(() => { if (span.textContent === 'Copied \u2713') span.textContent = text; }, 1200);
+        const copied = t('Copied') + ' \u2713';
+        span.textContent = copied;
+        setTimeout(() => { if (span.textContent === copied) span.textContent = text; }, 1200);
       } catch (_) {}
     });
     return el;
@@ -20089,14 +20111,15 @@
   // it comes back for anyone who goes looking, and the tap-to-copy keeps working. A
   // version you can read but not copy would undo the point of the chip.
   const VERSION_FADE_MS = 4000;
-  ['lock-version', 'onboarding-version'].forEach((id) => {
+  // After the language loads: the chip reads "Version …" through t().
+  I18N.ready.catch(() => {}).then(() => ['lock-version', 'onboarding-version'].forEach((id) => {
     const slot = document.getElementById(id);
     if (!slot) return;
     const chip = versionChip('pre-version', true);
     if (!chip) return;
     slot.append(chip);
     setTimeout(() => chip.classList.add('faded'), VERSION_FADE_MS);
-  });
+  }));
 
   // ---- About + zap the creator (opened from the Sidecar logo) ----
   function aboutModal() {
@@ -20477,7 +20500,7 @@
     line.classList.toggle('hidden', !on);
     if (!on) return;
     const lvl = powLevelFor(bits);
-    line.textContent = lvl.cost;
+    line.textContent = lvl.cost();
   }
 
   $('pow-toggle').addEventListener('change', async (e) => {
@@ -20698,7 +20721,7 @@
     // there is nothing for the number to belong to.
     if (!state.activePubkey) return;
     await call({ type: 'SIDECAR_SET_ZAP_DEFAULT_FOR', pubkey: state.activePubkey, sats });
-    toast('Default zap set to ' + fmtSats(sats) + ' sats', 'success');
+    toast(t('Default zap set to {{amount}} sats', { amount: fmtSats(sats) }), 'success');
   });
 
   $('autozap-max').addEventListener('change', async (e) => {
@@ -20737,7 +20760,7 @@
   } else {
     // Firefox has no on-demand update check — the browser updates add-ons itself.
     $('check-update-btn').hidden = true;
-    $('check-update-status').textContent = 'Updates install automatically through your browser.';
+    $('check-update-status').textContent = t('Updates install automatically through your browser.');
   }
 
   $('export-vault-btn').addEventListener('click', () => exportVaultModal());
@@ -20750,7 +20773,7 @@
       const file = JSON.parse(await f.text());
       importVaultModal(file);
     } catch (_) {
-      toast('That file is not valid JSON.', 'error');
+      toast(t('That file is not valid JSON.'), 'error');
     }
   });
 
@@ -20762,11 +20785,12 @@
       const err = h('div', { className: 'error' });
       const warn = h('p', {
         className: 'hint',
-        textContent:
-          'This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone — any account without a backed-up nsec is lost for good.',
+        textContent: tSec(
+          'This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone. Any account without a backed-up nsec is lost for good.'),
       });
-      const confirmInput = h('input', { type: 'text', placeholder: 'Type RESET to confirm' });
-      const del = h('button', { className: 'danger', textContent: 'Erase everything' });
+      // RESET stays RESET in every language: it is what matches() compares.
+      const confirmInput = h('input', { type: 'text', placeholder: tSec('Type {{word}} to confirm', { word: 'RESET' }) });
+      const del = h('button', { className: 'danger', textContent: tSec('Erase everything') });
       del.disabled = true;
       const matches = () => confirmInput.value.trim().toUpperCase() === 'RESET';
       confirmInput.addEventListener('input', () => { del.disabled = !matches(); });
@@ -20776,18 +20800,18 @@
           await call({ type: 'SIDECAR_RESET_ALL' });
           closeModal();
           await refresh(); // no keystore now → onboarding
-          toast('Sidecar reset', 'success');
+          toast(t('Sidecar reset'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Reset Sidecar?' }),
+        h('h3', { textContent: tSec('Reset Sidecar?') }),
         warn,
-        h('label', { textContent: 'Confirm' }),
+        h('label', { textContent: t('Confirm') }),
         confirmInput,
         err,
         h('div', { className: 'actions' }, [del, cancel])
@@ -20798,29 +20822,29 @@
 
   $('change-pin-btn').addEventListener('click', () => {
     openModal((modal) => {
-      const oldP = h('input', { type: 'password', placeholder: 'Current PIN', maxLength: MAX_PIN_LEN });
-      const newP = h('input', { type: 'password', placeholder: 'New PIN', maxLength: MAX_PIN_LEN });
-      const newP2 = h('input', { type: 'password', placeholder: 'Confirm new PIN', maxLength: MAX_PIN_LEN });
+      const oldP = h('input', { type: 'password', placeholder: tSec('Current PIN'), maxLength: MAX_PIN_LEN });
+      const newP = h('input', { type: 'password', placeholder: tSec('New PIN'), maxLength: MAX_PIN_LEN });
+      const newP2 = h('input', { type: 'password', placeholder: tSec('Confirm new PIN'), maxLength: MAX_PIN_LEN });
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Change PIN' });
+      const save = h('button', { className: 'primary', textContent: tSec('Change PIN') });
       save.addEventListener('click', async () => {
         err.textContent = '';
-        if (newP.value.length < MIN_PIN_LEN) return (err.textContent = `New PIN must be at least ${MIN_PIN_LEN} characters.`);
-        if (newP.value.length > MAX_PIN_LEN) return (err.textContent = `Max ${MAX_PIN_LEN} characters.`);
-        if (newP.value !== newP2.value) return (err.textContent = 'New PINs do not match.');
+        if (newP.value.length < MIN_PIN_LEN) return (err.textContent = t('New PIN must be at least {{count}} characters.', { count: MIN_PIN_LEN }));
+        if (newP.value.length > MAX_PIN_LEN) return (err.textContent = t('Use at most {{count}} characters.', { count: MAX_PIN_LEN }));
+        if (newP.value !== newP2.value) return (err.textContent = t('New PINs do not match.'));
         try {
           await call({ type: 'SIDECAR_CHANGE_PIN', oldPin: oldP.value, newPin: newP.value });
           closeModal();
-          toast('PIN changed', 'success');
+          toast(t('PIN changed'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Change PIN' }),
+        h('h3', { textContent: tSec('Change PIN') }),
         oldP,
         newP,
         newP2,
@@ -20841,18 +20865,23 @@
   // a popup window instead.
   let pendingApproval = null; // { id, data, chosenPubkey }
 
-  const APPROVAL_METHOD_LABELS = {
-    getPublicKey: 'see your public key (npub)',
-    signEvent: 'sign an event with your key',
-    getRelays: 'read your relay list',
-    'nip04.encrypt': 'encrypt a message (NIP-04)',
-    'nip04.decrypt': 'decrypt a message (NIP-04)',
-    'nip44.encrypt': 'encrypt a message (NIP-44)',
-    'nip44.decrypt': 'decrypt a message (NIP-44)',
-    'webln.getInfo': 'see your wallet info',
-    'webln.getBalance': 'see your wallet balance',
-    'webln.makeInvoice': 'create a Lightning invoice',
-  };
+  // The whole phrase is the key, not "wants to " + a fragment: word order differs by
+  // language. Word for word the same as prompt.js's methodAsk().
+  function approvalMethodAsk(method) {
+    const asks = {
+      getPublicKey: tSec('wants to see your public key (npub)'),
+      signEvent: tSec('wants to sign an event with your key'),
+      getRelays: tSec('wants to read your relay list'),
+      'nip04.encrypt': tSec('wants to encrypt a message (NIP-04)'),
+      'nip04.decrypt': tSec('wants to decrypt a message (NIP-04)'),
+      'nip44.encrypt': tSec('wants to encrypt a message (NIP-44)'),
+      'nip44.decrypt': tSec('wants to decrypt a message (NIP-44)'),
+      'webln.getInfo': tSec('wants to see your wallet info'),
+      'webln.getBalance': tSec('wants to see your wallet balance'),
+      'webln.makeInvoice': tSec('wants to create a Lightning invoice'),
+    };
+    return asks[method] || tSec('wants to {{method}}', { method });
+  }
 
   // keysend is a payment too, and this predicate is what makes it one everywhere: the Pay
   // button, hiding "Trust this site" on a spend card, and the budget capture that turns one
@@ -20870,8 +20899,8 @@
   function paintApprovalPay(id, data) {
     const allow = $('approval-allow');
     const ask = isLargeApproval(data) && !(approvalLargeArmed && approvalLargeArmed.id === id);
-    allow.textContent = ask ? 'Confirm amount above'
-      : data.amountSats != null ? 'Pay ' + fmtSats(data.amountSats) + ' sats' : 'Pay';
+    allow.textContent = ask ? tSec('Confirm amount above')
+      : data.amountSats != null ? tSec('Pay {{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('Pay');
     allow.classList.toggle('primary', !ask);
     allow.classList.toggle('secondary', ask);
   }
@@ -20880,54 +20909,62 @@
   // sign (not exhaustive — see https://nips.nostr.com for the full registry).
   // Prefixed APPROVAL_ to avoid colliding with the small KIND_LABELS map used by
   // the backup/restore UI (kind:0/3/10000/10002 only).
-  const APPROVAL_KIND_LABELS = {
-    0: 'Profile metadata', 1: 'Note', 3: 'Follow list', 4: 'Encrypted DM (legacy)',
-    5: 'Delete request', 6: 'Repost', 7: 'Reaction', 8: 'Badge award', 9: 'Chat message',
-    11: 'Thread', 13: 'Seal', 14: 'Direct message', 15: 'File message', 16: 'Generic repost',
-    17: 'Reaction (website)', 20: 'Picture', 21: 'Video', 22: 'Short video',
-    62: 'Request to vanish',
-    1018: 'Poll response', 1063: 'File metadata', 1068: 'Poll', 1111: 'Comment',
-    1222: 'Voice message', 1244: 'Voice message reply', 1311: 'Live chat message',
-    1337: 'Code snippet', 1984: 'Report', 1985: 'Label',
-    4454: 'DM device key', 4455: 'DM key transfer', 4550: 'Community post approval',
-    9041: 'Zap goal', 9321: 'Nutzap', 9734: 'Zap request', 9735: 'Zap receipt', 9802: 'Highlight',
-    10000: 'Mute list', 10001: 'Pin list', 10002: 'Relay list', 10003: 'Bookmark list',
-    10004: 'Communities list', 10005: 'Public chats list', 10006: 'Blocked relays list',
-    10007: 'Search relays list', 10008: 'Profile badges', 10009: 'Groups list',
-    10012: 'Favorite relays list', 10015: 'Interests list', 10020: 'Media follows',
-    10030: 'Emoji list', 10044: 'DM encryption key', 10050: 'DM relay list',
-    10063: 'Blossom server list',
-    13194: 'Wallet info', 22242: 'Relay auth', 23194: 'Wallet request', 23195: 'Wallet response',
-    24133: 'Remote signing handshake', 24242: 'Blossom authorization', 27235: 'HTTP auth',
-    30000: 'Follow set', 30002: 'Relay set', 30003: 'Bookmark set', 30004: 'Curation set',
-    30005: 'Video set', 30008: 'Badge set', 30009: 'Badge definition', 30015: 'Interest set',
-    30017: 'Marketplace stall', 30018: 'Marketplace product', 30023: 'Long-form article',
-    30024: 'Article draft', 30030: 'Emoji set', 30040: 'Publication index',
-    30041: 'Publication content', 30078: 'App data', 30311: 'Live event',
-    30312: 'Interactive room', 30313: 'Conference event', 30315: 'User status',
-    30402: 'Classified listing', 30403: 'Classified listing draft', 30818: 'Wiki article',
-    31234: 'Draft event', 31922: 'Calendar event (date)', 31923: 'Calendar event (time)',
-    31924: 'Calendar', 31925: 'Calendar RSVP', 31989: 'Handler recommendation',
-    31990: 'Handler info', 34235: 'Video (addressable)', 34236: 'Short video (addressable)',
-    34550: 'Community definition', 39089: 'Starter pack', 39092: 'Media starter pack',
-    39701: 'Web bookmark',
-  };
+  // Built when drawn, like prompt.js's kindLabels(), and word for word the same: the
+  // two approval surfaces must name every kind identically (approval-kind-isolation).
+  function approvalKindLabels() {
+    return {
+      0: tSec('Profile metadata'), 1: tSec('Note'), 3: tSec('Follow list'), 4: tSec('Encrypted DM (legacy)'),
+      5: tSec('Delete request'), 6: tSec('Repost'), 7: tSec('Reaction'), 8: tSec('Badge award'), 9: tSec('Chat message'),
+      11: tSec('Thread'), 13: tSec('Seal'), 14: tSec('Direct message'), 15: tSec('File message'), 16: tSec('Generic repost'),
+      17: tSec('Reaction (website)'), 20: tSec('Picture'), 21: tSec('Video'), 22: tSec('Short video'),
+      62: tSec('Request to vanish'),
+      1018: tSec('Poll response'), 1063: tSec('File metadata'), 1068: tSec('Poll'), 1111: tSec('Comment'),
+      1222: tSec('Voice message'), 1244: tSec('Voice message reply'), 1311: tSec('Live chat message'),
+      1337: tSec('Code snippet'), 1984: tSec('Report'), 1985: tSec('Label'),
+      4454: tSec('DM device key'), 4455: tSec('DM key transfer'), 4550: tSec('Community post approval'),
+      9041: tSec('Zap goal'), 9321: tSec('Nutzap'), 9734: tSec('Zap request'), 9735: tSec('Zap receipt'), 9802: tSec('Highlight'),
+      10000: tSec('Mute list'), 10001: tSec('Pin list'), 10002: tSec('Relay list'), 10003: tSec('Bookmark list'),
+      10004: tSec('Communities list'), 10005: tSec('Public chats list'), 10006: tSec('Blocked relays list'),
+      10007: tSec('Search relays list'), 10008: tSec('Profile badges'), 10009: tSec('Groups list'),
+      10012: tSec('Favorite relays list'), 10015: tSec('Interests list'), 10020: tSec('Media follows'),
+      10030: tSec('Emoji list'), 10044: tSec('DM encryption key'), 10050: tSec('DM relay list'),
+      10063: tSec('Blossom server list'),
+      13194: tSec('Wallet info'), 22242: tSec('Relay auth'), 23194: tSec('Wallet request'), 23195: tSec('Wallet response'),
+      24133: tSec('Remote signing handshake'), 24242: tSec('Blossom authorization'), 27235: tSec('HTTP auth'),
+      30000: tSec('Follow set'), 30002: tSec('Relay set'), 30003: tSec('Bookmark set'), 30004: tSec('Curation set'),
+      30005: tSec('Video set'), 30008: tSec('Badge set'), 30009: tSec('Badge definition'), 30015: tSec('Interest set'),
+      30017: tSec('Marketplace stall'), 30018: tSec('Marketplace product'), 30023: tSec('Long-form article'),
+      30024: tSec('Article draft'), 30030: tSec('Emoji set'), 30040: tSec('Publication index'),
+      30041: tSec('Publication content'), 30078: tSec('App data'), 30311: tSec('Live event'),
+      30312: tSec('Interactive room'), 30313: tSec('Conference event'), 30315: tSec('User status'),
+      30402: tSec('Classified listing'), 30403: tSec('Classified listing draft'), 30818: tSec('Wiki article'),
+      31234: tSec('Draft event'), 31922: tSec('Calendar event (date)'), 31923: tSec('Calendar event (time)'),
+      31924: tSec('Calendar'), 31925: tSec('Calendar RSVP'), 31989: tSec('Handler recommendation'),
+      31990: tSec('Handler info'), 34235: tSec('Video (addressable)'), 34236: tSec('Short video (addressable)'),
+      34550: tSec('Community definition'), 39089: tSec('Starter pack'), 39092: tSec('Media starter pack'),
+      39701: tSec('Web bookmark'),
+    };
+  }
   // Kinds worth a second look before signing: they either move/delete other
   // events, or normally belong to a wallet's own key rather than a NIP-07 site.
-  const APPROVAL_KIND_WARNINGS = {
-    5: 'Deletes other events — make sure you intended this.',
-    62: 'Asks relays to delete all of your events — make sure you intended this.',
-    23194: "Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
-    23195: "Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
-    24133: 'This is a remote-signing handshake — approving it could hand control of your account to another app or device.',
-  };
+  function approvalKindWarnings() {
+    return {
+      5: tSec('Deletes other events. Make sure you intended this.'),
+      62: tSec('Asks relays to delete all of your events. Make sure you intended this.'),
+      23194: tSec("Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this."),
+      23195: tSec("Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this."),
+      24133: tSec('This is a remote-signing handshake. Approving it could hand control of your account to another app or device.'),
+    };
+  }
+  // The number beside the name, always (docs/i18n-design.md §3.7). Same as prompt.js.
   function approvalKindLabel(kind) {
     if (kind == null) return '—';
-    return APPROVAL_KIND_LABELS[kind] ? kind + ' — ' + APPROVAL_KIND_LABELS[kind] : kind + ' (unrecognized kind)';
+    const label = approvalKindLabels()[kind];
+    return label ? kind + ' · ' + label : tSec('{{kind}} (unrecognized kind)', { kind });
   }
   function approvalKindWarning(kind) {
     if (kind == null) return null;
-    return APPROVAL_KIND_WARNINGS[kind] || (!APPROVAL_KIND_LABELS[kind] ? 'Unrecognized event kind — review carefully before approving.' : null);
+    return approvalKindWarnings()[kind] || (!approvalKindLabels()[kind] ? tSec('Unrecognized event kind. Review carefully before approving.') : null);
   }
   // A request we can't read as an event at all — no integer kind, so there is nothing
   // to label, no tag count, and no content to preview. normalizeSignEventParams in
@@ -20936,8 +20973,8 @@
   // bare "—" where the event should be, with Allow looking as ordinary as ever. If one
   // ever gets through again, say so on the card instead of showing a blank.
   // Duplicated verbatim in prompt.js — same words on both approval surfaces.
-  const APPROVAL_UNREADABLE_WARNING =
-    "Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.";
+  const approvalUnreadableWarning = () =>
+    tSec("Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.");
   function approvalKindUnreadable(ev) {
     return !Number.isInteger(ev && ev.kind);
   }
@@ -20964,7 +21001,7 @@
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
     const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
-    const LABEL = { formatted: 'Formatted', raw: 'Raw', json: 'JSON' };
+    const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
@@ -21007,11 +21044,11 @@
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'evpreview-toggle';
-    more.textContent = 'Show more';
+    more.textContent = t('Show more');
     more.addEventListener('click', () => {
       expanded = !expanded;
       view.classList.toggle('clamped', !expanded);
-      more.textContent = expanded ? 'Show less' : 'Show more';
+      more.textContent = expanded ? t('Show less') : t('Show more');
     });
     controls.appendChild(more);
     container.appendChild(controls);
@@ -21066,30 +21103,30 @@
       return h('div', { className: 'row' }, [h('span', { textContent: label }), val]);
     };
     if (isPaymentApproval(data)) {
-      box.append(row('Amount', data.amountSats != null ? fmtSats(data.amountSats) + ' sats' : 'set by invoice'));
+      box.append(row(tSec('Amount'), data.amountSats != null ? tSec('{{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('set by invoice')));
       // Keysend pays a bare node key, so say where it goes and — when the site sent a
       // boostagram — what it is for. Wording matches prompt.js; keep the two surfaces in
       // step. Never the raw 66-character key, for the reason stated at txRow below.
       if (data.method === 'keysend') {
         const b = data.boost || {};
         const who = b.podcast || b.episode || '';
-        box.append(row('To', who ? clampApprovalText(who, 60) : truncMid(data.destination, 10, 8)));
-        if (who && data.destination) box.append(row('Node', truncMid(data.destination, 10, 8)));
+        box.append(row(tSec('To'), who ? clampApprovalText(who, 60) : truncMid(data.destination, 10, 8)));
+        if (who && data.destination) box.append(row(tSec('Node'), truncMid(data.destination, 10, 8)));
         // Labelled as the site's words. Nothing in a boostagram is verified — the page
         // wrote it — and a spend card must not lend it authority it has not earned.
         if (b.message) {
-          const r = row('Message from site', clampApprovalText(b.message, 140));
+          const r = row(tSec('Message from site'), clampApprovalText(b.message, 140));
           r.classList.add('prose');
           box.append(r);
         }
       }
-      if (data.memo) box.append(row('Memo', String(data.memo)));
+      if (data.memo) box.append(row(tSec('Memo'), String(data.memo)));
     } else if (data.method === 'signEvent') {
       const ev = (data.params && (data.params.event || data.params)) || {};
       const unreadable = approvalKindUnreadable(ev);
-      box.append(row('Kind', unreadable ? 'Unreadable' : approvalKindLabel(ev.kind)));
-      if (Array.isArray(ev.tags)) box.append(row('Tags', String(ev.tags.length)));
-      const warning = unreadable ? APPROVAL_UNREADABLE_WARNING : approvalKindWarning(ev.kind);
+      box.append(row(tSec('Kind'), unreadable ? tSec('Unreadable') : approvalKindLabel(ev.kind)));
+      if (Array.isArray(ev.tags)) box.append(row(tSec('Tags'), I18N.fmtNum(ev.tags.length)));
+      const warning = unreadable ? approvalUnreadableWarning() : approvalKindWarning(ev.kind);
       if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
       // Destructive replaceable overwrite (see replaceable-baseline.js) — louder than
       // the kind warning above, because this one is about losing data you already have.
@@ -21101,12 +21138,12 @@
         // a deliberate second action.
         const reject = h('button', {
           className: 'destructive-warn-reject',
-          textContent: "Don't allow",
+          textContent: tSec("Don't allow"),
         });
         reject.addEventListener('click', () => decideApproval('reject'));
         const ack = h('button', {
           className: 'destructive-warn-ack',
-          textContent: 'I understand',
+          textContent: tSec('I understand'),
         });
         ack.addEventListener('click', () => {
           setApprovalLocked(false);
@@ -21114,19 +21151,19 @@
           // Say what changed rather than just removing the button — otherwise the
           // buttons below silently become live and it isn't obvious why.
           box.querySelector('.destructive-warn').append(
-            h('p', { className: 'destructive-warn-unlocked', textContent: 'Approval unlocked below.' })
+            h('p', { className: 'destructive-warn-unlocked', textContent: tSec('Approval unlocked below.') })
           );
         });
         box.append(
           h('div', { className: 'destructive-warn' }, [
             h('div', { className: 'destructive-warn-title' }, [
               icon('alert'),
-              h('span', { textContent: 'This action erases data' }),
+              h('span', { textContent: tSec('This action erases data') }),
             ]),
             h('p', { className: 'destructive-warn-body', textContent: data.destructive.message }),
             h('p', {
               className: 'destructive-warn-hint',
-              textContent: 'If you didn\'t mean to do this, don\'t allow it — the version on your relays stays as it is.',
+              textContent: tSec("If you didn't mean to do this, don't allow it. The version on your relays stays as it is."),
             }),
             h('div', { className: 'destructive-warn-actions' }, [reject, ack]),
           ])
@@ -21138,21 +21175,21 @@
       // in prompt.js; the event preview below is still the literal thing being signed.
       if (data.sealed) {
         box.append(h('div', { className: 'row prose sealed' }, [
-          h('span', { textContent: 'Sealed content' }),
+          h('span', { textContent: tSec('Sealed content') }),
           h('span', { textContent: clampApprovalText(data.sealed, 220) }),
         ]));
       }
       if (ev.content || unreadable) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      box.append(peerRow('From', data.params && data.params.pubkey));
+      box.append(peerRow(tSec('From'), data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
-      box.append(peerRow('To', data.params && data.params.pubkey));
+      box.append(peerRow(tSec('To'), data.params && data.params.pubkey));
       // WHAT, not just to whom. See the twin of this in prompt.js: the plaintext rides
       // along in params already, and an approval nobody can read is one taken blind (#305).
       const plain = String((data.params && data.params.plaintext) || '');
       if (plain) {
         box.append(h('div', { className: 'row prose sealed' }, [
-          h('span', { textContent: 'Sealing' }),
+          h('span', { textContent: tSec('Sealing') }),
           h('span', { textContent: clampApprovalText(plain, 220) }),
         ]));
       }
@@ -21195,11 +21232,11 @@
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
     if (!data.sharedIdentity) {
-      $('approval-switch-toggle').textContent = 'Sign in with a different account';
+      $('approval-switch-toggle').textContent = tSec('Sign in with a different account');
       return;
     }
     await sharedHeadsUpReady; // the flags are known before a branch is taken
-    $('approval-switch-toggle').textContent = 'Sign as a different account';
+    $('approval-switch-toggle').textContent = tSec('Sign as a different account');
     const acct = $('approval-account');
     if (!acct) return;
     // Opted out: no note at all. The confirm itself and the account picker stay —
@@ -21209,17 +21246,17 @@
     if (sharedHeadsUp.dismissed) {
       note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
         icon('users'),
-        h('span', { textContent: 'Multiple accounts used' }),
+        h('span', { textContent: tSec('Multiple accounts used') }),
       ]);
     } else {
       note = h('div', { id: 'approval-shared-note', className: 'shared-headsup' }, [
-        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: 'Heads up!' })]),
+        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: t('Heads up!') })]),
         h('p', {
           className: 'shared-headsup-body',
-          textContent: "Multiple accounts are signed in here — confirm who's posting each time.",
+          textContent: tSec("Multiple accounts are signed in here. Confirm who's posting each time."),
         }),
       ]);
-      const got = h('button', { className: 'shared-headsup-btn', textContent: 'Got it' });
+      const got = h('button', { className: 'shared-headsup-btn', textContent: t('Got it') });
       got.addEventListener('click', () => {
         sharedHeadsUp.dismissed = true;
         chrome.storage.local.set({ sharedHeadsUpDismissed: true });
@@ -21229,7 +21266,7 @@
       // choice, and want the note gone altogether — "Got it" only ever collapsed it
       // to the caption, and the caption never ended. This writes the opt-out both
       // surfaces and the Settings restorer all read.
-      const never = h('button', { className: 'shared-headsup-btn shared-headsup-btn-quiet', textContent: "Don't show this again" });
+      const never = h('button', { className: 'shared-headsup-btn shared-headsup-btn-quiet', textContent: t("Don't show this again") });
       never.addEventListener('click', () => {
         sharedHeadsUp.optedOut = true;
         chrome.storage.local.set({ sharedHeadsUpOptOut: true });
@@ -21251,27 +21288,26 @@
     const note = $('approval-consent-note');
     if (!note) return;
     if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
-      let text =
-        'Allowing lets ' + data.host + ' decrypt your messages for about a minute — enough to load a conversation or inbox without asking for each one.';
+      let text = tSec('Allowing lets {{host}} decrypt your messages for about a minute, enough to load a conversation or inbox without asking for each one.', { host: data.host });
       // Audit K4: decrypt is the sharpest edge of the Trust tier — a trusted site
       // silently reads every future DM until revoked. Only while the Trust button
       // is visible in showApproval (pure-unlock and shared-identity hide it;
       // decrypts never batch). Identical condition and sentence as prompt.js —
       // keep the two surfaces in step.
       if (!(data.needUnlock && !data.needApproval) && !data.sharedIdentity) {
-        text += ' Trust this site and it can read your messages without asking, until you revoke.';
+        text += ' ' + tSec('Trust this site and it can read your messages without asking, until you revoke.');
       }
       note.textContent = text;
     } else if (data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice') {
       note.textContent =
-        'Allowing lets ' + data.host + ' read wallet info from Sidecar for the rest of this session.';
+        tSec('Allowing lets {{host}} read wallet info from Sidecar for the rest of this session.', { host: data.host });
     } else if (data.method === 'keysend') {
       // Boosts are not one payment: a value split pays each recipient separately, so the
       // site sends one keysend per share and Sidecar sees them as the independent payments
       // they are — nothing tells it that four calls were one boost. Plain Pay therefore
       // brings the next card straight up. Wording matches prompt.js exactly.
       note.textContent =
-        'A boost is several payments — one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.';
+        tSec('A boost is several payments, one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.');
     } else {
       hide(note);
       return;
@@ -21299,7 +21335,7 @@
 
     const acct = $('approval-account');
     acct.innerHTML = '';
-    acct.append(h('div', { className: 'approval-as', textContent: payment ? 'Paying from' : 'Signing as' }));
+    acct.append(h('div', { className: 'approval-as', textContent: payment ? tSec('Paying from') : tSec('Signing as') }));
     acct.append(
       h('div', { className: 'active-account approval-capsule' }, [
         avatarEl({ picture: chosen.picture }, 'aa-avatar'),
@@ -21412,7 +21448,7 @@
     // The reconnect instruction is deliberately NOT here — it lands as a toast the moment
     // the detach settles, with the account name filled in, which this can't do. Three lines
     // of lede in a sidebar to pre-announce it was too much.
-    list.append(h('p', { className: 'wrong-acct-lede', textContent: 'Cancels this request and makes the selected account active.' }));
+    list.append(h('p', { className: 'wrong-acct-lede', textContent: tSec('Cancels this request and makes the selected account active.') }));
     accts.forEach((a) => {
       const row = h('button', { className: 'acct-row' });
       const av = document.createElement('span');
@@ -21425,7 +21461,7 @@
           h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
         ])
       );
-      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: 'Active' }));
+      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: t('Active') }));
       row.addEventListener('click', () => decideApproval('detach', { detachPubkey: a.pubkey }));
       list.append(row);
     });
@@ -21464,8 +21500,8 @@
     const payment = isPaymentApproval(data);
     $('approval-host').textContent = data.host;
     $('approval-ask').textContent = payment
-      ? 'wants to send a Lightning payment'
-      : 'wants to ' + (APPROVAL_METHOD_LABELS[data.method] || data.method);
+      ? tSec('wants to send a Lightning payment')
+      : approvalMethodAsk(data.method);
 
     renderApprovalAccountCapsule(data);
     renderWrongAcctEscape(data);
@@ -21498,8 +21534,8 @@
       const unlockLabel = $('approval-unlock').querySelector('label');
       if (unlockLabel) {
         unlockLabel.textContent = data.autoLockNever
-          ? 'Enter your PIN — first unlock since your browser started'
-          : 'Enter your PIN to unlock';
+          ? t('Enter your PIN: first unlock since your browser started')
+          : t('Enter your PIN to unlock');
       }
       setTimeout(() => pin.focus(), 50);
     } else {
@@ -21510,7 +21546,7 @@
     if (data.offerAutoZap > 0) {
       $('approval-autozap-offer').classList.remove('hidden');
       $('approval-autozap-offer-label').textContent =
-        'Turn on Auto Zaps (' + fmtSats(data.offerAutoZap) + ' sats max)';
+        tSec('Turn on Auto Zaps ({{max}} sats max)', { max: fmtSats(data.offerAutoZap) });
     }
 
     // Payment: one Pay button + an optional "remember a budget" toggle (no Trust).
@@ -21537,7 +21573,7 @@
       // A pure unlock (site already trusted, keystore just locked) has nothing to
       // approve — relabel and drop the "Trust this site" choice.
       if (data.needUnlock && !data.needApproval) {
-        allow.textContent = 'Unlock & continue';
+        allow.textContent = t('Unlock & continue');
         hide(trust);
       } else {
         // WebLN reads grant the rest of the session (the consent note under the
@@ -21545,8 +21581,8 @@
         // Sidecar locks". Mirrors the payment relabel just above.
         allow.textContent =
           data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice'
-            ? 'Allow this session'
-            : 'Allow once';
+            ? tSec('Allow this session')
+            : tSec('Allow once');
         show(trust);
       }
     }
@@ -21563,8 +21599,8 @@
     // kind, so it's clear what the N are. (Must run last so it wins the labels.)
     const groupN = pendingApproval.groupIds ? pendingApproval.groupIds.length : 1;
     if (!payment && groupN > 1) {
-      $('approval-ask').textContent = 'wants to sign ' + groupN + ' events with your key';
-      allow.textContent = 'Allow all (' + groupN + ')';
+      $('approval-ask').textContent = tn('wants to sign {{count}} event with your key', 'wants to sign {{count}} events with your key', groupN);
+      allow.textContent = tSec('Allow all ({{count}})', { count: I18N.fmtNum(groupN) });
       hide(trust);
     }
     // M1: the batch button settles N events, so the card shows N events. Rendered
@@ -21606,13 +21642,14 @@
     // textContent, never innerHTML — `host` is attacker-controlled.
     const nudge = $('approval-trust-nudge');
     nudge.textContent = '';
-    if (data.nudgeTrust && !payment) {
-      const strong = h('strong', { textContent: data.host || 'this site' });
-      nudge.append(
-        document.createTextNode('Approving this often? Trust '),
-        strong,
-        document.createTextNode(' to stop being asked.')
-      );
+    // Only beside a Trust button that is actually on the card: payments, pure unlocks,
+    // shared-identity confirms and batches all hide it above.
+    if (data.nudgeTrust && !payment && !trust.classList.contains('hidden')) {
+      const strong = h('strong', { textContent: data.host || t('this site') });
+      // Split around the slot so the host stays its own bold node, wherever a language
+      // puts it. Same key as prompt.js.
+      const [before, after] = tSec('Approving this often? Trust {{host}} to stop being asked.').split('{{host}}');
+      nudge.append(document.createTextNode(before), strong, document.createTextNode(after || ''));
       show(nudge);
     } else {
       hide(nudge);
@@ -21648,7 +21685,7 @@
     if (data.needUnlock && (action === 'once' || action === 'trust' || action === 'relax' || action === 'detach')) {
       const pin = $('approval-pin').value;
       if (!pin) {
-        pinErr.textContent = 'Enter your PIN.';
+        pinErr.textContent = t('Enter your PIN.');
         return;
       }
       // SIDECAR_UNLOCK contract (see background.js): branch on result.status, not ok.
@@ -21656,10 +21693,10 @@
       const st = resp && resp.ok && resp.result;
       if (!st || st.status !== 'ok') {
         pinErr.textContent =
-          st && st.status === 'throttled' ? 'Too many attempts. Try again in ' + Math.ceil(st.waitMs / 1000) + 's.'
-          : st && st.status === 'bad' ? 'Incorrect PIN — ' + st.remaining + ' attempt' + (st.remaining === 1 ? '' : 's') + ' left before all data is erased.'
-          : st && st.status === 'wiped' ? 'Too many attempts — all data on this device was erased.'
-          : (resp && resp.error) || 'Incorrect PIN';
+          st && st.status === 'throttled' ? tSec('Too many attempts. Try again in {{seconds}}s.', { seconds: Math.ceil(st.waitMs / 1000) })
+          : st && st.status === 'bad' ? tn('Incorrect PIN. {{count}} attempt left before all data is erased.', 'Incorrect PIN. {{count}} attempts left before all data is erased.', st.remaining)
+          : st && st.status === 'wiped' ? tSec('Too many attempts. All data on this device was erased.')
+          : (resp && resp.error) || tSec('Incorrect PIN');
         $('approval-pin').value = '';
         $('approval-pin').focus();
         return;
@@ -21670,7 +21707,7 @@
     if (isPaymentApproval(data) && action === 'once' && $('approval-remember-budget').checked) {
       const budgetSats = parseInt($('approval-budget-amount').value, 10);
       if (!budgetSats || budgetSats < 1) {
-        err.textContent = 'Enter a budget in sats, or uncheck the box.';
+        err.textContent = tSec('Enter a budget in sats, or uncheck the box.');
         return;
       }
       action = 'budget';
@@ -21712,8 +21749,7 @@
     if (action === 'detach') {
       const picked = (data.allAccounts || []).find((a) => a.pubkey === (opts && opts.detachPubkey));
       toast(
-        'Detached. Sign out of ' + data.host + ' and back in as ' +
-          ((picked && picked.name) || 'that account') + '.',
+        t('Detached. Sign out of {{host}} and back in as {{name}}.', { host: data.host, name: (picked && picked.name) || t('that account') }),
         'success'
       );
     }
@@ -21827,11 +21863,11 @@
     for (const m of members) {
       const what = [];
       if (m.method === 'signEvent') {
-        what.push('kind ' + m.kind);
-        if (m.unreadable) what.push('unreadable content');
+        what.push(t('kind {{kind}}', { kind: m.kind }));
+        if (m.unreadable) what.push(t('unreadable content'));
       } else {
         what.push(m.method);
-        if (m.peer) what.push('to ' + m.peer.slice(0, 8) + '…' + m.peer.slice(-4));
+        if (m.peer) what.push(t('to {{peer}}', { peer: m.peer.slice(0, 8) + '…' + m.peer.slice(-4) }));
       }
       const body = m.method === 'signEvent' ? String(m.content || '') : String(m.plaintext || '');
       list.append(h('div', { className: 'batch-member' }, [
@@ -21848,7 +21884,7 @@
     if (!strip) return;
     if (!waiting.length) { hide(strip); return; }
     const count = $('approval-backlog-count');
-    count.textContent = waiting.length + (waiting.length === 1 ? ' more request waiting' : ' more requests waiting');
+    count.textContent = tn('{{count}} more request waiting', '{{count}} more requests waiting', waiting.length);
     show(strip);
   }
 
@@ -21860,10 +21896,10 @@
     if (!banner) return;
     if (!list.length) { hide(banner); banner.innerHTML = ''; return; }
     banner.innerHTML = '';
-    const msg = h('span', { className: 'interrupted-msg', textContent:
-      list.length + (list.length === 1 ? ' signing request was' : ' signing requests were') +
-      ' interrupted when Sidecar restarted — the site' + (list.length === 1 ? '' : 's') + ' will ask again.' });
-    const dismiss = h('button', { className: 'interrupted-dismiss', textContent: 'Dismiss' });
+    const msg = h('span', { className: 'interrupted-msg', textContent: tn(
+      '{{count}} signing request was interrupted when Sidecar restarted. The site will ask again.',
+      '{{count}} signing requests were interrupted when Sidecar restarted. The sites will ask again.', list.length) });
+    const dismiss = h('button', { className: 'interrupted-dismiss', textContent: t('Dismiss') });
     dismiss.addEventListener('click', async () => { await bg({ type: 'SIDECAR_DISMISS_INTERRUPTED' }); refreshApproval(); });
     banner.append(msg, dismiss);
     show(banner);
@@ -21948,6 +21984,7 @@
   async function initLanguagePicker() {
     const langs = I18N.languages();
     if (langs.length < 2) return;
+    try { await I18N.ready; } catch (_) {}
     const select = $('language-select');
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const current = (settings && settings.language) || 'auto';
@@ -22259,11 +22296,20 @@
   }
 
   // ---- boot ----
-  // Static markup first (data-i18n attributes, and <html lang dir>), so nothing below
-  // draws over untranslated text. The language itself was settled as i18n.js loaded.
-  I18N.applyDom();
-  document.addEventListener('DOMContentLoaded', refresh);
-  if (document.readyState !== 'loading') refresh();
+  // WAIT FOR THE LANGUAGE FILE before anything draws. The language code is known at once
+  // (i18n.js reads a cached copy synchronously), but a real language's strings are a
+  // fetch, and the panel drew before it landed: every data-i18n label and the first
+  // render stayed English. English and the pseudo-locale load nothing, so this costs
+  // them nothing; a language pays one read of a bundled file.
+  // Then the static markup (data-i18n attributes, and <html lang dir>), so nothing below
+  // draws over untranslated text.
+  const boot = async () => {
+    try { await I18N.ready; } catch (_) {}
+    I18N.applyDom();
+    refresh();
+  };
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot);
   initDevBadge();
   initLanguagePicker();
   initHostPermGuard();

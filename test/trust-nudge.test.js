@@ -184,7 +184,16 @@ test('trusting and blocking both clear the tally', async () => {
 test('the nudge is suppressed while a destructive warning is showing', async () => {
   // That screen is asking for full attention on what is about to be lost. "Trust this
   // site to stop asking" is the last advice it should be carrying.
-  assert.match(source, /nudgeTrust: !destructive && \(await shouldNudgeTrust\(/);
+  assert.match(source, /nudgeTrust: !destructive && [^\n]*\(await shouldNudgeTrust\(/);
+});
+
+test('THE NUDGE NEVER POINTS AT A TRUST BUTTON THE CARD DOES NOT SHOW', () => {
+  // A shared-identity confirm and a pure unlock both hide Trust, on both surfaces, so the
+  // background does not raise the nudge for either. The panel also batches, which hides
+  // Trust too, so it checks the button itself before showing the line.
+  assert.match(source, /nudgeTrust: !destructive && !sharedIdentity && needApproval && \(await shouldNudgeTrust\(/);
+  const panelSrc = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  assert.match(panelSrc, /if \(data\.nudgeTrust && !payment && !trust\.classList\.contains\('hidden'\)\)/);
 });
 
 // ---- both approval UIs -----------------------------------------------------------
@@ -268,7 +277,7 @@ test('the popup theme allowlist matches the panel', () => {
 
 test('the auto-lock setting explains the once-per-session PIN', () => {
   const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
-  const block = html.match(/<h3>Auto-lock<\/h3>[\s\S]*?<\/div>/);
+  const block = html.match(/<h3[^>]*>Auto-lock<\/h3>[\s\S]*?<\/div>/);
   assert.ok(block, 'could not find the auto-lock setting');
   assert.match(block[0], /once per browser session/,
     'Never needs a hint, or it reads as an absolute promise');
@@ -292,7 +301,7 @@ test('the in-panel unlock label resets when auto-lock is NOT Never', () => {
   // Never path without an else would leave the wrong text behind after the user
   // switches to a timed lock.
   const panelSrc = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
-  assert.match(panelSrc, /: 'Enter your PIN to unlock';/,
+  assert.match(panelSrc, /: t\('Enter your PIN to unlock'\);/,
     'the non-Never branch must restore the default label');
 });
 
