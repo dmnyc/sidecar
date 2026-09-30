@@ -270,6 +270,15 @@
   // A card with a decision out on it. Module scope rather than the card's own closure
   // because scanForInvoice has to see it: see the guard at the top of that function.
   let awaitingDecision = false;
+  // The invoice of a `lightning:` link the person tapped. That card is theirs to close:
+  // on a site not signed into Sidecar the scan would otherwise take it straight down,
+  // and a checkout page with a countdown (BTCPay) re-scans every second.
+  let tappedInvoice = '';
+  let tappedHref = ''; // that link as the page wrote it, for "Open in another wallet"
+  // Settings → "Show on unconnected sites" (default off): on a site not signed in with
+  // Sidecar, a payment panel's invoice gets the corner pill, never the card by itself,
+  // and a tapped lightning: link opens the card. Off, such sites are left entirely alone.
+  let pillAnywhere = false;
 
   function invoiceSats(bolt11) {
     const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(bolt11);
@@ -652,6 +661,8 @@
     '.pay-status.err{{CARD_WARN};}' +
     '.cancel{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
     '.cancel:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
+    '.other{margin-top:8px;width:100%;cursor:pointer;border:none;background:none;{CARD_MUTED};font-size:13px;padding:9px;border-radius:10px;}' +
+    '.other:hover{color:{CARD_TEXT};background:{CARD_CANCEL_BG};}' +
     // THE DECISION IS OUT, AND THE CARD IS STILL DOING A JOB. Sidecar is asking for
     // approval on its own surface, and until that comes back this overlay is the only
     // thing standing between the person and the page's own payment UI: a "Connect Wallet
@@ -661,6 +672,7 @@
     // here any more, and Reject is in Sidecar), and the Pay button is flattened into a
     // status line rather than left sitting there looking pressable.
     '.card.busy .cancel{display:none;}' +
+    '.card.busy .other{display:none;}' +
     '.card.busy .tg{opacity:.4;pointer-events:none;}' +
     '.card.busy .pay{background:none;box-shadow:none;cursor:default;font-weight:600;color:{CARD_TEXT};}' +
     '.card.busy .pay:hover{filter:none;}' +
@@ -1212,7 +1224,8 @@
       // extension targets (Chrome 114+, Firefox 128+); the max z-index below is the
       // fallback if showPopover throws.
       host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;border:0;background:transparent;';
-      const root = host.attachShadow({ mode: 'open' });
+      // Closed, like the card and the pill: the page must not be able to read the theme.
+      const root = host.attachShadow({ mode: 'closed' });
       // Bright gold or amber, or in Film Noir, whose card is black and white, the white
       // of the flash itself.
       const monoBolt = cardTheme === 'film-noir';
@@ -1290,7 +1303,9 @@
     removeCard();
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
-    const sh = cardHost.attachShadow({ mode: 'open' });
+    // CLOSED, so the page's scripts cannot reach inside and read the palette, which is
+    // the theme of the paying account (background.js, the clamped GET_SETTINGS).
+    const sh = cardHost.attachShadow({ mode: 'closed' });
     const colors = getThemeColors();
     sh.innerHTML =
       '<style>' + PILL_CSS.replace(/\{(\w+)\}/g, (m, k) =>
@@ -1435,7 +1450,8 @@
 
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
-    const s = cardHost.attachShadow({ mode: 'open' });
+    // Closed, for the same reason as the pill's (mountPill).
+    const s = cardHost.attachShadow({ mode: 'closed' });
     const colors = getThemeColors();
     const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
       Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
@@ -1462,6 +1478,7 @@
       '<svg class="pay-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
       '<span class="pay-label">' + escapeHtml(msg('cardPay', 'Pay with Sidecar')) + '</span></button>' +
       '<div class="pay-status" hidden></div>' +
+      '<button class="other" type="button">' + escapeHtml(msg('cardOtherWallet', 'Open in another wallet')) + '</button>' +
       '<button class="cancel" type="button">' + escapeHtml(msg('cardNotNow', 'Not now')) + '</button>' +
       (offerRow || '') +
       // NOT ON THE ERROR CARD, and #208 is why. This toggle writes showPayButton: false,
@@ -1561,6 +1578,19 @@
       }
     });
     s.querySelector('.cancel').addEventListener('click', dismiss);
+    // THE WAY BACK TO THE WALLET THE PAGE WAS TALKING TO. Sidecar takes a tapped
+    // `lightning:` link (see the click listener), so whatever app registered for the
+    // scheme (BlueWallet, Zeus) no longer hears it. This hands the same invoice to it:
+    // the link exactly as the page wrote it when it was the one tapped, a lightning: URI
+    // of the invoice otherwise. Assigned rather than clicked through an anchor, because
+    // an anchor would come straight back to the listener that took the first tap.
+    s.querySelector('.other').addEventListener('click', () => {
+      if (awaiting) return;
+      const href = invoice === tappedInvoice && tappedHref ? tappedHref : 'lightning:' + invoice;
+      dismissedInvoice = invoice;
+      removeCard();
+      try { location.href = href; } catch (_) {}
+    });
     ov.addEventListener('click', (e) => {
       if (e.target === ov) dismiss();
     });
@@ -1573,13 +1603,16 @@
       // prompt again" (off by default). Same stored setting, same outcome — now it's
       // ticking the box that hides the card, not unticking it.
       if (e.target.checked) {
+        // The switch for the kind of site this is: "Show on Nostr sites" here on a signed-in
+        // site, "Show on unconnected sites" anywhere else.
+        const settings = connectedToSite ? { showPayButton: false } : { payPillAnywhere: false };
         try {
           chrome.runtime.sendMessage(
-            { type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: false } },
+            { type: 'SIDECAR_SET_SETTINGS', settings },
             () => void chrome.runtime.lastError
           );
         } catch (_) {}
-        showCard = false;
+        if (connectedToSite) showCard = false; else pillAnywhere = false;
         removeCard();
       }
     });
@@ -1619,7 +1652,27 @@
     // Both end the same way: 'paid' and 'payfailed' clear them, and so does the
     // indicator's own dismiss button.
     if (shownMode === 'flight' || awaitingDecision) return;
-    if (!showCard || !connectedToSite) return removeCard();
+    // TWO SWITCHES, ONE PER KIND OF SITE. showCard is "Show on Nostr sites" and covers
+    // sites signed in with Sidecar; pillAnywhere is "Show on unconnected sites" and
+    // covers the rest. Neither reaches the other's sites.
+    if (!connectedToSite) {
+      // Nothing is offered unasked here, but a card the person opened by tapping a link
+      // stays until they close it, pay, or the payment fails.
+      if (cardHost && shownInvoice === tappedInvoice) return;
+      if (!pillAnywhere) return removeCard();
+      // OPTED IN: the corner pill, and only the pill. Only for an invoice in a payment
+      // panel (beside a QR, in a dialog: a BTCPay checkout), never one merely sitting on
+      // the page, and never the full-screen card: this site has not been signed into, so
+      // Sidecar does not interrupt it. Tapping the pill opens the card; a card open from
+      // the pill stays while the invoice does. No auto-zap check either: a zap is only
+      // ever authorized on a site that signs with Sidecar.
+      const offered = findPageInvoice();
+      const inv = offered && offered.asked ? offered.invoice : '';
+      if (!inv || inv === dismissedInvoice || !hasWallet) return removeCard();
+      if (inv === shownInvoice && cardHost) return;
+      return renderPill(inv);
+    }
+    if (!showCard) return removeCard();
     const found = findPageInvoice();
     const invoice = found && found.invoice;
     if (!invoice || invoice === dismissedInvoice) return removeCard();
@@ -1676,12 +1729,24 @@
 
   // THE ONE PATH THAT STILL OPENS THE CARD BY ITSELF: a tapped `lightning:` link. That is
   // a person asking to pay something, which is the whole distinction this file now draws.
-  // composedPath rather than closest, because the anchor may live in a shadow root, and
-  // the default is deliberately NOT prevented: whoever registered a protocol handler for
-  // lightning: keeps it.
+  //
+  // THE TAP IS SIDECAR'S when it opens the card, so the default is prevented. It was
+  // left alone once, so that an app registered for lightning: kept it, and on a BTCPay
+  // checkout that meant the tap opened BlueWallet (in a new tab, from the link's
+  // target=_blank) instead of the card it was meant to open. The card's "Open in another
+  // wallet" hands the same link on, and turning off the Settings switch for that kind of
+  // site gives its taps back to that app. A tap Sidecar declines (no wallet, expired, dismissed)
+  // falls through to the app as it always did.
+  //
+  // ON AN UNCONNECTED SITE TOO, once "Show on unconnected sites" is on. A BTCPay
+  // checkout's "Pay in wallet" is exactly this link on a site with no Nostr in it. Off
+  // (the default), such a site's taps are not Sidecar's to take and go where they always
+  // went. Paying still goes through Sidecar's approval, since such a site has no budget.
+  //
+  // composedPath rather than closest, because the anchor may live in a shadow root.
   document.addEventListener('click', (e) => {
     if (retired) return;
-    if (!showCard || !connectedToSite || !hasWallet) return;
+    if (!hasWallet || !(connectedToSite ? showCard : pillAnywhere)) return;
     const path = (e.composedPath && e.composedPath()) || [];
     for (const el of path) {
       const href = el && el.getAttribute && el.getAttribute('href');
@@ -1690,6 +1755,9 @@
       if (!m) return;
       const inv = m[0].toLowerCase();
       if (invoiceExpired(inv) || inv === dismissedInvoice) return;
+      e.preventDefault();
+      tappedInvoice = inv;
+      tappedHref = href;
       renderCard(inv);
       return;
     }
@@ -1710,6 +1778,7 @@
     if (!msg || msg.type !== 'SIDECAR_EVENT') return;
     if (msg.event === 'settings') {
       showCard = msg.showPayButton !== false;
+      if ('payPillAnywhere' in msg) pillAnywhere = msg.payPillAnywhere === true;
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       scanForInvoice();
     } else if (msg.event === 'autopaying') {
@@ -1777,6 +1846,7 @@
       showCard = settings.showPayButton !== false;
       autoZapOffer = Number(settings.autoZapOffer) || 0;
       hasWallet = settings.hasWallet === true;
+      pillAnywhere = settings.payPillAnywhere === true;
       setCardTheme(settings.cardTheme || ''); // same reply carries the palette
       scanForInvoice();
     });

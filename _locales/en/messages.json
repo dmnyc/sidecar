@@ -166,5 +166,9 @@
   "cardFailed": {
     "message": "Payment failed. Please try again.",
     "description": "Shown when a payment fails with no reason given."
+  },
+  "cardOtherWallet": {
+    "message": "Open in another wallet",
+    "description": "On the pay card: hands the invoice to whichever Lightning app is registered on this computer instead of paying with Sidecar."
   }
 }

@@ -61,12 +61,16 @@ function resolver() {
 // The pay card's theme is resolved in background.js rather than in the panel, because it
 // depends on the SITE's binding as well as the settings and only the background may join
 // those two. Lifted from the shipped expression so it cannot drift from what runs.
+// Runs the shipped expressions: which account the card is for, then its theme. `payer`
+// is what resolveSiteAccount returns: the bound account while it exists, else the active.
 function cardResolver() {
-  const m = bg.match(/cardTheme: (\(bound && by\[bound\]\) \|\| st\.theme \|\| ''),?/);
-  if (!m) throw new Error('the pay card theme expression moved — update this test');
+  const pick = bg.match(/const cardAccount = (bound \|\| payer);/);
+  const m = bg.match(/cardTheme: (\(cardAccount && by\[cardAccount\]\) \|\| st\.theme \|\| ''),?/);
+  if (!pick || !m) throw new Error('the pay card theme expression moved — update this test');
   const ctx = { console };
   vm.createContext(ctx);
-  vm.runInContext('globalThis.out = (st, bound) => { const by = st.themeBy || {}; return ' + m[1] + '; };', ctx);
+  vm.runInContext('globalThis.out = (st, bound, payer = bound) => { const by = st.themeBy || {}; const cardAccount = ' +
+    pick[1] + '; return ' + m[1] + '; };', ctx);
   return ctx.out;
 }
 
@@ -106,7 +110,7 @@ test('no settings at all still resolves to a real theme', () => {
 
 // ---- the surfaces that follow, and the one that must not -----------------------------
 
-test('THE PAY CARD WEARS THE BOUND ACCOUNT\'S THEME, NEVER THE ACTIVE ONE', () => {
+test('ON A BOUND SITE THE PAY CARD WEARS THE BOUND ACCOUNT\'S THEME, NEVER THE ACTIVE ONE', () => {
   // The line that matters most in this file. The card is rendered into a page that can
   // see it. The site already holds the pubkey of the account it is bound to, so that
   // account's theme is not news to it — but the ACTIVE account can be an identity the
@@ -117,7 +121,10 @@ test('THE PAY CARD WEARS THE BOUND ACCOUNT\'S THEME, NEVER THE ACTIVE ONE', () =
   assert.ok(at !== -1, 'the clamped settings read for content scripts moved');
   const h = src.slice(at, at + 1400);
   assert.match(h, /getSiteAccount\(cardHost\)/, 'the card theme is not resolved against this site\'s account');
-  assert.match(h, /cardTheme: \(bound && by\[bound\]\) \|\| st\.theme/, 'the card no longer resolves per site');
+  // Bound first: resolveSiteAccount would give the bound account too, but the binding is
+  // what decides, so a bound site's card can never follow the active account.
+  assert.match(h, /const cardAccount = bound \|\| payer;/, 'the card no longer resolves per site');
+  assert.match(h, /cardTheme: \(cardAccount && by\[cardAccount\]\) \|\| st\.theme/, 'the card no longer resolves per site');
   assert.match(h, /new URL\((?:sender && sender\.url|\(sender && sender\.url\))/,
     'the host comes from the message body, which a page could influence');
   assert.doesNotMatch(h, /activePubkey/, 'the clamped read now hands a page the active identity');
@@ -131,11 +138,25 @@ test('the card resolves to the bound account, then the default', () => {
   // A site bound to an account that never chose, and a site with no binding at all
   // (which cannot render a card today, but must not resolve to undefined if it ever can).
   assert.equal(r(st, 'carol'), 'speakeasy', 'an account that never chose does not get the default');
-  assert.equal(r(st, null), 'speakeasy', 'an unbound site does not fall back to the default');
-  assert.equal(r({}, null), '', 'a fresh install must resolve to a falsy value, not undefined');
-  // The switch that started all this: changing which account is ACTIVE cannot change
-  // this answer, because the active account is not an input.
-  assert.equal(r(st, 'alice'), 'bauhaus', 'the resolution is not stable');
+  assert.equal(r({}, null, null), '', 'a fresh install must resolve to a falsy value, not undefined');
+  // The switch that started all this: on a BOUND site, changing which account is active
+  // cannot change the answer, because the binding outranks it.
+  assert.equal(r(st, 'alice', 'bob'), 'bauhaus', 'a bound site follows the active account');
+});
+
+test('A SITE WITH NO BINDING WEARS THE THEME OF THE ACCOUNT THAT WOULD PAY', () => {
+  // A BTCPay checkout is bound to nobody, and pays from the active account, so its card
+  // wears that account's theme. It had fallen back to the onboarding default, a theme
+  // none of the accounts wore.
+  const r = cardResolver();
+  const st = { theme: 'speakeasy', themeBy: { alice: 'bauhaus', bob: 'film-noir' } };
+  assert.equal(r(st, null, 'bob'), 'film-noir', 'an unbound site ignores the account paying from it');
+  assert.equal(r(st, null, 'carol'), 'speakeasy', 'a payer that never chose does not get the default');
+  // What that theme would tell a page is kept from it: every surface Sidecar draws into a
+  // page is a closed shadow root, so the page's scripts cannot read its colors.
+  const shadows = stripComments(content).match(/attachShadow\(\{ mode: '(\w+)' \}\)/g) || [];
+  assert.ok(shadows.length >= 3, 'the card, the pill and the zap bolt moved');
+  for (const s of shadows) assert.match(s, /'closed'/, 'a page can read Sidecar\'s colors through ' + s);
 });
 
 test('THE CARD MAP NEVER CROSSES INTO A CONTENT SCRIPT', () => {

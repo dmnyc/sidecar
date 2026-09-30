@@ -918,6 +918,15 @@
         // paint specific elements without tearing the view down.
         refreshWalletBalance();
         refreshTransactionList();
+        // AND ONCE MORE, A FEW SECONDS ON. This fires the moment the payment returns, and
+        // a wallet can report a payment settled before its own history lists it, so the
+        // first look finds nothing new and the payment never showed. The list prepends
+        // only payment hashes it has not drawn, so a second look that finds nothing
+        // changes nothing.
+        setTimeout(() => {
+          const now = document.querySelector('.tab.active');
+          if (now && now.dataset.tab === 'wallet') { refreshWalletBalance(); refreshTransactionList(); }
+        }, 4000);
       }
       renderPinnedBalanceBar(); // refresh the pinned bar on any tab
     }
@@ -9770,6 +9779,7 @@
     if (defaultOpt) defaultOpt.textContent = globalLabel ? t('Use the default ({{client}})', { client: globalLabel }) : t('Use the default');
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
+    $('paypill-anywhere-toggle').checked = settings.payPillAnywhere === true; // default off
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     // The way back from "Don't show this again": clears both flags in the local
@@ -20484,6 +20494,10 @@
 
   $('paybutton-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showPayButton: e.target.checked } });
+  });
+
+  $('paypill-anywhere-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { payPillAnywhere: e.target.checked } });
   });
 
   $('clienttag-toggle').addEventListener('change', async (e) => {
