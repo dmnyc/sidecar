@@ -1,7 +1,7 @@
 'use strict';
 
-// The ⋯ menu on a notification: the event's kind, and copies of its ids, the sender's
-// keys and the signed JSON.
+// The ⋮ menu on a notification: the event's kind, and copies of its ids, the sender's
+// npub and the signed JSON.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -48,16 +48,16 @@ test('THE JSON IS THE SIGNED EVENT, NOT WHAT THE CACHE HUNG ON IT', () => {
 test('every notification row gets the menu, not only the note-like ones', () => {
   const build = lift('function buildItem(');
   assert.match(build, /buildEventMenu\(ev, linkTarget\)/);
-  assert.match(build, /right\.appendChild\(moreMenu\.btn\)/, 'the ⋯ lives in the top-right slot');
+  assert.match(build, /right\.appendChild\(moreMenu\.btn\)/, 'the ⋮ lives in the top-right slot');
   // Outside the isNoteLike / targetId branches, so reactions, reposts, zaps and votes
   // have it too.
   const at = build.indexOf('buildEventMenu(');
   assert.ok(at < build.indexOf('const isNoteLike'), 'the menu is built before the note-only branches');
 });
 
-test('it offers the ids, the keys and the JSON, and names the kind', () => {
+test('it offers the ids, the npub and the JSON, and names the kind', () => {
   const menu = lift('function buildEventMenu(');
-  for (const label of ['Copy event ID', 'Copy event ID (hex)', 'Copy npub', 'Copy public key (hex)', 'Copy event JSON']) {
+  for (const label of ['Copy event ID', 'Copy npub', 'Copy event JSON']) {
     assert.ok(menu.includes("t('" + label + "')"), label);
   }
   assert.match(menu, /approvalKindLabels\(\)\[ev\.kind\]/, 'kind names come from the approval table');
@@ -65,6 +65,12 @@ test('it offers the ids, the keys and the JSON, and names the kind', () => {
   // A zap's npub is the zapper the row names, not the LNURL service that signed it.
   assert.match(menu, /const who = zapSender\(ev\)/);
   assert.match(menu, /npubEncode\(who\)/);
+});
+
+test('a reaction or a zap offers only its parent note', () => {
+  const menu = lift('function buildEventMenu(');
+  assert.match(menu, /const parentOnly = \(ev\.kind === 7 \|\| ev\.kind === 9735\) && targetId;/);
+  assert.match(menu, /for \(const \[label, glyph, value\] of shown\)/);
 });
 
 test('A TAP IN THE MENU NEVER FOLLOWS THE ROW LINK', () => {

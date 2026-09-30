@@ -6631,7 +6631,7 @@
       const actionRow = h('div', { className: 'notif-action', textContent: text });
       item.appendChild(actionRow);
 
-      // The ⋯ menu opens directly under the line it came from, not at the foot of a row
+      // The ⋮ menu opens directly under the line it came from, not at the foot of a row
       // that may be a note, three thumbnails and an action bar tall.
       const moreMenu = buildEventMenu(ev, linkTarget);
       item.appendChild(moreMenu.panel);
@@ -6824,7 +6824,7 @@
         item.appendChild(panel);
       }
       // Last in the slot, after the chevron: the far corner is where every client keeps
-      // its ⋯, and the chevron stays next to the text it expands.
+      // its ⋮, and the chevron stays next to the text it expands.
       right.appendChild(moreMenu.btn);
 
       // The actions are NOT behind the chevron. They are what you came to the row to do,
@@ -6848,13 +6848,13 @@
       return item;
     }
 
-    // THE ⋯ MENU: the event itself rather than what it says — its kind, and the ids, keys
+    // THE ⋮ MENU: the event itself rather than what it says — its kind, and the ids, npub
     // and JSON you reach for when debugging a client or quoting a note somewhere else.
     //
     // A panel of full-width rows under the row header, not a floating popover. Every item
     // has words, and words do not fit beside content in a 300px sheet (the rule in
     // AGENTS.md); a popover would also need its own clipping and dismissal rules inside a
-    // sheet that already scrolls. Only the ⋯ itself sits in the top-right slot, icon only.
+    // sheet that already scrolls. Only the ⋮ itself sits in the top-right slot, icon only.
     //
     // For a zap the npub is the ZAPPER's (zapSender), the same person the row names. The
     // receipt's own pubkey is the LNURL service, and it is still in the JSON.
@@ -6868,7 +6868,7 @@
       const btn = h('button', { className: 'notif-more-btn', type: 'button', title: t('More options') });
       btn.setAttribute('aria-label', t('More options'));
       btn.setAttribute('aria-expanded', 'false');
-      btn.appendChild(icon('more'));
+      btn.appendChild(icon('more-v'));
 
       const panel = h('div', { className: 'notif-more hidden' });
       // A click anywhere in the panel, the gaps included, must not follow the row's link.
@@ -6905,15 +6905,18 @@
         const targetId = notifTargetId(ev);
         const items = [
           [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
-          [t('Copy event ID (hex)'), 'copy', () => ev.id],
           [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)],
-          [t('Copy public key (hex)'), 'key', () => who],
-          targetId ? [t('Copy ID of the note it points to'), 'copy', () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
+          targetId ? [t('Copy parent note ID'), 'copy', () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
           linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
           [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
         ].filter(Boolean);
+        // A reaction or a zap is only ever about the note it landed on, so that is all its
+        // menu offers. One whose note cannot be found keeps the full list rather than
+        // opening empty.
+        const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
+        const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
 
-        for (const [label, glyph, value] of items) {
+        for (const [label, glyph, value] of shown) {
           const row = h('button', { className: 'notif-more-item', type: 'button' });
           row.append(icon(glyph), h('span', { textContent: label }));
           row.addEventListener('click', async (e) => {

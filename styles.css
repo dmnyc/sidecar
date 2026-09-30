@@ -5171,7 +5171,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   .notif-expand-btn { transition: color 0.12s ease; }
 }
 
-/* The ⋯ beside the chevron: same metrics and colors, so the slot reads as one set of
+/* The ⋮ beside the chevron: same metrics and colors, so the slot reads as one set of
    marks. Icon only for the same reason — words here would take width from the name. */
 .notif-more-btn {
   background: none; border: none; padding: 0 0 0 2px; margin: 0;
@@ -5183,7 +5183,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .notif-clickable:hover .notif-more-btn { color: var(--text-2); }
 .notif-more-btn:hover, .notif-more-btn.open { color: var(--gold); }
 
-/* What the ⋯ opens: its own full-width rows under the header, because every item has
+/* What the ⋮ opens: its own full-width rows under the header, because every item has
    words (AGENTS.md, rule 2). Left rule like .notif-target: context inside a card, not a
    second card. Labels ellipsize rather than wrap or shrink. */
 .notif-more {
