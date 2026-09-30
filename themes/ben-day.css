@@ -1304,6 +1304,16 @@
   [data-theme="ben-day"] .bal-glyph.bal-in { animation: none; }
 }
 
+/* The destructive-event card's two buttons (both approval UIs) are set in the UI face by
+   the shared sheet; here they are lettered like every other button. */
+[data-theme="ben-day"] .destructive-warn-reject,
+[data-theme="ben-day"] .destructive-warn-ack {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
 /* ---- ITS CARD IN THE PICKER --------------------------------------------------------
    Scoped to the card, never prefixed with the active theme (see werkstatte.css). */
 .theme-card[data-theme="ben-day"] {
