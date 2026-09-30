@@ -721,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -1226,6 +1226,33 @@
         CARD_WARN: 'color:#A33A2A',
         CARD_SUCCESS: 'color:#2E6B4F',
         CARD_PAY_SHADOW: 'rgba(56,83,43,0.26)'
+      },
+      /* Jazz Age — the bandstand. Mirrors themes/jazz-age.css: a black card with the warm
+         hairline, a crimson wash at its head, the amount in ivory, Pay the lit crimson with
+         its ivory label (6.34 on the mid stop), and the toggles in crimson. */
+      'jazz-age': {
+        CARD_COLOR: 'color:#F3E7CF',
+        CARD_BORDER: 'rgba(184,134,75,0.35)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(224,50,75,0.12),transparent 58%),linear-gradient(165deg,#1A1311,#0C0908)',
+        CARD_MUTED: 'color:#BBA78C',
+        CARD_GOLD: 'color:#F3E7CF',
+        CARD_TEXT_2: 'color:#E2D3B8',
+        CARD_LAV: '#F58A95',
+        CARD_PAY_TEXT: 'color:#FFF4E2',
+        CARD_PAY_BG: 'linear-gradient(180deg,#E0324B,#B3122E 55%,#8E0B22)',
+        CARD_CANCEL_BG: 'rgba(243,231,207,0.08)',
+        CARD_TEXT: '#F3E7CF',
+        CARD_BORDER_FAINT: 'rgba(184,134,75,0.22)',
+        CARD_TOGGLE_OFF: 'rgba(243,231,207,0.18)',
+        CARD_TRACK: '#E0324B',
+        CARD_THUMB_OFF: '#BBA78C',
+        CARD_WARN: 'color:#FF8A70',
+        CARD_SUCCESS: 'color:#8FD4A0',
+        CARD_PAY_SHADOW: 'rgba(200,20,40,0.45)',
+        CARD_EXTRA:
+          '.pay{text-shadow:0 0 8px rgba(255,190,170,0.7);' +
+          'box-shadow:inset 0 1px 0 rgba(255,200,190,0.45),0 0 0 1px rgba(255,90,100,0.5),0 0 12px rgba(230,40,60,0.75),0 0 30px rgba(230,40,60,0.45);}' +
+          '.tg-input:checked~.tg-track .tg-thumb{background:#FFF4E2;}'
       },
       /* Ben Day — the comic page. Mirrors themes/ben-day.css: a white panel with the black
          keyline, the pay button flat red with white (5.88), and the toggles as the panel

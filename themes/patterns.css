@@ -525,12 +525,58 @@ body {
   background-attachment: fixed, fixed;
 }
 
+/* Jazz Age — the curtain: the lock screen's velvet (themes/jazz-age-curtain.svg,
+   repeated across the width so its folds keep their size) with the same three beams'
+   light multiplied onto it (themes/jazz-age-stage.svg), faded far back so the folds read
+   as a room behind the content. The light map is stretched to the viewport, which a soft
+   beam survives, and both are fixed there, so the room stays put as a view scrolls. The
+   beams' strengths are held by test/theme-svg-assets.test.js, so the body inks still
+   clear AA on the brightest fold where they cross. */
+[data-theme="jazz-age"] body {
+  background-color: var(--bg);
+  background-image: url(jazz-age-stage.svg), url(jazz-age-curtain.svg);
+  background-size: 100% 100%, 240px 100%;
+  background-position: 0 0, 0 0;
+  background-repeat: no-repeat, repeat-x;
+  background-attachment: fixed, fixed;
+  background-blend-mode: multiply, normal;
+}
+
 /* ---- The full-tab composer (compose.html) ----------------------------------------
    Every field above is drawn for a side panel about 360px wide, and several are sized
    to the frame: a tile at 100% of the width, a sheet that covers it. On a tab four
    times as wide, those scale up with it, so a motif meant to sit behind a narrow column
    fills a desktop at four times its size. These put each one back at the scale the
    panel shows it at. Only the tab's body carries .compose-page. */
+
+/* Jazz Age: the lock screen's full light rather than the panel's faded one, from its
+   three lamps drawn for a wide frame. Nothing on this page is lettered on the curtain, so
+   the lights can be what the room is: a brighter velvet (jazz-age-curtain-lit.svg) under
+   more of the room's light (jazz-age-lock-wide.svg), its folds drawn half again as wide,
+   at the tab's scale, and the sides fall away into the dark of the room.
+
+   THE LAMPS ARE THEIR OWN LAYERS, over the vignette so they burn bright at the sides. The
+   light is stretched to the window, but a lens drawn into that stretched picture stretched
+   with it, unevenly on a tall window, and the tilted side lenses looked bigger than the
+   center one. Each lens is a small square of its own (jazz-age-lens-*.svg), kept at its
+   proportions and pinned where its beam starts: 16%, 50% and 84% across, and 64/900 of
+   the way down (7.11vh), less half the 96px square. */
+[data-theme="jazz-age"] body.compose-page {
+  background-image:
+    url(jazz-age-lens-left.svg), url(jazz-age-lens-center.svg), url(jazz-age-lens-right.svg),
+    linear-gradient(90deg, rgba(6, 3, 3, 0.92), rgba(6, 3, 3, 0.55) 14%, transparent 32%,
+      transparent 68%, rgba(6, 3, 3, 0.55) 86%, rgba(6, 3, 3, 0.92)),
+    url(jazz-age-lock-wide.svg), url(jazz-age-curtain-lit.svg);
+  background-size: 96px 96px, 96px 96px, 96px 96px, 100% 100%, 100% 100%, 360px 100%;
+  background-position:
+    calc(16vw - 48px) calc(7.11vh - 48px),
+    calc(50vw - 48px) calc(7.11vh - 48px),
+    calc(84vw - 48px) calc(7.11vh - 48px),
+    0 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat-x;
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
+  background-blend-mode: normal, normal, normal, normal, multiply, normal;
+}
 
 /* Film Noir: the landscape sheet of strips (film-noir-strips-wide.svg), at the same
    density as the panel's portrait one, since covering a tab with the portrait sheet would
