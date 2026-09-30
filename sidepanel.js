@@ -5317,6 +5317,12 @@
       : { glyph: '@', text: t('mentioned you') };
   }
 
+  // The event as it was signed: the seven NIP-01 fields and nothing a cache added.
+  function notifEventJson(ev) {
+    const { id, pubkey, created_at, kind, tags, content, sig } = ev;
+    return JSON.stringify({ id, pubkey, created_at, kind, tags, content, sig }, null, 2);
+  }
+
   // The actual zapper for a kind:9735 receipt — the receipt's own pubkey is the
   // LNURL zap service, not the person. Prefer the `P` tag, then the embedded zap
   // request's pubkey; fall back to the receipt pubkey. For non-zaps, just the author.
@@ -6625,6 +6631,11 @@
       const actionRow = h('div', { className: 'notif-action', textContent: text });
       item.appendChild(actionRow);
 
+      // The ⋯ menu opens directly under the line it came from, not at the foot of a row
+      // that may be a note, three thumbnails and an action bar tall.
+      const moreMenu = buildEventMenu(ev, linkTarget);
+      item.appendChild(moreMenu.panel);
+
       // A note or a comment can be answered, reacted to and zapped. A reaction, a repost
       // or a zap receipt cannot — there is no thread to join, and a kind:7 tagging
       // another kind:7 shows up in nobody's client as anything sensible. Offering a
@@ -6812,6 +6823,9 @@
         });
         item.appendChild(panel);
       }
+      // Last in the slot, after the chevron: the far corner is where every client keeps
+      // its ⋯, and the chevron stays next to the text it expands.
+      right.appendChild(moreMenu.btn);
 
       // The actions are NOT behind the chevron. They are what you came to the row to do,
       // and a drawer to reach them is a tap that buys nothing — the chevron is for
@@ -6832,6 +6846,90 @@
         });
       }
       return item;
+    }
+
+    // THE ⋯ MENU: the event itself rather than what it says — its kind, and the ids, keys
+    // and JSON you reach for when debugging a client or quoting a note somewhere else.
+    //
+    // A panel of full-width rows under the row header, not a floating popover. Every item
+    // has words, and words do not fit beside content in a 300px sheet (the rule in
+    // AGENTS.md); a popover would also need its own clipping and dismissal rules inside a
+    // sheet that already scrolls. Only the ⋯ itself sits in the top-right slot, icon only.
+    //
+    // For a zap the npub is the ZAPPER's (zapSender), the same person the row names. The
+    // receipt's own pubkey is the LNURL service, and it is still in the JSON.
+    function buildEventMenu(ev, linkTarget) {
+      const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+      // Enter or Space on a button inside a vote row would otherwise bubble to the row's
+      // own key handler and open the tally as well. Not prevented, so the button still
+      // activates.
+      const keepKeys = (e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); };
+
+      const btn = h('button', { className: 'notif-more-btn', type: 'button', title: t('More options') });
+      btn.setAttribute('aria-label', t('More options'));
+      btn.setAttribute('aria-expanded', 'false');
+      btn.appendChild(icon('more'));
+
+      const panel = h('div', { className: 'notif-more hidden' });
+      // A click anywhere in the panel, the gaps included, must not follow the row's link.
+      panel.addEventListener('click', stop);
+      panel.addEventListener('keydown', keepKeys);
+      btn.addEventListener('keydown', keepKeys);
+
+      const setOpen = (open) => {
+        panel.classList.toggle('hidden', !open);
+        btn.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      let built = false;
+      btn.addEventListener('click', (e) => {
+        stop(e);
+        if (!built) build();
+        setOpen(panel.classList.contains('hidden'));
+      });
+
+      // On first open rather than with the row: the list builds 25 of these at a time.
+      function build() {
+        built = true;
+        // Named from the approval card's table, so a kind reads the same here as it did
+        // when you were asked to sign one.
+        const kindName = approvalKindLabels()[ev.kind] || '';
+        // The number as written in the NIPs, never grouped: kind 9735, not 9,735.
+        const kind = String(ev.kind);
+        panel.appendChild(h('div', {
+          className: 'notif-more-kind',
+          textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
+        }));
+
+        const who = zapSender(ev);
+        const targetId = notifTargetId(ev);
+        const items = [
+          [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
+          [t('Copy event ID (hex)'), 'copy', () => ev.id],
+          [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)],
+          [t('Copy public key (hex)'), 'key', () => who],
+          targetId ? [t('Copy ID of the note it points to'), 'copy', () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
+          linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
+          [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
+        ].filter(Boolean);
+
+        for (const [label, glyph, value] of items) {
+          const row = h('button', { className: 'notif-more-item', type: 'button' });
+          row.append(icon(glyph), h('span', { textContent: label }));
+          row.addEventListener('click', async (e) => {
+            stop(e);
+            try {
+              await copyPlain(value());
+              toast(t('Copied'), 'success');
+              setOpen(false);
+            } catch (e2) {
+              toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
+            }
+          });
+          panel.appendChild(row);
+        }
+      }
+      return { btn, panel };
     }
 
     // Reply, react and zap, on their own row under the note. Icon-only, and titled: the

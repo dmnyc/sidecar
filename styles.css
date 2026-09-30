@@ -5171,6 +5171,43 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   .notif-expand-btn { transition: color 0.12s ease; }
 }
 
+/* The ⋯ beside the chevron: same metrics and colors, so the slot reads as one set of
+   marks. Icon only for the same reason — words here would take width from the name. */
+.notif-more-btn {
+  background: none; border: none; padding: 0 0 0 2px; margin: 0;
+  display: inline-flex; align-items: center;
+  color: var(--muted); cursor: pointer; flex-shrink: 0;
+  transition: color 0.12s ease;
+}
+.notif-more-btn svg { width: 15px; height: 15px; display: block; }
+.notif-clickable:hover .notif-more-btn { color: var(--text-2); }
+.notif-more-btn:hover, .notif-more-btn.open { color: var(--gold); }
+
+/* What the ⋯ opens: its own full-width rows under the header, because every item has
+   words (AGENTS.md, rule 2). Left rule like .notif-target: context inside a card, not a
+   second card. Labels ellipsize rather than wrap or shrink. */
+.notif-more {
+  display: flex; flex-direction: column; align-items: stretch;
+  margin: 8px 0 2px 22px;
+  border-left: 2px solid var(--border-strong);
+  padding: 2px 0 2px 8px;
+}
+.notif-more-kind {
+  font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--faint); margin: 0 0 4px 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.notif-more-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  padding: 6px; text-align: left;
+  font-family: var(--font-ui); font-size: 12.5px; color: var(--text-2); cursor: pointer;
+}
+.notif-more-item svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--muted); }
+.notif-more-item span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif-more-item:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+.notif-more-item:hover svg { color: var(--gold); }
+
 /* Indented to the same 22px gutter .notif-content uses, so the glyph column stays clear
    and an expanded row reads as belonging to the one above it. */
 .notif-expand { margin: 8px 0 2px 22px; }
