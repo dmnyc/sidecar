@@ -3382,6 +3382,19 @@ async function handleControl(message, sender, sendResponse) {
     await KS.ensureLoaded(); // reflect a session unlock that survived SW restart
     let result;
     switch (message.type) {
+      case 'SIDECAR_CARD_FONT': {
+        // The lettering face for a pay card whose theme letters it (Ben Day's Bangers),
+        // handed to the content script as bytes, only when such a card opens. The card
+        // lives in the page and cannot use a font declared in its own shadow root, and
+        // listing the file as web-accessible would let any site fetch it to detect
+        // Sidecar. The file is the unmodified original from fonts/, public in the repo.
+        const buf = await (await fetch(chrome.runtime.getURL('fonts/bangers.ttf'))).arrayBuffer();
+        const u8 = new Uint8Array(buf);
+        let bin = '';
+        for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+        result = btoa(bin);
+        break;
+      }
       case 'SIDECAR_GET_STATE':
         result = await KS.getState();
         break;
@@ -4097,6 +4110,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',
     'SIDECAR_TRY_ZAP_AUTOPAY',
     'SIDECAR_IS_CONNECTED', 'SIDECAR_GET_SETTINGS', 'SIDECAR_SET_SETTINGS',
+    // The pay card's lettering face: a public font file, and nothing else.
+    'SIDECAR_CARD_FONT',
   ]);
   if (!fromExtPage && !CONTENT_OK.has(message.type)) {
     sendResponse({ ok: false, error: 'Not allowed from this context' });

@@ -3495,6 +3495,11 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .wallet-card.compact .wallet-chart-btn { display: none; }
 
 .wallet-chart-svg { display: block; width: 100%; height: 96px; }
+/* A range switch in flight (paintChart): the old trace and its numbers stay put, dimmed,
+   so the card keeps its height; the range row stays at full strength with the new pick
+   already marked. */
+.wallet-chart.is-loading .wallet-chart-plot,
+.wallet-chart.is-loading .wallet-chart-meta { opacity: 0.4; transition: opacity 0.15s; }
 .wallet-chart-meta {
   display: flex; align-items: baseline; gap: 8px; justify-content: center;
   font-family: var(--font-ui); font-size: 11.5px; color: var(--muted); margin-top: 2px;

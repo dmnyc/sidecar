@@ -451,9 +451,13 @@
    Re-declaring the token here rather than a literal size keeps one number for the face:
    0.77 is the same ratio the panel uses, derived the same way, and 20 x 0.77 lands the
    x-height on the set's median. Cast Iron does the same thing in the other direction —
-   Impressed Metal is small, so its card goes UP to 24px. */
+   Impressed Metal is small, so its card goes UP to 24px.
+   THE CARD GOES A LITTLE LOWER STILL, 0.7 rather than the panel's 0.77, because this is
+   the widest word in the gallery in its widest face. At 0.77 "Werkstätte" measured
+   142px, and in a panel about 340px wide a card's label area is no wider than that, so
+   the name ran into both edges of its card. At 0.7 it is about 129px. */
 .theme-card[data-theme="werkstatte"] .theme-name {
-  --display-scale: 0.77;
+  --display-scale: 0.7;
 }
 .theme-card[data-theme="werkstatte"].active {
   border-color: var(--amber);

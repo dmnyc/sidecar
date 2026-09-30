@@ -132,3 +132,20 @@ test('THE SHIMMER OUTRANKS THE RULES IT LANDS ON', () => {
   assert.match(cssCode, /--shimmer-base: var\(--muted\)/);
   assert.match(cssCode, /--shimmer-highlight: var\(--text\)/);
 });
+
+test('A RANGE SWITCH KEEPS THE CHART ON SCREEN WHILE THE NEW ONE LOADS', () => {
+  // It used to swap the whole chart (about 170px) for the loading row (about half that)
+  // and back, so the wallet card shrank and regrew on every switch, and a theme drawing
+  // art to the card's size (Ben Day's splash) visibly jumped. The chart that is showing
+  // is dimmed instead, and the loading row is only for a first showing.
+  const fn = bare.slice(bare.indexOf('async function paintChart('));
+  const body = fn.slice(0, fn.indexOf('\n    }\n'));
+  const keep = body.indexOf("chartSlot.querySelector('.wallet-chart')");
+  const clear = body.indexOf("chartSlot.innerHTML = ''");
+  assert.ok(keep !== -1, 'paintChart no longer looks for the chart already showing');
+  assert.ok(keep < clear, 'the slot is cleared before checking for a chart to keep');
+  assert.match(body, /shown\.classList\.add\('is-loading'\)/);
+  assert.match(cssCode, /\.wallet-chart\.is-loading \.wallet-chart-plot/);
+  // And the new pick is marked straight away, since the old chart is still on screen.
+  assert.match(bare, /\.forEach\(\(x\) => x\.classList\.toggle\('active', x === b\)\)/);
+});

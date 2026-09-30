@@ -71,7 +71,9 @@ function interpolatedKeys() {
 }
 
 test('each palette carries every CARD_* key the css interpolates', () => {
-  const required = interpolatedKeys();
+  // CARD_EXTRA is the one optional hole: getThemeColors defaults it to nothing (the test
+  // below pins that), so a palette without it is a theme with no shape of its own.
+  const required = interpolatedKeys().filter((k) => k !== 'CARD_EXTRA');
   // A floor, so an accidentally narrowed scan reads as a pass. The two stylesheets
   // between them have never held fewer holes than this.
   assert.ok(required.length >= 18, 'only found ' + required.length + ' interpolation holes');
@@ -81,4 +83,66 @@ test('each palette carries every CARD_* key the css interpolates', () => {
         `${e.key} is missing ${k}`);
     }
   }
+});
+
+test('CARD_EXTRA is appended to both templates and empty unless a theme sets it', () => {
+  // The card and the pill are shared templates; a theme that is shape rather than color
+  // (Ben Day's keylines and square corners) adds CSS through CARD_EXTRA. A theme that
+  // does not set it must render exactly as before, and a template that forgot the
+  // placeholder would silently drop the theme's shape.
+  for (const name of ['PILL_CSS', 'CARD_CSS']) {
+    const i = src.indexOf('const ' + name + ' =');
+    const body = src.slice(i, src.indexOf("';\n", i) + 2);
+    assert.match(body, /'\{CARD_EXTRA\}';$/, name + ' does not end with the {CARD_EXTRA} placeholder');
+  }
+  assert.match(src, /return Object\.assign\(\{ CARD_EXTRA: '' \}, themeColors\[cardTheme\] \|\| themeColors\.speakeasy\);/,
+    'a theme without CARD_EXTRA would leave the placeholder in the stylesheet');
+  // The extra is CSS for a shadow root: it may not reach out of it or load anything. The
+  // one url() allowed is an inlined data: image, which fetches nothing.
+  for (const { key, body } of themeColorEntries()) {
+    if (!/CARD_EXTRA:/.test(body)) continue;
+    const rest = body.replace(/url\("' \+ BEN_DAY_WASH \+ '"\)/g, '');
+    assert.doesNotMatch(rest, /url\(|@import|@font-face|:host|::part/,
+      key + ': CARD_EXTRA may style the card, not fetch into or reach out of the page');
+  }
+});
+
+test('the pay card carries the same dot wash the panel draws, and only as a data URI', () => {
+  // Inlined because the card is in someone else's page (see BEN_DAY_WASH in content.js),
+  // which means it is a copy, and a copy drifts. It must match the generated file.
+  const m = src.match(/const BEN_DAY_WASH = 'data:image\/svg\+xml,([^']+)';/);
+  assert.ok(m, 'BEN_DAY_WASH is not a data: URI');
+  const inline = decodeURIComponent(m[1]).trim();
+  const file = fs.readFileSync(path.join(ROOT, 'themes', 'ben-day-dots-wash.svg'), 'utf8').trim();
+  assert.equal(inline, file, 'BEN_DAY_WASH is out of step with themes/ben-day-dots-wash.svg; regenerate and re-inline it');
+});
+
+test('a lettered card reaches the page only while it is up, and never as a fetchable file', () => {
+  // Ben Day letters the amount and the Pay button in Bangers. The card is in someone
+  // else's page, so the face has to be registered with document.fonts, which the page
+  // can see. Three things keep that from becoming a way to detect Sidecar.
+  // 1. The file is not web-accessible: the bytes come from the background.
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+  assert.ok(!manifest.web_accessible_resources, 'a web-accessible resource can be probed for by any site');
+  const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  assert.match(bg, /'SIDECAR_CARD_FONT',\n\s*\]\);/, 'content scripts can no longer ask for the card font');
+  assert.match(bg, /case 'SIDECAR_CARD_FONT': \{[\s\S]*?fetch\(chrome\.runtime\.getURL\('fonts\/bangers\.ttf'\)\)/);
+  // 2. It is registered when a card opens, not at load.
+  assert.match(src, /appendChild\(cardHost\);\n\s*mountCardFont\(\);/);
+  // 3. It is removed when the card goes, whatever took it down.
+  const rm = src.slice(src.indexOf('function removeCard()'));
+  assert.match(rm.slice(0, rm.indexOf('\n  }\n')), /unmountCardFont\(\);/);
+  // And a late answer does not register it behind a card that already closed.
+  assert.match(src, /if \(cardHost && shownMode === 'card'\) add\(\);/);
+});
+
+test('the page-side strike carries the same ZAP! the panel draws, as a data URI', () => {
+  const m = src.match(/const BEN_DAY_ZAP = 'data:image\/svg\+xml,([^']+)';/);
+  assert.ok(m, 'BEN_DAY_ZAP is not a data: URI');
+  const file = fs.readFileSync(path.join(ROOT, 'themes', 'ben-day-zap.svg'), 'utf8').trim();
+  assert.equal(decodeURIComponent(m[1]).trim(), file,
+    'BEN_DAY_ZAP is out of step with themes/ben-day-zap.svg; regenerate and re-inline it');
+  const strike = src.slice(src.indexOf('function pageLightningStrike()'));
+  assert.match(strike.slice(0, strike.indexOf('\n  function ')), /cardTheme === 'ben-day'[\s\S]*?BEN_DAY_ZAP/,
+    'the page strike no longer draws the burst for Ben Day');
 });

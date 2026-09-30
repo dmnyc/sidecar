@@ -1,0 +1,1316 @@
+/* ============================================================
+   Sidecar — Ben Day Theme
+   A four-color comic page of the 1930s and 40s: Ben-Day dots
+   in the gutters, heavy black keylines, speech balloons and a
+   starburst for the balance. Light mode.
+   ============================================================ */
+
+/* Measured before written down, like every theme here — test/theme-contrast.test.js
+   resolves these var() chains and checks the ratios.
+
+   THE SOURCE IS THE PRINTING, not the paintings that quoted it later. Four inks on
+   newsprint: a black plate that does the drawing, and red, yellow and blue laid under it
+   as flat color or as a screen of dots. So the palette is four inks and a paper, and the
+   black does the work an accent does elsewhere.
+
+       PAPER     #FDFBF4, the page, and #FFFFFF for the panels drawn on it
+       KEYLINE   #111111, every border, the check, the tabs, the balance
+       RED       #C8102E, the primary button, counts, the update card
+       YELLOW    #FFD400, the wallet's starburst and the compose button, a fill only
+       BLUE      #1A5FB4, the second accent, the rarest ink on the page
+
+   THE NEAREST NEIGHBOR IS BAUHAUS, which has the same primaries on white. What keeps
+   them apart is structural rather than a shade: Bauhaus's accent is its blue and its
+   edges are hairlines; here the accent is the black plate, every panel is outlined in
+   it, the field is a dot screen, and the blue is almost absent.
+
+   THE RED WAS DEEPENED FROM THE DRAFT. #E3262B with white measured 4.59:1, clear of AA by
+   less than rounding; #C8102E gives 5.88. Yellow cannot be ink at all (1.2:1 on the
+   paper), so it is a fill under black type, 13.19:1. */
+
+[data-theme="ben-day"] {
+  /* The UA draws checkboxes and scrollbars from this, not from the palette. */
+  color-scheme: light;
+
+  /* Bangers, the lettering of a sound effect and a cover line. It is capitals only, so it
+     sets titles, the balance and names, never body text; Manrope stays the body face. */
+  --font-display: 'Bangers', Impact, 'Arial Narrow', var(--font-ui);
+  /* The second hand: thin monoline caption lettering for the lines a letterer would
+     have set small (captions, hints, labels). Its own token, because --font-display is
+     read all over the shared sheet and this face must not reach titles. */
+  --font-lettering: 'Comic Neue', var(--font-ui);
+  --display-ink-nudge: 0.04em;
+
+  /* surfaces — the page and the panels drawn on it */
+  --bg: #FDFBF4;
+  --bg-2: #F3EEDF;
+  --velvet-1: #FFFFFF;
+  --velvet-2: #FFFFFF;
+  --velvet-1-rgb: 255, 255, 255;
+  /* A face with no picture yet, and the activity log's kind icons, which are drawn on
+     the same placeholder. White into the caption cream, the way every light theme does
+     it: the icons inside are dark ink, and on the blue plate this first used they could
+     not be read. */
+  --av-from: #FFFFFF;
+  --av-to: #FFF4C2;
+  --banner-accent: #F3EEDF;
+  /* Hairlines are the black plate at low strength; the keylines below are the full ink. */
+  --border: rgba(17, 17, 17, 0.22);
+  --border-strong: #111111;
+  --border-rgb: 17, 17, 17;
+  --well-rgb: 243, 238, 223;
+  --warn: #B00D26;
+  --warn-rgb: 176, 13, 38;
+  --success: #1F6B3F;
+  --success-ink: #fff; /* this --success is dark; a dark arrow on it is unreadable */
+  --select-caret: var(--select-caret-on-light); /* light field, dark caret */
+  --success-rgb: 31, 107, 63;
+
+  /* The accent is the black plate: the check, the active tab, the tips. */
+  --orange: #111111;
+  --amber: #FFD400;
+  --gold: #111111;
+  --gold-soft: rgba(17, 17, 17, 0.30);
+  --accent-rgb: 17, 17, 17;
+  --balance-ink: #111111;
+  --fiat-sym-opacity: 1;
+  /* The blue plate as the second accent: hover, links and the chips that mix from it
+     (the described-ALT chip lifts it toward white on a dark pill, where black cannot
+     go). 6.07:1 on the paper. Still the rarest ink on the page. */
+  --purple: #144A8C;
+  --lav: #1A5FB4;
+  --news: #C8102E;
+  --news-ink: #A00D24;
+  --add-badge-ink: #FFFFFF;
+  --badge-bg: #C8102E;
+  --badge-ink: #FFFFFF;
+  --relax-dot-ok: #1F7A45;
+  --relax-dot-low: #C8102E;
+
+  --hover-soft: rgba(17, 17, 17, 0.05);
+  --hover-medium: rgba(17, 17, 17, 0.09);
+  --hover-faint: rgba(17, 17, 17, 0.035);
+  --mention-bg: rgba(255, 212, 0, 0.45);
+  --scroll-thumb: #111111;
+  --scroll-thumb-hover: #333333;
+
+  /* primary button — flat red with white, 5.88:1. Flat because print is flat: every
+     stop is the same ink. */
+  --btn-primary-top: #C8102E;
+  --btn-primary-mid: #C8102E;
+  --btn-primary-bot: #C8102E;
+  --btn-primary-text: #FFFFFF;
+  --btn-shadow: transparent;
+
+  /* "Trust this site" — the caption yellow, black type, the lesser of the two fills */
+  --btn-lav-top: #FFD400;
+  --btn-lav-mid: #FFD400;
+  --btn-lav-bot: #FFD400;
+  --btn-lav-text: #111111;
+  --btn-lav-ring: #111111;
+  --btn-lav-shadow: transparent;
+
+  --btn-secondary-top: #FFFFFF;
+  --btn-secondary-bot: #FFFFFF;
+
+  --pending-text: #111111;
+
+  --btn-accent-top: #111111;
+  --btn-accent-mid: #111111;
+  --btn-accent-bot: #111111;
+  --btn-accent-text: #FFFFFF;
+
+  /* ink — the black plate, and two grays screened from it */
+  --text: #111111;
+  --text-2: #2A2A2A;
+  /* Darker than the paper alone needs, so the dots can print at a visible strength:
+     --faint is 4.6:1 on a dot (test/theme-svg-assets.test.js). */
+  --muted: #404040;
+  --faint: #505050;
+  --red: #B00D26;
+
+  /* No soft shadows: a printed page has none. */
+  --shadow: none;
+  --shadow-sm: none;
+  --sheen: none;
+
+  --pattern-opacity: 1;
+
+  --input-bg: #FFFFFF;
+  --focus-ring: rgba(17, 17, 17, 0.22);
+  --card-wash: transparent;
+  --accent-fill: #111111;
+  --chip-ink: #FFFFFF;
+  --glow: #111111;
+  --balloon-bg: #FFFFFF;
+  --balloon-bg-hover: #FFFFFF; /* the tail is a white picture, so the balloon stays white */
+  --balloon-text: #111111;
+  --fab-bg: #FFD400;
+  --fab-icon: #111111;
+  --float-shadow: rgba(17, 17, 17, 0.20);
+  --float-shadow-strong: rgba(17, 17, 17, 0.30);
+}
+
+/* Skeleton shimmer is built for dark surfaces. */
+[data-theme="ben-day"] .sk {
+  background-image: linear-gradient(100deg, var(--bg-2) 30%, var(--hover-medium) 50%, var(--bg-2) 70%);
+}
+[data-theme="ben-day"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.10);
+}
+[data-theme="ben-day"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+[data-theme="ben-day"] .relax-status-x {
+  background: var(--warn);
+  color: #FFFFFF;
+}
+
+/* ---- SQUARE CORNERS ---------------------------------------------------------------
+   A comic page is ruled into panels, and a panel has square corners. The same blanket
+   rule Werkstätte uses, for the same reason: the shared sheet rounds almost everything,
+   and a list here would be wrong the first time anyone adds a rule to styles.css. The
+   exceptions are Werkstätte's list, for Werkstätte's reasons (see werkstatte.css):
+   spinners, switches, counts, the quill, direction and state dots, and every face.
+   test/werkstatte-round.test.js audits both themes against the app. */
+[data-theme="ben-day"] *:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] *:not(.theme-card):not(.theme-card *)::before,
+[data-theme="ben-day"] *:not(.theme-card):not(.theme-card *)::after {
+  border-radius: 0;
+}
+[data-theme="ben-day"] .ac-spinner:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .recv-spinner:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .tx-icon:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .tx-icon.has-av img:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .tx-dir:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .recv-check:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .relax-status-dot:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .relax-status-restart:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .relax-status-x:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .nip65-dot:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .wallet-pin:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .wallet-chart-btn:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .pinned-balance-btn:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .npub-qr-face:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .sk-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .profile-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .peek-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .upload-preview:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .chip-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .acct-row-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .ip-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .avatar:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .aa-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .acct-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .switch-row-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .notif-modal-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .add-account-badge:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .bm-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .poll-voter-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .restore-preview-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .site-bound-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .compose-author-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .ac-item-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .embed-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .ln-recipient-avatar:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .compose-thumb-x:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .compose-thumb-move:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .relay-icon:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .reply-target-av:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .compose-done-mark:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .dev-badge:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .fab:not(.theme-card):not(.theme-card *) {
+  border-radius: 50%;
+}
+[data-theme="ben-day"] .switch-track:not(.theme-card):not(.theme-card *) {
+  border-radius: 999px;
+}
+[data-theme="ben-day"] .switch-track:not(.theme-card):not(.theme-card *)::after {
+  border-radius: 50%;
+}
+[data-theme="ben-day"] .notif-badge:not(.theme-card):not(.theme-card *) {
+  border-radius: 8px;
+}
+
+/* The speech balloons, which are the one drawn shape on a comic page that is never
+   square. */
+[data-theme="ben-day"] .status-balloon:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .first-post-balloon:not(.theme-card):not(.theme-card *) {
+  border-radius: 18px;
+}
+
+/* ---- KEYLINES ------------------------------------------------------------------------
+   Every panel is outlined in the black plate. The heavy line goes on the surfaces that
+   hold the page's weight — the wallet card, a modal, the account bar — and a lighter
+   one on the rows, so a list reads as a strip of panels rather than a wall of black. */
+[data-theme="ben-day"] .wallet-card,
+[data-theme="ben-day"] .modal {
+  border: 3px solid #111111;
+}
+[data-theme="ben-day"] .item,
+[data-theme="ben-day"] .card {
+  border: 2px solid #111111;
+}
+/* THE ACTIVE ACCOUNT. Every row wears the same black keyline here, so the shared marker
+   (a faint accent ring and a soft lift) vanished and the active row looked like the
+   rest. It is marked the way the view titles are: a cream fill, a heavier line, and the
+   red plate printed off register behind it. (Full caption yellow was tried and was too
+   loud for a row.) A row waiting on its second tap ("Set as active?") stays white with a
+   red bar down its left side and a black drop: plainly different, quieter than active. */
+[data-theme="ben-day"] .item.item-active {
+  background: #FFF4C2;
+  border: 3px solid #111111;
+  box-shadow: 4px 4px 0 #C8102E;
+}
+[data-theme="ben-day"] .item.item-active .item-sub { color: var(--text-2); }
+[data-theme="ben-day"] .item.item-active .active-check { color: #111111; }
+[data-theme="ben-day"] .item.item-pending {
+  background: #FFFFFF;
+  border-color: #111111;
+  border-left: 6px solid #C8102E;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .item.item-pending .item-label { color: #111111; }
+[data-theme="ben-day"] .topbar {
+  background: #FFFFFF;
+  border-bottom: 3px solid #111111;
+}
+/* The expanded composer's bar is the black plate, like the dark bar on the help pages,
+   with the light wordmark (compose.js picks it; see DARK_BAR_THEMES there). */
+[data-theme="ben-day"] .compose-topbar {
+  background: #111111;
+  border-bottom: 3px solid #111111;
+  color: #FFFFFF;
+}
+[data-theme="ben-day"] .tabs {
+  background: #FFFFFF;
+  border-bottom: 2px solid #111111;
+}
+/* The pinned balance bar is a strip cut from the wallet card: the same splash art, its
+   middle band showing at this height, the buttons as white discs with the keyline, and
+   the figure lettered the way the card's is. */
+[data-theme="ben-day"] .pinned-balance {
+  background: #FFB31E url(ben-day-card.svg) center / cover no-repeat;
+  border-bottom: 3px solid #111111;
+  box-shadow: none;
+}
+[data-theme="ben-day"] .pinned-balance-btn {
+  background: #FFFFFF;
+  border: 2px solid #111111;
+  color: #111111;
+}
+[data-theme="ben-day"] .pinned-balance-btn:hover { background: #FFD400; color: #111111; }
+[data-theme="ben-day"] .pinned-balance-amt {
+  color: #FFFFFF;
+  letter-spacing: 0.04em;
+  filter:
+    drop-shadow(0.07em 0 0 #111111) drop-shadow(-0.07em 0 0 #111111)
+    drop-shadow(0 0.07em 0 #111111) drop-shadow(0 -0.07em 0 #111111)
+    drop-shadow(0.09em 0.09em 0 #C8102E);
+}
+/* The activity log's kind icon: a small tile, keylined like every panel, with its icon
+   in the blue plate on the white-into-cream placeholder (5.68:1 at the cream end). */
+[data-theme="ben-day"] .act-icon {
+  border: 2px solid #111111;
+}
+[data-theme="ben-day"] input,
+[data-theme="ben-day"] select,
+[data-theme="ben-day"] textarea {
+  border: 2px solid #111111;
+}
+/* The travelling tab marker, in the black plate rather than a gradient. */
+[data-theme="ben-day"] .tab-slider {
+  background: #111111;
+  height: 3px;
+}
+[data-theme="ben-day"] .tab.active { color: #111111; }
+
+/* Buttons are inked panels too. The keyline is an INSET shadow rather than a border so
+   no button changes height beside another (the note above .lav-btn in styles.css). */
+[data-theme="ben-day"] .primary,
+[data-theme="ben-day"] .secondary,
+[data-theme="ben-day"] .lav-btn {
+  border: none;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+[data-theme="ben-day"] .secondary:hover { box-shadow: inset 0 0 0 2px #111111, 0 0 0 3px rgba(17, 17, 17, 0.12); }
+/* "Unlock to post", the full-tab composer's publish button while Sidecar is locked. It is
+   disabled on purpose (compose.js, paintPostButton: that page has no way to unlock), so
+   it must not take the red that says "press me". It takes the caption yellow instead,
+   flat, with no drop: the page telling you something rather than offering to do it. */
+[data-theme="ben-day"] .compose-post.secondary:disabled {
+  background: #FFD400;
+  color: #111111;
+  box-shadow: inset 0 0 0 2px #111111;
+  opacity: 1;
+  cursor: default;
+}
+/* A ghost button has no fill anywhere else, which here would leave its label on the
+   dots. It takes the cream of a caption box instead, so it stays the quietest button. */
+[data-theme="ben-day"] .ghost {
+  background: #FFF4C2;
+  color: #111111;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+[data-theme="ben-day"] .danger {
+  background: #B00D26;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+
+/* The theme picker's Dark and Light tabs, ruled like the other tab bars, active in
+   black rather than the blue second accent. */
+[data-theme="ben-day"] .theme-modes { border-bottom: 2px solid #111111; }
+[data-theme="ben-day"] .theme-mode.active { color: #111111; }
+/* The danger zone's title, lettered like every other setting name, in its own red. */
+[data-theme="ben-day"] #view-settings .setting.danger-zone > h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  color: #B00D26;
+}
+
+/* The compose button: the caption-yellow disc, inked in the keyline with a hard drop
+   like every other panel. The keyline is an inset shadow so the disc keeps its size. */
+[data-theme="ben-day"] .fab {
+  box-shadow: inset 0 0 0 2.5px #111111, 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .fab:disabled { box-shadow: inset 0 0 0 2.5px #111111; }
+
+/* ---- THE COMPOSER ------------------------------------------------------------------
+   The expanded composer's sheet and its writing area were on hairlines: the sheet is
+   inked like a modal (keyline, hard drop), the editor and its preview like an input, the
+   Write and Preview tabs ruled and lettered like every other tab bar, and the small
+   buttons under the editor (Media, PoW) take the keyline too, wherever .mini appears. */
+[data-theme="ben-day"] .compose-sheet {
+  background: #FFFFFF;
+  border: 3px solid #111111;
+  box-shadow: 6px 6px 0 #111111;
+}
+[data-theme="ben-day"] .compose-editor-lg,
+[data-theme="ben-day"] .compose-preview-lg {
+  border: 2.5px solid #111111;
+}
+[data-theme="ben-day"] .compose-editor-lg:focus { border-color: #111111; box-shadow: 0 0 0 3px #FFD400; }
+[data-theme="ben-day"] .compose-tabs { border-bottom: 2px solid #111111; }
+[data-theme="ben-day"] .compose-tab.active { color: #111111; border-bottom: 3px solid #111111; }
+[data-theme="ben-day"] .mini { border: 2px solid #111111; background: #FFFFFF; }
+[data-theme="ben-day"] .mini:hover { border-color: #111111; background: #FFF4C2; }
+
+/* ---- SWITCHES AND CHECKS --------------------------------------------------------------
+   The shared switch draws its track in --border-strong when off and --gold when on, and
+   both are the black plate here, so on and off differed only by where the knob sat.
+   Off is a white track in the keyline with a black knob; on is the red plate with a
+   white knob. Checkboxes take the red too. */
+[data-theme="ben-day"] .switch-track {
+  background: #FFFFFF;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+[data-theme="ben-day"] .switch-track::after {
+  background: #111111;
+  box-shadow: none;
+}
+[data-theme="ben-day"] .switch input:checked ~ .switch-track { background: #C8102E; }
+[data-theme="ben-day"] .switch input:checked ~ .switch-track::after { background: #FFFFFF; }
+[data-theme="ben-day"] input[type=checkbox] { accent-color: #C8102E; }
+
+/* ---- THE SPLASH PANEL -----------------------------------------------------------
+   The wallet card is drawn like the panel a comic saves for its big moment: a
+   yellow-orange field, orange speed lines running in from the edges with white streaks
+   between them, and a halftone screen heaviest behind the figure
+   (themes/ben-day-card.svg, from scripts/gen-ben-day.py). The label and the unit ride on
+   it in black, and every color in the art is light enough for that: the darkest orange
+   is 6.19:1 against black. The card's four buttons get white tiles of their own.
+   `cover` scales the art uniformly, so the dots stay round at any panel width, and it is
+   centered, so the compact card keeps the heavy middle behind its smaller figure. */
+[data-theme="ben-day"] .wallet-card {
+  background: #FFB31E url(ben-day-card.svg) center / cover no-repeat;
+}
+[data-theme="ben-day"] .wallet-bal-label,
+[data-theme="ben-day"] .wallet-card .wallet-unit {
+  color: #111111;
+}
+[data-theme="ben-day"] .wallet-bal-label {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+[data-theme="ben-day"] .wallet-card .wallet-eye,
+[data-theme="ben-day"] .wallet-card .wallet-refresh,
+[data-theme="ben-day"] .wallet-card .wallet-pin,
+[data-theme="ben-day"] .wallet-card .wallet-chart-btn {
+  color: #111111;
+  background: #FFFFFF;
+  border: 2px solid #111111;
+}
+[data-theme="ben-day"] .wallet-card .wallet-eye:hover,
+[data-theme="ben-day"] .wallet-card .wallet-refresh:hover,
+[data-theme="ben-day"] .wallet-card .wallet-pin:hover,
+[data-theme="ben-day"] .wallet-card .wallet-chart-btn:hover {
+  color: #111111;
+  background: #FFD400;
+  border-color: #111111;
+}
+
+/* Hide balances draws four discs as text in the figure's face, and Bangers's bullet is a
+   slanted oval. Here they are true circles, "●" in the UI face, at a size that sits in
+   the figure's line; they keep the figure's lettering (white, outline, red offset),
+   since that comes from the filter on the element they belong to. */
+[data-theme="ben-day"] .balances-hidden .wallet-balance::after,
+[data-theme="ben-day"] .balances-hidden .pinned-balance-amt::after {
+  content: '●●●●';
+  font-family: var(--font-ui);
+  font-size: 0.62em;
+  /* Wide enough that the outline round each disc does not join it to the next. */
+  letter-spacing: 0.4em;
+  /* letter-spacing trails the last disc too, so pull the run back to true center. */
+  text-indent: 0.4em;
+}
+
+/* THE PRICE CHART gets a band of its own. Opened inside the card, its range buttons,
+   trace and price line sat straight on the splash art in gray and could barely be read,
+   so it is lettered into a white band across the card. With the chart on white, the art
+   can run the full height of the open card, behind the band and below it. */
+/* Full bleed, the shared chart's own width: the band runs to the card's keylines at both
+   sides, so it is ruled only where it meets the art, above and below, and the trace
+   fills it with no side padding. The range row and the price line keep a little inset. */
+[data-theme="ben-day"] .wallet-chart {
+  padding: 6px 0 8px;
+  background: #FFFFFF;
+  border-top: 2.5px solid #111111;
+  border-bottom: 2.5px solid #111111;
+}
+[data-theme="ben-day"] .wallet-chart-meta { padding: 0 8px; }
+/* The row the chart shows before its first data arrives (or when there is none) sits in
+   the same white band, so its words are not on the art. */
+[data-theme="ben-day"] .wallet-chart-loading {
+  background: #FFFFFF;
+  border-top: 2.5px solid #111111;
+  border-bottom: 2.5px solid #111111;
+  color: var(--muted);
+}
+/* The fill under the trace. The chart builds its gradient from --gold, which here is the
+   black plate, so it came out gray; the stops are recolored by CSS, which outranks their
+   presentation attributes, from red under the line through the card's yellow, fading out to the white
+   band by the foot so it has no hard edge.
+   A gradient rather than a dot screen: the chart stretches to its box
+   (preserveAspectRatio="none"), and a halftone would stretch into ovals with it. The
+   trace stays black, the keyline over the color. */
+[data-theme="ben-day"] #sc-chart-grad stop:first-child { stop-color: #C8102E; stop-opacity: 0.55; }
+[data-theme="ben-day"] #sc-chart-grad stop:last-child { stop-color: #FFD400; stop-opacity: 0; }
+[data-theme="ben-day"] .wallet-chart-svg path[stroke] { stroke-width: 2; }
+[data-theme="ben-day"] .wallet-chart-range-btn {
+  font-family: var(--font-lettering);
+  font-weight: 700;
+  font-size: 12px;
+}
+/* Color on the inactive ones only: the active one keeps the shared white on black. */
+[data-theme="ben-day"] .wallet-chart-range-btn:not(.active) { color: var(--muted); }
+[data-theme="ben-day"] .wallet-chart-range-btn:not(.active):hover { color: #111111; }
+[data-theme="ben-day"] .wallet-chart-meta { color: var(--muted); }
+[data-theme="ben-day"] .wallet-chart-price { color: #111111; }
+[data-theme="ben-day"] .wallet-chart-lowhigh { opacity: 1; }
+
+/* The figure is lettered the way the ZAP! is: a white face, one heavy black outline round
+   the whole number, and the red plate printed off register behind it. It is drawn with
+   chained drop-shadow filters rather than a text stroke, and that is the point: a stroke
+   belongs to each glyph's own box, so every digit's outline painted over the face of
+   the digit beside it. A filter works on the figure as it is composited, all glyphs
+   together, so the four black shadows dilate the whole number into one outline, and the
+   red one then offsets that whole outlined shape. Everything is in em, so the compact
+   card's 24px figure is drawn to the same proportions as the full one. */
+[data-theme="ben-day"] .wallet-balance {
+  color: #FFFFFF;
+  filter:
+    drop-shadow(0.07em 0 0 #111111) drop-shadow(-0.07em 0 0 #111111)
+    drop-shadow(0 0.07em 0 #111111) drop-shadow(0 -0.07em 0 #111111)
+    drop-shadow(0.09em 0.09em 0 #C8102E);
+  /* The outline closes the side bearings, and the spaces in "1 BTC = 1 BTC" closed up to
+     nothing without this. */
+  letter-spacing: 0.04em;
+}
+
+/* ---- CAPTION BOXES ----------------------------------------------------------------
+   Where a comic needs to say where you are, it letters it in a box: a view's title is
+   the big yellow one with the red plate printed off register behind it, and a section
+   heading inside a view is the smaller cream one with a black drop. Both are the text's
+   own surface, so no heading sits on the dots. The box shrinks to the words with
+   fit-content, and align-self keeps it that size in the tab views, which are flex
+   columns and would otherwise stretch it across the panel. */
+[data-theme="ben-day"] .tabview h2,
+[data-theme="ben-day"] #view-settings > .content > h2,
+[data-theme="ben-day"] #view-profile-edit > .content > h2,
+[data-theme="ben-day"] .screen .headline {
+  width: fit-content;
+  max-width: 100%;
+  align-self: flex-start;
+  padding: 3px 12px 1px;
+  background: #FFD400;
+  color: #111111;
+  border: 2.5px solid #111111;
+  box-shadow: 4px 4px 0 #C8102E;
+}
+[data-theme="ben-day"] .tabview h3:not(.modal *):not(.approval-card *):not(.card *):not(.item *) {
+  width: fit-content;
+  max-width: 100%;
+  align-self: flex-start;
+  padding: 2px 10px 0;
+  background: #FFF4C2;
+  color: #111111;
+  border: 2px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+  margin-bottom: 12px;
+}
+
+/* ---- LETTERING --------------------------------------------------------------------
+   Everything a comic letterer would have lettered is set in Bangers: tabs, button
+   labels, the card's label. It is capitals only, so it goes on labels and never on
+   prose, which stays in Manrope. Set larger than the shared sizes, because Bangers is
+   narrow and its lowercase are small capitals: at the shared 12px a tab label was a
+   smudge. Enlarging only, per the rule in CLAUDE.md. */
+[data-theme="ben-day"] .tab,
+[data-theme="ben-day"] .modal-tab,
+[data-theme="ben-day"] .theme-mode,
+[data-theme="ben-day"] .compose-tab {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+}
+[data-theme="ben-day"] .primary,
+[data-theme="ben-day"] .secondary,
+[data-theme="ben-day"] .lav-btn,
+[data-theme="ben-day"] .ghost,
+[data-theme="ben-day"] .danger {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: 0.05em;
+}
+[data-theme="ben-day"] .wallet-bal-label {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 15px;
+}
+
+/* The caption lettering: the thin hand, in capitals, for the interface's own lines of
+   explanation. Never on what people wrote (bios, notes, statuses), which keeps its own
+   case and Manrope. Capitals need more room than mixed case, so these are set a size up
+   and opened by a little tracking rather than shrunk to fit. */
+[data-theme="ben-day"] .screen .lede,
+[data-theme="ben-day"] .tabview .hint:not(.modal *):not(.approval-card *):not(.item *):not(.card *):not(.wallet-card *),
+[data-theme="ben-day"] #view-settings .hint,
+[data-theme="ben-day"] .stack label,
+[data-theme="ben-day"] .unlock-forgot {
+  font-family: var(--font-lettering);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+[data-theme="ben-day"] .tabview .hint:not(.modal *):not(.approval-card *):not(.item *):not(.card *):not(.wallet-card *),
+[data-theme="ben-day"] #view-settings .hint {
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.45;
+}
+[data-theme="ben-day"] .screen .lede { font-size: 15px; line-height: 1.4; }
+
+/* ---- PROSE GOES IN A BOX -------------------------------------------------------------
+   Words never sit on the dots. A hint lying on the field is lettered into a cream
+   caption box; a hint already on a row, a card or a modal is on white and stays as it
+   is. The settings sections, which are all prose and controls, become white panels of
+   their own with the dots showing in the gutters between them, and the Activity
+   sub-tabs get the same white strip as the main tabs. */
+[data-theme="ben-day"] .tabview .hint:not(.modal *):not(.approval-card *):not(.item *):not(.card *):not(.wallet-card *),
+[data-theme="ben-day"] .compose-page .compose-empty {
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  padding: 6px 10px;
+  color: var(--text-2);
+}
+/* A warning hint keeps its red inside the caption box: the rule above sets hint ink and
+   outranks the shared .hint.warn, so the same chain is repeated with the warning class. */
+[data-theme="ben-day"] .tabview .hint.warn:not(.modal *):not(.approval-card *):not(.item *):not(.card *):not(.wallet-card *),
+[data-theme="ben-day"] .tabview .hint.wallet-backup-nudge:not(.modal *):not(.approval-card *):not(.item *):not(.card *):not(.wallet-card *) {
+  color: #B00D26;
+}
+[data-theme="ben-day"] #view-settings .settings-section {
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+  padding: 0;
+  margin-bottom: 14px;
+}
+/* Each section's title is a lettered strip across the top of its panel: caption yellow
+   while the section is open, cream while it is closed, so the page reads as a stack of
+   labeled panels rather than one white column. The body takes the panel's padding. */
+[data-theme="ben-day"] #view-settings .settings-section-toggle {
+  margin: 0;
+  padding: 8px 12px 6px;
+  background: #FFF4C2;
+  color: #111111;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+}
+[data-theme="ben-day"] #view-settings .settings-section.open .settings-section-toggle {
+  background: #FFD400;
+  border-bottom: 2.5px solid #111111;
+}
+[data-theme="ben-day"] #view-settings .settings-section-toggle:hover { color: #111111; background: #FFE04D; }
+[data-theme="ben-day"] #view-settings .settings-section-toggle svg { color: #111111; }
+[data-theme="ben-day"] #view-settings .settings-section-body { padding: 12px; }
+/* The name of each setting, lettered in the red plate, in Bangers so it carries the
+   weight of a subhead (the thin caption hand read too light for it). */
+[data-theme="ben-day"] #view-settings .settings-section-body .setting > h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  color: #C8102E;
+}
+[data-theme="ben-day"] #view-settings .settings-section + .settings-section { border-top: 2.5px solid #111111; }
+[data-theme="ben-day"] .modal-tabs {
+  background: #FFFFFF;
+  border: 2px solid #111111;
+  padding: 0 4px;
+}
+
+/* On this day sits on the field at the foot of Accounts with only a hairline above it, so
+   it gets a caption box of its own, and its date is lettered into a second, yellow box
+   laid over the first one's top edge, the way a comic stacks one caption on another.
+   The date box hangs 12px above the cream one, so the card takes that much more margin
+   and the stack never reaches the row above it. */
+[data-theme="ben-day"] .otd {
+  position: relative;
+  margin-top: 30px;
+  padding: 20px 12px 10px;
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .otd-kicker {
+  position: absolute;
+  top: -12px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  margin: 0;
+  padding: 2px 9px 1px;
+  background: #FFD400;
+  border: 2px solid #111111;
+  box-shadow: 2px 2px 0 #111111;
+  font-family: var(--font-lettering);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #111111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-theme="ben-day"] .otd-text { color: var(--text-2); }
+
+/* ---- THE COUNTDOWN ----------------------------------------------------------------
+   The send countdown and the unlock cooldown share one ring, and here it was all black
+   plate. It is inked in color instead: the disc is filled with the caption yellow, the
+   track is a heavy black keyline, and the time left runs round it in red, drawn thinner
+   than the track so the black edges it on both sides. The number is lettered the way
+   the balance is (see .wallet-balance above). */
+[data-theme="ben-day"] .countdown-ring .ring-track {
+  fill: #FFD400;
+  stroke: #111111;
+  stroke-width: 8;
+}
+[data-theme="ben-day"] .countdown-ring .ring-fill {
+  stroke: #C8102E;
+  stroke-width: 4;
+  stroke-linecap: butt;
+}
+[data-theme="ben-day"] .countdown-num {
+  color: #FFFFFF;
+  filter:
+    drop-shadow(0.06em 0 0 #111111) drop-shadow(-0.06em 0 0 #111111)
+    drop-shadow(0 0.06em 0 #111111) drop-shadow(0 -0.06em 0 #111111)
+    drop-shadow(0.08em 0.08em 0 #C8102E);
+}
+
+/* The banner after a note goes out ("Your note is live."). Its shared fill is a tint of
+   the accent at 8 to 16%, which on this field let the dots straight through the words,
+   so it is a solid yellow caption box, lettered like one. */
+[data-theme="ben-day"] .post-banner {
+  background: #FFD400;
+  border: 2.5px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .post-banner-msg {
+  font-family: var(--font-lettering);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #111111;
+}
+[data-theme="ben-day"] .post-banner-link,
+[data-theme="ben-day"] .post-banner-x { color: #111111; }
+
+/* ---- THE ACCOUNT SWITCHER -------------------------------------------------------------
+   The menu under the account chip, inked like every other panel: white, the keyline, a
+   hard drop. The account in use is cream and ringed in black; hover is cream without
+   the ring. The red bar down a row's left edge means only one thing, a row waiting on
+   its second tap, in both this menu and the Accounts list. A row waiting on its second tap keeps the shared bar down its left side, in the
+   red plate. The two actions at the foot are lettered, under a heavy rule. */
+[data-theme="ben-day"] .acct-menu {
+  background: #FFFFFF;
+  border: 3px solid #111111;
+  box-shadow: 6px 6px 0 #111111;
+}
+[data-theme="ben-day"] .acct-row:hover { background: #FFF4C2; }
+[data-theme="ben-day"] .acct-row.active {
+  background: #FFF4C2;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+[data-theme="ben-day"] .acct-row.active .acct-row-npub,
+[data-theme="ben-day"] .acct-row-check { color: #111111; }
+[data-theme="ben-day"] .acct-row-pending {
+  background: #FFFFFF !important;
+  border-left: 4px solid #C8102E;
+}
+[data-theme="ben-day"] .acct-row-pending .acct-row-name { color: #111111; }
+[data-theme="ben-day"] .acct-row.foot {
+  color: #111111;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  border-top: 2.5px solid #111111;
+}
+[data-theme="ben-day"] .acct-row.foot + .acct-row.foot { border-top: none; }
+
+/* ---- THE OVERVIEW CARD --------------------------------------------------------------
+   The account's Overview, drawn as a small page: a white panel with the keyline and a
+   hard drop, its title in a black caption strip across the top, and the three counts
+   as panels of their own with heavy black gutters between them, the way a page is
+   ruled. Counts in Bangers, their labels in the caption hand, the icons over them in
+   the red plate. */
+[data-theme="ben-day"] .account-stats {
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  box-shadow: 4px 4px 0 #111111;
+}
+[data-theme="ben-day"] .account-stats-toggle {
+  padding: 7px 12px 5px;
+  /* Black with yellow lettering, not yellow: the active account row directly above it
+     is the yellow one, and two yellow bars stacked read as one. 13.19:1. */
+  background: #111111;
+  color: #FFD400;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+}
+[data-theme="ben-day"] .account-stats:not(.collapsed) .account-stats-toggle {
+  border-bottom: 2.5px solid #111111;
+}
+[data-theme="ben-day"] .account-stats-toggle:hover { color: #FFFFFF; background: #111111; }
+[data-theme="ben-day"] .account-stats-body { padding-top: 10px; }
+[data-theme="ben-day"] .account-stat-grid {
+  gap: 2.5px;
+  background: #111111;
+  border: 2.5px solid #111111;
+}
+[data-theme="ben-day"] .account-stat-block {
+  background: #FFF4C2;
+}
+[data-theme="ben-day"] .account-stat-block-ic { color: #C8102E; }
+[data-theme="ben-day"] .account-stat-num {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  color: #111111;
+}
+[data-theme="ben-day"] .account-stat-block-label {
+  font-family: var(--font-lettering);
+  font-weight: 700;
+  font-size: 11px;
+  color: #111111;
+}
+[data-theme="ben-day"] .account-stat-id { border-top-color: rgba(17, 17, 17, 0.25); }
+[data-theme="ben-day"] .account-stat-ic { color: #111111; }
+[data-theme="ben-day"] .account-stats-link {
+  width: fit-content;
+  margin: 8px auto 6px;
+  padding: 5px 12px;
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  color: #111111;
+}
+[data-theme="ben-day"] .account-stats-link:hover { background: #FFD400; }
+
+/* ---- THE REST OF THE FIELD --------------------------------------------------------
+   Found by sweeping every page for text whose nearest opaque surface was the body: each
+   of these sat on the dots. */
+
+/* The pre-unlock screens' version chip, a cream tag. */
+[data-theme="ben-day"] .pre-version-row .version-chip {
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  color: #111111;
+}
+/* "Sidecar can't see websites yet." A warning, so the red keyline, on solid yellow: its
+   shared fill is a 12% tint that let the dots through. */
+[data-theme="ben-day"] .host-perm-banner {
+  background: #FFD400;
+  border: 2.5px solid #B00D26;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .host-perm-msg { color: #111111; }
+/* The two links at the foot of Accounts: cream tags sized to their words. The inline form of .explore-link sits inside a sentence on its own surface and
+   is left alone. */
+/* Add account is an action, not a caption, so it takes the red that says "press me",
+   lettered in white with a hard drop, and its badge turns white to sit on the red. */
+[data-theme="ben-day"] .add-account-link {
+  width: fit-content;
+  margin-inline: auto;
+  padding: 7px 16px 6px;
+  background: #C8102E;
+  border: 2.5px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+  color: #FFFFFF;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: 0.05em;
+}
+[data-theme="ben-day"] .add-account-link .add-account-badge {
+  background: #FFFFFF;
+  color: #C8102E;
+}
+[data-theme="ben-day"] .explore-link-wrap .explore-link:not(.inline) {
+  width: fit-content;
+  margin-inline: auto;
+  padding: 4px 10px;
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  color: #111111;
+}
+/* The danger zone sits outside the settings panels, so it is a panel of its own, ruled in
+   the warning red. */
+[data-theme="ben-day"] #view-settings .setting.danger-zone {
+  padding: 12px;
+  background: #FFFFFF;
+  border: 2.5px solid #B00D26;
+  box-shadow: 3px 3px 0 #111111;
+}
+
+/* The one-time tips (a first account's welcome tip, the switching-accounts tip) are an
+   8% tint of the accent, which on this field is the dots: cream caption boxes instead. */
+[data-theme="ben-day"] .welcome-tip,
+[data-theme="ben-day"] .switch-tip {
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+  color: #111111;
+}
+[data-theme="ben-day"] .welcome-tip svg { color: #111111; }
+/* The interrupted-connection banner is the site-access banner's twin: a warning. */
+[data-theme="ben-day"] .interrupted-banner {
+  background: #FFD400;
+  border: 2.5px solid #B00D26;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .interrupted-msg { color: #111111; }
+
+/* ---- STATUS BARS AND TOASTS ---------------------------------------------------------
+   The mining and relax bars at the foot of the panel are ruled off like a panel's
+   bottom tier. Toasts are inked panels: the shared ones are dark gradients, the working
+   one in Speakeasy's violet, which has no plate in this theme, so each is a flat ink with
+   the keyline and a hard drop. */
+[data-theme="ben-day"] .mining-status,
+[data-theme="ben-day"] .relax-status {
+  background: #FFFFFF;
+  border-top: 3px solid #111111;
+}
+[data-theme="ben-day"] .toast {
+  border: 2.5px solid #111111;
+  box-shadow: 4px 4px 0 #111111;
+}
+[data-theme="ben-day"] .toast-success { background: #1F6B3F; color: #FFFFFF; border-color: #111111; }
+[data-theme="ben-day"] .toast-error { background: #B00D26; color: #FFFFFF; border-color: #111111; }
+[data-theme="ben-day"] .toast-progress { background: #FFFFFF; color: #111111; border-color: #111111; }
+/* The toast's spinner is round in the shared sheet and the square-corner rule above
+   would make it a spinning tile. (Werkstätte has the same miss: the round-corner audit
+   reads every other rule, which is how this one got past it.) */
+[data-theme="ben-day"] .toast-spin:not(.theme-card):not(.theme-card *) { border-radius: 50%; }
+
+/* The panel's own approval card (the second approval UI, beside prompt.html) is inked
+   like the window: keyline, hard drop, and a solid footer under a heavy rule. */
+[data-theme="ben-day"] .approval-card {
+  background: #FFFFFF;
+  border: 3px solid #111111;
+  box-shadow: 6px 6px 0 #111111;
+}
+[data-theme="ben-day"] .approval-footer {
+  background: #FFFFFF;
+  border-top: 3px solid #111111;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---- THE APPROVAL WINDOW ------------------------------------------------------------
+   Its body scrolls over the page with no surface of its own and its footer is a 55%
+   tint with a blur, so the request, the account and every control sat on the dots. The
+   body becomes a white keylined panel inset from the window's edges and the footer a
+   solid white strip under a heavy rule. (prompt.html's own sheet lays both out.) */
+[data-theme="ben-day"] .prompt-scroll {
+  margin: 10px 10px 0;
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  border-bottom: 0;
+}
+[data-theme="ben-day"] .prompt-footer {
+  background: #FFFFFF;
+  border-top: 3px solid #111111;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* The account being signed as, in both approval UIs (prompt.html's .acct-capsule and
+   the panel's .active-account), and the auto-sign chips under it, were still on the
+   shared hairlines. The account box is a keylined panel with a hard drop and the avatar
+   ringed in black; the chips are lettered buttons in the keyline, cream on hover. */
+[data-theme="ben-day"] .acct-capsule,
+[data-theme="ben-day"] .active-account {
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .acct-av { box-shadow: 0 0 0 2px #111111; }
+[data-theme="ben-day"] .relax-chip {
+  background: #FFFFFF;
+  border: 2px solid #111111;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+}
+[data-theme="ben-day"] .relax-chip:hover:not(:disabled) {
+  background: #FFF4C2;
+  border-color: #111111;
+  filter: none;
+}
+/* Its label, "Auto-sign for the next", lettered in the caption hand. */
+[data-theme="ben-day"] .relax-label {
+  font-family: var(--font-lettering);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #111111;
+}
+
+/* Flat lists (connected sites, recent activity, transactions) are one white panel with
+   rows ruled inside it: the panel takes the keyline and the drop, the rules between rows
+   stay light. The capsule a list shows while it is empty or loading gets the keyline. */
+[data-theme="ben-day"] .list.flat:not(.empty):not(:has(.list-state)) {
+  border: 2.5px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .list.flat .item { border-bottom-color: rgba(17, 17, 17, 0.25); }
+[data-theme="ben-day"] .list-state { border: 2px solid #111111; }
+/* Poll results and the web-of-trust progress bar fill in the red plate; the shared
+   gradient runs --orange into --gold, which are both black here. */
+[data-theme="ben-day"] .poll-bar-fill,
+[data-theme="ben-day"] .wot-progress > span {
+  background: #C8102E;
+}
+
+/* Link cards (the page being commented on, and link previews in notes): the card is a
+   keylined panel and a black rule divides its picture from its words, the way a panel's
+   art is ruled off from a caption beneath it. */
+[data-theme="ben-day"] .link-card {
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+}
+[data-theme="ben-day"] .link-card-img { border-bottom: 2.5px solid #111111; }
+
+/* Polls: the editor, the preview's options and the result bars were on hairlines. */
+[data-theme="ben-day"] .poll-editor { border: 2.5px solid #111111; background: #FFFFFF; }
+[data-theme="ben-day"] .poll-preview-option { border: 2px solid #111111; background: #FFF4C2; }
+[data-theme="ben-day"] .poll-bar-track {
+  background: #FFFFFF;
+  box-shadow: inset 0 0 0 1.5px #111111;
+}
+[data-theme="ben-day"] .poll-bar-won .poll-bar-label,
+[data-theme="ben-day"] .poll-bar-won .poll-bar-count { color: #C8102E; }
+
+/* The full-height sheets (notifications, bookmarks) open under a yellow Ben-Day screen
+   that thins out below their heading (themes/ben-day-dots-wash.svg), the same wash the
+   pay card carries. Black type on the yellow dot is 13:1. */
+[data-theme="ben-day"] .modal.modal-sheet {
+  background: url(ben-day-dots-wash.svg) repeat-x 0 0 / 36px 180px, #FFFFFF;
+}
+
+/* The wallet's Lightning address box and its QR toggle, the bolt tag on the receive
+   screen, and the wallet's notice cards, all on hairlines until now. The toggle is
+   cream on hover and the caption yellow while the code is showing. */
+[data-theme="ben-day"] .address-value,
+[data-theme="ben-day"] .address-qr-toggle {
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+}
+[data-theme="ben-day"] .address-value:hover { border-color: #111111; background: #FFF4C2; }
+[data-theme="ben-day"] .address-qr-toggle { color: #111111; }
+[data-theme="ben-day"] .address-qr-toggle:hover { color: #111111; border-color: #111111; background: #FFF4C2; }
+[data-theme="ben-day"] .address-qr-toggle.active { color: #111111; border-color: #111111; background: #FFD400; }
+[data-theme="ben-day"] .recv-bolt { border: 2px solid #111111; background: #FFF4C2; }
+[data-theme="ben-day"] .wallet-nudge,
+[data-theme="ben-day"] .wallet-notice {
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+}
+
+/* ---- THE REST OF THE HAIRLINES --------------------------------------------------------
+   Every box the shared sheet draws with a 1px hairline and this file had not yet inked,
+   found by listing them rather than by spotting them one screen at a time: controls,
+   chips, menus, cards, embeds and thumbnails. Color and width only, so each keeps its own
+   style and radius rules. Dividers between rows (a border on one side only) are left at
+   the light rule on purpose; inked, a list turns into a grid of black bars. */
+[data-theme="ben-day"] .lud16-sync,
+[data-theme="ben-day"] .icon-btn.settings-close,
+[data-theme="ben-day"] .search-row input,
+[data-theme="ben-day"] .search-results,
+[data-theme="ben-day"] .scanq-video,
+[data-theme="ben-day"] .import-preview,
+[data-theme="ben-day"] .notif-thumb,
+[data-theme="ben-day"] .notif-media-chip,
+[data-theme="ben-day"] .lazarus-chip,
+[data-theme="ben-day"] .recovery-confirm,
+[data-theme="ben-day"] .notif-load-more,
+[data-theme="ben-day"] .draft-preview,
+[data-theme="ben-day"] .ac-dropdown,
+[data-theme="ben-day"] .na-ask-no,
+[data-theme="ben-day"] .note-media,
+[data-theme="ben-day"] .note-embed,
+[data-theme="ben-day"] .quote-inline-thumb,
+[data-theme="ben-day"] .compose-alt-row,
+[data-theme="ben-day"] .countdown-preview,
+[data-theme="ben-day"] .wallet-chart-scrub,
+[data-theme="ben-day"] .ln-recipient-tag,
+[data-theme="ben-day"] .wallet-quickstart,
+[data-theme="ben-day"] .rizful-code,
+[data-theme="ben-day"] .wallet-backup-card,
+[data-theme="ben-day"] .preset-chip,
+[data-theme="ben-day"] .reload-banner-x,
+[data-theme="ben-day"] .secret-box,
+[data-theme="ben-day"] .destructive-warn-ack,
+[data-theme="ben-day"] .shared-note,
+[data-theme="ben-day"] .shared-headsup,
+[data-theme="ben-day"] .shared-headsup-btn,
+[data-theme="ben-day"] .shared-headsup-btn-quiet,
+[data-theme="ben-day"] .approval-switch-menu,
+[data-theme="ben-day"] .approval-wrong-acct-list,
+[data-theme="ben-day"] .mining-status-stop,
+[data-theme="ben-day"] .peek-banner,
+[data-theme="ben-day"] .notif-reacted-chip,
+[data-theme="ben-day"] .poll-option-input {
+  border-color: #111111;
+  border-width: 2px;
+}
+/* The receive screen's amount presets: white chips in the keyline, cream on hover; the
+   chosen one keeps the shared black fill with white. */
+[data-theme="ben-day"] .preset-chip:not(.active) { background: #FFFFFF; }
+[data-theme="ben-day"] .preset-chip:not(.active):hover { background: #FFF4C2; border-color: #111111; }
+/* Two strips that rule off what is under them, like the tab bars. */
+[data-theme="ben-day"] .search-bar { border-bottom: 2.5px solid #111111; }
+[data-theme="ben-day"] .emoji-tabs { border-bottom: 2px solid #111111; }
+/* The receive screen's address button is DATA, not a label: Bangers draws lowercase as
+   small capitals, so "daniel@sidecar.top" read as capitals, which is not what you would
+   paste. It goes back to the UI face, and so does every other button whose text is an
+   address: the one under any QR block (the About card's tip address is a bare
+   .secondary there; "Copy invoice" is a label and keeps the lettering) and the peek
+   sheet's zap address. */
+[data-theme="ben-day"] .recv-addr,
+[data-theme="ben-day"] .recv-out > .secondary:not(.recv-copy),
+[data-theme="ben-day"] .peek-zap-addr {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+/* ---- HELP, WELCOME AND THE WALLET GUIDE -----------------------------------------------
+   Long pages of prose, so the page column is one white panel with the dots in the
+   margins around it. */
+[data-theme="ben-day"] .page {
+  margin: 28px max(16px, calc((100% - 1080px) / 2)) 40px;
+  background: #FFFFFF;
+  border: 3px solid #111111;
+  box-shadow: 6px 6px 0 #111111;
+}
+
+/* ---- THE LOCK SCREEN AND ONBOARDING ------------------------------------------------
+   The screens you see before the panel opens get a sound effect in the open space above
+   the logo: the ZAP!, a picture (themes/ben-day-zap.svg), so there is nothing in it to
+   translate, on an aria-free pseudo-element. The content below is centered in the
+   screen, so the space above it is half of whatever the content leaves; the burst's
+   height is clamped to that space, and in a window too short for it, it shrinks away
+   rather than landing on the logo. The line under the logo goes in a caption box and the
+   form in a panel of its own, so no words sit on the dots. */
+[data-theme="ben-day"] .screen { position: relative; }
+[data-theme="ben-day"] .screen::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  right: 16px;
+  width: 190px;
+  height: clamp(0px, calc(50vh - 270px), 140px);
+  background: url(ben-day-zap.svg) right center / contain no-repeat;
+  transform: rotate(14deg);
+  pointer-events: none;
+}
+[data-theme="ben-day"] .screen .lede {
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 12px;
+  background: #FFD400;
+  border: 2.5px solid #111111;
+  box-shadow: 4px 4px 0 #C8102E;
+  color: #111111;
+}
+[data-theme="ben-day"] .screen .stack {
+  padding: 4px 14px 14px;
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  box-shadow: 5px 5px 0 #111111;
+}
+[data-theme="ben-day"] .unlock-forgot,
+[data-theme="ben-day"] .unlock-cooldown {
+  padding: 4px 10px;
+  background: #FFF4C2;
+  border: 2px solid #111111;
+  color: #111111;
+}
+
+/* ---- THE PROFILE -------------------------------------------------------------------
+   The banner is a picture, so it is framed like one: a panel with the black keyline.
+   Everything under the avatar (name, address, key, counts, bio, links) goes in one white
+   panel, because all of it is words, and the name is lettered into a caption box of its
+   own, in white so its emoji keep their color. The avatar is ringed in white inside
+   black, so a face reads as cut out and laid on the page. */
+[data-theme="ben-day"] .profile-banner {
+  border: 3px solid #111111;
+}
+[data-theme="ben-day"] .profile-avatar {
+  border: 3px solid #FFFFFF;
+  box-shadow: 0 0 0 2.5px #111111;
+}
+[data-theme="ben-day"] .profile-body {
+  margin-top: 10px;
+  padding: 14px 12px;
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  box-shadow: 4px 4px 0 #111111;
+}
+/* White, not the caption yellow: a name is the person's own text and often carries an
+   emoji, and a yellow one (🖖, 👋, ⚡) vanished into a yellow box. The keyline and the
+   red offset still make it the page's caption. */
+[data-theme="ben-day"] .profile-body .profile-name {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 2px 12px 0;
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  box-shadow: 4px 4px 0 #C8102E;
+}
+
+/* ---- THE SPEECH BALLOON -------------------------------------------------------------
+   A NIP-38 status is somebody saying something, so it gets the one shape a comic has
+   for that: a white balloon with a keyline and a tail pointing at the speaker. The tail
+   is a drawn wedge rather than the shared sheet's two stacked triangles, because
+   triangles cannot make a 2.5px outline of even weight down both sides. It starts on the
+   balloon's bottom keyline: its white fill covers the stretch of line it opens from, and
+   its two sides begin on the line's center, so the outline runs unbroken into the tail. */
+[data-theme="ben-day"] .status-balloon {
+  background: #FFFFFF;
+  border: 2.5px solid #111111;
+  color: #111111;
+  box-shadow: none;
+}
+[data-theme="ben-day"] .status-balloon:not(.peek-status):hover { border-color: #111111; }
+[data-theme="ben-day"] .status-balloon::before,
+[data-theme="ben-day"] .first-post-balloon::after {
+  top: 100%;
+  width: 20px;
+  height: 16px;
+  border: 0;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2020%2016'%3E%3Cpath%20d='M2%200%20L6.5%2014.5%20L18%200Z'%20fill='%23fff'/%3E%3Cpath%20d='M2%201.25%20L6.5%2014.5%20L18%201.25'%20fill='none'%20stroke='%23111'%20stroke-width='2.5'%20stroke-linejoin='miter'/%3E%3C/svg%3E") no-repeat;
+}
+[data-theme="ben-day"] .status-balloon::after { content: none; }
+[data-theme="ben-day"] .first-post-balloon {
+  border: 2.5px solid #111111;
+  box-shadow: none;
+}
+[data-theme="ben-day"] .first-post-balloon::after { bottom: auto; }
+
+/* ---- THE ZAP! --------------------------------------------------------------------------
+   The sound effect for the moment the app already marks with a bolt: .lightning-layer is
+   the strike sidepanel.js throws when a zap settles, and it already honors the Payment
+   animation setting, Reduce motion and the system's reduced-motion preference, so the
+   burst rides on it and needs no code of its own. A drawn picture (themes/ben-day-zap.svg,
+   from scripts/gen-ben-day.py), not text: a comic's sound effects are printed, not
+   translated. Set below the wallet card, so it never covers the figure it celebrates. */
+@keyframes ben-day-zap {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-14deg); }
+  22% { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(3deg); }
+  36% { transform: translate(-50%, -50%) scale(0.96) rotate(-1deg); }
+  48% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.04); }
+}
+[data-theme="ben-day"] .lightning-layer::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 220px;
+  height: 160px;
+  background: url(ben-day-zap.svg) center / contain no-repeat;
+  opacity: 0;
+  animation: ben-day-zap 880ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* ---- balance animation: bursting through ------------------------------------------
+   Each figure punches out of the burst, one after another: from small to a little past
+   full size and back, with a kick of rotation, the way a sound effect is drawn breaking
+   out of its panel. */
+@keyframes ben-day-burst {
+  0% { opacity: 0; transform: scale(0.3) rotate(-12deg); }
+  55% { opacity: 1; transform: scale(1.22) rotate(4deg); }
+  78% { transform: scale(0.95) rotate(-1deg); }
+  100% { opacity: 1; transform: none; }
+}
+[data-theme="ben-day"] .bal-glyph { display: inline-block; }
+[data-theme="ben-day"] .bal-glyph.bal-in {
+  /* The stagger window contract is in splitGlyphs (sidepanel.js). */
+  animation: ben-day-burst 560ms cubic-bezier(0.2, 0.9, 0.3, 1.2)
+             calc(var(--i) * min(70ms, 270ms / max(var(--n) - 1, 1))) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="ben-day"] .bal-glyph.bal-in { animation: none; }
+}
+
+/* ---- ITS CARD IN THE PICKER --------------------------------------------------------
+   Scoped to the card, never prefixed with the active theme (see werkstatte.css). */
+.theme-card[data-theme="ben-day"] {
+  border-radius: 0;
+  color: var(--text);
+}
+.theme-card[data-theme="ben-day"].active {
+  border-color: #111111;
+  box-shadow: 0 0 0 2px #FFD400;
+}

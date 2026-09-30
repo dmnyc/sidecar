@@ -431,14 +431,14 @@
     ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'],
     ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
     ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
-    ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'],
+    ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'], ['ben-day', 'Ben Day'],
   ];
 
   function applyTheme(themeName) {
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium'];
+    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
@@ -1166,9 +1166,15 @@
         .then((s) => {
           // Both branches set it: the node outlives the setting, so a Never lede left
           // behind would still be there after a switch to a timed lock.
+          // Ben Day letters this line as a comic's "Meanwhile…" caption, which trails
+          // off rather than stopping, so it has its own strings ending in an ellipsis.
+          // Strings, not CSS: a stylesheet can add the dots but cannot take the period
+          // away, and a translation has to be able to place them itself.
+          const caption = document.documentElement.getAttribute('data-theme') === 'ben-day';
           $('view-lock').querySelector('.lede').textContent = s && s.autoLockMinutes === 0
-            ? t('Locked since your browser closed. Enter your PIN to unlock.')
-            : t('Enter your PIN to unlock.');
+            ? (caption ? t('Locked since your browser closed. Enter your PIN to unlock…')
+              : t('Locked since your browser closed. Enter your PIN to unlock.'))
+            : (caption ? t('Enter your PIN to unlock…') : t('Enter your PIN to unlock.'));
         })
         .catch(() => {});
       setTimeout(() => $('unlock-pin').focus(), 50);
@@ -17349,7 +17355,13 @@
       });
       b.addEventListener('click', (e) => {
         e.stopPropagation(); // the card itself has a click handler
-        if (key !== range && onRange) onRange(key);
+        if (key === range || !onRange) return;
+        // Marked now rather than when the new chart arrives: the one being replaced stays
+        // on screen while the fetch runs (see paintChart), and it should already say which
+        // range it is about to become.
+        rangeRow.querySelectorAll('.wallet-chart-range-btn')
+          .forEach((x) => x.classList.toggle('active', x === b));
+        onRange(key);
       });
       rangeRow.append(b);
     });
@@ -18784,10 +18796,21 @@
 
     async function paintChart() {
       const seq = ++chartSeq;
-      chartSlot.innerHTML = '';
-      // The one surface that said "Loading" and showed nothing moving, so a slow price
-      // fetch was indistinguishable from a dead one.
-      chartSlot.append(h('div', { className: 'wallet-chart-loading' }, [waitingRow(t('Loading price history…'))]));
+      // SWITCHING RANGE KEEPS THE CHART THAT IS SHOWING, dimmed, until the new one is in.
+      // Replacing it with the loading row swapped about 170px of chart for a row half that
+      // tall and back again, so the card shrank and regrew on every switch, and anything
+      // drawn to the card's size (a theme's background art) jumped with it. The loading
+      // row is for a first showing, when there is nothing on screen to keep.
+      const shown = chartSlot.querySelector('.wallet-chart');
+      if (shown) {
+        shown.classList.add('is-loading');
+        shown.setAttribute('aria-busy', 'true');
+      } else {
+        chartSlot.innerHTML = '';
+        // The one surface that said "Loading" and showed nothing moving, so a slow price
+        // fetch was indistinguishable from a dead one.
+        chartSlot.append(h('div', { className: 'wallet-chart-loading' }, [waitingRow(t('Loading price history…'))]));
+      }
       const history = await getPriceHistory(fiatCurrency, chartRange);
       if (seq !== chartSeq) return; // a newer range was picked while this was in flight
       chartSlot.innerHTML = '';

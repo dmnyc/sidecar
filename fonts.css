@@ -28,6 +28,8 @@
      Ukiyo-e     Kaisei Decol       display mincho, dot ends     the print's title cartouche
      Constellation Cormorant Garamond humanist old-style display    the engraved atlas plate
      Mycelium    Fraunces (soft)    soft "wonky" old-style        something grown, not cut
+     Ben Day     Bangers            hand-lettered comic caps      the sound effect and cover line
+                 + Comic Neue       thin monoline hand lettering  the caption and the hint
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -84,7 +86,8 @@
    Five faces ship as variable fonts — one file spanning the weight range rather than a
    static per weight. The remaining statics are Playfair Display (two woff2 weights),
    Manrope (four), and single-weight TTFs: EB Garamond, Pinyon Script, Nixie Gothic,
-   Rowdies, Impressed Metal, Special Elite, Limelight, and Syncopate. The single-weight faces declare `400 700`, which tells
+   Rowdies, Impressed Metal, Special Elite, Limelight, Syncopate, Bangers, and Comic Neue
+   (a Regular and a Bold, each its own file). The single-weight faces declare `400 700`, which tells
    the browser the one outline covers that whole range, so a 700-weight heading renders
    the real face rather than a synthetic bold or a drop back to Manrope halfway down a
    screen. */
@@ -416,4 +419,40 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/fraunces-soft-var.woff2') format('woff2-variations');
+}
+
+/* Bangers (Vernon Adams, SIL OFL 1.1 — see fonts/OFL-Bangers.txt). Ben Day's display
+   face: the heavy, slanted capitals a letterer drew for a cover line or a sound effect.
+   Capitals only, so it sets titles, names and the balance and never body text.
+   Unmodified TTF, 91KB, for the Reserved Font Name reason given above Rowdies. One
+   weight; `400 700` points the whole range at it. It has no Cyrillic or Greek, and the
+   stack falls back to Impact and then Manrope for those. */
+@font-face {
+  font-family: 'Bangers';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/bangers.ttf') format('truetype');
+}
+
+/* Comic Neue (Craig Rozynski and the Comic Neue Project Authors, SIL OFL 1.1 — see
+   fonts/OFL-ComicNeue.txt). Ben Day's second hand: the thin monoline lettering a comic
+   sets its captions and balloons in, where Bangers is the heavy one for titles and
+   sound effects. The theme sets it in capitals, as a letterer would. The panel's only
+   second display face, and it is not a --font-display: Ben Day reads it from its own
+   --font-lettering. Regular and Bold ship unmodified, 57KB and 56KB. Latin-1 and the
+   ellipsis are covered; Cyrillic and Greek fall back to Manrope. */
+@font-face {
+  font-family: 'Comic Neue';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/comic-neue-regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Comic Neue';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/comic-neue-bold.ttf') format('truetype');
 }
