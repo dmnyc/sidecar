@@ -279,6 +279,13 @@
   // Sidecar, a payment panel's invoice gets the corner pill, never the card by itself,
   // and a tapped lightning: link opens the card. Off, such sites are left entirely alone.
   let pillAnywhere = false;
+  // THE OFFER. With that switch off, a tap on a lightning: link on such a site used to go
+  // straight to the registered app, and nobody learned Sidecar could pay it. Now the first
+  // tap opens the card as an offer ("Sidecar can pay this invoice"). Turning the switch on
+  // is asked on Sidecar's own approval screen, never here. "Don't ask again" sets
+  // payOfferDismissed, and taps go to the app as before.
+  let payOfferDismissed = false;
+  let offerInvoice = ''; // the invoice whose card is the offer, so a redraw keeps its wording
 
   function invoiceSats(bolt11) {
     const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(bolt11);
@@ -1427,7 +1434,12 @@
     //
     // A spend already underway has no business on a card at all now. It goes to the
     // corner indicator, where the present tense is the honest tense.
-    const eyebrow = escapeHtml(msg('cardEyebrow', 'Request to pay'));
+    // The offer, for as long as it still is one: this invoice, on a site not signed in with
+    // Sidecar, with Show on unconnected sites still off.
+    const offer = invoice === offerInvoice && !connectedToSite && !pillAnywhere;
+    const eyebrow = escapeHtml(offer
+      ? msg('cardOfferEyebrow', 'Sidecar can pay this invoice')
+      : msg('cardEyebrow', 'Request to pay'));
     const amountBlock =
       sats != null
         ? '<div class="amt"><span class="num">' + escapeHtml(fmtAmount(sats)) + '</span><span class="unit">' +
@@ -1494,7 +1506,9 @@
       // the one card that offers no settings.
       (errorText
         ? ''
-        : '<label class="tg"><span class="tg-label">' + escapeHtml(msg('cardDontShow', 'Don\'t show this prompt again')) + '</span>' +
+        : '<label class="tg"><span class="tg-label">' + escapeHtml(offer
+            ? msg('cardOfferDontAsk', 'Don\'t ask again')
+            : msg('cardDontShow', 'Don\'t show this prompt again')) + '</span>' +
           '<input class="tg-input tg-showcard-input" type="checkbox">' +
           '<span class="tg-track"><span class="tg-thumb"></span></span></label>') +
       '</div></div>';
@@ -1564,6 +1578,9 @@
             // Intent only. Sidecar's approval screen shows and confirms this, and
             // writes the setting only if the payment is approved.
             enableAutoZap: canOfferAutoZap && offerAutoZapChecked,
+            // Intent only, like the one above: the approval screen asks whether to show
+            // Sidecar on sites like this, and nothing changes unless that is approved.
+            offerPayAnywhere: offer,
           },
           () => void chrome.runtime.lastError
         );
@@ -1605,14 +1622,16 @@
       if (e.target.checked) {
         // The switch for the kind of site this is: "Show on Nostr sites" here on a signed-in
         // site, "Show on unconnected sites" anywhere else.
-        const settings = connectedToSite ? { showPayButton: false } : { payPillAnywhere: false };
+        const settings = offer ? { payOfferDismissed: true }
+          : connectedToSite ? { showPayButton: false } : { payPillAnywhere: false };
         try {
           chrome.runtime.sendMessage(
             { type: 'SIDECAR_SET_SETTINGS', settings },
             () => void chrome.runtime.lastError
           );
         } catch (_) {}
-        if (connectedToSite) showCard = false; else pillAnywhere = false;
+        if (offer) payOfferDismissed = true;
+        else if (connectedToSite) showCard = false; else pillAnywhere = false;
         removeCard();
       }
     });
@@ -1738,15 +1757,22 @@
   // site gives its taps back to that app. A tap Sidecar declines (no wallet, expired, dismissed)
   // falls through to the app as it always did.
   //
-  // ON AN UNCONNECTED SITE TOO, once "Show on unconnected sites" is on. A BTCPay
-  // checkout's "Pay in wallet" is exactly this link on a site with no Nostr in it. Off
-  // (the default), such a site's taps are not Sidecar's to take and go where they always
-  // went. Paying still goes through Sidecar's approval, since such a site has no budget.
+  // ON AN UNCONNECTED SITE TOO. A BTCPay checkout's "Pay in wallet" is exactly this link
+  // on a site with no Nostr in it. With "Show on unconnected sites" on, the tap opens the
+  // card; off (the default), it opens the card as an OFFER (see payOfferDismissed), which
+  // is how anyone finds out Sidecar pays these at all. "Don't ask again" on that offer
+  // gives such a site's taps back to the registered app. Paying still goes through
+  // Sidecar's approval, since such a site has no budget.
   //
   // composedPath rather than closest, because the anchor may live in a shadow root.
   document.addEventListener('click', (e) => {
     if (retired) return;
-    if (!hasWallet || !(connectedToSite ? showCard : pillAnywhere)) return;
+    if (!hasWallet) return;
+    // A signed-in site answers to "Show on Nostr sites". Any other answers to "Show on
+    // unconnected sites", and with that off, to whether the offer was dismissed.
+    let offer = false;
+    if (connectedToSite) { if (!showCard) return; }
+    else if (!pillAnywhere) { if (payOfferDismissed) return; offer = true; }
     const path = (e.composedPath && e.composedPath()) || [];
     for (const el of path) {
       const href = el && el.getAttribute && el.getAttribute('href');
@@ -1758,6 +1784,7 @@
       e.preventDefault();
       tappedInvoice = inv;
       tappedHref = href;
+      if (offer) offerInvoice = inv;
       renderCard(inv);
       return;
     }
@@ -1779,6 +1806,7 @@
     if (msg.event === 'settings') {
       showCard = msg.showPayButton !== false;
       if ('payPillAnywhere' in msg) pillAnywhere = msg.payPillAnywhere === true;
+      if ('payOfferDismissed' in msg) payOfferDismissed = msg.payOfferDismissed === true;
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       scanForInvoice();
     } else if (msg.event === 'autopaying') {
@@ -1847,6 +1875,7 @@
       autoZapOffer = Number(settings.autoZapOffer) || 0;
       hasWallet = settings.hasWallet === true;
       pillAnywhere = settings.payPillAnywhere === true;
+      payOfferDismissed = settings.payOfferDismissed === true;
       setCardTheme(settings.cardTheme || ''); // same reply carries the palette
       scanForInvoice();
     });

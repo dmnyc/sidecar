@@ -913,10 +913,16 @@
           <div class="error" id="approval-pin-error"></div>
         </div>
 
+        <!-- One group, so stacked checkboxes share a left edge — see prompt.html. -->
+        <div class="check-group">
         <!-- Offered by the payment card, confirmed here — see prompt.html. -->
         <div id="approval-autozap-offer" class="remember hidden">
           <label class="check"><input type="checkbox" id="approval-autozap-offer-box" checked />
           <span id="approval-autozap-offer-label" data-i18n="Turn on Auto Zaps" data-i18n-review>Turn on Auto Zaps</span></label>
+        </div>
+        <div id="approval-payanywhere-offer" class="remember hidden">
+          <label class="check"><input type="checkbox" id="approval-payanywhere-offer-box" />
+          <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
         </div>
 
         <div id="approval-remember" class="remember hidden">
@@ -925,6 +931,7 @@
             <input type="text" inputmode="numeric" id="approval-budget-amount" placeholder="sats" data-i18n-placeholder="sats" />
             <span class="budget-unit" data-i18n="sats / day without asking" data-i18n-review>sats / day without asking</span>
           </div>
+        </div>
         </div>
 
         <div id="approval-relax-row" class="relax-row hidden">

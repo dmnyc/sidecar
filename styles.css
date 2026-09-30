@@ -4611,6 +4611,14 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .remember .check { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text); font-size: 13px; margin-bottom: 8px; cursor: pointer; }
 .remember input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
 .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+/* The approval's checkboxes as one group (sidepanel.html): as wide as the widest row and
+   centered, so a lone checkbox sits where it always did, while stacked ones share a left
+   edge. Not indented under its label: in a narrow window that wrapped the unit text. A
+   longer language may still wrap it, flush left with the rows. */
+.check-group { width: fit-content; max-width: 100%; margin: 0 auto; }
+.check-group .remember .check { justify-content: flex-start; }
+.check-group .budget-row { justify-content: flex-start; }
+.check-group .budget-unit { text-align: left; }
 .remember input[type=text], .remember input[type=number] {
   width: 110px; flex-shrink: 0; padding: 9px 11px; font-size: 14px; font-family: var(--font-mono);
 }

@@ -170,5 +170,13 @@
   "cardOtherWallet": {
     "message": "Open in another wallet",
     "description": "On the pay card: hands the invoice to whichever Lightning app is registered on this computer instead of paying with Sidecar."
+  },
+  "cardOfferEyebrow": {
+    "message": "Sidecar can pay this invoice",
+    "description": "Heading of the pay card when it is offered on a site not signed in with Sidecar, after the person taps a Lightning link."
+  },
+  "cardOfferDontAsk": {
+    "message": "Don't ask again",
+    "description": "On the offer card: stop offering to pay Lightning links on sites not signed in with Sidecar."
   }
 }
