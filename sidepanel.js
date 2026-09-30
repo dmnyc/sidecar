@@ -14802,9 +14802,29 @@
   }
 
 
+  // Read from where the backup is WRITTEN. backupNwcToRelays publishes to postRelays()
+  // (the account's NIP-65 write relays, plus the configured ones unless bootstrap relays
+  // are off), but this used to read the configured relays alone. With a relay list that
+  // differs from Settings, or with bootstrap off, every new backup landed on relays this
+  // never asked, while the configured ones kept the previous wallet's ciphertext — so the
+  // check said "different wallet" no matter how many times it was saved again.
+  //
+  // The configured relays stay in the set when bootstrap is on: an older backup written
+  // before a relay list existed may only be there, and get() keeps the newest copy, so a
+  // stale one on a relay that wasn't updated can't outrank the fresh one. With bootstrap
+  // off they are left out, since those are the relays the account asked to stop using.
+  // An unresolved list in that mode throws (RelayListUnavailable), which callers read as
+  // "couldn't check" rather than "no backup".
+  async function backupReadRelays() {
+    const urls = [...(await postRelays())];
+    if (!(await nip65OnlyFor(state.activePubkey))) urls.push(...(await relayUrls(false)));
+    return [...new Set(urls.map(normalizeRelay))];
+  }
+
   async function fetchBackupEvent(dtag) {
+    const relays = await backupReadRelays();
     return Promise.race([
-      poolGet(await relayUrls(false), { kinds: [30078], authors: [state.activePubkey], '#d': [dtag] }),
+      poolGet(relays, { kinds: [30078], authors: [state.activePubkey], '#d': [dtag] }),
       new Promise((res) => setTimeout(() => res(null), 6000)),
     ]).catch(() => null);
   }
